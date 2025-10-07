@@ -9,8 +9,10 @@
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
-#include "generated/shaders/draw_path.glsl.hpp"
-#include "generated/shaders/draw_image_mesh.glsl.hpp"
+#include "generated/shaders/draw_path.vert.hpp"
+#include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/draw_image_mesh.vert.hpp"
+#include "generated/shaders/draw_raster_order_image_mesh.frag.hpp"
 
 #ifndef RIVE_IOS
 // iOS doesn't need the atomic shaders; every non-simulated iOS device supports
@@ -144,15 +146,20 @@ void BackgroundShaderCompiler::threadMain()
                 defines[@GLSL_ENABLE_INSTANCE_INDEX] = @"";
                 defines[@GLSL_DRAW_PATH] = @"";
                 [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
-#ifdef RIVE_IOS
-                [source appendFormat:@"%s\n", gpu::glsl::draw_path];
-#else
-                [source appendFormat:@"%s\n",
-                                     interlockMode ==
-                                             gpu::InterlockMode::rasterOrdering
-                                         ? gpu::glsl::draw_path
-                                         : gpu::glsl::atomic_draw];
+#ifndef RIVE_IOS
+                if (interlockMode == gpu::InterlockMode::atomics)
+                {
+                    [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
+                }
+                else
 #endif
+                {
+                    assert(interlockMode == gpu::InterlockMode::rasterOrdering);
+                    [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
+                    [source
+                        appendFormat:@"%s\n",
+                                     gpu::glsl::draw_raster_order_path_frag];
+                }
                 break;
             case DrawType::atlasBlit:
                 defines[@GLSL_ATLAS_BLIT] = @"1";
@@ -160,15 +167,20 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::interiorTriangulation:
                 defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
                 [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
-#ifdef RIVE_IOS
-                [source appendFormat:@"%s\n", gpu::glsl::draw_path];
-#else
-                [source appendFormat:@"%s\n",
-                                     interlockMode ==
-                                             gpu::InterlockMode::rasterOrdering
-                                         ? gpu::glsl::draw_path
-                                         : gpu::glsl::atomic_draw];
+#ifndef RIVE_IOS
+                if (interlockMode == gpu::InterlockMode::atomics)
+                {
+                    [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
+                }
+                else
 #endif
+                {
+                    assert(interlockMode == gpu::InterlockMode::rasterOrdering);
+                    [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
+                    [source
+                        appendFormat:@"%s\n",
+                                     gpu::glsl::draw_raster_order_path_frag];
+                }
                 break;
             case DrawType::imageRect:
 #ifdef RIVE_IOS
@@ -184,19 +196,22 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::imageMesh:
                 defines[@GLSL_DRAW_IMAGE] = @"";
                 defines[@GLSL_DRAW_IMAGE_MESH] = @"";
-#ifdef RIVE_IOS
-                [source appendFormat:@"%s\n", gpu::glsl::draw_image_mesh];
-#else
-                if (interlockMode == gpu::InterlockMode::rasterOrdering)
-                {
-                    [source appendFormat:@"%s\n", gpu::glsl::draw_image_mesh];
-                }
-                else
+#ifndef RIVE_IOS
+                if (interlockMode == gpu::InterlockMode::atomics)
                 {
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
                     [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
                 }
+                else
 #endif
+                {
+                    assert(interlockMode == gpu::InterlockMode::rasterOrdering);
+                    [source
+                        appendFormat:@"%s\n", gpu::glsl::draw_image_mesh_vert];
+                    [source appendFormat:@"%s\n",
+                                         gpu::glsl::
+                                             draw_raster_order_image_mesh_frag];
+                }
                 break;
             case DrawType::renderPassInitialize:
 #ifdef RIVE_IOS

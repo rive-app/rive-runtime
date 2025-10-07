@@ -9,4 +9,5 @@
 #include "specialization.minified.glsl"
 #include "common.minified.glsl"
 #include "advanced_blend.minified.glsl"
-#include "draw_image_mesh.minified.glsl"
+#include "draw_image_mesh.minified.vert"
+#include "draw_raster_order_image_mesh.minified.frag"

@@ -8,7 +8,7 @@
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "shaders/constants.glsl"
 
-#include "generated/shaders/glsl.exports.h"
+#include "generated/shaders/glsl.glsl.exports.h"
 
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>

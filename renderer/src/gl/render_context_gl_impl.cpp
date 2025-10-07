@@ -18,8 +18,12 @@
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
-#include "generated/shaders/draw_path.glsl.hpp"
-#include "generated/shaders/draw_image_mesh.glsl.hpp"
+#include "generated/shaders/draw_path.vert.hpp"
+#include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/draw_msaa_path.frag.hpp"
+#include "generated/shaders/draw_image_mesh.vert.hpp"
+#include "generated/shaders/draw_raster_order_image_mesh.frag.hpp"
+#include "generated/shaders/draw_msaa_image_mesh.frag.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/render_atlas.glsl.hpp"
@@ -1098,9 +1102,18 @@ RenderContextGLImpl::DrawShader::DrawShader(
             }
             defines.push_back(GLSL_DRAW_PATH);
             sources.push_back(gpu::glsl::draw_path_common);
-            sources.push_back(interlockMode == gpu::InterlockMode::atomics
-                                  ? gpu::glsl::atomic_draw
-                                  : gpu::glsl::draw_path);
+            if (interlockMode == gpu::InterlockMode::atomics)
+            {
+                sources.push_back(gpu::glsl::atomic_draw);
+            }
+            else
+            {
+
+                sources.push_back(gpu::glsl::draw_path_vert);
+                sources.push_back(interlockMode == gpu::InterlockMode::msaa
+                                      ? gpu::glsl::draw_msaa_path_frag
+                                      : gpu::glsl::draw_raster_order_path_frag);
+            }
             break;
         case gpu::DrawType::msaaStencilClipReset:
             assert(interlockMode == gpu::InterlockMode::msaa);
@@ -1128,9 +1141,18 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::interiorTriangulation:
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
             sources.push_back(gpu::glsl::draw_path_common);
-            sources.push_back(interlockMode == gpu::InterlockMode::atomics
-                                  ? gpu::glsl::atomic_draw
-                                  : gpu::glsl::draw_path);
+            if (interlockMode == gpu::InterlockMode::atomics)
+            {
+                sources.push_back(gpu::glsl::atomic_draw);
+            }
+            else
+            {
+
+                sources.push_back(gpu::glsl::draw_path_vert);
+                sources.push_back(interlockMode == gpu::InterlockMode::msaa
+                                      ? gpu::glsl::draw_msaa_path_frag
+                                      : gpu::glsl::draw_raster_order_path_frag);
+            }
             break;
         case gpu::DrawType::imageRect:
             assert(interlockMode == gpu::InterlockMode::atomics);
@@ -1149,7 +1171,11 @@ RenderContextGLImpl::DrawShader::DrawShader(
             }
             else
             {
-                sources.push_back(gpu::glsl::draw_image_mesh);
+                sources.push_back(gpu::glsl::draw_image_mesh_vert);
+                sources.push_back(
+                    interlockMode == gpu::InterlockMode::msaa
+                        ? gpu::glsl::draw_msaa_image_mesh_frag
+                        : gpu::glsl::draw_raster_order_image_mesh_frag);
             }
             break;
         case gpu::DrawType::renderPassResolve:

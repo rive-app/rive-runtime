@@ -69,9 +69,11 @@ constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/render_atlas.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
-#include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
-#include "generated/shaders/draw_image_mesh.glsl.hpp"
+#include "generated/shaders/draw_path.vert.hpp"
+#include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/draw_image_mesh.vert.hpp"
+#include "generated/shaders/draw_raster_order_image_mesh.frag.hpp"
 
 // When compiling "glslRaw" shaders, the WebGPU driver will automatically
 // search for a uniform with this name and update its value when draw commands
@@ -845,15 +847,19 @@ public:
                 case DrawType::outerCurvePatches:
                     addDefine(GLSL_DRAW_PATH);
                     glsl << gpu::glsl::draw_path_common << '\n';
-                    glsl << gpu::glsl::draw_path << '\n';
+                    glsl << gpu::glsl::draw_path_vert << '\n';
+                    glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
                     break;
                 case DrawType::interiorTriangulation:
                 case DrawType::atlasBlit:
                     glsl << gpu::glsl::draw_path_common << '\n';
-                    glsl << gpu::glsl::draw_path << '\n';
+                    glsl << gpu::glsl::draw_path_vert << '\n';
+                    glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
                     break;
                 case DrawType::imageMesh:
-                    glsl << gpu::glsl::draw_image_mesh << '\n';
+                    glsl << gpu::glsl::draw_image_mesh_vert << '\n';
+                    glsl << gpu::glsl::draw_raster_order_image_mesh_frag
+                         << '\n';
                     break;
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:

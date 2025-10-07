@@ -10,7 +10,7 @@
 #include "shaders/constants.glsl"
 #include <sstream>
 
-#include "generated/shaders/pls_load_store_ext.exports.h"
+#include "generated/shaders/pls_load_store_ext.glsl.exports.h"
 
 namespace rive::gpu
 {

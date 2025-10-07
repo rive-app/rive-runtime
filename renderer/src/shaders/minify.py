@@ -549,8 +549,8 @@ class Minifier:
 
 
     def write_exports(self, outdir):
-        output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".exports.h")
-        print("Exporting %s <- %s" % (output_path, self.basename))
+        output_path = os.path.join(outdir, f"{self.basename}.exports.h")
+        print(f"Exporting {output_path} <- {self.basename}")
         out = open(output_path, "w", newline='\n')
         out.write('#pragma once\n\n')
         for exp in sorted(self.exports):
@@ -565,13 +565,17 @@ class Minifier:
         out = open(output_path, "w", newline='\n')
         out.write("#pragma once\n\n")
 
-        out.write('#include "%s"\n\n' % (os.path.splitext(self.basename)[0] + ".exports.h"))
+        out.write(f'#include "{self.basename}.exports.h"\n\n')
 
         # emit shader code.
+        root, ext = os.path.splitext(self.basename)
+        cpp_name = root
+        if ext != '.glsl':
+            cpp_name = f"{root}_{ext[1:]}"
         out.write("namespace rive {\n")
         out.write("namespace gpu {\n")
         out.write("namespace glsl {\n")
-        out.write('const char %s[] = R"===(' % os.path.splitext(self.basename)[0])
+        out.write(f'const char {cpp_name}[] = R"===(')
 
         is_newline = self.emit_tokens_to_rewritten_glsl(out, preserve_exported_switches=False)
         if not is_newline:
@@ -584,8 +588,9 @@ class Minifier:
         out.close()
 
     def write_offline_glsl(self, outdir):
-        output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".minified.glsl")
-        print("Minifying %s <- %s" % (output_path, self.basename))
+        root, ext = os.path.splitext(self.basename)
+        output_path = os.path.join(outdir, f"{root}.minified{ext}")
+        print(f"Minifying f{output_path} <- {self.basename}")
         out = open(output_path, "w", newline='\n')
         self.emit_tokens_to_rewritten_glsl(out, preserve_exported_switches=True)
         out.close()

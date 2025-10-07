@@ -4,18 +4,7 @@
 #include "rive/renderer/d3d12/d3d12_pipeline_manager.hpp"
 #include "rive/renderer/d3d/d3d_constants.hpp"
 
-#include "generated/shaders/advanced_blend.glsl.hpp"
-#include "generated/shaders/atomic_draw.glsl.hpp"
-#include "generated/shaders/color_ramp.glsl.hpp"
-#include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/common.glsl.hpp"
-#include "generated/shaders/draw_image_mesh.glsl.hpp"
-#include "generated/shaders/draw_path_common.glsl.hpp"
-#include "generated/shaders/draw_path.glsl.hpp"
-#include "generated/shaders/hlsl.glsl.hpp"
-#include "generated/shaders/bezier_utils.glsl.hpp"
-#include "generated/shaders/render_atlas.glsl.hpp"
-#include "generated/shaders/tessellate.glsl.hpp"
+#include "generated/shaders/tessellate.glsl.exports.h"
 
 // offline shaders
 namespace shader

@@ -11,8 +11,8 @@
 #include "shaders/constants.glsl"
 #include <sstream>
 
-#include "generated/shaders/color_ramp.exports.h"
-#include "generated/shaders/tessellate.exports.h"
+#include "generated/shaders/color_ramp.glsl.exports.h"
+#include "generated/shaders/tessellate.glsl.exports.h"
 
 #if defined(RIVE_IOS_SIMULATOR)
 #import <mach-o/arch.h>

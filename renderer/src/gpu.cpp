@@ -10,7 +10,7 @@
 #include "rive_render_paint.hpp"
 #include "gradient.hpp"
 
-#include "generated/shaders/draw_path.exports.h"
+#include "generated/shaders/draw_path.vert.exports.h"
 
 namespace rive::gpu
 {

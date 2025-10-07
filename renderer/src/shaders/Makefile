@@ -7,7 +7,7 @@ OUT := out/generated
 FLAGS :=
 
 ## Shader minification.
-MINIFY_INPUTS := $(wildcard *.glsl)
+MINIFY_INPUTS := $(wildcard *.glsl) $(wildcard *.vert) $(wildcard *.frag)
 MINIFY_EXPORT_OUTPUTS := $(addprefix $(OUT)/, $(patsubst %.glsl, %.exports.h, $(MINIFY_INPUTS)))
 MINIFY_GLSL_OUTPUTS := $(addprefix $(OUT)/, $(patsubst %.glsl, %.minified.glsl, $(MINIFY_INPUTS)))
 MINIFY_HPP_OUTPUTS := $(addprefix $(OUT)/, $(patsubst %.glsl, %.glsl.hpp, $(MINIFY_INPUTS)))

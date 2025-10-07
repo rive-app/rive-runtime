@@ -277,9 +277,9 @@ private:
     glutils::Texture m_atlasTexture = glutils::Texture::Zero();
     glutils::Framebuffer m_atlasFBO;
 
-    // Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl,
-    // either vertex or fragment, with a specific set of features enabled via
-    // #define. The set of features to enable is dictated by ShaderFeatures.
+    // Wraps a compiled GL "draw" shader, either vertex or fragment, with a
+    // specific set of features enabled via #define. The set of features to
+    // enable is dictated by ShaderFeatures.
     class DrawShader
     {
     public:
@@ -304,9 +304,9 @@ private:
         GLuint m_id = 0;
     };
 
-    // Wraps a compiled and linked GL program of draw_path.glsl or
-    // draw_image_mesh.glsl, with a specific set of features enabled via
-    // #define. The set of features to enable is dictated by ShaderFeatures.
+    // Wraps a compiled and linked GL "draw" program, with a specific set of
+    // features enabled via #define. The set of features to enable is dictated
+    // by ShaderFeatures.
     class DrawProgram
     {
     public:

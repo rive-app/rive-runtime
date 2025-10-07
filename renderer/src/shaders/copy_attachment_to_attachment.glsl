@@ -23,6 +23,8 @@ layout(input_attachment_index = 0,
        binding = MSAA_COLOR_SEED_IDX,
        set = PLS_TEXTURE_BINDINGS_SET) uniform lowp subpassInput
     inputAttachment;
+
 layout(location = 0) out half4 outputColor;
+
 void main() { outputColor = subpassLoad(inputAttachment); }
 #endif

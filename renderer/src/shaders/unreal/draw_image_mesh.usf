@@ -14,4 +14,5 @@
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
-#include "Generated/draw_image_mesh.minified.ush"
+#include "Generated/draw_image_mesh.minified.vert.ush"
+#include "Generated/draw_raster_order_image_mesh.minified.frag.ush"

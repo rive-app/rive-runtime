@@ -8,7 +8,7 @@
 #include "shaders/constants.glsl"
 #include "rive/renderer/gl/gl_utils.hpp"
 
-#include "generated/shaders/glsl.exports.h"
+#include "generated/shaders/glsl.glsl.exports.h"
 
 namespace rive::gpu
 {

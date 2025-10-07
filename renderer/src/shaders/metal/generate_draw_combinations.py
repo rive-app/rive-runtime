@@ -87,12 +87,14 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
                   ('c' if fill_type == FillType.CLOCKWISE else 'p',
                    ''.join(namespace_id)))
         out.write('{\n')
-        out.write('#include "draw_path.minified.glsl"\n')
+        out.write('#include "draw_path.minified.vert"\n')
+        out.write('#include "draw_raster_order_path.minified.frag"\n')
         out.write('}\n')
     else:
         out.write('namespace m%s\n' % ''.join(namespace_id))
         out.write('{\n')
-        out.write('#include "draw_image_mesh.minified.glsl"\n')
+        out.write('#include "draw_image_mesh.minified.vert"\n')
+        out.write('#include "draw_raster_order_image_mesh.minified.frag"\n')
         out.write('}\n')
     for feature in feature_set:
         out.write('#undef %s\n' % feature.name)
