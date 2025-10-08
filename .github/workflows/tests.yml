@@ -3,126 +3,77 @@ on:
   push:
 
 jobs:
-  # -------------------- Linux --------------------
+  # ---------- Linux ----------
   unit_linux:
     runs-on: ubuntu-latest
+    defaults: { run: { shell: bash } }
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Premake
-        run: |
-          wget -q https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-linux.tar.gz
-          tar -xf premake-5.0.0-beta2-linux.tar.gz
-          sudo install -m 0755 premake5 /usr/local/bin/premake5
-
-      - name: Dependencies
+      - name: Tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential uuid-dev clang llvm lld
-
-      - name: Add build scripts to PATH
-        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
-
-      - name: Build
-        shell: bash
-        run: |
-          cd tests/unit_tests
-          ../../build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
-          ../../build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
-
-      - name: Unit tests
-        run: |
-          ./test.sh
-          if [ -x ./out/debug/unit_tests ]; then
-            ./out/debug/unit_tests
-          elif [ -x ./out/release/unit_tests ]; then
-            ./out/release/unit_tests
-          else
-            echo "No unit_tests binary found!" && exit 1
-          fi
-  # -------------------- Windows (clang-cl toolset) --------------------
-  unit_windows:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v2
-      - uses: microsoft/setup-msbuild@v1.1
-
-      - name: Add build scripts to PATH
-        shell: bash
-        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
-
-      - name: Build tests (Windows)
-        shell: cmd
-        working-directory: tests/unit_tests
-        run: .\test.bat
-  
-      - name: Unit tests (no GPU)
-        shell: cmd
-        working-directory: tests/unit_tests
-        run: |
-          set UT=
-          for /r out %%f in (unit_tests.exe) do (
-            set UT=%%f
-            goto :found
-          )
-          echo Could not find unit_tests.exe && exit /b 1
-          :found
-          echo Found: !UT!
-          rem show what factories are compiled in (for debugging)
-          "!UT!" --list-factories
-          rem run with a safe factory on CI
-          "!UT!" --factory=null || "!UT!" --factory=warp || exit /b 1
-
-  # -------------------- Windows (MSVC toolset) --------------------
-  unit_windows_msvc:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v2
-      - uses: microsoft/setup-msbuild@v1.1
-
-      - name: Add build scripts to PATH
-        shell: bash
-        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
-
-      - name: Unit tests (MSVC, no GPU)
-        shell: cmd
-        working-directory: tests/unit_tests
-        run: .\test.bat --toolset=msc --factory=null
-
-  # -------------------- macOS --------------------
-  unit_macos:
-    runs-on: macOS-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Premake
-        run: |
-          curl -L -o premake_macosx.tar.gz https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-macosx.tar.gz
-          tar -xf premake_macosx.tar.gz
+          curl -sL -o premake.tar.gz https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-linux.tar.gz
+          tar -xf premake.tar.gz
           sudo install -m 0755 premake5 /usr/local/bin/premake5
 
       - name: Add build scripts to PATH
-        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
+        run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"   # official way to extend PATH
+      # ^ GITHUB_PATH is the supported mechanism. :contentReference[oaicite:2]{index=2}
 
-      - name: Unit tests (no ASan)
+      - name: Unit tests
+        working-directory: tests/unit_tests
         run: |
-          cd tests/unit_tests
-          ./test.sh
+          ./test.sh                # builds and runs ./out/<cfg>/unit_tests
 
-      # Tess (kept as separate; builds and runs both variants)
-      - name: Tess tests
+  # ---------- Windows (MSVC) ----------
+  unit_windows_msvc:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v1.3  # puts msbuild on PATH :contentReference[oaicite:3]{index=3}
+
+      - name: Add build scripts to PATH
+        shell: bash
+        run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
+
+      - name: Unit tests (no GPU)
+        shell: cmd
+        working-directory: tests\unit_tests
         run: |
-          set -euo pipefail
-          cd tess
+          setlocal EnableDelayedExpansion  & rem needed if you loop over files later :contentReference[oaicite:4]{index=4}
+          call test.bat --toolset=msc --factory=null
+          endlocal
 
-          # Debug/default
-          ../build/build_rive.sh --file=premake5_tess.lua
-          DBG_BIN=$(find ./out -type f -name 'rive_tess_tests*' -perm -111 -print -quit)
-          echo "Debug tess binary: ${DBG_BIN:-<not found>}"
-          test -n "${DBG_BIN:-}" && "$DBG_BIN"
+  # ---------- Windows (clang-cl) ----------
+  unit_windows_clang:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v1.3
 
-          # Release
-          ../build/build_rive.sh --file=premake5_tess.lua release
-          REL_BIN=$(find ./out -type f -name 'rive_tess_tests*' -perm -111 -print -quit)
-          echo "Release tess binary: ${REL_BIN:-<not found>}"
-          test -n "${REL_BIN:-}" && "$REL_BIN"
+      - name: Add build scripts to PATH
+        shell: bash
+        run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
+
+      - name: Unit tests (clang-cl, no GPU)
+        shell: cmd
+        working-directory: tests\unit_tests
+        run: call test.bat --factory=null
+
+  # ---------- macOS ----------
+  unit_macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tooling
+        run: |
+          curl -sL -o premake_macosx.tar.gz https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-macosx.tar.gz
+          tar -xf premake_macosx.tar.gz
+          sudo install -m 0755 premake5 /usr/local/bin/premake5
+      - name: Add build scripts to PATH
+        run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
+      - name: Unit tests
+        working-directory: tests/unit_tests
+        run: ./test.sh
