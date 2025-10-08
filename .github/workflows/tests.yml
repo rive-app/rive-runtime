@@ -51,6 +51,11 @@ jobs:
         shell: bash
         run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
 
+      - name: Build tests (Windows)
+        shell: cmd
+        working-directory: tests/unit_tests
+        run: .\test.bat
+  
       - name: Unit tests (no GPU)
         shell: cmd
         working-directory: tests/unit_tests
