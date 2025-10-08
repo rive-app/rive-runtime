@@ -32,6 +32,10 @@ void ForegroundLayoutDrawable::update(ComponentDirt value)
         {
             propagateOpacity(parentLayout->childOpacity());
         }
+        if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform))
+        {
+            invalidateStrokeEffects();
+        }
     }
 }
 
