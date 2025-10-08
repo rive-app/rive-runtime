@@ -29,11 +29,17 @@ jobs:
           build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
           build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
 
-      - name: Unit tests (no ASan)
+      - name: Unit tests
         run: |
           cd tests/unit_tests
           ./test.sh
-
+          if [ -x ./out/debug/unit_tests ]; then
+            ./out/debug/unit_tests
+          elif [ -x ./out/release/unit_tests ]; then
+            ./out/release/unit_tests
+          else
+            echo "No unit_tests binary found!" && exit 1
+          fi
   # -------------------- Windows (clang-cl toolset) --------------------
   unit_windows:
     runs-on: windows-2022
