@@ -19,32 +19,35 @@ jobs:
           sudo install -m 0755 premake5 /usr/local/bin/premake5
 
       - name: Add build scripts to PATH
-        run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"   # official way to extend PATH
-      # ^ GITHUB_PATH is the supported mechanism. :contentReference[oaicite:2]{index=2}
+        run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
 
-      - name: Unit tests
-        working-directory: tests/unit_tests
+      - name: Build
+        shell: bash
         run: |
-          ./test.sh                # builds and runs ./out/<cfg>/unit_tests
+          build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
+          build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
+
+      - name: Tests
+        shell: bash
+        run: |
+          cd tests/unit_tests
+          ./test.sh asan
 
   # ---------- Windows (MSVC) ----------
   unit_windows_msvc:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: microsoft/setup-msbuild@v1.3  # puts msbuild on PATH :contentReference[oaicite:3]{index=3}
+      - uses: microsoft/setup-msbuild@v1.3
 
       - name: Add build scripts to PATH
         shell: bash
         run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
 
-      - name: Unit tests (no GPU)
+      - name: Unit tests
         shell: cmd
         working-directory: tests\unit_tests
-        run: |
-          setlocal EnableDelayedExpansion  & rem needed if you loop over files later :contentReference[oaicite:4]{index=4}
-          call test.bat --toolset=msc --factory=null
-          endlocal
+        run: ./test.bat --toolset=msc
 
   # ---------- Windows (clang-cl) ----------
   unit_windows_clang:
@@ -57,10 +60,10 @@ jobs:
         shell: bash
         run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
 
-      - name: Unit tests (clang-cl, no GPU)
+      - name: Unit tests (clang-cl)
         shell: cmd
         working-directory: tests\unit_tests
-        run: call test.bat --factory=null
+        run: ./test.bat
 
   # ---------- macOS ----------
   unit_macos:
