@@ -65,12 +65,12 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
     dataBind->container(this);
 }
 
-void DataBindContainer::updateDataBind(DataBind* dataBind,
+bool DataBindContainer::updateDataBind(DataBind* dataBind,
                                        bool applyTargetToSource)
 {
     if (dataBind->canSkip())
     {
-        return;
+        return false;
     }
     auto d = dataBind->dirt();
 
@@ -96,6 +96,7 @@ void DataBindContainer::updateDataBind(DataBind* dataBind,
 
         dataBind->updateSourceBinding();
     }
+    return true;
 }
 
 void DataBindContainer::updateDataBinds(bool applyTargetToSource)
@@ -109,9 +110,15 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
         // data binds on this list don't need to apply target to source because
         // any data bind that applies to source is collected on the
         // m_persistingDataBinds list
-        updateDataBind(dataBind, false);
+        if (!updateDataBind(dataBind, false))
+        {
+            m_unprocessedDirtyDataBinds.push_back(dataBind);
+        }
     }
     m_dirtyDataBinds.clear();
+    m_dirtyDataBinds.assign(m_unprocessedDirtyDataBinds.begin(),
+                            m_unprocessedDirtyDataBinds.end());
+    m_unprocessedDirtyDataBinds.clear();
 }
 
 void DataBindContainer::sortDataBinds()
