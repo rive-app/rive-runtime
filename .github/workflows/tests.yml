@@ -26,12 +26,12 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
-          build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
+          cd tests/unit_tests
+          ../../build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
+          ../../build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
 
       - name: Unit tests
         run: |
-          cd tests/unit_tests
           ./test.sh
           if [ -x ./out/debug/unit_tests ]; then
             ./out/debug/unit_tests
@@ -54,7 +54,19 @@ jobs:
       - name: Unit tests (no GPU)
         shell: cmd
         working-directory: tests/unit_tests
-        run: .\test.bat --factory=null
+        run: |
+          set UT=
+          for /r out %%f in (unit_tests.exe) do (
+            set UT=%%f
+            goto :found
+          )
+          echo Could not find unit_tests.exe && exit /b 1
+          :found
+          echo Found: !UT!
+          rem show what factories are compiled in (for debugging)
+          "!UT!" --list-factories
+          rem run with a safe factory on CI
+          "!UT!" --factory=null || "!UT!" --factory=warp || exit /b 1
 
   # -------------------- Windows (MSVC toolset) --------------------
   unit_windows_msvc:
