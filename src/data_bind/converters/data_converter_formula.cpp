@@ -498,7 +498,7 @@ void DataConverterFormula::addOutputToken(FormulaToken* token,
 Core* DataConverterFormula::clone() const
 {
     auto cloned = DataConverterFormulaBase::clone()->as<DataConverterFormula>();
-    // Instead of cloning all tookens, we can clone the processed tokens that
+    // Instead of cloning all tokens, we can clone the processed tokens that
     // will be used during conversion
     for (auto& token : m_outputQueue)
     {
@@ -515,7 +515,6 @@ Core* DataConverterFormula::clone() const
             if (dataBind->target() == token)
             {
                 cloned->dataBinds()[index]->target(clonedToken);
-                break;
             }
             index++;
         }
