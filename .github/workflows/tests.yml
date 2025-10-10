@@ -54,7 +54,7 @@ jobs:
 
       - name: Unit tests
         shell: cmd
-        working-directory: tests\unit_tests
+        working-directory: tests/unit_tests
         run: ./test.bat --toolset=msc
 
   # ---------- Windows (clang-cl) ----------
@@ -75,7 +75,7 @@ jobs:
 
       - name: Unit tests (clang-cl)
         shell: cmd
-        working-directory: tests\unit_tests
+        working-directory: tests/unit_tests
         run: ./test.bat
 
   # ---------- macOS ----------
