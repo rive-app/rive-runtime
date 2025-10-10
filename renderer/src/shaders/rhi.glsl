@@ -269,7 +269,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
     DATA_TYPE NAME(Varyings _varyings) : $SV_Target                            \
-    {
+    {                                                                          \
+        float2 _fragCoord = _varyings._pos.xy;                                 \
+        int2 _plsCoord = int2(floor(_fragCoord));
 
 #define EMIT_FRAG_DATA(VALUE)                                                  \
     return VALUE;                                                              \

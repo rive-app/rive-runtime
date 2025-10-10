@@ -15,6 +15,9 @@ VERTEX_TEXTURE_BLOCK_END
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 VERTEX_STORAGE_BUFFER_BLOCK_END
 
+ATTR_BLOCK_BEGIN(Attrs)
+ATTR_BLOCK_END
+
 VERTEX_MAIN(@blitVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     // Fill the entire screen. The caller will use a scissor test to control the
