@@ -47,6 +47,11 @@ jobs:
         shell: bash
         run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
 
+      - name: Install Dependencies
+        run: |
+          choco install make
+          choco install ninja
+
       - name: Unit tests
         shell: cmd
         working-directory: tests\unit_tests
@@ -62,6 +67,11 @@ jobs:
       - name: Add build scripts to PATH
         shell: bash
         run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
+
+      - name: Install Dependencies
+        run: |
+          choco install make
+          choco install ninja
 
       - name: Unit tests (clang-cl)
         shell: cmd
