@@ -18,6 +18,9 @@ jobs:
           tar -xf premake.tar.gz
           sudo install -m 0755 premake5 /usr/local/bin/premake5
 
+      - name: Install C++ dependencies
+        run: sudo apt update && sudo apt-get -y install build-essential clang g++ llvm-dev uuid-dev
+
       - name: Add build scripts to PATH
         run: echo "${{ github.workspace }}/build" >> "$GITHUB_PATH"
 
