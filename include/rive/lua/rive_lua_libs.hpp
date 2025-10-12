@@ -14,6 +14,10 @@
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/data_bind/data_values/data_value.hpp"
+#include "rive/data_bind/data_values/data_value_boolean.hpp"
+#include "rive/data_bind/data_values/data_value_number.hpp"
+#include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
@@ -115,7 +119,12 @@ enum class LuaAtoms : int16_t
     advance,
     frameOrigin,
     data,
-    instance
+    instance,
+
+    // Scripted DataValues
+    isNumber,
+    isString,
+    isBoolean
 };
 
 struct ScriptedMat2D
@@ -602,6 +611,64 @@ public:
 private:
     lua_State* m_state;
     ScriptingContext* m_context;
+};
+
+class ScriptedDataValue
+{
+public:
+    ScriptedDataValue(lua_State* L) { m_state = L; }
+    virtual ~ScriptedDataValue();
+    static constexpr const char* luaName = "DataValue";
+    DataValue* dataValue() { return m_dataValue; }
+    virtual bool isNumber() { return false; }
+    virtual bool isString() { return false; }
+    virtual bool isBoolean() { return false; }
+
+    const lua_State* state() const { return m_state; }
+
+protected:
+    lua_State* m_state;
+    DataValue* m_dataValue = nullptr;
+};
+
+class ScriptedDataValueNumber : public ScriptedDataValue
+{
+public:
+    ScriptedDataValueNumber(lua_State* L, float value) : ScriptedDataValue(L)
+    {
+        m_dataValue = new DataValueNumber(value);
+    }
+    static constexpr bool hasMetatable = true;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 20;
+    static constexpr const char* luaName = "DataValueNumber";
+    bool isNumber() override { return true; }
+};
+
+class ScriptedDataValueString : public ScriptedDataValue
+{
+public:
+    ScriptedDataValueString(lua_State* L, std::string value) :
+        ScriptedDataValue(L)
+    {
+        m_dataValue = new DataValueString(value);
+    }
+    static constexpr bool hasMetatable = true;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 21;
+    static constexpr const char* luaName = "DataValueString";
+    bool isString() override { return true; }
+};
+
+class ScriptedDataValueBoolean : public ScriptedDataValue
+{
+public:
+    ScriptedDataValueBoolean(lua_State* L, bool value) : ScriptedDataValue(L)
+    {
+        m_dataValue = new DataValueBoolean(value);
+    }
+    static constexpr bool hasMetatable = true;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 22;
+    static constexpr const char* luaName = "DataValueBoolean";
+    bool isBoolean() override { return true; }
 };
 
 } // namespace rive

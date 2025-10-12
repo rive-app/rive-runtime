@@ -18,7 +18,7 @@ public:
     {
         return typeKey == DataType::string;
     };
-    std::string value() { return m_value; };
+    const std::string& value() { return m_value; };
     void value(std::string value) { m_value = value; };
     constexpr static const char* defaultValue = "";
 };
