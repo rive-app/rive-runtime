@@ -124,7 +124,7 @@ public:
                          clearColor4f.data());
         }
         m_state->bindVAO(m_plsLoadStoreVAO);
-        m_state->setCullFace(GL_NONE);
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
@@ -137,7 +137,7 @@ public:
         m_state->bindProgram(
             findLoadStoreProgram(actions, desc.combinedShaderFeatures).id());
         m_state->bindVAO(m_plsLoadStoreVAO);
-        m_state->setCullFace(GL_NONE);
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);

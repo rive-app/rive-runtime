@@ -46,6 +46,11 @@ class RenderContextGLImpl::PLSImplRWTexture
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
+        renderContextImpl->state()->setPipelineState(
+            gpu::COLOR_ONLY_PIPELINE_STATE);
+        renderContextImpl->state()->setScissor(desc.renderTargetUpdateBounds,
+                                               renderTarget->height());
+
         if (!desc.atomicFixedFunctionColorOutput)
         {
             if (auto framebufferRenderTarget =
@@ -155,7 +160,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         return flags;
     }
 
-    void deactivatePixelLocalStorage(RenderContextGLImpl*,
+    void deactivatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                      const FlushDescriptor& desc) override
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
@@ -175,6 +180,8 @@ class RenderContextGLImpl::PLSImplRWTexture
                     DrawBufferMask::color);
                 framebufferRenderTarget->bindDestinationFramebuffer(
                     GL_DRAW_FRAMEBUFFER);
+                renderContextImpl->state()->setPipelineState(
+                    gpu::COLOR_ONLY_PIPELINE_STATE);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                          framebufferRenderTarget->height());
             }

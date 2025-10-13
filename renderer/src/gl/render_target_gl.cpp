@@ -401,6 +401,8 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
                 GL_DRAW_FRAMEBUFFER,
                 DrawBufferMask::color);
             bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
+            renderContextImpl->state()->setPipelineState(
+                gpu::COLOR_ONLY_PIPELINE_STATE);
             glutils::BlitFramebuffer(
                 *preserveBounds,
                 height()); // Step 1.

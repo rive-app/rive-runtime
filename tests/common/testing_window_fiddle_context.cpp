@@ -306,7 +306,10 @@ public:
         m_width = w;
         m_height = h;
         dpi = m_fiddleContext->dpiScale(m_glfwWindow);
-        m_fiddleContext->onSizeChanged(m_glfwWindow, m_width, m_height, 0);
+        m_fiddleContext->onSizeChanged(m_glfwWindow,
+                                       m_width,
+                                       m_height,
+                                       m_msaaSampleCount);
     }
 
     ~TestingWindowFiddleContext() override
@@ -329,7 +332,10 @@ public:
         if (width != m_width || height != m_height)
         {
             glfwSetWindowSize(m_glfwWindow, width, height);
-            m_fiddleContext->onSizeChanged(m_glfwWindow, width, height, 0);
+            m_fiddleContext->onSizeChanged(m_glfwWindow,
+                                           width,
+                                           height,
+                                           m_msaaSampleCount);
             m_width = width;
             m_height = height;
         }

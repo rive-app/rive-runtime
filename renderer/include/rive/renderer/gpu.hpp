@@ -1694,10 +1694,10 @@ enum class StencilCompareOp : uint8_t
 
 struct StencilFaceOps
 {
-    StencilOp failOp;
-    StencilOp passOp;
-    StencilOp depthFailOp;
-    StencilCompareOp compareOp;
+    StencilOp failOp = StencilOp::keep;
+    StencilOp passOp = StencilOp::keep;
+    StencilOp depthFailOp = StencilOp::keep;
+    StencilCompareOp compareOp = StencilCompareOp::always;
 };
 
 enum class CullFace : uint8_t
@@ -1743,21 +1743,21 @@ enum class BlendEquation : uint8_t
 struct PipelineState
 {
     // Depth.
-    bool depthTestEnabled;
-    bool depthWriteEnabled;
+    bool depthTestEnabled = false;
+    bool depthWriteEnabled = true;
 
     // Stencil.
-    bool stencilTestEnabled;
-    uint8_t stencilCompareMask;
-    uint8_t stencilWriteMask;
-    uint8_t stencilReference;
+    bool stencilTestEnabled = false;
+    uint8_t stencilCompareMask = 0xff;
+    uint8_t stencilWriteMask = 0xff;
+    uint8_t stencilReference = 0;
     StencilFaceOps stencilFrontOps;
     StencilFaceOps stencilBackOps;
-    bool stencilDoubleSided; // If true, use stencilFrontOps for both faces.
+    bool stencilDoubleSided = false; // Use stencilFrontOps for both faces?
 
-    CullFace cullFace;
-    BlendEquation blendEquation;
-    bool colorWriteEnabled;
+    CullFace cullFace = CullFace::none;
+    BlendEquation blendEquation = BlendEquation::none;
+    bool colorWriteEnabled = true;
 
     // 18-bit key that uniquely identifies the pipeline state.
     constexpr static int UNIQUE_KEY_BIT_COUNT = 18;
@@ -1768,6 +1768,9 @@ void get_pipeline_state(const DrawBatch&,
                         const FlushDescriptor&,
                         const PlatformFeatures&,
                         PipelineState*);
+
+// Default PipelineState values as specified in OpenGL.
+constexpr static PipelineState GL_DEFAULT_PIPELINE_STATE = {};
 
 constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE = {
     .depthTestEnabled = false,

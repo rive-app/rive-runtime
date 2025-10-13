@@ -9,7 +9,6 @@
 #include "rive/renderer/draw.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/texture.hpp"
-#include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
 #include "instance_chunker.hpp"
 
@@ -1730,17 +1729,23 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
+        // Finish setting up the atlas render pass and clear the atlas.
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
+
         glBindFramebuffer(GL_FRAMEBUFFER, m_atlasFBO);
         glViewport(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
 
-        glEnable(GL_SCISSOR_TEST);
-        glScissor(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
+        // Since the atlas texture is offscreen, we render with the top at the
+        // lower memory address, and therefore don't need the typical Y-flip
+        // that happens with GL rectangles.
+        m_state->setScissorRaw(0,
+                               0,
+                               desc.atlasContentWidth,
+                               desc.atlasContentHeight);
 
         // Invert the front face for atlas draws because GL is bottom up.
         glFrontFace(GL_CCW);
 
-        // Finish setting up the atlas render pass and clear the atlas.
-        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         switch (m_atlasType)
         {
             case AtlasType::r32f:
@@ -1803,10 +1808,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
-                glScissor(fillBatch.scissor.left,
-                          fillBatch.scissor.top,
-                          fillBatch.scissor.width(),
-                          fillBatch.scissor.height());
+                m_state->setScissorRaw(fillBatch.scissor.left,
+                                       fillBatch.scissor.top,
+                                       fillBatch.scissor.width(),
+                                       fillBatch.scissor.height());
                 drawIndexedInstancedNoInstancedAttribs(
                     GL_TRIANGLES,
                     gpu::kMidpointFanCenterAAPatchIndexCount,
@@ -1826,10 +1831,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
                     desc.atlasStrokeBatches[i];
-                glScissor(strokeBatch.scissor.left,
-                          strokeBatch.scissor.top,
-                          strokeBatch.scissor.width(),
-                          strokeBatch.scissor.height());
+                m_state->setScissorRaw(strokeBatch.scissor.left,
+                                       strokeBatch.scissor.top,
+                                       strokeBatch.scissor.width(),
+                                       strokeBatch.scissor.height());
                 drawIndexedInstancedNoInstancedAttribs(
                     GL_TRIANGLES,
                     gpu::kMidpointFanPatchBorderIndexCount,
@@ -1856,10 +1861,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 m_state->bindProgram(m_atlasResolveProgram);
                 m_state->bindVAO(m_atlasResolveVAO);
                 m_state->setCullFace(GL_FRONT);
-                glScissor(0,
-                          0,
-                          desc.atlasContentWidth,
-                          desc.atlasContentHeight);
+                m_state->setScissorRaw(0,
+                                       0,
+                                       desc.atlasContentWidth,
+                                       desc.atlasContentHeight);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 #else
@@ -1879,7 +1884,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
 
         glFrontFace(GL_CW);
-        glDisable(GL_SCISSOR_TEST);
     }
 
     // Bind the currently-submitted buffer in the triangleBufferRing to its
@@ -1948,7 +1952,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             glClearColor(cc[0], cc[1], cc[2], cc[3]);
             buffersToClear |= GL_COLOR_BUFFER_BIT;
         }
-        m_state->setWriteMasks(true, true, 0xff);
+        m_state->setPipelineState(gpu::GL_DEFAULT_PIPELINE_STATE);
         glClear(buffersToClear);
 
         if (desc.combinedShaderFeatures &
@@ -2234,6 +2238,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             RenderTargetGL::MSAAResolveAction::framebufferBlit)
         {
             renderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
+            m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      renderTarget->height(),
                                      GL_COLOR_BUFFER_BIT);
@@ -2354,17 +2359,12 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
     }
 
     m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
+    m_state->setScissor(bounds, renderTargetHeight);
     m_state->bindProgram(m_blitAsDrawProgram);
     m_state->bindVAO(m_emptyVAO);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, textureID);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(bounds.left,
-              renderTargetHeight - bounds.bottom,
-              bounds.width(),
-              bounds.height());
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glDisable(GL_SCISSOR_TEST);
 }
 
 #ifdef WITH_RIVE_TOOLS

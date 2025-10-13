@@ -240,6 +240,8 @@ class RenderContextGLImpl::PLSImplWebGL
                 framebufferRenderTarget->bindInternalFramebuffer(
                     GL_DRAW_FRAMEBUFFER,
                     DrawBufferMask::color);
+                renderContextImpl->state()->setPipelineState(
+                    gpu::COLOR_ONLY_PIPELINE_STATE);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                          renderTarget->height());
             }
@@ -270,7 +272,7 @@ class RenderContextGLImpl::PLSImplWebGL
         glBeginPixelLocalStorageANGLE(4, loadOps);
     }
 
-    void deactivatePixelLocalStorage(RenderContextGLImpl*,
+    void deactivatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                      const FlushDescriptor& desc) override
     {
         constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_ANGLE,
@@ -294,6 +296,8 @@ class RenderContextGLImpl::PLSImplWebGL
                 DrawBufferMask::color);
             framebufferRenderTarget->bindDestinationFramebuffer(
                 GL_DRAW_FRAMEBUFFER);
+            renderContextImpl->state()->setPipelineState(
+                gpu::COLOR_ONLY_PIPELINE_STATE);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      framebufferRenderTarget->height());
         }
