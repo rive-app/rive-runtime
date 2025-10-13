@@ -32,11 +32,18 @@ void AnimationReset::clear() { m_binaryWriter.clear(); }
 
 void AnimationReset::complete()
 {
-    m_binaryReader.complete(&m_WriteBuffer.front(), m_binaryWriter.size());
+    if (!m_WriteBuffer.empty())
+    {
+        m_binaryReader.complete(&m_WriteBuffer.front(), m_binaryWriter.size());
+    }
 }
 
 void AnimationReset::apply(Artboard* artboard)
 {
+    if (m_WriteBuffer.empty())
+    {
+        return;
+    }
     m_binaryReader.reset(&m_WriteBuffer.front());
     while (!m_binaryReader.isEOF())
     {
