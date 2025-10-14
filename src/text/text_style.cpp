@@ -78,11 +78,24 @@ const rcp<Font> TextStyle::font() const
         return m_variableFont;
     }
 
+    // Lazily build the variable font if variations/features are present but
+    // the variable font hasn't been created yet. This ensures the very first
+    // shape/measure uses the intended axes (e.g. wght) rather than the font's
+    // default axis values.
+    if ((!m_variations.empty() || !m_styleFeatures.empty()))
+    {
+        updateVariableFont();
+        if (m_variableFont != nullptr)
+        {
+            return m_variableFont;
+        }
+    }
+
     auto asset = fontAsset();
     return asset == nullptr ? nullptr : asset->font();
 }
 
-void TextStyle::updateVariableFont()
+void TextStyle::updateVariableFont() const
 {
     auto asset = fontAsset();
     rcp<Font> baseFont = asset == nullptr ? nullptr : asset->font();

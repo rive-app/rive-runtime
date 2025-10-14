@@ -34,7 +34,7 @@ public:
     Core* clone() const override;
     void addVariation(TextStyleAxis* axis);
     void addFeature(TextStyleFeature* feature);
-    void updateVariableFont();
+    void updateVariableFont() const;
     StatusCode onAddedClean(CoreContext* context) override;
     void onDirty(ComponentDirt dirt) override;
     bool validate(CoreContext* context) override;
@@ -47,12 +47,12 @@ protected:
 
 private:
     std::unique_ptr<TextVariationHelper> m_variationHelper;
-    rcp<Font> m_variableFont;
+    mutable rcp<Font> m_variableFont;
 
-    std::vector<Font::Coord> m_coords;
+    mutable std::vector<Font::Coord> m_coords;
     std::vector<TextStyleAxis*> m_variations;
     std::vector<TextStyleFeature*> m_styleFeatures;
-    std::vector<Font::Feature> m_features;
+    mutable std::vector<Font::Feature> m_features;
     TextInterface* m_text = nullptr;
 };
 } // namespace rive
