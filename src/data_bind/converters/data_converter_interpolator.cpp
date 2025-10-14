@@ -70,6 +70,7 @@ void InterpolatorAdvancer::advanceAnimationData(float elapsedTime)
         }
         return;
     }
+    animationData->elapsedSeconds += elapsedTime;
     float f =
         std::fmin(1.0f,
                   m_converter->duration() > 0
@@ -80,21 +81,23 @@ void InterpolatorAdvancer::advanceAnimationData(float elapsedTime)
         f = m_converter->interpolator()->transform(f);
     }
     animationData->interpolate(f, m_currentValue);
-
-    animationData->elapsedSeconds += elapsedTime;
 }
 
 bool InterpolatorAdvancer::advance(float elapsedTime)
 {
     auto animationData = currentAnimationData();
-    if (animationData->to->compare(m_currentValue))
+    if (animationData->to->compare(m_currentValue) || elapsedTime == 0)
     {
         return false;
     }
+    auto prevTime = animationData->elapsedSeconds;
     advanceAnimationData(elapsedTime);
-    if (animationData->elapsedSeconds < m_converter->duration())
+    if (prevTime < m_converter->duration())
     {
         m_converter->markConverterDirty();
+    }
+    if (animationData->elapsedSeconds < m_converter->duration())
+    {
         return true;
     }
     return false;
@@ -139,10 +142,6 @@ void DataConverterInterpolator::interpolator(KeyFrameInterpolator* interpolator)
 bool DataConverterInterpolator::advance(float elapsedTime)
 {
     if (m_output == nullptr)
-    {
-        return false;
-    }
-    if (elapsedTime == 0)
     {
         return false;
     }

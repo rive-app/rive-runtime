@@ -883,7 +883,7 @@ TEST_CASE("Reset randomization only once", "[silver]")
         artboard->draw(renderer.get());
     }
 
-    // Random generation hasn't been called again
+    // Random generation has been called again
     REQUIRE(RandomProvider::totalCalls() == 1);
     RandomProvider::clearRandoms();
     CHECK(silver.matches("formula_random-once"));
@@ -920,7 +920,6 @@ TEST_CASE("Reset randomization on every change", "[silver]")
 
     silver.addFrame();
 
-    RandomProvider::addRandomValue(1.0f);
     numProp->propertyValue(500);
     stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
@@ -1048,4 +1047,44 @@ TEST_CASE("interactive and non interactive scrolling", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("interactive_scrolling"));
+}
+
+TEST_CASE("Interpolator returns advance status as true until it settles",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/interpolate_to_end.riv", &silver);
+
+    auto artboard = file->artboardNamed("child");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    numProp->propertyValue(1000);
+    stateMachine->advanceAndApply(0.001f);
+
+    auto shouldAdvance = true;
+    while (shouldAdvance)
+    {
+        silver.addFrame();
+        shouldAdvance = stateMachine->advanceAndApply(0.25f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("interpolate_to_end"));
 }
