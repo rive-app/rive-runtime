@@ -3,6 +3,7 @@
 #define _RIVE_LUA_LIBS_HPP_
 #include "lua.h"
 #include "lualib.h"
+#include "rive/lua/lua_state.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
@@ -23,7 +24,12 @@
 #include "rive/file.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
+#include <chrono>
 #include <unordered_map>
+
+static const int maxCStack = 8000;
+static const int luaGlobalsIndex = -maxCStack - 2002;
+static const int luaRegistryIndex = -maxCStack - 2000;
 
 namespace rive
 {
@@ -569,6 +575,10 @@ inline void lua_pushvec2d(lua_State* L, Vec2D vec)
 }
 
 int luaopen_rive(lua_State* L);
+int rive_luaErrorHandler(lua_State* L);
+int rive_lua_pcall(lua_State* state, int nargs, int nresults);
+int rive_lua_pushRef(lua_State* state, int ref);
+void rive_lua_pop(lua_State* state, int count);
 
 class ScriptingContext
 {
@@ -580,6 +590,7 @@ public:
     virtual void printBeginLine(lua_State* state) = 0;
     virtual void print(Span<const char> data) = 0;
     virtual void printEndLine() = 0;
+    virtual int pCall(lua_State* state, int nargs, int nresults) = 0;
 
 private:
     Factory* m_factory;
@@ -607,6 +618,7 @@ public:
                                Span<uint8_t> bytecode);
 
     bool registerScript(const char* name, Span<uint8_t> bytecode);
+    static void dumpStack(lua_State* state);
 
 private:
     lua_State* m_state;
@@ -671,6 +683,69 @@ public:
     bool isBoolean() override { return true; }
 };
 
+static void interruptCPP(lua_State* L, int gc);
+
+class CPPRuntimeScriptingContext : public ScriptingContext
+{
+public:
+    CPPRuntimeScriptingContext(Factory* factory) : ScriptingContext(factory) {}
+
+    std::chrono::time_point<std::chrono::steady_clock> executionTime;
+
+    int pCall(lua_State* state, int nargs, int nresults) override;
+
+    void printBeginLine(lua_State* state) override {}
+    void print(Span<const char> data) override
+    {
+        auto message = std::string(data.data(), data.size());
+        puts(message.c_str());
+    }
+
+    void printEndLine() override { puts("\n"); }
+
+    void printError(lua_State* state) override
+    {
+        const char* error = lua_tostring(state, -1);
+        fprintf(stderr, "%s", error);
+    }
+
+    void startTimedExecution(lua_State* state)
+    {
+        lua_Callbacks* cb = lua_callbacks(state);
+        cb->interrupt = interruptCPP;
+        executionTime = std::chrono::steady_clock::now();
+    }
+
+    void endTimedExecution(lua_State* state)
+    {
+        lua_Callbacks* cb = lua_callbacks(state);
+        cb->interrupt = nullptr;
+    }
+};
+
+static void interruptCPP(lua_State* L, int gc)
+{
+    if (gc >= 0 || !lua_isyieldable(L))
+    {
+        return;
+    }
+
+    CPPRuntimeScriptingContext* context =
+        static_cast<CPPRuntimeScriptingContext*>(lua_getthreaddata(L));
+
+    const auto now = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                  now - context->executionTime)
+                  .count();
+    if (ms > 50)
+    {
+        lua_Callbacks* cb = lua_callbacks(L);
+        cb->interrupt = nullptr;
+        // reserve space for error string
+        lua_rawcheckstack(L, 1);
+        luaL_error(L, "execution took too long");
+    }
+}
 } // namespace rive
 #endif
 #endif

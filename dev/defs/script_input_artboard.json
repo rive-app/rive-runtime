@@ -1,0 +1,32 @@
+{
+  "name": "ScriptInputArtboard",
+  "key": {
+    "int": 621,
+    "string": "scriptinputartboard"
+  },
+  "extends": "custom_property.json",
+  "properties": {
+    "artboardId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 876,
+        "string": "artboardid"
+      },
+      "description": "Identifier used to track the Artboard referenced.",
+      "bindable": true
+    },
+    "dataTypeId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 877,
+        "string": "datatypeid"
+      },
+      "description": "Identifier used to track the DataEnum or ViewModel representing the type.",
+      "runtime": false
+    }
+  }
+}

@@ -55,6 +55,7 @@
 #include "rive/data_bind/converters/data_converter_number_to_list.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
@@ -299,6 +300,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case ImageAsset::typeKey:
                 case FontAsset::typeKey:
                 case AudioAsset::typeKey:
+                case ScriptAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
                     m_fileAssets.push_back(rcp<FileAsset>(fa));
@@ -434,6 +436,14 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     m_assetLoader,
                     m_factory);
                 stackType = FileAsset::typeKey;
+                break;
+            case ScriptAsset::typeKey:
+                stackObject = rivestd::make_unique<FileAssetImporter>(
+                    object->as<FileAsset>(),
+                    m_assetLoader,
+                    m_factory);
+                stackType = FileAsset::typeKey;
+                object->as<ScriptAsset>()->file(this);
                 break;
             case ViewModel::typeKey:
                 stackObject = rivestd::make_unique<ViewModelImporter>(

@@ -36,6 +36,7 @@
 #include "rive/assets/audio_asset.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/profiler/profiler_macros.h"
+#include "rive/scripted/scripted_object.hpp"
 
 #include <unordered_map>
 
@@ -562,6 +563,11 @@ void Artboard::addAnimation(LinearAnimation* object)
 void Artboard::addStateMachine(StateMachine* object)
 {
     m_StateMachines.push_back(object);
+}
+
+void Artboard::addScriptedObject(ScriptedObject* object)
+{
+    m_ScriptedObjects.push_back(object);
 }
 
 Core* Artboard::resolve(uint32_t id) const
@@ -1540,6 +1546,11 @@ void Artboard::internalDataContext(DataContext* value)
     }
     bindDataBindsFromContext(m_DataContext);
     sortDataBinds();
+
+    for (auto obj : m_ScriptedObjects)
+    {
+        obj->reinit();
+    }
 }
 
 void Artboard::rebind() { internalDataContext(m_DataContext); }

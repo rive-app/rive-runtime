@@ -6,6 +6,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
+#include "rive/scripted/scripted_drawable.hpp"
 
 using namespace rive;
 
@@ -25,6 +26,8 @@ AdvancingComponent* AdvancingComponent::from(Component* component)
             return component->as<ArtboardComponentList>();
         case ScrollConstraint::typeKey:
             return component->as<ScrollConstraint>();
+        case ScriptedDrawable::typeKey:
+            return component->as<ScriptedDrawable>();
     }
     return nullptr;
 }

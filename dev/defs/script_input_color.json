@@ -1,0 +1,8 @@
+{
+  "name": "ScriptInputColor",
+  "key": {
+    "int": 626,
+    "string": "scriptinputcolor"
+  },
+  "extends": "custom_property_color.json"
+}

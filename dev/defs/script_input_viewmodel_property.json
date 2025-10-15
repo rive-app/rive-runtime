@@ -1,0 +1,31 @@
+{
+  "name": "ScriptInputViewModelProperty",
+  "key": {
+    "int": 612,
+    "string": "scriptinputviewmodelproperty"
+  },
+  "extends": "custom_property.json",
+  "properties": {
+    "dataTypeId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 867,
+        "string": "datatype"
+      },
+      "description": "Identifier used to track the DataEnum or ViewModel representing the type.",
+      "runtime": false
+    },
+    "dataBindPathIds": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 866,
+        "string": "databindpathids"
+      },
+      "description": "Path to the selected property."
+    }
+  }
+}

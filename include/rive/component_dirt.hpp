@@ -69,6 +69,10 @@ enum class ComponentDirt : unsigned short
     /// their render paths, mesh, points, etc.
     NSlicer = 1 << 13,
 
+    /// Set when a ScriptedObject needs to call update on the scripted
+    /// interface.
+    ScriptUpdate = 1 << 14,
+
     /// All dirty. Every flag (apart from Collapsed) is set.
     Filthy = 0xFFFE
 };

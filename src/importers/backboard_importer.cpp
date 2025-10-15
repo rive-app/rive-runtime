@@ -15,6 +15,7 @@
 #include "rive/data_bind/converters/data_converter_range_mapper.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/script_input_artboard.hpp"
 #include <unordered_set>
 
 using namespace rive;
@@ -141,6 +142,18 @@ StatusCode BackboardImporter::resolve()
         referencer->converter(
             m_DataConverters[index]->clone()->as<DataConverter>());
     }
+    for (auto input : m_scriptInputArtboards)
+    {
+        auto itr = m_ArtboardLookup.find(input->artboardId());
+        if (itr != m_ArtboardLookup.end())
+        {
+            auto artboard = itr->second;
+            if (artboard != nullptr)
+            {
+                input->artboard(artboard);
+            }
+        }
+    }
 
     return StatusCode::Ok;
 }
@@ -172,6 +185,11 @@ void BackboardImporter::addInterpolator(KeyFrameInterpolator* interpolator)
 void BackboardImporter::addPhysics(ScrollPhysics* physics)
 {
     m_physics.push_back(physics);
+}
+
+void BackboardImporter::addScriptInputArtboard(ScriptInputArtboard* input)
+{
+    m_scriptInputArtboards.push_back(input);
 }
 
 void BackboardImporter::file(File* value) { m_file = value; }

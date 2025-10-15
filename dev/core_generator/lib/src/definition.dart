@@ -14,6 +14,15 @@ String stripExtension(String filename) {
   return index == -1 ? filename : filename.substring(0, index);
 }
 
+String get withRiveToolsPreprocessor => 'WITH_RIVE_TOOLS';
+void addPreprocessorStart(StringBuffer buffer, String def) {
+  buffer.writeln('#ifdef ' + def);
+}
+
+void addPreprocessorEnd(StringBuffer buffer) {
+  buffer.writeln('#endif');
+}
+
 class Definition {
   static final Map<String, Definition> definitions = <String, Definition>{};
   final String _filename;
@@ -184,12 +193,19 @@ class Definition {
     code.writeln('uint16_t coreType() const override { return typeKey; }\n');
     if (properties.isNotEmpty) {
       for (final property in properties) {
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        }
         code.writeln('static const uint16_t ${property.name}PropertyKey = '
             '${property.key!.intValue};');
         for (final altKey in property.key!.alternates) {
           code.writeln(
               'static const uint16_t ${altKey.stringValue}PropertyKey = '
               '${altKey.intValue};');
+        }
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(code);
+          code.writeln('\n');
         }
       }
       if (storedProperties.any((prop) => !prop.isEncoded)) {
@@ -205,23 +221,35 @@ class Definition {
           // to decode and store what it needs.
           continue;
         }
-        code.writeln('${property.type.cppName} m_${property.capitalizedName}');
-
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        }
+        // Emit the field as a single line to avoid trailing text before
+        // preprocessor directives (e.g. '#endif').
         var initialize = property.initialValueRuntime ??
             property.initialValue ??
             property.type.defaultValue;
+        String fieldLine =
+            '${property.type.cppName} m_${property.capitalizedName}';
         if (initialize != null) {
           var converted = property.type.convertCpp(initialize);
           if (converted != null) {
-            code.write(' = $converted');
+            fieldLine += ' = $converted';
           }
         }
-        code.write(';');
+        code.writeln('$fieldLine;');
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(code);
+          code.writeln('\n');
+        }
       }
 
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        }
         if (!property.getExportType().storesData) {
           code.writeln((property.isSetOverride ? '' : 'virtual ') +
               'void ${property.name}' +
@@ -281,6 +309,9 @@ class Definition {
                 '''virtual void ${property.name}(${property.type.cppName} value) = 0;''');
           }
         }
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(code);
+        }
 
         code.writeln();
       }
@@ -293,11 +324,17 @@ class Definition {
     if (storedPropertiesNoPassthrough.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
       for (final property in storedPropertiesNoPassthrough) {
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        }
         if (property.isEncoded) {
           code.writeln('copy${property.capitalizedName}(object);');
         } else {
           code.writeln('m_${property.capitalizedName} = '
               'object.m_${property.capitalizedName};');
+        }
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(code);
         }
       }
       if (_extensionOf != null) {
@@ -313,6 +350,9 @@ class Definition {
       if (storedPropertiesNoPassthrough.isNotEmpty) {
         code.writeln('switch (propertyKey){');
         for (final property in storedPropertiesNoPassthrough) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(code, withRiveToolsPreprocessor);
+          }
           code.writeln('case ${property.name}PropertyKey:');
           if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'
@@ -322,6 +362,9 @@ class Definition {
                 '${property.type.runtimeCoreType}::deserialize(reader);');
           }
           code.writeln('return true;');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(code);
+          }
         }
         code.writeln('}');
       }
@@ -336,7 +379,13 @@ class Definition {
     code.writeln('protected:');
     if (storedProperties.isNotEmpty) {
       for (final property in storedProperties) {
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        }
         code.writeln('virtual void ${property.name}Changed() {}');
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(code);
+        }
       }
     }
     code.writeln('};');
@@ -510,6 +559,9 @@ class Definition {
       var properties = getSetFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+          }
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
           if (property.key != null) {
@@ -521,6 +573,9 @@ class Definition {
           ctxCode.writeln('object->as<${property.definition.name}Base>()->'
               '${property.name}(value);');
           ctxCode.writeln('break;');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(ctxCode);
+          }
         }
       }
       ctxCode.writeln('}}');
@@ -536,6 +591,9 @@ class Definition {
       var properties = getSetFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+          }
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
           for (final altKey in property.key!.alternates) {
@@ -545,6 +603,9 @@ class Definition {
           ctxCode
               .writeln('return object->as<${property.definition.name}Base>()->'
                   '${property.name}();');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(ctxCode);
+          }
         }
       }
       ctxCode.writeln('}');
@@ -562,8 +623,14 @@ class Definition {
       var properties = usedFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+          }
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(ctxCode);
+          }
           for (final altKey in property.key!.alternates) {
             ctxCode.writeln('case ${property.definition.name}Base'
                 '::${altKey.stringValue}PropertyKey:');
@@ -606,6 +673,9 @@ class Definition {
       var properties = getSetFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+          }
           ctxCode.writeln('case ${property.definition.name}Base'
               '::${property.name}PropertyKey:');
           for (final altKey in property.key!.alternates) {
@@ -614,6 +684,9 @@ class Definition {
           }
           ctxCode
               .writeln('return object->is<${property.definition.name}Base>();');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(ctxCode);
+          }
         }
       }
     }

@@ -92,6 +92,13 @@ function rive_tools_project(name, project_kind)
         dofile(RIVE_PLS_DIR .. '/rive_vk_bootstrap/bootstrap_project.lua')
     end
 
+    filter({ 'options:with_rive_scripting' })
+    do
+        includedirs({
+            luau .. '/VM/include',
+        })
+    end
+
     filter({ 'system:windows or macosx or linux', 'options:not for_unreal'  })
     do
         externalincludedirs({

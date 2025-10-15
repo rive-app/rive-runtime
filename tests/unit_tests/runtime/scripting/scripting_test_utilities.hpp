@@ -59,7 +59,7 @@ public:
 
     void execute()
     {
-        auto result = lua_pcall(m_vm->state(), 0, m_numResults, 0);
+        auto result = pCall(m_vm->state(), 0, m_numResults);
         if (!m_errorOk)
         {
             CHECK(result == LUA_OK);
@@ -103,6 +103,11 @@ public:
     {
         const char* error = lua_tostring(state, -1);
         errors.push_back(error);
+    }
+
+    int pCall(lua_State* state, int nargs, int nresults) override
+    {
+        return lua_pcall(state, nargs, nresults, 0);
     }
 
 private:

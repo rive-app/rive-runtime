@@ -18,6 +18,7 @@ class FileAssetReferencer;
 class DataConverter;
 class DataBind;
 class DataConverterGroupItem;
+class ScriptInputArtboard;
 class ScrollPhysics;
 class BackboardImporter : public ImportStackObject
 {
@@ -32,6 +33,7 @@ private:
     std::vector<DataConverterGroupItem*> m_DataConverterGroupItemReferencers;
     std::vector<KeyFrameInterpolator*> m_interpolators;
     std::vector<ScrollPhysics*> m_physics;
+    std::vector<ScriptInputArtboard*> m_scriptInputArtboards;
     int m_NextArtboardId;
     File* m_file;
 
@@ -48,6 +50,7 @@ public:
         DataConverterGroupItem* referencer);
     void addInterpolator(KeyFrameInterpolator* interpolator);
     void addPhysics(ScrollPhysics* physics);
+    void addScriptInputArtboard(ScriptInputArtboard* input);
     std::vector<ScrollPhysics*> physics() { return m_physics; }
     std::vector<rcp<FileAsset>>* assets() { return &m_FileAssets; }
     void file(File* value);

@@ -15,6 +15,7 @@ protected:
 public:
     virtual ~FileAssetReferencer() = 0;
     virtual void setAsset(rcp<FileAsset> asset);
+    const rcp<FileAsset> asset() { return m_fileAsset; }
     virtual uint32_t assetId() = 0;
     StatusCode registerReferencer(ImportStack& importStack);
     virtual void assetUpdated() {}

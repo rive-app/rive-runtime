@@ -1,0 +1,40 @@
+{
+  "name": "ScriptAsset",
+  "key": {
+    "int": 529,
+    "string": "scriptasset"
+  },
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "fileId": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 738,
+        "string": "fileid"
+      },
+      "description": "Id of the core script file.",
+      "runtime": false
+    },
+    "recentlyEditedIndex": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 840,
+        "string": "recentlyeditedindex"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "generatorFunctionRef": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 893,
+        "string": "generatorfunctionref"
+      },
+      "description": "The ref of the generator function (the function returned by the compiled code).",
+      "coop": false,
+      "withRiveToolsOnly": true
+    }
+  }
+}

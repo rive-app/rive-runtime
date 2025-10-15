@@ -49,6 +49,7 @@ class SMINumber;
 class SMITrigger;
 class DataBind;
 class DataBindContainer;
+class ScriptedObject;
 
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);
@@ -79,6 +80,7 @@ private:
     std::vector<ArtboardHost*> m_ArtboardHosts;
     std::vector<Joystick*> m_Joysticks;
     std::vector<ResettingComponent*> m_Resettables;
+    std::vector<ScriptedObject*> m_ScriptedObjects;
     DataContext* m_DataContext = nullptr;
     bool m_ownsDataContext = false;
     bool m_JoysticksApplyBeforeUpdate = true;
@@ -215,6 +217,7 @@ public:
     void reset() override;
     uint8_t drawOrderChangeCounter() { return m_drawOrderChangeCounter; }
     Drawable* firstDrawable() { return m_FirstDrawable; };
+    void addScriptedObject(ScriptedObject* object);
 
     enum class DrawOption
     {

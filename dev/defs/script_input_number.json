@@ -1,0 +1,8 @@
+{
+  "name": "ScriptInputNumber",
+  "key": {
+    "int": 611,
+    "string": "scriptinputnumber"
+  },
+  "extends": "custom_property_number.json"
+}

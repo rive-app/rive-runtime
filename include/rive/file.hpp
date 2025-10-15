@@ -5,6 +5,7 @@
 #include "rive/backboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
+#include "rive/lua/lua_state.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -161,6 +162,9 @@ public:
 
     std::vector<Artboard*> artboards() { return m_artboards; };
 
+    void scriptingVM(LuaState* vm) { m_luaState = vm; }
+    LuaState* scriptingVM() { return m_luaState; }
+
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
     /// @param data the raw data of the file.
@@ -216,6 +220,8 @@ private:
     /// The helper used to load assets when they're not provided in-band
     /// with the file.
     rcp<FileAssetLoader> m_assetLoader;
+
+    LuaState* m_luaState = nullptr;
 
     rcp<ViewModelInstance> copyViewModelInstance(
         ViewModelInstance* viewModelInstance,

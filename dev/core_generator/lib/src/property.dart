@@ -17,6 +17,7 @@ class Property {
   bool isNullable = false;
   bool isRuntime = true;
   bool isCoop = true;
+  bool isWithRiveToolsOnly = false;
   bool isSetOverride = false;
   bool isGetOverride = false;
   bool isEncoded = false;
@@ -91,6 +92,10 @@ class Property {
     dynamic c = data['coop'];
     if (c is bool) {
       isCoop = c;
+    }
+    dynamic tl = data['withRiveToolsOnly'];
+    if (tl is bool) {
+      isWithRiveToolsOnly = tl;
     }
     dynamic rt = data['typeRuntime'];
     if (rt is String) {

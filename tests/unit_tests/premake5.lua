@@ -24,6 +24,7 @@ defines({
     'WITH_RIVE_AUDIO',
     'WITH_RIVE_AUDIO_TOOLS',
     'WITH_RIVE_LAYOUT',
+    'WITH_RIVE_SCRIPTING',
     'YOGA_EXPORT=',
     'RIVE_NO_CORETEXT',
 })

@@ -129,6 +129,39 @@ int luaopen_rive(lua_State* L)
     return 0;
 }
 
+int rive_luaErrorHandler(lua_State* L)
+{
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    context->printError(L);
+
+    // Optionally, you can push a new value onto the stack to be returned by
+    // lua_pcall For example, push a specific error code or a more detailed
+    // message
+    const char* error = lua_tostring(L, -1);
+    lua_pushstring(L, error);
+    return 1; // Number of return values
+    // return 0;
+}
+
+int rive_lua_pcall(lua_State* state, int nargs, int nresults)
+{
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(state));
+
+    return context->pCall(state, nargs, nresults);
+}
+
+int rive_lua_pushRef(lua_State* state, int ref)
+{
+    return lua_rawgeti(state, luaRegistryIndex, ref);
+}
+
+void rive_lua_pop(lua_State* state, int count)
+{
+    lua_settop(state, -count - 1);
+}
+
 static void* l_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
 {
     (void)ud;
@@ -332,6 +365,47 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
     return true;
 }
 
+static void dump_stack(lua_State* state)
+{
+    int i;
+    int top = lua_gettop(state);
+    for (i = 1; i <= top; i++)
+    { /* repeat for each level */
+        int t = lua_type(state, i);
+        switch (t)
+        {
+
+            case LUA_TSTRING: /* strings */
+                fprintf(stderr,
+                        "  (%i)[STRING] %s\n",
+                        i,
+                        lua_tostring(state, i));
+                break;
+
+            case LUA_TBOOLEAN: /* booleans */
+                fprintf(stderr,
+                        "  (%i)[BOOLEAN] %s\n",
+                        i,
+                        lua_toboolean(state, i) ? "true" : "false");
+                break;
+
+            case LUA_TNUMBER: /* numbers */
+                fprintf(stderr,
+                        "  (%i)[NUMBER] %g\n",
+                        i,
+                        lua_tonumber(state, i));
+                break;
+
+            default: /* other values */
+                fprintf(stderr, "  (%i)[%s]\n", i, lua_typename(state, t));
+                break;
+        }
+    }
+    fprintf(stderr, "\n"); /* end the listing */
+}
+
+void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
+
 bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
@@ -382,6 +456,20 @@ bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
 bool ScriptingVM::registerScript(const char* name, Span<uint8_t> bytecode)
 {
     return registerScript(m_state, name, bytecode);
+}
+
+int CPPRuntimeScriptingContext::pCall(lua_State* state, int nargs, int nresults)
+{
+    // calculate stack position for message handler
+    int hpos = lua_gettop(state) - nargs;
+    lua_pushcfunction(state, rive_luaErrorHandler, "riveErrorHandler");
+    lua_insert(state, hpos);
+
+    startTimedExecution(state);
+    int ret = lua_pcall(state, nargs, nresults, hpos);
+    endTimedExecution(state);
+    lua_remove(state, hpos);
+    return ret;
 }
 
 } // namespace rive
