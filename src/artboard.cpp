@@ -92,11 +92,6 @@ Artboard::~Artboard()
         }
     }
     m_dirtyLayout.clear();
-    if (m_ownsDataContext && m_DataContext != nullptr)
-    {
-        delete m_DataContext;
-        m_DataContext = nullptr;
-    }
 }
 
 static bool canContinue(StatusCode code)
@@ -1547,6 +1542,8 @@ void Artboard::internalDataContext(DataContext* value)
     sortDataBinds();
 }
 
+void Artboard::rebind() { internalDataContext(m_DataContext); }
+
 void Artboard::unbind()
 {
     clearDataContext();
@@ -1561,6 +1558,7 @@ void Artboard::clearDataContext()
 {
     if (m_ownsDataContext && m_DataContext != nullptr)
     {
+        m_DataContext->viewModelInstance()->removeDependent(this);
         delete m_DataContext;
     }
     m_DataContext = nullptr;
@@ -1606,6 +1604,10 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
     clearDataContext();
     m_ownsDataContext = true;
     auto dataContext = new DataContext(viewModelInstance);
+    if (dataContext->viewModelInstance())
+    {
+        dataContext->viewModelInstance()->addDependent(this);
+    }
     dataContext->parent(parent);
     internalDataContext(dataContext);
 }

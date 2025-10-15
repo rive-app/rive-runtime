@@ -19,10 +19,21 @@ public:
     void swap(uint32_t index1, uint32_t index2);
     Core* clone() const override;
     void advanced() override;
+    void parentViewModelInstance(ViewModelInstance* parent)
+    {
+        m_parentViewModelInstance = parent;
+    }
+    ViewModelInstance* parentViewModelInstance()
+    {
+        return m_parentViewModelInstance;
+    }
 
 protected:
     std::vector<rcp<ViewModelInstanceListItem>> m_ListItems;
     void propertyValueChanged();
+
+private:
+    ViewModelInstance* m_parentViewModelInstance = nullptr;
 };
 } // namespace rive
 

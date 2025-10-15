@@ -5,8 +5,11 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/math/random.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
@@ -1087,4 +1090,302 @@ TEST_CASE("Interpolator returns advance status as true until it settles",
     }
 
     CHECK(silver.matches("interpolate_to_end"));
+}
+
+TEST_CASE("View models keep reference to their dependents and parents",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/replace_vm_instance.riv", &silver);
+
+    auto artboardMain1 = file->artboardNamed("main-1");
+    auto artboardMain2 = file->artboardNamed("main-2");
+    auto artboardCommon = file->artboardNamed("common");
+    REQUIRE(artboardMain1 != nullptr);
+    REQUIRE(artboardMain2 != nullptr);
+    REQUIRE(artboardCommon != nullptr);
+
+    silver.frameSize(artboardMain1->width(), artboardMain1->height());
+
+    std::vector<StateMachineInstance*> stateMachines;
+
+    auto stateMachineMain1 = artboardMain1->stateMachineAt(0);
+    auto stateMachineMain2 = artboardMain2->stateMachineAt(0);
+    auto stateMachineCommon = artboardCommon->stateMachineAt(0);
+    stateMachines.push_back(stateMachineMain1.get());
+    stateMachines.push_back(stateMachineMain2.get());
+    stateMachines.push_back(stateMachineCommon.get());
+
+    // Each view model instance has its own independent tree
+    auto vmiMain1 =
+        file->createViewModelInstance(artboardMain1.get()->viewModelId(), 0);
+    auto vmiMain2 =
+        file->createViewModelInstance(artboardMain2.get()->viewModelId(), 0);
+    auto vmiCommon =
+        file->createViewModelInstance(artboardCommon.get()->viewModelId(), 0);
+
+    stateMachineMain1->bindViewModelInstance(vmiMain1);
+    stateMachineMain1->advanceAndApply(0.1f);
+    stateMachineMain2->bindViewModelInstance(vmiMain2);
+    stateMachineMain2->advanceAndApply(0.1f);
+    stateMachineCommon->bindViewModelInstance(vmiCommon);
+    stateMachineCommon->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+
+    artboardMain1->draw(renderer.get());
+    silver.addFrame();
+    artboardMain2->draw(renderer.get());
+    silver.addFrame();
+    artboardCommon->draw(renderer.get());
+
+    for (auto& sm : stateMachines)
+    {
+        silver.addFrame();
+        sm->advanceAndApply(0.1f);
+        sm->artboard()->draw(renderer.get());
+    }
+
+    // Changing the text value of one instance only affects that instance
+    auto vmCommon1Prop = vmiMain1->propertyValue("common-1")
+                             ->as<ViewModelInstanceViewModel>()
+                             ->referenceViewModelInstance()
+                             .get();
+    auto vmChildProp = vmCommon1Prop->propertyValue("ch")
+                           ->as<ViewModelInstanceViewModel>()
+                           ->referenceViewModelInstance();
+    auto stringProp =
+        vmChildProp.get()->propertyValue("str")->as<ViewModelInstanceString>();
+    stringProp->propertyValue("update-1");
+
+    for (auto& sm : stateMachines)
+    {
+        silver.addFrame();
+        sm->advanceAndApply(0.1f);
+        sm->artboard()->draw(renderer.get());
+    }
+
+    // Replace the nested child view model of main2 with the same instance of
+    // main1 Instance 2 should update
+    auto vmCommonMain2Prop = vmiMain2->propertyValue("common-2")
+                                 ->as<ViewModelInstanceViewModel>()
+                                 ->referenceViewModelInstance()
+                                 .get();
+
+    vmCommonMain2Prop->replaceViewModelByName("ch", vmChildProp);
+
+    for (auto& sm : stateMachines)
+    {
+        silver.addFrame();
+        sm->advanceAndApply(0.1f);
+        sm->artboard()->draw(renderer.get());
+    }
+
+    // Updating the value, changes it on both artboard
+
+    stringProp->propertyValue("update-2");
+
+    for (auto& sm : stateMachines)
+    {
+        silver.addFrame();
+        sm->advanceAndApply(0.1f);
+        sm->artboard()->draw(renderer.get());
+    }
+
+    // Replace the child view model of common with the same instance of
+    // main1
+    // common should update now too
+
+    auto currentChild =
+        vmiCommon->propertyValue("ch")->as<ViewModelInstanceViewModel>();
+    auto referenceViewModel = currentChild->referenceViewModelInstance();
+    REQUIRE(referenceViewModel->parents().size() == 1);
+    vmiCommon->replaceViewModelByName("ch", vmChildProp);
+    REQUIRE(referenceViewModel->parents().size() == 0);
+
+    REQUIRE(vmiMain1->dependents().size() == 1);
+    REQUIRE(vmiMain2->dependents().size() == 1);
+    stateMachineMain2->bindViewModelInstance(vmiMain1);
+    REQUIRE(vmiMain1->dependents().size() == 2);
+    REQUIRE(vmiMain2->dependents().size() == 0);
+
+    for (auto& sm : stateMachines)
+    {
+        silver.addFrame();
+        sm->advanceAndApply(0.1f);
+        sm->artboard()->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("replace_vm_instance"));
+}
+
+TEST_CASE("Replace view model instance in list", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/replace_vm_instance.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-list");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Replace an instance of a list and expect the binding to be automatically
+    // called
+    silver.addFrame();
+
+    // First create a instance
+    auto grandChildInstance =
+        file->createViewModelInstance("main-list-grandchild");
+    auto labelProp = grandChildInstance->propertyValue("label")
+                         ->as<ViewModelInstanceString>();
+    labelProp->propertyValue("modified");
+
+    // Second retrieve the item from the list that will be replaced
+    auto lis = vmi->propertyValue("lis")->as<ViewModelInstanceList>();
+    {
+        auto listItem = lis->item(1);
+        auto listItemViewModelInstance = listItem->viewModelInstance();
+
+        // Third replace the property "grandchild" with the new instance created
+        listItemViewModelInstance->replaceViewModelByName("grandchild",
+                                                          grandChildInstance);
+
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    // Create a new child instance and append it to the list, then replace its
+    // child
+    {
+        silver.addFrame();
+
+        // First create instance to be added and set its label value
+
+        auto childInstance = file->createViewModelInstance("main-list-child");
+        auto childGrandChild = childInstance->propertyValue("grandchild")
+                                   ->as<ViewModelInstanceViewModel>()
+                                   ->referenceViewModelInstance()
+                                   .get();
+        auto childGrandChildLabel = childGrandChild->propertyValue("label")
+                                        ->as<ViewModelInstanceString>();
+        childGrandChildLabel->propertyValue("new label");
+
+        // Second append it to the list
+        auto listItem = make_rcp<ViewModelInstanceListItem>();
+        listItem->viewModelInstance(childInstance);
+        lis->addItem(listItem);
+
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+
+        // Replace the view model property and expect the instance to be updated
+
+        silver.addFrame();
+        auto grandChildInstance =
+            file->createViewModelInstance("main-list-grandchild");
+        auto labelProp = grandChildInstance->propertyValue("label")
+                             ->as<ViewModelInstanceString>();
+        labelProp->propertyValue("modified 2");
+        childInstance->replaceViewModelByName("grandchild", grandChildInstance);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("replace_vm_instance-list"));
+}
+
+TEST_CASE("Replace view model instance in nested list", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/replace_vm_instance.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-double-nest");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Replace an instance of a list and expect the binding to be automatically
+    // called
+    silver.addFrame();
+
+    // First create a instance
+    auto grandChildInstance =
+        file->createViewModelInstance("main-list-grandchild");
+    auto labelProp = grandChildInstance->propertyValue("label")
+                         ->as<ViewModelInstanceString>();
+    labelProp->propertyValue("modified");
+
+    auto mainList = vmi->propertyValue("lis")->as<ViewModelInstanceList>();
+    auto mainListChild = mainList->item(0);
+    auto mainListChildInstance = mainListChild->viewModelInstance();
+
+    // Second retrieve the item from the list that will be replaced
+    auto lis = mainListChildInstance->propertyValue("lis")
+                   ->as<ViewModelInstanceList>();
+    {
+        auto listItem = lis->item(1);
+        auto listItemViewModelInstance = listItem->viewModelInstance();
+
+        // Third replace the property "grandchild" with the new instance created
+        listItemViewModelInstance->replaceViewModelByName("grandchild",
+                                                          grandChildInstance);
+
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    // Create a new child instance and append it to the list, then replace its
+    // child
+    {
+        silver.addFrame();
+
+        // First create instance to be added and set its label value
+
+        auto childInstance = file->createViewModelInstance("main-list-child");
+        auto childGrandChild = childInstance->propertyValue("grandchild")
+                                   ->as<ViewModelInstanceViewModel>()
+                                   ->referenceViewModelInstance()
+                                   .get();
+        auto childGrandChildLabel = childGrandChild->propertyValue("label")
+                                        ->as<ViewModelInstanceString>();
+        childGrandChildLabel->propertyValue("new label");
+
+        // Second append it to the list
+        auto listItem = make_rcp<ViewModelInstanceListItem>();
+        listItem->viewModelInstance(childInstance);
+        lis->addItem(listItem);
+
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+
+        // Replace the view model property and expect the instance to be updated
+
+        silver.addFrame();
+        auto grandChildInstance =
+            file->createViewModelInstance("main-list-grandchild");
+        auto labelProp = grandChildInstance->propertyValue("label")
+                             ->as<ViewModelInstanceString>();
+        labelProp->propertyValue("modified 2");
+        childInstance->replaceViewModelByName("grandchild", grandChildInstance);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("replace_vm_instance-double-nest"));
 }

@@ -13,6 +13,7 @@ public:
     void addDataBind(DataBind* dataBind);
     const std::vector<DataBind*> dataBinds() const { return m_dataBinds; }
     virtual void addDirtyDataBind(DataBind* dataBind);
+    virtual void rebind() {};
 
 protected:
     void deleteDataBinds();

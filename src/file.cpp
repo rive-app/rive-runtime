@@ -638,20 +638,23 @@ void File::completeViewModelInstance(
                     property->as<ViewModelPropertyViewModel>();
                 auto viewModelReference =
                     m_ViewModels[propertViewModel->viewModelReferenceId()];
-                auto viewModelInstance = viewModelReference->instance(
+                auto viewModelReferenceInstance = viewModelReference->instance(
                     valueViewModel->propertyValue());
-                if (viewModelInstance != nullptr)
+                valueViewModel->parentViewModelInstance(
+                    viewModelInstance.get());
+                if (viewModelReferenceInstance != nullptr)
                 {
-                    auto itr = instancesMap.find(viewModelInstance);
+                    auto itr = instancesMap.find(viewModelReferenceInstance);
 
                     if (itr == instancesMap.end())
                     {
-                        auto viewModelInstanceCopy =
-                            copyViewModelInstance(viewModelInstance,
+                        auto viewModelReferenceInstanceCopy =
+                            copyViewModelInstance(viewModelReferenceInstance,
                                                   instancesMap);
-                        instancesMap[viewModelInstance] = viewModelInstanceCopy;
+                        instancesMap[viewModelReferenceInstance] =
+                            viewModelReferenceInstanceCopy;
                         valueViewModel->referenceViewModelInstance(
-                            viewModelInstanceCopy);
+                            viewModelReferenceInstanceCopy);
                     }
                     else
                     {
@@ -663,23 +666,26 @@ void File::completeViewModelInstance(
         else if (value->is<ViewModelInstanceList>())
         {
             auto viewModelList = value->as<ViewModelInstanceList>();
+            viewModelList->parentViewModelInstance(viewModelInstance.get());
             for (auto& listItem : viewModelList->listItems())
             {
                 auto viewModel = m_ViewModels[listItem->viewModelId()];
-                auto viewModelInstance =
+                auto viewModelListItemInstance =
                     viewModel->instance(listItem->viewModelInstanceId());
-                if (viewModelInstance != nullptr)
+                if (viewModelListItemInstance != nullptr)
                 {
 
-                    auto itr = instancesMap.find(viewModelInstance);
+                    auto itr = instancesMap.find(viewModelListItemInstance);
 
                     if (itr == instancesMap.end())
                     {
-                        auto viewModelInstanceCopy =
-                            copyViewModelInstance(viewModelInstance,
+                        auto viewModelInstanceListItemCopy =
+                            copyViewModelInstance(viewModelListItemInstance,
                                                   instancesMap);
-                        instancesMap[viewModelInstance] = viewModelInstanceCopy;
-                        listItem->viewModelInstance(viewModelInstanceCopy);
+                        instancesMap[viewModelListItemInstance] =
+                            viewModelInstanceListItemCopy;
+                        listItem->viewModelInstance(
+                            viewModelInstanceListItemCopy);
                     }
                     else
                     {
@@ -800,6 +806,8 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                     break;
                 case ViewModelPropertyListBase::typeKey:
                     viewModelInstanceValue = new ViewModelInstanceList();
+                    viewModelInstanceValue->as<ViewModelInstanceList>()
+                        ->parentViewModelInstance(viewModelInstance);
                     break;
                 case ViewModelPropertyEnumSystemBase::typeKey:
                 case ViewModelPropertyEnumCustomBase::typeKey:
@@ -819,8 +827,15 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                     auto viewModelInstanceViewModel =
                         viewModelInstanceValue
                             ->as<ViewModelInstanceViewModel>();
-                    viewModelInstanceViewModel->referenceViewModelInstance(
-                        createViewModelInstance(viewModelReference));
+                    auto referenceViewModelInstance =
+                        createViewModelInstance(viewModelReference);
+                    if (referenceViewModelInstance)
+                    {
+                        viewModelInstanceViewModel->parentViewModelInstance(
+                            viewModelInstance);
+                        viewModelInstanceViewModel->referenceViewModelInstance(
+                            referenceViewModelInstance);
+                    }
                 }
                 break;
                 case ViewModelPropertyAssetImageBase::typeKey:

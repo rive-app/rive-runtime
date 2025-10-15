@@ -9,17 +9,35 @@ namespace rive
 class ViewModelInstanceViewModel : public ViewModelInstanceViewModelBase
 {
 private:
-    rcp<ViewModelInstance> m_referenceViewModelInstance;
+    rcp<ViewModelInstance> m_referenceViewModelInstance = nullptr;
+    ViewModelInstance* m_parentViewModelInstance = nullptr;
 
 public:
     ~ViewModelInstanceViewModel();
     void referenceViewModelInstance(rcp<ViewModelInstance> value)
     {
+        if (m_referenceViewModelInstance && m_parentViewModelInstance)
+        {
+            m_referenceViewModelInstance->removeParent(
+                m_parentViewModelInstance);
+        }
         m_referenceViewModelInstance = value;
+        if (m_referenceViewModelInstance && m_parentViewModelInstance)
+        {
+            m_referenceViewModelInstance->addParent(m_parentViewModelInstance);
+        }
     };
     rcp<ViewModelInstance> referenceViewModelInstance()
     {
         return m_referenceViewModelInstance;
+    }
+    void parentViewModelInstance(ViewModelInstance* parent)
+    {
+        m_parentViewModelInstance = parent;
+    }
+    ViewModelInstance* parentViewModelInstance()
+    {
+        return m_parentViewModelInstance;
     }
     void setRoot(rcp<ViewModelInstance> value) override;
     void advanced() override;

@@ -3,6 +3,7 @@
 #include "rive/generated/viewmodel/viewmodel_instance_base.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/symbol_type.hpp"
+#include "rive/data_bind/data_bind_container.hpp"
 #include "rive/component.hpp"
 #include "rive/refcnt.hpp"
 #include <stdio.h>
@@ -14,7 +15,10 @@ class ViewModelInstance : public ViewModelInstanceBase,
 {
 private:
     std::vector<ViewModelInstanceValue*> m_PropertyValues;
+    std::vector<ViewModelInstance*> m_parents;
+    std::vector<DataBindContainer*> m_dependents;
     ViewModel* m_ViewModel;
+    void rebindDependents();
 
 public:
     ~ViewModelInstance();
@@ -36,6 +40,14 @@ public:
     Core* clone() const override;
     StatusCode import(ImportStack& importStack) override;
     void advanced();
+    void addParent(ViewModelInstance*);
+    void removeParent(ViewModelInstance*);
+    void addDependent(DataBindContainer*);
+    void removeDependent(DataBindContainer*);
+#ifdef TESTING
+    std::vector<DataBindContainer*> dependents() { return m_dependents; }
+    std::vector<ViewModelInstance*> parents() { return m_parents; }
+#endif
 };
 } // namespace rive
 

@@ -17,6 +17,15 @@ ViewModelInstance::~ViewModelInstance()
 {
     for (auto& value : m_PropertyValues)
     {
+        if (value->is<ViewModelInstanceViewModel>())
+        {
+            auto vmInstanceViewModel = value->as<ViewModelInstanceViewModel>();
+            if (vmInstanceViewModel->referenceViewModelInstance())
+            {
+                vmInstanceViewModel->referenceViewModelInstance()->removeParent(
+                    this);
+            }
+        }
         value->unref();
     }
     m_PropertyValues.clear();
@@ -59,6 +68,7 @@ bool ViewModelInstance::replaceViewModelByName(const std::string& name,
                 {
                     propertyValue->as<ViewModelInstanceViewModel>()
                         ->referenceViewModelInstance(value);
+                    rebindDependents();
                     return true;
                 }
                 break;
@@ -205,4 +215,55 @@ ViewModelInstanceValue* ViewModelInstance::symbol(int coreType)
         }
     }
     return nullptr;
+}
+
+void ViewModelInstance::addParent(ViewModelInstance* parent)
+{
+    if (!parent)
+    {
+        return;
+    }
+    auto p = std::find(m_parents.begin(), m_parents.end(), parent);
+    if (p == m_parents.end())
+    {
+        m_parents.push_back(parent);
+    }
+}
+
+void ViewModelInstance::removeParent(ViewModelInstance* parent)
+{
+    m_parents.erase(std::remove(m_parents.begin(), m_parents.end(), parent),
+                    m_parents.end());
+}
+
+void ViewModelInstance::addDependent(DataBindContainer* dependent)
+{
+    if (!dependent)
+    {
+        return;
+    }
+    auto p = std::find(m_dependents.begin(), m_dependents.end(), dependent);
+    if (p == m_dependents.end())
+    {
+        m_dependents.push_back(dependent);
+    }
+}
+
+void ViewModelInstance::removeDependent(DataBindContainer* dependent)
+{
+    m_dependents.erase(
+        std::remove(m_dependents.begin(), m_dependents.end(), dependent),
+        m_dependents.end());
+}
+
+void ViewModelInstance::rebindDependents()
+{
+    for (auto& dependent : m_dependents)
+    {
+        dependent->rebind();
+    }
+    for (auto& parent : m_parents)
+    {
+        parent->rebindDependents();
+    }
 }

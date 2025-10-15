@@ -270,6 +270,7 @@ public:
     void internalDataContext(DataContext* dataContext);
     void clearDataContext();
     void unbind();
+    void rebind() override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);

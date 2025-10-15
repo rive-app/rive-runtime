@@ -1794,10 +1794,6 @@ StateMachineInstance::~StateMachineInstance()
     {
         delete listenerViewModel;
     }
-    if (m_ownsDataContext)
-    {
-        delete m_DataContext;
-    }
     m_bindablePropertyInstances.clear();
 }
 
@@ -2088,6 +2084,7 @@ void StateMachineInstance::bindViewModelInstance(
     clearDataContext();
     m_ownsDataContext = true;
     auto dataContext = new DataContext(viewModelInstance);
+    viewModelInstance->addDependent(this);
     m_artboardInstance->clearDataContext();
     m_artboardInstance->internalDataContext(dataContext);
     internalDataContext(dataContext);
@@ -2109,10 +2106,18 @@ void StateMachineInstance::internalDataContext(DataContext* dataContext)
     }
 }
 
+void StateMachineInstance::rebind()
+{
+    m_artboardInstance->clearDataContext();
+    m_artboardInstance->internalDataContext(m_DataContext);
+    internalDataContext(m_DataContext);
+};
+
 void StateMachineInstance::clearDataContext()
 {
     if (m_ownsDataContext && m_DataContext != nullptr)
     {
+        m_DataContext->viewModelInstance()->removeDependent(this);
         delete m_DataContext;
         m_DataContext = nullptr;
     }

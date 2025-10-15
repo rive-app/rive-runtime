@@ -8,7 +8,20 @@
 
 using namespace rive;
 
-ViewModelInstanceList::~ViewModelInstanceList() {}
+ViewModelInstanceList::~ViewModelInstanceList()
+{
+    if (parentViewModelInstance())
+    {
+        for (auto& item : m_ListItems)
+        {
+            if (item->viewModelInstance() != nullptr)
+            {
+                item->viewModelInstance()->removeParent(
+                    parentViewModelInstance());
+            }
+        }
+    }
+}
 
 void ViewModelInstanceList::propertyValueChanged()
 {
@@ -19,6 +32,10 @@ void ViewModelInstanceList::propertyValueChanged()
 void ViewModelInstanceList::addItem(rcp<ViewModelInstanceListItem> item)
 {
     m_ListItems.push_back(item);
+    if (item->viewModelInstance())
+    {
+        item->viewModelInstance()->addParent(parentViewModelInstance());
+    }
     propertyValueChanged();
 }
 
@@ -28,6 +45,11 @@ bool ViewModelInstanceList::addItemAt(rcp<ViewModelInstanceListItem> item,
     if (index <= m_ListItems.size())
     {
         m_ListItems.insert(m_ListItems.begin() + index, item);
+
+        if (item->viewModelInstance())
+        {
+            item->viewModelInstance()->addParent(parentViewModelInstance());
+        }
         propertyValueChanged();
         return true;
     }
@@ -39,6 +61,10 @@ void ViewModelInstanceList::internalAddItem(rcp<ViewModelInstanceListItem> item)
     // For ViewModelInstanceListItems that are built as a core object
     // we skip the ref since core has already reffed it
     m_ListItems.push_back(item);
+    if (item->viewModelInstance())
+    {
+        item->viewModelInstance()->addParent(parentViewModelInstance());
+    }
 }
 
 void ViewModelInstanceList::removeItem(int index)
@@ -47,6 +73,11 @@ void ViewModelInstanceList::removeItem(int index)
     if (index >= 0 && index < m_ListItems.size())
     {
         auto listItem = m_ListItems[index];
+        if (listItem->viewModelInstance())
+        {
+            listItem->viewModelInstance()->removeParent(
+                parentViewModelInstance());
+        }
         m_ListItems.erase(m_ListItems.begin() + index);
         propertyValueChanged();
     }
@@ -57,6 +88,10 @@ void ViewModelInstanceList::removeItem(rcp<ViewModelInstanceListItem> listItem)
     auto noSpaceEnd =
         std::remove(m_ListItems.begin(), m_ListItems.end(), listItem);
     m_ListItems.erase(noSpaceEnd, m_ListItems.end());
+    if (listItem->viewModelInstance())
+    {
+        listItem->viewModelInstance()->removeParent(parentViewModelInstance());
+    }
     propertyValueChanged();
 }
 
