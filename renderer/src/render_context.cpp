@@ -399,6 +399,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
     RIVE_PROF_SCOPE()
     assert(!m_hasDoneLayout);
 
+    PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
     auto countsVector = m_resourceCounts.toVec();
     for (size_t i = 0; i < drawCount; ++i)
     {
@@ -407,6 +408,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
                draws[i]->clipRectInverseMatrix() == nullptr);
         countsVector += draws[i]->resourceCounts().toVec();
     }
+    POP_DISABLE_CLANG_SIMD_ABI_WARNING()
     Draw::ResourceCounters countsWithNewBatch = countsVector;
 
     // Textures and buffers have hard size limits. If the new batch doesn't fit
@@ -705,6 +707,8 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(resourceRequirements.coverageBufferLength <=
            platformFeatures().maxCoverageBufferLength);
 
+    PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
+
     // Track m_maxRecentResourceRequirements so we can trim GPU allocations when
     // steady-state usage goes down.
     m_maxRecentResourceRequirements =
@@ -765,6 +769,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         m_maxRecentResourceRequirements = ResourceAllocationCounts();
         m_lastResourceTrimTimeInSeconds = flushTime;
     }
+
+    POP_DISABLE_CLANG_SIMD_ABI_WARNING()
 
     setResourceSizes(allocs);
 
@@ -1039,8 +1045,11 @@ void RenderContext::LogicalFlush::layoutResources(
 
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
 
+    PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
     *runningFrameResourceCounts =
         runningFrameResourceCounts->toVec() + m_resourceCounts.toVec();
+    POP_DISABLE_CLANG_SIMD_ABI_WARNING()
+
     runningFrameLayoutCounts->pathPaddingCount += m_pathPaddingCount;
     runningFrameLayoutCounts->paintPaddingCount += m_paintPaddingCount;
     runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;

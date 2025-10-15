@@ -1335,7 +1335,9 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
                                             TriangulatorAxis triangulatorAxis)
 {
     RIVE_PROF_SCOPE()
+    PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
+    POP_DISABLE_CLANG_SIMD_ABI_WARNING()
     assert(!isStrokeOrFeather());
     assert(m_strokeRadius == 0);
 

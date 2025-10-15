@@ -140,6 +140,7 @@ int16x8 IntersectionTile::findMaxIntersectingGroupIndex(
     auto edges = m_edges.begin();
     auto groupIndices = m_groupIndices.begin();
     assert(m_edges.size() == m_groupIndices.size());
+    PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
     int8x32 complement = simd::join(r, b, _l, _t);
     for (; edges != m_edges.end(); ++edges, ++groupIndices)
     {
@@ -164,6 +165,8 @@ int16x8 IntersectionTile::findMaxIntersectingGroupIndex(
         runningMaxGroupIndices =
             simd::max(maskedGroupIndices, runningMaxGroupIndices);
     }
+    POP_DISABLE_CLANG_SIMD_ABI_WARNING()
+
 #else
     // MSVC doesn't get good codegen for the above loop. Provide direct SSE
     // intrinsics.

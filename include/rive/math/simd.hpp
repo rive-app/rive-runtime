@@ -83,6 +83,22 @@ template <typename T> struct boolean_mask_type
 
 #define SIMD_NATIVE_GVEC 1
 
+// NOTE: Due to the build compiling with march=native, on systems with AVX
+//  or AVX512 support, it will output those vectors from these functions,
+//  but clang will kick out the following warning:
+//   AVX vector return of type 'gvec<signed char, 8 + 8 + 8 + 8>' (vector of
+//   32 'signed char' values) without 'avx' enabled changes the ABI
+//  In release builds, all of the places where these functions are being
+//   called should be getting inlined so there's not *technically* an ABI
+//   to be breaking, so disabling this should be fine.
+#define DISABLE_CLANG_SIMD_ABI_WARNING()                                       \
+    _Pragma("clang diagnostic ignored \"-Wpsabi\"")
+
+#define PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()                                  \
+    _Pragma("clang diagnostic push") DISABLE_CLANG_SIMD_ABI_WARNING()
+
+#define POP_DISABLE_CLANG_SIMD_ABI_WARNING() _Pragma("clang diagnostic pop")
+
 #else
 
 // gvec needs to be polyfilled with templates.
@@ -93,6 +109,11 @@ template <typename T> struct boolean_mask_type
 #include "simd_gvec_polyfill.hpp"
 
 #define SIMD_NATIVE_GVEC 0
+
+// With non-native gvec these don't have to do anything
+#define DISABLE_CLANG_SIMD_ABI_WARNING()
+#define PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
+#define POP_DISABLE_CLANG_SIMD_ABI_WARNING()
 
 #endif
 
@@ -585,6 +606,8 @@ SIMD_ALWAYS_INLINE std::
 }
 #endif
 
+PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
+
 template <typename T, int M, int N>
 SIMD_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 {
@@ -695,6 +718,8 @@ SIMD_ALWAYS_INLINE
     }
     return ret;
 }
+
+POP_DISABLE_CLANG_SIMD_ABI_WARNING()
 
 ////// Basic linear algebra //////
 

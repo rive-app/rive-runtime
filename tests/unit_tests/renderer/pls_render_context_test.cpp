@@ -6,6 +6,10 @@
 #include "common/render_context_null.hpp"
 #include <catch.hpp>
 
+// Rather than spot-disabling this warning at call sites, for test code
+//  we can just disable it for the whole file.
+DISABLE_CLANG_SIMD_ABI_WARNING()
+
 class RenderContextNULLTest : public RenderContextNULL
 {
 public:

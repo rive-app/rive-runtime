@@ -78,6 +78,8 @@ TEST_CASE("rcp", "[basics]")
 
     struct A : public rive::RefCnt<A>
     {
+        virtual ~A() = default;
+
         int x = 17;
     };
     struct B : public A

@@ -1315,7 +1315,7 @@ public:
         auto vmProp = dataContext->getViewModelProperty(path);
         if (vmProp != nullptr)
         {
-            m_viewModelInstanceValue = vmProp;
+            m_viewModelInstanceValue = rive::ref_rcp(vmProp);
             vmProp->addDependent(this);
         }
     }
@@ -1336,7 +1336,7 @@ public:
 private:
     StateMachineInstance* m_stateMachineInstance = nullptr;
     const StateMachineListener* m_listener = nullptr;
-    ViewModelInstanceValue* m_viewModelInstanceValue = nullptr;
+    rive::rcp<ViewModelInstanceValue> m_viewModelInstanceValue = nullptr;
 };
 
 } // namespace rive

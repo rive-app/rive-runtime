@@ -100,29 +100,24 @@ RUNTIME=$PWD
 popd
 
 BUILD_RIVE_COMMANDS="$CONFIG --with_rive_tools --with_rive_audio=external --with_rive_scripting --no_ffp_contract $TOOLSET_ARG $EXTRA_CONFIG"
+$RUNTIME/build/build_rive.sh $BUILD_RIVE_COMMANDS
+
+rm -fR silvers/tarnished
+mkdir -p silvers/tarnished
 
 OUT_DIR="out/$CONFIG"
 
-if [[ $machine = "macosx" ]]; then
-  # Note that the build_rive.sh line is here (and in the windows block) and not outside of this (i.e. it doesn't always run)
-  #  because that is the way this script worked before it was converted to use build_rive.sh. This seems incorrect, but Linux
-  #  for instance currently does not build anything with this script (and the linux build fails on GitHub at PR time at the 
-  #  time of writing this, which is why for now it is this way instead).
-  build_rive.sh $BUILD_RIVE_COMMANDS
-  rm -fR silvers/tarnished
-  mkdir -p silvers/tarnished
-  $UTILITY $OUT_DIR/unit_tests "$MATCH"
-  if [[ $COVERAGE = "true" ]]; then
+# Actually run the unit tests
+$UTILITY $OUT_DIR/unit_tests "$MATCH"
+
+if [[ $COVERAGE = "true" ]]; then
+  if [[ $machine = "macosx" ]]; then
     xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
     xcrun llvm-cov report $OUT_DIR/unit_tests -instr-profile=default.profdata
     # xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=text >coverage.json
     xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=lcov >coverage.txt
     sed -i '' -e 's?'$RUNTIME'?packages/runtime?g' coverage.txt
+  else
+    echo "'coverage' command line argument was specified but it only works on Mac so it was ignored"
   fi
-
-elif [[ $machine = "windows" ]]; then
-  build_rive.sh $BUILD_RIVE_COMMANDS
-  rm -fR silvers/tarnished
-  mkdir -p silvers/tarnished
-  $UTILITY $OUT_DIR/unit_tests "$MATCH"
-fi
+fi  

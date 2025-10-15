@@ -42,8 +42,8 @@ TEST_CASE("string decoder", "[reader]")
 
     bytes_read = decode_string(12, str_bytes, str_bytes + 11, decoded_str);
     REQUIRE(bytes_read == 0);
-    delete str;
-    delete decoded_str;
+    free(str);
+    free(decoded_str);
 }
 
 TEST_CASE("float decoder", "[reader]")
