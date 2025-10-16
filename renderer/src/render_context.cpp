@@ -645,6 +645,21 @@ void RenderContext::logicalFlush()
     m_logicalFlushes.emplace_back(new LogicalFlush(this));
 }
 
+static uint32_t pls_transient_backing_depth(gpu::InterlockMode interlockMode)
+{
+    switch (interlockMode)
+    {
+        case gpu::InterlockMode::rasterOrdering:
+            return 3; // clip, scratch, coverage
+        case gpu::InterlockMode::atomics:
+            return 1; // only clip (coverage is atomic)
+        case gpu::InterlockMode::clockwiseAtomic:
+        case gpu::InterlockMode::msaa:
+            return 0; // N/A
+    }
+    RIVE_UNREACHABLE();
+}
+
 void RenderContext::flush(const FlushResources& flushResources)
 {
     RIVE_PROF_SCOPE()
@@ -669,31 +684,48 @@ void RenderContext::flush(const FlushResources& flushResources)
 
     // Determine the minimum required resource allocation sizes to service this
     // flush.
-    ResourceAllocationCounts resourceRequirements;
-    resourceRequirements.flushUniformBufferCount = m_logicalFlushes.size();
-    resourceRequirements.imageDrawUniformBufferCount =
-        totalFrameResourceCounts.imageDrawCount;
-    resourceRequirements.pathBufferCount =
-        totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount;
-    resourceRequirements.paintBufferCount =
-        totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount;
-    resourceRequirements.paintAuxBufferCount =
-        totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount;
-    resourceRequirements.contourBufferCount =
-        totalFrameResourceCounts.contourCount +
-        layoutCounts.contourPaddingCount;
-    resourceRequirements.gradSpanBufferCount =
-        layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount;
-    resourceRequirements.tessSpanBufferCount =
-        totalFrameResourceCounts.maxTessellatedSegmentCount;
-    resourceRequirements.triangleVertexBufferCount =
-        totalFrameResourceCounts.maxTriangleVertexCount;
-    resourceRequirements.gradTextureHeight = layoutCounts.maxGradTextureHeight;
-    resourceRequirements.tessTextureHeight = layoutCounts.maxTessTextureHeight;
-    resourceRequirements.atlasTextureWidth = layoutCounts.maxAtlasWidth;
-    resourceRequirements.atlasTextureHeight = layoutCounts.maxAtlasHeight;
-    resourceRequirements.coverageBufferLength =
-        layoutCounts.maxCoverageBufferLength;
+    const uint32_t plsTransientBackingDepth =
+        pls_transient_backing_depth(frameInterlockMode());
+    const ResourceAllocationCounts resourceRequirements = {
+        .flushUniformBufferCount = m_logicalFlushes.size(),
+        .imageDrawUniformBufferCount = totalFrameResourceCounts.imageDrawCount,
+        .pathBufferCount =
+            totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount,
+        .paintBufferCount =
+            totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount,
+        .paintAuxBufferCount = totalFrameResourceCounts.pathCount +
+                               layoutCounts.paintAuxPaddingCount,
+        .contourBufferCount = totalFrameResourceCounts.contourCount +
+                              layoutCounts.contourPaddingCount,
+        .gradSpanBufferCount =
+            layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount,
+        .tessSpanBufferCount =
+            totalFrameResourceCounts.maxTessellatedSegmentCount,
+        .triangleVertexBufferCount =
+            totalFrameResourceCounts.maxTriangleVertexCount,
+        .gradTextureHeight = layoutCounts.maxGradTextureHeight,
+        .tessTextureHeight = layoutCounts.maxTessTextureHeight,
+        .atlasTextureWidth = layoutCounts.maxAtlasWidth,
+        .atlasTextureHeight = layoutCounts.maxAtlasHeight,
+        .plsTransientBackingWidth =
+            (plsTransientBackingDepth > 0)
+                ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
+                : 0,
+        .plsTransientBackingHeight =
+            (plsTransientBackingDepth > 0)
+                ? static_cast<size_t>(m_frameDescriptor.renderTargetHeight)
+                : 0,
+        .plsTransientBackingDepth = plsTransientBackingDepth,
+        .plsAtomicCoverageBackingWidth =
+            (frameInterlockMode() == gpu::InterlockMode::atomics)
+                ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
+                : 0,
+        .plsAtomicCoverageBackingHeight =
+            (frameInterlockMode() == gpu::InterlockMode::atomics)
+                ? static_cast<size_t>(m_frameDescriptor.renderTargetHeight)
+                : 0,
+        .coverageBufferLength = layoutCounts.maxCoverageBufferLength,
+    };
 
     // Ensure we're within hardware limits.
     assert(resourceRequirements.gradTextureHeight <= kMaxTextureHeight);
@@ -704,6 +736,10 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(resourceRequirements.atlasTextureHeight <= atlasMaxSize() ||
            resourceRequirements.atlasTextureHeight <=
                frameDescriptor().renderTargetHeight);
+    assert(resourceRequirements.plsTransientBackingWidth <=
+           m_frameDescriptor.renderTargetWidth);
+    assert(resourceRequirements.plsTransientBackingHeight <=
+           m_frameDescriptor.renderTargetHeight);
     assert(resourceRequirements.coverageBufferLength <=
            platformFeatures().maxCoverageBufferLength);
 
@@ -711,18 +747,42 @@ void RenderContext::flush(const FlushResources& flushResources)
 
     // Track m_maxRecentResourceRequirements so we can trim GPU allocations when
     // steady-state usage goes down.
-    m_maxRecentResourceRequirements =
+    m_maxRecentResourceRequirements = ResourceAllocationCounts::FromVec(
         simd::max(resourceRequirements.toVec(),
-                  m_maxRecentResourceRequirements.toVec());
+                  m_maxRecentResourceRequirements.toVec()));
 
     // Grow resources enough to handle this flush.
     // If "allocs" already fits in our current allocations, then don't change
-    // them. If they don't fit, overallocate by 25% in order to create some
-    // slack for growth.
-    ResourceAllocationCounts allocs = simd::if_then_else(
-        resourceRequirements.toVec() <= m_currentResourceAllocations.toVec(),
-        m_currentResourceAllocations.toVec(),
-        resourceRequirements.toVec() * size_t(5) / size_t(4));
+    // them.
+    // If they don't fit, overallocate by the specified amount in order to
+    // create some slack for growth.
+    constexpr static ResourceAllocationCounts OVERALLOC_x4 = {
+        .flushUniformBufferCount = 5,        // 125%
+        .imageDrawUniformBufferCount = 5,    // 125%
+        .pathBufferCount = 5,                // 125%
+        .paintBufferCount = 5,               // 125%
+        .paintAuxBufferCount = 5,            // 125%
+        .contourBufferCount = 5,             // 125%
+        .gradSpanBufferCount = 5,            // 125%
+        .tessSpanBufferCount = 5,            // 125%
+        .triangleVertexBufferCount = 5,      // 125%
+        .gradTextureHeight = 5,              // 125%
+        .tessTextureHeight = 5,              // 125%
+        .atlasTextureWidth = 5,              // 125%
+        .atlasTextureHeight = 5,             // 125%
+        .plsTransientBackingWidth = 4,       // 100% (i.e., don't overallocate)
+        .plsTransientBackingHeight = 4,      // 100% (i.e., don't overallocate)
+        .plsTransientBackingDepth = 4,       // 100% (i.e., don't overallocate)
+        .plsAtomicCoverageBackingWidth = 4,  // 100% (i.e., don't overallocate)
+        .plsAtomicCoverageBackingHeight = 4, // 100% (i.e., don't overallocate)
+        .coverageBufferLength = 5,           // 125%
+    };
+    ResourceAllocationCounts allocs =
+        ResourceAllocationCounts::FromVec(simd::if_then_else(
+            resourceRequirements.toVec() <=
+                m_currentResourceAllocations.toVec(),
+            m_currentResourceAllocations.toVec(),
+            (resourceRequirements.toVec() * OVERALLOC_x4.toVec()) >> 2));
 
     // In case the 25% growth pushed us above limits.
     allocs.gradTextureHeight =
@@ -745,14 +805,38 @@ void RenderContext::flush(const FlushResources& flushResources)
     bool needsResourceTrim = flushTime - m_lastResourceTrimTimeInSeconds >= 5;
     if (needsResourceTrim)
     {
-        // Trim GPU resource allocations to 125% of their maximum recent usage,
-        // and only if the recent usage is 2/3 or less of the current
-        // allocation.
-        allocs = simd::if_then_else(m_maxRecentResourceRequirements.toVec() <=
-                                        allocs.toVec() * size_t(2) / size_t(3),
-                                    m_maxRecentResourceRequirements.toVec() *
-                                        size_t(5) / size_t(4),
-                                    allocs.toVec());
+        // Trim GPU resource allocations to their maximum recent usage, plus
+        // overallocation, and only if the recent usage is below a certain
+        // threshold.
+        constexpr static ResourceAllocationCounts SHRINK_THRESHOLD_x3 = {
+            .flushUniformBufferCount = 2,        // 66.7%
+            .imageDrawUniformBufferCount = 2,    // 66.7%
+            .pathBufferCount = 2,                // 66.7%
+            .paintBufferCount = 2,               // 66.7%
+            .paintAuxBufferCount = 2,            // 66.7%
+            .contourBufferCount = 2,             // 66.7%
+            .gradSpanBufferCount = 2,            // 66.7%
+            .tessSpanBufferCount = 2,            // 66.7%
+            .triangleVertexBufferCount = 2,      // 66.7%
+            .gradTextureHeight = 2,              // 66.7%
+            .tessTextureHeight = 2,              // 66.7%
+            .atlasTextureWidth = 2,              // 66.7%
+            .atlasTextureHeight = 2,             // 66.7%
+            .plsTransientBackingWidth = 3,       // 100% (i.e., always shrink)
+            .plsTransientBackingHeight = 3,      // 100% (i.e., always shrink)
+            .plsTransientBackingDepth = 3,       // 100% (i.e., always shrink)
+            .plsAtomicCoverageBackingWidth = 3,  // 100% (i.e., always shrink)
+            .plsAtomicCoverageBackingHeight = 3, // 100% (i.e., always shrink)
+            .coverageBufferLength = 2,           // 66.7%
+        };
+        allocs = ResourceAllocationCounts::FromVec(simd::if_then_else(
+            m_maxRecentResourceRequirements.toVec() <=
+                (allocs.toVec() * SHRINK_THRESHOLD_x3.toVec()) / size_t(3),
+            // TODO: Do we actually need overallocation here?? Or should we just
+            // trust the past 5 seconds of steady usage?
+            (m_maxRecentResourceRequirements.toVec() * OVERALLOC_x4.toVec()) >>
+                2,
+            allocs.toVec()));
 
         // Ensure we stayed within limits.
         assert(allocs.gradTextureHeight <= kMaxTextureHeight);
@@ -770,6 +854,7 @@ void RenderContext::flush(const FlushResources& flushResources)
         m_lastResourceTrimTimeInSeconds = flushTime;
     }
 
+    assert(simd::all(allocs.toVec() >= resourceRequirements.toVec()));
     POP_DISABLE_CLANG_SIMD_ABI_WARNING()
 
     setResourceSizes(allocs);
@@ -1733,6 +1818,38 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                    (newHeight * newWidth * bytesPerPixel) >> 10);
         }
 
+        void logTexture3dSize(const char* name,
+                              size_t oldWidth,
+                              size_t oldHeight,
+                              size_t oldDepth,
+                              size_t newWidth,
+                              size_t newHeight,
+                              size_t newDepth,
+                              size_t bytesPerPixel)
+        {
+            m_totalSizeInBytes += newHeight * newWidth * bytesPerPixel;
+            if (oldWidth == newWidth && oldHeight == newHeight &&
+                oldDepth == newDepth)
+            {
+                return;
+            }
+            if (!m_hasChanged)
+            {
+                printf("RenderContext::setResourceSizes():\n");
+                m_hasChanged = true;
+            }
+            printf("  resize %s: [%zu x %zu x %zu] -> [%zu x %zu x %zu] "
+                   "(%zu KiB)\n",
+                   name,
+                   oldWidth,
+                   oldHeight,
+                   oldDepth,
+                   newWidth,
+                   newHeight,
+                   newDepth,
+                   (newHeight * newWidth * newDepth * bytesPerPixel) >> 10);
+        }
+
         ~Logger()
         {
             if (!m_hasChanged)
@@ -1752,19 +1869,33 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                    m_currentResourceAllocations.NAME,                          \
                    allocs.NAME,                                                \
                    allocs.NAME* ITEM_SIZE_IN_BYTES* gpu::kBufferRingSize)
-#define LOG_TEXTURE_HEIGHT(NAME, BYTES_PER_ROW)                                \
+#define LOG_TEXTURE_SIZE(NAME, BYTES_PER_VALUE)                                \
     logger.logSize(#NAME,                                                      \
                    m_currentResourceAllocations.NAME,                          \
                    allocs.NAME,                                                \
-                   allocs.NAME* BYTES_PER_ROW)
-#define LOG_TEXTURE_SIZE(WIDTH_NAME, HEIGHT_NAME, BYTES_PER_PIXEL)             \
-    logger.logTextureSize(#WIDTH_NAME,                                         \
-                          #HEIGHT_NAME,                                        \
-                          m_currentResourceAllocations.WIDTH_NAME,             \
-                          m_currentResourceAllocations.HEIGHT_NAME,            \
-                          allocs.WIDTH_NAME,                                   \
-                          allocs.HEIGHT_NAME,                                  \
-                          BYTES_PER_PIXEL)
+                   allocs.NAME*(BYTES_PER_VALUE))
+#define LOG_TEXTURE_2D_SIZE(NAME, WIDTH_NAME, HEIGHT_NAME, BYTES_PER_PIXEL)    \
+    logger.logTexture3dSize(NAME,                                              \
+                            m_currentResourceAllocations.WIDTH_NAME,           \
+                            m_currentResourceAllocations.HEIGHT_NAME,          \
+                            1,                                                 \
+                            allocs.WIDTH_NAME,                                 \
+                            allocs.HEIGHT_NAME,                                \
+                            1,                                                 \
+                            BYTES_PER_PIXEL)
+#define LOG_TEXTURE_3D_SIZE(NAME,                                              \
+                            WIDTH_NAME,                                        \
+                            HEIGHT_NAME,                                       \
+                            DEPTH_NAME,                                        \
+                            BYTES_PER_PIXEL)                                   \
+    logger.logTexture3dSize(NAME,                                              \
+                            m_currentResourceAllocations.WIDTH_NAME,           \
+                            m_currentResourceAllocations.HEIGHT_NAME,          \
+                            m_currentResourceAllocations.DEPTH_NAME,           \
+                            allocs.WIDTH_NAME,                                 \
+                            allocs.HEIGHT_NAME,                                \
+                            allocs.DEPTH_NAME,                                 \
+                            BYTES_PER_PIXEL)
 #define LOG_BUFFER_SIZE(NAME, BYTES_PER_ELEMENT)                               \
     logger.logSize(#NAME,                                                      \
                    m_currentResourceAllocations.NAME,                          \
@@ -1772,8 +1903,13 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                    allocs.NAME* BYTES_PER_ELEMENT)
 #else
 #define LOG_BUFFER_RING_SIZE(NAME, ITEM_SIZE_IN_BYTES)
-#define LOG_TEXTURE_HEIGHT(NAME, BYTES_PER_ROW)
-#define LOG_TEXTURE_SIZE(WIDTH_NAME, HEIGHT_NAME, BYTES_PER_PIXEL)
+#define LOG_TEXTURE_SIZE(NAME, BYTES_PER_ROW)
+#define LOG_TEXTURE_2D_SIZE(NAME, WIDTH_NAME, HEIGHT_NAME, BYTES_PER_PIXEL)
+#define LOG_TEXTURE_3D_SIZE(NAME,                                              \
+                            WIDTH_NAME,                                        \
+                            HEIGHT_NAME,                                       \
+                            DEPTH_NAME,                                        \
+                            BYTES_PER_PIXEL)
 #define LOG_BUFFER_SIZE(NAME, BYTES_PER_ELEMENT)
 #endif
 
@@ -1865,7 +2001,7 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
     }
 
     assert(allocs.gradTextureHeight <= kMaxTextureHeight);
-    LOG_TEXTURE_HEIGHT(gradTextureHeight, gpu::kGradTextureWidth * 4);
+    LOG_TEXTURE_SIZE(gradTextureHeight, gpu::kGradTextureWidth * 4);
     if (allocs.gradTextureHeight !=
             m_currentResourceAllocations.gradTextureHeight ||
         forceRealloc)
@@ -1876,7 +2012,7 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
     }
 
     assert(allocs.tessTextureHeight <= kMaxTextureHeight);
-    LOG_TEXTURE_HEIGHT(tessTextureHeight, gpu::kTessTextureWidth * 4 * 4);
+    LOG_TEXTURE_SIZE(tessTextureHeight, gpu::kTessTextureWidth * 4 * 4);
     if (allocs.tessTextureHeight !=
             m_currentResourceAllocations.tessTextureHeight ||
         forceRealloc)
@@ -1890,7 +2026,10 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
            allocs.atlasTextureWidth <= frameDescriptor().renderTargetWidth);
     assert(allocs.atlasTextureHeight <= atlasMaxSize() ||
            allocs.atlasTextureHeight <= frameDescriptor().renderTargetHeight);
-    LOG_TEXTURE_SIZE(atlasTextureWidth, atlasTextureHeight, sizeof(uint16_t));
+    LOG_TEXTURE_2D_SIZE("atlasTexture",
+                        atlasTextureWidth,
+                        atlasTextureHeight,
+                        sizeof(uint16_t));
     if (allocs.atlasTextureWidth !=
             m_currentResourceAllocations.atlasTextureWidth ||
         allocs.atlasTextureHeight !=
@@ -1900,6 +2039,50 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
         m_impl->resizeAtlasTexture(
             math::lossless_numeric_cast<uint32_t>(allocs.atlasTextureWidth),
             math::lossless_numeric_cast<uint32_t>(allocs.atlasTextureHeight));
+    }
+
+    assert(allocs.plsTransientBackingDepth <=
+           RenderContextImpl::PLS_TRANSIENT_BACKING_MAX_DEPTH);
+    LOG_TEXTURE_3D_SIZE("plsTransientBacking",
+                        plsTransientBackingWidth,
+                        plsTransientBackingHeight,
+                        plsTransientBackingDepth,
+                        sizeof(uint32_t));
+    if (allocs.plsTransientBackingWidth !=
+            m_currentResourceAllocations.plsTransientBackingWidth ||
+        allocs.plsTransientBackingHeight !=
+            m_currentResourceAllocations.plsTransientBackingHeight ||
+        allocs.plsTransientBackingDepth !=
+            m_currentResourceAllocations.plsTransientBackingDepth ||
+        forceRealloc)
+    {
+        m_impl->resizeTransientPLSBacking(math::lossless_numeric_cast<uint32_t>(
+                                              allocs.plsTransientBackingWidth),
+                                          math::lossless_numeric_cast<uint32_t>(
+                                              allocs.plsTransientBackingHeight),
+                                          math::lossless_numeric_cast<uint32_t>(
+                                              allocs.plsTransientBackingDepth));
+    }
+
+    assert(allocs.plsAtomicCoverageBackingWidth <=
+           allocs.plsTransientBackingWidth);
+    assert(allocs.plsAtomicCoverageBackingHeight <=
+           allocs.plsTransientBackingHeight);
+    LOG_TEXTURE_2D_SIZE("plsAtomicCoverageBacking",
+                        plsAtomicCoverageBackingWidth,
+                        plsAtomicCoverageBackingHeight,
+                        sizeof(uint32_t));
+    if (allocs.plsAtomicCoverageBackingWidth !=
+            m_currentResourceAllocations.plsAtomicCoverageBackingWidth ||
+        allocs.plsAtomicCoverageBackingHeight !=
+            m_currentResourceAllocations.plsAtomicCoverageBackingHeight ||
+        forceRealloc)
+    {
+        m_impl->resizeAtomicCoverageBacking(
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.plsAtomicCoverageBackingWidth),
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.plsAtomicCoverageBackingHeight));
     }
 
     assert(allocs.coverageBufferLength <=

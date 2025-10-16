@@ -12,72 +12,13 @@ namespace rive::gpu
 {
 TextureRenderTargetGL::~TextureRenderTargetGL() {}
 
-static glutils::Texture make_backing_texture(GLenum internalformat,
-                                             uint32_t width,
-                                             uint32_t height)
-{
-    glutils::Texture texture;
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width, height);
-    return texture;
-}
-
-void TextureRenderTargetGL::allocateInternalPLSTextures(
-    gpu::InterlockMode interlockMode)
-{
-    if (m_coverageTexture == 0)
-    {
-        m_coverageTexture = make_backing_texture(GL_R32UI, width(), height());
-        m_framebufferInternalAttachmentsDirty = true;
-        m_framebufferInternalPLSBindingsDirty = true;
-    }
-    if (m_clipTexture == 0)
-    {
-        m_clipTexture = make_backing_texture(GL_R32UI, width(), height());
-        m_framebufferInternalAttachmentsDirty = true;
-        m_framebufferInternalPLSBindingsDirty = true;
-    }
-    if (interlockMode == InterlockMode::rasterOrdering &&
-        m_scratchColorTexture == 0)
-    {
-        m_scratchColorTexture =
-            make_backing_texture(GL_RGBA8, width(), height());
-        m_framebufferInternalAttachmentsDirty = true;
-        m_framebufferInternalPLSBindingsDirty = true;
-    }
-}
-
-void TextureRenderTargetGL::bindInternalFramebuffer(
-    GLenum target,
-    DrawBufferMask drawBufferMask)
+void TextureRenderTargetGL::bindTextureFramebuffer(GLenum target)
 {
     if (m_framebufferID == 0)
     {
         m_framebufferID = glutils::Framebuffer();
     }
     glBindFramebuffer(target, m_framebufferID);
-
-    if (target != GL_READ_FRAMEBUFFER &&
-        m_internalDrawBufferMask != drawBufferMask)
-    {
-        GLenum drawBufferList[4];
-        for (int i = 0; i < 4; ++i)
-        {
-            drawBufferList[i] =
-                (drawBufferMask & static_cast<DrawBufferMask>(1 << i))
-                    ? GL_COLOR_ATTACHMENT0 + i
-                    : GL_NONE;
-            static_assert((int)DrawBufferMask::color == 1 << COLOR_PLANE_IDX);
-            static_assert((int)DrawBufferMask::clip == 1 << CLIP_PLANE_IDX);
-            static_assert((int)DrawBufferMask::scratchColor ==
-                          1 << SCRATCH_COLOR_PLANE_IDX);
-            static_assert((int)DrawBufferMask::coverage ==
-                          1 << COVERAGE_PLANE_IDX);
-        }
-        glDrawBuffers(4, drawBufferList);
-        m_internalDrawBufferMask = drawBufferMask;
-    }
 
     if (m_framebufferTargetAttachmentDirty)
     {
@@ -87,26 +28,6 @@ void TextureRenderTargetGL::bindInternalFramebuffer(
                                m_externalTextureID,
                                0);
         m_framebufferTargetAttachmentDirty = false;
-    }
-
-    if (m_framebufferInternalAttachmentsDirty)
-    {
-        glFramebufferTexture2D(target,
-                               GL_COLOR_ATTACHMENT0 + CLIP_PLANE_IDX,
-                               GL_TEXTURE_2D,
-                               m_clipTexture,
-                               0);
-        glFramebufferTexture2D(target,
-                               GL_COLOR_ATTACHMENT0 + SCRATCH_COLOR_PLANE_IDX,
-                               GL_TEXTURE_2D,
-                               m_scratchColorTexture,
-                               0);
-        glFramebufferTexture2D(target,
-                               GL_COLOR_ATTACHMENT0 + COVERAGE_PLANE_IDX,
-                               GL_TEXTURE_2D,
-                               m_coverageTexture,
-                               0);
-        m_framebufferInternalAttachmentsDirty = false;
     }
 }
 
@@ -136,83 +57,37 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(
     }
 
 #ifdef GL_ANGLE_shader_pixel_local_storage
-    if (capabilities.ANGLE_shader_pixel_local_storage)
+    if (capabilities.ANGLE_shader_pixel_local_storage &&
+        m_webglPLSBindingsDirty)
     {
-        if (m_framebufferTargetPLSBindingDirty)
-        {
-            glFramebufferTexturePixelLocalStorageANGLE(COLOR_PLANE_IDX,
-                                                       m_externalTextureID,
-                                                       0,
-                                                       0);
-            m_framebufferTargetPLSBindingDirty = false;
-        }
-
-        if (m_framebufferInternalPLSBindingsDirty)
+        glFramebufferTexturePixelLocalStorageANGLE(COLOR_PLANE_IDX,
+                                                   m_externalTextureID,
+                                                   0,
+                                                   0);
+        glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX,
+                                                   m_webglPLSBackingR32UI,
+                                                   0,
+                                                   0);
+        if (!capabilities.avoidTexture2DArrayWithWebGLPLS)
         {
             glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX,
-                                                       m_clipTexture,
+                                                       m_webglPLSBackingR32UI,
                                                        0,
-                                                       0);
-            glFramebufferTexturePixelLocalStorageANGLE(SCRATCH_COLOR_PLANE_IDX,
-                                                       m_scratchColorTexture,
-                                                       0,
-                                                       0);
-            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX,
-                                                       m_coverageTexture,
-                                                       0,
-                                                       0);
-            m_framebufferInternalPLSBindingsDirty = false;
+                                                       1);
         }
-    }
-#endif
-}
-
-void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
-{
-#ifndef RIVE_WEBGL
-    if (drawBufferMask & DrawBufferMask::color)
-    {
-        assert(m_externalTextureID != 0);
-        glBindImageTexture(COLOR_PLANE_IDX,
-                           m_externalTextureID,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_RGBA8);
-    }
-    if (drawBufferMask & DrawBufferMask::clip)
-    {
-        assert(m_clipTexture != 0);
-        glBindImageTexture(CLIP_PLANE_IDX,
-                           m_clipTexture,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_R32UI);
-    }
-    if (drawBufferMask & DrawBufferMask::scratchColor)
-    {
-        assert(m_scratchColorTexture != 0);
-        glBindImageTexture(SCRATCH_COLOR_PLANE_IDX,
-                           m_scratchColorTexture,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_RGBA8);
-    }
-    if (drawBufferMask & DrawBufferMask::coverage)
-    {
-        assert(m_coverageTexture != 0);
-        glBindImageTexture(COVERAGE_PLANE_IDX,
-                           m_coverageTexture,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_R32UI);
+        else
+        {
+            glFramebufferTexturePixelLocalStorageANGLE(
+                CLIP_PLANE_IDX,
+                m_webglPLSBackingR32UIFallback,
+                0,
+                0);
+        }
+        glFramebufferTexturePixelLocalStorageANGLE(SCRATCH_COLOR_PLANE_IDX,
+                                                   m_webglPLSBackingRGBA8,
+                                                   0,
+                                                   0);
+        m_webglPLSBindingsDirty = false;
     }
 #endif
 }
@@ -316,11 +191,46 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
     }
 }
 
-void TextureRenderTargetGL::bindInternalDstTexture(GLenum activeTexture)
+#ifdef GL_ANGLE_shader_pixel_local_storage
+void TextureRenderTargetGL::allocateWebGLPLSBacking(
+    const GLCapabilities& capabilities)
 {
-    glActiveTexture(activeTexture);
-    glBindTexture(GL_TEXTURE_2D, m_externalTextureID);
+    if (m_webglPLSBackingR32UI == 0)
+    {
+        glActiveTexture(GL_TEXTURE0);
+        m_webglPLSBackingR32UI = glutils::Texture();
+        if (!capabilities.avoidTexture2DArrayWithWebGLPLS)
+        {
+            glBindTexture(GL_TEXTURE_2D_ARRAY, m_webglPLSBackingR32UI);
+            glTexStorage3D(GL_TEXTURE_2D_ARRAY,
+                           1,
+                           GL_R32UI,
+                           width(),
+                           height(),
+                           2);
+        }
+        else
+        {
+            // ANGLE_shader_pixel_local_storage is currently broken with
+            // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
+            m_webglPLSBackingR32UIFallback = glutils::Texture();
+            glBindTexture(GL_TEXTURE_2D, m_webglPLSBackingR32UI);
+            glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32UI, width(), height());
+            glBindTexture(GL_TEXTURE_2D, m_webglPLSBackingR32UIFallback);
+            glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32UI, width(), height());
+        }
+        m_webglPLSBindingsDirty = true;
+    }
+    if (m_webglPLSBackingRGBA8 == 0)
+    {
+        m_webglPLSBackingRGBA8 = glutils::Texture();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_webglPLSBackingRGBA8);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width(), height());
+        m_webglPLSBindingsDirty = true;
+    }
 }
+#endif
 
 FramebufferRenderTargetGL::~FramebufferRenderTargetGL() {}
 
@@ -333,36 +243,30 @@ void FramebufferRenderTargetGL::allocateOffscreenTargetTexture()
 {
     if (m_offscreenTargetTexture == 0)
     {
-        m_offscreenTargetTexture =
-            make_backing_texture(GL_RGBA8, width(), height());
+        m_offscreenTargetTexture = glutils::Texture();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_offscreenTargetTexture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width(), height());
         m_textureRenderTarget.setTargetTexture(m_offscreenTargetTexture);
     }
 }
 
-void FramebufferRenderTargetGL::allocateInternalPLSTextures(
-    gpu::InterlockMode interlockMode)
+GLuint FramebufferRenderTargetGL::renderTexture()
 {
-    m_textureRenderTarget.allocateInternalPLSTextures(interlockMode);
+    allocateOffscreenTargetTexture();
+    return m_textureRenderTarget.renderTexture();
 }
 
-void FramebufferRenderTargetGL::bindInternalFramebuffer(
-    GLenum target,
-    DrawBufferMask drawBufferMask)
+void FramebufferRenderTargetGL::bindTextureFramebuffer(GLenum target)
 {
-
-    m_textureRenderTarget.bindInternalFramebuffer(target, drawBufferMask);
+    allocateOffscreenTargetTexture();
+    m_textureRenderTarget.bindTextureFramebuffer(target);
 }
 
 void FramebufferRenderTargetGL::bindHeadlessFramebuffer(
     const GLCapabilities& capabilities)
 {
     m_textureRenderTarget.bindHeadlessFramebuffer(capabilities);
-}
-
-void FramebufferRenderTargetGL::bindAsImageTextures(
-    DrawBufferMask drawBufferMask)
-{
-    m_textureRenderTarget.bindAsImageTextures(drawBufferMask);
 }
 
 RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
@@ -397,9 +301,7 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
             // (NOTE: step 2 gets skipped when we have
             // EXT_multisampled_render_to_texture.)
             allocateOffscreenTargetTexture();
-            m_textureRenderTarget.bindInternalFramebuffer(
-                GL_DRAW_FRAMEBUFFER,
-                DrawBufferMask::color);
+            m_textureRenderTarget.bindTextureFramebuffer(GL_DRAW_FRAMEBUFFER);
             bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
             renderContextImpl->state()->setPipelineState(
                 gpu::COLOR_ONLY_PIPELINE_STATE);
@@ -426,9 +328,11 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
     }
 }
 
-void FramebufferRenderTargetGL::bindInternalDstTexture(GLenum activeTexture)
+#ifdef GL_ANGLE_shader_pixel_local_storage
+void FramebufferRenderTargetGL::allocateWebGLPLSBacking(
+    const GLCapabilities& capabilities)
 {
-    allocateOffscreenTargetTexture();
-    m_textureRenderTarget.bindInternalDstTexture(activeTexture);
+    m_textureRenderTarget.allocateWebGLPLSBacking(capabilities);
 }
+#endif
 } // namespace rive::gpu

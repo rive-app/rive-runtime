@@ -188,8 +188,6 @@ void glProvokingVertexANGLE(GLenum provokeMode)
 
 namespace rive::gpu
 {
-using DrawBufferMask = RenderTargetGL::DrawBufferMask;
-
 static GLenum webgl_load_op(gpu::LoadAction loadAction)
 {
     switch (loadAction)
@@ -223,7 +221,8 @@ class RenderContextGLImpl::PLSImplWebGL
                                    const FlushDescriptor& desc) override
     {
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
-        renderTarget->allocateInternalPLSTextures(desc.interlockMode);
+        renderTarget->allocateWebGLPLSBacking(
+            renderContextImpl->capabilities());
 
         auto framebufferRenderTarget =
             lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
@@ -237,9 +236,8 @@ class RenderContextGLImpl::PLSImplWebGL
                 // Copy the framebuffer's contents to our offscreen texture.
                 framebufferRenderTarget->bindDestinationFramebuffer(
                     GL_READ_FRAMEBUFFER);
-                framebufferRenderTarget->bindInternalFramebuffer(
-                    GL_DRAW_FRAMEBUFFER,
-                    DrawBufferMask::color);
+                framebufferRenderTarget->bindTextureFramebuffer(
+                    GL_DRAW_FRAMEBUFFER);
                 renderContextImpl->state()->setPipelineState(
                     gpu::COLOR_ONLY_PIPELINE_STATE);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
@@ -291,9 +289,8 @@ class RenderContextGLImpl::PLSImplWebGL
         {
             // We rendered to an offscreen texture. Copy back to the external
             // target FBO.
-            framebufferRenderTarget->bindInternalFramebuffer(
-                GL_READ_FRAMEBUFFER,
-                DrawBufferMask::color);
+            framebufferRenderTarget->bindTextureFramebuffer(
+                GL_READ_FRAMEBUFFER);
             framebufferRenderTarget->bindDestinationFramebuffer(
                 GL_DRAW_FRAMEBUFFER);
             renderContextImpl->state()->setPipelineState(

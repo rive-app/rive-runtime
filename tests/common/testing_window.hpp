@@ -64,6 +64,15 @@ public:
         null,
     };
 
+    enum class ANGLERenderer
+    {
+        metal,
+        d3d11,
+        vk,
+        gles,
+        gl,
+    };
+
     struct BackendParams
     {
         bool atomic = false;
@@ -73,6 +82,14 @@ public:
         bool clockwise = false;
         bool disableValidationLayers = false;
         bool disableDebugCallbacks = false;
+        ANGLERenderer angleRenderer =
+#ifdef __APPLE__
+            ANGLERenderer::metal;
+#elif defined(_WIN32)
+            ANGLERenderer::d3d11;
+#else
+            ANGLERenderer::vk;
+#endif
         std::string gpuNameFilter;
     };
 

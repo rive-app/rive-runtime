@@ -1005,6 +1005,35 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     }
 }
 
+void RenderContextGLImpl::resizeTransientPLSBacking(uint32_t width,
+                                                    uint32_t height,
+                                                    uint32_t depth)
+{
+    if (m_plsImpl != nullptr)
+    {
+        m_plsImpl->resizeTransientPLSBacking(width, height, depth);
+    }
+    else
+    {
+        // If we don't support PLS we better not be allocating a backing for it.
+        assert((width | height | depth) == 0);
+    }
+}
+
+void RenderContextGLImpl::resizeAtomicCoverageBacking(uint32_t width,
+                                                      uint32_t height)
+{
+    if (m_plsImpl != nullptr)
+    {
+        m_plsImpl->resizeAtomicCoverageBacking(width, height);
+    }
+    else
+    {
+        // If we don't support PLS we better not be allocating a backing for it.
+        assert((width | height) == 0);
+    }
+}
+
 RenderContextGLImpl::DrawShader::DrawShader(
     RenderContextGLImpl* renderContextImpl,
     GLenum shaderType,
@@ -1964,10 +1993,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else
             {
-                // Set up an internal texture to copy the framebuffer into, for
-                // in-shader blending.
-                renderTarget->bindInternalDstTexture(GL_TEXTURE0 +
-                                                     DST_COLOR_TEXTURE_IDX);
+                // Bind the renderTexture where it can be read for in-shader
+                // blending. We will resolve MSAA into this texture before
+                // issuing draws that use advanced blend.
+                // NOTE: The renderTexture() function may lazily allocate the
+                // texture, so don't call glActiveTexture() until it returns.
+                GLuint renderTexture = renderTarget->renderTexture();
+                glActiveTexture(GL_TEXTURE0 + DST_COLOR_TEXTURE_IDX);
+                glBindTexture(GL_TEXTURE_2D, renderTexture);
             }
         }
     }
@@ -2073,9 +2106,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 // blending.
                 assert(desc.interlockMode == gpu::InterlockMode::msaa);
                 assert(batch.dstReadList != nullptr);
-                renderTarget->bindInternalFramebuffer(
-                    GL_DRAW_FRAMEBUFFER,
-                    RenderTargetGL::DrawBufferMask::color);
+                renderTarget->bindTextureFramebuffer(GL_DRAW_FRAMEBUFFER);
                 for (const Draw* draw = batch.dstReadList; draw != nullptr;
                      draw = draw->nextDstRead())
                 {
@@ -2766,12 +2797,14 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 
     if (capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        if (strstr(rendererString, "Metal") != nullptr ||
-            strstr(rendererString, "Direct3D") != nullptr)
+        if (capabilities.isANGLESystemDriver)
         {
-            // Disable ANGLE_base_vertex_base_instance_shader_builtin on
-            // ANGLE/D3D and ANGLE/Metal. The extension is polyfilled on D3D
-            // anyway, and on Metal it crashes.
+            // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE.
+            // The extension has started crashing.
+            // (Meaning, now we only use it when we're Desktop GL and pretending
+            // we have ANGLE_base_vertex_base_instance_shader_builtin, but
+            // actually just have the functionality by default because it's part
+            // of Desktop GL.)
             capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
         }
     }
@@ -2845,6 +2878,16 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             // Require this workaround before the earliest known good driver,
             // which is 1.11.
             capabilities.needsPixelLocalStorage2 = true;
+        }
+    }
+
+    if (capabilities.ANGLE_shader_pixel_local_storage)
+    {
+        if (strstr(rendererString, "Direct3D11") != nullptr)
+        {
+            // ANGLE_shader_pixel_local_storage is currently broken with
+            // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
+            capabilities.avoidTexture2DArrayWithWebGLPLS = true;
         }
     }
 

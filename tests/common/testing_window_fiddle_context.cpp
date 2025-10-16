@@ -134,15 +134,30 @@ public:
         // It's convenient to run Swiftshader on CI without GLFW.
         if (backend == Backend::angle)
         {
-#ifdef __APPLE__
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                         GLFW_ANGLE_PLATFORM_TYPE_METAL);
-#elif defined(_WIN32)
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                         GLFW_ANGLE_PLATFORM_TYPE_D3D11);
-#elif !defined(__EMSCRIPTEN__)
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
-                         GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
+#if !defined(__EMSCRIPTEN__)
+            switch (backendParams.angleRenderer)
+            {
+                case ANGLERenderer::metal:
+                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                                 GLFW_ANGLE_PLATFORM_TYPE_METAL);
+                    break;
+                case ANGLERenderer::d3d11:
+                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                                 GLFW_ANGLE_PLATFORM_TYPE_D3D11);
+                    break;
+                case ANGLERenderer::vk:
+                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                                 GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
+                    break;
+                case ANGLERenderer::gles:
+                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                                 GLFW_ANGLE_PLATFORM_TYPE_OPENGLES);
+                    break;
+                case ANGLERenderer::gl:
+                    glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                                 GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
+                    break;
+            }
 #endif
         }
         if (!glfwInit())

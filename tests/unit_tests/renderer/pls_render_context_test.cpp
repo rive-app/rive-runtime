@@ -39,11 +39,13 @@ public:
     }
 };
 
+using ResourceAllocationCounts = RenderContextTest::ResourceAllocationCounts;
+
 namespace rive::gpu
 {
 TEST_CASE("ResourceAllocationCounts", "RenderContext")
 {
-    RenderContextTest::ResourceAllocationCounts allocs;
+    ResourceAllocationCounts allocs;
     allocs.pathBufferCount = 1;
     allocs.contourBufferCount = 2;
     allocs.gradSpanBufferCount = 4;
@@ -53,7 +55,7 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     allocs.gradTextureHeight = 8;
     allocs.tessTextureHeight = 9;
 
-    allocs = allocs.toVec() * 2;
+    allocs = ResourceAllocationCounts::FromVec(allocs.toVec() * 2);
     CHECK(allocs.pathBufferCount == 2);
     CHECK(allocs.contourBufferCount == 4);
     CHECK(allocs.gradSpanBufferCount == 8);
@@ -73,9 +75,10 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     testAllocs.gradTextureHeight = 4;
     testAllocs.tessTextureHeight = 2;
 
-    allocs = simd::if_then_else(allocs.toVec() <= testAllocs.toVec(),
-                                testAllocs.toVec(),
-                                allocs.toVec() * size_t(5));
+    allocs = ResourceAllocationCounts::FromVec(
+        simd::if_then_else(allocs.toVec() <= testAllocs.toVec(),
+                           testAllocs.toVec(),
+                           allocs.toVec() * size_t(5)));
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
     CHECK(allocs.gradSpanBufferCount == 12);
@@ -85,10 +88,10 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     CHECK(allocs.gradTextureHeight == 16 * 5);
     CHECK(allocs.tessTextureHeight == 18 * 5);
 
-    allocs =
+    allocs = ResourceAllocationCounts::FromVec(
         simd::if_then_else(testAllocs.toVec() * size_t(2) <= allocs.toVec(),
                            allocs.toVec() / size_t(2),
-                           allocs.toVec());
+                           allocs.toVec()));
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
     CHECK(allocs.gradSpanBufferCount == 12);
@@ -98,6 +101,8 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     CHECK(allocs.gradTextureHeight == 8 * 5);
     CHECK(allocs.tessTextureHeight == 9 * 5);
 }
+
+constexpr static double RESOURCE_EXPIRATION_TIME = 5.0001;
 
 // Check that resources start getting trimmed after 5 seconds.
 //
@@ -112,17 +117,7 @@ TEST_CASE("ResourceTriming", "RenderContext")
     CHECK(ctx.lastResourceTrimTimeInSeconds() ==
           ctx.testingImpl()->m_secondsOverride);
 
-    CHECK(ctx.currentResourceAllocations().flushUniformBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().imageDrawUniformBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().pathBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().paintBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().paintAuxBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().contourBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().gradSpanBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().tessSpanBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().triangleVertexBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().gradTextureHeight == 0);
-    CHECK(ctx.currentResourceAllocations().tessTextureHeight == 0);
+    CHECK(simd::all(ctx.currentResourceAllocations().toVec() == 0));
 
     auto twoContourPath = ctx.makeEmptyRenderPath();
     twoContourPath->addRect(0, 0, 100, 100);
@@ -194,7 +189,7 @@ TEST_CASE("ResourceTriming", "RenderContext")
 
     // Pass the time limit and observe that allocations stay the same, since the
     // previous usage is still in m_maxRecentResourceRequirements.
-    ctx.testingImpl()->m_secondsOverride += 5.0001;
+    ctx.testingImpl()->m_secondsOverride += RESOURCE_EXPIRATION_TIME;
     ctx.beginFrame(makeSimpleFrameDescriptor());
     renderer.drawPath(twoContourPath.get(), paint.get());
     ctx.flush({.renderTarget = renderTarget.get()});
@@ -205,7 +200,7 @@ TEST_CASE("ResourceTriming", "RenderContext")
 
     // Pass the time limit once more. This time resources should shrink since
     // m_maxRecentResourceRequirements only has the one path now.
-    ctx.testingImpl()->m_secondsOverride += 5.0001;
+    ctx.testingImpl()->m_secondsOverride += RESOURCE_EXPIRATION_TIME;
     ctx.beginFrame(makeSimpleFrameDescriptor());
     renderer.drawPath(twoContourPath.get(), paint.get());
     ctx.flush({.renderTarget = renderTarget.get()});
@@ -216,16 +211,210 @@ TEST_CASE("ResourceTriming", "RenderContext")
 
     // Releasing resources should reset them all the way to zero.
     ctx.releaseResources();
-    CHECK(ctx.currentResourceAllocations().flushUniformBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().imageDrawUniformBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().pathBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().paintBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().paintAuxBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().contourBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().gradSpanBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().tessSpanBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().triangleVertexBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().gradTextureHeight == 0);
-    CHECK(ctx.currentResourceAllocations().tessTextureHeight == 0);
+    CHECK(simd::all(ctx.currentResourceAllocations().toVec() == 0));
+}
+
+TEST_CASE("PLSResourceAllocation", "RenderContext")
+{
+    RenderContextTest ctx;
+    rive::RiveRenderer renderer(&ctx);
+
+    CHECK(ctx.lastResourceTrimTimeInSeconds() ==
+          ctx.testingImpl()->m_secondsOverride);
+
+    CHECK(simd::all(ctx.currentResourceAllocations().toVec() == 0));
+
+    auto path = ctx.makeEmptyRenderPath();
+    path->addRect(50, 50, 50, 50);
+
+    auto paint = ctx.makeRenderPaint();
+
+    CHECK(simd::all(ctx.currentResourceAllocations().toVec() == 0));
+
+    auto doSimpleFrame = [&](RenderContext::FrameDescriptor desc) {
+        ctx.beginFrame(desc);
+        renderer.drawPath(path.get(), paint.get());
+        auto renderTarget =
+            ctx.testingImpl()->makeRenderTarget(desc.renderTargetWidth,
+                                                desc.renderTargetHeight);
+        ctx.flush({.renderTarget = renderTarget.get()});
+    };
+
+    // MSAA doesn't use PLS.
+    doSimpleFrame({
+        .renderTargetWidth = 100,
+        .renderTargetHeight = 100,
+        .msaaSampleCount = 4,
+    });
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 0);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
+
+    // Check atomic.
+    doSimpleFrame({
+        .renderTargetWidth = 100,
+        .renderTargetHeight = 101,
+        .disableRasterOrdering = true,
+    });
+    // PLS backings are never over-allocated.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 100);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 101);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
+          100);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          101);
+
+    // Check raster ordering.
+    doSimpleFrame({
+        .renderTargetWidth = 101,
+        .renderTargetHeight = 100,
+    });
+    // PLS backings are never over-allocated.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 101);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 101);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 3);
+    // The atomic backing isn't deallocated yet, but its size is not affected by
+    // the backing for raster ordering.
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
+          100);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          101);
+
+    // Check raster ordering again after shrinking.
+    for (size_t i = 0; i < 2; ++i)
+    {
+        ctx.testingImpl()->m_secondsOverride += RESOURCE_EXPIRATION_TIME;
+        doSimpleFrame({
+            .renderTargetWidth = 101,
+            .renderTargetHeight = 100,
+        });
+    }
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 101);
+    // PLS backings are never over-allocated.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 100);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 3);
+    // The atomic backing should have been released now.
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
+
+    // Check atomic shrinking.
+    for (size_t i = 0; i < 2; ++i)
+    {
+        ctx.testingImpl()->m_secondsOverride += RESOURCE_EXPIRATION_TIME;
+        doSimpleFrame({
+            .renderTargetWidth = 99,
+            .renderTargetHeight = 200,
+            .disableRasterOrdering = true,
+        });
+    }
+    // PLS backings are never over-allocated.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 99);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 200);
+    // The backing depth should have shrunknsince we've only been drawing in
+    // atomic mode.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    // The atomic backing should have shrunk now.
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 99);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          200);
+
+    // Check msaa shrinking.
+    for (size_t i = 0; i < 2; ++i)
+    {
+        ctx.testingImpl()->m_secondsOverride += RESOURCE_EXPIRATION_TIME;
+        doSimpleFrame({
+            .renderTargetWidth = 1000,
+            .renderTargetHeight = 1000,
+            .msaaSampleCount = 4,
+        });
+    }
+    // PLS backings are never over-allocated.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 0);
+    // The atomic backing should have been released now.
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
+
+    // We may not need to allocate a full backing if we don't draw the full
+    // render target (e.g, by preserving or "dontCare"), but for now we don't
+    // worry about that. So preserve and dontCare should allocate full size
+    // backings as well.
+    doSimpleFrame({
+        .renderTargetWidth = 999,
+        .renderTargetHeight = 1234,
+        .loadAction = gpu::LoadAction::preserveRenderTarget,
+        .disableRasterOrdering = true,
+    });
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 999);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1234);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
+          999);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          1234);
+    doSimpleFrame({
+        .renderTargetWidth = 999,
+        .renderTargetHeight = 1234,
+        .loadAction = gpu::LoadAction::dontCare,
+        .disableRasterOrdering = true,
+    });
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 999);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1234);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
+          999);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          1234);
+
+    // Clearing the render target updates its full bounds, and sometimes PLS
+    // implements the clear as well, so PLS always has to cover the full bounds.
+    doSimpleFrame({
+        .renderTargetWidth = 999,
+        .renderTargetHeight = 1234,
+        .loadAction = gpu::LoadAction::clear,
+        .disableRasterOrdering = true,
+    });
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 999);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1234);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
+          999);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          1234);
+
+    // Partial updates would eventually shrink the PLS backing if we ever don't
+    // allocate the full render target size.
+    renderer.save();
+    renderer.scale(.5, 2);
+    for (size_t i = 0; i < 2; ++i)
+    {
+        ctx.testingImpl()->m_secondsOverride += RESOURCE_EXPIRATION_TIME;
+        doSimpleFrame({
+            .renderTargetWidth = 1000,
+            .renderTargetHeight = 1000,
+            .loadAction = i == 0 ? gpu::LoadAction::preserveRenderTarget
+                                 : gpu::LoadAction::dontCare,
+            .disableRasterOrdering = true,
+        });
+    }
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 1000);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1000);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
+          1000);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
+          1000);
+    renderer.restore();
+
+    ctx.releaseResources();
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 0);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
+    CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
 }
 } // namespace rive::gpu

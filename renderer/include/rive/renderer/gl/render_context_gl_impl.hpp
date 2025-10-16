@@ -118,6 +118,14 @@ private:
         virtual bool supportsFragmentShaderAtomics(
             const GLCapabilities&) const = 0;
 
+        virtual void resizeTransientPLSBacking(uint32_t width,
+                                               uint32_t height,
+                                               uint32_t depth)
+        {}
+        virtual void resizeAtomicCoverageBacking(uint32_t width,
+                                                 uint32_t height)
+        {}
+
         virtual void activatePixelLocalStorage(RenderContextGLImpl*,
                                                const FlushDescriptor&) = 0;
         virtual void deactivatePixelLocalStorage(RenderContextGLImpl*,
@@ -163,7 +171,6 @@ private:
     };
 
     class PLSImplEXTNative;
-    class PLSImplFramebufferFetch;
     class PLSImplWebGL;
     class PLSImplRWTexture;
 
@@ -196,6 +203,10 @@ private:
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
     void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeTransientPLSBacking(uint32_t width,
+                                   uint32_t height,
+                                   uint32_t depth) override;
+    void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override;
 
     void preBeginFrame(RenderContext*) override;
 

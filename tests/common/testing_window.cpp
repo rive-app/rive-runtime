@@ -91,6 +91,30 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     params->gpuNameFilter =
         tokens.size() > 1 ? tokens[tokens.size() - 2].c_str() : "";
     const std::string nameStr = tokens.back();
+    const auto nameStartsWith = [&](std::string str) {
+        return nameStr.rfind(str, 0) == 0;
+    };
+    const auto nameEndsWith = [&](std::string str) {
+        auto result = nameStr.rfind(str);
+        return result != std::string::npos &&
+               result == nameStr.size() - str.size();
+    };
+    if (nameStartsWith("angle"))
+    {
+        if (nameStartsWith("anglemsaa"))
+            params->msaa = true;
+        if (nameEndsWith("_mtl") || nameEndsWith("_metal"))
+            params->angleRenderer = ANGLERenderer::metal;
+        else if (nameEndsWith("_d3d") || nameEndsWith("_d3d11"))
+            params->angleRenderer = ANGLERenderer::d3d11;
+        else if (nameEndsWith("_vk") || nameEndsWith("_vulkan"))
+            params->angleRenderer = ANGLERenderer::vk;
+        else if (nameEndsWith("_gles"))
+            params->angleRenderer = ANGLERenderer::gles;
+        else if (nameEndsWith("_gl"))
+            params->angleRenderer = ANGLERenderer::gl;
+        return Backend::angle;
+    }
     if (nameStr == "gl")
     {
         return Backend::gl;
@@ -194,15 +218,6 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         params->core = true;
         return Backend::swiftshader;
-    }
-    if (nameStr == "angle")
-    {
-        return Backend::angle;
-    }
-    if (nameStr == "anglemsaa")
-    {
-        params->msaa = true;
-        return Backend::angle;
     }
     if (nameStr == "dawn")
     {

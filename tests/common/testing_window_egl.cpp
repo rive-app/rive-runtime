@@ -289,7 +289,7 @@ class TestingWindowEGL : public TestingWindow
 {
 public:
     TestingWindowEGL(const BackendParams& backendParams,
-                     EGLint angleBackend,
+                     EGLint angleRenderer,
                      void* platformWindow) :
         m_renderer(TestingGLRenderer::Make(backendParams))
     {
@@ -300,13 +300,13 @@ public:
         int samples = backendParams.msaa ? 1 : 0;
 
 #ifdef RIVE_DESKTOP_GL
-        if (angleBackend != EGL_NONE)
+        if (angleRenderer != EGL_NONE)
         {
             PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
             GET_EGL_PROC(eglGetPlatformDisplayEXT);
 
             const EGLint displayAttribs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE,
-                                             angleBackend,
+                                             angleRenderer,
                                              EGL_NONE};
             m_Display = eglGetPlatformDisplayEXT(
                 EGL_PLATFORM_ANGLE_ANGLE,
@@ -322,7 +322,7 @@ public:
         else
 #endif
         {
-            assert(angleBackend == EGL_NONE);
+            assert(angleRenderer == EGL_NONE);
             m_Display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
             if (!m_Display)
             {
@@ -342,7 +342,7 @@ public:
         // minorVersion); printf("EGL_VENDOR: %s\n", eglQueryString(m_Display,
         // EGL_VENDOR)); printf("EGL_VERSION: %s\n", eglQueryString(m_Display,
         // EGL_VERSION));
-        if (angleBackend != EGL_NONE &&
+        if (angleRenderer != EGL_NONE &&
             !strstr(eglQueryString(m_Display, EGL_VERSION), "ANGLE"))
         {
             fprintf(stderr,
@@ -621,18 +621,29 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend,
                                       const BackendParams& backendParams,
                                       void* platformWindow)
 {
-    EGLint angleBackend = EGL_NONE;
+    EGLint angleRenderer = EGL_NONE;
     if (backend == Backend::angle)
     {
-#ifdef __APPLE__
-        angleBackend = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
-#elif defined(_WIN32)
-        angleBackend = EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
-#else
-        angleBackend = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
-#endif
+        switch (backendParams.angleRenderer)
+        {
+            case ANGLERenderer::metal:
+                angleRenderer = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
+                break;
+            case ANGLERenderer::d3d11:
+                angleRenderer = EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
+                break;
+            case ANGLERenderer::vk:
+                angleRenderer = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
+                break;
+            case ANGLERenderer::gles:
+                angleRenderer = EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE;
+                break;
+            case ANGLERenderer::gl:
+                angleRenderer = EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE;
+                break;
+        }
     }
-    return new TestingWindowEGL(backendParams, angleBackend, platformWindow);
+    return new TestingWindowEGL(backendParams, angleRenderer, platformWindow);
 }
 
 #endif
