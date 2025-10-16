@@ -32,6 +32,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
+using namespace rive;
+
 TEST_CASE("artboard with bound properties", "[data binding]")
 {
     auto file = ReadRiveFile("assets/data_binding_test.riv");
@@ -1938,4 +1940,41 @@ TEST_CASE("Bidirectional data binding with target to source precedence",
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("bidirectional_precedence-target_first"));
+}
+
+TEST_CASE("Artboards as conditions", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/databind_artboard.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi =
+        file->createViewModelInstance((int)artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(247, 332));
+    stateMachine->pointerUp(rive::Vec2D(247, 332));
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("databind_artboard"));
 }

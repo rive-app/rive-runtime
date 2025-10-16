@@ -14,6 +14,7 @@ void DataBindContextValueArtboard::apply(Core* target,
                                          uint32_t propertyKey,
                                          bool isMainDirection)
 {
+    syncSourceValue();
     auto source = m_dataBind->source();
     if (source != nullptr && source->is<ViewModelInstanceArtboard>())
     {

@@ -74,6 +74,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_self_comparator.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
+#include "rive/animation/transition_value_artboard_comparator.hpp"
 #include "rive/animation/transition_value_asset_comparator.hpp"
 #include "rive/animation/transition_value_boolean_comparator.hpp"
 #include "rive/animation/transition_value_color_comparator.hpp"
@@ -554,6 +555,8 @@ public:
                 return new TransitionValueEnumComparator();
             case KeyFrameCallbackBase::typeKey:
                 return new KeyFrameCallback();
+            case TransitionValueArtboardComparatorBase::typeKey:
+                return new TransitionValueArtboardComparator();
             case TransitionValueStringComparatorBase::typeKey:
                 return new TransitionValueStringComparator();
             case NestedRemapAnimationBase::typeKey:
