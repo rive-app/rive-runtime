@@ -54,4 +54,10 @@ void ListenerViewModelChange::perform(
 
         dataBind->updateSourceBinding(true);
     }
+    auto dataBindToTarget =
+        stateMachineInstance->bindableDataBindToTarget(bindableInstance);
+    if (dataBindToTarget)
+    {
+        dataBindToTarget->addDirt(ComponentDirt::Bindings, true);
+    }
 }
