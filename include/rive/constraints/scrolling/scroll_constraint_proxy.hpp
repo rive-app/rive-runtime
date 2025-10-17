@@ -12,6 +12,7 @@ class ViewportDraggableProxy : public DraggableProxy
 private:
     ScrollConstraint* m_constraint;
     Vec2D m_lastPosition;
+    bool m_isDragging = false;
 
 public:
     ViewportDraggableProxy(ScrollConstraint* constraint, Drawable* hittable) :

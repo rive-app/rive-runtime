@@ -121,6 +121,16 @@
       },
       "description": "Whether pointer events trigger the scrolling",
       "bindable": true
+    },
+    "threshold": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 894,
+        "string": "threshold"
+      },
+      "description": "Minimum threshold in pixels to trigger the scrolling behavior",
+      "bindable": true
     }
   }
 }

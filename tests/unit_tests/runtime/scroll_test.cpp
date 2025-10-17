@@ -13,7 +13,7 @@
 
 using namespace rive;
 
-TEST_CASE("multiple scrolliing artboards", "[silver]")
+TEST_CASE("multiple scrolling artboards", "[silver]")
 {
     SerializingFactory silver;
     auto file = ReadRiveFile("assets/scroll_test.riv", &silver);
@@ -98,4 +98,199 @@ TEST_CASE("multiple scrolliing artboards", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("scroll_test"));
+}
+
+TEST_CASE("Vertical scroll with threshold", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scroll_threshold.riv", &silver);
+
+    auto artboard = file->artboardNamed("vertical-scroll");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // Threshold value is 40
+
+    float pos = 70.0f;
+    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (pos > 40)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, pos));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        pos -= 8;
+    }
+    // Since it didn't go over the threshold, element shouldn't have scrolled
+    // and nested item should trigger its click action
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Scroll beyond threshold
+    pos = 70.0f;
+    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (pos > 10)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, pos));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        pos -= 8;
+    }
+    // Scrolled beyond threshold and click action is not fired
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scroll_threshold-vertical-scroll"));
+}
+
+TEST_CASE("Horizontal scroll with threshold", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scroll_threshold.riv", &silver);
+
+    auto artboard = file->artboardNamed("horizontal-scroll");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // Threshold value is 40
+
+    float pos = 70.0f;
+    stateMachine->pointerDown(rive::Vec2D(pos, artboard->height() / 2.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (pos > 40)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(pos, artboard->height() / 2.0f));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        pos -= 8;
+    }
+    // Since it didn't go over the threshold, element shouldn't have scrolled
+    // and nested item should trigger its click action
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(pos, artboard->height() / 2.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Scroll beyond threshold
+    pos = 70.0f;
+    stateMachine->pointerDown(rive::Vec2D(pos, artboard->height() / 2.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (pos > 10)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(pos, artboard->height() / 2.0f));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        pos -= 8;
+    }
+    // Scrolled beyond threshold and click action is not fired
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(pos, artboard->height() / 2.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scroll_threshold-horizontal-scroll"));
+}
+
+TEST_CASE("Multidirectional scroll with threshold", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scroll_threshold.riv", &silver);
+
+    auto artboard = file->artboardNamed("all-scroll");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // Threshold value is 40
+
+    float pos = 70.0f;
+    stateMachine->pointerDown(rive::Vec2D(pos, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (pos > 50)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(pos, pos));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        pos -= 8;
+    }
+    // Since it didn't go over the threshold, element shouldn't have scrolled
+    // and nested item should trigger its click action
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(pos, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Scroll beyond threshold
+    pos = 70.0f;
+    stateMachine->pointerDown(rive::Vec2D(pos, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (pos > 32)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(pos, pos));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        pos -= 8;
+    }
+    // Scrolled diagonnally beyond threshold and click action is not fired
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(pos, pos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scroll_threshold-all-scroll"));
 }

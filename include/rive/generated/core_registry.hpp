@@ -1801,6 +1801,9 @@ public:
             case ScrollConstraintBase::scrollIndexPropertyKey:
                 object->as<ScrollConstraintBase>()->scrollIndex(value);
                 break;
+            case ScrollConstraintBase::thresholdPropertyKey:
+                object->as<ScrollConstraintBase>()->threshold(value);
+                break;
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 object->as<ElasticScrollPhysicsBase>()->friction(value);
                 break;
@@ -3142,6 +3145,8 @@ public:
                 return object->as<ScrollConstraintBase>()->scrollPercentY();
             case ScrollConstraintBase::scrollIndexPropertyKey:
                 return object->as<ScrollConstraintBase>()->scrollIndex();
+            case ScrollConstraintBase::thresholdPropertyKey:
+                return object->as<ScrollConstraintBase>()->threshold();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->as<ElasticScrollPhysicsBase>()->friction();
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
@@ -3860,6 +3865,7 @@ public:
             case ScrollConstraintBase::scrollPercentXPropertyKey:
             case ScrollConstraintBase::scrollPercentYPropertyKey:
             case ScrollConstraintBase::scrollIndexPropertyKey:
+            case ScrollConstraintBase::thresholdPropertyKey:
             case ElasticScrollPhysicsBase::frictionPropertyKey:
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
             case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
@@ -4692,6 +4698,8 @@ public:
             case ScrollConstraintBase::scrollPercentYPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::scrollIndexPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::thresholdPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->is<ElasticScrollPhysicsBase>();
