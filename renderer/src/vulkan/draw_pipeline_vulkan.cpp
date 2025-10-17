@@ -293,7 +293,14 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 
     gpu::BlendEquation blendEquation = pipelineState.blendEquation;
     bool blendEquationPremultiplied = true;
-    bool colorWriteEnabled = pipelineState.colorWriteEnabled;
+    // The pipeline state gets generated under the assumption that pixel local
+    // storage can still be written when colorWriteEnabled is false. So when
+    // Vulkan implements PLS via color attachments, we need to override the
+    // colorWriteEnabled state.
+    const bool usesColorAttachmentsForPLS =
+        interlockMode != gpu::InterlockMode::msaa;
+    bool colorWriteEnabled =
+        pipelineState.colorWriteEnabled || usesColorAttachmentsForPLS;
     if (interlockMode == gpu::InterlockMode::atomics &&
         !(props.shaderMiscFlags &
           gpu::ShaderMiscFlags::coalescedResolveAndTransfer))

@@ -1126,10 +1126,14 @@ struct FlushDescriptor
     RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
-    // Atomic mode only: there a no advanced blend modes, so we can render
-    // directly to the main target with fixed function (src-over) blending.
-    bool atomicFixedFunctionColorOutput = false;
     int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
+    // True if shaders will never read the color buffer, meaning, the render
+    // pass can use a more efficient setup that renders to a standard color
+    // attachment and handles all blending via built-in blend state.
+    // NOTE: This may be false even if all paints use srcOver because some
+    // rendering modes (e.g., rasterOrdering with evenOdd/nonZero) always read
+    // the color buffer, regardless of blend mode.
+    bool fixedFunctionColorOutput = false;
 
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.

@@ -7,14 +7,9 @@
 // needed for root sig and heap constants
 #include "shaders/d3d/root.sig"
 
-#ifdef RIVE_DECODERS
-#include "rive/decoders/bitmap_decoder.hpp"
-#endif
-
 #include <sstream>
 #include <D3DCompiler.h>
 
-#include <fstream>
 // this is defined here instead of root_sig becaise the gpu does not care about
 // the number of rtvs this is gradient, tess, atlas and color
 static constexpr UINT NUM_RTV_HEAP_DESCRIPTORS = 4;
@@ -1257,7 +1252,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     // Setup and clear the PLS textures.
 
-    if (desc.atomicFixedFunctionColorOutput)
+    if (desc.fixedFunctionColorOutput)
     {
         m_resourceManager->transition(cmdList,
                                       targetTexture,
@@ -1273,7 +1268,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             cmdList->ClearRenderTargetView(rtvHandle, clearColor4f, 0, nullptr);
         }
     }
-    else // !desc.atomicFixedFunctionColorOutput
+    else // !desc.fixedFunctionColorOutput
     {
         if (renderTarget->targetTextureSupportsUAV())
         {
@@ -1343,7 +1338,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     bool renderPassHasCoalescedResolveAndTransfer =
         desc.interlockMode == gpu::InterlockMode::atomics &&
-        !desc.atomicFixedFunctionColorOutput &&
+        !desc.fixedFunctionColorOutput &&
         !renderTarget->targetTextureSupportsUAV();
 
     if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
@@ -1406,7 +1401,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
-        if (desc.atomicFixedFunctionColorOutput)
+        if (desc.fixedFunctionColorOutput)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }
@@ -1643,7 +1638,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     {
         // We rendered to an offscreen UAV and did not resolve to the
         // renderTarget. Copy back to the main target.
-        assert(!desc.atomicFixedFunctionColorOutput);
+        assert(!desc.fixedFunctionColorOutput);
         assert(!renderPassHasCoalescedResolveAndTransfer);
         blitSubRect(cmdList,
                     renderTarget->targetTexture(),
@@ -1661,10 +1656,10 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                                       D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
 
-    if (desc.atomicFixedFunctionColorOutput ||
+    if (desc.fixedFunctionColorOutput ||
         renderPassHasCoalescedResolveAndTransfer ||
         (renderTarget->targetTextureSupportsUAV() &&
-         !desc.atomicFixedFunctionColorOutput))
+         !desc.fixedFunctionColorOutput))
     {
         m_resourceManager->transition(cmdList,
                                       targetTexture,

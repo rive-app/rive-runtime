@@ -1168,6 +1168,30 @@ void RenderContext::LogicalFlush::layoutResources(
     RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
 }
 
+static bool can_use_fixed_function_color_output(
+    gpu::InterlockMode interlockMode,
+    gpu::ShaderFeatures renderPassCombinedShaderFeatures)
+{
+    switch (interlockMode)
+    {
+        case gpu::InterlockMode::rasterOrdering:
+            // rasterOrdering shaders always read the framebuffer, even with
+            // srcOver blend.
+            return false;
+
+        case gpu::InterlockMode::atomics:
+        case gpu::InterlockMode::msaa:
+            return !(renderPassCombinedShaderFeatures &
+                     gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND);
+
+        case gpu::InterlockMode::clockwiseAtomic:
+            // clockwiseAtomic currently ignores fixedFunctionColorOutput.
+            return false;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
 void RenderContext::LogicalFlush::writeResources()
 {
     RIVE_PROF_SCOPE()
@@ -1731,9 +1755,9 @@ void RenderContext::LogicalFlush::writeResources()
     // Some of the flushDescriptor's data isn't known until after
     // writeResources(). Update it now that it's known.
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
-    m_flushDesc.atomicFixedFunctionColorOutput =
-        m_ctx->frameInterlockMode() == InterlockMode::atomics &&
-        !(m_combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
+    m_flushDesc.fixedFunctionColorOutput =
+        can_use_fixed_function_color_output(m_ctx->frameInterlockMode(),
+                                            m_combinedShaderFeatures);
 
     if (m_coverageBufferLength > 0)
     {

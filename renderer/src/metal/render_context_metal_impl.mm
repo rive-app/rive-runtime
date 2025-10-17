@@ -1511,7 +1511,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         pass.colorAttachments[COVERAGE_PLANE_IDX].storeAction =
             MTLStoreActionDontCare;
     }
-    else if (desc.atomicFixedFunctionColorOutput)
+    else if (desc.fixedFunctionColorOutput)
     {
         assert(desc.interlockMode == gpu::InterlockMode::atomics);
         baselineShaderMiscFlags |=

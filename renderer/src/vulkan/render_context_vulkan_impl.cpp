@@ -1490,13 +1490,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         coverageTexture = renderTarget->coverageAtomicTexture();
     }
 
-    const bool fixedFunctionColorOutput =
-        desc.atomicFixedFunctionColorOutput ||
-        // TODO: atomicFixedFunctionColorOutput could be generalized for MSAA as
-        // well, if another backend starts needing this logic.
-        (desc.interlockMode == gpu::InterlockMode::msaa &&
-         !(desc.combinedShaderFeatures &
-           gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND));
+    // In the case of Vulkan, fixedFunctionColorOutput means the color buffer
+    // will never be bound as an input attachment.
+    const bool fixedFunctionColorOutput = desc.fixedFunctionColorOutput;
 
     // Ensure any previous accesses to the color texture complete before we
     // begin rendering.

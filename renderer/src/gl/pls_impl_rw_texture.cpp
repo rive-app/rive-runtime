@@ -18,8 +18,7 @@ static bool needs_coalesced_atomic_resolve_and_transfer(
     const gpu::FlushDescriptor& desc)
 {
     assert(desc.interlockMode == gpu::InterlockMode::atomics);
-    return (desc.combinedShaderFeatures &
-            ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+    return !desc.fixedFunctionColorOutput &&
            lite_rtti_cast<FramebufferRenderTargetGL*>(
                static_cast<RenderTargetGL*>(desc.renderTarget)) != nullptr;
 }
@@ -121,7 +120,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         renderContextImpl->state()->setScissor(desc.renderTargetUpdateBounds,
                                                renderTarget->height());
 
-        if (!desc.atomicFixedFunctionColorOutput)
+        if (!desc.fixedFunctionColorOutput)
         {
             if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
             {
@@ -227,7 +226,7 @@ class RenderContextGLImpl::PLSImplRWTexture
                 break;
             case gpu::InterlockMode::atomics:
                 renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
-                if (desc.atomicFixedFunctionColorOutput &&
+                if (desc.fixedFunctionColorOutput &&
                     desc.colorLoadAction == gpu::LoadAction::clear)
                 {
                     // We're rendering directly to the main framebuffer. Clear
@@ -251,7 +250,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         auto flags = gpu::ShaderMiscFlags::none;
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
-            if (desc.atomicFixedFunctionColorOutput)
+            if (desc.fixedFunctionColorOutput)
             {
                 flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
             }
@@ -273,6 +272,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         // the offscreen texture during resolve.
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
         {
+            assert(!desc.fixedFunctionColorOutput);
             if (auto framebufferRenderTarget =
                     lite_rtti_cast<FramebufferRenderTargetGL*>(
                         static_cast<RenderTargetGL*>(desc.renderTarget)))

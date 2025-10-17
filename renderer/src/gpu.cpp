@@ -1162,11 +1162,12 @@ static BlendEquation get_blend_equation(
     {
         case InterlockMode::rasterOrdering:
         case InterlockMode::atomics:
-            return flushDesc.atomicFixedFunctionColorOutput
-                       ? BlendEquation::srcOver
-                       : BlendEquation::none;
+            return flushDesc.fixedFunctionColorOutput ? BlendEquation::srcOver
+                                                      : BlendEquation::none;
 
         case InterlockMode::clockwiseAtomic:
+            // clockwiseAtomic currently ignores fixedFunctionColorOutput.
+            assert(!flushDesc.fixedFunctionColorOutput);
             return BlendEquation::srcOver;
 
         case InterlockMode::msaa:
@@ -1199,7 +1200,8 @@ static BlendEquation get_blend_equation(
     RIVE_UNREACHABLE();
 }
 
-static bool get_color_writemask(const DrawBatch& batch)
+static bool get_color_writemask(const FlushDescriptor& flushDesc,
+                                const DrawBatch& batch)
 {
     switch (batch.drawType)
     {
@@ -1212,7 +1214,11 @@ static bool get_color_writemask(const DrawBatch& batch)
         case DrawType::imageMesh:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
-            return true;
+            // We generate pipeline state under the assumption that pixel local
+            // storage can still be written when colorWriteEnabled is false.
+            // Disable color writes when we're rendering only to PLS.
+            return flushDesc.fixedFunctionColorOutput ||
+                   flushDesc.interlockMode == gpu::InterlockMode::msaa;
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
             return true;
@@ -1286,7 +1292,7 @@ void get_pipeline_state(const DrawBatch& batch,
     pipelineState->cullFace = get_cull_face(batch.drawType);
     pipelineState->blendEquation =
         get_blend_equation(flushDesc, batch, platformFeatures);
-    pipelineState->colorWriteEnabled = get_color_writemask(batch);
+    pipelineState->colorWriteEnabled = get_color_writemask(flushDesc, batch);
 
     // Work out a pipeline key (for backends that cache pipelines objects).
     uint32_t key = pipelineState->depthTestEnabled;

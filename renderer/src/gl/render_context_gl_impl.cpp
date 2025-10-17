@@ -2058,7 +2058,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 desc,
                                 m_platformFeatures,
                                 &pipelineState);
-        if (desc.interlockMode == gpu::InterlockMode::msaa)
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+        {
+            // If the GL backend opted for "coalescedResolveAndTransfer", turn
+            // color writes back on for this draw.
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
+            pipelineState.colorWriteEnabled = true;
+        }
+        else if (desc.interlockMode == gpu::InterlockMode::msaa)
         {
             // Set up the next clipRect.
             bool needsClipPlanes =
@@ -2072,17 +2079,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 toggleEnableOrDisable(GL_CLIP_DISTANCE2_EXT);
                 toggleEnableOrDisable(GL_CLIP_DISTANCE3_EXT);
                 clipPlanesEnabled = needsClipPlanes;
-            }
-        }
-        else if (desc.interlockMode == gpu::InterlockMode::atomics)
-        {
-            if (!desc.atomicFixedFunctionColorOutput &&
-                drawType != gpu::DrawType::renderPassResolve)
-            {
-                // When rendering to an offscreen texture in atomic mode, GL
-                // leaves the target framebuffer bound the whole time, but
-                // disables color writes until it's time to resolve.
-                pipelineState.colorWriteEnabled = false;
             }
         }
         m_state->setPipelineState(pipelineState);
