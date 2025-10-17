@@ -36,6 +36,20 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
+void ScriptedObject::setBooleanInput(std::string name, bool value)
+{
+    if (m_state == nullptr)
+    {
+        return;
+    }
+    auto state = m_state->state;
+    rive_lua_pushRef(state, m_self);
+    lua_pushboolean(state, value);
+    lua_setfield(state, -2, name.c_str());
+    rive_lua_pop(state, 1);
+    addScriptedDirt(ComponentDirt::ScriptUpdate);
+}
+
 void ScriptedObject::setNumberInput(std::string name, float value)
 {
     if (m_state == nullptr)
@@ -249,6 +263,8 @@ void ScriptedObject::scriptDispose()
 }
 #else
 void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard) {}
+
+void ScriptedObject::setBooleanInput(std::string name, bool value) {}
 
 void ScriptedObject::setIntegerInput(std::string name, int value) {}
 

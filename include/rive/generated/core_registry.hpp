@@ -202,6 +202,7 @@
 #include "rive/node.hpp"
 #include "rive/open_url_event.hpp"
 #include "rive/script_input_artboard.hpp"
+#include "rive/script_input_boolean.hpp"
 #include "rive/script_input_color.hpp"
 #include "rive/script_input_number.hpp"
 #include "rive/script_input_string.hpp"
@@ -631,12 +632,14 @@ public:
                 return new CustomPropertyGroup();
             case EventBase::typeKey:
                 return new Event();
+            case CustomPropertyBooleanBase::typeKey:
+                return new CustomPropertyBoolean();
+            case ScriptInputBooleanBase::typeKey:
+                return new ScriptInputBoolean();
             case ScriptInputColorBase::typeKey:
                 return new ScriptInputColor();
             case DrawRulesBase::typeKey:
                 return new DrawRules();
-            case CustomPropertyBooleanBase::typeKey:
-                return new CustomPropertyBoolean();
             case LayoutComponentBase::typeKey:
                 return new LayoutComponent();
             case ArtboardBase::typeKey:

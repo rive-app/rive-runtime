@@ -34,6 +34,7 @@ protected:
 public:
     ScriptAsset* scriptAsset() const;
     void setArtboardInput(std::string name, Artboard* artboard);
+    void setBooleanInput(std::string name, bool value);
     void setIntegerInput(std::string name, int value);
     void setNumberInput(std::string name, float value);
     void setStringInput(std::string name, std::string value);

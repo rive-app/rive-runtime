@@ -1,5 +1,6 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
@@ -45,6 +46,12 @@ static void pushViewModelInstanceValue(lua_State* L,
                 L,
                 L,
                 ref_rcp(propValue->as<ViewModelInstanceString>()));
+            break;
+        case ViewModelInstanceBooleanBase::typeKey:
+            lua_newrive<ScriptedPropertyBoolean>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceBoolean>()));
             break;
         default:
             lua_pushnil(L);
@@ -261,10 +268,17 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                     lua_newrive<ScriptedPropertyColor>(m_state,
                                                        m_state,
                                                        nullptr);
+                    break;
                 case ViewModelPropertyStringBase::typeKey:
                     lua_newrive<ScriptedPropertyString>(m_state,
                                                         m_state,
                                                         nullptr);
+                    break;
+                case ViewModelPropertyBooleanBase::typeKey:
+                    lua_newrive<ScriptedPropertyBoolean>(m_state,
+                                                         m_state,
+                                                         nullptr);
+                    break;
             }
         }
     }
@@ -455,6 +469,9 @@ static int property_namecall(lua_State* L)
             case ScriptedPropertyString::luaTag:
                 name = ScriptedPropertyString::luaName;
                 break;
+            case ScriptedPropertyBoolean::luaTag:
+                name = ScriptedPropertyBoolean::luaName;
+                break;
             default:
                 luaL_typeerror(L, 1, name);
                 break;
@@ -562,6 +579,35 @@ int ScriptedPropertyString::pushValue()
     else
     {
         lua_pushstring(m_state, "");
+    }
+    return 1;
+}
+
+ScriptedPropertyBoolean::ScriptedPropertyBoolean(
+    lua_State* L,
+    rcp<ViewModelInstanceBoolean> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+void ScriptedPropertyBoolean::setValue(bool value)
+{
+    if (m_instanceValue)
+    {
+        m_instanceValue->as<ViewModelInstanceBoolean>()->propertyValue(value);
+    }
+}
+
+int ScriptedPropertyBoolean::pushValue()
+{
+    if (m_instanceValue)
+    {
+        lua_pushboolean(
+            m_state,
+            m_instanceValue->as<ViewModelInstanceBoolean>()->propertyValue());
+    }
+    else
+    {
+        lua_pushboolean(m_state, 0);
     }
     return 1;
 }
@@ -814,6 +860,49 @@ static int property_string_newindex(lua_State* L)
     return 0;
 }
 
+static int property_boolean_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyBoolean = lua_torive<ScriptedPropertyBoolean>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            assert(propertyBoolean->state() == L);
+            return propertyBoolean->pushValue();
+        default:
+            return 0;
+    }
+}
+
+static int property_boolean_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyBoolean = lua_torive<ScriptedPropertyBoolean>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            propertyBoolean->setValue(luaL_checkboolean(L, 3));
+        default:
+            return 0;
+    }
+
+    return 0;
+}
+
 int luaopen_rive_properties(lua_State* L)
 {
     {
@@ -891,6 +980,22 @@ int luaopen_rive_properties(lua_State* L)
     }
 
     {
+        lua_register_rive<ScriptedPropertyBoolean>(L);
+
+        lua_pushcfunction(L, property_boolean_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, property_boolean_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    {
         lua_register_rive<ScriptedPropertyTrigger>(L);
 
         lua_pushcfunction(L, property_namecall, nullptr);
@@ -913,6 +1018,6 @@ int luaopen_rive_properties(lua_State* L)
         lua_pop(L, 1); // pop the metatable
     }
 
-    return 7;
+    return 8;
 }
 #endif

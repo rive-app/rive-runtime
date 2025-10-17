@@ -420,3 +420,62 @@ end
     CHECK(vm.console[2] == "string changed to Hello World");
     CHECK(vm.console[3] == "string is Hello World");
 }
+
+TEST_CASE("scripted boolean can be passed to luau", "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/scripted_boolean.riv");
+
+    auto artboard = file->artboard("BooleanArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    CHECK(viewModelInstance->viewModel()->name() == "BoolVM");
+    auto property = viewModelInstance->propertyValue("BoolProp");
+    REQUIRE(property != nullptr);
+    REQUIRE(property->is<rive::ViewModelInstanceBoolean>());
+    auto boolProperty = property->as<rive::ViewModelInstanceBoolean>();
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function init(vm)
+    print(`bool init to {vm.BoolProp.value}`)
+    vm.BoolProp:addListener(vm.BoolProp, boolChanged)
+end
+
+function setTrue(vm)
+    vm.BoolProp.value = true
+    print(`bool is {vm.BoolProp.value}`)
+end
+
+function boolChanged(bool)
+    print(`bool changed to {bool.value}`)
+end
+
+)TEST_SRC");
+    auto L = vm.state();
+
+    lua_newrive<ScriptedViewModel>(L,
+                                   L,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    lua_getglobal(L, "init");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(boolProperty->propertyValue() == false);
+
+    lua_getglobal(L, "setTrue");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    boolProperty->propertyValue(false);
+
+    CHECK(vm.console.size() == 4);
+    CHECK(vm.console[0] == ("bool init to false"));
+    CHECK(vm.console[1] == ("bool changed to true"));
+    CHECK(vm.console[2] == ("bool is true"));
+    CHECK(vm.console[3] == ("bool changed to false"));
+}

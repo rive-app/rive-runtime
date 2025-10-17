@@ -8,6 +8,7 @@
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
@@ -495,6 +496,18 @@ public:
 
     int pushValue();
     void setValue(const std::string& value);
+};
+
+class ScriptedPropertyBoolean : public ScriptedProperty
+{
+public:
+    ScriptedPropertyBoolean(lua_State* L, rcp<ViewModelInstanceBoolean> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 18;
+    static constexpr const char* luaName = "Property<bool>";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(bool value);
 };
 
 // Make
