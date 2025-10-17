@@ -8,9 +8,21 @@ FLAGS :=
 
 ## Shader minification.
 MINIFY_INPUTS := $(wildcard *.glsl) $(wildcard *.vert) $(wildcard *.frag)
-MINIFY_EXPORT_OUTPUTS := $(addprefix $(OUT)/, $(patsubst %.glsl, %.exports.h, $(MINIFY_INPUTS)))
-MINIFY_GLSL_OUTPUTS := $(addprefix $(OUT)/, $(patsubst %.glsl, %.minified.glsl, $(MINIFY_INPUTS)))
-MINIFY_HPP_OUTPUTS := $(addprefix $(OUT)/, $(patsubst %.glsl, %.glsl.hpp, $(MINIFY_INPUTS)))
+MINIFY_EXPORT_OUTPUTS := $(addprefix $(OUT)/,\
+                           $(patsubst %.glsl, %.glsl.exports.h,\
+                           $(patsubst %.vert, %.vert.exports.h,\
+                           $(patsubst %.frag, %.frag.exports.h,\
+                             $(MINIFY_INPUTS)))))
+MINIFY_GLSL_OUTPUTS := $(addprefix $(OUT)/,\
+                         $(patsubst %.glsl, %.minified.glsl,\
+                         $(patsubst %.vert, %.minified.vert,\
+                         $(patsubst %.frag, %.minified.frag,\
+                           $(MINIFY_INPUTS)))))
+MINIFY_HPP_OUTPUTS := $(addprefix $(OUT)/,\
+                        $(patsubst %.glsl, %.glsl.hpp,\
+                        $(patsubst %.vert, %.vert.hpp,\
+                        $(patsubst %.frag, %.frag.hpp,\
+                          $(MINIFY_INPUTS)))))
 MINIFY_OUTPUTS := $(MINIFY_EXPORT_OUTPUTS) $(MINIFY_GLSL_OUTPUTS) $(MINIFY_HPP_OUTPUTS)
 MINIFY_STAMP := $(OUT)/glsl.stamp
 
