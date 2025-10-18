@@ -479,3 +479,76 @@ end
     CHECK(vm.console[2] == ("bool is true"));
     CHECK(vm.console[3] == ("bool changed to false"));
 }
+
+TEST_CASE("scripted enum can be passed to luau", "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/scripted_enum.riv");
+
+    auto artboard = file->artboard("EnumArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    CHECK(viewModelInstance->viewModel()->name() == "EnumVM");
+    auto property = viewModelInstance->propertyValue("EnumProp");
+    REQUIRE(property != nullptr);
+    REQUIRE(property->is<rive::ViewModelInstanceEnum>());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function init(vm)
+    print(`enum init to {vm.EnumProp.value}`)
+    vm.EnumProp:addListener(vm.EnumProp, enumChanged)
+end
+
+function setValue(vm, value:string)
+    vm.EnumProp.value = value
+    print(`enum is {vm.EnumProp.value}`)
+end
+
+function enumChanged(e)
+    print(`enum changed to {e.value}`)
+end
+
+)TEST_SRC");
+    auto L = vm.state();
+
+    lua_newrive<ScriptedViewModel>(L,
+                                   L,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    lua_getglobal(L, "init");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    // Change the enum value via script multiple times
+    lua_getglobal(L, "setValue");
+    lua_pushvalue(L, -2); // vm
+    lua_pushstring(L, "blue");
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+
+    lua_getglobal(L, "setValue");
+    lua_pushvalue(L, -2); // vm
+    lua_pushstring(L, "orange");
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+
+    lua_getglobal(L, "setValue");
+    lua_pushvalue(L, -2); // vm
+    lua_pushstring(L, "red");
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+
+    CHECK(vm.console.size() == 7);
+    CHECK(vm.console[0] == std::string("enum init to ") + std::string("white"));
+    CHECK(vm.console[1] ==
+          std::string("enum changed to ") + std::string("blue"));
+    CHECK(vm.console[2] == std::string("enum is ") + std::string("blue"));
+    CHECK(vm.console[3] ==
+          std::string("enum changed to ") + std::string("orange"));
+    CHECK(vm.console[4] == std::string("enum is ") + std::string("orange"));
+    CHECK(vm.console[5] ==
+          std::string("enum changed to ") + std::string("red"));
+    CHECK(vm.console[6] == std::string("enum is ") + std::string("red"));
+}

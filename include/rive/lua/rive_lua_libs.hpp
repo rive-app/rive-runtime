@@ -10,6 +10,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
@@ -510,13 +511,22 @@ public:
     void setValue(bool value);
 };
 
+class ScriptedPropertyEnum : public ScriptedProperty
+{
+public:
+    ScriptedPropertyEnum(lua_State* L, rcp<ViewModelInstanceEnum> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 19;
+    static constexpr const char* luaName = "Property<enum>";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(const std::string& value);
+};
+
 // Make
 // ScriptedPropertyViewModel
 //      - Nullable ViewModelInstanceValue (ViewModelInstanceViewModel)
 //      - Requires ViewModel to know which properties to expect
-// ScriptedPropertyEnum
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceEnum)
-//      - Requires DataEnum for expected types
 // ScriptedPropertyArtboard
 //      - Nullable ViewModelInstanceValue (ViewModelInstanceArtboard)
 
