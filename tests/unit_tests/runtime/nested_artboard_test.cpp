@@ -175,3 +175,85 @@ TEST_CASE("All nested artboard modes respect hug", "[silver]")
 
     CHECK(silver.matches("nested_hug"));
 }
+
+TEST_CASE("Pause and resume nested artboards", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/pause_nested_artboard.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(0.25f / 0.016f);
+    // State machine advances normally
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Click toggles rectangle color
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250.0f, 250.0f));
+    stateMachine->pointerUp(rive::Vec2D(250.0f, 250.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Toggle data bind pauses state machine
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // State machine does not advance
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Click does not toggle color back
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250.0f, 250.0f));
+    stateMachine->pointerUp(rive::Vec2D(250.0f, 250.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Toggle data bind resumes state machine
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click toggles color back
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250.0f, 250.0f));
+    stateMachine->pointerUp(rive::Vec2D(250.0f, 250.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // State machine advances again
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("pause_nested_artboard"));
+}

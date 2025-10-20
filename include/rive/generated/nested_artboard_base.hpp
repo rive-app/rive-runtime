@@ -1,5 +1,6 @@
 #ifndef _RIVE_NESTED_ARTBOARD_BASE_HPP_
 #define _RIVE_NESTED_ARTBOARD_BASE_HPP_
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/drawable.hpp"
@@ -37,9 +38,11 @@ public:
 
     static const uint16_t artboardIdPropertyKey = 197;
     static const uint16_t dataBindPathIdsPropertyKey = 582;
+    static const uint16_t isPausedPropertyKey = 895;
 
 protected:
     uint32_t m_ArtboardId = -1;
+    bool m_IsPaused = false;
 
 public:
     inline uint32_t artboardId() const { return m_ArtboardId; }
@@ -56,11 +59,23 @@ public:
     virtual void decodeDataBindPathIds(Span<const uint8_t> value) = 0;
     virtual void copyDataBindPathIds(const NestedArtboardBase& object) = 0;
 
+    inline bool isPaused() const { return m_IsPaused; }
+    void isPaused(bool value)
+    {
+        if (m_IsPaused == value)
+        {
+            return;
+        }
+        m_IsPaused = value;
+        isPausedChanged();
+    }
+
     Core* clone() const override;
     void copy(const NestedArtboardBase& object)
     {
         m_ArtboardId = object.m_ArtboardId;
         copyDataBindPathIds(object);
+        m_IsPaused = object.m_IsPaused;
         Drawable::copy(object);
     }
 
@@ -74,6 +89,9 @@ public:
             case dataBindPathIdsPropertyKey:
                 decodeDataBindPathIds(CoreBytesType::deserialize(reader));
                 return true;
+            case isPausedPropertyKey:
+                m_IsPaused = CoreBoolType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -81,6 +99,7 @@ public:
 protected:
     virtual void artboardIdChanged() {}
     virtual void dataBindPathIdsChanged() {}
+    virtual void isPausedChanged() {}
 };
 } // namespace rive
 

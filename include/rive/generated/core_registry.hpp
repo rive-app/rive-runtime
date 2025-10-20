@@ -1653,6 +1653,9 @@ public:
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 object->as<ScrollBarConstraintBase>()->autoSize(value);
                 break;
+            case NestedArtboardBase::isPausedPropertyKey:
+                object->as<NestedArtboardBase>()->isPaused(value);
+                break;
             case AxisBase::normalizedPropertyKey:
                 object->as<AxisBase>()->normalized(value);
                 break;
@@ -3035,6 +3038,8 @@ public:
                 return object->as<ScrollConstraintBase>()->interactive();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
+            case NestedArtboardBase::isPausedPropertyKey:
+                return object->as<NestedArtboardBase>()->isPaused();
             case AxisBase::normalizedPropertyKey:
                 return object->as<AxisBase>()->normalized();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -3819,6 +3824,7 @@ public:
             case ScrollConstraintBase::infinitePropertyKey:
             case ScrollConstraintBase::interactivePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
+            case NestedArtboardBase::isPausedPropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -4609,6 +4615,8 @@ public:
                 return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->is<ScrollBarConstraintBase>();
+            case NestedArtboardBase::isPausedPropertyKey:
+                return object->is<NestedArtboardBase>();
             case AxisBase::normalizedPropertyKey:
                 return object->is<AxisBase>();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:

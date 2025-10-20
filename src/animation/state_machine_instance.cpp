@@ -1023,7 +1023,7 @@ public:
     bool hitTest(Vec2D position) const override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
-        if (nestedArtboard->isCollapsed())
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
         {
             return false;
         }
@@ -1056,7 +1056,7 @@ public:
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
         HitResult hitResult = HitResult::none;
-        if (nestedArtboard->isCollapsed())
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
         {
             return hitResult;
         }

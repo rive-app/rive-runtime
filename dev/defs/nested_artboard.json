@@ -15,7 +15,8 @@
         "int": 197,
         "string": "artboardid"
       },
-      "description": "Identifier used to track the Artboard nested."
+      "description": "Identifier used to track the Artboard nested.",
+      "bindable": true
     },
     "dataBindPathIds": {
       "type": "List<Id>",
@@ -27,6 +28,17 @@
         "string": "databindpathids"
       },
       "description": "Path to the selected property."
+    },
+    "isPaused": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 895,
+        "string": "ispaused"
+      },
+      "description": "Value for playback state.",
+      "bindable": true
     }
   }
 }

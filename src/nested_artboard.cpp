@@ -436,7 +436,7 @@ void NestedArtboard::unbind()
 
 void NestedArtboard::updateDataBinds()
 {
-    if (artboardInstance() != nullptr)
+    if (artboardInstance() != nullptr && !isPaused())
     {
         artboardInstance()->updateDataBinds();
     }
@@ -464,7 +464,7 @@ void NestedArtboard::bindViewModelInstance(
 
 bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    if (m_Artboard == nullptr || isCollapsed())
+    if (m_Artboard == nullptr || isCollapsed() || isPaused())
     {
         return false;
     }
