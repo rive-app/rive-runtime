@@ -68,7 +68,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // VERTEX
 #endif // DRAW_PATH
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, packed_float3, @a_triangleVertex);
@@ -120,8 +120,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_PACK(v_pathID);
     EMIT_VERTEX(pos);
 }
-#endif // VERTEX
-#endif // DRAW_INTERIOR_TRIANGLES
+#endif // @VERTEX
+#endif // @DRAW_INTERIOR_TRIANGLES || @ATLAS_BLIT
 
 #ifdef @DRAW_IMAGE_RECT
 #ifdef @VERTEX
@@ -651,7 +651,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 }
 #endif // DRAW_PATH
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
 #ifdef @ATLAS_BLIT
@@ -731,7 +731,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 
     EMIT_ATOMIC_PLS
 }
-#endif // DRAW_INTERIOR_TRIANGLES
+#endif // @DRAW_INTERIOR_TRIANGLES || @ATLAS_BLIT
 
 #ifdef @DRAW_IMAGE
 ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)

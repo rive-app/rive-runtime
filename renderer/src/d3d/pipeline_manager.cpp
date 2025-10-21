@@ -13,7 +13,7 @@
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_image_mesh.frag.hpp"
+#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
@@ -79,11 +79,11 @@ static std::string build_shader(DrawType drawType,
         case DrawType::outerCurvePatches:
             s << "#define " << GLSL_DRAW_PATH << '\n';
             break;
-        case DrawType::atlasBlit:
-            s << "#define " << GLSL_ATLAS_BLIT << " 1\n";
-            [[fallthrough]];
         case DrawType::interiorTriangulation:
             s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
+            break;
+        case DrawType::atlasBlit:
+            s << "#define " << GLSL_ATLAS_BLIT << " 1\n";
             break;
         case DrawType::imageRect:
             assert(interlockMode == InterlockMode::atomics);
@@ -117,69 +117,46 @@ static std::string build_shader(DrawType drawType,
     {
         s << glsl::advanced_blend << '\n';
     }
-    switch (drawType)
+    if (interlockMode == InterlockMode::rasterOrdering)
     {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-            s << glsl::draw_path_common << '\n';
-            if (interlockMode == gpu::InterlockMode::rasterOrdering)
-            {
-                s << glsl::draw_path_vert << '\n';
-                s << glsl::draw_raster_order_path_frag << '\n';
-            }
-            else
-            {
-                assert(interlockMode == gpu::InterlockMode::atomics);
-                s << glsl::atomic_draw << '\n';
-            }
-            break;
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-            s << glsl::draw_path_common << '\n';
-            if (interlockMode == gpu::InterlockMode::rasterOrdering)
-            {
-                s << glsl::draw_path_vert << '\n';
-                s << glsl::draw_raster_order_path_frag << '\n';
-            }
-            else
-            {
-                assert(interlockMode == gpu::InterlockMode::atomics);
-                s << glsl::atomic_draw << '\n';
-            }
-            break;
-        case DrawType::imageRect:
-            assert(interlockMode == InterlockMode::atomics);
-            s << glsl::draw_path_common << '\n';
-            s << glsl::atomic_draw << '\n';
-            break;
-        case DrawType::imageMesh:
-            if (interlockMode == InterlockMode::rasterOrdering)
-            {
-                s << glsl::draw_image_mesh_vert << '\n';
-                s << glsl::draw_raster_order_image_mesh_frag << '\n';
-            }
-            else
-            {
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
+            case DrawType::outerCurvePatches:
+            case DrawType::interiorTriangulation:
                 s << glsl::draw_path_common << '\n';
-                s << glsl::atomic_draw << '\n';
-            }
-            break;
-        case DrawType::renderPassResolve:
-            assert(interlockMode == InterlockMode::atomics);
-            s << glsl::draw_path_common << '\n';
-            s << glsl::atomic_draw << '\n';
-            break;
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaStencilClipReset:
-        case DrawType::renderPassInitialize:
-            RIVE_UNREACHABLE();
+                s << glsl::draw_path_vert << '\n';
+                s << glsl::draw_raster_order_path_frag << '\n';
+                break;
+            case DrawType::atlasBlit:
+                s << glsl::draw_path_common << '\n';
+                s << glsl::draw_path_vert << '\n';
+                s << glsl::draw_raster_order_mesh_frag << '\n';
+                break;
+            case DrawType::imageMesh:
+                s << glsl::draw_image_mesh_vert << '\n';
+                s << glsl::draw_raster_order_mesh_frag << '\n';
+                break;
+            case DrawType::imageRect:
+            case DrawType::renderPassResolve:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStencilClipReset:
+            case DrawType::renderPassInitialize:
+                RIVE_UNREACHABLE();
+        }
+    }
+    else
+    {
+        assert(interlockMode == InterlockMode::atomics);
+        s << glsl::draw_path_common << '\n';
+        s << glsl::atomic_draw << '\n';
     }
 
     return s.str();

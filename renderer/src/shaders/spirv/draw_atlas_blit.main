@@ -2,7 +2,6 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
 #define OPTIONALLY_FLAT flat
-#define DRAW_INTERIOR_TRIANGLES
 #define ATLAS_BLIT
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
@@ -11,4 +10,4 @@
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
 #include "draw_path.minified.vert"
-#include "draw_raster_order_path.minified.frag"
+#include "draw_raster_order_mesh.minified.frag"

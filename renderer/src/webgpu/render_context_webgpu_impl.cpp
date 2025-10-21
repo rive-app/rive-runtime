@@ -73,7 +73,7 @@ constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_image_mesh.frag.hpp"
+#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
 
 // When compiling "glslRaw" shaders, the WebGPU driver will automatically
 // search for a uniform with this name and update its value when draw commands
@@ -783,11 +783,11 @@ public:
                 case DrawType::outerCurvePatches:
                     addDefine(GLSL_ENABLE_INSTANCE_INDEX);
                     break;
-                case DrawType::atlasBlit:
-                    addDefine(GLSL_ATLAS_BLIT);
-                    [[fallthrough]];
                 case DrawType::interiorTriangulation:
                     addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
+                    break;
+                case DrawType::atlasBlit:
+                    addDefine(GLSL_ATLAS_BLIT);
                     break;
                 case DrawType::imageRect:
                     addDefine(GLSL_DRAW_IMAGE);
@@ -851,15 +851,18 @@ public:
                     glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
                     break;
                 case DrawType::interiorTriangulation:
-                case DrawType::atlasBlit:
                     glsl << gpu::glsl::draw_path_common << '\n';
                     glsl << gpu::glsl::draw_path_vert << '\n';
                     glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
                     break;
+                case DrawType::atlasBlit:
+                    glsl << gpu::glsl::draw_path_common << '\n';
+                    glsl << gpu::glsl::draw_path_vert << '\n';
+                    glsl << gpu::glsl::draw_raster_order_mesh_frag << '\n';
+                    break;
                 case DrawType::imageMesh:
                     glsl << gpu::glsl::draw_image_mesh_vert << '\n';
-                    glsl << gpu::glsl::draw_raster_order_image_mesh_frag
-                         << '\n';
+                    glsl << gpu::glsl::draw_raster_order_mesh_frag << '\n';
                     break;
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:

@@ -11,4 +11,4 @@
 #include "common.minified.glsl"
 #include "advanced_blend.minified.glsl"
 #include "draw_image_mesh.minified.vert"
-#include "draw_msaa_image_mesh.minified.frag"
+#include "draw_msaa_object.minified.frag"

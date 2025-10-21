@@ -27,7 +27,7 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-#ifdef @DRAW_INTERIOR_TRIANGLES
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
 ATTR(0, packed_float3, @a_triangleVertex);
 #else
 ATTR(0,
@@ -53,8 +53,12 @@ NO_PERSPECTIVE VARYING(2, COVERAGE_TYPE, v_coverages);
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
+#ifdef @ATLAS_BLIT
+@OPTIONALLY_FLAT VARYING(4, half, v_clipID); // [clipID, outerClipID]
+#else
 @OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
 #endif
+#endif // @ENABLE_CLIPPING
 #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
 #endif
@@ -66,7 +70,7 @@ VARYING_BLOCK_END
 #ifdef @VERTEX
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
-#ifdef @DRAW_INTERIOR_TRIANGLES
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 #else
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
@@ -87,8 +91,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
+#ifdef @ATLAS_BLIT
+    VARYING_INIT(v_clipID, half);
+#else
     VARYING_INIT(v_clipIDs, half2);
 #endif
+#endif // @ENABLE_CLIPPING
 #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
     VARYING_INIT(v_clipRect, float4);
 #endif
@@ -171,7 +179,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // buffer.
         if (paintType == CLIP_UPDATE_PAINT_TYPE)
             clipID = -clipID;
+#ifdef @ATLAS_BLIT
+        v_clipID = clipID;
+#else
         v_clipIDs.x = clipID;
+#endif
     }
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -219,7 +231,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             color.rgb *= color.a;
         v_paint = float4(color);
     }
-#ifdef @ENABLE_CLIPPING
+#if defined(@ENABLE_CLIPPING) && !defined(@ATLAS_BLIT)
     else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
     {
         half outerClipID =
@@ -319,8 +331,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
+#ifdef @ATLAS_BLIT
+    VARYING_PACK(v_clipID);
+#else
     VARYING_PACK(v_clipIDs);
 #endif
+#endif // @ENABLE_CLIPPING
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
 #endif
@@ -391,7 +407,7 @@ INLINE half4 find_paint_color(float4 paint,
     return color;
 }
 
-#ifndef @DRAW_INTERIOR_TRIANGLES
+#if !defined(@DRAW_INTERIOR_TRIANGLES) && !defined(@ATLAS_BLIT)
 
 // Add functions here for fragments to unpack and evaluate coverage since we're
 // the ones who packed the coverage components in the vertex shader.
@@ -440,6 +456,6 @@ INLINE half apply_frag_coverage(half initialCoverage,
     }
 }
 
-#endif // !@DRAW_INTERIOR_TRIANGLES
+#endif // !@DRAW_INTERIOR_TRIANGLES && !@ATLAS_BLIT
 
 #endif // @FRAGMENT

@@ -19,10 +19,9 @@
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
-#include "generated/shaders/draw_msaa_path.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_image_mesh.frag.hpp"
-#include "generated/shaders/draw_msaa_image_mesh.frag.hpp"
+#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
+#include "generated/shaders/draw_msaa_object.frag.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/render_atlas.glsl.hpp"
@@ -1095,22 +1094,9 @@ RenderContextGLImpl::DrawShader::DrawShader(
     }
     assert(renderContextImpl->platformFeatures().framebufferBottomUp);
     defines.push_back(GLSL_FRAMEBUFFER_BOTTOM_UP);
-
-    std::vector<const char*> sources;
-    sources.push_back(glsl::constants);
-    sources.push_back(glsl::common);
-    if (shaderType == GL_FRAGMENT_SHADER &&
-        (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
-        sources.push_back(glsl::advanced_blend);
-    }
-    if (renderContextImpl->platformFeatures().avoidFlatVaryings)
-    {
-        sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
-    }
-    else
-    {
-        sources.push_back("#define " GLSL_OPTIONALLY_FLAT " flat\n");
+        defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
     }
     switch (drawType)
     {
@@ -1129,23 +1115,11 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
             }
             defines.push_back(GLSL_DRAW_PATH);
-            sources.push_back(gpu::glsl::draw_path_common);
-            if (interlockMode == gpu::InterlockMode::atomics)
-            {
-                sources.push_back(gpu::glsl::atomic_draw);
-            }
-            else
-            {
-
-                sources.push_back(gpu::glsl::draw_path_vert);
-                sources.push_back(interlockMode == gpu::InterlockMode::msaa
-                                      ? gpu::glsl::draw_msaa_path_frag
-                                      : gpu::glsl::draw_raster_order_path_frag);
-            }
             break;
         case gpu::DrawType::msaaStencilClipReset:
-            assert(interlockMode == gpu::InterlockMode::msaa);
-            sources.push_back(gpu::glsl::stencil_draw);
+            break;
+        case gpu::DrawType::interiorTriangulation:
+            defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
             break;
         case gpu::DrawType::atlasBlit:
             defines.push_back(GLSL_ATLAS_BLIT);
@@ -1165,46 +1139,15 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     defines.push_back(GLSL_ATLAS_TEXTURE_RGBA8_UNORM);
                     break;
             }
-            [[fallthrough]];
-        case gpu::DrawType::interiorTriangulation:
-            defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
-            sources.push_back(gpu::glsl::draw_path_common);
-            if (interlockMode == gpu::InterlockMode::atomics)
-            {
-                sources.push_back(gpu::glsl::atomic_draw);
-            }
-            else
-            {
-
-                sources.push_back(gpu::glsl::draw_path_vert);
-                sources.push_back(interlockMode == gpu::InterlockMode::msaa
-                                      ? gpu::glsl::draw_msaa_path_frag
-                                      : gpu::glsl::draw_raster_order_path_frag);
-            }
             break;
         case gpu::DrawType::imageRect:
             assert(interlockMode == gpu::InterlockMode::atomics);
             defines.push_back(GLSL_DRAW_IMAGE);
             defines.push_back(GLSL_DRAW_IMAGE_RECT);
-            sources.push_back(gpu::glsl::draw_path_common);
-            sources.push_back(gpu::glsl::atomic_draw);
             break;
         case gpu::DrawType::imageMesh:
             defines.push_back(GLSL_DRAW_IMAGE);
             defines.push_back(GLSL_DRAW_IMAGE_MESH);
-            if (interlockMode == gpu::InterlockMode::atomics)
-            {
-                sources.push_back(gpu::glsl::draw_path_common);
-                sources.push_back(gpu::glsl::atomic_draw);
-            }
-            else
-            {
-                sources.push_back(gpu::glsl::draw_image_mesh_vert);
-                sources.push_back(
-                    interlockMode == gpu::InterlockMode::msaa
-                        ? gpu::glsl::draw_msaa_image_mesh_frag
-                        : gpu::glsl::draw_raster_order_image_mesh_frag);
-            }
             break;
         case gpu::DrawType::renderPassResolve:
             assert(interlockMode == gpu::InterlockMode::atomics);
@@ -1216,16 +1159,108 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 assert(shaderType == GL_FRAGMENT_SHADER);
                 defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
             }
+            break;
+        case gpu::DrawType::renderPassInitialize:
+            RIVE_UNREACHABLE();
+    }
+
+    std::vector<const char*> sources;
+    if (renderContextImpl->platformFeatures().avoidFlatVaryings)
+    {
+        sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
+    }
+    else
+    {
+        sources.push_back("#define " GLSL_OPTIONALLY_FLAT " flat\n");
+    }
+    sources.push_back(glsl::constants);
+    sources.push_back(glsl::common);
+    if (shaderType == GL_FRAGMENT_SHADER &&
+        (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    {
+        sources.push_back(glsl::advanced_blend);
+    }
+    switch (interlockMode)
+    {
+        case gpu::InterlockMode::rasterOrdering:
+            switch (drawType)
+            {
+                case gpu::DrawType::midpointFanPatches:
+                case gpu::DrawType::midpointFanCenterAAPatches:
+                case gpu::DrawType::outerCurvePatches:
+                case gpu::DrawType::interiorTriangulation:
+                    sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::draw_path_vert);
+                    sources.push_back(gpu::glsl::draw_raster_order_path_frag);
+                    break;
+                case gpu::DrawType::atlasBlit:
+                    sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::draw_path_vert);
+                    sources.push_back(gpu::glsl::draw_raster_order_mesh_frag);
+                    break;
+                case gpu::DrawType::imageMesh:
+                    sources.push_back(gpu::glsl::draw_image_mesh_vert);
+                    sources.push_back(gpu::glsl::draw_raster_order_mesh_frag);
+                    break;
+                case gpu::DrawType::imageRect:
+                case gpu::DrawType::msaaStrokes:
+                case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+                case gpu::DrawType::msaaMidpointFans:
+                case gpu::DrawType::msaaMidpointFanStencilReset:
+                case gpu::DrawType::msaaMidpointFanPathsStencil:
+                case gpu::DrawType::msaaMidpointFanPathsCover:
+                case gpu::DrawType::msaaOuterCubics:
+                case gpu::DrawType::msaaStencilClipReset:
+                case gpu::DrawType::renderPassInitialize:
+                case gpu::DrawType::renderPassResolve:
+                    RIVE_UNREACHABLE();
+            }
+            break;
+
+        case gpu::InterlockMode::atomics:
             sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
-        case gpu::DrawType::renderPassInitialize:
-            assert(interlockMode == gpu::InterlockMode::atomics);
+
+        case gpu::InterlockMode::msaa:
+            switch (drawType)
+            {
+                case gpu::DrawType::msaaStrokes:
+                case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+                case gpu::DrawType::msaaMidpointFans:
+                case gpu::DrawType::msaaMidpointFanStencilReset:
+                case gpu::DrawType::msaaMidpointFanPathsStencil:
+                case gpu::DrawType::msaaMidpointFanPathsCover:
+                case gpu::DrawType::msaaOuterCubics:
+                case gpu::DrawType::interiorTriangulation:
+                    sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::draw_path_vert);
+                    sources.push_back(gpu::glsl::draw_msaa_object_frag);
+                    break;
+                case gpu::DrawType::msaaStencilClipReset:
+                    sources.push_back(gpu::glsl::stencil_draw);
+                    break;
+                case gpu::DrawType::atlasBlit:
+                    sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::draw_path_vert);
+                    sources.push_back(gpu::glsl::draw_msaa_object_frag);
+                    break;
+                case gpu::DrawType::imageMesh:
+                    sources.push_back(gpu::glsl::draw_image_mesh_vert);
+                    sources.push_back(gpu::glsl::draw_msaa_object_frag);
+                    break;
+                case gpu::DrawType::midpointFanPatches:
+                case gpu::DrawType::midpointFanCenterAAPatches:
+                case gpu::DrawType::outerCurvePatches:
+                case gpu::DrawType::imageRect:
+                case gpu::DrawType::renderPassInitialize:
+                case gpu::DrawType::renderPassResolve:
+                    RIVE_UNREACHABLE();
+            }
+            break;
+
+        case gpu::InterlockMode::clockwiseAtomic:
             RIVE_UNREACHABLE();
-    }
-    if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
-    {
-        defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
     }
 
     m_id = glutils::CompileShader(shaderType,

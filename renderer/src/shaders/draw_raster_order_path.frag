@@ -15,16 +15,12 @@ PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
 
-#ifdef @ATLAS_BLIT
-    VARYING_UNPACK(v_atlasCoord, float2);
-#else
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_windingWeight, half);
 #else
     VARYING_UNPACK(v_coverages, COVERAGE_TYPE);
 #endif //@DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_pathID, half);
-#endif
 
 #ifdef @ENABLE_CLIPPING
     VARYING_UNPACK(v_clipIDs, half2);
@@ -36,17 +32,11 @@ PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_blendMode, half);
 #endif
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
+#if !defined(@DRAW_INTERIOR_TRIANGLES)
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_BEGIN;
 #endif
 
-    half coverage;
-#ifdef @ATLAS_BLIT
-    coverage = filter_feather_atlas(
-        v_atlasCoord,
-        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
-#else
     half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
     half coverageBufferID = coverageData.g;
     half coverageCount =
@@ -67,6 +57,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif // !@DRAW_INTERIOR_TRIANGLES
 
     // Convert coverageCount to coverage.
+    half coverage;
 #ifdef @CLOCKWISE_FILL
     if (@CLOCKWISE_FILL)
     {
@@ -100,7 +91,6 @@ PLS_MAIN(@drawFragmentMain)
         // This also caps stroke coverage, which can be >1.
         coverage = min(coverage, make_half(1.));
     }
-#endif // !@ATLAS_BLIT
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipIDs.x < .0) // Update the clip buffer.
@@ -183,9 +173,6 @@ PLS_MAIN(@drawFragmentMain)
             find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 
         half4 dstColorPremul;
-#ifdef @ATLAS_BLIT
-        dstColorPremul = PLS_LOAD4F(colorBuffer);
-#else
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
@@ -206,7 +193,6 @@ PLS_MAIN(@drawFragmentMain)
             PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
         }
-#endif // @ATLAS_BLIT
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -243,7 +229,7 @@ PLS_MAIN(@drawFragmentMain)
         PLS_PRESERVE_UI(clipBuffer);
     }
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
+#if !defined(@DRAW_INTERIOR_TRIANGLES)
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_END;
 #endif

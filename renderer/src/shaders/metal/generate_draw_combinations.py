@@ -83,19 +83,28 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
     if fill_type == FillType.CLOCKWISE:
         out.write('#define CLOCKWISE_FILL 1\n')
     if draw_type == DrawType.PATH:
+        out.write('#define DRAW_PATH 1\n')
         out.write('namespace %s%s\n' %
                   ('c' if fill_type == FillType.CLOCKWISE else 'p',
                    ''.join(namespace_id)))
         out.write('{\n')
         out.write('#include "draw_path.minified.vert"\n')
-        out.write('#include "draw_raster_order_path.minified.frag"\n')
+        if ATLAS_BLIT in feature_set:
+            out.write('#include "draw_raster_order_mesh.minified.frag"\n')
+        else:
+            out.write('#include "draw_raster_order_path.minified.frag"\n')
         out.write('}\n')
+        out.write('#undef DRAW_PATH\n')
     else:
+        out.write('#define DRAW_IMAGE 1\n')
+        out.write('#define DRAW_IMAGE_MESH 1\n')
         out.write('namespace m%s\n' % ''.join(namespace_id))
         out.write('{\n')
         out.write('#include "draw_image_mesh.minified.vert"\n')
-        out.write('#include "draw_raster_order_image_mesh.minified.frag"\n')
+        out.write('#include "draw_raster_order_mesh.minified.frag"\n')
         out.write('}\n')
+        out.write('#undef DRAW_IMAGE_MESH\n')
+        out.write('#undef DRAW_IMAGE\n')
     for feature in feature_set:
         out.write('#undef %s\n' % feature.name)
     if shader_type == ShaderType.VERTEX:
