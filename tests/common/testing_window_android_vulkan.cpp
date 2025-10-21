@@ -145,8 +145,8 @@ public:
                                                         m_windowSurface,
                                                         swapOpts);
 
-        m_androidWindowWidth = m_swapchain->width();
-        m_androidWindowHeight = m_swapchain->height();
+        m_androidWindowWidth = m_width = m_swapchain->width();
+        m_androidWindowHeight = m_height = m_swapchain->height();
 
         m_renderTarget =
             impl()->makeRenderTarget(m_width,

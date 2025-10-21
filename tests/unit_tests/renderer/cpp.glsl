@@ -28,6 +28,8 @@ using simd::clamp;
 using simd::dot;
 using simd::max;
 using simd::min;
+using simd::sqrt;
+using std::sqrt;
 using float3 = vec<3>;
 using float2x2 = std::array<float2, 2>;
 using half4 = float4;
@@ -93,6 +95,13 @@ template <int N> vec<N> mix(vec<N> a, vec<N> b, ivec<N> t)
     return simd::if_then_else(t, b, a);
 }
 
+template <int N> vec<N> mix(vec<N> a, vec<N> b, vec<N> t)
+{
+    // Do the lerp using this form which is always correct at the endpoints
+    // (t == 0 or 1)
+    return a * (1 - t) + b * t;
+}
+
 template <typename T, int N>
 ivec<N> equal(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
@@ -112,9 +121,21 @@ ivec<N> lessThanEqual(simd::gvec<T, N> x, simd::gvec<T, N> y)
 }
 
 template <typename T, int N>
+ivec<N> lessThan(simd::gvec<T, N> x, simd::gvec<T, N> y)
+{
+    return x < y;
+}
+
+template <typename T, int N>
 ivec<N> greaterThanEqual(simd::gvec<T, N> x, simd::gvec<T, N> y)
 {
     return x >= y;
+}
+
+template <typename T, int N>
+ivec<N> greaterThan(simd::gvec<T, N> x, simd::gvec<T, N> y)
+{
+    return x > y;
 }
 
 #endif

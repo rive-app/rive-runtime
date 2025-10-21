@@ -366,6 +366,18 @@ INLINE float2x2 inverse(float2x2 m)
     return adjoint * (1. / determinant(m));
 }
 
+// mix() with a boolean type in glsl maps to the hlsl ternary operator
+
+INLINE float mix(float x, float y, bool s) { return s ? y : x; }
+INLINE float2 mix(float2 x, float2 y, bool2 s) { return s ? y : x; }
+INLINE float3 mix(float3 x, float3 y, bool3 s) { return s ? y : x; }
+INLINE float4 mix(float4 x, float4 y, bool4 s) { return s ? y : x; }
+
+INLINE half mix(half x, half y, bool s) { return s ? y : x; }
+INLINE half2 mix(half2 x, half2 y, bool2 s) { return s ? y : x; }
+INLINE half3 mix(half3 x, half3 y, bool3 s) { return s ? y : x; }
+INLINE half4 mix(half4 x, half4 y, bool4 s) { return s ? y : x; }
+
 // Redirects for intrinsics that have different names in HLSL
 
 INLINE float mix(float x, float y, float s) { return $lerp(x, y, s); }
@@ -373,10 +385,10 @@ INLINE float2 mix(float2 x, float2 y, float2 s) { return $lerp(x, y, s); }
 INLINE float3 mix(float3 x, float3 y, float3 s) { return $lerp(x, y, s); }
 INLINE float4 mix(float4 x, float4 y, float4 s) { return $lerp(x, y, s); }
 
-INLINE half mix(half x, half y, half s) { return x + s * (y - x); }
-INLINE half2 mix(half2 x, half2 y, half2 s) { return x + s * (y - x); }
-INLINE half3 mix(half3 x, half3 y, half3 s) { return x + s * (y - x); }
-INLINE half4 mix(half4 x, half4 y, half4 s) { return x + s * (y - x); }
+INLINE half mix(half x, half y, half s) { return $lerp(x, y, s); }
+INLINE half2 mix(half2 x, half2 y, half2 s) { return $lerp(x, y, s); }
+INLINE half3 mix(half3 x, half3 y, half3 s) { return $lerp(x, y, s); }
+INLINE half4 mix(half4 x, half4 y, half4 s) { return $lerp(x, y, s); }
 
 INLINE float fract(float x) { return $frac(x); }
 INLINE float2 fract(float2 x) { return $frac(x); }

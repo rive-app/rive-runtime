@@ -158,13 +158,15 @@ half3 advanced_blend_coeffs(half3 src, half4 dstPremul, ushort mode)
             break;
         case BLEND_MODE_OVERLAY:
         {
-            for (int i = 0; i < 3; ++i)
-            {
-                if (dst[i] <= .5)
-                    coeffs[i] = 2. * src[i] * dst[i];
-                else
-                    coeffs[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
-            }
+            // This logic is equivalent to the following, but should be more
+            // efficient, and works around a Vulkan Adreno 6-series Android 9/10
+            // driver bug:
+            //  f(Cs,Cd) = 2*Cs*Cd, if Cd <= 0.5
+            //             1-2*(1-Cs)*(1-Cd), otherwise
+            half3 sd = src * dst;
+            coeffs = 2.0 * mix(sd,
+                               src + dst - sd - 0.5,
+                               greaterThan(dst, make_half3(0.5)));
             break;
         }
         case BLEND_MODE_DARKEN:
@@ -197,30 +199,40 @@ half3 advanced_blend_coeffs(half3 src, half4 dstPremul, ushort mode)
         }
         case BLEND_MODE_HARDLIGHT:
         {
-            for (int i = 0; i < 3; ++i)
-            {
-                if (src[i] <= .5)
-                    coeffs[i] = 2. * src[i] * dst[i];
-                else
-                    coeffs[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
-            }
+            // This logic is equivalent to the following, but should be more
+            // efficient, and works around a Vulkan Adreno 6-series Android 9/10
+            // driver bug:
+            //   f(Cs,Cd) = 2*Cs*Cd, if Cs <= 0.5
+            //              1-2*(1-Cs)*(1-Cd), otherwise
+            half3 sd = src * dst;
+            coeffs = 2.0 * mix(sd,
+                               src + dst - sd - 0.5,
+                               greaterThan(src, make_half3(0.5)));
             break;
         }
         case BLEND_MODE_SOFTLIGHT:
         {
+            // This logic is equivalent to the following, but should be more
+            // efficient, and works around a Vulkan Adreno 6-series Android 9/10
+            // driver bug:
+            //   f(Cs,Cd) =
+            //     Cd-(1-2*Cs)*Cd*(1-Cd),
+            //       if Cs <= 0.5
+            //     Cd+(2*Cs-1)*Cd*((16*Cd-12)*Cd+3),
+            //       if Cs > 0.5 and Cd <= 0.25
+            //     Cd+(2*Cs-1)*(sqrt(Cd)-Cd),
+            //       if Cs > 0.5 and Cd > 0.25
             for (int i = 0; i < 3; ++i)
             {
                 if (src[i] <= 0.5)
-                    coeffs[i] =
-                        dst[i] - (1. - 2. * src[i]) * dst[i] * (1. - dst[i]);
-                else if (dst[i] <= .25)
-                    coeffs[i] =
-                        dst[i] + (2. * src[i] - 1.) * dst[i] *
-                                     ((16. * dst[i] - 12.) * dst[i] + 3.);
+                    coeffs[i] = (1.0 - dst[i]);
+                else if (dst[i] <= 0.25)
+                    coeffs[i] = ((16.0 * dst[i] - 12.0) * dst[i] + 3.0);
                 else
-                    coeffs[i] =
-                        dst[i] + (2. * src[i] - 1.) * (sqrt(dst[i]) - dst[i]);
+                    coeffs[i] = (inversesqrt(dst[i]) - 1.0);
             }
+
+            coeffs = dst + dst * (2.0 * src - 1.0) * coeffs;
             break;
         }
         case BLEND_MODE_DIFFERENCE:
@@ -299,8 +311,10 @@ INLINE half3 advanced_color_blend(half3 src, half4 dstPremul, ushort mode)
     //       Also, since (X,Y,Z) == 1, alpha simplifies to standard src-over
     //       rules: A = Ad * (1 - As) + As
     half3 coeffs = advanced_blend_coeffs(src, dstPremul, mode);
-    half2 p = make_half2(dstPremul.a, 1. - dstPremul.a); // p2 cancelled to 0.
-    return MUL(make_half2x3(coeffs, src), p);
+
+    // Because p0 is (Ad), p1 is (1 - Ad), and p2 is 0, this is equivalent to
+    // that matrix multiply:
+    return mix(src, coeffs, make_half3(dstPremul.a));
 }
 #endif // ENABLE_ADVANCED_BLEND
 
