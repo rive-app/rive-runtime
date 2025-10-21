@@ -18,3 +18,8 @@ void ViewModelInstanceNumber::propertyValueChanged()
 #endif
     onValueChanged();
 }
+
+void ViewModelInstanceNumber::applyValue(DataValueNumber* dataValue)
+{
+    propertyValue(dataValue->value());
+}

@@ -42,3 +42,8 @@ bool ViewModelInstanceEnum::value(uint32_t index)
     }
     return false;
 }
+
+void ViewModelInstanceEnum::applyValue(DataValueInteger* dataValue)
+{
+    propertyValue(dataValue->value());
+}

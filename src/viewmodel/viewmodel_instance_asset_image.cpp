@@ -5,6 +5,8 @@
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/component_dirt.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/data_bind/data_values/data_value.hpp"
+#include "rive/data_bind/data_values/data_value_asset_image.hpp"
 
 using namespace rive;
 
@@ -41,6 +43,21 @@ void ViewModelInstanceAssetImage::value(RenderImage* image)
         m_imageAsset->renderImage(rcp<RenderImage>(image));
     }
     addDirt(ComponentDirt::Bindings);
+    onValueChanged();
+}
+
+void ViewModelInstanceAssetImage::applyValue(DataValueInteger* dataValue)
+{
+    if (dataValue && dataValue->is<DataValueAssetImage>())
+    {
+        auto renderImage = dataValue->as<DataValueAssetImage>()->imageValue();
+        value(renderImage);
+        if (renderImage)
+        {
+            return;
+        }
+    }
+    propertyValue(dataValue->value());
 }
 
 Core* ViewModelInstanceAssetImage::clone() const

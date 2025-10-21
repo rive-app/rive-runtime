@@ -1,6 +1,7 @@
 #ifndef _RIVE_VIEW_MODEL_INSTANCE_ARTBOARD_HPP_
 #define _RIVE_VIEW_MODEL_INSTANCE_ARTBOARD_HPP_
 #include "rive/generated/viewmodel/viewmodel_instance_artboard_base.hpp"
+#include "rive/data_bind/data_values/data_value_integer.hpp"
 #include "rive/bindable_artboard.hpp"
 #include <stdio.h>
 namespace rive
@@ -18,6 +19,7 @@ protected:
 public:
     void asset(rcp<BindableArtboard> value);
     rcp<BindableArtboard> asset() { return m_bindableArtboard; }
+    void applyValue(DataValueInteger*);
 
 private:
     rcp<BindableArtboard> m_bindableArtboard = nullptr;

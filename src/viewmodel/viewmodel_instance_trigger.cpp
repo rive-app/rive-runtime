@@ -26,3 +26,8 @@ void ViewModelInstanceTrigger::advanced()
 
     ViewModelInstanceValue::advanced();
 }
+
+void ViewModelInstanceTrigger::applyValue(DataValueInteger* dataValue)
+{
+    propertyValue(dataValue->value());
+}

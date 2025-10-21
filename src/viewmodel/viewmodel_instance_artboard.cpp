@@ -27,3 +27,8 @@ void ViewModelInstanceArtboard::asset(rcp<BindableArtboard> value)
     m_bindableArtboard = value;
     addDirt(ComponentDirt::Bindings);
 }
+
+void ViewModelInstanceArtboard::applyValue(DataValueInteger* dataValue)
+{
+    propertyValue(dataValue->value());
+}

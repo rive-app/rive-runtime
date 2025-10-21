@@ -18,3 +18,8 @@ void ViewModelInstanceSymbolListIndex::propertyValueChanged()
 #endif
     onValueChanged();
 }
+
+void ViewModelInstanceSymbolListIndex::applyValue(DataValueInteger* dataValue)
+{
+    propertyValue(dataValue->value());
+}

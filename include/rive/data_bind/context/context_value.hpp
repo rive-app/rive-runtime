@@ -37,38 +37,34 @@ public:
         return false;
     };
     void syncSourceValue();
-    template <typename T = DataValue, typename U>
-    U getDataValue(DataValue* input, DataBind* dataBind)
-    {
-        auto converter = dataBind->converter();
-        auto dataValue =
-            converter != nullptr ? converter->convert(input, dataBind) : input;
-        if (dataValue->is<T>())
-        {
-            return dataValue->as<T>()->value();
-        }
-        return T::defaultValue;
-    };
-    template <typename T = DataValue, typename U>
-    U getReverseDataValue(DataValue* input, DataBind* dataBind)
+    template <typename T = DataValue>
+    DataValue* calculateDataValue(DataValue* input,
+                                  bool isMainDirection,
+                                  DataBind* dataBind)
     {
         auto converter = dataBind->converter();
         auto dataValue = converter != nullptr
-                             ? converter->reverseConvert(input, dataBind)
+                             ? isMainDirection
+                                   ? converter->convert(input, dataBind)
+                                   : converter->reverseConvert(input, dataBind)
                              : input;
         if (dataValue->is<T>())
         {
-            return dataValue->as<T>()->value();
+            return dataValue;
         }
-        return T::defaultValue;
+        return nullptr;
     };
+
     template <typename T = DataValue, typename U>
     U calculateValue(DataValue* input, bool isMainDirection, DataBind* dataBind)
     {
-        auto value = isMainDirection
-                         ? getDataValue<T, U>(input, dataBind)
-                         : getReverseDataValue<T, U>(input, dataBind);
-        return value;
+        auto dataValue =
+            calculateDataValue<T>(input, isMainDirection, dataBind);
+        if (dataValue && dataValue->template is<T>())
+        {
+            return dataValue->template as<T>()->value();
+        }
+        return T::defaultValue;
     };
     template <typename T = DataValue,
               typename U,
@@ -79,15 +75,19 @@ public:
         if (m_targetValue.syncTargetValue() || !m_isValid)
         {
             // Calculate new value after converters are applied
-            auto value = calculateValue<T, U>(m_targetValue.dataValue(),
-                                              isMainDirection,
-                                              m_dataBind);
-            // Apply value to source
-            m_dataBind->suppressDirt(true);
-            auto source = m_dataBind->source();
-            source->as<V>()->propertyValue(value);
-            m_dataBind->suppressDirt(false);
-            m_isValid = true;
+            auto value = calculateDataValue<T>(m_targetValue.dataValue(),
+                                               isMainDirection,
+                                               m_dataBind);
+            if (value)
+            {
+
+                // Apply value to source
+                m_dataBind->suppressDirt(true);
+                auto source = m_dataBind->source();
+                source->as<V>()->applyValue(value->template as<T>());
+                m_dataBind->suppressDirt(false);
+                m_isValid = true;
+            }
         }
     };
 };

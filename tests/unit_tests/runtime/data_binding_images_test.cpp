@@ -174,3 +174,60 @@ TEST_CASE("Image based conditions work", "[silver]")
 
     CHECK(silver.matches("viewmodel_based_condition"));
 }
+
+TEST_CASE("Dynamic image binding with listener action", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/image_binding_with_listener.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(650.0f, 650.0f));
+    stateMachine->pointerUp(rive::Vec2D(650.0f, 650.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    auto imageFile = ReadFile("assets/open_source.jpg");
+    REQUIRE(imageFile.size() == 8880);
+
+    auto decodedImage = silver.decodeImage(imageFile);
+    auto imgProp =
+        vmi->propertyValue("image1")->as<rive::ViewModelInstanceAssetImage>();
+    imgProp->value(decodedImage.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(650.0f, 650.0f));
+    stateMachine->pointerUp(rive::Vec2D(650.0f, 650.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    imgProp->value(nullptr);
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(650.0f, 650.0f));
+    stateMachine->pointerUp(rive::Vec2D(650.0f, 650.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("image_binding_with_listener"));
+}

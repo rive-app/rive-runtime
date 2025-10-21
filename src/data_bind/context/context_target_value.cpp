@@ -1,6 +1,7 @@
 #include "rive/data_bind/context/context_target_value.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
+#include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/data_bind/data_values/data_value_integer.hpp"
@@ -45,6 +46,11 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
                 {
                     m_targetValue = new DataValueNumber();
                 }
+            }
+            else if (dataBind->source()->coreType() ==
+                     ViewModelInstanceAssetImageBase::typeKey)
+            {
+                m_targetValue = new DataValueAssetImage();
             }
             else
             {
@@ -98,6 +104,28 @@ bool DataBindContextTargetValue::syncTargetValue()
                     auto value = (float)target->getActiveChildIndex();
                     return updateValue<DataValueNumber, float>(value);
                 }
+            }
+            else if (m_dataBind->target()->coreType() ==
+                     BindablePropertyAssetBase::typeKey)
+            {
+                auto value = CoreRegistry::getUint(m_dataBind->target(),
+                                                   m_dataBind->propertyKey());
+                auto fileAsset = m_dataBind->target()
+                                     ->as<BindablePropertyAsset>()
+                                     ->fileAsset();
+                bool didChange = false;
+                if (updateValue<DataValueInteger, int>(value))
+                {
+                    didChange = true;
+                }
+                if (fileAsset->renderImage() !=
+                    m_targetValue->as<DataValueAssetImage>()->imageValue())
+                {
+                    m_targetValue->as<DataValueAssetImage>()->imageValue(
+                        fileAsset->renderImage());
+                    didChange = true;
+                }
+                return didChange;
             }
             else
             {

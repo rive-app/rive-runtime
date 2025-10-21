@@ -2,6 +2,7 @@
 #define _RIVE_VIEW_MODEL_INSTANCE_TRIGGER_HPP_
 #include "rive/generated/viewmodel/viewmodel_instance_trigger_base.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/data_bind/data_values/data_value_integer.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -26,6 +27,7 @@ public:
 #endif
 
     void trigger() { propertyValue(propertyValue() + 1); }
+    void applyValue(DataValueInteger*);
 };
 } // namespace rive
 
