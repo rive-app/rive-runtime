@@ -1389,3 +1389,62 @@ TEST_CASE("Replace view model instance in nested list", "[silver]")
 
     CHECK(silver.matches("replace_vm_instance-double-nest"));
 }
+
+TEST_CASE("Pointer drag event", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/drag_event.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // Clicking on a square without moving will trigger the click on the nested
+    // artboard
+    stateMachine->pointerDown(rive::Vec2D(250, 250));
+    stateMachine->pointerUp(rive::Vec2D(250, 250));
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    auto coord = 250.0f;
+    stateMachine->pointerDown(rive::Vec2D(coord, coord));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Drag gesture works and click is cancelled
+    while (coord > 50)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(coord, coord));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        coord -= 10;
+    }
+    stateMachine->pointerUp(rive::Vec2D(coord, coord));
+
+    silver.addFrame();
+    // Clicking again on a square without moving will trigger the click on the
+    // nested artboard
+    stateMachine->pointerDown(rive::Vec2D(coord, coord));
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->pointerUp(rive::Vec2D(coord, coord));
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("drag_event"));
+}

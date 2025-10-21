@@ -16,6 +16,7 @@ enum class ListenerType : int
     dragStart = 9,
     dragEnd = 10,
     viewModel = 11,
+    drag = 12,
 };
 }
 #endif

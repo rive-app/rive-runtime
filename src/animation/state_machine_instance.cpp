@@ -617,21 +617,24 @@ public:
         auto listenerType = m_listener->listenerType();
         return !(listenerType == ListenerType::enter ||
                  listenerType == ListenerType::exit ||
-                 listenerType == ListenerType::move);
+                 listenerType == ListenerType::move ||
+                 listenerType == ListenerType::drag);
     }
 
     virtual bool needsDownListener(Component* drawable)
     {
         auto listenerType = m_listener->listenerType();
         return listenerType == ListenerType::down ||
-               listenerType == ListenerType::click;
+               listenerType == ListenerType::click ||
+               listenerType == ListenerType::drag;
     }
 
     virtual bool needsUpListener(Component* drawable)
     {
         auto listenerType = m_listener->listenerType();
         return listenerType == ListenerType::up ||
-               listenerType == ListenerType::click;
+               listenerType == ListenerType::click ||
+               listenerType == ListenerType::drag;
     }
 
     virtual ProcessEventResult processEvent(
@@ -651,6 +654,7 @@ public:
         // context. In this case, we unhover the group so it is not marked as
         // previously hovered.
         auto pointer = pointerData(pointerId);
+        auto prevPhase = pointer->phase;
         if (!canHit && pointer->isHovered)
         {
             pointer->isHovered = false;
@@ -690,6 +694,14 @@ public:
                 pointer->phase = GestureClickPhase::out;
             }
         }
+        if (prevPhase == GestureClickPhase::down &&
+            (pointer->phase == GestureClickPhase::clicked ||
+             pointer->phase == GestureClickPhase::out) &&
+            m_hasDragged)
+        {
+            stateMachineInstance->dragEnd(position, timeStamp, pointerId);
+            m_hasDragged = false;
+        }
         auto _listener = listener();
         // Always update hover states regardless of which specific listener type
         // we're trying to trigger.
@@ -723,6 +735,29 @@ public:
             stateMachineInstance->markNeedsAdvance();
             consume();
         }
+        // Perform changes if:
+        // - the listener type is drag
+        // - the clickPhase is down
+        // - the pointer type is move
+        if (pointer->phase == GestureClickPhase::down &&
+            _listener->listenerType() == ListenerType::drag &&
+            hitEvent == ListenerType::move)
+        {
+            _listener->performChanges(
+                stateMachineInstance,
+                position,
+                Vec2D(previousPosition->x, previousPosition->y));
+            stateMachineInstance->markNeedsAdvance();
+            if (!m_hasDragged)
+            {
+                stateMachineInstance->dragStart(position,
+                                                timeStamp,
+                                                false,
+                                                pointerId);
+                m_hasDragged = true;
+            }
+            consume();
+        }
         previousPosition->x = position.x;
         previousPosition->y = position.y;
         return ProcessEventResult::pointer;
@@ -733,6 +768,7 @@ public:
 private:
     // Consumed listeners aren't processed again in the current frame
     bool m_isConsumed = false;
+    bool m_hasDragged = false;
     const StateMachineListener* m_listener;
     std::unordered_map<int, _PointerData*> m_pointers;
     std::vector<_PointerData*> m_pointersPool;
@@ -1114,6 +1150,7 @@ public:
                         case ListenerType::draggableConstraint:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
+                        case ListenerType::drag:
                             break;
                     }
                 }
@@ -1136,6 +1173,7 @@ public:
                         case ListenerType::draggableConstraint:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
+                        case ListenerType::drag:
                             break;
                     }
                 }
@@ -1246,6 +1284,7 @@ public:
                         case ListenerType::draggableConstraint:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
+                        case ListenerType::drag:
                             break;
                     }
                 }
@@ -1267,6 +1306,7 @@ public:
                         case ListenerType::draggableConstraint:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
+                        case ListenerType::drag:
                             break;
                     }
                 }
