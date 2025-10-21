@@ -94,7 +94,7 @@ if not _OPTIONS['with-webgpu'] then
             externalincludedirs({ optick .. '/src'})
         end
 
-        if _TARGET_OS == 'windows' then
+        if rive_target_os == 'windows' then
             externalincludedirs({
                 dx12_headers .. '/include/directx',
             })

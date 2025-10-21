@@ -403,10 +403,21 @@ end
 
 filter({})
 
+-- os.target() does not seem to be getting updated when system( ) is changed (for instance, when
+-- building on Windows, it stays 'windows' even after we do system('android') which means if we
+-- use it directly, we will include more things than are strictly necessary.
+--
+-- Instead, make an alias that we can use instead that we set manually based on calls to system()
+-- Additionally, premake deprecated `--os=android` which is why the custom system() call is 
+-- needed in the first place (otherwise the build script would just be passing it in)
+rive_target_os = os.target()
+
 -- Don't use filter() here because we don't want to generate the "android_ndk" toolset if not
 -- building for android.
 if _OPTIONS['for_android'] then
     system('android')
+    rive_target_os = 'android'
+
     pic('on') -- Position-independent code is required for NDK libraries.
 
     -- Detect the NDK.
@@ -766,6 +777,8 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
     end
 
     system('emscripten')
+    rive_target_os = 'emscripten'
+
     toolset('emsdk')
 
     linkoptions({ '-sALLOW_MEMORY_GROWTH=1', '-sDYNAMIC_EXECUTION=0' })

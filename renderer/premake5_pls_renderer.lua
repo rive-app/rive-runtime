@@ -22,7 +22,7 @@ if _OPTIONS['with_vulkan'] then
     })
 end
 
-if _TARGET_OS == 'windows' then
+if rive_target_os == 'windows' then
     dx12_headers = dependency.github('microsoft/DirectX-Headers', 'v1.615.0')
 end
 
@@ -143,7 +143,7 @@ if os.host() == 'macosx' then
     end
 end
 
-if _TARGET_OS == 'windows' then
+if rive_target_os == 'windows' then
     makecommand = makecommand .. ' d3d'
 end
 
@@ -210,7 +210,7 @@ do
         files({ 'src/vulkan/*.cpp' })
     end
 
-    if _TARGET_OS == 'windows' then
+    if rive_target_os == 'windows' then
         externalincludedirs({
             dx12_headers .. '/include/directx',
         })
