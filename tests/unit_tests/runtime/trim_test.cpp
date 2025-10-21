@@ -75,8 +75,8 @@ TEST_CASE("Different types of trim paths", "[trim]")
     artboard->updateComponents();
     // Closed Path with start at 50%, end at 100% and offset at 75% doesn't add
     // an extra move between end and start of path
+    // This is two quarter circle lines joined together
     std::vector<rive::PathVerb> verbs1 = {rive::PathVerb::move,
-                                          rive::PathVerb::line,
                                           rive::PathVerb::line,
                                           rive::PathVerb::line};
     testRawPath(artboard, "clipped-rect", verbs1);

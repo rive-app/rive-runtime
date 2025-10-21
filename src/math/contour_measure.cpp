@@ -244,17 +244,10 @@ static const ContourMeasure::Segment* next_segment_beginning(
 // Compute the (interpolated) t for a distance within the index'th segment
 static float compute_t(Span<const ContourMeasure::Segment> segs,
                        size_t index,
-                       float distance,
-                       bool isStart)
+                       float distance)
 {
     const auto seg = segs[index];
     assert(distance <= seg.m_distance);
-
-    // If this is a starting distance and it is at the start of a segment
-    // exactly then default it to 0.0f. The code below ends up treating it
-    // as 1.0
-    if (isStart && (seg.m_distance == distance))
-        return 0.0f;
 
     float prevDist = 0, prevT = 0;
     if (index > 0)
@@ -289,15 +282,25 @@ void ContourMeasure::getSegment(float startDist,
     {
         return;
     }
-
-    const auto startIndex = this->findSegment(startDist);
+    auto startIndex = this->findSegment(startDist);
     const auto endIndex = this->findSegment(endDist);
 
-    const auto start = m_segments[startIndex];
+    auto start = m_segments[startIndex];
     const auto end = m_segments[endIndex];
 
-    const auto startT = compute_t(m_segments, startIndex, startDist, true);
-    const auto endT = compute_t(m_segments, endIndex, endDist, false);
+    auto startT = compute_t(m_segments, startIndex, startDist);
+    const auto endT = compute_t(m_segments, endIndex, endDist);
+
+    // If we have a startT very close to 1.0 this will end up creating a cubic
+    // with near identical points. If we have an edncap then there is not enough
+    // precision left to determine the orientation of endcaps if they have one.
+    // Solution is to skip this bezier and move to the next
+    if ((1.0f - startT < math::EPSILON) && (startIndex < endIndex))
+    {
+        startIndex++;
+        start = m_segments[startIndex];
+        startT = 0.0f;
+    }
 
     if (start.m_ptIndex == end.m_ptIndex)
     {
