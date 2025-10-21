@@ -1035,6 +1035,10 @@ bool Artboard::updatePass(bool isRoot)
             didUpdate = true;
         }
     }
+    if (didUpdate)
+    {
+        updateDataBinds();
+    }
     return didUpdate;
 }
 

@@ -337,9 +337,23 @@ void LayoutComponentStyle::paddingLeftChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::paddingRightChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::paddingTopChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::paddingBottomChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::positionLeftChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionLeftChanged()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->markPositionLeftChanged();
+    }
+    markLayoutNodeDirty();
+}
 void LayoutComponentStyle::positionRightChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::positionTopChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::positionTopChanged()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->markPositionTopChanged();
+    }
+    markLayoutNodeDirty();
+}
 void LayoutComponentStyle::positionBottomChanged() { markLayoutNodeDirty(); }
 
 void LayoutComponentStyle::widthUnitsValueChanged() { markLayoutNodeDirty(); }

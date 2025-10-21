@@ -155,6 +155,8 @@ private:
     float m_forcedWidth = NAN;
     float m_forcedHeight = NAN;
     bool m_forceUpdateLayoutBounds = false;
+    bool m_positionLeftChanged = true;
+    bool m_positionTopChanged = true;
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
@@ -294,6 +296,9 @@ public:
     void directionChanged();
     LayoutDirection actualDirection();
 #endif
+
+    void markPositionLeftChanged() { m_positionLeftChanged = true; }
+    void markPositionTopChanged() { m_positionTopChanged = true; }
     void buildDependencies() override;
 
     void markLayoutNodeDirty(

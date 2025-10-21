@@ -77,7 +77,13 @@ float Shape::length()
         float l = 0;
         for (auto path : m_Paths)
         {
-            RawPath source = path->rawPath().transform(path->pathTransform());
+            const bool pathDirty = path->hasDirt(ComponentDirt::Path |
+                                                 ComponentDirt::WorldTransform |
+                                                 ComponentDirt::NSlicer);
+            RawPath temp;
+            const RawPath& base =
+                pathDirty ? (path->buildPath(temp), temp) : path->rawPath();
+            RawPath source = base.transform(path->pathTransform());
             ContourMeasureIter iter(&source);
             while (auto contour = iter.next())
             {
@@ -92,6 +98,7 @@ float Shape::length()
 void Shape::pathChanged()
 {
     m_PathComposer.addDirt(ComponentDirt::Path, true);
+    m_WorldLength = -1;
     for (auto constraint : constraints())
     {
         constraint->addDirt(ComponentDirt::Path);

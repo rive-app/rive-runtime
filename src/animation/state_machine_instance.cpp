@@ -2005,9 +2005,10 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         }
 
         // Advance all animations.
-        if (this->tryChangeState())
+        if (this->tryChangeState() || this->needsAdvance())
         {
             this->advance(0.0f, false);
+            this->m_needsAdvance = false;
             keepGoing = true;
         }
 

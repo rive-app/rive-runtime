@@ -54,7 +54,6 @@ static bool render_and_dump_png(int cellSize,
             TestingWindow::Get()->beginFrame({.clearColor = 0xffffffff});
         renderer->save();
         scene->advanceAndApply(0);
-        scene->advanceAndApply(0);
         for (int y = 0; y < s_args.rows(); ++y)
         {
             for (int x = 0; x < s_args.cols(); ++x)

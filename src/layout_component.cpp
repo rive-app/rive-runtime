@@ -117,6 +117,9 @@ void LayoutComponent::update(ComponentDirt value)
     {
         updateRenderPath();
     }
+
+    m_positionLeftChanged = false;
+    m_positionTopChanged = false;
 }
 
 void LayoutComponent::widthOverride(float width, int unitValue, bool isRow)
@@ -1364,8 +1367,17 @@ void LayoutComponent::positionTypeChanged()
     }
     if (m_style->positionType() == YGPositionTypeAbsolute)
     {
-        m_style->positionLeft(layoutBounds().left());
-        m_style->positionTop(layoutBounds().top());
+        // Preserve computed position only if left/top were not explicitly keyed
+        // this frame. If keyed, honor those values and only set units
+        // appropriately.
+        if (!m_positionLeftChanged)
+        {
+            m_style->positionLeft(layoutBounds().left());
+        }
+        if (!m_positionTopChanged)
+        {
+            m_style->positionTop(layoutBounds().top());
+        }
         m_style->positionRight(0);
         m_style->positionBottom(0);
         m_style->positionLeftUnitsValue(YGUnitPoint);
