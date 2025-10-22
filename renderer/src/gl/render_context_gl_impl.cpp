@@ -1975,6 +1975,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode != gpu::InterlockMode::msaa)
     {
         assert(desc.msaaSampleCount == 0);
+        assert(m_plsImpl != nullptr);
         m_plsImpl->activatePixelLocalStorage(this, desc);
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
@@ -2051,8 +2052,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 ? desc.combinedShaderFeatures
                 : batch.shaderFeatures;
         gpu::ShaderMiscFlags shaderMiscFlags = batch.shaderMiscFlags;
-        if (m_plsImpl != nullptr)
+        if (desc.interlockMode != gpu::InterlockMode::msaa)
         {
+            assert(m_plsImpl != nullptr);
             shaderMiscFlags |= m_plsImpl->shaderMiscFlags(desc, drawType);
         }
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
@@ -2093,14 +2095,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 desc,
                                 m_platformFeatures,
                                 &pipelineState);
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+        if (desc.interlockMode != gpu::InterlockMode::msaa)
         {
-            // If the GL backend opted for "coalescedResolveAndTransfer", turn
-            // color writes back on for this draw.
-            assert(desc.interlockMode == gpu::InterlockMode::atomics);
-            pipelineState.colorWriteEnabled = true;
+            assert(m_plsImpl != nullptr);
+            m_plsImpl->applyPipelineStateOverrides(batch,
+                                                   desc,
+                                                   m_platformFeatures,
+                                                   &pipelineState);
         }
-        else if (desc.interlockMode == gpu::InterlockMode::msaa)
+        else
         {
             // Set up the next clipRect.
             bool needsClipPlanes =

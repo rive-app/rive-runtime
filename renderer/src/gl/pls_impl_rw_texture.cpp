@@ -109,6 +109,41 @@ class RenderContextGLImpl::PLSImplRWTexture
                                0);
     }
 
+    gpu::ShaderMiscFlags shaderMiscFlags(const gpu::FlushDescriptor& desc,
+                                         gpu::DrawType drawType) const final
+    {
+        auto flags = gpu::ShaderMiscFlags::none;
+        if (desc.interlockMode == gpu::InterlockMode::atomics)
+        {
+            if (desc.fixedFunctionColorOutput)
+            {
+                flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+            }
+            if (drawType == gpu::DrawType::renderPassResolve &&
+                needs_coalesced_atomic_resolve_and_transfer(desc))
+            {
+                flags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
+            }
+        }
+        return flags;
+    }
+
+    void applyPipelineStateOverrides(
+        const DrawBatch& batch,
+        const FlushDescriptor& desc,
+        const PlatformFeatures&,
+        PipelineState* pipelineState) const override
+    {
+        if (desc.interlockMode == gpu::InterlockMode::atomics &&
+            batch.drawType == gpu::DrawType::renderPassResolve &&
+            needs_coalesced_atomic_resolve_and_transfer(desc))
+        {
+            // If we opted for "coalescedResolveAndTransfer", turn color writes
+            // back on for this draw.
+            pipelineState->colorWriteEnabled = true;
+        }
+    }
+
     void activatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                    const FlushDescriptor& desc) override
     {
@@ -242,25 +277,6 @@ class RenderContextGLImpl::PLSImplRWTexture
         }
 
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-    }
-
-    gpu::ShaderMiscFlags shaderMiscFlags(const gpu::FlushDescriptor& desc,
-                                         gpu::DrawType drawType) const final
-    {
-        auto flags = gpu::ShaderMiscFlags::none;
-        if (desc.interlockMode == gpu::InterlockMode::atomics)
-        {
-            if (desc.fixedFunctionColorOutput)
-            {
-                flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
-            }
-            if (drawType == gpu::DrawType::renderPassResolve &&
-                needs_coalesced_atomic_resolve_and_transfer(desc))
-            {
-                flags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
-            }
-        }
-        return flags;
     }
 
     void deactivatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,

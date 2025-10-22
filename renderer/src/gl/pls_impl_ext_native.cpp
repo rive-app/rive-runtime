@@ -88,6 +88,18 @@ public:
         return false;
     }
 
+    void applyPipelineStateOverrides(
+        const DrawBatch&,
+        const FlushDescriptor&,
+        const PlatformFeatures&,
+        PipelineState* pipelineState) const override
+    {
+        // Vivo Y21 and Oppo Reno 3 Pro both disable writes to pixel local
+        // storage when the color mask is off; just leave the color mask enabled
+        // in EXT_shader_pixel_local_storage mode.
+        pipelineState->colorWriteEnabled = true;
+    }
+
     void activatePixelLocalStorage(RenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {

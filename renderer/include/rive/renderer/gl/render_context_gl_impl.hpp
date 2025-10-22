@@ -126,11 +126,6 @@ private:
                                                  uint32_t height)
         {}
 
-        virtual void activatePixelLocalStorage(RenderContextGLImpl*,
-                                               const FlushDescriptor&) = 0;
-        virtual void deactivatePixelLocalStorage(RenderContextGLImpl*,
-                                                 const FlushDescriptor&) = 0;
-
         // Depending on how we handle PLS atomic resolves, the
         // PixelLocalStorageImpl may require certain flags.
         virtual gpu::ShaderMiscFlags shaderMiscFlags(
@@ -143,6 +138,19 @@ private:
         virtual void pushShaderDefines(
             gpu::InterlockMode,
             std::vector<const char*>* defines) const = 0;
+
+        // Certain PLS draws require implementation-specific pipeline state that
+        // differs from the general pipeline state.
+        virtual void applyPipelineStateOverrides(const DrawBatch&,
+                                                 const FlushDescriptor&,
+                                                 const PlatformFeatures&,
+                                                 PipelineState*) const
+        {}
+
+        virtual void activatePixelLocalStorage(RenderContextGLImpl*,
+                                               const FlushDescriptor&) = 0;
+        virtual void deactivatePixelLocalStorage(RenderContextGLImpl*,
+                                                 const FlushDescriptor&) = 0;
 
         void ensureRasterOrderingEnabled(RenderContextGLImpl*,
                                          const gpu::FlushDescriptor&,
