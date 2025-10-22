@@ -518,6 +518,7 @@ public:
         Vec2D screenBounds;  // the bounds of coordinate system of the cursor
         Vec2D position;      // the cursor position
         float scaleFactor = 1.0f; // scale factor for things like retina display
+        int pointerId = 0;        // stable pointer identifier for multitouch
     };
 
     // All pointer events will automatically convert between artboard and screen

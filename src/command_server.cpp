@@ -1262,8 +1262,7 @@ bool CommandServer::processCommands()
                                 requestId,
                                 CommandQueue::Message::viewModelError)
                                 << "Property type " << data.type
-                                << " is not valid when "
-                                << "subscribing";
+                                << " is not valid when subscribing";
                         }
                     }
                     else
@@ -2558,7 +2557,9 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerMove(position);
+                    stateMachine->pointerMove(position,
+                                              0.0f,
+                                              pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2586,7 +2587,7 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerDown(position, 0);
+                    stateMachine->pointerDown(position, pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2614,7 +2615,7 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerUp(position, 0);
+                    stateMachine->pointerUp(position, pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2642,7 +2643,7 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerExit(position, 0);
+                    stateMachine->pointerExit(position, pointerEvent.pointerId);
                 }
                 else
                 {
