@@ -5,6 +5,7 @@
 // Don't compile this file as part of the "tests" project.
 #ifndef TESTING
 
+#include <sstream>
 #include "common/test_harness.hpp"
 #include "common/testing_window.hpp"
 #include "rive/artboard.hpp"
@@ -37,6 +38,12 @@ static void update_parameter(int& val, int multiplier, char key, bool seenBang)
         val -= multiplier;
 }
 
+enum class InputMode : uint8_t
+{
+    chars,
+    consolecommands
+};
+
 static int copiesLeft = 0;
 static int copiesAbove = 0;
 static int copiesRight = 0;
@@ -49,6 +56,7 @@ static bool wireframe = false;
 static bool paused = false;
 static bool forceFixedDeltaTime = false;
 static bool quit = false;
+static InputMode inputMode = InputMode::chars;
 static bool hotloadShaders = false;
 static void key_pressed(char key)
 {
@@ -130,6 +138,16 @@ static void key_pressed(char key)
             break;
         case '`':
             hotloadShaders = true;
+            break;
+        case '~':
+            if (inputMode == InputMode::chars)
+            {
+                inputMode = InputMode::consolecommands;
+            }
+            else
+            {
+                inputMode = InputMode::chars;
+            }
             break;
         default:
             // fprintf(stderr, "invalid option: %c\n", key);
@@ -326,7 +344,10 @@ public:
         if (elapsedFPSUpdate >= 2.0)
         {
             double fps = m_fpsFrames / elapsedFPSUpdate;
-            printf("[%.3f FPS]\n", fps);
+            if (inputMode == InputMode::chars)
+            {
+                printf("[%.3f FPS]\n", fps);
+            }
 
             char fpsRawText[32];
             snprintf(fpsRawText, sizeof(fpsRawText), "   %.1f FPS   ", fps);
@@ -380,10 +401,41 @@ public:
             }
         }
 
+        std::string m_command;
+        m_command.clear();
         char key;
-        while (TestHarness::Instance().peekChar(key))
+
+        if (inputMode == InputMode::consolecommands)
         {
-            key_pressed(key);
+            while (TestHarness::Instance().peekChar(key))
+            {
+                m_command += key;
+            }
+
+            std::istringstream iss(m_command);
+            std::string first, second;
+            iss >> first >> second;
+            if (first == "~")
+            {
+                inputMode = InputMode::chars;
+            }
+            else if (first == "fire")
+            {
+                if (!second.empty())
+                {
+                    if (auto* trigger = m_scene->getTrigger(second.c_str()))
+                    {
+                        trigger->fire();
+                    }
+                }
+            }
+        }
+        else
+        {
+            while (TestHarness::Instance().peekChar(key))
+            {
+                key_pressed(key);
+            }
         }
     }
 
