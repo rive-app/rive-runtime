@@ -40,20 +40,10 @@ public:
     };
 
     constexpr static int OPTION_COUNT = 3;
-    constexpr static int BIT_COUNT = OPTION_COUNT + 2;
 
-    constexpr static int TOTAL_LAYOUT_COUNT =
-        gpu::kInterlockModeCount * (1 << OPTION_COUNT);
-    static_assert((1 << BIT_COUNT) >= TOTAL_LAYOUT_COUNT);
-    static_assert((1 << (BIT_COUNT - 1)) < TOTAL_LAYOUT_COUNT);
-
-    // Number of render pass variants that can be used with a single
-    // DrawPipelineLayout (framebufferFormat x loadOp).
-    constexpr static int kRenderPassVariantCount = 6;
-
-    DrawPipelineLayoutVulkan(PipelineManagerVulkan* impl,
-                             gpu::InterlockMode interlockMode,
-                             Options options);
+    DrawPipelineLayoutVulkan(PipelineManagerVulkan*,
+                             gpu::InterlockMode,
+                             Options);
     ~DrawPipelineLayoutVulkan();
 
     DrawPipelineLayoutVulkan(const DrawPipelineLayoutVulkan&) = delete;

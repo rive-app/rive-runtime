@@ -18,10 +18,18 @@ class RenderPassVulkan
 public:
     constexpr static uint64_t FORMAT_BIT_COUNT = 19;
     constexpr static uint64_t LOAD_OP_BIT_COUNT = 2;
-    constexpr static uint64_t KEY_BIT_COUNT =
-        FORMAT_BIT_COUNT + DrawPipelineLayoutVulkan::BIT_COUNT +
+    constexpr static uint64_t KEY_NO_INTERLOCK_MODE_BIT_COUNT =
+        FORMAT_BIT_COUNT + DrawPipelineLayoutVulkan::OPTION_COUNT +
         LOAD_OP_BIT_COUNT;
+    constexpr static uint64_t KEY_BIT_COUNT =
+        KEY_NO_INTERLOCK_MODE_BIT_COUNT + gpu::INTERLOCK_MODE_BIT_COUNT;
     static_assert(KEY_BIT_COUNT <= 32);
+
+    // Shader unique keys also include the interlock mode, so we don't always
+    // need it in the render pass key.
+    static uint32_t KeyNoInterlockMode(DrawPipelineLayoutVulkan::Options,
+                                       VkFormat renderTargetFormat,
+                                       gpu::LoadAction);
 
     static uint32_t Key(gpu::InterlockMode,
                         DrawPipelineLayoutVulkan::Options,

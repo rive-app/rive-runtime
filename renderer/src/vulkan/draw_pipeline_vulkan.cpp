@@ -117,26 +117,33 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey() const
                                         interlockMode,
                                         shaderMiscFlags);
 
-    const uint32_t renderPassKey = RenderPassVulkan::Key(interlockMode,
-                                                         pipelineLayoutOptions,
-                                                         renderTargetFormat,
-                                                         colorLoadAction);
-
-    const uint32_t pipelineStateKey = pipelineState.uniqueKey;
+    // DrawPipelineVulkan::Options.
     assert(key << OPTION_COUNT >> OPTION_COUNT == key);
+    assert(static_cast<uint32_t>(drawPipelineOptions) < 1 << OPTION_COUNT);
     key = (key << OPTION_COUNT) | static_cast<uint32_t>(drawPipelineOptions);
 
+    // PipelineState::uniqueKey.
     assert(key << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT >>
                gpu::PipelineState::UNIQUE_KEY_BIT_COUNT ==
            key);
-    assert(pipelineStateKey < 1 << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT);
-    key = (key << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT) | pipelineStateKey;
+    assert(pipelineState.uniqueKey <
+           1 << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT);
+    key = (key << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT) |
+          pipelineState.uniqueKey;
 
-    assert(key << RenderPassVulkan::KEY_BIT_COUNT >>
-               RenderPassVulkan::KEY_BIT_COUNT ==
+    // gpu::ShaderUniqueKey already includes the interlock mode so we don't need
+    // to also include it in the render pass key.
+    const uint32_t renderPassKeyNoInterlockMode =
+        RenderPassVulkan::KeyNoInterlockMode(pipelineLayoutOptions,
+                                             renderTargetFormat,
+                                             colorLoadAction);
+    assert(key << RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT >>
+               RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT ==
            key);
-    assert(renderPassKey < 1 << RenderPassVulkan::KEY_BIT_COUNT);
-    key = (key << RenderPassVulkan::KEY_BIT_COUNT) | renderPassKey;
+    assert(renderPassKeyNoInterlockMode <
+           1 << RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT);
+    key = (key << RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT) |
+          renderPassKeyNoInterlockMode;
 
     return key;
 }

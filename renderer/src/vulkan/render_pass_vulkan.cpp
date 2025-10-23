@@ -31,30 +31,72 @@ constexpr static VkAttachmentLoadOp vk_load_op(gpu::LoadAction loadAction,
     RIVE_UNREACHABLE();
 }
 
+static uint32_t vk_render_format_key(VkFormat format)
+{
+    uint32_t key = static_cast<uint32_t>(format);
+    if (key > VK_FORMAT_ASTC_12x12_SRGB_BLOCK)
+    {
+        // There is a large gap between VK_FORMAT_ASTC_12x12_SRGB_BLOCK (184),
+        // and VK_FORMAT_G8B8G8R8_422_UNORM (1000156000). Removing this gap gets
+        // our FORMAT_BIT_COUNT down to 19.
+        // NOTE: Some compressed ASTC and PVRTC formats live in this gap, but
+        // they're non-renderable.
+        assert(key >= VK_FORMAT_G8B8G8R8_422_UNORM);
+        key -=
+            VK_FORMAT_G8B8G8R8_422_UNORM - VK_FORMAT_ASTC_12x12_SRGB_BLOCK - 1;
+        assert(key > VK_FORMAT_ASTC_12x12_SRGB_BLOCK);
+    }
+    assert(key <= 1 << RenderPassVulkan::FORMAT_BIT_COUNT);
+    return key;
+}
+
+uint32_t RenderPassVulkan::KeyNoInterlockMode(
+    DrawPipelineLayoutVulkan::Options layoutOptions,
+    VkFormat renderTargetFormat,
+    gpu::LoadAction loadAction)
+{
+    // gpu::LoadAction.
+    assert(static_cast<uint32_t>(loadAction) < 1 << LOAD_OP_BIT_COUNT);
+    uint32_t key = static_cast<uint32_t>(loadAction);
+
+    // VkFormat.
+    const uint32_t renderFormatKey = vk_render_format_key(renderTargetFormat);
+    assert(key << FORMAT_BIT_COUNT >> FORMAT_BIT_COUNT == key);
+    assert(renderFormatKey < 1 << FORMAT_BIT_COUNT);
+    key = (key << FORMAT_BIT_COUNT) | renderFormatKey;
+
+    // DrawPipelineLayoutVulkan::Options.
+    assert(key << DrawPipelineLayoutVulkan::OPTION_COUNT >>
+               DrawPipelineLayoutVulkan::OPTION_COUNT ==
+           key);
+    assert(static_cast<uint32_t>(layoutOptions) <
+           1 << DrawPipelineLayoutVulkan::OPTION_COUNT);
+    key = (key << DrawPipelineLayoutVulkan::OPTION_COUNT) |
+          static_cast<uint32_t>(layoutOptions);
+
+    assert(key < 1 << KEY_NO_INTERLOCK_MODE_BIT_COUNT);
+    return key;
+}
+
 uint32_t RenderPassVulkan::Key(gpu::InterlockMode interlockMode,
                                DrawPipelineLayoutVulkan::Options layoutOptions,
                                VkFormat renderTargetFormat,
                                gpu::LoadAction loadAction)
 {
-    uint32_t formatKey = static_cast<uint32_t>(renderTargetFormat);
-    if (formatKey > VK_FORMAT_ASTC_12x12_SRGB_BLOCK)
-    {
-        assert(formatKey >= VK_FORMAT_G8B8G8R8_422_UNORM);
-        formatKey -=
-            VK_FORMAT_G8B8G8R8_422_UNORM - VK_FORMAT_ASTC_12x12_SRGB_BLOCK - 1;
-    }
-    assert(formatKey <= 1 << FORMAT_BIT_COUNT);
+    uint32_t key =
+        KeyNoInterlockMode(layoutOptions, renderTargetFormat, loadAction);
 
-    uint32_t drawPipelineLayoutIdx =
-        DrawPipelineLayoutIdx(interlockMode, layoutOptions);
-    assert(drawPipelineLayoutIdx < 1 << DrawPipelineLayoutVulkan::BIT_COUNT);
+    // gpu::InterlockMode.
+    assert(key << gpu::INTERLOCK_MODE_BIT_COUNT >>
+               gpu::INTERLOCK_MODE_BIT_COUNT ==
+           key);
+    assert(static_cast<uint32_t>(interlockMode) <
+           1 << gpu::INTERLOCK_MODE_BIT_COUNT);
+    key = (key << gpu::INTERLOCK_MODE_BIT_COUNT) |
+          static_cast<uint32_t>(interlockMode);
 
-    assert(static_cast<uint32_t>(loadAction) < 1 << LOAD_OP_BIT_COUNT);
-
-    return (formatKey << (DrawPipelineLayoutVulkan::BIT_COUNT +
-                          LOAD_OP_BIT_COUNT)) |
-           (drawPipelineLayoutIdx << LOAD_OP_BIT_COUNT) |
-           static_cast<uint32_t>(loadAction);
+    assert(key < 1 << KEY_BIT_COUNT);
+    return key;
 }
 
 RenderPassVulkan::RenderPassVulkan(

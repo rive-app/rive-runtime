@@ -773,7 +773,11 @@ enum class InterlockMode
     clockwiseAtomic,
     msaa,
 };
-constexpr static size_t kInterlockModeCount = 4;
+constexpr static size_t INTERLOCK_MODE_COUNT = 4;
+// # of bits required to contain an InterlockMode.
+constexpr static size_t INTERLOCK_MODE_BIT_COUNT = 2;
+static_assert(INTERLOCK_MODE_COUNT <= (1 << INTERLOCK_MODE_BIT_COUNT));
+static_assert(INTERLOCK_MODE_COUNT > (1 << (INTERLOCK_MODE_BIT_COUNT - 1)));
 
 // Low-level batch of scissored geometry for rendering to the offscreen atlas.
 struct AtlasDrawBatch
