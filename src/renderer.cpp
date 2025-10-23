@@ -139,7 +139,9 @@ RenderPath::~RenderPath() {}
 
 bool rive::isWhiteSpace(Unichar c)
 {
-    return c <= ' ' || c == 0x2028 || c == 0x2060;
+    // 0x2028 is a Line separator.
+    // 0x200B is a Zero width space.
+    return c <= ' ' || c == 0x2028 || c == 0x200B;
 }
 
 SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text,

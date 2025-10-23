@@ -8,6 +8,11 @@
 #include "utils/no_op_renderer.hpp"
 #include "rive/text/utf.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "utils/serializing_factory.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include <iostream>
+#include <string>
 
 TEST_CASE("file with text loads correctly", "[text]")
 {
@@ -341,4 +346,48 @@ TEST_CASE("can load and run opacity modifiers", "[text]")
     artboard->advance(0.0f);
     rive::NoOpRenderer renderer;
     artboard->draw(&renderer);
+}
+
+TEST_CASE("Zero width spaces are used to break words", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/zero_width_space_line_break.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    auto textProp =
+        vmi->propertyValue("txt")->as<rive::ViewModelInstanceString>();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // set a long text that will cause an arbitrary text break looking like this
+    // 12345678901234567
+    // 890
+    silver.addFrame();
+    std::string text = "12345678901234567890";
+    textProp->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    auto zeroWidthSpace = 8203;
+    char c = static_cast<char>(zeroWidthSpace);
+    silver.addFrame();
+    // Insert a zero width space between the two number sequences
+    // Now text should look like this
+    // 1234567890
+    // 1234567890
+    text.insert(10, 1, c);
+    textProp->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("zero_width_space_line_break"));
 }
