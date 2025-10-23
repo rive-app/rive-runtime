@@ -1571,12 +1571,15 @@ void Artboard::unbind()
 
 void Artboard::clearDataContext()
 {
-    if (m_ownsDataContext && m_DataContext != nullptr)
+    if (m_DataContext)
     {
-        m_DataContext->viewModelInstance()->removeDependent(this);
-        delete m_DataContext;
+        if (m_ownsDataContext)
+        {
+            m_DataContext->viewModelInstance()->removeDependent(this);
+            delete m_DataContext;
+        }
+        m_DataContext = nullptr;
     }
-    m_DataContext = nullptr;
     m_ownsDataContext = false;
     for (auto artboardHost : m_ArtboardHosts)
     {

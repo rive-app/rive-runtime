@@ -2156,10 +2156,16 @@ void StateMachineInstance::rebind()
 
 void StateMachineInstance::clearDataContext()
 {
-    if (m_ownsDataContext && m_DataContext != nullptr)
+    if (m_DataContext)
     {
-        m_DataContext->viewModelInstance()->removeDependent(this);
-        delete m_DataContext;
+        if (m_ownsDataContext)
+        {
+            if (m_DataContext->viewModelInstance())
+            {
+                m_DataContext->viewModelInstance()->removeDependent(this);
+            }
+            delete m_DataContext;
+        }
         m_DataContext = nullptr;
     }
     for (auto& listenerViewModel : m_listenerViewModels)
