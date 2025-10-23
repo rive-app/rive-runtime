@@ -161,7 +161,10 @@ public:
     {
         m_artboardSource = artboard;
     }
-    const Artboard* artboardSource() const { return m_artboardSource; }
+    const Artboard* artboardSource() const
+    {
+        return isInstance() ? m_artboardSource : this;
+    }
     bool isAncestor(const Artboard* artboard);
 
     /// Find the id of a component in the artboard the object in the artboard.

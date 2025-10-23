@@ -1448,3 +1448,60 @@ TEST_CASE("Pointer drag event", "[silver]")
 
     CHECK(silver.matches("drag_event"));
 }
+
+TEST_CASE("Recursive data binding artboards are skipped", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/recursive_data_bind.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(249.0f, 430.0f));
+    stateMachine->pointerUp(rive::Vec2D(249.0f, 430.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(391.0f, 430.0f));
+    stateMachine->pointerUp(rive::Vec2D(391.0f, 430.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // This action will bind to a recursive artboard and should be skipped
+    stateMachine->pointerDown(rive::Vec2D(107.0f, 430.0f));
+    stateMachine->pointerUp(rive::Vec2D(107.0f, 430.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(249.0f, 430.0f));
+    stateMachine->pointerUp(rive::Vec2D(249.0f, 430.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(391.0f, 430.0f));
+    stateMachine->pointerUp(rive::Vec2D(391.0f, 430.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("recursive_data_bind"));
+}
