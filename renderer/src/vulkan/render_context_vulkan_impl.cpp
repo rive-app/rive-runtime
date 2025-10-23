@@ -1082,18 +1082,28 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .dstBinding = PAINT_BUFFER_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         },
+        {{
+            .buffer = *m_paintBuffer,
+            .offset = desc.firstPaint * sizeof(gpu::PaintData),
+            .range = VK_WHOLE_SIZE,
+        }});
+
+    // NOTE: This technically could be part of the above call (passing two
+    // buffers instead of one to set them both at once), but there is a bug on
+    // some Adreno devices where the second one does not get applied properly
+    // (all reads from PaintAuxBuffer end up reading 0s), so instead we'll do it
+    // as a separate call.
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
         {
-            {
-                .buffer = *m_paintBuffer,
-                .offset = desc.firstPaint * sizeof(gpu::PaintData),
-                .range = VK_WHOLE_SIZE,
-            },
-            {
-                .buffer = *m_paintAuxBuffer,
-                .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
-                .range = VK_WHOLE_SIZE,
-            },
-        });
+            .dstBinding = PAINT_AUX_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = *m_paintAuxBuffer,
+            .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
+            .range = VK_WHOLE_SIZE,
+        }});
     static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
 
     m_vk->updateBufferDescriptorSets(
