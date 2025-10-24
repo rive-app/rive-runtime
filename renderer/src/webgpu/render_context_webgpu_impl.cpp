@@ -999,7 +999,7 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
 {
     // All backends currently use raster ordered shaders.
     // TODO: update this flag once we have msaa and atomic modes.
-    m_platformFeatures.supportsRasterOrdering = true;
+    m_platformFeatures.supportsRasterOrderingMode = true;
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
 

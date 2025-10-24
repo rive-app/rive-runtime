@@ -87,7 +87,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                                   : rive::gpu::LoadAction::preserveRenderTarget,
                 .clearColor = options.clearColor,
                 .msaaSampleCount =
-                    (m_backendParams.msaa || options.forceMSAA) ? 4 : 0,
+                    (m_backendParams.msaa || options.forceMSAA) ? 4u : 0u,
                 .disableRasterOrdering =
                     m_backendParams.atomic || options.disableRasterOrdering,
                 .wireframe = options.wireframe,

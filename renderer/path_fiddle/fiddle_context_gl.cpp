@@ -41,7 +41,8 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
         fflush(stdout);
         // Don't abort if it's a shader compile error; let our internal handlers
         // print the source (for debugging) and exit on their own.
-        if (!strstr(message, "SHADER_ID_COMPILE error has been generated"))
+        if (strstr(message, "SHADER_ID_COMPILE") == nullptr &&
+            strstr(message, "SHADER_ID_LINK") == nullptr)
         {
             assert(0);
         }

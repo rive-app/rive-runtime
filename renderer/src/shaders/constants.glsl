@@ -101,6 +101,9 @@
 #define RIGHT_JOIN_CONTOUR_FLAG (1u << 19u)
 #define CONTOUR_ID_MASK 0xffffu
 
+// This is guaranteed to not collide with any path IDs being rendered.
+#define INVALID_PATH_ID .0
+
 // This is guaranteed to not collide with a neighboring contour ID.
 #define INVALID_CONTOUR_ID_WITH_FLAGS 0u
 
@@ -254,7 +257,7 @@
 #define NESTED_CLIPPING_SPECIALIZATION_IDX 5
 #define HSL_BLEND_MODES_SPECIALIZATION_IDX 6
 #define CLOCKWISE_FILL_SPECIALIZATION_IDX 7
-#define BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX 8
+#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 8
 #define VULKAN_VENDOR_ID_SPECIALIZATION_IDX 9
 #define SPECIALIZATION_COUNT 10
 

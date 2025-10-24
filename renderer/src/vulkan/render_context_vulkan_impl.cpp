@@ -593,20 +593,20 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_triangleBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_descriptorSetPoolPool(make_rcp<DescriptorSetPoolPool>(m_vk))
 {
-    m_platformFeatures.supportsRasterOrdering =
+    m_platformFeatures.supportsRasterOrderingMode =
         m_vk->features.rasterizationOrderColorAttachmentAccess;
 #ifdef RIVE_ANDROID
-    m_platformFeatures.supportsFragmentShaderAtomics =
+    m_platformFeatures.supportsAtomicMode =
         m_vk->features.fragmentStoresAndAtomics &&
         // For now, disable gpu::InterlockMode::atomics on Android unless
         // explicitly requested. We will focus on stabilizing MSAA first, and
         // then roll this mode back in.
         contextOptions.forceAtomicMode;
 #else
-    m_platformFeatures.supportsFragmentShaderAtomics =
+    m_platformFeatures.supportsAtomicMode =
         m_vk->features.fragmentStoresAndAtomics;
 #endif
-    m_platformFeatures.supportsClockwiseAtomicRendering =
+    m_platformFeatures.supportsClockwiseAtomicMode =
         m_vk->features.fragmentStoresAndAtomics;
     m_platformFeatures.supportsClipPlanes =
         m_vk->features.shaderClipDistance &&
@@ -629,7 +629,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         case VULKAN_VENDOR_QUALCOMM:
             // Qualcomm advertises EXT_rasterization_order_attachment_access,
             // but it's slow. Use atomics instead on this platform.
-            m_platformFeatures.supportsRasterOrdering = false;
+            m_platformFeatures.supportsRasterOrderingMode = false;
             // Pixel4 struggles with fine-grained fp16 path IDs.
             m_platformFeatures.pathIDGranularity = 2;
             break;
@@ -638,7 +638,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             // This is undocumented, but raster ordering always works on ARM
             // Mali GPUs if you define a subpass dependency, even without
             // EXT_rasterization_order_attachment_access.
-            m_platformFeatures.supportsRasterOrdering = true;
+            m_platformFeatures.supportsRasterOrderingMode = true;
             break;
     }
 }
@@ -2392,7 +2392,7 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
                                     physicalDeviceProps,
                                     contextOptions));
     if (contextOptions.forceAtomicMode &&
-        !impl->platformFeatures().supportsFragmentShaderAtomics)
+        !impl->platformFeatures().supportsClockwiseAtomicMode)
     {
         fprintf(stderr,
                 "ERROR: Requested \"atomic\" mode but Vulkan does not support "

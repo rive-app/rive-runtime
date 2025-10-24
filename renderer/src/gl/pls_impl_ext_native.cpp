@@ -78,14 +78,12 @@ public:
 
     void init(rcp<GLState> state) override { m_state = std::move(state); }
 
-    bool supportsRasterOrdering(const GLCapabilities&) const override
+    void getSupportedInterlockModes(
+        const GLCapabilities& capabilities,
+        PlatformFeatures* platformFeatures) const override
     {
-        return true;
-    }
-    bool supportsFragmentShaderAtomics(
-        const GLCapabilities& capabilities) const override
-    {
-        return false;
+        assert(capabilities.EXT_shader_pixel_local_storage);
+        platformFeatures->supportsRasterOrderingMode = true;
     }
 
     void applyPipelineStateOverrides(

@@ -204,6 +204,7 @@ public:
     enum class CoverageType
     {
         pixelLocalStorage, // InterlockMode::rasterOrdering and atomics
+        clockwise,         // InterlockMode::clockwise
         clockwiseAtomic,   // InterlockMode::clockwiseAtomic
         msaa,              // InterlockMode::msaa
         atlas, // Any InterlockMode may opt to use atlas coverage for large

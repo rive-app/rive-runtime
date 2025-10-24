@@ -63,22 +63,24 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             drawTypeKey = 4;
             break;
         case DrawType::msaaStencilClipReset:
-            assert(interlockMode == gpu::InterlockMode::msaa);
+            assert(interlockMode == InterlockMode::msaa);
             drawTypeKey = 7;
             break;
         case DrawType::renderPassInitialize:
-            assert(interlockMode == gpu::InterlockMode::atomics ||
-                   interlockMode == gpu::InterlockMode::msaa);
+            assert(interlockMode == InterlockMode::atomics ||
+                   interlockMode == InterlockMode::msaa);
             drawTypeKey = 5;
             break;
         case DrawType::renderPassResolve:
-            assert(interlockMode == gpu::InterlockMode::atomics);
+            assert(interlockMode == InterlockMode::atomics);
             drawTypeKey = 6;
             break;
     }
     uint32_t key = static_cast<uint32_t>(miscFlags);
-    assert(static_cast<uint32_t>(interlockMode) < 1 << 2);
-    key = (key << 2) | static_cast<uint32_t>(interlockMode);
+    assert(static_cast<uint32_t>(interlockMode) <
+           1 << INTERLOCK_MODE_BIT_COUNT);
+    key = (key << INTERLOCK_MODE_BIT_COUNT) |
+          static_cast<uint32_t>(interlockMode);
     key = (key << kShaderFeatureCount) |
           (shaderFeatures & ShaderFeaturesMaskFor(drawType, interlockMode))
               .bits();
@@ -570,11 +572,11 @@ void PaintData::set(DrawContents singleDrawContents,
             break;
         }
     }
-    if (singleDrawContents & gpu::DrawContents::nonZeroFill)
+    if (singleDrawContents & DrawContents::nonZeroFill)
     {
         localParams |= PAINT_FLAG_NON_ZERO_FILL;
     }
-    else if (singleDrawContents & gpu::DrawContents::evenOddFill)
+    else if (singleDrawContents & DrawContents::evenOddFill)
     {
         localParams |= PAINT_FLAG_EVEN_ODD_FILL;
     }
@@ -592,7 +594,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
                        const Texture* imageTexture,
                        const ClipRectInverseMatrix* clipRectInverseMatrix,
                        const RenderTarget* renderTarget,
-                       const gpu::PlatformFeatures& platformFeatures)
+                       const PlatformFeatures& platformFeatures)
 {
     switch (paintType)
     {
@@ -1162,6 +1164,7 @@ static BlendEquation get_blend_equation(
     {
         case InterlockMode::rasterOrdering:
         case InterlockMode::atomics:
+        case InterlockMode::clockwise:
             return flushDesc.fixedFunctionColorOutput ? BlendEquation::srcOver
                                                       : BlendEquation::none;
 
@@ -1184,7 +1187,7 @@ static BlendEquation get_blend_equation(
                 // When drawing an advanced blend mode, the shader only does the
                 // "color" portion of the blend equation, and relies on the
                 // hardware blend unit to finish the "alpha" portion.
-                assert(batch.drawType != gpu::DrawType::renderPassInitialize);
+                assert(batch.drawType != DrawType::renderPassInitialize);
                 return BlendEquation::srcOver;
             }
             else
@@ -1192,7 +1195,7 @@ static BlendEquation get_blend_equation(
                 // When m_platformFeatures.supportsBlendAdvancedKHR is true in
                 // MSAA mode, the renderContext does not combine draws that have
                 // different blend modes.
-                assert(batch.drawType != gpu::DrawType::renderPassInitialize);
+                assert(batch.drawType != DrawType::renderPassInitialize);
                 return static_cast<BlendEquation>(batch.firstBlendMode);
             }
     }
@@ -1214,11 +1217,17 @@ static bool get_color_writemask(const FlushDescriptor& flushDesc,
         case DrawType::imageMesh:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
+            if (batch.shaderMiscFlags & (ShaderMiscFlags::clipUpdateOnly |
+                                         ShaderMiscFlags::borrowedCoveragePass))
+            {
+                // Clip updates and borrowed coverage passes don't output color.
+                return false;
+            }
             // We generate pipeline state under the assumption that pixel local
             // storage can still be written when colorWriteEnabled is false.
             // Disable color writes when we're rendering only to PLS.
             return flushDesc.fixedFunctionColorOutput ||
-                   flushDesc.interlockMode == gpu::InterlockMode::msaa;
+                   flushDesc.interlockMode == InterlockMode::msaa;
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
             return true;

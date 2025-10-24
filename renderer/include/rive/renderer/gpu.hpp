@@ -114,15 +114,15 @@ constexpr static float DEPTH_MIN = 0.0f;
 constexpr static float DEPTH_MAX = 1.0f;
 constexpr static uint8_t STENCIL_CLEAR = 0u;
 
-// Backend-specific capabilities/workarounds and fine tunin// g.
+// Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
-    // InterlockMode::rasterOrdering.
-    bool supportsRasterOrdering = false;
-    // InterlockMode::atomics.
-    bool supportsFragmentShaderAtomics = false;
-    // Experimental rendering mode selected by InterlockMode::clockwiseAtomic.
-    bool supportsClockwiseAtomicRendering = false;
+    // Supported InterlockModes.
+    // FIXME: MSAA is implicit even though it isn't implemented on all backends.
+    bool supportsRasterOrderingMode = false;
+    bool supportsAtomicMode = false;
+    bool supportsClockwiseMode = false;
+    bool supportsClockwiseAtomicMode = false;
     // Use KHR_blend_equation_advanced in msaa mode?
     bool supportsBlendAdvancedKHR = false;
     bool supportsBlendAdvancedCoherentKHR = false;
@@ -766,6 +766,11 @@ enum class InterlockMode
 {
     rasterOrdering,
     atomics,
+    // Overrides every path's fill rule with clockwise, and implements the
+    // clockwise algorithm using raster ordering hardware.
+    // TODO: Once polished, this mode can be mixed into "rasterOrdering" and
+    // used selectively for clockwise paths.
+    clockwise,
     // Use an experimental path rendering algorithm that utilizes atomics
     // without barriers. This requires that we override all paths' fill rules
     // (winding or even/odd) with a "clockwise" fill rule, where only regions
@@ -773,9 +778,9 @@ enum class InterlockMode
     clockwiseAtomic,
     msaa,
 };
-constexpr static size_t INTERLOCK_MODE_COUNT = 4;
+constexpr static size_t INTERLOCK_MODE_COUNT = 5;
 // # of bits required to contain an InterlockMode.
-constexpr static size_t INTERLOCK_MODE_BIT_COUNT = 2;
+constexpr static size_t INTERLOCK_MODE_BIT_COUNT = 3;
 static_assert(INTERLOCK_MODE_COUNT <= (1 << INTERLOCK_MODE_BIT_COUNT));
 static_assert(INTERLOCK_MODE_COUNT > (1 << (INTERLOCK_MODE_BIT_COUNT - 1)));
 
@@ -829,6 +834,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             return kAllShaderFeatures;
         case InterlockMode::atomics:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
+        case InterlockMode::clockwise:
+            return kAllShaderFeatures & ~ShaderFeatures::ENABLE_EVEN_ODD;
         case InterlockMode::clockwiseAtomic:
             // TODO: shader features aren't fully implemented yet in
             // clockwiseAtomic mode.
@@ -858,19 +865,25 @@ enum class ShaderMiscFlags : uint32_t
     // get filled.
     clockwiseFill = 1 << 1,
 
-    // clockwiseAtomic mode only. This shader is a prepass that only subtracts
-    // (counterclockwise) borrowed coverage from the coverage buffer. It doesn't
-    // output color or clip.
-    borrowedCoveragePrepass = 1 << 2,
+    // This shader only renders to the clip buffer. It doesn't output color.
+    clipUpdateOnly = 1 << 2,
+
+    // clockwise and clockwiseAtomic modes only. This shader renders a pass that
+    // only subtracts (counterclockwise) borrowed coverage from the coverage
+    // buffer. It doesn't output color or clip.
+    // If drawing interior triangulations, every fragment will be the first of
+    // the path at its pixel, so it can blindly overwrite coverage without
+    // reading the buffer and subtracting.
+    borrowedCoveragePass = 1 << 3,
 
     // DrawType::renderPassInitialize only. Also store the color clear value to
     // PLS when drawing a clear, in addition to clearing the other PLS planes.
-    storeColorClear = 1 << 3,
+    storeColorClear = 1 << 4,
 
     // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
     // contents from BGRA to RGBA. (For when this data had to get copied from a
     // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 4,
+    swizzleColorBGRAToRGBA = 1 << 5,
 
     // DrawType::renderPassResolve only. Optimization for when rendering to an
     // offscreen texture.
@@ -878,7 +891,7 @@ enum class ShaderMiscFlags : uint32_t
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 5,
+    coalescedResolveAndTransfer = 1 << 6,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
@@ -1002,8 +1015,10 @@ enum class DrawContents
     nonZeroFill = 1 << 4,
     evenOddFill = 1 << 5,
     activeClip = 1 << 6,
-    clipUpdate = 1 << 7,
-    advancedBlend = 1 << 8,
+    advancedBlend = 1 << 7,
+    // Put clip updates last because they use an entirely different shader in
+    // clockwise mode.
+    clipUpdate = 1 << 8,
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
 
@@ -1047,7 +1062,8 @@ RIVE_MAKE_ENUM_BITSET(BarrierFlags);
 struct DrawBatch
 {
     DrawBatch(DrawType drawType_,
-              gpu::ShaderMiscFlags shaderMiscFlags_,
+              ShaderMiscFlags shaderMiscFlags_,
+              DrawContents drawContents_,
               uint32_t elementCount_,
               uint32_t baseElement_,
               rive::BlendMode blendMode_,
@@ -1055,6 +1071,7 @@ struct DrawBatch
               BarrierFlags barrierFlags_) :
         drawType(drawType_),
         shaderMiscFlags(shaderMiscFlags_),
+        drawContents(drawContents_),
         elementCount(elementCount_),
         baseElement(baseElement_),
         firstBlendMode(blendMode_),
@@ -1064,12 +1081,12 @@ struct DrawBatch
 
     const DrawType drawType;
     const ShaderMiscFlags shaderMiscFlags;
+    DrawContents drawContents;
     uint32_t elementCount; // Vertex, index, or instance count.
     uint32_t baseElement;  // Base vertex, index, or instance.
     rive::BlendMode firstBlendMode;
     BarrierFlags barriers; // Barriers to execute before drawing this batch.
 
-    DrawContents drawContents = DrawContents::none;
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
 
     // DrawType::imageRect and DrawType::imageMesh.

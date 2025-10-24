@@ -19,6 +19,8 @@
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/draw_clockwise_path.frag.hpp"
+#include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_raster_order_mesh.frag.hpp"
 #include "generated/shaders/draw_msaa_object.frag.hpp"
@@ -159,10 +161,8 @@ RenderContextGLImpl::RenderContextGLImpl(
 
     if (m_plsImpl != nullptr)
     {
-        m_platformFeatures.supportsRasterOrdering =
-            m_plsImpl->supportsRasterOrdering(m_capabilities);
-        m_platformFeatures.supportsFragmentShaderAtomics =
-            m_plsImpl->supportsFragmentShaderAtomics(m_capabilities);
+        m_plsImpl->getSupportedInterlockModes(m_capabilities,
+                                              &m_platformFeatures);
     }
     if (m_capabilities.KHR_blend_equation_advanced ||
         m_capabilities.KHR_blend_equation_advanced_coherent)
@@ -1069,6 +1069,10 @@ RenderContextGLImpl::DrawShader::DrawShader(
     {
         defines.push_back(GLSL_CLOCKWISE_FILL);
     }
+    if (shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
+    {
+        defines.push_back(GLSL_BORROWED_COVERAGE_PASS);
+    }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
@@ -1183,6 +1187,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
     switch (interlockMode)
     {
         case gpu::InterlockMode::rasterOrdering:
+        case gpu::InterlockMode::clockwise:
             switch (drawType)
             {
                 case gpu::DrawType::midpointFanPatches:
@@ -1191,7 +1196,13 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_raster_order_path_frag);
+                    sources.push_back(
+                        (interlockMode == gpu::InterlockMode::clockwise)
+                            ? (shaderMiscFlags &
+                               gpu::ShaderMiscFlags::clipUpdateOnly)
+                                  ? gpu::glsl::draw_clockwise_clip_frag
+                                  : gpu::glsl::draw_clockwise_path_frag
+                            : gpu::glsl::draw_raster_order_path_frag);
                     break;
                 case gpu::DrawType::atlasBlit:
                     sources.push_back(gpu::glsl::draw_path_common);
@@ -1426,9 +1437,12 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
 
     const bool isImageDraw = gpu::DrawTypeIsImageDraw(drawType);
     const bool isTessellationDraw = is_tessellation_draw(drawType);
-    const bool isPaintDraw = isTessellationDraw ||
-                             drawType == gpu::DrawType::interiorTriangulation ||
-                             drawType == gpu::DrawType::atlasBlit;
+    const bool isPaintDraw =
+        (isTessellationDraw ||
+         drawType == gpu::DrawType::interiorTriangulation ||
+         drawType == gpu::DrawType::atlasBlit) &&
+        !(shaderMiscFlags & (gpu::ShaderMiscFlags::clipUpdateOnly |
+                             gpu::ShaderMiscFlags::borrowedCoveragePass));
     if (isImageDraw)
     {
         glUniformBlockBinding(
@@ -1552,7 +1566,8 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
     bool enabled)
 {
     assert(!enabled ||
-           supportsRasterOrdering(renderContextImpl->m_capabilities));
+           renderContextImpl->platformFeatures().supportsRasterOrderingMode ||
+           renderContextImpl->platformFeatures().supportsClockwiseMode);
     auto rasterOrderState = enabled ? gpu::TriState::yes : gpu::TriState::no;
     if (m_rasterOrderingEnabled != rasterOrderState)
     {

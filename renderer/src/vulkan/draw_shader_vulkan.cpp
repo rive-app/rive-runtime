@@ -258,6 +258,11 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
             }
             break;
         }
+
+        case gpu::InterlockMode::clockwise:
+        {
+            RIVE_UNREACHABLE();
+        }
     }
 
     Span<const uint32_t> code;

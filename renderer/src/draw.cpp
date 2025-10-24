@@ -402,15 +402,19 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
             return CoverageType::atlas;
         }
     }
-    if (interlockMode == gpu::InterlockMode::msaa)
+    switch (interlockMode)
     {
-        return CoverageType::msaa;
+        case gpu::InterlockMode::rasterOrdering:
+        case gpu::InterlockMode::atomics:
+            return CoverageType::pixelLocalStorage;
+        case gpu::InterlockMode::clockwise:
+            return CoverageType::clockwise;
+        case gpu::InterlockMode::clockwiseAtomic:
+            return CoverageType::clockwiseAtomic;
+        case gpu::InterlockMode::msaa:
+            return CoverageType::msaa;
     }
-    if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
-    {
-        return CoverageType::clockwiseAtomic;
-    }
-    return CoverageType::pixelLocalStorage;
+    RIVE_UNREACHABLE();
 }
 
 DrawUniquePtr PathDraw::Make(RenderContext* context,
@@ -1441,17 +1445,30 @@ void PathDraw::countSubpasses()
 
     switch (m_coverageType)
     {
-        case CoverageType::pixelLocalStorage:
         case CoverageType::atlas:
+            assert(m_triangulator == nullptr);
             m_subpassCount = 1;
             break;
 
+        case CoverageType::pixelLocalStorage:
+            m_subpassCount = (m_triangulator != nullptr)
+                                 ? 2 // outer cubics, interior triangles
+                                 : 1;
+            break;
+
+        case CoverageType::clockwise:
+            m_subpassCount =
+                (m_triangulator != nullptr)
+                    ? 3 // ccw interior tris, outer cubics, cw interior tris
+                    : 1;
+            break;
+
         case CoverageType::clockwiseAtomic:
+            m_subpassCount = (m_triangulator != nullptr) ? 2 : 1;
             if (!isStroke())
             {
-                m_prepassCount = 1; // Borrowed coverage.
+                m_prepassCount = m_subpassCount; // Borrowed coverage.
             }
-            m_subpassCount = 1;
             break;
 
         case CoverageType::msaa:
@@ -1491,13 +1508,6 @@ void PathDraw::countSubpasses()
             }
         }
     }
-
-    if (m_triangulator != nullptr)
-    {
-        // Each tessellation draw has a corresponding interior triangles draw.
-        m_prepassCount *= 2;
-        m_subpassCount *= 2;
-    }
 }
 
 void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
@@ -1528,8 +1538,14 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
     switch (m_coverageType)
     {
         case CoverageType::pixelLocalStorage:
+        case CoverageType::clockwise:
         {
-            if (subpassIndex == 0)
+            const int mainSubpassIdx =
+                (m_coverageType == CoverageType::clockwise &&
+                 m_triangulator != nullptr)
+                    ? 1
+                    : 0;
+            if (subpassIndex == mainSubpassIdx)
             {
                 // Tessellation (midpoint fan or outer cubic).
                 uint32_t tessLocation =
@@ -1541,11 +1557,23 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
             {
                 // Interior triangles.
                 assert(m_triangulator != nullptr);
-                assert(subpassIndex == 1);
+                assert((m_coverageType == CoverageType::pixelLocalStorage &&
+                        subpassIndex == 1) ||
+                       (m_coverageType == CoverageType::clockwise &&
+                        (subpassIndex == 0 || subpassIndex == 2)));
                 RIVE_DEBUG_CODE(m_numInteriorTriangleVerticesPushed +=)
-                flush->pushInteriorTriangulationDraw(this,
-                                                     m_pathID,
-                                                     gpu::WindingFaces::all);
+                flush->pushInteriorTriangulationDraw(
+                    this,
+                    m_pathID,
+                    (m_coverageType == CoverageType::clockwise)
+                        // Clockwise mode renders counterclockwise (borrowed
+                        // coverage) interior triangles in a separate pass.
+                        ? (subpassIndex == 0) ? gpu::WindingFaces::negative
+                                              : gpu::WindingFaces::positive
+                        : gpu::WindingFaces::all,
+                    (subpassIndex == 0) // => CoverageType::clockwise
+                        ? gpu::ShaderMiscFlags::borrowedCoveragePass
+                        : gpu::ShaderMiscFlags::none);
                 assert(m_numInteriorTriangleVerticesPushed <=
                        m_triangulator->maxVertexCount());
             }
@@ -1570,7 +1598,7 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         flush,
                         tessVertexCount,
                         m_prepassTessLocation,
-                        gpu::ShaderMiscFlags::borrowedCoveragePrepass);
+                        gpu::ShaderMiscFlags::borrowedCoveragePass);
                     break;
 
                 case 0: // Tessellation (midpointFan or outerCubic).
@@ -1593,7 +1621,7 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         subpassIndex < 0 ? gpu::WindingFaces::negative
                                          : gpu::WindingFaces::positive,
                         subpassIndex < 0
-                            ? gpu::ShaderMiscFlags::borrowedCoveragePrepass
+                            ? gpu::ShaderMiscFlags::borrowedCoveragePass
                             : gpu::ShaderMiscFlags::none);
                     assert(m_numInteriorTriangleVerticesPushed <=
                            m_triangulator->maxVertexCount());

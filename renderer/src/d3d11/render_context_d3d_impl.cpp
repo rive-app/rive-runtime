@@ -500,9 +500,9 @@ RenderContextD3DImpl::RenderContextD3DImpl(
 {
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
-    m_platformFeatures.supportsRasterOrdering =
+    m_platformFeatures.supportsRasterOrderingMode =
         d3dCapabilities.supportsRasterizerOrderedViews;
-    m_platformFeatures.supportsFragmentShaderAtomics = true;
+    m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 
     // Create a default raster state for path and offscreen draws.

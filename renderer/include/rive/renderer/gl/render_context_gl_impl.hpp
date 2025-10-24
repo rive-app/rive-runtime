@@ -114,9 +114,10 @@ private:
     public:
         virtual void init(rcp<GLState>) {}
 
-        virtual bool supportsRasterOrdering(const GLCapabilities&) const = 0;
-        virtual bool supportsFragmentShaderAtomics(
-            const GLCapabilities&) const = 0;
+        // Sets any supported interlock modes in PlatformFeatures to true.
+        // Leaves the rest unchanged.
+        virtual void getSupportedInterlockModes(const GLCapabilities&,
+                                                PlatformFeatures*) const = 0;
 
         virtual void resizeTransientPLSBacking(uint32_t width,
                                                uint32_t height,

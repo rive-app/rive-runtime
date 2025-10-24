@@ -213,6 +213,7 @@ void RenderContext::LogicalFlush::rewind()
                             std::numeric_limits<int32_t>::max(),
                             std::numeric_limits<int32_t>::min(),
                             std::numeric_limits<int32_t>::min()};
+    m_combinedDrawContents = gpu::DrawContents::none;
 
     m_pathPaddingCount = 0;
     m_paintPaddingCount = 0;
@@ -277,6 +278,42 @@ void RenderContext::LogicalFlush::resetContainers()
     // usecases where it isn't used at all.
 }
 
+static gpu::InterlockMode select_interlock_mode(
+    const RenderContext::FrameDescriptor& frameDescriptor,
+    const gpu::PlatformFeatures& platformFeatures)
+{
+    if (frameDescriptor.msaaSampleCount != 0)
+    {
+        return gpu::InterlockMode::msaa;
+    }
+    if (frameDescriptor.clockwiseFillOverride)
+    {
+        if (platformFeatures.supportsClockwiseMode &&
+            !frameDescriptor.disableRasterOrdering)
+        {
+            return gpu::InterlockMode::clockwise;
+        }
+        if (platformFeatures.supportsClockwiseAtomicMode)
+        {
+            return gpu::InterlockMode::clockwiseAtomic;
+        }
+    }
+    if (platformFeatures.supportsRasterOrderingMode &&
+        (!frameDescriptor.disableRasterOrdering ||
+         // Only respect "disableRasterOrdering" if we have atomic mode to fall
+         // back on.
+         // FIXME: This API can be improved.
+         !platformFeatures.supportsAtomicMode))
+    {
+        return gpu::InterlockMode::rasterOrdering;
+    }
+    if (platformFeatures.supportsAtomicMode)
+    {
+        return gpu::InterlockMode::atomics;
+    }
+    return gpu::InterlockMode::msaa;
+}
+
 void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 {
     RIVE_PROF_SCOPE()
@@ -286,36 +323,13 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     assert(frameDescriptor.renderTargetWidth > 0);
     assert(frameDescriptor.renderTargetHeight > 0);
     m_frameDescriptor = frameDescriptor;
-    if (!platformFeatures().supportsRasterOrdering &&
-        !platformFeatures().supportsFragmentShaderAtomics)
+    m_frameInterlockMode =
+        select_interlock_mode(m_frameDescriptor, platformFeatures());
+    if (m_frameInterlockMode == gpu::InterlockMode::msaa &&
+        m_frameDescriptor.msaaSampleCount == 0)
     {
-        // We don't have pixel local storage in any form. Use 4x MSAA if
-        // msaaSampleCount wasn't already specified.
-        m_frameDescriptor.msaaSampleCount =
-            m_frameDescriptor.msaaSampleCount > 0
-                ? m_frameDescriptor.msaaSampleCount
-                : 4;
-    }
-    if (m_frameDescriptor.msaaSampleCount > 0)
-    {
-        m_frameInterlockMode = gpu::InterlockMode::msaa;
-    }
-    else if (platformFeatures().supportsRasterOrdering &&
-             (!m_frameDescriptor.disableRasterOrdering ||
-              !platformFeatures().supportsFragmentShaderAtomics))
-    {
-        m_frameInterlockMode = gpu::InterlockMode::rasterOrdering;
-    }
-    else if (frameDescriptor.clockwiseFillOverride &&
-             platformFeatures().supportsClockwiseAtomicRendering)
-    {
-        assert(platformFeatures().supportsFragmentShaderAtomics);
-        m_frameInterlockMode = gpu::InterlockMode::clockwiseAtomic;
-    }
-    else
-    {
-        assert(platformFeatures().supportsFragmentShaderAtomics);
-        m_frameInterlockMode = gpu::InterlockMode::atomics;
+        // Use 4x MSAA if msaaSampleCount wasn't already specified.
+        m_frameDescriptor.msaaSampleCount = 4;
     }
     m_frameShaderFeaturesMask =
         gpu::ShaderFeaturesMaskFor(m_frameInterlockMode);
@@ -463,6 +477,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
         m_draws.push_back(std::move(draws[i]));
         m_combinedDrawBounds =
             m_combinedDrawBounds.join(m_draws.back()->pixelBounds());
+        m_combinedDrawContents |= m_draws.back()->drawContents();
     }
 
     m_resourceCounts = countsWithNewBatch;
@@ -645,21 +660,6 @@ void RenderContext::logicalFlush()
     m_logicalFlushes.emplace_back(new LogicalFlush(this));
 }
 
-static uint32_t pls_transient_backing_depth(gpu::InterlockMode interlockMode)
-{
-    switch (interlockMode)
-    {
-        case gpu::InterlockMode::rasterOrdering:
-            return 3; // clip, scratch, coverage
-        case gpu::InterlockMode::atomics:
-            return 1; // only clip (coverage is atomic)
-        case gpu::InterlockMode::clockwiseAtomic:
-        case gpu::InterlockMode::msaa:
-            return 0; // N/A
-    }
-    RIVE_UNREACHABLE();
-}
-
 void RenderContext::flush(const FlushResources& flushResources)
 {
     RIVE_PROF_SCOPE()
@@ -684,8 +684,6 @@ void RenderContext::flush(const FlushResources& flushResources)
 
     // Determine the minimum required resource allocation sizes to service this
     // flush.
-    const uint32_t plsTransientBackingDepth =
-        pls_transient_backing_depth(frameInterlockMode());
     const ResourceAllocationCounts resourceRequirements = {
         .flushUniformBufferCount = m_logicalFlushes.size(),
         .imageDrawUniformBufferCount = totalFrameResourceCounts.imageDrawCount,
@@ -708,14 +706,14 @@ void RenderContext::flush(const FlushResources& flushResources)
         .atlasTextureWidth = layoutCounts.maxAtlasWidth,
         .atlasTextureHeight = layoutCounts.maxAtlasHeight,
         .plsTransientBackingWidth =
-            (plsTransientBackingDepth > 0)
+            (layoutCounts.maxPLSTransientBackingDepth > 0)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
                 : 0,
         .plsTransientBackingHeight =
-            (plsTransientBackingDepth > 0)
+            (layoutCounts.maxPLSTransientBackingDepth > 0)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetHeight)
                 : 0,
-        .plsTransientBackingDepth = plsTransientBackingDepth,
+        .plsTransientBackingDepth = layoutCounts.maxPLSTransientBackingDepth,
         .plsAtomicCoverageBackingWidth =
             (frameInterlockMode() == gpu::InterlockMode::atomics)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
@@ -925,6 +923,65 @@ void RenderContext::flush(const FlushResources& flushResources)
     }
 }
 
+static uint32_t pls_transient_backing_depth(
+    gpu::InterlockMode interlockMode,
+    gpu::DrawContents combinedDrawContents)
+{
+    switch (interlockMode)
+    {
+        case gpu::InterlockMode::rasterOrdering:
+            return 3; // clip, scratch, coverage
+        case gpu::InterlockMode::atomics:
+            return 1; // only clip (coverage is atomic)
+        case gpu::InterlockMode::clockwise:
+        {
+            uint32_t n = 1; // coverage
+            if (combinedDrawContents &
+                (gpu::DrawContents::activeClip | gpu::DrawContents::clipUpdate))
+            {
+                ++n; // clip
+            }
+            if (combinedDrawContents & gpu::DrawContents::advancedBlend)
+            {
+                ++n; // scratch color
+            }
+            return n;
+        }
+        case gpu::InterlockMode::clockwiseAtomic:
+        case gpu::InterlockMode::msaa:
+            return 0; // N/A
+    }
+    RIVE_UNREACHABLE();
+}
+
+static bool wants_fixed_function_color_output(
+    gpu::InterlockMode interlockMode,
+    gpu::DrawContents combinedDrawContents)
+{
+    switch (interlockMode)
+    {
+        case gpu::InterlockMode::rasterOrdering:
+            // rasterOrdering shaders always read the framebuffer, even with
+            // srcOver blend.
+            return false;
+
+        case gpu::InterlockMode::atomics:
+        case gpu::InterlockMode::msaa:
+            return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
+
+        case gpu::InterlockMode::clockwise:
+            assert(!(combinedDrawContents & (gpu::DrawContents::nonZeroFill |
+                                             gpu::DrawContents::evenOddFill)));
+            return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
+
+        case gpu::InterlockMode::clockwiseAtomic:
+            // clockwiseAtomic currently ignores fixedFunctionColorOutput.
+            return false;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
 void RenderContext::LogicalFlush::layoutResources(
     const FlushResources& flushResources,
     size_t logicalFlushIdx,
@@ -1022,6 +1079,9 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.renderTarget = flushResources.renderTarget;
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
     m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
+    m_flushDesc.fixedFunctionColorOutput =
+        wants_fixed_function_color_output(m_ctx->frameInterlockMode(),
+                                          m_combinedDrawContents);
 
     // In atomic mode, we may be able to skip the explicit clear of the color
     // buffer and fold it into the atomic "resolve" operation instead.
@@ -1151,6 +1211,10 @@ void RenderContext::LogicalFlush::layoutResources(
         std::max(m_atlasMaxX, runningFrameLayoutCounts->maxAtlasWidth);
     runningFrameLayoutCounts->maxAtlasHeight =
         std::max(m_atlasMaxY, runningFrameLayoutCounts->maxAtlasHeight);
+    runningFrameLayoutCounts->maxPLSTransientBackingDepth =
+        std::max(pls_transient_backing_depth(m_flushDesc.interlockMode,
+                                             m_combinedDrawContents),
+                 runningFrameLayoutCounts->maxPLSTransientBackingDepth);
     runningFrameLayoutCounts->maxCoverageBufferLength =
         std::max<size_t>(m_coverageBufferLength,
                          runningFrameLayoutCounts->maxCoverageBufferLength);
@@ -1166,30 +1230,6 @@ void RenderContext::LogicalFlush::layoutResources(
                gpu::kGradSpanBufferAlignmentInElements ==
            0);
     RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
-}
-
-static bool can_use_fixed_function_color_output(
-    gpu::InterlockMode interlockMode,
-    gpu::ShaderFeatures renderPassCombinedShaderFeatures)
-{
-    switch (interlockMode)
-    {
-        case gpu::InterlockMode::rasterOrdering:
-            // rasterOrdering shaders always read the framebuffer, even with
-            // srcOver blend.
-            return false;
-
-        case gpu::InterlockMode::atomics:
-        case gpu::InterlockMode::msaa:
-            return !(renderPassCombinedShaderFeatures &
-                     gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND);
-
-        case gpu::InterlockMode::clockwiseAtomic:
-            // clockwiseAtomic currently ignores fixedFunctionColorOutput.
-            return false;
-    }
-
-    RIVE_UNREACHABLE();
 }
 
 void RenderContext::LogicalFlush::writeResources()
@@ -1337,7 +1377,8 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Write out all the data for our high level draws, and build up a low-level
     // draw list.
-    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering ||
+        m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwise)
     {
         for (const DrawUniquePtr& draw : m_draws)
         {
@@ -1507,8 +1548,9 @@ void RenderContext::LogicalFlush::writeResources()
             // So far only Metal needs this, and its implementation doesn't
             // require a barrier before or after.
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    DrawType::renderPassInitialize,
+                                    gpu::DrawType::renderPassInitialize,
                                     gpu::ShaderMiscFlags::none,
+                                    gpu::DrawContents::none,
                                     1,
                                     0,
                                     BlendMode::srcOver,
@@ -1525,8 +1567,9 @@ void RenderContext::LogicalFlush::writeResources()
             // beginning of the render pass when
             // LoadAction::preserveRenderTarget is specified.
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    DrawType::renderPassInitialize,
+                                    gpu::DrawType::renderPassInitialize,
                                     gpu::ShaderMiscFlags::none,
+                                    gpu::DrawContents::opaquePaint,
                                     1,
                                     0,
                                     BlendMode::srcOver,
@@ -1535,7 +1578,7 @@ void RenderContext::LogicalFlush::writeResources()
                                     // it needs the equivalent of a "dstBlend"
                                     // barrier.
                                     BarrierFlags::dstBlend);
-            m_drawList.tail().drawContents = gpu::DrawContents::opaquePaint;
+            m_combinedDrawContents |= m_drawList.tail().drawContents;
             // The draw that follows the this init will need a special
             // "msaaPostInit" barrier.
             m_pendingBarriers |= BarrierFlags::msaaPostInit;
@@ -1549,7 +1592,8 @@ void RenderContext::LogicalFlush::writeResources()
         switch (m_flushDesc.interlockMode)
         {
             case gpu::InterlockMode::rasterOrdering:
-                // rasterOrdering mode doesn't reorder draws.
+            case gpu::InterlockMode::clockwise:
+                // rasterOrdering and clockwise modes don't reorder draws.
                 RIVE_UNREACHABLE();
 
             case gpu::InterlockMode::atomics:
@@ -1627,8 +1671,9 @@ void RenderContext::LogicalFlush::writeResources()
         {
             m_drawList
                 .emplace_back(m_ctx->perFrameAllocator(),
-                              DrawType::renderPassResolve,
+                              gpu::DrawType::renderPassResolve,
                               gpu::ShaderMiscFlags::none,
+                              gpu::DrawContents::none,
                               1,
                               0,
                               BlendMode::srcOver,
@@ -1755,9 +1800,6 @@ void RenderContext::LogicalFlush::writeResources()
     // Some of the flushDescriptor's data isn't known until after
     // writeResources(). Update it now that it's known.
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
-    m_flushDesc.fixedFunctionColorOutput =
-        can_use_fixed_function_color_output(m_ctx->frameInterlockMode(),
-                                            m_combinedShaderFeatures);
 
     if (m_coverageBufferLength > 0)
     {
@@ -1782,6 +1824,16 @@ void RenderContext::LogicalFlush::writeResources()
     // Write out the uniforms for this flush now that the flushDescriptor is
     // complete.
     m_ctx->m_flushUniformData.emplace_back(m_flushDesc, platformFeatures);
+
+#ifndef NDEBUG
+    for (const DrawBatch& batch : *m_flushDesc.drawList)
+    {
+        assert((batch.drawContents & m_combinedDrawContents) ==
+               batch.drawContents);
+        assert((batch.shaderFeatures & m_flushDesc.combinedShaderFeatures) ==
+               batch.shaderFeatures);
+    }
+#endif
 }
 
 void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
@@ -2853,6 +2905,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
+    // Clockwise mode gives clip updates a dedicated draw by setting
+    // gpu::ShaderMiscFlags::clipUpdateOnly.
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwise &&
+        (draw->drawContents() & gpu::DrawContents::clipUpdate))
+    {
+        shaderMiscFlags |= gpu::ShaderMiscFlags::clipUpdateOnly;
+    }
+
     DrawBatch& batch = pushDraw(draw,
                                 drawType,
                                 shaderMiscFlags,
@@ -2869,7 +2929,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     }
     if (draw->drawContents() & gpu::DrawContents::evenOddFill)
     {
-        assert(!(shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill));
+        assert(!(batch.shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill));
         pathShaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
     }
     constexpr static gpu::DrawContents NESTED_CLIP_FLAGS =
@@ -2880,11 +2940,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     }
     batch.shaderFeatures |=
         pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
-    m_combinedShaderFeatures |= batch.shaderFeatures;
     assert(
         (batch.shaderFeatures &
          gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
         batch.shaderFeatures);
+    m_combinedShaderFeatures |= batch.shaderFeatures;
     return batch;
 }
 
@@ -3001,26 +3061,38 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
 
     DrawBatch* batch;
-    if (canMergeWithPreviousBatch)
+    if (!canMergeWithPreviousBatch)
+    {
+        batch = &m_drawList.emplace_back(
+            m_ctx->perFrameAllocator(),
+            drawType,
+            shaderMiscFlags,
+            draw->drawContents(),
+            elementCount,
+            baseElement,
+            draw->blendMode(),
+            draw->imageSampler(),
+            std::exchange(m_pendingBarriers, BarrierFlags::none));
+    }
+    else
     {
         batch = &m_drawList.tail();
         assert(m_pendingBarriers == BarrierFlags::none);
         assert(batch->drawType == drawType);
         assert(batch->shaderMiscFlags == shaderMiscFlags);
         assert(batch->baseElement + batch->elementCount == baseElement);
+
         batch->elementCount += elementCount;
-    }
-    else
-    {
-        batch = &m_drawList.emplace_back(
-            m_ctx->perFrameAllocator(),
-            drawType,
-            shaderMiscFlags,
-            elementCount,
-            baseElement,
-            draw->blendMode(),
-            draw->imageSampler(),
-            std::exchange(m_pendingBarriers, BarrierFlags::none));
+
+        // clockwise doesn't mix regular draws and clip updates.
+        assert(
+            m_ctx->frameInterlockMode() != gpu::InterlockMode::clockwise ||
+            (batch->drawContents & gpu::DrawContents::clipUpdate).bits() ==
+                (draw->drawContents() & gpu::DrawContents::clipUpdate).bits());
+        // msaa can't mix drawContents in a batch.
+        assert(m_ctx->frameInterlockMode() != gpu::InterlockMode::msaa ||
+               batch->drawContents == draw->drawContents());
+        batch->drawContents |= draw->drawContents();
     }
 
     // If the batch was merged into a previous one, this ensures it was a valid
@@ -3042,8 +3114,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
     }
     if (paintType != PaintType::clipUpdate &&
-        !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass))
+        !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass))
     {
+        assert(!(shaderMiscFlags & gpu::ShaderMiscFlags::clipUpdateOnly));
         switch (draw->blendMode())
         {
             case BlendMode::hue:
@@ -3070,13 +3143,10 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         }
     }
     batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
-    m_combinedShaderFeatures |= batch->shaderFeatures;
     assert(
         (batch->shaderFeatures &
          gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
         batch->shaderFeatures);
-
-    batch->drawContents |= draw->drawContents();
 
     if (paintType == PaintType::image)
     {
@@ -3090,8 +3160,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
 
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
-        // msaa can't mix drawContents in a batch.
-        assert(batch->drawContents == draw->drawContents());
         // msaa does't mix src-over draws with advanced blend draws.
         assert((batch->shaderFeatures &
                 gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
@@ -3122,6 +3190,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         }
     }
 
+    m_combinedShaderFeatures |= batch->shaderFeatures;
     return *batch;
 }
 } // namespace rive::gpu

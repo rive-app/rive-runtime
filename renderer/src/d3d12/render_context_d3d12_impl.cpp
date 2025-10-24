@@ -543,9 +543,9 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
 
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
-    m_platformFeatures.supportsRasterOrdering =
+    m_platformFeatures.supportsRasterOrderingMode =
         m_capabilities.supportsRasterizerOrderedViews;
-    m_platformFeatures.supportsFragmentShaderAtomics = true;
+    m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 
     m_rtvHeap = m_resourceManager->makeHeap(NUM_RTV_HEAP_DESCRIPTORS,

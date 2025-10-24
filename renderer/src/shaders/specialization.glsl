@@ -16,7 +16,7 @@ layout(constant_id = HSL_BLEND_MODES_SPECIALIZATION_IDX) const
     bool kEnableHSLBlendModes = true;
 layout(constant_id = CLOCKWISE_FILL_SPECIALIZATION_IDX) const
     bool kClockwiseFill = true;
-layout(constant_id = BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX) const
+layout(constant_id = BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX) const
     bool kBorrowedCoveragePrepass = true;
 layout(constant_id = VULKAN_VENDOR_ID_SPECIALIZATION_IDX) const uint
     kVulkanVendorID = 0;
@@ -39,7 +39,7 @@ layout(constant_id = VULKAN_VENDOR_ID_SPECIALIZATION_IDX) const uint
 #define @ENABLE_NESTED_CLIPPING kEnableNestedClipping
 #define @ENABLE_HSL_BLEND_MODES kEnableHSLBlendModes
 #define @CLOCKWISE_FILL kClockwiseFill
-#define @BORROWED_COVERAGE_PREPASS kBorrowedCoveragePrepass
+#define @BORROWED_COVERAGE_PASS kBorrowedCoveragePrepass
 #define @VULKAN_VENDOR_ID kVulkanVendorID
 
 #else
@@ -53,7 +53,7 @@ layout(constant_id = VULKAN_VENDOR_ID_SPECIALIZATION_IDX) const uint
 #define @ENABLE_NESTED_CLIPPING true
 #define @ENABLE_HSL_BLEND_MODES true
 #define @CLOCKWISE_FILL true
-#define @BORROWED_COVERAGE_PREPASS true
+#define @BORROWED_COVERAGE_PASS true
 #define @VULKAN_VENDOR_ID 0
 
 #endif

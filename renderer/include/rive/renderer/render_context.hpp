@@ -101,7 +101,7 @@ public:
         ColorInt clearColor = 0;
         // If nonzero, the number of MSAA samples to use.
         // Setting this to a nonzero value forces msaa mode.
-        int msaaSampleCount = 0;
+        uint32_t msaaSampleCount = 0;
         // Use atomic mode (preferred) or msaa instead of rasterOrdering.
         bool disableRasterOrdering = false;
 
@@ -567,6 +567,7 @@ private:
             uint32_t maxTessTextureHeight = 0;
             uint32_t maxAtlasWidth = 0;
             uint32_t maxAtlasHeight = 0;
+            uint32_t maxPLSTransientBackingDepth = 0;
             size_t maxCoverageBufferLength = 0;
         };
 
@@ -792,6 +793,7 @@ private:
         gpu::FlushDescriptor m_flushDesc;
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
+        gpu::DrawContents m_combinedDrawContents;
         gpu::ShaderFeatures m_combinedShaderFeatures;
 
         // Most recent path and contour state.

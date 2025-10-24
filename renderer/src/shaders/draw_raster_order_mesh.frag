@@ -4,11 +4,22 @@
 
 #ifdef @FRAGMENT
 
+#if defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@ENABLE_CLIPPING)
+// @FIXED_FUNCTION_COLOR_OUTPUT without clipping can skip the interlock.
+#undef NEEDS_INTERLOCK
+#else
+#define NEEDS_INTERLOCK
+#endif
+
 PLS_BLOCK_BEGIN
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
+#endif
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
-PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
+#endif
+PLS_DECLUI(COVERAGE_PLANE_IDX, coverageBuffer);
 PLS_BLOCK_END
 
 // ATLAS_BLIT includes draw_path_common.glsl, which declares the textures &
@@ -26,10 +37,18 @@ FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 #endif // @DRAW_IMAGE_MESH
 
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+#ifdef @DRAW_IMAGE_MESH
+PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
+#else
+PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
+#endif
+#else
 #ifdef @DRAW_IMAGE_MESH
 PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #else
 PLS_MAIN(@drawFragmentMain)
+#endif
 #endif
 {
 #ifdef @ATLAS_BLIT
@@ -74,7 +93,9 @@ PLS_MAIN(@drawFragmentMain)
     }
 #endif
 
+#ifdef NEEDS_INTERLOCK
     PLS_INTERLOCK_BEGIN;
+#endif
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipID != .0)
@@ -93,6 +114,7 @@ PLS_MAIN(@drawFragmentMain)
     coverage *= imageDrawUniforms.opacity;
 #endif
 
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
@@ -140,10 +162,17 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
     PLS_STORE4F(colorBuffer, dstColorPremul * (1. - color.a) + color);
+#endif // !@FIXED_FUNCTION_COLOR_OUTPUT
 
     PLS_PRESERVE_UI(clipBuffer);
-    PLS_PRESERVE_UI(coverageCountBuffer);
+    PLS_PRESERVE_UI(coverageBuffer);
+#ifdef NEEDS_INTERLOCK
     PLS_INTERLOCK_END;
+#endif
+
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+    _fragColor = color * coverage;
+#endif
 
     EMIT_PLS;
 }

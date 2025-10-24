@@ -238,7 +238,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         props.shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
         props.shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
         props.shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
-        props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass,
+        props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass,
         pipelineManager->vendorID(),
     };
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
@@ -249,7 +249,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 7);
-    static_assert(BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX == 8);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 8);
     static_assert(VULKAN_VENDOR_ID_SPECIALIZATION_IDX == 9);
     static_assert(SPECIALIZATION_COUNT == 10);
 
@@ -346,8 +346,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     {
         // Clockwise mode is still an experimental Vulkan-only feature.
         // Override the pipeline blend state.
-        if (props.shaderMiscFlags &
-            gpu::ShaderMiscFlags::borrowedCoveragePrepass)
+        if (props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
         {
             // Borrowed coverage clockwise draws only update the coverage buffer
             // (which is not a render target attachment).

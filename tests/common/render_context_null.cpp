@@ -18,9 +18,10 @@ std::unique_ptr<rive::gpu::RenderContext> RenderContextNULL::MakeContext()
 
 RenderContextNULL::RenderContextNULL()
 {
-    m_platformFeatures.supportsRasterOrdering = true;
-    m_platformFeatures.supportsFragmentShaderAtomics = true;
-    m_platformFeatures.supportsClockwiseAtomicRendering = true;
+    m_platformFeatures.supportsRasterOrderingMode = true;
+    m_platformFeatures.supportsAtomicMode = true;
+    m_platformFeatures.supportsClockwiseMode = true;
+    m_platformFeatures.supportsClockwiseAtomicMode = true;
 }
 
 class BufferRingNULL : public BufferRing

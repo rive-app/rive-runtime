@@ -63,7 +63,7 @@ extern "C"
 
 static FiddleContextOptions options;
 static GLFWwindow* window = nullptr;
-static int msaa = 0;
+static uint32_t msaa = 0;
 static bool forceAtomicMode = false;
 static bool wireframe = false;
 static bool disableFill = false;
@@ -470,7 +470,6 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--glcw"))
         {
             api = API::gl;
-            forceAtomicMode = true;
             clockwiseFill = true;
         }
         else if (!strcmp(argv[i], "--metal"))
@@ -618,7 +617,11 @@ int main(int argc, const char** argv)
         {
             forceAtomicMode = true;
         }
-        else if (sscanf(argv[i], "--msaa%i", &msaa) == 1)
+        else if (!strcmp(argv[i], "--cw"))
+        {
+            clockwiseFill = true;
+        }
+        else if (sscanf(argv[i], "--msaa%u", &msaa) == 1)
         {
             // Already updated msaa
         }

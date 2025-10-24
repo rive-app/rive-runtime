@@ -396,7 +396,7 @@ public:
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
             .msaaSampleCount =
-                std::max(m_msaaSampleCount, options.forceMSAA ? 4 : 0),
+                std::max(m_msaaSampleCount, options.forceMSAA ? 4u : 0u),
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
@@ -472,7 +472,7 @@ public:
 
 private:
     GLFWwindow* m_glfwWindow = nullptr;
-    int m_msaaSampleCount = 0;
+    uint32_t m_msaaSampleCount = 0;
     BackendParams m_backendParams;
     std::unique_ptr<FiddleContext> m_fiddleContext;
 };

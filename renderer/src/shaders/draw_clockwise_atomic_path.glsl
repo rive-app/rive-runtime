@@ -140,7 +140,7 @@ STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32_ATOMIC(COVERAGE_BUFFER_IDX, CoverageBuffer, coverageBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-#ifdef @BORROWED_COVERAGE_PREPASS
+#ifdef @BORROWED_COVERAGE_PASS
 INLINE void apply_borrowed_coverage(half borrowedCoverage, uint coverageIndex)
 {
     // Try to apply borrowedCoverage, assuming the existing coverage value
@@ -382,8 +382,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     // Let the 4x4 tiles be row-major.
     coverageIndex += (coverageCoord.y & 0x3) * 4 + (coverageCoord.x & 0x3);
 
-#ifdef @BORROWED_COVERAGE_PREPASS
-    if (@BORROWED_COVERAGE_PREPASS)
+#ifdef @BORROWED_COVERAGE_PASS
+    if (@BORROWED_COVERAGE_PASS)
     {
 #ifdef @DRAW_INTERIOR_TRIANGLES
         half borrowedCoverage = -v_windingWeight;
@@ -405,7 +405,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         apply_borrowed_coverage(borrowedCoverage, coverageIndex);
         discard;
     }
-#endif // BORROWED_COVERAGE_PREPASS
+#endif // BORROWED_COVERAGE_PASS
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))

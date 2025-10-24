@@ -14,11 +14,11 @@
 
 namespace rive::gpu
 {
-static bool needs_coalesced_atomic_resolve_and_transfer(
+static bool wants_coalesced_atomic_resolve_and_transfer(
     const gpu::FlushDescriptor& desc)
 {
-    assert(desc.interlockMode == gpu::InterlockMode::atomics);
-    return !desc.fixedFunctionColorOutput &&
+    return desc.interlockMode == gpu::InterlockMode::atomics &&
+           !desc.fixedFunctionColorOutput &&
            lite_rtti_cast<FramebufferRenderTargetGL*>(
                static_cast<RenderTargetGL*>(desc.renderTarget)) != nullptr;
 }
@@ -36,17 +36,17 @@ class RenderContextGLImpl::PLSImplRWTexture
         glDrawBuffers(plsClearBuffers.size(), plsClearBuffers.data());
     }
 
-    bool supportsRasterOrdering(
-        const GLCapabilities& capabilities) const override
+    void getSupportedInterlockModes(
+        const GLCapabilities& capabilities,
+        PlatformFeatures* platformFeatures) const override
     {
-        return capabilities.ARB_fragment_shader_interlock ||
-               capabilities.INTEL_fragment_shader_ordering;
-    }
-
-    bool supportsFragmentShaderAtomics(
-        const GLCapabilities& capabilities) const override
-    {
-        return true;
+        if (capabilities.ARB_fragment_shader_interlock ||
+            capabilities.INTEL_fragment_shader_ordering)
+        {
+            platformFeatures->supportsRasterOrderingMode = true;
+            platformFeatures->supportsClockwiseMode = true;
+        }
+        platformFeatures->supportsAtomicMode = true;
     }
 
     void resizeTransientPLSBacking(uint32_t width,
@@ -54,6 +54,7 @@ class RenderContextGLImpl::PLSImplRWTexture
                                    uint32_t depth) override
     {
         assert(depth <= PLS_TRANSIENT_BACKING_MAX_DEPTH);
+
         if (width == 0 || height == 0 || depth == 0)
         {
             m_plsTransientBackingTexture = glutils::Texture::Zero();
@@ -81,9 +82,8 @@ class RenderContextGLImpl::PLSImplRWTexture
                 0,
                 i);
         }
-        static_assert(CLIP_PLANE_IDX == 1);
-        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
-        static_assert(COVERAGE_PLANE_IDX == 3);
+
+        RIVE_DEBUG_CODE(m_plsTransientBackingDepth = depth;)
     }
 
     void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override
@@ -113,17 +113,14 @@ class RenderContextGLImpl::PLSImplRWTexture
                                          gpu::DrawType drawType) const final
     {
         auto flags = gpu::ShaderMiscFlags::none;
-        if (desc.interlockMode == gpu::InterlockMode::atomics)
+        if (desc.fixedFunctionColorOutput)
         {
-            if (desc.fixedFunctionColorOutput)
-            {
-                flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
-            }
-            if (drawType == gpu::DrawType::renderPassResolve &&
-                needs_coalesced_atomic_resolve_and_transfer(desc))
-            {
-                flags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
-            }
+            flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+        }
+        if (drawType == gpu::DrawType::renderPassResolve &&
+            wants_coalesced_atomic_resolve_and_transfer(desc))
+        {
+            flags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
         return flags;
     }
@@ -134,9 +131,8 @@ class RenderContextGLImpl::PLSImplRWTexture
         const PlatformFeatures&,
         PipelineState* pipelineState) const override
     {
-        if (desc.interlockMode == gpu::InterlockMode::atomics &&
-            batch.drawType == gpu::DrawType::renderPassResolve &&
-            needs_coalesced_atomic_resolve_and_transfer(desc))
+        if (batch.drawType == gpu::DrawType::renderPassResolve &&
+            wants_coalesced_atomic_resolve_and_transfer(desc))
         {
             // If we opted for "coalescedResolveAndTransfer", turn color writes
             // back on for this draw.
@@ -196,7 +192,8 @@ class RenderContextGLImpl::PLSImplRWTexture
         uint32_t nextTransientLayer = 0;
         {
             GLuint coverageClear[4]{desc.coverageClearValue};
-            if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
+            if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+                desc.interlockMode == gpu::InterlockMode::clockwise)
             {
                 glClearBufferuiv(GL_COLOR, nextTransientLayer, coverageClear);
                 glBindImageTexture(COVERAGE_PLANE_IDX,
@@ -238,7 +235,10 @@ class RenderContextGLImpl::PLSImplRWTexture
             ++nextTransientLayer;
         }
 
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+            (desc.interlockMode == gpu::InterlockMode::clockwise &&
+             (desc.combinedShaderFeatures &
+              gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)))
         {
             glBindImageTexture(SCRATCH_COLOR_PLANE_IDX,
                                m_plsTransientBackingTexture,
@@ -249,31 +249,30 @@ class RenderContextGLImpl::PLSImplRWTexture
                                GL_RGBA8);
             ++nextTransientLayer;
         }
-        assert(nextTransientLayer <= PLS_TRANSIENT_BACKING_MAX_DEPTH);
+        assert(nextTransientLayer <= m_plsTransientBackingDepth);
 
-        switch (desc.interlockMode)
+        if (desc.fixedFunctionColorOutput ||
+            wants_coalesced_atomic_resolve_and_transfer(desc))
         {
-            case gpu::InterlockMode::rasterOrdering:
-                // rasterOrdering mode renders by storing to an image texture.
-                // Bind a framebuffer with no color attachments.
-                renderTarget->bindHeadlessFramebuffer(
-                    renderContextImpl->m_capabilities);
-                break;
-            case gpu::InterlockMode::atomics:
-                renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
-                if (desc.fixedFunctionColorOutput &&
-                    desc.colorLoadAction == gpu::LoadAction::clear)
-                {
-                    // We're rendering directly to the main framebuffer. Clear
-                    // it now.
-                    float cc[4];
-                    UnpackColorToRGBA32FPremul(desc.colorClearValue, cc);
-                    glClearColor(cc[0], cc[1], cc[2], cc[3]);
-                    glClear(GL_COLOR_BUFFER_BIT);
-                }
-                break;
-            default:
-                RIVE_UNREACHABLE();
+            // Render directly to the main framebuffer.
+            renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
+            if (desc.fixedFunctionColorOutput &&
+                desc.colorLoadAction == gpu::LoadAction::clear)
+            {
+                // Clear the main framebuffer.
+                float cc[4];
+                UnpackColorToRGBA32FPremul(desc.colorClearValue, cc);
+                glClearColor(cc[0], cc[1], cc[2], cc[3]);
+                glClear(GL_COLOR_BUFFER_BIT);
+            }
+        }
+        else
+        {
+            // Render by storing to an image texture, which we will copy out at
+            // the end of the render pass.
+            // Bind a framebuffer with no color attachments.
+            renderTarget->bindHeadlessFramebuffer(
+                renderContextImpl->m_capabilities);
         }
 
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -284,11 +283,9 @@ class RenderContextGLImpl::PLSImplRWTexture
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
-        // atomic mode never needs to copy anything here because it transfers
-        // the offscreen texture during resolve.
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
+        if (!desc.fixedFunctionColorOutput &&
+            !wants_coalesced_atomic_resolve_and_transfer(desc))
         {
-            assert(!desc.fixedFunctionColorOutput);
             if (auto framebufferRenderTarget =
                     lite_rtti_cast<FramebufferRenderTargetGL*>(
                         static_cast<RenderTargetGL*>(desc.renderTarget)))
@@ -329,6 +326,8 @@ private:
     glutils::Texture m_plsTransientBackingTexture = glutils::Texture::Zero();
     glutils::Texture m_atomicCoverageTexture = glutils::Texture::Zero();
     glutils::Framebuffer m_plsClearFBO; // FBO solely for clearing PLS.
+
+    RIVE_DEBUG_CODE(uint32_t m_plsTransientBackingDepth = 0;)
 };
 
 std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl>

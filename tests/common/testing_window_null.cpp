@@ -29,7 +29,7 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = options.forceMSAA ? 4 : 0,
+            .msaaSampleCount = options.forceMSAA ? 4u : 0u,
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride = options.clockwiseFillOverride,

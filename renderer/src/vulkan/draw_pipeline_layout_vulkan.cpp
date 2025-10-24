@@ -139,6 +139,8 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
         case gpu::InterlockMode::msaa:
             assert(subpassIndex == 0 || subpassIndex == 1);
             return 1;
+        case gpu::InterlockMode::clockwise:
+            RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
 }

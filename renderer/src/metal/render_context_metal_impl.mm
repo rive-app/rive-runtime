@@ -342,6 +342,7 @@ public:
                     }
                     break;
 
+                case gpu::InterlockMode::clockwise:
                 case gpu::InterlockMode::clockwiseAtomic:
                 case gpu::InterlockMode::msaa:
                     RIVE_UNREACHABLE();
@@ -467,8 +468,8 @@ RenderContextMetalImpl::RenderContextMetalImpl(
         m_platformFeatures.maxTextureSize = 8192;
     }
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
-    m_platformFeatures.supportsRasterOrdering = true;
-    m_platformFeatures.supportsFragmentShaderAtomics = false;
+    m_platformFeatures.supportsRasterOrderingMode = true;
+    m_platformFeatures.supportsAtomicMode = false;
     if (!is_apple_silicon(m_gpu))
     {
         // The PowerVR GPU, at least on A10, has fp16 precision issues. We can't
@@ -480,13 +481,13 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     defined(RIVE_APPLETVOS_SIMULATOR)
     // The simulator does not support framebuffer reads. Fall back on atomic
     // mode.
-    m_platformFeatures.supportsRasterOrdering = false;
-    m_platformFeatures.supportsFragmentShaderAtomics = true;
+    m_platformFeatures.supportsRasterOrderingMode = false;
+    m_platformFeatures.supportsAtomicMode = true;
 #else
-    m_platformFeatures.supportsRasterOrdering =
+    m_platformFeatures.supportsRasterOrderingMode =
         [m_gpu supportsFamily:MTLGPUFamilyApple1] &&
         !contextOptions.disableFramebufferReads;
-    m_platformFeatures.supportsFragmentShaderAtomics = true;
+    m_platformFeatures.supportsAtomicMode = true;
 #endif
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
@@ -625,7 +626,7 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     // drawType in "rasterOrdering" mode. We load these at initialization and
     // use them while waiting for the background compiler to generate more
     // specialized, higher performance shaders.
-    if (m_platformFeatures.supportsRasterOrdering)
+    if (m_platformFeatures.supportsRasterOrderingMode)
     {
         for (auto drawType : {DrawType::midpointFanPatches,
                               DrawType::interiorTriangulation,
@@ -729,7 +730,7 @@ RenderTargetMetal::RenderTargetMetal(id<MTLDevice> gpu,
     RenderTarget(width, height), m_gpu(gpu), m_pixelFormat(pixelFormat)
 {
     m_targetTexture = nil; // Will be configured later by setTargetTexture().
-    if (platformFeatures.supportsRasterOrdering)
+    if (platformFeatures.supportsRasterOrderingMode)
     {
         m_coverageMemorylessTexture = make_pls_memoryless_texture(
             gpu, MTLPixelFormatR32Uint, width, height);
@@ -1193,6 +1194,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
 
 void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
+    assert(desc.interlockMode != gpu::InterlockMode::clockwise);
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     assert(desc.interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
 

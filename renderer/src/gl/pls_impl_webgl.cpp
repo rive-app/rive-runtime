@@ -205,16 +205,15 @@ static GLenum webgl_load_op(gpu::LoadAction loadAction)
 class RenderContextGLImpl::PLSImplWebGL
     : public RenderContextGLImpl::PixelLocalStorageImpl
 {
-    bool supportsRasterOrdering(
-        const GLCapabilities& capabilities) const override
+    void getSupportedInterlockModes(
+        const GLCapabilities& capabilities,
+        PlatformFeatures* platformFeatures) const override
     {
-        return capabilities.ANGLE_shader_pixel_local_storage_coherent;
-    }
-
-    bool supportsFragmentShaderAtomics(
-        const GLCapabilities& capabilities) const override
-    {
-        return false;
+        assert(capabilities.ANGLE_shader_pixel_local_storage);
+        if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
+        {
+            platformFeatures->supportsRasterOrderingMode = true;
+        }
     }
 
     void activatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
