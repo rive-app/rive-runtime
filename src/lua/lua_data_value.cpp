@@ -49,6 +49,69 @@ static int property_namecall_atom(lua_State* L,
                     lua_pushboolean(L, dataValue->value() ? 1 : 0);
                     return 1;
                 }
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto dataValue =
+                        scriptedDataValue->dataValue()->as<DataValueColor>();
+                    lua_pushinteger(L, dataValue->value());
+                    return 1;
+                }
+            }
+        }
+        case (int)LuaAtoms::red:
+        {
+            assert(scriptedDataValue->state() == L);
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto dataValue =
+                        scriptedDataValue->dataValue()->as<DataValueColor>();
+                    lua_pushinteger(L, dataValue->red());
+                    return 1;
+                }
+            }
+        }
+        case (int)LuaAtoms::green:
+        {
+            assert(scriptedDataValue->state() == L);
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto dataValue =
+                        scriptedDataValue->dataValue()->as<DataValueColor>();
+                    lua_pushinteger(L, dataValue->green());
+                    return 1;
+                }
+            }
+        }
+        case (int)LuaAtoms::blue:
+        {
+            assert(scriptedDataValue->state() == L);
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto dataValue =
+                        scriptedDataValue->dataValue()->as<DataValueColor>();
+                    lua_pushinteger(L, dataValue->blue());
+                    return 1;
+                }
+            }
+        }
+        case (int)LuaAtoms::alpha:
+        {
+            assert(scriptedDataValue->state() == L);
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto dataValue =
+                        scriptedDataValue->dataValue()->as<DataValueColor>();
+                    lua_pushinteger(L, dataValue->alpha());
+                    return 1;
+                }
             }
         }
     }
@@ -121,6 +184,73 @@ static int data_value_newindex(lua_State* L)
                         ->value(val != 0);
                     return 1;
                 }
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto val = luaL_checkinteger(L, 3);
+                    scriptedDataValue->dataValue()->as<DataValueColor>()->value(
+                        val);
+                    return 1;
+                }
+            }
+        }
+        case (int)LuaAtoms::red:
+        {
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto val = luaL_checkinteger(L, 3);
+                    scriptedDataValue->dataValue()->as<DataValueColor>()->red(
+                        val);
+                    return 1;
+                }
+                default:
+                    return 1;
+            }
+        }
+        case (int)LuaAtoms::green:
+        {
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto val = luaL_checkinteger(L, 3);
+                    scriptedDataValue->dataValue()->as<DataValueColor>()->green(
+                        val);
+                    return 1;
+                }
+                default:
+                    return 1;
+            }
+        }
+        case (int)LuaAtoms::blue:
+        {
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto val = luaL_checkinteger(L, 3);
+                    scriptedDataValue->dataValue()->as<DataValueColor>()->blue(
+                        val);
+                    return 1;
+                }
+                default:
+                    return 1;
+            }
+        }
+        case (int)LuaAtoms::alpha:
+        {
+            switch (tag)
+            {
+                case ScriptedDataValueColor::luaTag:
+                {
+                    auto val = luaL_checkinteger(L, 3);
+                    scriptedDataValue->dataValue()->as<DataValueColor>()->alpha(
+                        val);
+                    return 1;
+                }
+                default:
+                    return 1;
             }
         }
         default:
@@ -147,6 +277,13 @@ static int dataValue_string(lua_State* L)
 static int dataValue_boolean(lua_State* L)
 {
     lua_newrive<ScriptedDataValueBoolean>(L, L, false);
+
+    return 1;
+}
+
+static int dataValue_color(lua_State* L)
+{
+    lua_newrive<ScriptedDataValueColor>(L, L, 0);
 
     return 1;
 }
@@ -178,6 +315,12 @@ static int data_value_namecall(lua_State* L)
                 lua_pushboolean(L, dataValue->isBoolean() ? 1 : 0);
                 return 1;
             }
+            case (int)LuaAtoms::isColor:
+            {
+                assert(dataValue->state() == L);
+                lua_pushboolean(L, dataValue->isColor() ? 1 : 0);
+                return 1;
+            }
             default:
                 break;
         }
@@ -194,6 +337,7 @@ static const luaL_Reg dataValueStaticMethods[] = {
     {"number", dataValue_number},
     {"string", dataValue_string},
     {"boolean", dataValue_boolean},
+    {"color", dataValue_color},
     {nullptr, nullptr}};
 
 int luaopen_rive_data_values(lua_State* L)
@@ -247,7 +391,22 @@ int luaopen_rive_data_values(lua_State* L)
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
     }
+    {
+        lua_register_rive<ScriptedDataValueColor>(L);
 
-    return 4;
+        lua_pushcfunction(L, data_value_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, data_value_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
+
+        lua_pushcfunction(L, data_value_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    return 5;
 }
 #endif

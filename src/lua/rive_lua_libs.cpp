@@ -76,6 +76,10 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"restore", (int16_t)LuaAtoms::restore},
     {"transform", (int16_t)LuaAtoms::transform},
     {"value", (int16_t)LuaAtoms::value},
+    {"red", (int16_t)LuaAtoms::red},
+    {"green", (int16_t)LuaAtoms::green},
+    {"blue", (int16_t)LuaAtoms::blue},
+    {"alpha", (int16_t)LuaAtoms::alpha},
     {"getNumber", (int16_t)LuaAtoms::getNumber},
     {"getTrigger", (int16_t)LuaAtoms::getTrigger},
     {"addListener", (int16_t)LuaAtoms::addListener},
@@ -89,6 +93,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"isNumber", (int16_t)LuaAtoms::isNumber},
     {"isString", (int16_t)LuaAtoms::isString},
     {"isBoolean", (int16_t)LuaAtoms::isBoolean},
+    {"isColor", (int16_t)LuaAtoms::isColor},
 };
 
 static const luaL_Reg lualibs[] = {

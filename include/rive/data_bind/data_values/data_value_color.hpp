@@ -21,6 +21,14 @@ public:
     }
     int value() { return m_value; };
     void value(int value) { m_value = value; };
+    int alpha() { return (m_value >> 24) & 0xFF; }
+    int red() { return (m_value >> 16) & 0xFF; }
+    int green() { return (m_value >> 8) & 0xFF; }
+    int blue() { return m_value & 0xFF; }
+    void alpha(int value) { m_value = (m_value & 0x00FFFFFF) | (value << 24); }
+    void red(int value) { m_value = (m_value & 0xFF00FFFF) | (value << 16); }
+    void green(int value) { m_value = (m_value & 0xFFFF00FF) | (value << 8); }
+    void blue(int value) { m_value = (m_value & 0xFFFFFF00) | value; }
     bool compare(DataValue* comparand) override
     {
         if (comparand->is<DataValueColor>())

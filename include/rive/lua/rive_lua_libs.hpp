@@ -13,12 +13,14 @@
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
+#include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
@@ -116,6 +118,10 @@ enum class LuaAtoms : int16_t
 
     // Scripted Properties
     value,
+    red,
+    green,
+    blue,
+    alpha,
     getNumber,
     getTrigger,
     addListener,
@@ -132,7 +138,8 @@ enum class LuaAtoms : int16_t
     // Scripted DataValues
     isNumber,
     isString,
-    isBoolean
+    isBoolean,
+    isColor
 };
 
 struct ScriptedMat2D
@@ -658,6 +665,7 @@ public:
     virtual bool isNumber() { return false; }
     virtual bool isString() { return false; }
     virtual bool isBoolean() { return false; }
+    virtual bool isColor() { return false; }
 
     const lua_State* state() const { return m_state; }
 
@@ -704,6 +712,19 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 22;
     static constexpr const char* luaName = "DataValueBoolean";
     bool isBoolean() override { return true; }
+};
+
+class ScriptedDataValueColor : public ScriptedDataValue
+{
+public:
+    ScriptedDataValueColor(lua_State* L, int value) : ScriptedDataValue(L)
+    {
+        m_dataValue = new DataValueColor(value);
+    }
+    static constexpr bool hasMetatable = true;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 23;
+    static constexpr const char* luaName = "DataValueColor";
+    bool isColor() override { return true; }
 };
 
 static void interruptCPP(lua_State* L, int gc);

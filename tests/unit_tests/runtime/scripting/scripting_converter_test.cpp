@@ -223,3 +223,122 @@ end
         CHECK(top == lua_gettop(L));
     }
 }
+
+TEST_CASE("scripted color converts color value", "[scripting]")
+{
+    ScriptingTest vm(
+        R"(type ColorConverter = {}
+function convert(self: ColorConverter, input: DataValueColor): DataValueColor
+  local dv: DataValueColor = DataValue.color()
+  dv.value = input.value
+  dv.red = 0
+  dv.blue = 255
+  return dv
+end
+function reverseConvert(
+  self: ColorConverter,
+  input: DataValueColor
+): DataValueColor
+  local dv: DataValueColor = DataValue.color()
+  dv.value = input.value
+  return dv
+end
+function init(self: ColorConverter): boolean
+  return true
+end
+return function(): Converter<ColorConverter, DataValueColor, DataValueColor>
+  return { convert = convert, reverseConvert = reverseConvert, init = init }
+end
+)");
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+    {
+        lua_getglobal(L, "convert");
+        lua_pushvalue(L, -2);
+        auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0xFFFFFF00);
+        CHECK(dv->isColor());
+
+        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+        CHECK(scriptedDataValue->isColor());
+        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+              0xFF00FFFF);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+    {
+        lua_getglobal(L, "convert");
+        lua_pushvalue(L, -2);
+        auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0);
+        CHECK(dv->isColor());
+
+        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+        CHECK(scriptedDataValue->isColor());
+        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+              0x000000FF);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("another scripted color converter", "[scripting]")
+{
+    ScriptingTest vm(
+        R"(type ColorConverter = {}
+function convert(self: ColorConverter, input: DataValueColor): DataValueColor
+  local dv: DataValueColor = DataValue.color()
+  if input:isColor() then
+    dv.alpha = input.red
+    dv.red = input.green
+    dv.green = input.blue
+    dv.blue = input.alpha
+  end
+  return dv
+end
+function reverseConvert(
+  self: ColorConverter,
+  input: DataValueColor
+): DataValueColor
+  local dv: DataValueColor = DataValue.color()
+  dv.value = input.value
+  return dv
+end
+function init(self: ColorConverter): boolean
+  return true
+end
+return function(): Converter<ColorConverter, DataValueColor, DataValueColor>
+  return { convert = convert, reverseConvert = reverseConvert, init = init }
+end
+)");
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+    {
+        lua_getglobal(L, "convert");
+        lua_pushvalue(L, -2);
+        auto dv = lua_newrive<ScriptedDataValueColor>(L, L, 0x11223344);
+        CHECK(dv->isColor());
+
+        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+        CHECK(scriptedDataValue->isColor());
+        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+              0x22334411);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+    {
+        lua_getglobal(L, "convert");
+        lua_pushvalue(L, -2);
+        auto dv = lua_newrive<ScriptedDataValueBoolean>(L, L, true);
+        CHECK(dv->isBoolean());
+
+        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+        auto scriptedDataValue = (ScriptedDataValue*)lua_touserdata(L, -1);
+        CHECK(scriptedDataValue->isColor());
+        CHECK(scriptedDataValue->dataValue()->as<DataValueColor>()->value() ==
+              0x00000000);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
