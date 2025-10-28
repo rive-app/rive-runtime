@@ -96,6 +96,7 @@ static const luaL_Reg lualibs[] = {
     {LUA_TABLIBNAME, luaopen_table},
     {LUA_MATHLIBNAME, luaopen_math},
     {"rive", luaopen_rive_base},
+    {LUA_OSLIBNAME, luaopen_os},
     {LUA_STRLIBNAME, luaopen_string},
     {"math", luaopen_rive_math},
     {"renderer", luaopen_rive_renderer_library},

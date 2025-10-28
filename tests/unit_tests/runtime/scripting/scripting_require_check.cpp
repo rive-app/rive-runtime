@@ -65,3 +65,10 @@ TEST_CASE("scripting require removed module works", "[scripting]")
     CHECK(result == std::string("test_source:1: require could not "
                                 "find a script named utilities"));
 }
+
+TEST_CASE("scripting time values are available", "[scripting]")
+{
+    ScriptingTest vm("return os.date(\"!%Y-%m-%d %H:%M:%S\",1761608005)\n", 1);
+    auto result = lua_tostring(vm.state(), -1);
+    CHECK(result == std::string("2025-10-27 23:33:25"));
+}
