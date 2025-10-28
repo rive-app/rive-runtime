@@ -231,7 +231,16 @@ ImageView::ImageView(rcp<VulkanContext> vulkanContext,
     m_textureRefOrNull(std::move(textureRef)),
     m_info(info)
 {
-    assert(m_textureRefOrNull == nullptr || info.image == *m_textureRefOrNull);
+    if (m_info.image == VK_NULL_HANDLE)
+    {
+        assert(m_textureRefOrNull != nullptr);
+        m_info.image = *m_textureRefOrNull;
+    }
+    else
+    {
+        assert(m_textureRefOrNull == nullptr ||
+               m_info.image == *m_textureRefOrNull);
+    }
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     VK_CHECK(
         vk()->CreateImageView(vk()->device, &m_info, nullptr, &m_vkImageView));

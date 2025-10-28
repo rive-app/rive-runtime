@@ -133,7 +133,6 @@ rcp<vkutil::ImageView> VulkanContext::makeImageView(rcp<vkutil::Image> image)
     return makeImageView(
         image,
         {
-            .image = *image,
             .viewType = image_view_type_for_image_type(texInfo.imageType),
             .format = texInfo.format,
             .subresourceRange =

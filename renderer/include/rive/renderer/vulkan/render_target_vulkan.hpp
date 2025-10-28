@@ -61,15 +61,6 @@ protected:
         const vkutil::ImageAccess& dstAccess,
         const IAABB& copyBounds);
 
-    // InterlockMode::rasterOrdering.
-    vkutil::Texture2D* clipTextureR32UI();
-    vkutil::Texture2D* scratchColorTexture();
-    vkutil::Texture2D* coverageTexture();
-
-    // InterlockMode::atomics.
-    vkutil::Texture2D* clipTextureRGBA8();
-    vkutil::Texture2D* coverageAtomicTexture();
-
     // InterlockMode::msaa.
     vkutil::Texture2D* msaaColorTexture();
     vkutil::Texture2D* msaaDepthStencilTexture();
@@ -81,15 +72,6 @@ protected:
     // Used when m_targetTextureView does not have
     // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
     rcp<vkutil::Texture2D> m_offscreenColorTexture;
-
-    // InterlockMode::rasterOrdering.
-    rcp<vkutil::Texture2D> m_clipTextureR32UI;
-    rcp<vkutil::Texture2D> m_scratchColorTexture;
-    rcp<vkutil::Texture2D> m_coverageTexture;
-
-    // InterlockMode::atomics.
-    rcp<vkutil::Texture2D> m_clipTextureRGBA8;
-    rcp<vkutil::Texture2D> m_coverageAtomicTexture;
 
     // InterlockMode::msaa.
     rcp<vkutil::Texture2D> m_msaaColorTexture;

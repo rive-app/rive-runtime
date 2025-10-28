@@ -766,25 +766,22 @@ void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width,
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_gradTexture == nullptr || m_gradTexture->width() != width ||
-        m_gradTexture->height() != height)
-    {
-        m_gradTexture = m_vk->makeTexture2D({
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent = {width, height},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_SAMPLED_BIT,
-        });
 
-        m_gradTextureFramebuffer = m_vk->makeFramebuffer({
-            .renderPass = m_colorRampPipeline->renderPass(),
-            .attachmentCount = 1,
-            .pAttachments = m_gradTexture->vkImageViewAddressOf(),
-            .width = width,
-            .height = height,
-            .layers = 1,
-        });
-    }
+    m_gradTexture = m_vk->makeTexture2D({
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .extent = {width, height},
+        .usage =
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    });
+
+    m_gradTextureFramebuffer = m_vk->makeFramebuffer({
+        .renderPass = m_colorRampPipeline->renderPass(),
+        .attachmentCount = 1,
+        .pAttachments = m_gradTexture->vkImageViewAddressOf(),
+        .width = width,
+        .height = height,
+        .layers = 1,
+    });
 }
 
 void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
@@ -792,25 +789,22 @@ void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_tessTexture == nullptr || m_tessTexture->width() != width ||
-        m_tessTexture->height() != height)
-    {
-        m_tessTexture = m_vk->makeTexture2D({
-            .format = VK_FORMAT_R32G32B32A32_UINT,
-            .extent = {width, height},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_SAMPLED_BIT,
-        });
 
-        m_tessTextureFramebuffer = m_vk->makeFramebuffer({
-            .renderPass = m_tessellatePipeline->renderPass(),
-            .attachmentCount = 1,
-            .pAttachments = m_tessTexture->vkImageViewAddressOf(),
-            .width = width,
-            .height = height,
-            .layers = 1,
-        });
-    }
+    m_tessTexture = m_vk->makeTexture2D({
+        .format = VK_FORMAT_R32G32B32A32_UINT,
+        .extent = {width, height},
+        .usage =
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    });
+
+    m_tessTextureFramebuffer = m_vk->makeFramebuffer({
+        .renderPass = m_tessellatePipeline->renderPass(),
+        .attachmentCount = 1,
+        .pAttachments = m_tessTexture->vkImageViewAddressOf(),
+        .width = width,
+        .height = height,
+        .layers = 1,
+    });
 }
 
 void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
@@ -818,23 +812,95 @@ void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_atlasTexture == nullptr || m_atlasTexture->width() != width ||
-        m_atlasTexture->height() != height)
-    {
-        m_atlasTexture = m_vk->makeTexture2D({
-            .format = m_pipelineManager->atlasFormat(),
-            .extent = {width, height},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_SAMPLED_BIT,
-        });
 
-        m_atlasFramebuffer = m_vk->makeFramebuffer({
-            .renderPass = m_atlasPipeline->renderPass(),
-            .attachmentCount = 1,
-            .pAttachments = m_atlasTexture->vkImageViewAddressOf(),
-            .width = width,
-            .height = height,
-            .layers = 1,
+    m_atlasTexture = m_vk->makeTexture2D({
+        .format = m_pipelineManager->atlasFormat(),
+        .extent = {width, height},
+        .usage =
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    });
+
+    m_atlasFramebuffer = m_vk->makeFramebuffer({
+        .renderPass = m_atlasPipeline->renderPass(),
+        .attachmentCount = 1,
+        .pAttachments = m_atlasTexture->vkImageViewAddressOf(),
+        .width = width,
+        .height = height,
+        .layers = 1,
+    });
+}
+
+void RenderContextVulkanImpl::resizeTransientPLSBacking(uint32_t width,
+                                                        uint32_t height,
+                                                        uint32_t planeCount)
+{
+    m_plsBackingImageR32UI.reset();
+    m_plsCoverageBackingView.reset();
+    m_plsClipBackingViewR32UI.reset();
+    m_plsBackingTextureRGBA8.reset();
+
+    if (width != 0 && height != 0 && planeCount != 0)
+    {
+        const VkImageUsageFlags plsBackingUsageFlags =
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+
+        // R32UI backing for clip & coverage in rasterOrdering mode.
+        m_plsBackingImageR32UI = m_vk->makeImage({
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_R32_UINT,
+            .extent = {width, height, 1},
+            .arrayLayers = std::min(planeCount, 2u),
+            .usage = plsBackingUsageFlags,
+        });
+        auto makePLSTransientBackingR32UIView = [this](uint32_t layerIdx) {
+            return m_vk->makeImageView(
+                m_plsBackingImageR32UI,
+                {
+                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                    .format = VK_FORMAT_R32_UINT,
+                    .subresourceRange =
+                        {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .levelCount = 1,
+                            .baseArrayLayer = layerIdx,
+                            .layerCount = 1,
+                        },
+                });
+        };
+        m_plsCoverageBackingView = makePLSTransientBackingR32UIView(0);
+        m_plsClipBackingViewR32UI =
+            (planeCount > 1) ? makePLSTransientBackingR32UIView(1)
+                             // When planeCount is 1, the shaders are guaranteed
+                             // to only use 1 single plane in an entire render
+                             // pass, so we can just alias the views to each
+                             // other to keep the bindings and validation happy.
+                             : m_plsCoverageBackingView;
+
+        // RGBA8 backing for scratchColor in rasterOrdering mode, and clip in
+        // atomic mode.
+        m_plsBackingTextureRGBA8 = m_vk->makeTexture2D({
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = {width, height},
+            .usage = plsBackingUsageFlags,
+        });
+    }
+}
+
+void RenderContextVulkanImpl::resizeAtomicCoverageBacking(uint32_t width,
+                                                          uint32_t height)
+{
+    m_atomicCoverageBackingTexture.reset();
+
+    if (width != 0 && height != 0)
+    {
+        m_atomicCoverageBackingTexture = m_vk->makeTexture2D({
+            .format = VK_FORMAT_R32_UINT,
+            .extent = {width, height},
+            .usage =
+                VK_IMAGE_USAGE_STORAGE_BIT |
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
         });
     }
 }
@@ -1486,20 +1552,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         });
 
-    vkutil::Texture2D *clipTexture = nullptr, *scratchColorTexture = nullptr,
-                      *coverageTexture = nullptr;
-    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
-    {
-        clipTexture = renderTarget->clipTextureR32UI();
-        scratchColorTexture = renderTarget->scratchColorTexture();
-        coverageTexture = renderTarget->coverageTexture();
-    }
-    else if (desc.interlockMode == gpu::InterlockMode::atomics)
-    {
-        clipTexture = renderTarget->clipTextureRGBA8();
-        coverageTexture = renderTarget->coverageAtomicTexture();
-    }
-
     // In the case of Vulkan, fixedFunctionColorOutput means the color buffer
     // will never be bound as an input attachment.
     const bool fixedFunctionColorOutput = desc.fixedFunctionColorOutput;
@@ -1663,22 +1715,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
         assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(clipTexture->vkImageView());
+        framebufferViews.push_back(*m_plsClipBackingViewR32UI);
         clearValues.push_back({});
 
         assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
-        framebufferViews.push_back(scratchColorTexture->vkImageView());
+        framebufferViews.push_back(m_plsBackingTextureRGBA8->vkImageView());
         clearValues.push_back({});
 
         assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
-        framebufferViews.push_back(coverageTexture->vkImageView());
+        framebufferViews.push_back(*m_plsCoverageBackingView);
         clearValues.push_back(
             {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)});
     }
     else if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
         assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(clipTexture->vkImageView());
+        framebufferViews.push_back(m_plsBackingTextureRGBA8->vkImageView());
         clearValues.push_back({});
 
         if (pipelineLayout.options() &
@@ -1761,18 +1813,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = renderTarget->coverageAtomicTexture()->vkImage(),
+                .image = m_atomicCoverageBackingTexture->vkImage(),
             });
 
+        // Clear the entire m_atomicCoverageBackingTexture, even if we aren't
+        // going to use the whole thing. There is a future world where we may
+        // want to consider a "renderPassInitialize" draw to clear only the
+        // renderTargetUpdateBounds, but in most cases, a full clear will almost
+        // definitely be faster due to hardware optimizations.
         const VkClearColorValue coverageClearValue =
             vkutil::color_clear_r32ui(desc.coverageClearValue);
-        m_vk->CmdClearColorImage(
-            commandBuffer,
-            renderTarget->coverageAtomicTexture()->vkImage(),
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            &coverageClearValue,
-            1,
-            &clearRange);
+        m_vk->CmdClearColorImage(commandBuffer,
+                                 m_atomicCoverageBackingTexture->vkImage(),
+                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                 &coverageClearValue,
+                                 1,
+                                 &clearRange);
 
         // Don't use the coverage texture in shaders until the clear finishes.
         m_vk->imageMemoryBarrier(
@@ -1786,7 +1842,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = renderTarget->coverageAtomicTexture()->vkImage(),
+                .image = m_atomicCoverageBackingTexture->vkImage(),
             });
     }
     else if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
@@ -1897,10 +1953,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 }});
         }
 
-        if (clipTexture != nullptr)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+            desc.interlockMode == gpu::InterlockMode::atomics)
         {
-            assert(desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-                   desc.interlockMode == gpu::InterlockMode::atomics);
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
                 {
@@ -1908,14 +1963,16 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                 },
                 {{
-                    .imageView = clipTexture->vkImageView(),
+                    .imageView =
+                        (desc.interlockMode == gpu::InterlockMode::atomics)
+                            ? m_plsBackingTextureRGBA8->vkImageView()
+                            : *m_plsClipBackingViewR32UI,
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
         }
 
-        if (scratchColorTexture != nullptr)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
         {
-            assert(desc.interlockMode == gpu::InterlockMode::rasterOrdering);
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
                 {
@@ -1923,26 +1980,28 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                 },
                 {{
-                    .imageView = scratchColorTexture->vkImageView(),
+                    .imageView = m_plsBackingTextureRGBA8->vkImageView(),
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
         }
 
-        if (coverageTexture != nullptr)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+            desc.interlockMode == gpu::InterlockMode::atomics)
         {
-            assert(desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-                   desc.interlockMode == gpu::InterlockMode::atomics);
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
                 {
                     .dstBinding = COVERAGE_PLANE_IDX,
                     .descriptorType =
-                        desc.interlockMode == gpu::InterlockMode::atomics
+                        (desc.interlockMode == gpu::InterlockMode::atomics)
                             ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
                             : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                 },
                 {{
-                    .imageView = coverageTexture->vkImageView(),
+                    .imageView =
+                        (desc.interlockMode == gpu::InterlockMode::atomics)
+                            ? m_atomicCoverageBackingTexture->vkImageView()
+                            : *m_plsCoverageBackingView,
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
         }

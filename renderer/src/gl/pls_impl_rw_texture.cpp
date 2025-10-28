@@ -51,11 +51,11 @@ class RenderContextGLImpl::PLSImplRWTexture
 
     void resizeTransientPLSBacking(uint32_t width,
                                    uint32_t height,
-                                   uint32_t depth) override
+                                   uint32_t planeCount) override
     {
-        assert(depth <= PLS_TRANSIENT_BACKING_MAX_DEPTH);
+        assert(planeCount <= PLS_TRANSIENT_BACKING_MAX_PLANE_COUNT);
 
-        if (width == 0 || height == 0 || depth == 0)
+        if (width == 0 || height == 0 || planeCount == 0)
         {
             m_plsTransientBackingTexture = glutils::Texture::Zero();
         }
@@ -69,21 +69,21 @@ class RenderContextGLImpl::PLSImplRWTexture
                            GL_R32UI,
                            width,
                            height,
-                           depth);
+                           planeCount);
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, m_plsClearFBO);
-        for (uint32_t i = 0; i < PLS_TRANSIENT_BACKING_MAX_DEPTH; ++i)
+        for (uint32_t i = 0; i < PLS_TRANSIENT_BACKING_MAX_PLANE_COUNT; ++i)
         {
             glFramebufferTextureLayer(
                 GL_FRAMEBUFFER,
                 GL_COLOR_ATTACHMENT0 + PLS_TRANSIENT_BACKING_CLEAR_IDX + i,
-                (i < depth) ? m_plsTransientBackingTexture : 0,
+                (i < planeCount) ? m_plsTransientBackingTexture : 0,
                 0,
                 i);
         }
 
-        RIVE_DEBUG_CODE(m_plsTransientBackingDepth = depth;)
+        RIVE_DEBUG_CODE(m_plsTransientBackingPlaneCount = planeCount;)
     }
 
     void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override
@@ -249,7 +249,7 @@ class RenderContextGLImpl::PLSImplRWTexture
                                GL_RGBA8);
             ++nextTransientLayer;
         }
-        assert(nextTransientLayer <= m_plsTransientBackingDepth);
+        assert(nextTransientLayer <= m_plsTransientBackingPlaneCount);
 
         if (desc.fixedFunctionColorOutput ||
             wants_coalesced_atomic_resolve_and_transfer(desc))
@@ -319,15 +319,15 @@ class RenderContextGLImpl::PLSImplRWTexture
 private:
     constexpr static uint32_t PLS_TRANSIENT_BACKING_CLEAR_IDX = 0;
     constexpr static uint32_t PLS_ATOMIC_COVERAGE_CLEAR_IDX =
-        PLS_TRANSIENT_BACKING_MAX_DEPTH;
+        PLS_TRANSIENT_BACKING_MAX_PLANE_COUNT;
     constexpr static uint32_t PLS_CLEAR_BUFFER_COUNT =
-        PLS_TRANSIENT_BACKING_MAX_DEPTH + 1;
+        PLS_TRANSIENT_BACKING_MAX_PLANE_COUNT + 1;
 
     glutils::Texture m_plsTransientBackingTexture = glutils::Texture::Zero();
     glutils::Texture m_atomicCoverageTexture = glutils::Texture::Zero();
     glutils::Framebuffer m_plsClearFBO; // FBO solely for clearing PLS.
 
-    RIVE_DEBUG_CODE(uint32_t m_plsTransientBackingDepth = 0;)
+    RIVE_DEBUG_CODE(uint32_t m_plsTransientBackingPlaneCount = 0;)
 };
 
 std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl>

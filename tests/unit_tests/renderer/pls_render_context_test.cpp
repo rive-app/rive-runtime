@@ -248,7 +248,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     });
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 0);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
 
@@ -261,7 +261,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     // PLS backings are never over-allocated.
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 100);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 101);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 1);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
           100);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
@@ -275,7 +275,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     // PLS backings are never over-allocated.
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 101);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 101);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 3);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 3);
     // The atomic backing isn't deallocated yet, but its size is not affected by
     // the backing for raster ordering.
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
@@ -295,7 +295,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 101);
     // PLS backings are never over-allocated.
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 100);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 3);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 3);
     // The atomic backing should have been released now.
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
@@ -313,9 +313,9 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     // PLS backings are never over-allocated.
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 99);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 200);
-    // The backing depth should have shrunknsince we've only been drawing in
-    // atomic mode.
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    // The backing planeCount should have shrunk since we've only been drawing
+    // in atomic mode.
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 1);
     // The atomic backing should have shrunk now.
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 99);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
@@ -334,7 +334,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     // PLS backings are never over-allocated.
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 0);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 0);
     // The atomic backing should have been released now.
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
@@ -351,7 +351,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     });
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 999);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1234);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 1);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
           999);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
@@ -364,7 +364,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     });
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 999);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1234);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 1);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
           999);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
@@ -380,7 +380,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     });
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 999);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1234);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 1);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
           999);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
@@ -403,7 +403,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     }
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 1000);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 1000);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 1);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 1);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth ==
           1000);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight ==
@@ -413,7 +413,7 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     ctx.releaseResources();
     CHECK(ctx.currentResourceAllocations().plsTransientBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsTransientBackingHeight == 0);
-    CHECK(ctx.currentResourceAllocations().plsTransientBackingDepth == 0);
+    CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
 }

@@ -121,7 +121,7 @@ private:
 
         virtual void resizeTransientPLSBacking(uint32_t width,
                                                uint32_t height,
-                                               uint32_t depth)
+                                               uint32_t planeCount)
         {}
         virtual void resizeAtomicCoverageBacking(uint32_t width,
                                                  uint32_t height)
@@ -214,7 +214,7 @@ private:
     void resizeAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeTransientPLSBacking(uint32_t width,
                                    uint32_t height,
-                                   uint32_t depth) override;
+                                   uint32_t planeCount) override;
     void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override;
 
     void preBeginFrame(RenderContext*) override;

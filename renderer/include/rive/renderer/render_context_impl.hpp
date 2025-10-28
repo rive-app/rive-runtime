@@ -118,10 +118,10 @@ public:
     // render pass. (Namely, coverage, clip, and scratch.)
     // NOTE: It is specified as a TEXTURE_2D_ARRAY because that gets better
     // cache performance on Intel Arc than separate textures.
-    constexpr static uint32_t PLS_TRANSIENT_BACKING_MAX_DEPTH = 3;
+    constexpr static uint32_t PLS_TRANSIENT_BACKING_MAX_PLANE_COUNT = 3;
     virtual void resizeTransientPLSBacking(uint32_t width,
                                            uint32_t height,
-                                           uint32_t depth)
+                                           uint32_t planeCount)
     {}
     // Used in atomic mode. Similar to transient PLS backing, except it's a
     // single 2D resource that also supports atomic operations.

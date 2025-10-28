@@ -100,11 +100,12 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
 
     // This extension *must* be enabled if it's supported (it's usually on a
     // device that is not a fully-conforming device)
-    // TODO: we may want to note that a device had this extension, it might be
-    // useful information for devices that are doing weird things.
-    addExtensionIfSupported("VK_KHR_portability_subset",
-                            supportedExtensions,
-                            addedExtensions);
+    if (addExtensionIfSupported("VK_KHR_portability_subset",
+                                supportedExtensions,
+                                addedExtensions))
+    {
+        m_riveVulkanFeatures.VK_KHR_portability_subset = true;
+    }
 
     if (!opts.headless)
     {
@@ -223,6 +224,8 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         printf("%sshaderClipDistance", *commaSeparator);
     if (m_riveVulkanFeatures.rasterizationOrderColorAttachmentAccess)
         printf("%srasterizationOrderColorAttachmentAccess", *commaSeparator);
+    if (m_riveVulkanFeatures.VK_KHR_portability_subset)
+        printf("%sVK_KHR_portability_subset", *commaSeparator);
     printf(" ] ====\n");
 }
 

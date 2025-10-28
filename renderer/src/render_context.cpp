@@ -706,14 +706,15 @@ void RenderContext::flush(const FlushResources& flushResources)
         .atlasTextureWidth = layoutCounts.maxAtlasWidth,
         .atlasTextureHeight = layoutCounts.maxAtlasHeight,
         .plsTransientBackingWidth =
-            (layoutCounts.maxPLSTransientBackingDepth > 0)
+            (layoutCounts.maxPLSTransientBackingPlaneCount > 0)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
                 : 0,
         .plsTransientBackingHeight =
-            (layoutCounts.maxPLSTransientBackingDepth > 0)
+            (layoutCounts.maxPLSTransientBackingPlaneCount > 0)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetHeight)
                 : 0,
-        .plsTransientBackingDepth = layoutCounts.maxPLSTransientBackingDepth,
+        .plsTransientBackingPlaneCount =
+            layoutCounts.maxPLSTransientBackingPlaneCount,
         .plsAtomicCoverageBackingWidth =
             (frameInterlockMode() == gpu::InterlockMode::atomics)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
@@ -770,7 +771,7 @@ void RenderContext::flush(const FlushResources& flushResources)
         .atlasTextureHeight = 5,             // 125%
         .plsTransientBackingWidth = 4,       // 100% (i.e., don't overallocate)
         .plsTransientBackingHeight = 4,      // 100% (i.e., don't overallocate)
-        .plsTransientBackingDepth = 4,       // 100% (i.e., don't overallocate)
+        .plsTransientBackingPlaneCount = 4,  // 100% (i.e., don't overallocate)
         .plsAtomicCoverageBackingWidth = 4,  // 100% (i.e., don't overallocate)
         .plsAtomicCoverageBackingHeight = 4, // 100% (i.e., don't overallocate)
         .coverageBufferLength = 5,           // 125%
@@ -822,7 +823,7 @@ void RenderContext::flush(const FlushResources& flushResources)
             .atlasTextureHeight = 2,             // 66.7%
             .plsTransientBackingWidth = 3,       // 100% (i.e., always shrink)
             .plsTransientBackingHeight = 3,      // 100% (i.e., always shrink)
-            .plsTransientBackingDepth = 3,       // 100% (i.e., always shrink)
+            .plsTransientBackingPlaneCount = 3,  // 100% (i.e., always shrink)
             .plsAtomicCoverageBackingWidth = 3,  // 100% (i.e., always shrink)
             .plsAtomicCoverageBackingHeight = 3, // 100% (i.e., always shrink)
             .coverageBufferLength = 2,           // 66.7%
@@ -923,7 +924,7 @@ void RenderContext::flush(const FlushResources& flushResources)
     }
 }
 
-static uint32_t pls_transient_backing_depth(
+static uint32_t pls_transient_backing_plane_count(
     gpu::InterlockMode interlockMode,
     gpu::DrawContents combinedDrawContents)
 {
@@ -1211,10 +1212,10 @@ void RenderContext::LogicalFlush::layoutResources(
         std::max(m_atlasMaxX, runningFrameLayoutCounts->maxAtlasWidth);
     runningFrameLayoutCounts->maxAtlasHeight =
         std::max(m_atlasMaxY, runningFrameLayoutCounts->maxAtlasHeight);
-    runningFrameLayoutCounts->maxPLSTransientBackingDepth =
-        std::max(pls_transient_backing_depth(m_flushDesc.interlockMode,
-                                             m_combinedDrawContents),
-                 runningFrameLayoutCounts->maxPLSTransientBackingDepth);
+    runningFrameLayoutCounts->maxPLSTransientBackingPlaneCount =
+        std::max(pls_transient_backing_plane_count(m_flushDesc.interlockMode,
+                                                   m_combinedDrawContents),
+                 runningFrameLayoutCounts->maxPLSTransientBackingPlaneCount);
     runningFrameLayoutCounts->maxCoverageBufferLength =
         std::max<size_t>(m_coverageBufferLength,
                          runningFrameLayoutCounts->maxCoverageBufferLength);
@@ -2117,27 +2118,28 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
             math::lossless_numeric_cast<uint32_t>(allocs.atlasTextureHeight));
     }
 
-    assert(allocs.plsTransientBackingDepth <=
-           RenderContextImpl::PLS_TRANSIENT_BACKING_MAX_DEPTH);
+    assert(allocs.plsTransientBackingPlaneCount <=
+           RenderContextImpl::PLS_TRANSIENT_BACKING_MAX_PLANE_COUNT);
     LOG_TEXTURE_3D_SIZE("plsTransientBacking",
                         plsTransientBackingWidth,
                         plsTransientBackingHeight,
-                        plsTransientBackingDepth,
+                        plsTransientBackingPlaneCount,
                         sizeof(uint32_t));
     if (allocs.plsTransientBackingWidth !=
             m_currentResourceAllocations.plsTransientBackingWidth ||
         allocs.plsTransientBackingHeight !=
             m_currentResourceAllocations.plsTransientBackingHeight ||
-        allocs.plsTransientBackingDepth !=
-            m_currentResourceAllocations.plsTransientBackingDepth ||
+        allocs.plsTransientBackingPlaneCount !=
+            m_currentResourceAllocations.plsTransientBackingPlaneCount ||
         forceRealloc)
     {
-        m_impl->resizeTransientPLSBacking(math::lossless_numeric_cast<uint32_t>(
-                                              allocs.plsTransientBackingWidth),
-                                          math::lossless_numeric_cast<uint32_t>(
-                                              allocs.plsTransientBackingHeight),
-                                          math::lossless_numeric_cast<uint32_t>(
-                                              allocs.plsTransientBackingDepth));
+        m_impl->resizeTransientPLSBacking(
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.plsTransientBackingWidth),
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.plsTransientBackingHeight),
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.plsTransientBackingPlaneCount));
     }
 
     assert(allocs.plsAtomicCoverageBackingWidth <=

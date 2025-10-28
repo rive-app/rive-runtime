@@ -187,7 +187,7 @@ RenderPassVulkan::RenderPassVulkan(
         assert(attachments.size() == SCRATCH_COLOR_PLANE_IDX);
         assert(colorAttachmentRefs.size() == SCRATCH_COLOR_PLANE_IDX);
         attachments.push_back({
-            .format = renderTargetFormat,
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,

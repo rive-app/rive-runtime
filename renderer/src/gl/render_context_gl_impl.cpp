@@ -1006,16 +1006,16 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
 
 void RenderContextGLImpl::resizeTransientPLSBacking(uint32_t width,
                                                     uint32_t height,
-                                                    uint32_t depth)
+                                                    uint32_t planeCount)
 {
     if (m_plsImpl != nullptr)
     {
-        m_plsImpl->resizeTransientPLSBacking(width, height, depth);
+        m_plsImpl->resizeTransientPLSBacking(width, height, planeCount);
     }
     else
     {
         // If we don't support PLS we better not be allocating a backing for it.
-        assert((width | height | depth) == 0);
+        assert((width | height | planeCount) == 0);
     }
 }
 

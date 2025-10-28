@@ -348,7 +348,7 @@ private:
         size_t atlasTextureHeight = 0;
         size_t plsTransientBackingWidth = 0;
         size_t plsTransientBackingHeight = 0;
-        size_t plsTransientBackingDepth = 0;
+        size_t plsTransientBackingPlaneCount = 0;
         size_t plsAtomicCoverageBackingWidth = 0;  // atomic mode only.
         size_t plsAtomicCoverageBackingHeight = 0; // atomic mode only.
         size_t coverageBufferLength = 0;           // clockwiseAtomic mode only.
@@ -567,7 +567,7 @@ private:
             uint32_t maxTessTextureHeight = 0;
             uint32_t maxAtlasWidth = 0;
             uint32_t maxAtlasHeight = 0;
-            uint32_t maxPLSTransientBackingDepth = 0;
+            uint32_t maxPLSTransientBackingPlaneCount = 0;
             size_t maxCoverageBufferLength = 0;
         };
 
