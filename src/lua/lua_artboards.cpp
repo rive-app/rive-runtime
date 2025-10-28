@@ -118,6 +118,12 @@ static int artboard_index(lua_State* L)
                                                                         : 0);
             return 1;
 
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, scriptedArtboard->artboard()->width());
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, scriptedArtboard->artboard()->height());
+            return 1;
         case (int)LuaAtoms::data:
             return scriptedArtboard->pushData(L);
 
@@ -142,8 +148,15 @@ static int artboard_newindex(lua_State* L)
         case (int)LuaAtoms::frameOrigin:
             scriptedArtboard->artboard()->frameOrigin(luaL_checkboolean(L, 3) !=
                                                       0);
-        default:
             return 0;
+        case (int)LuaAtoms::width:
+            scriptedArtboard->artboard()->width(luaL_checknumber(L, 3));
+            return 0;
+        case (int)LuaAtoms::height:
+            scriptedArtboard->artboard()->height(luaL_checknumber(L, 3));
+            return 0;
+        default:
+            break;
     }
 
     return 0;

@@ -6,6 +6,54 @@
 
 using namespace rive;
 
+TEST_CASE("can access artboard width/height", "[scripting]")
+{
+
+    ScriptingTest vm("function accessWidth(artboard:Artboard):()\n"
+                     "  return artboard.width\n"
+                     "end\n"
+                     "function accessHeight(artboard:Artboard):()\n"
+                     "  return artboard.height\n"
+                     "end\n"
+                     "function changeWidth(artboard:Artboard):()\n"
+                     "   artboard.width = 24\n"
+                     "  return artboard.width\n"
+                     "end\n"
+                     "function changeHeight(artboard:Artboard):()\n"
+                     "  artboard.height = 22\n"
+                     "  return artboard.height\n"
+                     "end\n");
+    lua_State* L = vm.state();
+    auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
+    auto artboard = file->artboard();
+    REQUIRE(artboard != nullptr);
+    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+
+    lua_getglobal(L, "accessWidth");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 92);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "accessHeight");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 92);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "changeWidth");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 24);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "changeHeight");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 22);
+    lua_pop(L, 1);
+}
+
 TEST_CASE("can render an artboard via the scripting engine", "[scripting]")
 {
 
