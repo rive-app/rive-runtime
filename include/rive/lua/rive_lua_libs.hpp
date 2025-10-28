@@ -27,6 +27,7 @@
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/hit_result.hpp"
 
 #include <chrono>
 #include <unordered_map>
@@ -139,7 +140,13 @@ enum class LuaAtoms : int16_t
     isNumber,
     isString,
     isBoolean,
-    isColor
+    isColor,
+
+    // inputs
+    hit,
+    id,
+    position
+
 };
 
 struct ScriptedMat2D
@@ -725,6 +732,22 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 23;
     static constexpr const char* luaName = "DataValueColor";
     bool isColor() override { return true; }
+};
+
+class ScriptedPointerEvent
+{
+public:
+    ScriptedPointerEvent(uint8_t id, Vec2D position) :
+        m_id(id), m_position(position)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 24;
+    static constexpr const char* luaName = "PointerEvent";
+    static constexpr bool hasMetatable = true;
+
+    uint8_t m_id = 0;
+    Vec2D m_position;
+    HitResult m_hitResult = HitResult::none;
 };
 
 static void interruptCPP(lua_State* L, int gc);

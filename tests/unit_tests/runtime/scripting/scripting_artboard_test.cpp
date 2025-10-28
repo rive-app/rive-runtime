@@ -87,3 +87,21 @@ TEST_CASE("can render an artboard via the scripting engine", "[scripting]")
 
     CHECK(vm.serializer()->matches("scripted_artboard_render"));
 }
+
+TEST_CASE("can detect hit test from PointerEvent", "[scripting]")
+{
+    ScriptingTest vm("function pointerDown(event:PointerEvent):number\n"
+                     "  event:hit()\n"
+                     "  return event.position.x\n"
+                     "end\n");
+
+    lua_State* L = vm.state();
+    lua_getglobal(L, "pointerDown");
+    auto pointerEvent =
+        lua_newrive<ScriptedPointerEvent>(L, 1, Vec2D(22.0f, 23.0f));
+    CHECK(pointerEvent->m_id == 1);
+    CHECK(pointerEvent->m_hitResult == HitResult::none);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(pointerEvent->m_hitResult == HitResult::hitOpaque);
+    CHECK(lua_tonumber(L, -1) == 22.0f);
+}
