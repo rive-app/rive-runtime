@@ -107,6 +107,88 @@ static int mat2d_withScaleAndTranslation(lua_State* L)
     return 1;
 }
 
+static int mat2d_newindex(lua_State* L)
+{
+    auto mat = lua_torive<ScriptedMat2D>(L, 1);
+
+    size_t namelen = 0;
+    const char* name = luaL_checklstring(L, 2, &namelen);
+    switch (namelen)
+    {
+        case 2:
+            switch (name[0])
+            {
+                case 'x':
+                    switch (name[1])
+                    {
+                        case 'x':
+                            mat->value.xx(luaL_checknumber(L, 3));
+                            return 0;
+                        case 'y':
+                            mat->value.xy(luaL_checknumber(L, 3));
+                            return 0;
+                    }
+                    break;
+                case 'y':
+                    switch (name[1])
+                    {
+                        case 'x':
+                            mat->value.yx(luaL_checknumber(L, 3));
+                            return 0;
+                        case 'y':
+                            mat->value.yy(luaL_checknumber(L, 3));
+                            return 0;
+                    }
+                    break;
+                case 't':
+                    switch (name[1])
+                    {
+                        case 'x':
+                            mat->value.tx(luaL_checknumber(L, 3));
+                            return 0;
+                        case 'y':
+                            mat->value.ty(luaL_checknumber(L, 3));
+                            return 0;
+                    }
+                    return 1;
+                default:
+                    break;
+            }
+            break;
+        case 1:
+            switch (name[0])
+            {
+                case '1':
+                    mat->value.xx(luaL_checknumber(L, 3));
+                    return 0;
+                case '2':
+                    mat->value.xy(luaL_checknumber(L, 3));
+                    return 0;
+                case '3':
+                    mat->value.yx(luaL_checknumber(L, 3));
+                    return 0;
+                case '4':
+                    mat->value.yy(luaL_checknumber(L, 3));
+                    return 0;
+                case '5':
+                    mat->value.tx(luaL_checknumber(L, 3));
+                    return 0;
+                case '6':
+                    mat->value.ty(luaL_checknumber(L, 3));
+                    return 0;
+                default:
+                    break;
+            }
+            break;
+    }
+
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               name,
+               ScriptedMat2D::luaName);
+    return 0;
+}
+
 static int mat2d_index(lua_State* L)
 {
     auto mat = lua_torive<ScriptedMat2D>(L, 1);
@@ -269,6 +351,9 @@ int luaopen_rive_mat2d(lua_State* L)
 
     lua_pushcfunction(L, mat2d_index, nullptr);
     lua_setfield(L, -2, "__index");
+
+    lua_pushcfunction(L, mat2d_newindex, nullptr);
+    lua_setfield(L, -2, "__newindex");
 
     lua_pushcfunction(L, mat2d_mul, nullptr);
     lua_setfield(L, -2, "__mul");

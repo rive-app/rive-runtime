@@ -176,3 +176,84 @@ TEST_CASE("mat2d meta methods work", "[scripting]")
                 .state(),
             -1) == 4);
 }
+
+TEST_CASE("mat2d setters work", "[scripting]")
+{
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat.xx = 23\n"
+                                    "return mat == Mat2D.values(23,0,0,1,0,0)")
+                          .state(),
+                      -1) == 1);
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat[1] = 23\n"
+                                    "return mat == Mat2D.values(23,0,0,1,0,0)")
+                          .state(),
+                      -1) == 1);
+
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat.xy = 23\n"
+                                    "return mat == Mat2D.values(1,23,0,1,0,0)")
+                          .state(),
+                      -1) == 1);
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat[2] = 23\n"
+                                    "return mat == Mat2D.values(1,23,0,1,0,0)")
+                          .state(),
+                      -1) == 1);
+
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat.yx = 24\n"
+                                    "return mat == Mat2D.values(1,0,24,1,0,0)")
+                          .state(),
+                      -1) == 1);
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat[3] = 24\n"
+                                    "return mat == Mat2D.values(1,0,24,1,0,0)")
+                          .state(),
+                      -1) == 1);
+
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat.yy = 25\n"
+                                    "return mat == Mat2D.values(1,0,0,25,0,0)")
+                          .state(),
+                      -1) == 1);
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat[4] = 25\n"
+                                    "return mat == Mat2D.values(1,0,0,25,0,0)")
+                          .state(),
+                      -1) == 1);
+
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat.tx = 26\n"
+                                    "return mat == Mat2D.values(1,0,0,1,26,0)")
+                          .state(),
+                      -1) == 1);
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat[5] = 26\n"
+                                    "return mat == Mat2D.values(1,0,0,1,26,0)")
+                          .state(),
+                      -1) == 1);
+
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat.ty = 27\n"
+                                    "return mat == Mat2D.values(1,0,0,1,0,27)")
+                          .state(),
+                      -1) == 1);
+    CHECK(
+        lua_toboolean(ScriptingTest("local mat = Mat2D.identity()\n"
+                                    "mat[6] = 27\n"
+                                    "return mat == Mat2D.values(1,0,0,1,0,27)")
+                          .state(),
+                      -1) == 1);
+}
