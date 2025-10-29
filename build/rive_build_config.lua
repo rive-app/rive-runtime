@@ -119,6 +119,11 @@ newoption({
 })
 
 newoption({
+    trigger = 'with_wasm_pthread',
+    description = 'Embed wasm directly into the js, instead of side-loading it.',
+})
+
+newoption({
     trigger = 'no-lto',
     description = 'Don\'t build with link time optimizations.',
 })
@@ -818,6 +823,12 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
     filter('options:wasm_single')
     do
         linkoptions({ '-sSINGLE_FILE=1' })
+    end
+
+    filter('options:with_wasm_pthread')
+    do
+        buildoptions({ '-pthread' })
+        linkoptions({ '-pthread' })
     end
 
     filter('options:config=release')
