@@ -59,6 +59,14 @@ static int artboard_namecall(lua_State* L)
                 auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
                 return scriptedArtboard->instance(L);
             }
+            case (int)LuaAtoms::bounds:
+            {
+                auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
+                const auto& bounds = scriptedArtboard->artboard()->bounds();
+                lua_pushvec2d(L, bounds.min());
+                lua_pushvec2d(L, bounds.max());
+                return 2;
+            }
         }
     }
 

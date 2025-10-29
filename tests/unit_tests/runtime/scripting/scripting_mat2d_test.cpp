@@ -137,6 +137,17 @@ TEST_CASE("mat2d methods work", "[scripting]")
     CHECK(lua_toboolean(
               ScriptingTest("return Mat2D.identity():isIdentity()").state(),
               -1) == 1);
+
+    CHECK(lua_toboolean(
+              ScriptingTest("local mat = Mat2D.identity()\n"
+                            "mat.tx = 23\n"
+                            "local result = Mat2D.identity()\n"
+                            "if not Mat2D.invert(result, mat) then\n"
+                            " return false\n"
+                            "end\n"
+                            "return result == Mat2D.values(1,0,0,1,-23,0)")
+                  .state(),
+              -1) == 1);
 }
 
 TEST_CASE("mat2d meta methods work", "[scripting]")

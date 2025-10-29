@@ -135,6 +135,7 @@ enum class LuaAtoms : int16_t
     frameOrigin,
     data,
     instance,
+    bounds,
 
     // Scripted DataValues
     isNumber,

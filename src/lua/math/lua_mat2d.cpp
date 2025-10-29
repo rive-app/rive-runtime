@@ -335,6 +335,23 @@ static int mat2d_namecall(lua_State* L)
     return 0;
 }
 
+static int mat2d_static_invert(lua_State* L)
+{
+    auto out = lua_torive<ScriptedMat2D>(L, 1);
+    auto in = lua_torive<ScriptedMat2D>(L, 2);
+
+    if (in->value.invert(&out->value))
+    {
+        lua_pushboolean(L, 1);
+    }
+    else
+    {
+        lua_pushboolean(L, 0);
+    }
+
+    return 1;
+}
+
 static const luaL_Reg mat2dStaticMethods[] = {
     {"withTranslation", mat2d_withTranslation},
     {"withRotation", mat2d_withRotation},
@@ -342,6 +359,7 @@ static const luaL_Reg mat2dStaticMethods[] = {
     {"withScaleAndTranslation", mat2d_withScaleAndTranslation},
     {"identity", mat2d_identity},
     {"values", mat2d_values},
+    {"invert", mat2d_static_invert},
     {nullptr, nullptr}};
 
 int luaopen_rive_mat2d(lua_State* L)

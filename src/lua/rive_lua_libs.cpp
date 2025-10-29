@@ -91,6 +91,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"frameOrigin", (int16_t)LuaAtoms::frameOrigin},
     {"data", (int16_t)LuaAtoms::data},
     {"instance", (int16_t)LuaAtoms::instance},
+    {"bounds", (int16_t)LuaAtoms::bounds},
     {"isNumber", (int16_t)LuaAtoms::isNumber},
     {"isString", (int16_t)LuaAtoms::isString},
     {"isBoolean", (int16_t)LuaAtoms::isBoolean},

@@ -8,7 +8,6 @@ using namespace rive;
 
 TEST_CASE("can access artboard width/height", "[scripting]")
 {
-
     ScriptingTest vm("function accessWidth(artboard:Artboard):()\n"
                      "  return artboard.width\n"
                      "end\n"
@@ -51,6 +50,52 @@ TEST_CASE("can access artboard width/height", "[scripting]")
     lua_pushvalue(L, -2);
     CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
     CHECK(lua_tonumber(L, -1) == 22);
+    lua_pop(L, 1);
+}
+
+TEST_CASE("can access artboard bounds", "[scripting]")
+{
+    ScriptingTest vm("function boundsMinX(artboard:Artboard):number\n"
+                     "  local min, max = artboard:bounds()\n"
+                     "  return min.x\n"
+                     "end\n"
+                     "function boundsMinY(artboard:Artboard):number\n"
+                     "  local min, max = artboard:bounds()\n"
+                     "  return min.y\n"
+                     "end\n"
+                     "function boundsMaxX(artboard:Artboard):number\n"
+                     "  local min, max = artboard:bounds()\n"
+                     "  return max.x\n"
+                     "end\n"
+                     "function boundsMaxY(artboard:Artboard):number\n"
+                     "  local min, max = artboard:bounds()\n"
+                     "  return max.y\n"
+                     "end\n");
+    lua_State* L = vm.state();
+    auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
+    auto artboard = file->artboard();
+    REQUIRE(artboard != nullptr);
+    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+
+    lua_getglobal(L, "boundsMinX");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0);
+    lua_pop(L, 1);
+    lua_getglobal(L, "boundsMinY");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0);
+    lua_pop(L, 1);
+    lua_getglobal(L, "boundsMaxX");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 92);
+    lua_pop(L, 1);
+    lua_getglobal(L, "boundsMaxY");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 92);
     lua_pop(L, 1);
 }
 
