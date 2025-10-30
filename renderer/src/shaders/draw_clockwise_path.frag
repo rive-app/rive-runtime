@@ -178,11 +178,12 @@ PLS_MAIN(@drawFragmentMain)
     // Emit a paint color whose post-src-over-blend result is algebraically
     // equivalent to applying the c0 -> c1 coverage delta.
     //
-    // NOTE: "max(, 1e-9)" is just to avoid a divide by zero. When the
+    // NOTE: "max(, eps)" is just to avoid a divide by zero. When the
     // denominator would be 0, c0 == 1, which also means c1 == 1, and there is
-    // no coverage to apply. Since c0 == c1 == 1, (c1 - c0) / 1e-9 == 0, which
-    // is the result we want in this case.
-    paintColor *= (c1 - c0) / max(1. - c0 * paintColor.a, 1e-9);
+    // no coverage to apply. Since c0 == c1 == 1, (c1 - c0) / eps == 0, which is
+    // the result we want in this case.
+    paintColor *=
+        (c1 - c0) / max(1. - c0 * paintColor.a, EPSILON_FP16_NON_DENORM);
 #ifndef @DRAW_INTERIOR_TRIANGLES
     // Update the coverage buffer with our final value if we aren't an interior
     // triangle, because another fragment from this same path might come along

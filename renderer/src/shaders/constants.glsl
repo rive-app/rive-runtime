@@ -198,6 +198,11 @@
 // empirically unreliable on Android as ID values.
 #define MAX_DENORM_F16 1023u
 
+// The minimum non-denormalized fp16 value is ~6.10e-5. So steer safely within
+// this value (and outside of denormals, which may not be respected by GPUs), by
+// using using 6.2e-5.
+#define EPSILON_FP16_NON_DENORM 6.2e-5
+
 // Blend modes. Mirrors rive::BlendMode, but 0-based and contiguous for tighter
 // packing.
 #define BLEND_SRC_OVER 0u
