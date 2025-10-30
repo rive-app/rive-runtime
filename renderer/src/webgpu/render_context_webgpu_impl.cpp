@@ -109,7 +109,11 @@ static wgpu::ShaderModule compile_shader_module_spirv(wgpu::Device device,
                                                       const uint32_t* code,
                                                       uint32_t codeSize)
 {
+#if RIVE_WEBGPU == 1
     wgpu::ShaderModuleSPIRVDescriptor spirvDesc;
+#else
+    wgpu::ShaderSourceSPIRV spirvDesc;
+#endif
     spirvDesc.code = code;
     spirvDesc.codeSize = codeSize;
     wgpu::ShaderModuleDescriptor descriptor;
@@ -1043,6 +1047,7 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
         // if the hardware doesn't support this.
         m_capabilities.polyfillVertexStorageBuffers = true;
     }
+    wgpuWagyuStringArrayFreeMembers(extensions);
 #endif
 }
 
