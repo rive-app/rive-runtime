@@ -35,6 +35,10 @@ void BlendStateDirectInstance::advance(
         {
             auto bindableProperty =
                 animation.blendAnimation()->bindableProperty();
+            if (bindableProperty == nullptr)
+            {
+                continue;
+            }
             auto bindableInstance =
                 stateMachineInstance->bindablePropertyInstance(
                     bindableProperty);
