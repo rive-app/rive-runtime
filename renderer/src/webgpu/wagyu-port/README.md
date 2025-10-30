@@ -2,8 +2,7 @@
 
 This is an implementation of WebGPU bindings for Emscripten.
 
-This package provides the legacy (old) webgpu.h header used by Emscripten, and
-a copy of the current standard (new) webgpu.h provided by emdawnwgpu.
+This package provides webgpu.h header provided by emdawnwgpu.
 
 This package optionally provides Wagyu extensions to the WebGPU API, which
 are available from the webgpu_wagyu.h header. These extensions are not part of
@@ -17,13 +16,15 @@ port indirectly.
 
 To use the remote port file, pass it as an option like this to your
 emscripten build commands:
-```
+
+```bash
 --use-port=[your_path]/webgpu-remoteport.py
 ```
 
 You can also directly use the local port file `webgpu-port.py` from the
 webgpu-port repository (or a copy of it).
-```
+
+```bash
 --use-port=[your_path]/webgpu-port.py
 ```
 
@@ -34,7 +35,7 @@ pairs delimited by colons.
 
 For example:
 
-```
+```bash
 --use-port=webgpu-remoteport.py:wagyu=true
 ```
 

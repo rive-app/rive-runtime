@@ -17,19 +17,7 @@
 #define WGPU_WAGYU_STRLEN SIZE_MAX
 #define WGPU_WAGYU_PIXEL_LOCAL_STORAGE_SIZE_UNDEFINED UINT32_MAX
 
-#if defined(USE_WGPU_WAGYU_NAMESPACE) || defined(__cppcheck)
-namespace wagyu2 {
-#endif
-
-typedef struct WGPUWagyuRelaxedComplianceImpl *WGPUWagyuRelaxedCompliance WGPU_OBJECT_ATTRIBUTE;
 typedef struct WGPUWagyuExternalTextureImpl *WGPUWagyuExternalTexture WGPU_OBJECT_ATTRIBUTE;
-
-typedef enum WGPUWagyuDeviceFlushStatus
-{
-    WGPUWagyuDeviceFlushStatus_Success = 0x00000000,
-    WGPUWagyuDeviceFlushStatus_Error   = 0x00000001,
-    WGPUWagyuDeviceFlushStatus_Force32 = 0x7FFFFFFF
-} WGPUWagyuDeviceFlushStatus WGPU_ENUM_ATTRIBUTE;
 
 // These values extend the WGPUSType enum set from webgpu.h
 typedef enum WGPUSType_Wagyu
@@ -50,6 +38,22 @@ typedef enum WGPUSType_Wagyu
     WGPUSType_WagyuTextureDescriptor            = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000E,
     WGPUSType_WagyuForce32                      = 0x7FFFFFFF
 } WGPUSType_Wagyu WGPU_ENUM_ATTRIBUTE;
+
+typedef enum WGPUWagyuDeviceFlushStatus
+{
+    WGPUWagyuDeviceFlushStatus_Success = 0x00000000,
+    WGPUWagyuDeviceFlushStatus_Error   = 0x00000001,
+    WGPUWagyuDeviceFlushStatus_Force32 = 0x7FFFFFFF
+} WGPUWagyuDeviceFlushStatus WGPU_ENUM_ATTRIBUTE;
+
+typedef enum WGPUWagyuDevicePipelineBinaryCacheError
+{
+    WGPUWagyuDevicePipelineBinaryCacheError_Version = 0x00000000,
+    WGPUWagyuDevicePipelineBinaryCacheError_Corrupt = 0x00000001,
+    WGPUWagyuDevicePipelineBinaryCacheError_Link    = 0x00000002,
+    WGPUWagyuDevicePipelineBinaryCacheError_Create  = 0x00000003,
+    WGPUWagyuDevicePipelineBinaryCacheError_Force32 = 0x7FFFFFFF
+} WGPUWagyuDevicePipelineBinaryCacheError WGPU_ENUM_ATTRIBUTE;
 
 typedef enum WGPUWagyuShaderLanguage
 {
@@ -78,7 +82,17 @@ static const WGPUWagyuFragmentStateFeaturesFlags WGPUWagyuFragmentStateFeaturesF
 static const WGPUTextureUsage WGPUTextureUsage_WagyuInputAttachment     = (WGPUTextureUsage)(0x0000000040000000);
 static const WGPUTextureUsage WGPUTextureUsage_WagyuTransientAttachment = (WGPUTextureUsage)(0x0000000020000000);
 
+// Forward declarations for callbacks
+struct WGPUWagyuDevicePipelineBinaryCacheStatistics;
+struct WGPUWagyuDevicePipelineBinaryEvent;
+struct WGPUWagyuShaderEntryPointArray;
+
 typedef void (*WGPUWagyuDeviceFlushCallback)(WGPUDevice device, WGPUWagyuDeviceFlushStatus status, void *userdata1, void *userdata2) WGPU_FUNCTION_ATTRIBUTE;
+typedef void (*WGPUWagyuExecuteCallback)(void *userdata1, void *userdata2) WGPU_FUNCTION_ATTRIBUTE;
+typedef void (*WGPUWagyuPipelineBinaryCacheStatisticsCallback)(WGPUDevice device, WGPUWagyuDeviceFlushStatus status, const struct WGPUWagyuDevicePipelineBinaryCacheStatistics *statistics, void *userdata1, void *userdata2) WGPU_FUNCTION_ATTRIBUTE;
+typedef void (*WGPUWagyuPipelineBinaryCallback)(WGPUDevice device, const struct WGPUWagyuDevicePipelineBinaryEvent *event, void *userdata1, void *userdata2) WGPU_FUNCTION_ATTRIBUTE;
+typedef void (*WGPUWagyuPipelineBinaryErrorCallback)(WGPUDevice device, WGPUStringView reason, WGPUStringView message, void *userdata1, void *userdata2) WGPU_FUNCTION_ATTRIBUTE;
+typedef void (*WGPUWagyuShaderModuleEntryPointsCallback)(WGPUShaderModule shaderModule, WGPUWagyuDeviceFlushStatus status, const struct WGPUWagyuShaderEntryPointArray *entryPoints, void *userdata1, void *userdata2) WGPU_FUNCTION_ATTRIBUTE;
 
 typedef struct WGPUWagyuNrdpVersion
 {
@@ -129,15 +143,49 @@ typedef struct WGPUWagyuComputePipelineDescriptor
 #define WGPU_WAGYU_COMPUTE_PIPELINE_DESCRIPTOR_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuComputePipelineDescriptor, { /*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuComputePipelineDescriptor) _wgpu_COMMA /*.cacheKey*/ WGPU_STRING_VIEW_INIT _wgpu_COMMA })
 
+typedef struct WGPUWagyuOrigin2D
+{
+    uint32_t x;
+    uint32_t y;
+} WGPUWagyuOrigin2D WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_ORIGIN_2D_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuOrigin2D, { /* .x */ 0 _wgpu_COMMA /* .y */ 0 _wgpu_COMMA })
+
+typedef struct WGPUWagyuCopyExternalImageSourceInfo
+{
+    WGPUStringView source;
+    WGPUWagyuOrigin2D origin;
+    WGPUBool flipY;
+} WGPUWagyuCopyExternalImageSourceInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_COPY_EXTERNAL_IMAGE_SOURCE_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuCopyExternalImageSourceInfo, { /* .source */ WGPU_STRING_VIEW_INIT _wgpu_COMMA /* .origin */ WGPU_WAGYU_ORIGIN_2D_INIT _wgpu_COMMA /* .flipY */ WGPU_FALSE _wgpu_COMMA })
+
+typedef struct WGPUWagyuCopyExternalImageDestInfo
+{
+    WGPUTexture texture;
+    uint32_t mipLevel;
+    WGPUOrigin3D origin;
+    WGPUTextureAspect aspect;
+    WGPUPredefinedColorSpace colorSpace;
+    WGPUBool premultipliedAlpha;
+} WGPUWagyuCopyExternalImageDestInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_COPY_EXTERNAL_IMAGE_DEST_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuCopyExternalImageDestInfo, { /* .texture */ NULL _wgpu_COMMA /* .mipLevel */ 0 _wgpu_COMMA /* .origin */ WGPU_ORIGIN_3D_INIT _wgpu_COMMA /* .aspect */ WGPUTextureAspect_All _wgpu_COMMA /* .colorSpace */ WGPUPredefinedColorSpace_SRGB _wgpu_COMMA /* .premultipliedAlpha */ WGPU_FALSE _wgpu_COMMA })
+
 typedef struct WGPUWagyuDeviceDescriptor
 {
     WGPUChainedStruct chain;
-    WGPUBool dataBufferNeedsDetach;
-    WGPUBool wantsIndirectRendering;
+    WGPUOptionalBool dataBufferNeedsDetach;
+    WGPUOptionalBool wantsIndirectRendering;
+    WGPUOptionalBool wantsBufferClear;
+    WGPUOptionalBool wantsTextureClear;
 } WGPUWagyuDeviceDescriptor WGPU_STRUCTURE_ATTRIBUTE;
 
 #define WGPU_WAGYU_DEVICE_DESCRIPTOR_INIT \
-    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDeviceDescriptor, { /*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuDeviceDescriptor) _wgpu_COMMA /*.dataBufferNeedsDetach*/ WGPU_TRUE _wgpu_COMMA /*.wantsIndirectRendering*/ WGPU_FALSE _wgpu_COMMA })
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDeviceDescriptor, { /*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuDeviceDescriptor) _wgpu_COMMA /*.dataBufferNeedsDetach*/ WGPUOptionalBool_Undefined _wgpu_COMMA /*.wantsIndirectRendering*/ WGPUOptionalBool_Undefined _wgpu_COMMA /*.wantsBufferClear*/ WGPUOptionalBool_Undefined _wgpu_COMMA /*.wantsTextureClear*/ WGPUOptionalBool_Undefined _wgpu_COMMA })
 
 typedef struct WGPUWagyuDeviceFlushCallbackInfo
 {
@@ -148,8 +196,20 @@ typedef struct WGPUWagyuDeviceFlushCallbackInfo
     void *userdata2;
 } WGPUWagyuDeviceFlushCallbackInfo WGPU_STRUCTURE_ATTRIBUTE;
 
-#define WGPU_WAGYU_DEVICE_FLUSHCALLBACK_INFO_INIT \
+#define WGPU_WAGYU_DEVICE_FLUSH_CALLBACK_INFO_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDeviceFlushCallbackInfo, { /*.nextInChain = */ NULL _wgpu_COMMA /*.mode = */ WGPUCallbackMode_AllowSpontaneous _wgpu_COMMA /*.callback = */ NULL _wgpu_COMMA /*.userdata1 = */ NULL _wgpu_COMMA /*.userdata2 = */ NULL _wgpu_COMMA })
+
+typedef struct WGPUWagyuExecuteCallbackInfo
+{
+    WGPUChainedStruct *nextInChain;
+    WGPUCallbackMode mode;
+    WGPUWagyuExecuteCallback callback;
+    void *userdata1;
+    void *userdata2;
+} WGPUWagyuExecuteCallbackInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_EXECUTE_CALLBACK_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuExecuteCallbackInfo, { /*.nextInChain = */ NULL _wgpu_COMMA /*.mode = */ WGPUCallbackMode_AllowSpontaneous _wgpu_COMMA /*.callback = */ NULL _wgpu_COMMA /*.userdata1 = */ NULL _wgpu_COMMA /*.userdata2 = */ NULL _wgpu_COMMA })
 
 typedef struct WGPUWagyuDevicePipelineBinary
 {
@@ -179,7 +239,32 @@ typedef struct WGPUWagyuDevicePipelineBinaryCacheKey
 } WGPUWagyuDevicePipelineBinaryCacheKey WGPU_STRUCTURE_ATTRIBUTE;
 
 #define WGPU_WAGYU_DEVICE_PIPELINE_BINARY_CACHE_KEY_INIT \
-    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDevicePipelineBinaryCacheKey, { /*.cacheKey*/ WGPU_STRING_VIEW_INIT _wgpu_COMMA /*.blobKeysLength*/ 0 _wgpu_COMMA })
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDevicePipelineBinaryCacheKey, { /*.cacheKey*/ WGPU_STRING_VIEW_INIT _wgpu_COMMA /*.blobKeysLength*/ 0 _wgpu_COMMA /*.blobKeys*/ NULL _wgpu_COMMA })
+
+typedef struct WGPUWagyuDevicePipelineBinaryCacheStatistics
+{
+    uint32_t hits;
+    uint32_t misses;
+    size_t entryCount;
+    WGPUStringView *entries;
+    size_t errorCount;
+    WGPUWagyuDevicePipelineBinaryCacheError *errors;
+} WGPUWagyuDevicePipelineBinaryCacheStatistics WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_DEVICE_PIPELINE_BINARY_CACHE_STATISTICS_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDevicePipelineBinaryCacheStatistics, { /*.hits*/ 0 _wgpu_COMMA /*.misses*/ 0 _wgpu_COMMA /*.entryCount*/ 0 _wgpu_COMMA /*.entries*/ NULL _wgpu_COMMA /*.errorCount*/ 0 _wgpu_COMMA /*.errors*/ NULL _wgpu_COMMA })
+
+typedef struct WGPUWagyuPipelineBinaryCacheStatisticsCallbackInfo
+{
+    WGPUChainedStruct *nextInChain;
+    WGPUCallbackMode mode;
+    WGPUWagyuPipelineBinaryCacheStatisticsCallback callback;
+    void *userdata1;
+    void *userdata2;
+} WGPUWagyuPipelineBinaryCacheStatisticsCallbackInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_PIPELINE_BINARY_CACHE_STATISTICS_CALLBACK_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuPipelineBinaryCacheStatisticsCallbackInfo, { /*.nextInChain = */ NULL _wgpu_COMMA /*.mode = */ WGPUCallbackMode_AllowSpontaneous _wgpu_COMMA /*.callback = */ NULL _wgpu_COMMA /*.userdata1 = */ NULL _wgpu_COMMA /*.userdata2 = */ NULL _wgpu_COMMA })
 
 typedef struct WGPUWagyuDevicePipelineBinaryData
 {
@@ -192,6 +277,17 @@ typedef struct WGPUWagyuDevicePipelineBinaryData
 #define WGPU_WAGYU_DEVICE_PIPELINE_BINARY_DATA_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDevicePipelineBinaryData, { /*.binariesLength*/ 0 _wgpu_COMMA /*.binaries*/ NULL _wgpu_COMMA /*.cacheKeysLength*/ 0 _wgpu_COMMA /*.cacheKeys*/ NULL _wgpu_COMMA })
 
+typedef struct WGPUWagyuDevicePipelineBinaryEvent
+{
+    WGPUStringView cacheKey;
+    WGPUStringView pipelineLabel;
+    size_t binariesLength;
+    const WGPUWagyuDevicePipelineBinary *binaries;
+} WGPUWagyuDevicePipelineBinaryEvent WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_DEVICE_PIPELINE_BINARY_EVENT_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDevicePipelineBinaryEvent, { /*.cacheKey*/ WGPU_STRING_VIEW_INIT _wgpu_COMMA /*.pipelineLabel*/ WGPU_STRING_VIEW_INIT _wgpu_COMMA /*.binariesLength*/ 0 _wgpu_COMMA /*.binaries*/ NULL _wgpu_COMMA })
+
 typedef struct WGPUWagyuExternalTextureDescriptor
 {
     const WGPUChainedStruct *nextInChain;
@@ -202,6 +298,18 @@ typedef struct WGPUWagyuExternalTextureDescriptor
 
 #define WGPU_WAGYU_EXTERNAL_TEXTURE_DESCRIPTOR_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuExternalTextureDescriptor, { /*nextInChain = */ NULL _wgpu_COMMA /*label = */ WGPU_STRING_VIEW_INIT _wgpu_COMMA /*source = */ WGPU_STRING_VIEW_INIT _wgpu_COMMA /*colorSpace = */ WGPUPredefinedColorSpace_SRGB _wgpu_COMMA })
+
+typedef struct WGPUWagyuExternalTextureInfo
+{
+    uint32_t visibleWidth;
+    uint32_t visibleHeight;
+    uint32_t textureWidth;
+    uint32_t textureHeight;
+    int64_t pts;
+} WGPUWagyuExternalTextureInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_EXTERNAL_TEXTURE_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuExternalTextureInfo, { /*.visibleWidth*/ 0 _wgpu_COMMA /*.visibleHeight*/ 0 _wgpu_COMMA /*.textureWidth*/ 0 _wgpu_COMMA /*.textureHeight*/ 0 _wgpu_COMMA /*.pts*/ 0 _wgpu_COMMA })
 
 typedef struct WGPUWagyuExternalTextureBindingEntry
 {
@@ -251,6 +359,30 @@ typedef struct WGPUWagyuInputTextureBindingLayout
 #define WGPU_WAGYU_INPUT_TEXTURE_BINDING_LAYOUT_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuInputTextureBindingLayout, { /*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuInputTextureBindingLayout) _wgpu_COMMA /*.viewDimension*/ WGPUTextureViewDimension_2D _wgpu_COMMA })
 
+typedef struct WGPUWagyuPipelineBinaryCallbackInfo
+{
+    WGPUChainedStruct *nextInChain;
+    WGPUCallbackMode mode;
+    WGPUWagyuPipelineBinaryCallback callback;
+    void *userdata1;
+    void *userdata2;
+} WGPUWagyuPipelineBinaryCallbackInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_PIPELINE_BINARY_CALLBACK_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuPipelineBinaryCallbackInfo, { /*.nextInChain = */ NULL _wgpu_COMMA /*.mode = */ WGPUCallbackMode_AllowSpontaneous _wgpu_COMMA /*.callback = */ NULL _wgpu_COMMA /*.userdata1 = */ NULL _wgpu_COMMA /*.userdata2 = */ NULL _wgpu_COMMA })
+
+typedef struct WGPUWagyuPipelineBinaryErrorCallbackInfo
+{
+    WGPUChainedStruct *nextInChain;
+    WGPUCallbackMode mode;
+    WGPUWagyuPipelineBinaryErrorCallback callback;
+    void *userdata1;
+    void *userdata2;
+} WGPUWagyuPipelineBinaryErrorCallbackInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_PIPELINE_BINARY_ERROR_CALLBACK_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuPipelineBinaryErrorCallbackInfo, { /*.nextInChain = */ NULL _wgpu_COMMA /*.mode = */ WGPUCallbackMode_AllowSpontaneous _wgpu_COMMA /*.callback = */ NULL _wgpu_COMMA /*.userdata1 = */ NULL _wgpu_COMMA /*.userdata2 = */ NULL _wgpu_COMMA })
+
 typedef struct WGPUWagyuRect
 {
     int32_t x;
@@ -293,6 +425,18 @@ typedef struct WGPUWagyuRenderPipelineDescriptor
 
 #define WGPU_WAGYU_RENDER_PIPELINE_DESCRIPTOR_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuRenderPipelineDescriptor, { /* .chain */ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuRenderPipelineDescriptor) _wgpu_COMMA /* .cacheKey */ WGPU_STRING_VIEW_INIT _wgpu_COMMA })
+
+typedef struct WGPUWagyuShaderModuleEntryPointsCallbackInfo
+{
+    WGPUChainedStruct *nextInChain;
+    WGPUCallbackMode mode;
+    WGPUWagyuShaderModuleEntryPointsCallback callback;
+    void *userdata1;
+    void *userdata2;
+} WGPUWagyuShaderModuleEntryPointsCallbackInfo WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_SHADER_MODULE_ENTRY_POINTS_CALLBACK_INFO_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuShaderModuleEntryPointsCallbackInfo, { /*.nextInChain = */ NULL _wgpu_COMMA /*.mode = */ WGPUCallbackMode_AllowSpontaneous _wgpu_COMMA /*.callback = */ NULL _wgpu_COMMA /*.userdata1 = */ NULL _wgpu_COMMA /*.userdata2 = */ NULL _wgpu_COMMA })
 
 typedef struct WGPUWagyuShaderReflectionStructMember
 {
@@ -382,17 +526,6 @@ typedef struct WGPUWagyuShaderEntryPointArray
 #define WGPU_WAGYU_SHADER_ENTRY_POINT_ARRAY_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuShaderEntryPointArray, { /* .entryPointCount */ 0 _wgpu_COMMA /* .entryPoints */ NULL _wgpu_COMMA })
 
-typedef struct WGPUWagyuRenderPassEncoderClearPixelLocalStorage
-{
-    uint32_t offset;
-    size_t valueCount;
-    WGPU_NULLABLE uint32_t *values;
-    uint32_t size;
-} WGPUWagyuRenderPassEncoderClearPixelLocalStorage WGPU_STRUCTURE_ATTRIBUTE;
-
-#define WGPU_WAGYU_RENDER_PASS_ENCODER_CLEAR_PIXEL_LOCAL_STORAGE_INIT \
-    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuRenderPassEncoderClearPixelLocalStorage, { /* .offset */ 0 _wgpu_COMMA /* .valueCount */ 0 _wgpu_COMMA /* .values */ NULL _wgpu_COMMA /* .size */ WGPU_WAGYU_PIXEL_LOCAL_STORAGE_SIZE_UNDEFINED _wgpu_COMMA })
-
 typedef struct WGPUWagyuShaderModuleCompilationHint
 {
     WGPUChainedStruct *nextInChain;
@@ -432,10 +565,12 @@ typedef struct WGPUWagyuSurfaceConfiguration
 {
     WGPUChainedStruct chain;
     int32_t *indirectRenderTargets;
+    WGPUPredefinedColorSpace colorSpace;
+    WGPUToneMappingMode toneMappingMode;
 } WGPUWagyuSurfaceConfiguration WGPU_STRUCTURE_ATTRIBUTE;
 
 #define WGPU_WAGYU_SURFACE_CONFIGURATION_INIT \
-    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuSurfaceConfiguration, { /*.chain=*/WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuSurfaceConfiguration) _wgpu_COMMA /*.indirectRenderTargets*/ NULL _wgpu_COMMA })
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuSurfaceConfiguration, { /*.chain=*/WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuSurfaceConfiguration) _wgpu_COMMA /*.indirectRenderTargets*/ NULL _wgpu_COMMA /*.colorSpace*/ WGPUPredefinedColorSpace_SRGB _wgpu_COMMA /*.toneMappingMode*/ WGPUToneMappingMode_Standard _wgpu_COMMA })
 
 typedef struct WGPUWagyuTextureDescriptor
 {
@@ -455,7 +590,7 @@ typedef struct WGPUWagyuWGSLFeatureTypeArray
 #define WGPU_WAGYU_WGSL_FEATURE_TYPE_ARRAY_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuWGSLFeatureTypeArray, { /* .featureCount */ 0 _wgpu_COMMA /* .features */ NULL _wgpu_COMMA })
 
-#if defined(__cplusplus) && !defined(USE_WGPU_WAGYU_NAMESPACE) && !defined(__cppcheck)
+#if defined(__cplusplus) && !defined(__cppcheck)
 extern "C" {
 #endif
 
@@ -466,7 +601,10 @@ WGPU_EXPORT void wgpuWagyuAdapterGetName(WGPUAdapter adapter, WGPUStringView *na
 WGPU_EXPORT WGPUDevice wgpuWagyuAdapterRequestDeviceSync(WGPUAdapter adapter, WGPU_NULLABLE const WGPUDeviceDescriptor *options) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuCommandEncoderBlit(WGPUCommandEncoder commandEncoder, const WGPUTexelCopyTextureInfo *source, const WGPUExtent3D *sourceExtent, const WGPUTexelCopyTextureInfo *destination, const WGPUExtent3D *destinationExtent, WGPUFilterMode filter) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuCommandEncoderExecuteCallback(WGPUCommandEncoder commandEncoder, WGPUWagyuExecuteCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuCommandEncoderGenerateMipmap(WGPUCommandEncoder commandEncoder, WGPUTexture texture) WGPU_FUNCTION_ATTRIBUTE;
+
+WGPU_EXPORT void wgpuWagyuComputePassEncoderExecuteCallback(WGPUComputePassEncoder computePassEncoder, WGPUWagyuExecuteCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuDeviceClearPipelineBinaryCache(WGPUDevice device) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuDeviceEnableImaginationWorkarounds(WGPUDevice device, WGPUBool enable) WGPU_FUNCTION_ATTRIBUTE;
@@ -474,39 +612,38 @@ WGPU_EXPORT void wgpuWagyuDeviceGetExtensions(WGPUDevice device, WGPUWagyuString
 WGPU_EXPORT WGPUFuture wgpuWagyuDeviceFlush(WGPUDevice device, WGPUWagyuDeviceFlushCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUWagyuExternalTexture wgpuWagyuDeviceImportExternalTexture(WGPUDevice device, const WGPUWagyuExternalTextureDescriptor *descriptor) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuDeviceIntrospectShaderCode(WGPUDevice device, WGPUShaderStage stages, const WGPUShaderModuleDescriptor *descriptor, WGPUWagyuShaderEntryPointArray *entryPoints) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT WGPUFuture wgpuWagyuDevicePipelineBinaryCacheStatistics(WGPUDevice device, WGPUWagyuPipelineBinaryCacheStatisticsCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuDevicePopulatePipelineBinaryCache(WGPUDevice device, const WGPUWagyuDevicePipelineBinaryData *data) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuDeviceSetPipelineBinaryCallback(WGPUDevice device, WGPUWagyuPipelineBinaryCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuDeviceSetPipelineBinaryErrorCallback(WGPUDevice device, WGPUWagyuPipelineBinaryErrorCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuExternalTextureAddRef(WGPUWagyuExternalTexture externalTexture) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuExternalTextureGetInfo(WGPUWagyuExternalTexture externalTexture, WGPUWagyuExternalTextureInfo *info) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuExternalTextureRelease(WGPUWagyuExternalTexture externalTexture) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuExternalTextureSetLabel(WGPUWagyuExternalTexture externalTexture, WGPUStringView label) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuInstanceEnableImaginationWorkarounds(WGPUInstance instance, WGPUBool enable) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT uint32_t wgpuWagyuInstanceGetApiVersion(WGPUInstance instance) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUBackendType wgpuWagyuInstanceGetBackend(WGPUInstance instance) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuInstanceGetExposeWGSLFeatures(WGPUInstance instance, WGPUWagyuWGSLFeatureTypeArray *wgslFeatures) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT WGPUWagyuRelaxedCompliance wgpuWagyuInstanceGetRelaxedCompliance(WGPUInstance instance) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuInstanceGetExposedWgslFeatures(WGPUInstance instance, WGPUWagyuWGSLFeatureTypeArray *wgslFeatures) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUTextureFormat wgpuWagyuInstanceGetScreenDirectFormat(WGPUInstance instance) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUTextureFormat wgpuWagyuInstanceGetScreenIndirectFormat(WGPUInstance instance) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUBool wgpuWagyuInstanceGetSync(WGPUInstance instance) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUAdapter wgpuWagyuInstanceRequestAdapterSync(WGPUInstance instance, WGPU_NULLABLE const WGPURequestAdapterOptions *options) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuInstanceSetCommandBufferLimit(WGPUInstance instance, uint32_t limit) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuInstanceSetExposeWGSLFeatures(WGPUInstance instance, const WGPUWagyuWGSLFeatureTypeArray *wgslFeatures) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuInstanceSetExposedWgslFeatures(WGPUInstance instance, const WGPUWagyuWGSLFeatureTypeArray *wgslFeatures) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuInstanceSetImmediate(WGPUInstance instance, WGPUBool enabled) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuInstanceSetRunBarriersOnIncoherent(WGPUInstance instance, WGPUBool run) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuInstanceSetStagingBufferCacheSize(WGPUInstance instance, uint32_t size) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuInstanceSetSync(WGPUInstance instance, WGPUBool sync) WGPU_FUNCTION_ATTRIBUTE;
 
-WGPU_EXPORT void wgpuWagyuRelaxedComplianceAddRef(WGPUWagyuRelaxedCompliance relaxedCompliance) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuRelaxedComplianceRelease(WGPUWagyuRelaxedCompliance relaxedCompliance) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT WGPUBool wgpuWagyuRelaxedComplianceGetBufferClear(WGPUWagyuRelaxedCompliance relaxedCompliance) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT WGPUBool wgpuWagyuRelaxedComplianceGetTextureClear(WGPUWagyuRelaxedCompliance relaxedCompliance) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuRelaxedComplianceSetAll(WGPUWagyuRelaxedCompliance relaxedCompliance, WGPUBool enable) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuRelaxedComplianceSetBufferClear(WGPUWagyuRelaxedCompliance relaxedCompliance, WGPUBool enable) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuRelaxedComplianceSetTextureClear(WGPUWagyuRelaxedCompliance relaxedCompliance, WGPUBool enable) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuQueueCopyExternalImageToTexture(WGPUQueue queue, const WGPUWagyuCopyExternalImageSourceInfo *source, const WGPUWagyuCopyExternalImageDestInfo *destination, const WGPUExtent3D *copySize) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuRenderBundleEncoderClearColorAttachments(WGPURenderBundleEncoder renderBundleEncoder, const WGPUWagyuRect *rect, uint32_t baseAttachment, uint32_t numAttachments, const WGPUColor *color, uint32_t baseArrayLayer, uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderBundleEncoderClearDepthAttachment(WGPURenderBundleEncoder renderBundleEncoder, const WGPUWagyuRect *rect, float depth, uint32_t baseArrayLayer, uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuRenderBundleEncoderClearPixelLocalStorage(WGPURenderBundleEncoder renderBundleEncoder, uint32_t offset, uint32_t size, WGPU_NULLABLE const uint32_t *values) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderBundleEncoderClearStencilAttachment(WGPURenderBundleEncoder renderBundleEncoder, const WGPUWagyuRect *rect, uint32_t stencil, uint32_t baseArrayLayer, uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuRenderBundleEncoderExecuteCallback(WGPURenderBundleEncoder renderBundleEncoder, WGPUWagyuExecuteCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderBundleEncoderSetScissorRect(WGPURenderBundleEncoder renderBundleEncoder, uint32_t x, uint32_t y, uint32_t width, uint32_t height) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderBundleEncoderSetScissorRectIndirect(WGPURenderBundleEncoder renderBundleEncoder, uint64_t indirectOffset, const uint32_t *indirectBuffer, size_t indirectBufferCount) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderBundleEncoderSetViewport(WGPURenderBundleEncoder renderBundleEncoder, float x, float y, float width, float height, float minDepth, float maxDepth) WGPU_FUNCTION_ATTRIBUTE;
@@ -516,15 +653,17 @@ WGPU_EXPORT void wgpuWagyuRenderBundleEncoderSetViewportWithoutDepthIndirect(WGP
 WGPU_EXPORT void wgpuWagyuRenderPassEncoderClearColorAttachments(WGPURenderPassEncoder renderPassEncoder, const WGPUWagyuRect *rect, uint32_t baseAttachment, uint32_t numAttachments, const WGPUColor *color, uint32_t baseArrayLayer, uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderPassEncoderClearDepthAttachment(WGPURenderPassEncoder renderPassEncoder, const WGPUWagyuRect *rect, float depth, uint32_t baseArrayLayer, uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderPassEncoderClearStencilAttachment(WGPURenderPassEncoder renderPassEncoder, const WGPUWagyuRect *rect, uint32_t stencil, uint32_t baseArrayLayer, uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
-WGPU_EXPORT void wgpuWagyuRenderPassEncoderClearPixelLocalStorage(WGPURenderPassEncoder renderPassEncoder, const WGPUWagyuRenderPassEncoderClearPixelLocalStorage *options) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuRenderPassEncoderClearPixelLocalStorage(WGPURenderPassEncoder renderPassEncoder, uint32_t offset, uint32_t size, WGPU_NULLABLE const uint32_t *values) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuRenderPassEncoderExecuteBundle(WGPURenderPassEncoder renderPassEncoder, WGPURenderBundle bundle) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuRenderPassEncoderExecuteCallback(WGPURenderPassEncoder renderPassEncoder, WGPUWagyuExecuteCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 
-WGPU_EXPORT void wgpuWagyuShaderEntryPointArrayFreeMembers(WGPUWagyuShaderEntryPointArray value) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuShaderEntryPointArrayFreeMembers(WGPUWagyuShaderEntryPointArray shaderEntryPointArray) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuShaderModuleDestroy(WGPUShaderModule shaderModule) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT WGPUFuture wgpuWagyuShaderModuleEntryPoints(WGPUShaderModule shaderModule, uint32_t stage, WGPUWagyuShaderModuleEntryPointsCallbackInfo callbackInfo) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuShaderModuleIntrospect(WGPUShaderModule shaderModule, WGPUShaderStage stages, WGPUWagyuShaderEntryPointArray *shaderEntryPointArray) WGPU_FUNCTION_ATTRIBUTE;
 
-WGPU_EXPORT WGPUBool wgpuWagyuTextureIsSwapchain(WGPUTexture texture) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuStringArrayFreeMembers(WGPUWagyuStringArray stringArray) WGPU_FUNCTION_ATTRIBUTE;
 
 WGPU_EXPORT void wgpuWagyuSurfaceDestroy(WGPUSurface surface) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUTexture wgpuWagyuSurfaceGetCurrentDepthStencilTexture(WGPUSurface surface) WGPU_FUNCTION_ATTRIBUTE;
@@ -538,14 +677,13 @@ WGPU_EXPORT void wgpuWagyuSurfaceSetWidth(WGPUSurface surface, float width) WGPU
 WGPU_EXPORT void wgpuWagyuSurfaceSetX(WGPUSurface surface, float x) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuSurfaceSetY(WGPUSurface surface, float y) WGPU_FUNCTION_ATTRIBUTE;
 
-WGPU_EXPORT void wgpuWagyuWGSLFeatureTypeArrayFreeMembers(WGPUWagyuWGSLFeatureTypeArray value) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT WGPUBool wgpuWagyuTextureIsSwapchain(WGPUTexture texture) WGPU_FUNCTION_ATTRIBUTE;
+WGPU_EXPORT void wgpuWagyuTextureReadPixels(WGPUTexture texture, void *data, size_t dataSize) WGPU_FUNCTION_ATTRIBUTE;
 
-#if defined(__cplusplus) && !defined(USE_WGPU_WAGYU_NAMESPACE) && !defined(__cppcheck)
+WGPU_EXPORT void wgpuWagyuWGSLFeatureTypeArrayFreeMembers(WGPUWagyuWGSLFeatureTypeArray wgslFeatureTypeArray) WGPU_FUNCTION_ATTRIBUTE;
+
+#if defined(__cplusplus) && !defined(__cppcheck)
 } // extern "C"
-#endif
-
-#if defined(USE_WGPU_WAGYU_NAMESPACE) || defined(__cppcheck)
-} // namespace wagyu2
 #endif
 
 #endif /* WEBGPU_WAGYU_H */

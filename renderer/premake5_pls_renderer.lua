@@ -75,12 +75,13 @@ newoption({
     description = 'compile in support for wagyu webgpu extensions',
 })
 if _OPTIONS['with_wagyu'] then
+    if _OPTIONS['webgpu-version'] < '2' then
+        error('\nWagyu does not support webgpu-version < 2\n  ')
+    end
     defines({ 'RIVE_WAGYU' })
     RIVE_WAGYU_PORT = '--use-port='
         .. RIVE_RUNTIME_DIR
-        .. '/renderer/src/webgpu/wagyu-port/'
-        .. (_OPTIONS['webgpu-version'] == '2' and 'new' or 'old')
-        .. '/webgpu-port.py:wagyu=true'
+        .. '/renderer/src/webgpu/wagyu-port/webgpu-port.py:wagyu=true'
 end
 
 newoption({
