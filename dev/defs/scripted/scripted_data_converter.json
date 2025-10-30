@@ -1,0 +1,20 @@
+{
+  "name": "ScriptedDataConverter",
+  "key": {
+    "int": 629,
+    "string": "scripteddataconverter"
+  },
+  "extends": "data_bind/converters/data_converter.json",
+  "properties": {
+    "scriptAssetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 892,
+        "string": "scriptassetid"
+      }
+    }
+  }
+}
