@@ -202,6 +202,10 @@ void VulkanSwapchain::queueImageCopy(
     rive::gpu::vkutil::ImageAccess* inOutLastAccess,
     rive::IAABB optPixelReadBounds)
 {
+    if (optPixelReadBounds.empty())
+    {
+        optPixelReadBounds = rive::IAABB::MakeWH(m_width, m_height);
+    }
     queueImageCopy(current().image,
                    m_imageFormat,
                    inOutLastAccess,

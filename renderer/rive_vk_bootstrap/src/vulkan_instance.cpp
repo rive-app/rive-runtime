@@ -285,7 +285,7 @@ VulkanInstance::VulkanInstance(const Options& opts)
             }
         }
     }
-}; // namespace rive_vkb
+}
 
 VulkanInstance::~VulkanInstance()
 {

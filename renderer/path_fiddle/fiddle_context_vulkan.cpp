@@ -264,7 +264,10 @@ public:
         auto lastAccess = m_renderTarget->targetLastAccess();
         if (pixelData != nullptr)
         {
-            m_swapchain->queueImageCopy(&lastAccess);
+            m_swapchain->queueImageCopy(
+                &lastAccess,
+                rive::IAABB::MakeWH(m_renderTarget->width(),
+                                    m_renderTarget->height()));
         }
         m_swapchain->endFrame(lastAccess);
 

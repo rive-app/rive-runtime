@@ -19,6 +19,27 @@ static VmaAllocator make_vma_allocator(
         .vkGetDeviceProcAddr = vk->GetDeviceProcAddr,
         .vkGetPhysicalDeviceProperties = vk->GetPhysicalDeviceProperties,
     };
+
+    uint32_t vmaAPIVersion = vk->features.apiVersion;
+    if (vmaAPIVersion > VK_API_VERSION_1_0)
+    {
+        const auto vkGetBufferMemoryRequirements2 =
+            vk->GetDeviceProcAddr(vk->device, "vkGetBufferMemoryRequirements2");
+
+        const auto vkGetImageMemoryRequirements2 =
+            vk->GetDeviceProcAddr(vk->device, "vkGetImageMemoryRequirements2");
+
+        if (vkGetBufferMemoryRequirements2 == nullptr ||
+            vkGetImageMemoryRequirements2 == nullptr)
+        {
+            // Some Android drivers don't have these functions even though they
+            // say they're Vulkan 1.1 (which included these functions standard),
+            // so tell VMA it's 1.0 in those cases so it doesn't fail trying to
+            // use them.
+            vmaAPIVersion = VK_API_VERSION_1_0;
+        }
+    }
+
     VmaAllocatorCreateInfo vmaCreateInfo = {
         // We are single-threaded.
         .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
@@ -26,7 +47,7 @@ static VmaAllocator make_vma_allocator(
         .device = vk->device,
         .pVulkanFunctions = &vmaVulkanFunctions,
         .instance = vk->instance,
-        .vulkanApiVersion = vk->features.apiVersion,
+        .vulkanApiVersion = vmaAPIVersion,
     };
     VK_CHECK(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator));
     return vmaAllocator;

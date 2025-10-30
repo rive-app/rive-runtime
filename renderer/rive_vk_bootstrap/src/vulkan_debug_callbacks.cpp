@@ -3,6 +3,8 @@
  */
 
 #include <array>
+#include <assert.h>
+#include <atomic>
 #include <stdlib.h>
 #include <string.h>
 #include "logging.hpp"
@@ -10,7 +12,40 @@
 
 namespace rive_vkb
 {
-static bool shouldErrorMessageAbort(const char* message)
+
+// Some messages should be fully ignored (because they are erroneous and would
+// otherwise fill the logs)
+static bool should_error_message_be_fully_ignored(const char* message)
+{
+#ifdef RIVE_ANDROID
+    // Some Mali drivers (specifically the Mali-G71) will report spurious
+    // resource limit errors/warnings where it incorrectly thinks the maximum
+    // size is 0.
+    // For example: "pCreateInfo->mipLevels (1) exceed image format
+    // maxMipLevels (0) for format VK_FORMAT_R8G8B8A8_UNORM."
+    static constexpr const char* s_ignoreList[] = {
+        "exceeds allowable maximum image extent width 0 ",
+        "exceeds allowable maximum image extent height 0 ",
+        "exceeds allowable maximum image extent depth 0 ",
+        "exceed image format maxMipLevels (0) ",
+        " (format maxArrayLayers: 0)",
+        "maximum resource size = 0 for format ",
+        "(format sampleCounts: VkSampleCountFlags(0))",
+    };
+
+    for (const char* ignore : s_ignoreList)
+    {
+        if (strstr(message, ignore) != nullptr)
+        {
+            return true;
+        }
+    }
+#endif
+
+    return false;
+}
+
+static bool should_error_message_abort(const char* message)
 {
     static std::array<const char*, 3> s_ignoredValidationMsgList = {
         // Swiftshader generates this error during
@@ -43,11 +78,15 @@ VKAPI_ATTR VkBool32 VKAPI_CALL defaultDebugUtilCallback(
     void* pUserData)
 {
     bool shouldAbort = true;
+    if (should_error_message_be_fully_ignored(pCallbackData->pMessage))
+    {
+        return VK_TRUE;
+    }
 
     switch (messageType)
     {
         case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-            shouldAbort = shouldErrorMessageAbort(pCallbackData->pMessage);
+            shouldAbort = should_error_message_abort(pCallbackData->pMessage);
             LOG_ERROR_LINE("Rive Vulkan error%s: %i: %s: %s\n",
                            (shouldAbort) ? "" : " (error ignored)",
                            pCallbackData->messageIdNumber,
@@ -86,9 +125,14 @@ defaultDebugReportCallback(VkDebugReportFlagsEXT flags,
                            const char* message,
                            void* pUserData)
 {
+    if (should_error_message_be_fully_ignored(message))
+    {
+        return false;
+    }
+
     if ((flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) != 0)
     {
-        bool shouldAbort = shouldErrorMessageAbort(message);
+        bool shouldAbort = should_error_message_abort(message);
 
         LOG_ERROR_LINE("Rive Vulkan error%s: %s (%i): %s",
                        (shouldAbort) ? "" : " (error ignored)",

@@ -2369,6 +2369,16 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
+    if (desc.interlockMode == InterlockMode::msaa)
+    {
+        // MSAA needs a follow-up subpass to resolve the MSAA buffer to the
+        // single-sampled render target. No actually rendering is necessary, it
+        // is taken care of entirely via the render pass mechanisms. This is
+        // a workaround for what appears to be a driver bug in some early Adreno
+        // drivers.
+        m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
     m_vk->CmdEndRenderPass(commandBuffer);
 
     if (colorAttachmentIsOffscreen &&

@@ -10,6 +10,41 @@
 
 namespace rive::gpu::vkutil
 {
+#define STR_CASE(result)                                                       \
+    case VK_##result:                                                          \
+        return #result
+
+const char* string_from_vk_result(VkResult result)
+{
+    switch (result)
+    {
+        STR_CASE(SUCCESS);
+        STR_CASE(NOT_READY);
+        STR_CASE(TIMEOUT);
+        STR_CASE(EVENT_SET);
+        STR_CASE(EVENT_RESET);
+        STR_CASE(INCOMPLETE);
+        STR_CASE(ERROR_OUT_OF_HOST_MEMORY);
+        STR_CASE(ERROR_OUT_OF_DEVICE_MEMORY);
+        STR_CASE(ERROR_INITIALIZATION_FAILED);
+        STR_CASE(ERROR_DEVICE_LOST);
+        STR_CASE(ERROR_MEMORY_MAP_FAILED);
+        STR_CASE(ERROR_LAYER_NOT_PRESENT);
+        STR_CASE(ERROR_EXTENSION_NOT_PRESENT);
+        STR_CASE(ERROR_FEATURE_NOT_PRESENT);
+        STR_CASE(ERROR_INCOMPATIBLE_DRIVER);
+        STR_CASE(ERROR_TOO_MANY_OBJECTS);
+        STR_CASE(ERROR_FORMAT_NOT_SUPPORTED);
+        STR_CASE(ERROR_SURFACE_LOST_KHR);
+        STR_CASE(SUBOPTIMAL_KHR);
+        STR_CASE(ERROR_OUT_OF_DATE_KHR);
+        STR_CASE(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+        STR_CASE(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+        STR_CASE(ERROR_VALIDATION_FAILED_EXT);
+        default:
+            return "<unknown>";
+    }
+}
 Resource::Resource(rcp<VulkanContext> vk) : GPUResource(std::move(vk)) {}
 
 VulkanContext* Resource::vk() const

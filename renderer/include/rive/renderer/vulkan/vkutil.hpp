@@ -22,12 +22,15 @@ class VulkanContext;
 
 namespace rive::gpu::vkutil
 {
+const char* string_from_vk_result(VkResult);
+
 inline static void vk_check(VkResult res, const char* file, int line)
 {
     if (res != VK_SUCCESS)
     {
         fprintf(stderr,
-                "Vulkan error %i at line: %i in file: %s\n",
+                "Vulkan error %s (%i) at line: %i in file: %s\n",
+                string_from_vk_result(res),
                 res,
                 line,
                 file);

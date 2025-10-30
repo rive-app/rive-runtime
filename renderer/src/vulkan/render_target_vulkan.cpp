@@ -111,6 +111,7 @@ vkutil::Texture2D* RenderTargetVulkan::msaaColorTexture()
             .extent = {width(), height(), 1},
             .samples = VK_SAMPLE_COUNT_4_BIT,
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
     }
@@ -126,7 +127,8 @@ vkutil::Texture2D* RenderTargetVulkan::msaaDepthStencilTexture()
                 m_vk->supportsD24S8()),
             .extent = {width(), height(), 1},
             .samples = VK_SAMPLE_COUNT_4_BIT,
-            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         });
     }
     return m_msaaDepthStencilTexture.get();

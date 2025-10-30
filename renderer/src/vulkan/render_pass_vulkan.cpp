@@ -368,11 +368,18 @@ RenderPassVulkan::RenderPassVulkan(
         interlockMode == gpu::InterlockMode::rasterOrdering &&
         m_vk->features.rasterizationOrderColorAttachmentAccess;
 
-    constexpr uint32_t MAX_SUBPASSES = 2;
+    constexpr uint32_t MAX_SUBPASSES = 3;
     StackVector<VkSubpassDescription, MAX_SUBPASSES> subpassDescs;
 
     constexpr uint32_t MAX_SUBPASS_DEPS = MAX_SUBPASSES + 1;
     StackVector<VkSubpassDependency, MAX_SUBPASS_DEPS> subpassDeps;
+
+    // MSAA resolve needs its own set of input references vs.
+    // inputAttachmentRefs, specifically because the color buffer always needs
+    // to be used for the resolve (whereas normally it's occasioanlly set to
+    // VK_ATTACHMENT_UNUSED because we only use it when doing advanced blend)
+    StackVector<VkAttachmentReference, PLS_PLANE_COUNT>
+        msaaResolveInputAttachmentRefs;
 
     // MSAA color-load subpass.
     if (interlockMode == gpu::InterlockMode::msaa &&
@@ -419,9 +426,32 @@ RenderPassVulkan::RenderPassVulkan(
         .pInputAttachments = inputAttachmentRefs.data(),
         .colorAttachmentCount = colorAttachmentRefs.size(),
         .pColorAttachments = colorAttachmentRefs.data(),
-        .pResolveAttachments = msaaResolveAttachmentRef.dataOrNull(),
         .pDepthStencilAttachment = depthStencilAttachmentRef.dataOrNull(),
     });
+
+    if (msaaResolveAttachmentRef.size() > 0)
+    {
+        // Some Android drivers (some Android 12 and earlier Adreno drivers)
+        // have issues with having both a self-dependency and resolve
+        // attachments. The resolve can instead be done as a second pass (in
+        // which no actual rendering occurs), which eliminates some corruption
+        // during blending on the affected devices.
+
+        msaaResolveInputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
+                                                   colorAttachmentRefs.data());
+        msaaResolveInputAttachmentRefs[0].layout = VK_IMAGE_LAYOUT_GENERAL;
+
+        subpassDescs.push_back({
+            .flags = 0u,
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = msaaResolveInputAttachmentRefs.size(),
+            .pInputAttachments = msaaResolveInputAttachmentRefs.data(),
+            .colorAttachmentCount = colorAttachmentRefs.size(),
+            .pColorAttachments = colorAttachmentRefs.data(),
+            .pResolveAttachments = msaaResolveAttachmentRef.data(),
+        });
+    }
+
     if ((interlockMode == gpu::InterlockMode::rasterOrdering &&
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||

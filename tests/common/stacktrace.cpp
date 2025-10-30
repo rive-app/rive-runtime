@@ -20,6 +20,11 @@ void replace_signal_handlers(SignalFunc signalFunc,
 #include <Windows.h>
 #include <dbghelp.h>
 #else
+#include <inttypes.h>
+#ifdef RIVE_ANDROID
+#include <unwind.h>
+#include <android/log.h>
+#endif
 #include <execinfo.h>
 #include <string.h>
 #include <errno.h>
@@ -196,15 +201,80 @@ void replace_signal_handlers(SignalFunc inSignalFunc,
     atexit(atExitFunc);
 }
 #else
+static void get_symbol_line(void* instructionPointer,
+                            uint32_t i,
+                            char* buffer,
+                            std::size_t bufferSize)
+{
+    Dl_info dlInfo;
+    if (dladdr(instructionPointer, &dlInfo) && dlInfo.dli_sname != nullptr)
+    {
+        char* demangled = nullptr;
+        int status;
+        demangled = abi::__cxa_demangle(dlInfo.dli_sname, nullptr, 0, &status);
+        snprintf(buffer,
+                 bufferSize,
+                 "%u %s\n",
+                 i,
+                 (status == 0 && demangled != nullptr) ? demangled
+                                                       : dlInfo.dli_sname);
+        free(demangled);
+    }
+    else
+    {
+        snprintf(buffer,
+                 bufferSize,
+                 "%u <unknown symbol @%p>)\n",
+                 i,
+                 instructionPointer);
+    }
+
+    // snprintf does not null terminate if we hit the limit so add a null
+    // terminator here to be safe.
+    buffer[bufferSize - 1] = '\0';
+}
+
+template <std::size_t N>
+static void get_symbol_line(void* instructionPointer,
+                            uint32_t i,
+                            char (&buffer)[N])
+{
+    get_symbol_line(instructionPointer, i, buffer, N);
+}
+
 #ifdef RIVE_ANDROID
-// android is a little more complicated in that it requires specific compiler
-// flags that i don't want to force us into, so we just do it the old way for
-// now
+#define LOG(...)                                                               \
+    __android_log_print(ANDROID_LOG_ERROR, "rive_android_tests", __VA_ARGS__)
 static void handle_signal(int sigNum, siginfo_t* signalInfo, void* userContext)
 {
-    printf("Received signal %i (\"%s\")\n", sigNum, strsignal(sigNum));
+    LOG("Received signal %i (\"%s\")\n", sigNum, strsignal(sigNum));
+
+    LOG("Stack trace:\n");
+    struct State
+    {
+        uint32_t i = 0;
+        std::stringstream f;
+    };
+
+    State st{};
+    _Unwind_Backtrace(
+        [](struct _Unwind_Context* context, void* stateVoid) {
+            auto state = static_cast<State*>(stateVoid);
+            void* ip = reinterpret_cast<void*>(_Unwind_GetIP(context));
+            if (ip != nullptr)
+            {
+                char buffer[1024];
+                get_symbol_line(ip, state->i, buffer);
+                LOG("%s", buffer);
+                state->f << buffer;
+            }
+            state->i++;
+            return _URC_NO_REASON;
+        },
+        &st);
+
     signal(sigNum, SIG_DFL);
-    signalFunc(strsignal(sigNum));
+    signalFunc(st.f.str().c_str());
     raise(sigNum);
 }
 
@@ -235,28 +305,7 @@ static void handle_signal(int sigNum, siginfo_t* signalInfo, void* userContext)
     symbols = backtrace_symbols(stacktrace, numFrames);
     for (int i = 1; i < numFrames; i++)
     {
-        Dl_info dlInfo;
-        if (dladdr(stacktrace[i], &dlInfo))
-        {
-            char* demangled = NULL;
-            int status;
-            demangled = abi::__cxa_demangle(dlInfo.dli_sname, NULL, 0, &status);
-            snprintf(stringBuff,
-                     sizeof(stringBuff),
-                     "%d %s\n",
-                     i,
-                     status == 0 ? demangled : dlInfo.dli_sname);
-            free(demangled);
-        }
-        else
-        {
-            snprintf(stringBuff,
-                     sizeof(stringBuff),
-                     "%d %p\n",
-                     i,
-                     stacktrace[i]);
-        }
-
+        get_symbol_line(stacktrace[i], i, stringBuff, std::size(stringBuff));
         f << stringBuff << symbols[i] << "\n";
     }
 
