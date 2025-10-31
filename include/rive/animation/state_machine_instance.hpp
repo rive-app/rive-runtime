@@ -114,7 +114,7 @@ public:
     void bindViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) override;
     void dataContext(DataContext* dataContext);
-    DataContext* dataContext() { return m_DataContext; };
+    DataContext* dataContext() const { return m_DataContext; }
     void rebind() override;
 
     size_t currentAnimationCount() const;

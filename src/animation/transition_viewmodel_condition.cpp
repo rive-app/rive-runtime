@@ -26,7 +26,8 @@ bool TransitionViewModelCondition::evaluate(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const
 {
-    if (leftComparator() != nullptr && rightComparator() != nullptr)
+    if (leftComparator() != nullptr && rightComparator() != nullptr &&
+        stateMachineInstance->dataContext())
     {
         return leftComparator()->compare(rightComparator(),
                                          op(),
