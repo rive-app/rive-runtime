@@ -150,3 +150,115 @@ TEST_CASE("can detect hit test from PointerEvent", "[scripting]")
     CHECK(pointerEvent->m_hitResult == HitResult::hitOpaque);
     CHECK(lua_tonumber(L, -1) == 22.0f);
 }
+
+TEST_CASE("can access nodes from artboards", "[scripting]")
+{
+    ScriptingTest vm("function getNode(artboard:Artboard):Node?\n"
+                     "  return artboard:node('muzzle')\n"
+                     "end\n"
+                     "function getNodeX(artboard:Artboard):number\n"
+                     "  return artboard:node('muzzle').x\n"
+                     "end\n"
+                     "function getNodeY(artboard:Artboard):number\n"
+                     "  return artboard:node('muzzle').y\n"
+                     "end\n"
+                     "function getScaleX(artboard:Artboard):number\n"
+                     "  return artboard:node('muzzle').scaleX\n"
+                     "end\n"
+                     "function getScaleY(artboard:Artboard):number\n"
+                     "  return artboard:node('muzzle').scaleY\n"
+                     "end\n"
+                     "function decompose(artboard:Artboard)\n"
+                     "  artboard:node('muzzle'):decompose(Mat2D.identity())\n"
+                     "end\n"
+                     "function getChildren(artboard:Artboard):number\n"
+                     "  return #(artboard:node('muzzle').children)\n"
+                     "end\n"
+                     "function getWeaponChildren(artboard:Artboard):number\n"
+                     "  return #(artboard:node('Weapon').children)\n"
+                     "end\n"
+                     "function getParent(artboard:Artboard):Node?\n"
+                     "  return artboard:node('muzzle').parent\n"
+                     "end\n");
+    lua_State* L = vm.state();
+    auto file = ReadRiveFile("assets/joel_v3.riv", vm.serializer());
+    auto artboard = file->artboard("Character");
+    REQUIRE(artboard != nullptr);
+    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+
+    lua_getglobal(L, "getNode");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_isuserdata(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getNodeX");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 203.0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getNodeY");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0.0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getScaleX");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == Approx(1.2500029802));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getScaleY");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == Approx(1.2500029802));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "decompose");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    lua_getglobal(L, "getNodeX");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0.0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getNodeY");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0.0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getScaleX");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getScaleY");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getChildren");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getParent");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_isuserdata(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "getWeaponChildren");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 9);
+    lua_pop(L, 1);
+}

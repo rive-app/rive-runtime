@@ -150,8 +150,18 @@ enum class LuaAtoms : int16_t
     // inputs
     hit,
     id,
-    position
+    position,
 
+    // nodes
+    rotation,
+    scale,
+    worldTransform,
+    scaleX,
+    scaleY,
+    decompose,
+    children,
+    parent,
+    node
 };
 
 struct ScriptedMat2D
@@ -352,40 +362,58 @@ private:
     uint32_t m_saveCount = 0;
 };
 
-class ScriptedArtboard
+class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
 {
 public:
-    ScriptedArtboard(rcp<File> file,
-                     std::unique_ptr<ArtboardInstance>&& artboardInstance);
+    ScriptReffedArtboard(rcp<File> file,
+                         std::unique_ptr<ArtboardInstance>&& artboardInstance);
 
-    ~ScriptedArtboard()
-    {
-        // Make sure artboard is deleted before file.
-        m_artboard = nullptr;
-        m_file = nullptr;
-    }
-
-    static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
-    static constexpr const char* luaName = "Artboard";
-    static constexpr bool hasMetatable = true;
-
+    ~ScriptReffedArtboard();
+    rive::rcp<rive::File> file() { return m_file; }
     Artboard* artboard() { return m_artboard.get(); }
-    int pushData(lua_State* L);
-    int instance(lua_State* L);
-
-    bool advance(float seconds);
+    StateMachineInstance* stateMachine() { return m_stateMachine.get(); }
+    rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
 
 private:
     rcp<File> m_file;
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
-    int m_dataRef = 0;
-    // std::vector<WrappedDataBind*> m_dataBinds;
+};
 
-    // for parent data context
-    // internalDataContext()
-    // bindViewModelInstance on state machine
+class ScriptedArtboard
+{
+public:
+    ScriptedArtboard(rcp<File> file,
+                     std::unique_ptr<ArtboardInstance>&& artboardInstance);
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
+    static constexpr const char* luaName = "Artboard";
+    static constexpr bool hasMetatable = true;
+
+    Artboard* artboard() { return m_scriptReffedArtboard->artboard(); }
+    StateMachineInstance* stateMachine()
+    {
+        return m_scriptReffedArtboard->stateMachine();
+    }
+    rcp<ViewModelInstance> viewModelInstance()
+    {
+        return m_scriptReffedArtboard->viewModelInstance();
+    }
+
+    rcp<ScriptReffedArtboard> scriptReffedArtboard()
+    {
+        return m_scriptReffedArtboard;
+    }
+
+    int pushData(lua_State* L);
+    int instance(lua_State* L);
+
+    bool advance(float seconds);
+
+private:
+    rcp<ScriptReffedArtboard> m_scriptReffedArtboard;
+    int m_dataRef = 0;
 };
 
 struct ScriptedListener
@@ -753,6 +781,24 @@ public:
     uint8_t m_id = 0;
     Vec2D m_position;
     HitResult m_hitResult = HitResult::none;
+};
+
+class ScriptedNode
+{
+public:
+    ScriptedNode(rcp<ScriptReffedArtboard> artboard,
+                 TransformComponent* component);
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 25;
+    static constexpr const char* luaName = "Node";
+    static constexpr bool hasMetatable = true;
+
+    TransformComponent* component() { return m_component; }
+    rcp<ScriptReffedArtboard> artboard() { return m_artboard; }
+
+private:
+    rcp<ScriptReffedArtboard> m_artboard;
+    TransformComponent* m_component;
 };
 
 static void interruptCPP(lua_State* L, int gc);

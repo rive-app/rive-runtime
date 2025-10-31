@@ -2,11 +2,36 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
+#include "rive/node.hpp"
+#include "rive/bones/root_bone.hpp"
+#include "rive/constraints/constraint.hpp"
+#include "rive/math/transform_components.hpp"
 
 #include <math.h>
 #include <stdio.h>
 
 using namespace rive;
+
+ScriptReffedArtboard::ScriptReffedArtboard(
+    rcp<File> file,
+    std::unique_ptr<ArtboardInstance>&& artboardInstance) :
+    m_file(file),
+    m_artboard(std::move(artboardInstance)),
+    m_stateMachine(m_artboard->defaultStateMachine())
+{
+    m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
+    if (m_stateMachine && m_viewModelInstance)
+    {
+        m_stateMachine->bindViewModelInstance(m_viewModelInstance);
+    }
+}
+
+ScriptReffedArtboard::~ScriptReffedArtboard()
+{
+    // Make sure artboard is deleted before file.
+    m_artboard = nullptr;
+    m_file = nullptr;
+}
 
 static int artboard_draw(lua_State* L)
 {
@@ -21,13 +46,14 @@ static int artboard_draw(lua_State* L)
 
 bool ScriptedArtboard::advance(float seconds)
 {
-    if (m_stateMachine)
+    auto machine = stateMachine();
+    if (machine)
     {
-        return m_stateMachine->advanceAndApply(seconds);
+        return machine->advanceAndApply(seconds);
     }
     else
     {
-        return m_artboard->advance(seconds);
+        return artboard()->advance(seconds);
     }
 }
 
@@ -67,6 +93,24 @@ static int artboard_namecall(lua_State* L)
                 lua_pushvec2d(L, bounds.max());
                 return 2;
             }
+            case (int)LuaAtoms::node:
+            {
+                auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
+                const char* name = luaL_checkstring(L, 2);
+                auto component =
+                    scriptedArtboard->artboard()->find<TransformComponent>(
+                        name);
+                if (component == nullptr)
+                {
+                    lua_pushnil(L);
+                    return 1;
+                }
+                lua_newrive<ScriptedNode>(
+                    L,
+                    scriptedArtboard->scriptReffedArtboard(),
+                    component);
+                return 1;
+            }
         }
     }
 
@@ -84,17 +128,14 @@ int ScriptedArtboard::pushData(lua_State* L)
         lua_rawgeti(L, LUA_REGISTRYINDEX, m_dataRef);
         return 1;
     }
-    if (m_viewModelInstance == nullptr)
+    auto vm = viewModelInstance();
+    if (!vm)
     {
         lua_pushnil(L);
     }
     else
     {
-        lua_newrive<ScriptedViewModel>(
-            L,
-            L,
-            ref_rcp(m_viewModelInstance->viewModel()),
-            m_viewModelInstance);
+        lua_newrive<ScriptedViewModel>(L, L, ref_rcp(vm->viewModel()), vm);
     }
     m_dataRef = lua_ref(L, -1);
 
@@ -103,9 +144,16 @@ int ScriptedArtboard::pushData(lua_State* L)
 
 int ScriptedArtboard::instance(lua_State* L)
 {
-    lua_newrive<ScriptedArtboard>(L, m_file, m_artboard->instance());
+    lua_newrive<ScriptedArtboard>(L,
+                                  m_scriptReffedArtboard->file(),
+                                  artboard()->instance());
     return 1;
 }
+
+ScriptedNode::ScriptedNode(rcp<ScriptReffedArtboard> artboard,
+                           TransformComponent* component) :
+    m_artboard(artboard), m_component(component)
+{}
 
 static int artboard_index(lua_State* L)
 {
@@ -136,8 +184,14 @@ static int artboard_index(lua_State* L)
             return scriptedArtboard->pushData(L);
 
         default:
-            return 0;
+            break;
     }
+
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               key,
+               ScriptedArtboard::luaName);
+    return 0;
 }
 
 static int artboard_newindex(lua_State* L)
@@ -167,21 +221,259 @@ static int artboard_newindex(lua_State* L)
             break;
     }
 
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               key,
+               ScriptedArtboard::luaName);
+
     return 0;
 }
 
 ScriptedArtboard::ScriptedArtboard(
     rcp<File> file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance) :
-    m_file(file),
-    m_artboard(std::move(artboardInstance)),
-    m_stateMachine(m_artboard->defaultStateMachine())
+    m_scriptReffedArtboard(
+        make_rcp<ScriptReffedArtboard>(file, std::move(artboardInstance)))
+{}
+
+static int node_index(lua_State* L)
 {
-    m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
-    if (m_stateMachine && m_viewModelInstance)
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
     {
-        m_stateMachine->bindViewModelInstance(m_viewModelInstance);
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
     }
+
+    auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::position:
+            lua_pushvector2(L,
+                            scriptedNode->component()->x(),
+                            scriptedNode->component()->y());
+            return 1;
+
+        case (int)LuaAtoms::rotation:
+            lua_pushnumber(L, scriptedNode->component()->rotation());
+            return 1;
+
+        case (int)LuaAtoms::scale:
+            lua_pushvector2(L,
+                            scriptedNode->component()->scaleX(),
+                            scriptedNode->component()->scaleY());
+            return 1;
+
+        case (int)LuaAtoms::scaleX:
+            lua_pushnumber(L, scriptedNode->component()->scaleX());
+            return 1;
+
+        case (int)LuaAtoms::scaleY:
+            lua_pushnumber(L, scriptedNode->component()->scaleY());
+            return 1;
+
+        case (int)LuaAtoms::worldTransform:
+            lua_newrive<ScriptedMat2D>(
+                L,
+                scriptedNode->component()->worldTransform());
+            return 1;
+
+        case (int)LuaAtoms::children:
+        {
+            auto component = scriptedNode->component();
+            if (component->is<ContainerComponent>())
+            {
+                auto container = component->as<ContainerComponent>();
+                // speculative pre-alloc the table
+                auto& children = container->children();
+                lua_createtable(L, (int)children.size(), 0);
+
+                int index = 1;
+                for (auto child : children)
+                {
+                    if (child->is<TransformComponent>())
+                    {
+                        lua_newrive<ScriptedNode>(
+                            L,
+                            scriptedNode->artboard(),
+                            child->as<TransformComponent>());
+                        // Set table[i] = value, pops the value
+                        lua_rawseti(L, -2, index++);
+                    }
+                }
+            }
+            return 1;
+        }
+
+        case (int)LuaAtoms::parent:
+        {
+            auto parent = scriptedNode->component()->parent();
+            if (parent != nullptr && parent->is<TransformComponent>())
+            {
+                lua_newrive<ScriptedNode>(L,
+                                          scriptedNode->artboard(),
+                                          parent->as<TransformComponent>());
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+            return 1;
+        }
+
+        default:
+            switch (key[0])
+            {
+                case 'x':
+                    lua_pushnumber(L, scriptedNode->component()->x());
+                    return 1;
+                case 'y':
+                    lua_pushnumber(L, scriptedNode->component()->y());
+                    return 1;
+            }
+    }
+
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               key,
+               ScriptedNode::luaName);
+    return 0;
+}
+
+static int node_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+    auto component = scriptedNode->component();
+    switch (atom)
+    {
+        case (int)LuaAtoms::position:
+        {
+            const float* vec = luaL_checkvector(L, 3);
+
+            if (component->is<Node>())
+            {
+                Node* node = component->as<Node>();
+                node->x(vec[0]);
+                node->y(vec[1]);
+            }
+            else if (component->is<RootBone>())
+            {
+                RootBone* bone = component->as<RootBone>();
+                bone->x(vec[0]);
+                bone->y(vec[1]);
+            }
+            return 0;
+        }
+        case (int)LuaAtoms::rotation:
+            component->rotation(float(luaL_checknumber(L, 3)));
+            return 0;
+
+        case (int)LuaAtoms::scale:
+        {
+            const float* vec = luaL_checkvector(L, 3);
+            component->scaleX(vec[0]);
+            component->scaleY(vec[1]);
+            return 0;
+        }
+
+        case (int)LuaAtoms::scaleX:
+            component->scaleX(float(luaL_checknumber(L, 3)));
+            return 0;
+
+        case (int)LuaAtoms::scaleY:
+            component->scaleY(float(luaL_checknumber(L, 3)));
+            return 0;
+
+        case (int)LuaAtoms::worldTransform:
+        {
+            Mat2D& transform = component->mutableWorldTransform();
+            transform = *(Mat2D*)lua_torive<ScriptedMat2D>(L, 3);
+            return 0;
+        }
+
+        default:
+            switch (key[0])
+            {
+                case 'x':
+                    if (component->is<Node>())
+                    {
+                        Node* node = component->as<Node>();
+                        node->x(float(luaL_checknumber(L, 3)));
+                    }
+                    else if (component->is<RootBone>())
+                    {
+                        RootBone* bone = component->as<RootBone>();
+                        bone->x(float(luaL_checknumber(L, 3)));
+                    }
+                    return 0;
+                case 'y':
+                    if (component->is<Node>())
+                    {
+                        Node* node = component->as<Node>();
+                        node->y(float(luaL_checknumber(L, 3)));
+                    }
+                    else if (component->is<RootBone>())
+                    {
+                        RootBone* bone = component->as<RootBone>();
+                        bone->y(float(luaL_checknumber(L, 3)));
+                    }
+                    return 0;
+            }
+    }
+
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               key,
+               ScriptedNode::luaName);
+    return 0;
+}
+
+static int node_namecall(lua_State* L)
+{
+    int atom;
+    const char* str = lua_namecallatom(L, &atom);
+    if (str != nullptr)
+    {
+        switch (atom)
+        {
+            case (int)LuaAtoms::decompose:
+            {
+                auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+                auto component = scriptedNode->component();
+                Mat2D world = getParentWorld(*component).invertOrIdentity() *
+                              (*(Mat2D*)lua_torive<ScriptedMat2D>(L, 2));
+                TransformComponents components = world.decompose();
+                if (component->is<Node>())
+                {
+                    Node* node = component->as<Node>();
+                    node->x(components.x());
+                    node->y(components.y());
+                }
+                else if (component->is<RootBone>())
+                {
+                    RootBone* bone = component->as<RootBone>();
+                    bone->x(components.x());
+                    bone->y(components.y());
+                }
+                component->scaleX(components.scaleX());
+                component->scaleY(components.scaleY());
+                component->rotation(components.rotation());
+                return 0;
+            }
+        }
+    }
+
+    luaL_error(L, "%s is not a valid method of %s", str, ScriptedNode::luaName);
+    return 0;
 }
 
 int luaopen_rive_artboards(lua_State* L)
@@ -200,6 +492,20 @@ int luaopen_rive_artboards(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
 
-    return 1;
+    lua_register_rive<ScriptedNode>(L);
+
+    lua_pushcfunction(L, node_index, nullptr);
+    lua_setfield(L, -2, "__index");
+
+    lua_pushcfunction(L, node_newindex, nullptr);
+    lua_setfield(L, -2, "__newindex");
+
+    lua_pushcfunction(L, node_namecall, nullptr);
+    lua_setfield(L, -2, "__namecall");
+
+    lua_setreadonly(L, -1, true);
+    lua_pop(L, 1); // pop the metatable
+
+    return 2;
 }
 #endif

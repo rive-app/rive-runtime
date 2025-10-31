@@ -103,6 +103,15 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"hit", (int16_t)LuaAtoms::hit},
     {"id", (int16_t)LuaAtoms::id},
     {"position", (int16_t)LuaAtoms::position},
+    {"rotation", (int16_t)LuaAtoms::rotation},
+    {"scale", (int16_t)LuaAtoms::scale},
+    {"worldTransform", (int16_t)LuaAtoms::worldTransform},
+    {"scaleX", (int16_t)LuaAtoms::scaleX},
+    {"scaleY", (int16_t)LuaAtoms::scaleY},
+    {"decompose", (int16_t)LuaAtoms::decompose},
+    {"children", (int16_t)LuaAtoms::children},
+    {"parent", (int16_t)LuaAtoms::parent},
+    {"node", (int16_t)LuaAtoms::node},
 };
 
 static const luaL_Reg lualibs[] = {
