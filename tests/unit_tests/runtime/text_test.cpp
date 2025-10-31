@@ -391,3 +391,168 @@ TEST_CASE("Zero width spaces are used to break words", "[text]")
 
     CHECK(silver.matches("zero_width_space_line_break"));
 }
+
+TEST_CASE("Word joiners are not used to break words", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/word_joiner_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    auto textProp1 =
+        vmi->propertyValue("txt1")->as<rive::ViewModelInstanceString>();
+    auto textProp2 =
+        vmi->propertyValue("txt2")->as<rive::ViewModelInstanceString>();
+    auto textProp3 =
+        vmi->propertyValue("txt3")->as<rive::ViewModelInstanceString>();
+    auto textProp4 =
+        vmi->propertyValue("txt4")->as<rive::ViewModelInstanceString>();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // set a long text that will cause an arbitrary text break looking like this
+    // 12345678901234567
+    // 890
+    silver.addFrame();
+    std::string text = "123456789012345678901234567890";
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Word joiner character (U+2060) - insert as Unicode code point, not UTF-8
+    // bytes
+    auto wordJoiner = 0x2060; // Unicode code point for word joiner
+    silver.addFrame();
+
+    // Convert to UTF-8 using the existing UTF::Encode function
+    uint8_t utf8Buffer[4];
+    uint32_t utf8Length = rive::UTF::Encode(utf8Buffer, wordJoiner);
+    std::string wordJoinerUtf8(reinterpret_cast<char*>(utf8Buffer), utf8Length);
+
+    // The last 10 numbers will be joined and the word breaker won't apply
+    // between them
+    int ind = 30;
+    while (ind-- > 21)
+    {
+        text.insert(ind, wordJoinerUtf8);
+    }
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    ind++;
+    // The middle 10 numbers are now also joined
+    while (ind-- > 11)
+    {
+        text.insert(ind, wordJoinerUtf8);
+    }
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Two sequences of 60 numbers separated by a new line
+    text =
+        "123456789012345678901234567890123456789012345678901234567890|\n12345"
+        "6789012345678901234567890123456789012345678901234567890\n";
+
+    silver.addFrame();
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Adding word joiners that spans both lines. New lines are still respected.
+    ind = 51;
+    while (ind-- > 21)
+    {
+        text.insert(ind, wordJoinerUtf8);
+    }
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Two sequences of 60 numbers separated by a new line
+    text =
+        "123456789012345678901234567890123456789012345678901234567890|\n12345"
+        "6789012345678901234567890123456789012345678901234567890\n";
+
+    silver.addFrame();
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Adding multiple word joiners that spans both lines. New lines are still
+    // respected. Extra joiners are skipped correctly
+    ind = 51;
+    while (ind-- > 21)
+    {
+        text.insert(ind, wordJoinerUtf8);
+        text.insert(ind, wordJoinerUtf8);
+        text.insert(ind, wordJoinerUtf8);
+    }
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // six sequences of 10 numbers separated with spaces and a new line
+    text = "1234567890 1234567890 1234567890 1234567890 1234567890 "
+           "1234567890|\n12345"
+           "67890 1234567890 1234567890 1234567890 1234567890 1234567890\n";
+
+    silver.addFrame();
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Spaces and new lines take precedence over word joins
+    ind = 51;
+    while (ind-- > 21)
+    {
+        text.insert(ind, wordJoinerUtf8);
+        text.insert(ind, wordJoinerUtf8);
+        text.insert(ind, wordJoinerUtf8);
+    }
+    textProp1->propertyValue(text);
+    textProp2->propertyValue(text);
+    textProp3->propertyValue(text);
+    textProp4->propertyValue(text);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("word_joiner_test"));
+}

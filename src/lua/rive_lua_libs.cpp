@@ -371,17 +371,13 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
 
     // add ML result to L stack
     lua_xmove(ML, L, 1);
+    // An error occurred if the top of the stack is a string.
     if (lua_isstring(L, -1))
     {
         ScriptingContext* context =
             static_cast<ScriptingContext*>(lua_getthreaddata(L));
         context->printError(L);
-        fprintf(stderr,
-                "Failed to load module %s '%s'\n",
-                name,
-                lua_tostring(L, -1));
-        lua_pop(L, 1);
-        lua_remove(L, -2);
+        lua_pop(L, 2);
         return false;
     }
     // remove ML thread from L stack

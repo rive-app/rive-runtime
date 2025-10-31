@@ -164,6 +164,71 @@ public:
         {
             m_index--;
         }
+        // If there are any word-joiners, do not break on them and find the
+        // closest index that does not wrap a WJ
+        if (m_run->joiners.size() > 0 && m_run->textIndices[m_index] > 0)
+        {
+            auto joiners = m_run->joiners;
+            auto wordJoinerIndex = m_run->textIndices[m_index] - 1;
+            size_t mid = 0;
+            size_t start = 0;
+            size_t end = joiners.size();
+            // If this condition is not met, skip to avoid binary search
+            if (wordJoinerIndex >= joiners[start] &&
+                wordJoinerIndex < joiners[end - 1])
+            {
+                while (start < end)
+                {
+                    mid = (start + end) >> 1;
+                    auto joinerCandidate = joiners[mid];
+                    if (joinerCandidate == wordJoinerIndex)
+                    {
+                        // we found that the previous text index is a joiner
+                        // now let's clean all indexes that are pointing to word
+                        // joiners
+                        bool isJoiner = true;
+                        auto currentJoinerIndex = mid;
+                        while (isJoiner)
+                        {
+                            if (m_index == 0)
+                            {
+                                return back();
+                            }
+                            // If the text index of the previous glyph is a
+                            // joiner, we need to skip it
+                            if (m_run->textIndices[m_index - 1] ==
+                                joiners[currentJoinerIndex])
+                            {
+                                m_index--;
+                                if (currentJoinerIndex > 0)
+                                {
+                                    // we keep moving up the joiners list in
+                                    // case there are consecutive word joiners
+                                    currentJoinerIndex--;
+                                }
+                                else
+                                {
+                                    isJoiner = false;
+                                }
+                            }
+                            else
+                            {
+                                isJoiner = false;
+                            }
+                        }
+                        return back();
+                    }
+                    if (joinerCandidate < wordJoinerIndex)
+                    {
+                        start = mid + 1;
+                    }
+                    else
+                    {
+                        end = mid;
+                    }
+                }
+            }
+        }
         return true;
     }
 
@@ -185,6 +250,71 @@ public:
         else
         {
             m_index++;
+        }
+        if (m_run->joiners.size() > 0 && m_index < m_run->textIndices.size())
+        {
+            auto joiners = m_run->joiners;
+            auto wordJoinerIndex = m_run->textIndices[m_index];
+            size_t mid = 0;
+            size_t start = 0;
+            size_t end = joiners.size();
+            // If this condition is not met, skip to avoid binary search
+            if (wordJoinerIndex >= joiners[start] &&
+                wordJoinerIndex < joiners[end - 1])
+            {
+
+                while (start < end)
+                {
+                    mid = (start + end) >> 1;
+                    auto joinerCandidate = joiners[mid];
+                    if (joinerCandidate == wordJoinerIndex)
+                    {
+                        // we found that the next text index is a joiner
+                        // now let's clean all indexes that are pointing to word
+                        // joiners
+                        bool isJoiner = true;
+                        auto currentJoinerIndex = mid;
+                        while (isJoiner)
+                        {
+                            if (m_index == m_run->glyphs.size())
+                            {
+                                return forward();
+                            }
+                            // If the text index of the current glyph is a
+                            // joiner, we need to skip it
+                            if (currentJoinerIndex < joiners.size() &&
+                                m_run->textIndices[m_index] ==
+                                    joiners[currentJoinerIndex])
+                            {
+                                m_index++;
+                                if (currentJoinerIndex < joiners.size())
+                                {
+                                    // we keep moving down the joiners list in
+                                    // case there are consecutive word joiners
+                                    currentJoinerIndex++;
+                                }
+                                else
+                                {
+                                    isJoiner = false;
+                                }
+                            }
+                            else
+                            {
+                                isJoiner = false;
+                            }
+                        }
+                        return forward();
+                    }
+                    if (joinerCandidate < wordJoinerIndex)
+                    {
+                        start = mid + 1;
+                    }
+                    else
+                    {
+                        end = mid;
+                    }
+                }
+            }
         }
         return true;
     }
@@ -217,15 +347,15 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs,
 
     bool advanceWord = false;
 
-    // We iterate the breaks list with a WordMarker helper which is basically an
-    // iterator. The breaks lists contains tightly packed start/end indices per
-    // run. So the first valid word is at break index 0,1 (per run). Because a
-    // run can be created with no valid breaks, we start the word iterator at a
-    // negative index and attempt to move it to the first valid index (which
-    // could be in the Nth run in the paragraph). If that fails, we know we have
-    // no words to break in the entire paragraph and can early out. See how
-    // WordMarker::next works and notice how we also use it below in this same
-    // method.
+    // We iterate the breaks list with a WordMarker helper which is
+    // basically an iterator. The breaks lists contains tightly packed
+    // start/end indices per run. So the first valid word is at break index
+    // 0,1 (per run). Because a run can be created with no valid breaks, we
+    // start the word iterator at a negative index and attempt to move it to
+    // the first valid index (which could be in the Nth run in the
+    // paragraph). If that fails, we know we have no words to break in the
+    // entire paragraph and can early out. See how WordMarker::next works
+    // and notice how we also use it below in this same method.
     WordMarker start = {runs.begin(), (uint32_t)-2};
     WordMarker end = {runs.begin(), (uint32_t)-1};
     if (!start.next(runs) || !end.next(runs))
@@ -273,8 +403,8 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs,
         {
             uint32_t startRunIndex = (uint32_t)(start.run - runs.begin());
 
-            // A whole word overflowed, break until we can no longer break (or
-            // it fits).
+            // A whole word overflowed, break until we can no longer break
+            // (or it fits).
             if (line.startRunIndex == startRunIndex &&
                 line.startGlyphIndex == startBreakIndex)
             {

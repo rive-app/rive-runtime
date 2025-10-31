@@ -331,6 +331,11 @@ struct GlyphRun
     // Bidi level (even is LTR, odd is RTL)
     uint8_t level;
 
+    // List of indices where words are joined by a word-joiner character.
+    // During text breaking, these joins should be honored and not split at
+    // those points
+    SimpleArray<uint32_t> joiners;
+
     TextDirection dir() const
     {
         return level & 1 ? TextDirection::rtl : TextDirection::ltr;
