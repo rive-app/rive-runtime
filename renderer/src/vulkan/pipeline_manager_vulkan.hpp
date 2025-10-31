@@ -64,6 +64,22 @@ public:
         return m_immutableSamplerDescriptorSet;
     }
 
+    enum class PLSBackingType : bool
+    {
+        inputAttachment,
+        storageTexture,
+    };
+
+    PLSBackingType plsBackingType(gpu::InterlockMode interlockMode)
+    {
+        if (interlockMode == gpu::InterlockMode::clockwise)
+        {
+            assert(m_vk->features.fragmentShaderPixelInterlock);
+            return PLSBackingType::storageTexture;
+        }
+        return PLSBackingType::inputAttachment;
+    }
+
 private:
     virtual std::unique_ptr<DrawShaderVulkan> createVertexShader(
         DrawType drawType,

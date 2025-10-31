@@ -13,40 +13,54 @@
 namespace rive::gpu
 {
 DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
-    PipelineManagerVulkan* impl,
+    PipelineManagerVulkan* pipelineManager,
     gpu::InterlockMode interlockMode,
     DrawPipelineLayoutVulkan::Options options) :
-    m_vk(ref_rcp(impl->vulkanContext())),
+    m_vk(ref_rcp(pipelineManager->vulkanContext())),
     m_interlockMode(interlockMode),
     m_options(options)
 {
+    const bool fixedFunctionColorOutput =
+        m_options & Options::fixedFunctionColorOutput;
+
     // PLS planes get bound per flush as input attachments or storage
     // textures.
+    const VkDescriptorType plsDescriptorType =
+        (pipelineManager->plsBackingType(interlockMode) ==
+         PipelineManagerVulkan::PLSBackingType::storageTexture)
+            ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+            : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+
     StackVector<VkDescriptorSetLayoutBinding, PLS_PLANE_COUNT>
         plsLayoutBindings;
-    if (!(m_options & Options::fixedFunctionColorOutput))
+
+    if (!fixedFunctionColorOutput)
     {
         plsLayoutBindings.push_back({
             .binding = COLOR_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorType = plsDescriptorType,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
     }
+
     if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        interlockMode == gpu::InterlockMode::atomics)
+        interlockMode == gpu::InterlockMode::atomics ||
+        interlockMode == gpu::InterlockMode::clockwise)
     {
         plsLayoutBindings.push_back({
             .binding = CLIP_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorType = plsDescriptorType,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
-        if (interlockMode == gpu::InterlockMode::rasterOrdering)
+        if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+            (interlockMode == gpu::InterlockMode::clockwise &&
+             !fixedFunctionColorOutput))
         {
             plsLayoutBindings.push_back({
                 .binding = SCRATCH_COLOR_PLANE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorType = plsDescriptorType,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             });
@@ -55,7 +69,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .binding = COVERAGE_PLANE_IDX,
             .descriptorType = m_interlockMode == gpu::InterlockMode::atomics
                                   ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-                                  : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                  : plsDescriptorType,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
@@ -89,9 +103,9 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
     }
 
     VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
-        impl->perFlushDescriptorSetLayout(),
-        impl->perDrawDescriptorSetLayout(),
-        impl->immutableSamplerDescriptorSetLayout(),
+        pipelineManager->perFlushDescriptorSetLayout(),
+        pipelineManager->perDrawDescriptorSetLayout(),
+        pipelineManager->immutableSamplerDescriptorSetLayout(),
         m_plsTextureDescriptorSetLayout,
     };
     static_assert(COLOR_PLANE_IDX == 0);
@@ -122,8 +136,8 @@ DrawPipelineLayoutVulkan::~DrawPipelineLayoutVulkan()
     m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
 }
 
-uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
-    uint32_t subpassIndex) const
+uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(uint32_t subpassIndex,
+                                                        Options options) const
 {
     switch (m_interlockMode)
     {
@@ -133,14 +147,15 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
         case gpu::InterlockMode::atomics:
             assert(subpassIndex <= 1);
             return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
+        case gpu::InterlockMode::clockwise:
+            assert(subpassIndex == 0);
+            return (options & Options::fixedFunctionColorOutput) ? 1 : 0;
         case gpu::InterlockMode::clockwiseAtomic:
             assert(subpassIndex == 0);
             return 1;
         case gpu::InterlockMode::msaa:
             assert(subpassIndex == 0 || subpassIndex == 1);
             return 1;
-        case gpu::InterlockMode::clockwise:
-            RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
 }

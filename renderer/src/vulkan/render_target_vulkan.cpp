@@ -50,6 +50,26 @@ VkImageView RenderTargetVulkanImpl::accessTargetImageView(
     return m_targetImageView;
 }
 
+VkImageView RenderTargetVulkan::clearTargetImageView(
+    VkCommandBuffer commandBuffer,
+    ColorInt clearColor,
+    const vkutil::ImageAccess& dstAccessAfterClear)
+{
+    m_vk->clearColorImage(
+        commandBuffer,
+        clearColor,
+        accessTargetImage(commandBuffer,
+                          {
+                              .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                              .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                              .layout = VK_IMAGE_LAYOUT_GENERAL,
+                          },
+                          vkutil::ImageAccessAction::invalidateContents),
+        VK_IMAGE_LAYOUT_GENERAL);
+
+    return accessTargetImageView(commandBuffer, dstAccessAfterClear);
+}
+
 vkutil::Texture2D* RenderTargetVulkan::accessOffscreenColorTexture(
     VkCommandBuffer commandBuffer,
     const vkutil::ImageAccess& dstAccess,
@@ -76,7 +96,7 @@ vkutil::Texture2D* RenderTargetVulkan::accessOffscreenColorTexture(
 
 vkutil::Texture2D* RenderTargetVulkan::copyTargetImageToOffscreenColorTexture(
     VkCommandBuffer commandBuffer,
-    const vkutil::ImageAccess& dstAccess,
+    const vkutil::ImageAccess& dstAccessAfterCopy,
     const IAABB& copyBounds)
 {
     m_vk->blitSubRect(
@@ -99,7 +119,8 @@ vkutil::Texture2D* RenderTargetVulkan::copyTargetImageToOffscreenColorTexture(
             ->vkImage(),
         VK_IMAGE_LAYOUT_GENERAL,
         copyBounds);
-    return accessOffscreenColorTexture(commandBuffer, dstAccess);
+
+    return accessOffscreenColorTexture(commandBuffer, dstAccessAfterCopy);
 }
 
 vkutil::Texture2D* RenderTargetVulkan::msaaColorTexture()

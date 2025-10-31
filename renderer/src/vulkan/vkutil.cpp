@@ -368,16 +368,15 @@ void Texture2D::barrier(VkCommandBuffer commandBuffer,
                         vkutil::ImageAccessAction imageAccessAction,
                         VkDependencyFlags dependencyFlags)
 {
-    if (m_lastAccess != dstAccess)
-    {
-        m_lastAccess =
-            m_image->vk()->simpleImageMemoryBarrier(commandBuffer,
-                                                    m_lastAccess,
-                                                    dstAccess,
-                                                    *m_image,
-                                                    imageAccessAction,
-                                                    dependencyFlags);
-    }
+    // Always perform the barrier, even if m_lastAccess == dstAccess, because
+    // a pipeline barrier may still be needed even if we aren't transitioning
+    // the image or interacting with other stages.
+    m_lastAccess = m_image->vk()->simpleImageMemoryBarrier(commandBuffer,
+                                                           m_lastAccess,
+                                                           dstAccess,
+                                                           *m_image,
+                                                           imageAccessAction,
+                                                           dependencyFlags);
 }
 
 void Texture2D::generateMipmaps(VkCommandBuffer commandBuffer,

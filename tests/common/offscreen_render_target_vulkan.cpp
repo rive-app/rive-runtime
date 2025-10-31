@@ -61,14 +61,21 @@ private:
                 std::move(vk),
                 width,
                 height,
-                VK_FORMAT_B8G8R8A8_UNORM,
+                // BGRA is not riveRenderable when using storage textures for
+                // PLS (like in clockwise mode) because storage textures have to
+                // be RGBA8. Let's test both formats, but make sure to use RGBA
+                // for the riveRenderable case.
+                riveRenderable ? VK_FORMAT_R8G8B8A8_UNORM
+                               : VK_FORMAT_B8G8R8A8_UNORM,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                     VK_IMAGE_USAGE_SAMPLED_BIT |
-                    // Some rendering scenarios (specifically
-                    // LoadAction::preserveRenderTarget with MSAA) always
-                    // require VK_IMAGE_USAGE_TRANSFER_SRC_BIT.
+                    // Rendering scenarios that use an offscreen color buffer
+                    // sometimes require "transfer" usages for copying the
+                    // contents back and forth from the main render target.
                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                    (riveRenderable ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                    (riveRenderable ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+                                          VK_IMAGE_USAGE_STORAGE_BIT
                                     : VK_IMAGE_USAGE_TRANSFER_DST_BIT)),
             m_renderImage(
                 rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D({

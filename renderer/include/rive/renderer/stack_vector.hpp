@@ -54,7 +54,11 @@ public:
     }
 
     const T* data() const { return m_data; }
+    T* data() { return m_data; }
+
     const T* dataOrNull() const { return m_size != 0 ? m_data : nullptr; }
+    T* dataOrNull() { return m_size != 0 ? m_data : nullptr; }
+
     const uint32_t size() const { return m_size; }
 
 private:

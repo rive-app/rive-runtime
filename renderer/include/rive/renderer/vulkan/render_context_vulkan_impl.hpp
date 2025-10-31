@@ -13,6 +13,7 @@
 
 namespace rive::gpu
 {
+class RenderTargetVulkan;
 class RenderTargetVulkanImpl;
 class PipelineManagerVulkan;
 
@@ -137,6 +138,32 @@ private:
     void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override;
     void resizeCoverageBuffer(size_t sizeInBytes) override;
 
+    // Lazy accessors for PLS backing resources. These are lazy because our
+    // Vulkan backend needs different allocations based on interlock mode and
+    // other factors.
+    vkutil::Image* plsTransientImageArray();
+    vkutil::ImageView* plsTransientCoverageView();
+    vkutil::ImageView* plsTransientClipView();
+    vkutil::Texture2D* plsTransientScratchColorTexture();
+
+    // The offscreen color texture is not transient and supports PLS. It is used
+    // in place of the renderTarget (via copying in and out) when the
+    // renderTarget doesn't support PLS.
+    vkutil::Texture2D* accessPLSOffscreenColorTexture(
+        VkCommandBuffer,
+        const vkutil::ImageAccess&,
+        vkutil::ImageAccessAction =
+            vkutil::ImageAccessAction::preserveContents);
+    vkutil::Texture2D* clearPLSOffscreenColorTexture(
+        VkCommandBuffer,
+        ColorInt,
+        const vkutil::ImageAccess& dstAccessAfterClear);
+    vkutil::Texture2D* copyRenderTargetToPLSOffscreenColorTexture(
+        VkCommandBuffer,
+        RenderTargetVulkan*,
+        const IAABB& copyBounds,
+        const vkutil::ImageAccess& dstAccessAfterCopy);
+
     // Wraps a VkDescriptorPool created specifically for a PLS flush, and tracks
     // its allocated descriptor sets.
     class DescriptorSetPool final : public vkutil::Resource
@@ -213,15 +240,16 @@ private:
     rcp<vkutil::Texture2D> m_atlasTexture;
     rcp<vkutil::Framebuffer> m_atlasFramebuffer;
 
-    // Pixel local storage backing for clip & coverage in rasterOrdering mode.
-    rcp<vkutil::Image> m_plsBackingImageR32UI;
-    rcp<vkutil::ImageView> m_plsCoverageBackingView;
-    rcp<vkutil::ImageView> m_plsClipBackingViewR32UI;
-    // PLS scratchColor backing in rasterOrdering mode, clip backing in atomic
-    // mode.
-    rcp<vkutil::Texture2D> m_plsBackingTextureRGBA8;
-    // Coverage backing in atomic mode.
-    rcp<vkutil::Texture2D> m_atomicCoverageBackingTexture;
+    // Pixel local storage backing resources.
+    VkImageUsageFlags m_plsTransientUsageFlags;
+    VkExtent3D m_plsExtent = {0, 0, 1};
+    uint32_t m_plsTransientPlaneCount = 0;
+    rcp<vkutil::Image> m_plsTransientImageArray;
+    rcp<vkutil::ImageView> m_plsTransientCoverageView;
+    rcp<vkutil::ImageView> m_plsTransientClipView;
+    rcp<vkutil::Texture2D> m_plsTransientScratchColorTexture;
+    rcp<vkutil::Texture2D> m_plsOffscreenColorTexture;
+    rcp<vkutil::Texture2D> m_plsAtomicCoverageTexture;
 
     // Coverage buffer used by shaders in clockwiseAtomic mode.
     rcp<vkutil::Buffer> m_coverageBuffer;

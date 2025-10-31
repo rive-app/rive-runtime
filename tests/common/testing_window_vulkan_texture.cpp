@@ -101,8 +101,11 @@ public:
                 m_backendParams.srgb   ? VK_FORMAT_R8G8B8A8_SRGB
                 : m_backendParams.core ? VK_FORMAT_R8G8B8A8_UNORM
                                        : VK_FORMAT_B8G8R8A8_UNORM;
-            // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT so we can test our
-            // codepath that makes us work without it.
+            // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT or
+            // VK_IMAGE_USAGE_STORAGE_BIT so we can test our (more complex)
+            // codepaths that make us work without it.
+            // The GMs that use offscreen "riveRenderable" render targets ensure
+            // we still cover the simpler direct rendering cases.
             VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT;

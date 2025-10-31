@@ -164,6 +164,12 @@ SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/atomic_draw_atlas_blit.main \
     spirv/atomic_draw_path.main \
     spirv/atomic_resolve.main \
+    spirv/draw_clockwise_path.main \
+    spirv/draw_clockwise_clip.main \
+    spirv/draw_clockwise_interior_triangles.main \
+    spirv/draw_clockwise_interior_triangles_clip.main \
+    spirv/draw_clockwise_atlas_blit.main \
+    spirv/draw_clockwise_image_mesh.main \
     spirv/draw_msaa_atlas_blit.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_path.main \
@@ -197,6 +203,7 @@ spirv_type = $(lastword $(subst _, ,$2))
 spirv_is_vert = $(findstring vert,$(spirv_type))
 spirv_is_webgpu = $(findstring webgpu,$2)
 spirv_is_atomic = $(findstring atomic,$1)
+spirv_is_clockwise = $(findstring clockwise,$1)
 
 ## SPIR-V Optimizer settings
 
@@ -291,7 +298,11 @@ spirv_frag_opt_params = \
 	)
 
 ## WebGPU fragment shaders need a different PLS_IMPL value
-spirv_frag_params = $(if $(spirv_is_webgpu), -DPLS_IMPL_NONE, -DPLS_IMPL_SUBPASS_LOAD)
+spirv_frag_params = $(if $(spirv_is_webgpu), \
+                        -DPLS_IMPL_NONE, \
+					$(if $(spirv_is_clockwise), \
+						-DPLS_IMPL_STORAGE_TEXTURE, \
+						-DPLS_IMPL_SUBPASS_LOAD))
 
 ## Vertex shaders get the standard optimizations.
 ## Fragment shaders get the adreno workaround options if they're in the workaround list

@@ -1,5 +1,6 @@
 #include <catch.hpp>
 #include "rive/renderer/stack_vector.hpp"
+#include <numeric>
 
 using namespace rive;
 
@@ -151,4 +152,27 @@ TEST_CASE("N ele - clear", "[stack_vector]")
     CHECK(vec.size() == NUM_TEST_VALUES);
     vec.clear();
     CHECK(vec.size() == 0);
+}
+
+TEST_CASE("data()", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    const auto& constVec = vec;
+    CHECK(vec.dataOrNull() == nullptr);
+    CHECK(constVec.dataOrNull() == nullptr);
+
+    vec.push_back_n(NUM_TEST_VALUES, nullptr);
+    CHECK(vec.dataOrNull() != nullptr);
+    CHECK(constVec.dataOrNull() != nullptr);
+    CHECK(vec.size() == NUM_TEST_VALUES);
+    CHECK(constVec.size() == NUM_TEST_VALUES);
+
+    std::iota(vec.dataOrNull(), vec.dataOrNull() + NUM_TEST_VALUES, 0);
+    for (uint32_t i = 0; i < NUM_TEST_VALUES; ++i)
+    {
+        CHECK(vec.dataOrNull()[i] == i);
+        CHECK(constVec.dataOrNull()[i] == i);
+        CHECK(vec.data()[i] == i);
+        CHECK(constVec.data()[i] == i);
+    }
 }

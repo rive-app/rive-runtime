@@ -196,9 +196,15 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         params->srgb = true;
         return Backend::vk;
     }
-    if (nameStr == "vulkancw" || nameStr == "vkcw")
+    if (nameStr == "vkcw")
     {
         params->clockwise = true;
+        return Backend::vk;
+    }
+    if (nameStr == "vkcwatomic" || nameStr == "vkcwa")
+    {
+        params->clockwise = true;
+        params->atomic = true;
         return Backend::vk;
     }
     if (nameStr == "moltenvk" || nameStr == "mvk")

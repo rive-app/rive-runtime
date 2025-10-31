@@ -25,8 +25,8 @@ using namespace rive::gpu;
 class OffscreenRenderTarget : public GM
 {
 public:
-    OffscreenRenderTarget(bool riveRenderable) :
-        GM(256, 256), m_riveRenderable(riveRenderable)
+    OffscreenRenderTarget(BlendMode blendMode, bool riveRenderable) :
+        GM(256, 256), m_blendMode(blendMode), m_riveRenderable(riveRenderable)
     {}
 
     ColorInt clearColor() const override { return 0xffff0000; }
@@ -78,8 +78,13 @@ public:
 
     virtual void drawInternal(Renderer* renderer, RenderTarget*)
     {
-        drawStar5(renderer, Paint(0x8000ffff));
-        drawStar13(renderer, Paint(0x80ffff00));
+        Paint paint5(0x8000ffff);
+        paint5->blendMode(m_blendMode);
+        drawStar5(renderer, paint5);
+
+        Paint paint13(0x80ffff00);
+        paint13->blendMode(m_blendMode);
+        drawStar13(renderer, paint13);
     }
 
     void drawStar5(Renderer* renderer, RenderPaint* paint)
@@ -116,13 +121,19 @@ public:
         renderer->restore();
     }
 
-private:
+protected:
+    const BlendMode m_blendMode;
     const bool m_riveRenderable;
 };
 
-GMREGISTER(offscreen_render_target, return new OffscreenRenderTarget(true))
+GMREGISTER(offscreen_render_target,
+           return new OffscreenRenderTarget(BlendMode::srcOver, true))
 GMREGISTER(offscreen_render_target_nonrenderable,
-           return new OffscreenRenderTarget(false))
+           return new OffscreenRenderTarget(BlendMode::srcOver, false))
+GMREGISTER(offscreen_render_target_lum,
+           return new OffscreenRenderTarget(BlendMode::luminosity, true))
+GMREGISTER(offscreen_render_target_lum_nonrenderable,
+           return new OffscreenRenderTarget(BlendMode::luminosity, false))
 
 // This GM checks that texture targets (including MSAA targets) work with
 // LoadAction::preserveRenderTarget.
@@ -130,7 +141,7 @@ class OffscreenRenderTargetPreserve : public OffscreenRenderTarget
 {
 public:
     OffscreenRenderTargetPreserve(BlendMode blendMode, bool riveRenderable) :
-        OffscreenRenderTarget(riveRenderable), m_blendMode(blendMode)
+        OffscreenRenderTarget(blendMode, riveRenderable)
     {}
     OffscreenRenderTargetPreserve(bool riveRenderable) :
         OffscreenRenderTargetPreserve(BlendMode::srcOver, riveRenderable)
@@ -241,9 +252,6 @@ public:
         paint13->blendMode(m_blendMode);
         drawStar13(renderer, paint13);
     }
-
-private:
-    BlendMode m_blendMode;
 };
 GMREGISTER(offscreen_render_target_preserve,
            return new OffscreenRenderTargetPreserve(true))

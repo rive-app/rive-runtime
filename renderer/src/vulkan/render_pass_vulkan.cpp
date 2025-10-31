@@ -125,37 +125,43 @@ RenderPassVulkan::RenderPassVulkan(
     StackVector<VkAttachmentReference, 1> plsResolveAttachmentRef;
     StackVector<VkAttachmentReference, 1> depthStencilAttachmentRef;
     StackVector<VkAttachmentReference, 1> msaaResolveAttachmentRef;
-    assert(attachments.size() == COLOR_PLANE_IDX);
-    assert(colorAttachmentRefs.size() == COLOR_PLANE_IDX);
-    attachments.push_back({
-        .format = renderTargetFormat,
-        .samples = msaaSampleCount,
-        .loadOp = vk_load_op(loadAction, interlockMode),
-        .storeOp =
-            ((layoutOptions &
-              DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer) ||
-             interlockMode == gpu::InterlockMode::msaa)
-                ? VK_ATTACHMENT_STORE_OP_DONT_CARE
-                : VK_ATTACHMENT_STORE_OP_STORE,
-        // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
-        // invalidate the portion outside the renderArea when it isn't the full
-        // renderTarget, and currently we don't have separate render passes for
-        // "full renderTarget bounds" and "partial renderTarget bounds".
-        // Instead, we rely on vkutil::ImageAccessAction::invalidateContents
-        // to invalidate the color attachment when we can.
-        .initialLayout =
-            (((layoutOptions & DrawPipelineLayoutVulkan::Options::
-                                   coalescedResolveAndTransfer) &&
-              loadAction != gpu::LoadAction::preserveRenderTarget) ||
-             interlockMode == gpu::InterlockMode::msaa)
-                ? VK_IMAGE_LAYOUT_UNDEFINED
-                : colorAttachmentLayout,
-        .finalLayout = colorAttachmentLayout,
-    });
-    colorAttachmentRefs.push_back({
-        .attachment = COLOR_PLANE_IDX,
-        .layout = colorAttachmentLayout,
-    });
+    if (pipelineManager->plsBackingType(interlockMode) ==
+            PipelineManagerVulkan::PLSBackingType::inputAttachment ||
+        (layoutOptions &
+         DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput))
+    {
+        assert(attachments.size() == COLOR_PLANE_IDX);
+        assert(colorAttachmentRefs.size() == COLOR_PLANE_IDX);
+        attachments.push_back({
+            .format = renderTargetFormat,
+            .samples = msaaSampleCount,
+            .loadOp = vk_load_op(loadAction, interlockMode),
+            .storeOp = ((layoutOptions & DrawPipelineLayoutVulkan::Options::
+                                             coalescedResolveAndTransfer) ||
+                        interlockMode == gpu::InterlockMode::msaa)
+                           ? VK_ATTACHMENT_STORE_OP_DONT_CARE
+                           : VK_ATTACHMENT_STORE_OP_STORE,
+            // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
+            // invalidate the portion outside the renderArea when it isn't the
+            // full renderTarget, and currently we don't have separate render
+            // passes for "full renderTarget bounds" and "partial renderTarget
+            // bounds". Instead, we rely on
+            // vkutil::ImageAccessAction::invalidateContents to invalidate the
+            // color attachment when we can.
+            .initialLayout =
+                (((layoutOptions & DrawPipelineLayoutVulkan::Options::
+                                       coalescedResolveAndTransfer) &&
+                  loadAction != gpu::LoadAction::preserveRenderTarget) ||
+                 interlockMode == gpu::InterlockMode::msaa)
+                    ? VK_IMAGE_LAYOUT_UNDEFINED
+                    : colorAttachmentLayout,
+            .finalLayout = colorAttachmentLayout,
+        });
+        colorAttachmentRefs.push_back({
+            .attachment = COLOR_PLANE_IDX,
+            .layout = colorAttachmentLayout,
+        });
+    }
 
     if (interlockMode == gpu::InterlockMode::rasterOrdering ||
         interlockMode == gpu::InterlockMode::atomics)
@@ -413,7 +419,7 @@ RenderPassVulkan::RenderPassVulkan(
     // Main subpass.
     const uint32_t mainSubpassIdx = subpassDescs.size();
     assert(colorAttachmentRefs.size() ==
-           m_drawPipelineLayout->colorAttachmentCount(0));
+           m_drawPipelineLayout->colorAttachmentCount(0, layoutOptions));
     assert(msaaResolveAttachmentRef.size() == 0 ||
            msaaResolveAttachmentRef.size() == colorAttachmentRefs.size());
     subpassDescs.push_back({
@@ -502,7 +508,7 @@ RenderPassVulkan::RenderPassVulkan(
         // The resolve happens in a separate subpass.
         assert(subpassDescs.size() == 1);
         assert(plsResolveAttachmentRef.size() ==
-               m_drawPipelineLayout->colorAttachmentCount(1));
+               m_drawPipelineLayout->colorAttachmentCount(1, layoutOptions));
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
             .inputAttachmentCount = inputAttachmentRefs.size(),

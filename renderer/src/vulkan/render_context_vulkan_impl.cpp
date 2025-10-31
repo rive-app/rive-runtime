@@ -594,6 +594,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_descriptorSetPoolPool(make_rcp<DescriptorSetPoolPool>(m_vk))
 {
     m_platformFeatures.supportsRasterOrderingMode =
+        !contextOptions.forceAtomicMode &&
         m_vk->features.rasterizationOrderColorAttachmentAccess;
 #ifdef RIVE_ANDROID
     m_platformFeatures.supportsAtomicMode =
@@ -605,6 +606,16 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 #else
     m_platformFeatures.supportsAtomicMode =
         m_vk->features.fragmentStoresAndAtomics;
+    m_platformFeatures.supportsClockwiseMode =
+        m_vk->features.fragmentShaderPixelInterlock &&
+        !contextOptions.forceAtomicMode &&
+        // TODO: Before we can support rasterOrdering and clockwise at the same
+        // time, we need to figure out barriers between transient PLS
+        // attachments being bound as both input attachments and storage
+        // textures. (Probably by using
+        // VK_EXT_rasterization_order_attachment_access whenever possible in
+        // clockwise mode.)
+        !m_platformFeatures.supportsRasterOrderingMode;
 #endif
     m_platformFeatures.supportsClockwiseAtomicMode =
         m_vk->features.fragmentStoresAndAtomics;
@@ -667,6 +678,22 @@ void RenderContextVulkanImpl::initGPUObjects(
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get());
     m_atlasPipeline = std::make_unique<AtlasPipeline>(m_pipelineManager.get());
+
+    // Determine usage flags for transient PLS backing textures.
+    m_plsTransientUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                               VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    if (m_platformFeatures.supportsClockwiseMode)
+    {
+        // When we support the interlock, PLS backings can be storage textures.
+        m_plsTransientUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT |
+                                    // For vkCmdClearColorImage.
+                                    VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    }
+    else
+    {
+        // Otherwise, PLS backings are always transient input attachments.
+        m_plsTransientUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    }
 
     // Emulate the feather texture1d array as a 2d texture until we add
     // texture1d support in Vulkan.
@@ -834,68 +861,25 @@ void RenderContextVulkanImpl::resizeTransientPLSBacking(uint32_t width,
                                                         uint32_t height,
                                                         uint32_t planeCount)
 {
-    m_plsBackingImageR32UI.reset();
-    m_plsCoverageBackingView.reset();
-    m_plsClipBackingViewR32UI.reset();
-    m_plsBackingTextureRGBA8.reset();
-
-    if (width != 0 && height != 0 && planeCount != 0)
-    {
-        const VkImageUsageFlags plsBackingUsageFlags =
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-            VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-
-        // R32UI backing for clip & coverage in rasterOrdering mode.
-        m_plsBackingImageR32UI = m_vk->makeImage({
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width, height, 1},
-            .arrayLayers = std::min(planeCount, 2u),
-            .usage = plsBackingUsageFlags,
-        });
-        auto makePLSTransientBackingR32UIView = [this](uint32_t layerIdx) {
-            return m_vk->makeImageView(
-                m_plsBackingImageR32UI,
-                {
-                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                    .format = VK_FORMAT_R32_UINT,
-                    .subresourceRange =
-                        {
-                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .levelCount = 1,
-                            .baseArrayLayer = layerIdx,
-                            .layerCount = 1,
-                        },
-                });
-        };
-        m_plsCoverageBackingView = makePLSTransientBackingR32UIView(0);
-        m_plsClipBackingViewR32UI =
-            (planeCount > 1) ? makePLSTransientBackingR32UIView(1)
-                             // When planeCount is 1, the shaders are guaranteed
-                             // to only use 1 single plane in an entire render
-                             // pass, so we can just alias the views to each
-                             // other to keep the bindings and validation happy.
-                             : m_plsCoverageBackingView;
-
-        // RGBA8 backing for scratchColor in rasterOrdering mode, and clip in
-        // atomic mode.
-        m_plsBackingTextureRGBA8 = m_vk->makeTexture2D({
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent = {width, height},
-            .usage = plsBackingUsageFlags,
-        });
-    }
+    // Erase the backings and allocate them lazily. Our Vulkan backend needs
+    // different allocations based on interlock mode and other factors.
+    m_plsExtent = {width, height, 1};
+    m_plsTransientPlaneCount = planeCount;
+    m_plsTransientImageArray.reset();
+    m_plsTransientCoverageView.reset();
+    m_plsTransientClipView.reset();
+    m_plsTransientScratchColorTexture.reset();
+    m_plsOffscreenColorTexture.reset();
 }
 
 void RenderContextVulkanImpl::resizeAtomicCoverageBacking(uint32_t width,
                                                           uint32_t height)
 {
-    m_atomicCoverageBackingTexture.reset();
+    m_plsAtomicCoverageTexture.reset();
 
     if (width != 0 && height != 0)
     {
-        m_atomicCoverageBackingTexture = m_vk->makeTexture2D({
+        m_plsAtomicCoverageTexture = m_vk->makeTexture2D({
             .format = VK_FORMAT_R32_UINT,
             .extent = {width, height},
             .usage =
@@ -921,6 +905,185 @@ void RenderContextVulkanImpl::resizeCoverageBuffer(size_t sizeInBytes)
             },
             vkutil::Mappability::none);
     }
+}
+
+vkutil::Image* RenderContextVulkanImpl::plsTransientImageArray()
+{
+    assert(m_plsExtent.width != 0);
+    assert(m_plsExtent.height != 0);
+    assert(m_plsExtent.depth == 1);
+    assert(m_plsTransientPlaneCount != 0);
+
+    if (m_plsTransientImageArray == nullptr)
+    {
+        m_plsTransientImageArray = m_vk->makeImage({
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_R32_UINT,
+            .extent = m_plsExtent,
+            .arrayLayers = std::min(m_plsTransientPlaneCount, 2u),
+            .usage = m_plsTransientUsageFlags,
+        });
+    }
+
+    return m_plsTransientImageArray.get();
+}
+
+vkutil::ImageView* RenderContextVulkanImpl::plsTransientCoverageView()
+{
+    if (m_plsTransientCoverageView == nullptr)
+    {
+        m_plsTransientCoverageView = m_vk->makeImageView(
+            ref_rcp(plsTransientImageArray()),
+            {
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = VK_FORMAT_R32_UINT,
+                .subresourceRange =
+                    {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+            });
+    }
+
+    return m_plsTransientCoverageView.get();
+}
+
+vkutil::ImageView* RenderContextVulkanImpl::plsTransientClipView()
+{
+    if (m_plsTransientClipView == nullptr)
+    {
+        assert(m_plsTransientPlaneCount != 0);
+        if (m_plsTransientPlaneCount == 1)
+        {
+            // When planeCount is 1, the shaders are guaranteed to only use
+            // 1 single plane in an entire render pass, so we can just alias
+            // the coverage & clip views to each other to keep the bindings and
+            // validation happy.
+            m_plsTransientClipView = ref_rcp(plsTransientCoverageView());
+        }
+        else
+        {
+            m_plsTransientClipView = m_vk->makeImageView(
+                ref_rcp(plsTransientImageArray()),
+                {
+                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                    .format = VK_FORMAT_R32_UINT,
+                    .subresourceRange =
+                        {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .levelCount = 1,
+                            .baseArrayLayer = 1,
+                            .layerCount = 1,
+                        },
+                });
+        }
+    }
+
+    return m_plsTransientClipView.get();
+}
+
+vkutil::Texture2D* RenderContextVulkanImpl::plsTransientScratchColorTexture()
+{
+    assert(m_plsExtent.width != 0);
+    assert(m_plsExtent.height != 0);
+    assert(m_plsExtent.depth == 1);
+    assert(m_plsTransientPlaneCount != 0);
+
+    if (m_plsTransientScratchColorTexture == nullptr)
+    {
+        m_plsTransientScratchColorTexture = m_vk->makeTexture2D({
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = m_plsExtent,
+            .usage = m_plsTransientUsageFlags,
+        });
+    }
+
+    return m_plsTransientScratchColorTexture.get();
+}
+
+vkutil::Texture2D* RenderContextVulkanImpl::accessPLSOffscreenColorTexture(
+    VkCommandBuffer commandBuffer,
+    const vkutil::ImageAccess& dstAccess,
+    vkutil::ImageAccessAction imageAccessAction)
+{
+    assert(m_plsExtent.width != 0);
+    assert(m_plsExtent.height != 0);
+    assert(m_plsExtent.depth == 1);
+    assert(m_plsTransientPlaneCount != 0);
+
+    if (m_plsOffscreenColorTexture == nullptr)
+    {
+        m_plsOffscreenColorTexture = m_vk->makeTexture2D({
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = m_plsExtent,
+            .usage = (m_plsTransientUsageFlags |
+                      // For copying back to the main render target.
+                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT) &
+                     // This texture is never transient.
+                     ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        });
+    }
+
+    m_plsOffscreenColorTexture->barrier(commandBuffer,
+                                        dstAccess,
+                                        imageAccessAction);
+
+    return m_plsOffscreenColorTexture.get();
+}
+
+vkutil::Texture2D* RenderContextVulkanImpl::clearPLSOffscreenColorTexture(
+    VkCommandBuffer commandBuffer,
+    ColorInt clearColor,
+    const vkutil::ImageAccess& dstAccessAfterClear)
+{
+    m_vk->clearColorImage(
+        commandBuffer,
+        clearColor,
+        accessPLSOffscreenColorTexture(
+            commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+            vkutil::ImageAccessAction::invalidateContents)
+            ->vkImage(),
+        VK_IMAGE_LAYOUT_GENERAL);
+
+    return accessPLSOffscreenColorTexture(commandBuffer, dstAccessAfterClear);
+}
+
+vkutil::Texture2D* RenderContextVulkanImpl::
+    copyRenderTargetToPLSOffscreenColorTexture(
+        VkCommandBuffer commandBuffer,
+        RenderTargetVulkan* renderTarget,
+        const IAABB& copyBounds,
+        const vkutil::ImageAccess& dstAccessAfterCopy)
+{
+    m_vk->blitSubRect(commandBuffer,
+                      renderTarget->accessTargetImage(
+                          commandBuffer,
+                          {
+                              .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                              .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                              .layout = VK_IMAGE_LAYOUT_GENERAL,
+                          }),
+                      VK_IMAGE_LAYOUT_GENERAL,
+                      accessPLSOffscreenColorTexture(
+                          commandBuffer,
+                          {
+                              .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                              .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                              .layout = VK_IMAGE_LAYOUT_GENERAL,
+                          },
+                          vkutil::ImageAccessAction::invalidateContents)
+                          ->vkImage(),
+                      VK_IMAGE_LAYOUT_GENERAL,
+                      copyBounds);
+
+    return accessPLSOffscreenColorTexture(commandBuffer, dstAccessAfterCopy);
 }
 
 void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
@@ -961,7 +1124,7 @@ constexpr static uint32_t kMaxImageTextureUpdates = 256;
 constexpr static uint32_t kMaxSampledImageUpdates =
     4 + kMaxImageTextureUpdates; // tess + grad + feather + atlas + images
 constexpr static uint32_t kMaxStorageImageUpdates =
-    1; // coverageAtomicTexture in atomic mode.
+    4; // color/coverage/clip/scratch in clockwise mode.
 constexpr static uint32_t kMaxStorageBufferUpdates =
     7 + // path/paint/uniform buffers
     1;  // coverage buffer in clockwiseAtomic mode
@@ -1556,7 +1719,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // will never be bound as an input attachment.
     const bool fixedFunctionColorOutput = desc.fixedFunctionColorOutput;
 
-    // Ensure any previous accesses to the color texture complete before we
+    // Ensures any previous accesses to a color attachment complete before we
     // begin rendering.
     const vkutil::ImageAccess colorLoadAccess = {
         // "Load" operations always occur in
@@ -1579,6 +1742,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget
             ? vkutil::ImageAccessAction::invalidateContents
             : vkutil::ImageAccessAction::preserveContents;
+
+    using PLSBackingType = PipelineManagerVulkan::PLSBackingType;
+    const PLSBackingType plsBackingType =
+        m_pipelineManager->plsBackingType(desc.interlockMode);
 
     VkImageView colorImageView = VK_NULL_HANDLE;
     bool colorAttachmentIsOffscreen = false;
@@ -1657,8 +1824,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     : vkutil::ImageAccessAction::preserveContents);
         }
     }
-    else if (fixedFunctionColorOutput || (renderTarget->targetUsageFlags() &
-                                          VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
+    else if (fixedFunctionColorOutput ||
+             ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+               desc.interlockMode == gpu::InterlockMode::atomics) &&
+              (renderTarget->targetUsageFlags() &
+               VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)))
     {
         // We can render directly to the render target.
         colorImageView =
@@ -1666,8 +1836,73 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                                 colorLoadAccess,
                                                 targetAccessAction);
     }
+    else if (plsBackingType == PLSBackingType::storageTexture)
+    {
+        constexpr static vkutil::ImageAccess PLS_STORAGE_TEXTURE_ACCESS = {
+            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .accessMask =
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            .layout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+
+        if ((renderTarget->targetUsageFlags() & VK_IMAGE_USAGE_STORAGE_BIT) &&
+            renderTarget->framebufferFormat() == VK_FORMAT_R8G8B8A8_UNORM)
+        {
+            // We can bind the renderTarget as a storage texture directly to the
+            // color plane_.
+            if (desc.colorLoadAction == gpu::LoadAction::clear)
+            {
+                colorImageView = renderTarget->clearTargetImageView(
+                    commandBuffer,
+                    desc.colorClearValue,
+                    PLS_STORAGE_TEXTURE_ACCESS);
+            }
+            else
+            {
+                colorImageView = renderTarget->accessTargetImageView(
+                    commandBuffer,
+                    PLS_STORAGE_TEXTURE_ACCESS,
+                    targetAccessAction);
+            }
+        }
+        else
+        {
+            // We have to bind a separate texture to the color plane.
+            switch (desc.colorLoadAction)
+            {
+                case gpu::LoadAction::clear:
+                    colorImageView = clearPLSOffscreenColorTexture(
+                                         commandBuffer,
+                                         desc.colorClearValue,
+                                         PLS_STORAGE_TEXTURE_ACCESS)
+                                         ->vkImageView();
+                    break;
+                case gpu::LoadAction::preserveRenderTarget:
+                    // Preserve the target texture by copying its contents into
+                    // our offscreen color texture.
+                    colorImageView = copyRenderTargetToPLSOffscreenColorTexture(
+                                         commandBuffer,
+                                         renderTarget,
+                                         drawBounds,
+                                         PLS_STORAGE_TEXTURE_ACCESS)
+                                         ->vkImageView();
+                    break;
+                case gpu::LoadAction::dontCare:
+                    colorImageView =
+                        accessPLSOffscreenColorTexture(
+                            commandBuffer,
+                            PLS_STORAGE_TEXTURE_ACCESS,
+                            vkutil::ImageAccessAction::invalidateContents)
+                            ->vkImageView();
+                    break;
+            }
+            colorAttachmentIsOffscreen = true;
+        }
+    }
     else
     {
+        // The renderTarget doesn't support input attachments, so we have to
+        // attach a separate texture to the framebuffer for color.
         if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
         {
             // Preserve the target texture by copying its contents into our
@@ -1708,29 +1943,35 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Create the framebuffer.
     StackVector<VkImageView, PLS_PLANE_COUNT> framebufferViews;
     StackVector<VkClearValue, PLS_PLANE_COUNT> clearValues;
-    assert(framebufferViews.size() == COLOR_PLANE_IDX);
-    framebufferViews.push_back(colorImageView);
-    clearValues.push_back(
-        {.color = vkutil::color_clear_rgba32f(desc.colorClearValue)});
+    if (plsBackingType == PLSBackingType::inputAttachment ||
+        fixedFunctionColorOutput)
+    {
+        assert(framebufferViews.size() == COLOR_PLANE_IDX);
+        framebufferViews.push_back(colorImageView);
+        clearValues.push_back(
+            {.color = vkutil::color_clear_rgba32f(desc.colorClearValue)});
+    }
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
         assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(*m_plsClipBackingViewR32UI);
+        framebufferViews.push_back(*plsTransientClipView());
         clearValues.push_back({});
 
         assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
-        framebufferViews.push_back(m_plsBackingTextureRGBA8->vkImageView());
+        framebufferViews.push_back(
+            plsTransientScratchColorTexture()->vkImageView());
         clearValues.push_back({});
 
         assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
-        framebufferViews.push_back(*m_plsCoverageBackingView);
+        framebufferViews.push_back(*plsTransientCoverageView());
         clearValues.push_back(
             {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)});
     }
     else if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
         assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(m_plsBackingTextureRGBA8->vkImageView());
+        framebufferViews.push_back(
+            plsTransientScratchColorTexture()->vkImageView());
         clearValues.push_back({});
 
         if (pipelineLayout.options() &
@@ -1791,46 +2032,123 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                    static_cast<uint32_t>(drawBounds.height())},
     };
 
-    if (desc.interlockMode == gpu::InterlockMode::atomics)
+    const bool usesStorageTextures =
+        plsBackingType == PLSBackingType::storageTexture ||
+        desc.interlockMode == gpu::InterlockMode::atomics;
+    if (usesStorageTextures)
     {
-        // Clear the coverage texture, which is not an attachment.
-        VkImageSubresourceRange clearRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        };
+        // Clear the PLS planes that are bound as storage textures.
+        const VkImage storageImageToClear =
+            (desc.interlockMode == gpu::InterlockMode::atomics)
+                ? m_plsAtomicCoverageTexture->vkImage()
+                : *plsTransientImageArray();
 
-        // Don't clear the coverage texture until shaders in the previous flush
+        VkPipelineStageFlags srcStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        VkPipelineStageFlags dstStages = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        StackVector<VkImageMemoryBarrier, 2> barriers;
+
+        // Don't clear the storageImageToClear until shaders in previous flushes
         // have finished using it.
-        m_vk->imageMemoryBarrier(
-            commandBuffer,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
-            {
-                .srcAccessMask =
-                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = m_atomicCoverageBackingTexture->vkImage(),
-            });
+        // NOTE: This currently only works becauses we never support PLS as
+        // storage texture (i.e., clockwise) and rasterOrdering at the same
+        // time. If that changes, we will need to consider that the
+        // plsTransientImageArray may have been bound previously as input
+        // attachments.
+        assert(plsBackingType == PLSBackingType::inputAttachment ||
+               !m_platformFeatures.supportsRasterOrderingMode);
+        barriers.push_back({
+            .srcAccessMask =
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .image = storageImageToClear,
+        });
 
-        // Clear the entire m_atomicCoverageBackingTexture, even if we aren't
-        // going to use the whole thing. There is a future world where we may
-        // want to consider a "renderPassInitialize" draw to clear only the
+        // The scratch color texture may also need a barrier.
+        // NOTE: atomic mode uses the scratch color texture for clipping because
+        // of its RGBA format.
+        const bool usesScratchColorTexture =
+            desc.interlockMode == gpu::InterlockMode::atomics ||
+            !fixedFunctionColorOutput;
+        if (usesScratchColorTexture)
+        {
+            // Don't use the scratch color texture until shaders in previous
+            // render passes have finished using it.
+            // NOTE: The scratch texture may have been bound as an input
+            // attachment OR a storage texture.
+            const VkAccessFlags storageTextureAccess =
+                m_platformFeatures.supportsClockwiseMode
+                    ? VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
+                    : 0;
+            srcStages |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            dstStages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            barriers.push_back({
+                .srcAccessMask =
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | storageTextureAccess,
+                .dstAccessMask =
+                    VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | storageTextureAccess,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .image = plsTransientScratchColorTexture()->vkImage(),
+            });
+        }
+
+        m_vk->imageMemoryBarriers(commandBuffer,
+                                  srcStages,
+                                  dstStages,
+                                  0,
+                                  barriers.size(),
+                                  barriers.data());
+
+        // Clear the entire storageImageToClear, even if we aren't going to use
+        // the whole thing. There is a future world where we may want to
+        // consider a "renderPassInitialize" draw to clear only the
         // renderTargetUpdateBounds, but in most cases, a full clear will almost
         // definitely be faster due to hardware optimizations.
-        const VkClearColorValue coverageClearValue =
-            vkutil::color_clear_r32ui(desc.coverageClearValue);
-        m_vk->CmdClearColorImage(commandBuffer,
-                                 m_atomicCoverageBackingTexture->vkImage(),
-                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 &coverageClearValue,
-                                 1,
-                                 &clearRange);
+        if (desc.interlockMode == gpu::InterlockMode::atomics)
+        {
+            const VkClearColorValue coverageClearValue =
+                vkutil::color_clear_r32ui(desc.coverageClearValue);
 
-        // Don't use the coverage texture in shaders until the clear finishes.
+            const VkImageSubresourceRange clearRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            };
+
+            m_vk->CmdClearColorImage(commandBuffer,
+                                     m_plsAtomicCoverageTexture->vkImage(),
+                                     VK_IMAGE_LAYOUT_GENERAL,
+                                     &coverageClearValue,
+                                     1,
+                                     &clearRange);
+        }
+        else
+        {
+            assert(desc.coverageClearValue == 0);
+            const VkClearColorValue zeroClearValue = {};
+
+            const VkImageSubresourceRange transientClearRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = (desc.combinedShaderFeatures &
+                               gpu::ShaderFeatures::ENABLE_CLIPPING)
+                                  ? 2u  // coverage and clip.
+                                  : 1u, // coverage only.
+            };
+
+            m_vk->CmdClearColorImage(commandBuffer,
+                                     *plsTransientImageArray(),
+                                     VK_IMAGE_LAYOUT_GENERAL,
+                                     &zeroClearValue,
+                                     1,
+                                     &transientClearRange);
+        }
+
+        // Don't use the storageImageToClear in shaders until the clear
+        // finishes.
         m_vk->imageMemoryBarrier(
             commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1840,12 +2158,36 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .dstAccessMask =
                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = m_atomicCoverageBackingTexture->vkImage(),
+                .image = storageImageToClear,
             });
     }
-    else if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
+    else
+    {
+        // Ensure any color writes in prior frames complete before we execute
+        // the load operations.
+        // NOTE: This currently only works becauses we never support PLS as
+        // storage texture (i.e., clockwise) and rasterOrdering at the same
+        // time. If that changes, we will need to consider that the
+        // plsTransientImageArray may have been bound previously as storage
+        // textures.
+        assert(desc.interlockMode != gpu::InterlockMode::rasterOrdering ||
+               !m_platformFeatures.supportsClockwiseMode);
+        m_vk->memoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            // "Load" operations always occur in
+            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            });
+    }
+
+    if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
         VkPipelineStageFlags lastCoverageBufferStage =
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -1895,20 +2237,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    // Ensure all reads to any internal attachments complete before we execute
-    // the load operations.
-    m_vk->memoryBarrier(
-        commandBuffer,
-        // "Load" operations always occur in
-        // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        0,
-        {
-            .srcAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        });
-
     assert(clearValues.size() == framebufferViews.size());
     VkRenderPassBeginInfo renderPassBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -1936,6 +2264,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VkDescriptorSet inputAttachmentDescriptorSet = VK_NULL_HANDLE;
     if (pipelineLayout.plsLayout() != VK_NULL_HANDLE)
     {
+        const VkDescriptorType plsDescriptorType =
+            (plsBackingType ==
+             PipelineManagerVulkan::PLSBackingType::storageTexture)
+                ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
         inputAttachmentDescriptorSet = descriptorSetPool->allocateDescriptorSet(
             pipelineLayout.plsLayout());
 
@@ -1945,7 +2278,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 inputAttachmentDescriptorSet,
                 {
                     .dstBinding = COLOR_PLANE_IDX,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                    .descriptorType = plsDescriptorType,
                 },
                 {{
                     .imageView = colorImageView,
@@ -1954,40 +2287,40 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
 
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-            desc.interlockMode == gpu::InterlockMode::atomics)
+            desc.interlockMode == gpu::InterlockMode::atomics ||
+            desc.interlockMode == gpu::InterlockMode::clockwise)
         {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
                 {
                     .dstBinding = CLIP_PLANE_IDX,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                    .descriptorType = plsDescriptorType,
                 },
                 {{
                     .imageView =
                         (desc.interlockMode == gpu::InterlockMode::atomics)
-                            ? m_plsBackingTextureRGBA8->vkImageView()
-                            : *m_plsClipBackingViewR32UI,
+                            ? plsTransientScratchColorTexture()->vkImageView()
+                            : *plsTransientClipView(),
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
-        }
 
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
-        {
-            m_vk->updateImageDescriptorSets(
-                inputAttachmentDescriptorSet,
-                {
-                    .dstBinding = SCRATCH_COLOR_PLANE_IDX,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                },
-                {{
-                    .imageView = m_plsBackingTextureRGBA8->vkImageView(),
-                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                }});
-        }
+            if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+                (desc.interlockMode == gpu::InterlockMode::clockwise &&
+                 !fixedFunctionColorOutput))
+            {
+                m_vk->updateImageDescriptorSets(
+                    inputAttachmentDescriptorSet,
+                    {
+                        .dstBinding = SCRATCH_COLOR_PLANE_IDX,
+                        .descriptorType = plsDescriptorType,
+                    },
+                    {{
+                        .imageView =
+                            plsTransientScratchColorTexture()->vkImageView(),
+                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    }});
+            }
 
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-            desc.interlockMode == gpu::InterlockMode::atomics)
-        {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
                 {
@@ -1995,13 +2328,13 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .descriptorType =
                         (desc.interlockMode == gpu::InterlockMode::atomics)
                             ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-                            : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                            : plsDescriptorType,
                 },
                 {{
                     .imageView =
                         (desc.interlockMode == gpu::InterlockMode::atomics)
-                            ? m_atomicCoverageBackingTexture->vkImageView()
-                            : *m_plsCoverageBackingView,
+                            ? m_plsAtomicCoverageTexture->vkImageView()
+                            : *plsTransientCoverageView(),
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
         }
@@ -2386,27 +2719,30 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
           DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer))
     {
         // Copy from the offscreen texture back to the target.
+        constexpr static vkutil::ImageAccess ACCESS_COPY_FROM = {
+            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+
         m_vk->blitSubRect(
             commandBuffer,
-            renderTarget
-                ->accessOffscreenColorTexture(
-                    commandBuffer,
-                    {
-                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                        .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    })
+            ((plsBackingType == PLSBackingType::storageTexture)
+                 ? accessPLSOffscreenColorTexture(commandBuffer,
+                                                  ACCESS_COPY_FROM)
+                 : renderTarget->accessOffscreenColorTexture(commandBuffer,
+                                                             ACCESS_COPY_FROM))
                 ->vkImage(),
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            ACCESS_COPY_FROM.layout,
             renderTarget->accessTargetImage(
                 commandBuffer,
                 {
                     .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
                     .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
                 },
                 vkutil::ImageAccessAction::invalidateContents),
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
             drawBounds);
     }
 

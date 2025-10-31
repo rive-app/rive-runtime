@@ -30,17 +30,25 @@ PLS_MAIN(@drawFragmentMain)
 
     PLS_INTERLOCK_BEGIN;
 
+    half2 clipData;
+    half clipBufferID, clipCoverage;
 #if defined(@DRAW_INTERIOR_TRIANGLES) && defined(@BORROWED_COVERAGE_PASS)
-    // Interior triangles with borrowed coverage are always the first fragment
-    // of the path at their pixel, so we don't need to check the current
-    // coverage value.
-    half clipCoverage = fragCoverage;
-#else
-    half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-    half clipBufferID = clipData.g;
-    half initialCoverage = clipBufferID == clipID ? clipData.r : make_half(.0);
-    half clipCoverage = initialCoverage + fragCoverage;
+    if (@BORROWED_COVERAGE_PASS)
+    {
+        // Interior triangles with borrowed coverage are always the first
+        // fragment of the path at their pixel, so we don't need to check the
+        // current coverage value.
+        clipCoverage = fragCoverage;
+    }
+    else
 #endif
+    {
+        clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+        clipBufferID = clipData.g;
+        half initialCoverage =
+            clipBufferID == clipID ? clipData.r : make_half(.0);
+        clipCoverage = initialCoverage + fragCoverage;
+    }
 
 #ifdef @ENABLE_NESTED_CLIPPING
     half outerClipID = v_clipIDs.y;
@@ -48,10 +56,13 @@ PLS_MAIN(@drawFragmentMain)
     {
         half outerClipCoverage = .0;
 #if defined(@DRAW_INTERIOR_TRIANGLES) && defined(@BORROWED_COVERAGE_PASS)
-        // Interior triangles with borrowed coverage did not load the clip
-        // buffer already, so do that now.
-        half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-        half clipBufferID = clipData.g;
+        if (@BORROWED_COVERAGE_PASS)
+        {
+            // Interior triangles with borrowed coverage did not load the clip
+            // buffer already, so do that now.
+            clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+            clipBufferID = clipData.g;
+        }
 #endif
         if (clipBufferID != clipID)
         {

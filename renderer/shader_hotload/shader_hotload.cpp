@@ -100,6 +100,27 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "atomic_resolve_coalesced.vert.spirv",
         riveSpirvPath / "atomic_resolve_coalesced.frag.spirv",
 
+#ifndef RIVE_ANDROID
+        riveSpirvPath / "draw_clockwise_path.vert.spirv",
+        riveSpirvPath / "draw_clockwise_path.frag.spirv",
+        riveSpirvPath / "draw_clockwise_path.fixedcolor_frag.spirv",
+        riveSpirvPath / "draw_clockwise_clip.frag.spirv",
+        riveSpirvPath / "draw_clockwise_clip.fixedcolor_frag.spirv",
+        riveSpirvPath / "draw_clockwise_interior.triangles_vert.spirv",
+        riveSpirvPath / "draw_clockwise_interior.triangles_frag.spirv",
+        riveSpirvPath /
+            "draw_clockwise_interior.triangles_fixedcolor_frag.spirv",
+        riveSpirvPath / "draw_clockwise_interior.triangles_clip_frag.spirv",
+        riveSpirvPath /
+            "draw_clockwise_interior.triangles_clip_fixedcolor_frag.spirv",
+        riveSpirvPath / "draw_clockwise_atlas_blit.vert.spirv",
+        riveSpirvPath / "draw_clockwise_atlas_blit.frag.spirv",
+        riveSpirvPath / "draw_clockwise_atlas_blit.fixedcolor_frag.spirv",
+        riveSpirvPath / "draw_clockwise_image_mesh.vert.spirv",
+        riveSpirvPath / "draw_clockwise_image_mesh.frag.spirv",
+        riveSpirvPath / "draw_clockwise_image_mesh.fixedcolor_frag.spirv",
+#endif
+
         riveSpirvPath / "draw_clockwise_atomic_path.vert.spirv",
         riveSpirvPath / "draw_clockwise_atomic_path.frag.spirv",
         riveSpirvPath / "draw_clockwise_atomic_interior_triangles.vert.spirv",

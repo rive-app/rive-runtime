@@ -325,6 +325,28 @@ void VulkanContext::bufferMemoryBarrier(
                        nullptr);
 }
 
+void VulkanContext::clearColorImage(VkCommandBuffer commandBuffer,
+                                    ColorInt clearColor,
+                                    VkImage image,
+                                    VkImageLayout imageLayout)
+{
+    const VkClearColorValue colorClearValue = {
+        vkutil::color_clear_rgba32f(clearColor)};
+
+    const VkImageSubresourceRange colorClearRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .levelCount = 1,
+        .layerCount = 1,
+    };
+
+    CmdClearColorImage(commandBuffer,
+                       image,
+                       imageLayout,
+                       &colorClearValue,
+                       1,
+                       &colorClearRange);
+}
+
 void VulkanContext::blitSubRect(VkCommandBuffer commandBuffer,
                                 VkImage srcImage,
                                 VkImageLayout srcImageLayout,

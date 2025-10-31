@@ -364,7 +364,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     StackVector<VkPipelineColorBlendAttachmentState, PLS_PLANE_COUNT>
         blendStates;
     blendStates.push_back_n(
-        pipelineLayout.colorAttachmentCount(subpassIndex),
+        pipelineLayout.colorAttachmentCount(subpassIndex,
+                                            pipelineLayout.options()),
         {
             .blendEnable = blendEquation != gpu::BlendEquation::none,
             .srcColorBlendFactor = blendEquationPremultiplied

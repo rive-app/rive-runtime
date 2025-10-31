@@ -53,7 +53,7 @@ public:
     gpu::InterlockMode interlockMode() const { return m_interlockMode; }
     Options options() const { return m_options; }
 
-    uint32_t colorAttachmentCount(uint32_t subpassIndex) const;
+    uint32_t colorAttachmentCount(uint32_t subpassIndex, Options) const;
 
     VkDescriptorSetLayout plsLayout() const
     {

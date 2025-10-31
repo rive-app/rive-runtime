@@ -976,8 +976,8 @@ static bool wants_fixed_function_color_output(
             return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::clockwiseAtomic:
-            // clockwiseAtomic currently ignores fixedFunctionColorOutput.
-            return false;
+            // clockwiseAtomic currently always sets fixedFunctionColorOutput.
+            return true;
     }
 
     RIVE_UNREACHABLE();

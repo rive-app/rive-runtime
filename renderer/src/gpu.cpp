@@ -1169,8 +1169,8 @@ static BlendEquation get_blend_equation(
                                                       : BlendEquation::none;
 
         case InterlockMode::clockwiseAtomic:
-            // clockwiseAtomic currently ignores fixedFunctionColorOutput.
-            assert(!flushDesc.fixedFunctionColorOutput);
+            // clockwiseAtomic currently always sets fixedFunctionColorOutput.
+            assert(flushDesc.fixedFunctionColorOutput);
             return BlendEquation::srcOver;
 
         case InterlockMode::msaa:

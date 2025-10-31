@@ -119,15 +119,20 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         }
     }
 
-    // If this has a value we'll use it in the VkDeviceCreateInfo chain
+    // If these have values we'll use them in the VkDeviceCreateInfo chain
     std::optional<VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT>
         rasterOrderFeatures;
+    std::optional<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT>
+        interlockFeatures;
 
     if (!opts.coreFeaturesOnly)
     {
         rasterOrderFeatures = tryEnableRasterOrderFeatures(instance,
                                                            supportedExtensions,
                                                            addedExtensions);
+        interlockFeatures = tryEnableInterlockFeatures(instance,
+                                                       supportedExtensions,
+                                                       addedExtensions);
     }
 
     // Get our list of queue family properties.
@@ -173,15 +178,25 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
     // Finally create the actual device.
     VkDeviceCreateInfo deviceCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pNext = (rasterOrderFeatures.has_value())
-                     ? &rasterOrderFeatures.value()
-                     : nullptr,
+        .pNext = nullptr,
         .queueCreateInfoCount = 1,
         .pQueueCreateInfos = &queueCreateInfo,
         .enabledExtensionCount = uint32_t(addedExtensions.size()),
         .ppEnabledExtensionNames = addedExtensions.data(),
         .pEnabledFeatures = &requestedFeatures,
     };
+    if (rasterOrderFeatures.has_value())
+    {
+        rasterOrderFeatures.value().pNext =
+            const_cast<void*>(deviceCreateInfo.pNext);
+        deviceCreateInfo.pNext = &rasterOrderFeatures.value();
+    }
+    if (interlockFeatures.has_value())
+    {
+        interlockFeatures.value().pNext =
+            const_cast<void*>(deviceCreateInfo.pNext);
+        deviceCreateInfo.pNext = &interlockFeatures.value();
+    }
 
     DEFINE_AND_LOAD_INSTANCE_FUNC(vkCreateDevice, instance);
     VK_CHECK(vkCreateDevice(m_physicalDevice,
@@ -224,6 +239,8 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         printf("%sshaderClipDistance", *commaSeparator);
     if (m_riveVulkanFeatures.rasterizationOrderColorAttachmentAccess)
         printf("%srasterizationOrderColorAttachmentAccess", *commaSeparator);
+    if (m_riveVulkanFeatures.fragmentShaderPixelInterlock)
+        printf("%sfragmentShaderPixelInterlock", *commaSeparator);
     if (m_riveVulkanFeatures.VK_KHR_portability_subset)
         printf("%sVK_KHR_portability_subset", *commaSeparator);
     printf(" ] ====\n");
@@ -433,6 +450,45 @@ VulkanDevice::tryEnableRasterOrderFeatures(
                 return requestedRasterOrderFeatures;
             }
             break;
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT> VulkanDevice::
+    tryEnableInterlockFeatures(
+        VulkanInstance& instance,
+        const std::vector<VkExtensionProperties>& supportedExtensions,
+        std::vector<const char*>& extensions)
+{
+    if (addExtensionIfSupported(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME,
+                                supportedExtensions,
+                                extensions))
+    {
+        constexpr static VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT
+            requestedInterlockFeatures = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT,
+                .fragmentShaderPixelInterlock = VK_TRUE,
+            };
+
+        auto testedInterlockFeatures = requestedInterlockFeatures;
+
+        // Test to see if this is supported
+        VkPhysicalDeviceFeatures2 features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .pNext = &testedInterlockFeatures,
+        };
+
+        if (instance.tryGetPhysicalDeviceFeatures2(m_physicalDevice,
+                                                   &features) &&
+            testedInterlockFeatures.fragmentShaderPixelInterlock)
+        {
+            // The query came back with the requested flag set so return the
+            // feature set we want, it's supported!
+            m_riveVulkanFeatures.fragmentShaderPixelInterlock = true;
+            return requestedInterlockFeatures;
         }
     }
 
