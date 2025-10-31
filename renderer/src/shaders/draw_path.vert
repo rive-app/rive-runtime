@@ -217,7 +217,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #else  // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
         set_clip_rect_plane_distances(clipRectInverseMatrix,
                                       clipRectInverseTranslate.xy,
-                                      fragCoord);
+                                      fragCoord CLIP_CONTEXT_UNPACK);
 #endif // @RENDER_MODE_MSAA
     }
 #endif // ENABLE_CLIP_RECT
@@ -337,7 +337,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_PACK(v_clipIDs);
 #endif
 #endif // @ENABLE_CLIPPING
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
     VARYING_PACK(v_clipRect);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND

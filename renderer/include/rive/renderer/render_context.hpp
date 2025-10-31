@@ -793,6 +793,8 @@ private:
         gpu::FlushDescriptor m_flushDesc;
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
+        const DrawBatch** m_nextDstBlendBarrier = nullptr;
+
         gpu::DrawContents m_combinedDrawContents;
         gpu::ShaderFeatures m_combinedShaderFeatures;
 

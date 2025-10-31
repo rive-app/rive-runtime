@@ -1104,6 +1104,17 @@ struct DrawBatch
     // bounding boxes needs to be blitted to the "dstRead" texture before
     // drawing.
     const Draw* dstReadList = nullptr;
+
+    // Pointer to the next DrawBatchatch in the list that has a
+    // "BarrierFlags::dstBlend" barrier.
+    // When we need advanced blend but the underlying graphics API doesn't
+    // support reading the framebuffer, this can be helpful for breaking up the
+    // drawList into multiple render passes with framebuffer copies in between.
+    const DrawBatch* nextDstBlendBarrier = nullptr;
+    // Link to the next batch to render in the drawList. DrawBatch always exists
+    // in a linked list.
+
+    const DrawBatch* next = nullptr;
 };
 
 // Simple gradients only have 2 texels, so we write them to mapped texture

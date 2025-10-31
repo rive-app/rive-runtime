@@ -224,6 +224,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define TEXTURE_CONTEXT_DECL
 #define TEXTURE_CONTEXT_FORWARD
 
+#define CLIP_CONTEXT_FORWARD
+#define CLIP_CONTEXT_UNPACK
+
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
     $cbuffer DrawUniforms                                                      \
         : UNIFORM_BUFFER_REGISTER(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)       \

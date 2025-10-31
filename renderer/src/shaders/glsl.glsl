@@ -223,7 +223,8 @@
     dst_color_fetch(mat4(subpassLoad(NAME, 0),                                 \
                          subpassLoad(NAME, 1),                                 \
                          subpassLoad(NAME, 2),                                 \
-                         subpassLoad(NAME, 3)))
+                         subpassLoad(NAME, 3)),                                \
+                    gl_SampleMaskIn[0])
 #endif // @FRAGMENT && @RENDER_MODE_MSAA
 #else  // @TARGET_VULKAN -> !@TARGET_VULKAN
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
@@ -519,6 +520,9 @@
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
 
+#define CLIP_CONTEXT_FORWARD
+#define CLIP_CONTEXT_UNPACK
+
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
     void main()                                                                \
     {                                                                          \
@@ -612,33 +616,3 @@ INLINE half4 unpackUnorm4x8(uint u)
     return float4(vals) * (1. / 255.);
 }
 #endif
-
-// The Qualcomm compiler can't handle line breaks in #ifs.
-// clang-format off
-#if defined(@TARGET_VULKAN) && defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
-// clang-format on
-half4 dst_color_fetch(mediump mat4 dstSamples)
-{
-    if (gl_SampleMaskIn[0] == 0xf)
-    {
-        // Average together all samples for this fragment.
-        return (dstSamples[0] + dstSamples[1] + dstSamples[2] + dstSamples[3]) *
-               .25;
-    }
-    else
-    {
-        // Average together only the samples that are inside the sample mask.
-        half4 mask =
-            vec4(notEqual(gl_SampleMaskIn[0] & ivec4(1, 2, 4, 8), ivec4(0)));
-        half4 ret = dstSamples * mask;
-        // Since the sample mask can only have 4 bits, counting them is faster
-        // this way on Galaxy S24 than calling bitCount().
-        int numSamples =
-            (gl_SampleMaskIn[0] & 5) + ((gl_SampleMaskIn[0] >> 1) & 5);
-        numSamples = (numSamples & 3) + (numSamples >> 2);
-        ret *= 1. / float(numSamples);
-        return ret;
-    }
-}
-#endif // @TARGET_VULKAN && @FRAGMENT && @RENDER_MODE_MSAA &&
-       // !@FIXED_FUNCTION_COLOR_OUTPUT

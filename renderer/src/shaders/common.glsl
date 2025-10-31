@@ -302,9 +302,10 @@ INLINE float normalize_z_index(uint zIndex)
 #ifdef @ENABLE_CLIP_RECT
 INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
                                           float2 clipRectInverseTranslate,
-                                          float2 pixelPosition)
+                                          float2 pixelPosition
+                                              CLIP_CONTEXT_FORWARD)
 {
-    if (clipRectInverseMatrix != float2x2(0))
+    if (any(notEqual(float4(clipRectInverseMatrix), float4(.0, .0, .0, .0))))
     {
         float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
                                clipRectInverseTranslate.xy;
@@ -366,3 +367,31 @@ uint zIndex;
 UNIFORM_BLOCK_END(imageDrawUniforms)
 #endif
 #endif
+
+// The Qualcomm compiler can't handle line breaks in #ifs.
+// clang-format off
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+// clang-format on
+half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
+{
+    if (sampleMask == 0xf)
+    {
+        // Average together all samples for this fragment.
+        return (dstSamples[0] + dstSamples[1] + dstSamples[2] + dstSamples[3]) *
+               .25;
+    }
+    else
+    {
+        // Average together only the samples that are inside the sample mask.
+        half4 mask = float4(notEqual(sampleMask & int4(1, 2, 4, 8), int4(0)));
+        half4 ret = MUL(dstSamples, mask);
+        // Since the sample mask can only have 4 bits, counting them is faster
+        // this way on Galaxy S24 than calling bitCount().
+        int numSamples = (sampleMask & 5) + ((sampleMask >> 1) & 5);
+        numSamples = (numSamples & 3) + (numSamples >> 2);
+        ret *= 1. / float(numSamples);
+        return ret;
+    }
+}
+#endif // @FRAGMENT && @RENDER_MODE_MSAA &&
+       // !@FIXED_FUNCTION_COLOR_OUTPUT

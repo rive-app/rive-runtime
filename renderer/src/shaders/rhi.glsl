@@ -105,10 +105,18 @@ $typedef $uint ushort;
 #define FLAT $nointerpolation
 #define VARYING(IDX, TYPE, NAME) TYPE NAME : SPLAT($TEXCOORD, IDX)
 
+#ifdef @NEEDS_CLIP_DISTANCE
+#define VARYING_BLOCK_END                                                      \
+    float4 _pos : $SV_Position;                                                \
+    float4 _clip : $SV_ClipDistance;                                           \
+    }                                                                          \
+    ;
+#else // !@NEEDS_CLIP_DISTANCE
 #define VARYING_BLOCK_END                                                      \
     float4 _pos : $SV_Position;                                                \
     }                                                                          \
     ;
+#endif // @NEEDS_CLIP_DISTANCE
 
 #define VARYING_INIT(NAME, TYPE) TYPE NAME
 #define VARYING_PACK(NAME) _varyings.NAME = NAME
@@ -129,7 +137,7 @@ $typedef $uint ushort;
 
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME
-#define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<UNORM half4> NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<half4> NAME
 #define TEXTURE_R16F(SET, IDX, NAME) uniform $Texture2D<half> NAME
 #define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) uniform $Texture2DArray<half> NAME
 #define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
@@ -178,6 +186,25 @@ $typedef $uint ushort;
 #else
 #define PLS_TEX2D $RWTexture2D
 #endif
+
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
+
+#ifdef @SUPPORTS_SUBPASS_LOAD
+#define DST_COLOR_TEXTURE(NAME)                                                \
+    [[vk::input_attachment_index(COLOR_PLANE_IDX)]] $SubpassInputMS<half4> NAME
+
+#define DST_COLOR_FETCH(NAME)                                                  \
+    dst_color_fetch(half4x4(NAME.SubpassLoad(0),                               \
+                            NAME.SubpassLoad(1),                               \
+                            NAME.SubpassLoad(2),                               \
+                            NAME.SubpassLoad(3)),                              \
+                    _sampleMask)
+#else
+#define DST_COLOR_TEXTURE(NAME) $Texture2D NAME
+
+#define DST_COLOR_FETCH(NAME) NAME[_plsCoord]
+#endif
+#endif // @FRAGMENT && @RENDER_MODE_MSAA
 
 #define PLS_BLOCK_BEGIN
 #define PLS_BLOCK_END
@@ -263,6 +290,25 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define TEXTURE_CONTEXT_DECL
 #define TEXTURE_CONTEXT_FORWARD
 
+#ifdef @NO_VARYING
+
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
+                                                                               \
+    uint $baseInstance;                                                        \
+                                                                               \
+    float4 NAME(Attrs attrs,                                                   \
+                uint _vertexID : $SV_VertexID,                                 \
+                uint _instanceIDWithoutBase : $SV_InstanceID) :                \
+        $SV_Position                                                           \
+    {                                                                          \
+        uint _instanceID = _instanceIDWithoutBase + $baseInstance;
+
+#define EMIT_VERTEX(POSITION)                                                  \
+    return POSITION;                                                           \
+    }
+
+#else // !@NO_VARYING
+
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
                                                                                \
     uint $baseInstance;                                                        \
@@ -297,17 +343,34 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     _varyings._pos = POSITION;                                                 \
     }                                                                          \
     return _varyings;
+#endif // End !@NO_VARYING
 
+#ifdef @NO_VARYING
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
-    DATA_TYPE NAME(Varyings _varyings) : $SV_Target                            \
+    $EARLYDEPTHSTENCIL DATA_TYPE NAME(float4 _pos : $SV_Position) : $SV_Target \
+    {                                                                          \
+        float2 _fragCoord = _pos.xy;
+#else
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
+    $EARLYDEPTHSTENCIL DATA_TYPE NAME(Varyings _varyings,                      \
+                                      uint _sampleMask : $SV_Coverage) :       \
+        $SV_Target                                                             \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \
         uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+#endif
 
 #define EMIT_FRAG_DATA(VALUE)                                                  \
     return VALUE;                                                              \
     }
+#ifdef @NEEDS_CLIP_DISTANCE
+#define CLIP_CONTEXT_FORWARD , out float4 gl_ClipDistance
+#define CLIP_CONTEXT_UNPACK , _varyings._clip
+#else
+#define CLIP_CONTEXT_FORWARD
+#define CLIP_CONTEXT_UNPACK
+#endif
 
 #define FRAGMENT_CONTEXT_DECL , float2 _fragCoord
 #define FRAGMENT_CONTEXT_UNPACK , _fragCoord
@@ -316,7 +379,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define PLS_CONTEXT_UNPACK , _plsCoord
 
 #define PLS_MAIN(NAME)                                                         \
-    EARLYDEPTHSTENCIL void NAME(Varyings _varyings)                            \
+    $EARLYDEPTHSTENCIL void NAME(Varyings _varyings)                           \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \
@@ -324,10 +387,14 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
 
+#if defined(@FIXED_FUNCTION_COLOR_OUTPUT) && defined(@DRAW_IMAGE_MESH)
+#define EMIT_PLS EMIT_PLS_AND_FRAG_COLOR
+#else
 #define EMIT_PLS }
+#endif
 
 #define PLS_FRAG_COLOR_MAIN(NAME)                                              \
-    EARLYDEPTHSTENCIL half4 NAME(Varyings _varyings) : $SV_Target              \
+    $EARLYDEPTHSTENCIL half4 NAME(Varyings _varyings) : $SV_Target             \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \

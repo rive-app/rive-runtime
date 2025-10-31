@@ -266,6 +266,9 @@
 #define TEXTURE_CONTEXT_DECL , FragmentTextures _textures
 #define TEXTURE_CONTEXT_FORWARD , _textures
 
+#define CLIP_CONTEXT_FORWARD
+#define CLIP_CONTEXT_UNPACK
+
 #ifdef @PLS_IMPL_DEVICE_BUFFER
 
 #define PLS_BLOCK_BEGIN                                                        \

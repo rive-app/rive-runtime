@@ -139,16 +139,22 @@ public:
 
     bool empty() const { return count() == 0; }
 
-    T& tail() const
+    T* tail() const
     {
         assert(!empty());
-        return m_tail->data;
+        return m_tail;
+    }
+
+    T* head() const
+    {
+        assert(!empty());
+        return m_head;
     }
 
     template <typename... Args>
-    T& emplace_back(TrivialBlockAllocator& allocator, Args... args)
+    T* emplace_back(TrivialBlockAllocator& allocator, Args... args)
     {
-        Node* node = allocator.make<Node>(std::forward<Args>(args)...);
+        T* node = allocator.make<T>(std::forward<Args>(args)...);
         assert(static_cast<bool>(m_head) == static_cast<bool>(m_tail));
         if (m_head == nullptr)
         {
@@ -160,7 +166,7 @@ public:
         }
         m_tail = node;
         ++m_count;
-        return m_tail->data;
+        return m_tail;
     }
 
     void reset()
@@ -170,28 +176,19 @@ public:
         m_count = 0;
     }
 
-    struct Node
-    {
-        template <typename... Args>
-        Node(Args... args) : data(std::forward<Args>(args)...)
-        {}
-        T data;
-        Node* next = nullptr;
-    };
-
     template <typename U> class Iter
     {
     public:
-        Iter(Node* current) : m_current(current) {}
+        Iter(T* current) : m_current(current) {}
         bool operator!=(const Iter& other) const
         {
             return m_current != other.m_current;
         }
         void operator++() { m_current = m_current->next; }
-        U& operator*() { return m_current->data; }
+        U& operator*() { return *m_current; }
 
     private:
-        Node* m_current;
+        const T* m_current;
     };
     Iter<T> begin() { return {m_head}; }
     Iter<T> end() { return {nullptr}; }
@@ -199,8 +196,8 @@ public:
     Iter<const T> end() const { return {nullptr}; }
 
 private:
-    Node* m_head = nullptr;
-    Node* m_tail = nullptr;
+    T* m_head = nullptr;
+    T* m_tail = nullptr;
     size_t m_count = 0;
 };
 

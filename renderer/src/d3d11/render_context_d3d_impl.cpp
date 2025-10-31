@@ -1991,7 +1991,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     // the PLS resolve, so we don't have to copy to it after the
                     // render pass. (And ince we're changing the render target,
                     // this also better be the final batch of the render pass.)
-                    assert(&batch == &desc.drawList->tail());
+                    assert(&batch == desc.drawList->tail());
                     assert(!desc.fixedFunctionColorOutput);
                     assert(!renderTarget->targetTextureSupportsUAV());
                     ID3D11RenderTargetView* resolveRTV =

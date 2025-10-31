@@ -1,0 +1,15 @@
+#define OPTIONALLY_FLAT flat
+#define RENDER_MODE_MSAA 1
+#define NO_VARYING
+
+#include "/Engine/Public/Platform.ush"
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+#endif
+
+#include "parse_environment.ush"
+#include "Generated/rhi.minified.ush"
+#include "Generated/constants.minified.ush"
+#include "Generated/common.minified.ush"
+#include "Generated/advanced_blend.minified.ush"
+#include "Generated/stencil_draw.minified.ush"

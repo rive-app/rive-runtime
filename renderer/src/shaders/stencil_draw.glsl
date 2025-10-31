@@ -15,6 +15,7 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 
 VERTEX_MAIN(@stencilVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
+    ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, packed_float3);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(@a_triangleVertex.xy);
     uint zIndex = floatBitsToUint(@a_triangleVertex.z) & 0xffffu;
     pos.z = normalize_z_index(zIndex);

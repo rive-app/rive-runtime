@@ -228,6 +228,7 @@ void RenderContext::LogicalFlush::rewind()
     m_flushDesc = FlushDescriptor();
 
     m_drawList.reset();
+    m_nextDstBlendBarrier = nullptr;
     m_combinedShaderFeatures = gpu::ShaderFeatures::NONE;
 
     m_currentPathID = 0;
@@ -1579,7 +1580,7 @@ void RenderContext::LogicalFlush::writeResources()
                                     // it needs the equivalent of a "dstBlend"
                                     // barrier.
                                     BarrierFlags::dstBlend);
-            m_combinedDrawContents |= m_drawList.tail().drawContents;
+            m_combinedDrawContents |= m_drawList.tail()->drawContents;
             // The draw that follows the this init will need a special
             // "msaaPostInit" barrier.
             m_pendingBarriers |= BarrierFlags::msaaPostInit;
@@ -1680,7 +1681,7 @@ void RenderContext::LogicalFlush::writeResources()
                               BlendMode::srcOver,
                               ImageSampler::LinearClamp(),
                               BarrierFlags::plsAtomicPreResolve)
-                .shaderFeatures = m_combinedShaderFeatures;
+                ->shaderFeatures = m_combinedShaderFeatures;
         }
     }
 
@@ -3025,19 +3026,19 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::msaaStencilClipReset:
             if (!m_drawList.empty() && m_pendingBarriers == BarrierFlags::none)
             {
-                const DrawBatch& currentBatch = m_drawList.tail();
+                const DrawBatch* currentBatch = m_drawList.tail();
                 canMergeWithPreviousBatch =
-                    currentBatch.drawType == drawType &&
-                    currentBatch.shaderMiscFlags == shaderMiscFlags &&
+                    currentBatch->drawType == drawType &&
+                    currentBatch->shaderMiscFlags == shaderMiscFlags &&
                     can_combine_draw_contents(m_ctx->frameInterlockMode(),
-                                              currentBatch.drawContents,
+                                              currentBatch->drawContents,
                                               draw) &&
-                    can_combine_draw_images(currentBatch.imageTexture,
+                    can_combine_draw_images(currentBatch->imageTexture,
                                             draw->imageTexture(),
-                                            currentBatch.imageSampler,
+                                            currentBatch->imageSampler,
                                             draw->imageSampler());
                 if (canMergeWithPreviousBatch &&
-                    currentBatch.baseElement + currentBatch.elementCount !=
+                    currentBatch->baseElement + currentBatch->elementCount !=
                         baseElement)
                 {
                     // In MSAA mode, multiple subpasses reference the same
@@ -3065,7 +3066,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     DrawBatch* batch;
     if (!canMergeWithPreviousBatch)
     {
-        batch = &m_drawList.emplace_back(
+        batch = m_drawList.emplace_back(
             m_ctx->perFrameAllocator(),
             drawType,
             shaderMiscFlags,
@@ -3078,7 +3079,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
     else
     {
-        batch = &m_drawList.tail();
+        batch = m_drawList.tail();
         assert(m_pendingBarriers == BarrierFlags::none);
         assert(batch->drawType == drawType);
         assert(batch->shaderMiscFlags == shaderMiscFlags);
@@ -3170,6 +3171,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         // batch.
         assert(!m_ctx->platformFeatures().supportsBlendAdvancedKHR ||
                batch->firstBlendMode == draw->blendMode());
+
         if (draw->blendMode() != BlendMode::srcOver &&
             !m_ctx->platformFeatures().supportsBlendAdvancedCoherentKHR)
         {
@@ -3188,7 +3190,21 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             {
                 batch->barriers |= BarrierFlags::dstBlend;
                 batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
+                if (m_nextDstBlendBarrier != nullptr)
+                {
+                    *m_nextDstBlendBarrier = batch;
+                }
+                m_nextDstBlendBarrier = &batch->nextDstBlendBarrier;
             }
+        }
+
+        // The first batch in a drawList is also the head of the
+        // "nextDstBlendBarrier" sub-list, regardless of whether it has a
+        // dstBlend barrier of its own. (But after this first batch, only
+        // batches with a dstBlend barrier will participate.)
+        if (m_nextDstBlendBarrier == nullptr)
+        {
+            m_nextDstBlendBarrier = &batch->nextDstBlendBarrier;
         }
     }
 

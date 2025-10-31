@@ -62,12 +62,12 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
         v_clipRect = find_clip_rect_coverage_distances(
             make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
             imageDrawUniforms.clipRectInverseTranslate,
-            vertexPosition);
+            vertexPosition CLIP_CONTEXT_UNPACK);
 #else
         set_clip_rect_plane_distances(
             make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
             imageDrawUniforms.clipRectInverseTranslate,
-            vertexPosition);
+            vertexPosition CLIP_CONTEXT_UNPACK);
 #endif
     }
 #endif // ENABLE_CLIP_RECT
@@ -83,7 +83,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIPPING
     VARYING_PACK(v_clipID);
 #endif
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
     VARYING_PACK(v_clipRect);
 #endif
     EMIT_VERTEX(pos);
