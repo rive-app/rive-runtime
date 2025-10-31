@@ -121,6 +121,7 @@ static const luaL_Reg lualibs[] = {
     {"rive", luaopen_rive_base},
     {LUA_OSLIBNAME, luaopen_os},
     {LUA_STRLIBNAME, luaopen_string},
+    {LUA_UTF8LIBNAME, luaopen_utf8},
     {"math", luaopen_rive_math},
     {"renderer", luaopen_rive_renderer_library},
     {"properties", luaopen_rive_properties},
