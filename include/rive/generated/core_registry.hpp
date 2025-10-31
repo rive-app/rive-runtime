@@ -1872,6 +1872,12 @@ public:
             case NodeBase::computedHeightPropertyKey:
                 object->as<NodeBase>()->computedHeight(value);
                 break;
+            case NestedArtboardBase::speedPropertyKey:
+                object->as<NestedArtboardBase>()->speed(value);
+                break;
+            case NestedArtboardBase::quantizePropertyKey:
+                object->as<NestedArtboardBase>()->quantize(value);
+                break;
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
                 object->as<NestedArtboardLayoutBase>()->instanceWidth(value);
                 break;
@@ -3201,6 +3207,10 @@ public:
                 return object->as<NodeBase>()->computedWidth();
             case NodeBase::computedHeightPropertyKey:
                 return object->as<NodeBase>()->computedHeight();
+            case NestedArtboardBase::speedPropertyKey:
+                return object->as<NestedArtboardBase>()->speed();
+            case NestedArtboardBase::quantizePropertyKey:
+                return object->as<NestedArtboardBase>()->quantize();
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
                 return object->as<NestedArtboardLayoutBase>()->instanceWidth();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
@@ -3902,6 +3912,8 @@ public:
             case NodeBase::computedRootYPropertyKey:
             case NodeBase::computedWidthPropertyKey:
             case NodeBase::computedHeightPropertyKey:
+            case NestedArtboardBase::speedPropertyKey:
+            case NestedArtboardBase::quantizePropertyKey:
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
             case AxisBase::offsetPropertyKey:
@@ -4760,6 +4772,10 @@ public:
                 return object->is<NodeBase>();
             case NodeBase::computedHeightPropertyKey:
                 return object->is<NodeBase>();
+            case NestedArtboardBase::speedPropertyKey:
+                return object->is<NestedArtboardBase>();
+            case NestedArtboardBase::quantizePropertyKey:
+                return object->is<NestedArtboardBase>();
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
                 return object->is<NestedArtboardLayoutBase>();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:

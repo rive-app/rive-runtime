@@ -2,6 +2,7 @@
 #define _RIVE_NESTED_ARTBOARD_BASE_HPP_
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/drawable.hpp"
 #include "rive/span.hpp"
@@ -39,10 +40,14 @@ public:
     static const uint16_t artboardIdPropertyKey = 197;
     static const uint16_t dataBindPathIdsPropertyKey = 582;
     static const uint16_t isPausedPropertyKey = 895;
+    static const uint16_t speedPropertyKey = 907;
+    static const uint16_t quantizePropertyKey = 908;
 
 protected:
     uint32_t m_ArtboardId = -1;
     bool m_IsPaused = false;
+    float m_Speed = 1.0f;
+    float m_Quantize = -1.0f;
 
 public:
     inline uint32_t artboardId() const { return m_ArtboardId; }
@@ -70,12 +75,36 @@ public:
         isPausedChanged();
     }
 
+    inline float speed() const { return m_Speed; }
+    void speed(float value)
+    {
+        if (m_Speed == value)
+        {
+            return;
+        }
+        m_Speed = value;
+        speedChanged();
+    }
+
+    inline float quantize() const { return m_Quantize; }
+    void quantize(float value)
+    {
+        if (m_Quantize == value)
+        {
+            return;
+        }
+        m_Quantize = value;
+        quantizeChanged();
+    }
+
     Core* clone() const override;
     void copy(const NestedArtboardBase& object)
     {
         m_ArtboardId = object.m_ArtboardId;
         copyDataBindPathIds(object);
         m_IsPaused = object.m_IsPaused;
+        m_Speed = object.m_Speed;
+        m_Quantize = object.m_Quantize;
         Drawable::copy(object);
     }
 
@@ -92,6 +121,12 @@ public:
             case isPausedPropertyKey:
                 m_IsPaused = CoreBoolType::deserialize(reader);
                 return true;
+            case speedPropertyKey:
+                m_Speed = CoreDoubleType::deserialize(reader);
+                return true;
+            case quantizePropertyKey:
+                m_Quantize = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -100,6 +135,8 @@ protected:
     virtual void artboardIdChanged() {}
     virtual void dataBindPathIdsChanged() {}
     virtual void isPausedChanged() {}
+    virtual void speedChanged() {}
+    virtual void quantizeChanged() {}
 };
 } // namespace rive
 

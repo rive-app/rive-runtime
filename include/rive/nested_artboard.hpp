@@ -44,6 +44,7 @@ private:
     Artboard* findArtboard(
         ViewModelInstanceArtboard* viewModelInstanceArtboard);
     void clearNestedAnimations();
+    float m_cumulatedSeconds = 0;
 
 public:
     NestedArtboard();
@@ -101,6 +102,7 @@ public:
     void unbind() override;
     void updateDataBinds() override;
 
+    float calculateLocalElapsedSeconds(float elapsedSeconds);
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;

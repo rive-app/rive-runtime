@@ -462,6 +462,28 @@ void NestedArtboard::bindViewModelInstance(
     }
 }
 
+float NestedArtboard::calculateLocalElapsedSeconds(float elapsedSeconds)
+{
+    auto localElapsedSeconds = elapsedSeconds * (speed() >= 0 ? speed() : 1);
+    if (quantize() >= 0)
+    {
+        m_cumulatedSeconds += localElapsedSeconds;
+        auto quantizedSeconds = 1 / quantize();
+        if (m_cumulatedSeconds > quantizedSeconds)
+        {
+            localElapsedSeconds =
+                std::floor(m_cumulatedSeconds / quantizedSeconds) *
+                quantizedSeconds;
+            m_cumulatedSeconds -= localElapsedSeconds;
+        }
+        else
+        {
+            localElapsedSeconds = 0;
+        }
+    }
+    return localElapsedSeconds;
+}
+
 bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
     if (m_Artboard == nullptr || isCollapsed() || isPaused())
@@ -471,10 +493,16 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     bool keepGoing = false;
     bool advanceNested =
         (flags & AdvanceFlags::AdvanceNested) == AdvanceFlags::AdvanceNested;
+    auto localElapsedSeconds = calculateLocalElapsedSeconds(elapsedSeconds);
+    bool newFrame = (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
+    // If the elapsed time is 0 because of quantization, we still want to
+    // continue advancing until the cumulated time is flushed
+    if (localElapsedSeconds == 0 && quantize() >= 0 && newFrame)
+    {
+        return true;
+    }
     if (advanceNested)
     {
-        bool newFrame =
-            (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
         for (auto animation : m_NestedAnimations)
         {
             // If it is not a new frame, we only advance state machines. And we
@@ -491,7 +519,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
                         (nestedSM->stateMachineInstance() != nullptr &&
                          nestedSM->stateMachineInstance()->needsAdvance()))
                     {
-                        if (animation->advance(elapsedSeconds, newFrame))
+                        if (animation->advance(localElapsedSeconds, newFrame))
                         {
                             keepGoing = true;
                         }
@@ -501,7 +529,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
             else
             {
 
-                if (animation->advance(elapsedSeconds, newFrame))
+                if (animation->advance(localElapsedSeconds, newFrame))
                 {
                     keepGoing = true;
                 }
@@ -510,7 +538,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     }
 
     auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
-    if (m_Artboard->advanceInternal(elapsedSeconds, advancingFlags))
+    if (m_Artboard->advanceInternal(localElapsedSeconds, advancingFlags))
     {
         keepGoing = true;
     }

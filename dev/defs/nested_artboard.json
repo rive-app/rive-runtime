@@ -39,6 +39,28 @@
       },
       "description": "Value for playback state.",
       "bindable": true
+    },
+    "speed": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 907,
+        "string": "speed"
+      },
+      "description": "Speed to play the nested state machine at.",
+      "bindable": true
+    },
+    "quantize": {
+      "type": "double",
+      "initialValue": "-1",
+      "animates": true,
+      "key": {
+        "int": 908,
+        "string": "quantize"
+      },
+      "description": "FPS at which the nested state machine will be quantized. -1 means no quantizaztion.",
+      "bindable": true
     }
   }
 }

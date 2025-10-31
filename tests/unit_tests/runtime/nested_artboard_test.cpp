@@ -5,6 +5,7 @@
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/nested_linear_animation.hpp>
 #include <rive/animation/nested_state_machine.hpp>
+#include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include "utils/serializing_factory.hpp"
@@ -256,4 +257,52 @@ TEST_CASE("Pause and resume nested artboards", "[silver]")
     }
 
     CHECK(silver.matches("pause_nested_artboard"));
+}
+
+TEST_CASE("Quantize and speed on nested artboards", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/nested_artboard_quantize_and_speed.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    auto speedProp =
+        vmi->propertyValue("speed")->as<rive::ViewModelInstanceNumber>();
+    auto quantizeProp =
+        vmi->propertyValue("quant")->as<rive::ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    // Multiple state machines in different speed and quantize modes
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Update speed and quantize values
+    speedProp->propertyValue(4);
+    quantizeProp->propertyValue(7);
+    stateMachine->advanceAndApply(0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("nested_artboard_quantize_and_speed"));
 }
