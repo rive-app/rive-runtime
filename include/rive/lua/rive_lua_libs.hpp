@@ -140,6 +140,10 @@ enum class LuaAtoms : int16_t
     data,
     instance,
     bounds,
+    pointerDown,
+    pointerMove,
+    pointerUp,
+    pointerExit,
 
     // Scripted DataValues
     isNumber,

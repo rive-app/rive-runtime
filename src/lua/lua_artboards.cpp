@@ -57,6 +57,42 @@ bool ScriptedArtboard::advance(float seconds)
     }
 }
 
+static int apply_pointer_event(lua_State* L, int atom)
+{
+    auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
+    auto pointerEvent = lua_torive<ScriptedPointerEvent>(L, 2);
+    auto result = 0;
+    if (scriptedArtboard->stateMachine())
+    {
+        switch (atom)
+        {
+            case (int)LuaAtoms::pointerDown:
+                result = (int)scriptedArtboard->stateMachine()->pointerDown(
+                    pointerEvent->m_position,
+                    pointerEvent->m_id);
+                break;
+            case (int)LuaAtoms::pointerMove:
+                result = (int)scriptedArtboard->stateMachine()->pointerMove(
+                    pointerEvent->m_position,
+                    0,
+                    pointerEvent->m_id);
+                break;
+            case (int)LuaAtoms::pointerUp:
+                result = (int)scriptedArtboard->stateMachine()->pointerUp(
+                    pointerEvent->m_position,
+                    pointerEvent->m_id);
+                break;
+            case (int)LuaAtoms::pointerExit:
+                result = (int)scriptedArtboard->stateMachine()->pointerExit(
+                    pointerEvent->m_position,
+                    pointerEvent->m_id);
+                break;
+        }
+    }
+    lua_pushinteger(L, result);
+    return 1;
+}
+
 static int artboard_advance(lua_State* L)
 {
     auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
@@ -110,6 +146,13 @@ static int artboard_namecall(lua_State* L)
                     scriptedArtboard->scriptReffedArtboard(),
                     component);
                 return 1;
+            }
+            case (int)LuaAtoms::pointerDown:
+            case (int)LuaAtoms::pointerUp:
+            case (int)LuaAtoms::pointerMove:
+            case (int)LuaAtoms::pointerExit:
+            {
+                return apply_pointer_event(L, atom);
             }
         }
     }
