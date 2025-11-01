@@ -68,6 +68,10 @@ public:
                                   uint32_t mipLevelCount,
                                   const uint8_t imageDataRGBAPremul[]) override;
 
+    rcp<Texture> makeImageTexture(uint32_t width, uint32_t height,
+                                  uint32_t mipLevelCount,
+                                  rcp<vkutil::Buffer> imageBufferRGBAPremul);
+
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
 private:

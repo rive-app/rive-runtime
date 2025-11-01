@@ -217,6 +217,9 @@ public:
     // Deferred mechanism for uploading image data without a command buffer.
     void scheduleUpload(const void* imageData, size_t imageDataSizeInBytes);
 
+    // Deferred mechanism for uploading image data without a command buffer.
+    void scheduleUpload(rcp<vkutil::Buffer> imageBuffer);
+
     void barrier(VkCommandBuffer,
                  const ImageAccess& dstAccess,
                  ImageAccessAction = ImageAccessAction::preserveContents,
