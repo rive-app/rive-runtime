@@ -116,6 +116,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"children", (int16_t)LuaAtoms::children},
     {"parent", (int16_t)LuaAtoms::parent},
     {"node", (int16_t)LuaAtoms::node},
+    {"addToPath", (int16_t)LuaAtoms::addToPath},
 };
 
 static const luaL_Reg lualibs[] = {

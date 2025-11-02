@@ -119,6 +119,20 @@ void Shape::addToRenderPath(RenderPath* path, const Mat2D& transform)
     }
 }
 
+void Shape::addToRawPath(RawPath& path, const Mat2D* transform)
+{
+    if (isFlagged(PathFlags::local))
+    {
+        Mat2D xform = transform == nullptr ? worldTransform()
+                                           : (*transform) * worldTransform();
+        path.addPath(*m_PathComposer.localPath()->rawPath(), &xform);
+    }
+    else
+    {
+        path.addPath(*m_PathComposer.worldPath()->rawPath(), transform);
+    }
+}
+
 void Shape::draw(Renderer* renderer)
 {
     RIVE_PROF_SCOPE()

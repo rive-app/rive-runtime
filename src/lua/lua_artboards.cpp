@@ -108,6 +108,7 @@ static int artboard_namecall(lua_State* L)
 {
     int atom;
     const char* str = lua_namecallatom(L, &atom);
+
     if (str != nullptr)
     {
         switch (atom)
@@ -120,6 +121,25 @@ static int artboard_namecall(lua_State* L)
             {
                 auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
                 return scriptedArtboard->instance(L);
+            }
+            case (int)LuaAtoms::addToPath:
+            {
+                int nargs = lua_gettop(L);
+                auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
+                auto scriptedPath = lua_torive<ScriptedPath>(L, 2);
+                Mat2D* transform = nullptr;
+                if (nargs == 3)
+                {
+                    auto matrix = lua_torive<ScriptedMat2D>(L, 3);
+                    transform = &matrix->value;
+                }
+
+                scriptedArtboard->scriptReffedArtboard()
+                    ->artboard()
+                    ->addToRawPath(scriptedPath->rawPath, transform);
+                scriptedPath->markDirty();
+
+                return 0;
             }
             case (int)LuaAtoms::bounds:
             {

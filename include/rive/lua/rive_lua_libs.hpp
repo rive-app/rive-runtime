@@ -144,6 +144,7 @@ enum class LuaAtoms : int16_t
     pointerMove,
     pointerUp,
     pointerExit,
+    addToPath,
 
     // Scripted DataValues
     isNumber,

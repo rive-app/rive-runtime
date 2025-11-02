@@ -1254,6 +1254,20 @@ void Artboard::addToRenderPath(RenderPath* path, const Mat2D& transform)
     }
 }
 
+void Artboard::addToRawPath(RawPath& path, const Mat2D* transform)
+{
+    for (auto drawable = m_FirstDrawable; drawable != nullptr;
+         drawable = drawable->prev)
+    {
+        if (drawable->isHidden() || !drawable->is<Shape>())
+        {
+            continue;
+        }
+        Shape* shape = drawable->as<Shape>();
+        shape->addToRawPath(path, transform);
+    }
+}
+
 Vec2D Artboard::origin() const
 {
     return m_FrameOrigin

@@ -262,3 +262,24 @@ TEST_CASE("can access nodes from artboards", "[scripting]")
     CHECK(lua_tonumber(L, -1) == 9);
     lua_pop(L, 1);
 }
+
+TEST_CASE("can add artboard to path", "[scripting]")
+{
+    ScriptingTest vm("function addToPath(artboard:Artboard)\n"
+                     "  local path:Path = Path.new()\n"
+                     "  artboard:addToPath(path)\n"
+                     "end\n"
+                     "function addToPathWithTransform(artboard:Artboard)\n"
+                     "  local path:Path = Path.new()\n"
+                     "  artboard:addToPath(path, Mat2D.identity())\n"
+                     "end\n");
+    lua_State* L = vm.state();
+    auto file = ReadRiveFile("assets/joel_v3.riv", vm.serializer());
+    auto artboard = file->artboard("Character");
+    REQUIRE(artboard != nullptr);
+    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+
+    lua_getglobal(L, "addToPath");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+}

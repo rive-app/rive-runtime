@@ -231,6 +231,7 @@ public:
     void draw(Renderer* renderer, DrawOption option);
     void draw(Renderer* renderer) override;
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
+    void addToRawPath(RawPath& path, const Mat2D* transform);
 
 #ifdef TESTING
     ShapePaintPath* clipPath() { return &m_worldPath; }
