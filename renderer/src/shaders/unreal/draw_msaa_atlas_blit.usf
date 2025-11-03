@@ -19,4 +19,4 @@
 #include "Generated/draw_path_common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
 #include "Generated/draw_path.minified.vert.ush"
-#include "Generated/draw_msaa_path.minified.frag.ush"
+#include "Generated/draw_msaa_object.minified.frag.ush"

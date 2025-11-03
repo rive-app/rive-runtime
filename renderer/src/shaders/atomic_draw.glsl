@@ -504,14 +504,6 @@ INLINE void resolve_paint(uint pathID,
 #ifndef @PLS_BLEND_SRC_OVER
     fragColorOut.rgb *= fragColorOut.a;
 #endif
-
-    // Certain platforms give us less control of the format of what we are
-    // rendering too. Specifically, we are auto converted from linear -> sRGB on
-    // render target writes in unreal. In those cases we made need to end up in
-    // linear color space
-#ifdef @NEEDS_GAMMA_CORRECTION
-    fragColorOut = gamma_to_linear(fragColorOut);
-#endif
 }
 
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) &&                                  \
@@ -887,6 +879,13 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     resolve_paint(lastPathID,
                   coverageCount,
                   fragColorOut FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+    // Certain platforms give us less control of the format of what we are
+    // rendering too. Specifically, we are auto converted from linear -> sRGB on
+    // render target writes in unreal. In those cases we made need to end up in
+    // linear color space
+#ifdef @NEEDS_GAMMA_CORRECTION
+    fragColorOut = gamma_to_linear(fragColorOut);
+#endif
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
 #ifdef @PLS_BLEND_SRC_OVER
     // When PLS_BLEND_SRC_OVER is defined, the blend state usually multiplies
