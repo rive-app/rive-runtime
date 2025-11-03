@@ -320,6 +320,20 @@ ViewModelInstanceRuntime* CommandServer::getViewModelInstance(
     return it != m_viewModels.end() ? it->second.get() : nullptr;
 }
 
+ViewModelInstanceHandle CommandServer::getHandleForInstance(
+    ViewModelInstanceRuntime* handle) const
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    for (auto& itr : m_viewModels)
+    {
+        if (itr.second.get() == handle)
+        {
+            return itr.first;
+        }
+    }
+    return RIVE_NULL_HANDLE;
+}
+
 Vec2D CommandServer::cursorPosForPointerEvent(
     StateMachineInstance* instance,
     const CommandQueue::PointerEvent& pointerEvent)

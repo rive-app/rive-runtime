@@ -2152,6 +2152,30 @@ public:
     size_t m_receivedErrors = 0;
 };
 
+TEST_CASE("CommandServer::getHandleForInstance", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ViewModelInstanceHandle viewModel =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          "Test All");
+
+    commandQueue->runOnce([viewModelHandle = viewModel](CommandServer* server) {
+        auto viewModel = server->getViewModelInstance(viewModelHandle);
+        CHECK(server->getHandleForInstance(viewModel) == viewModelHandle);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();

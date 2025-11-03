@@ -33,6 +33,8 @@ public:
     StateMachineInstance* getStateMachineInstance(StateMachineHandle) const;
     ViewModelInstanceRuntime* getViewModelInstance(
         ViewModelInstanceHandle) const;
+    ViewModelInstanceHandle getHandleForInstance(
+        ViewModelInstanceRuntime*) const;
     // Wait for queue to not be empty, then returns pollMessages.
     bool waitCommands();
     // Returns imidiatly after checking messages. If there are none just returns
