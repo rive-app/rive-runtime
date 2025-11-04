@@ -6,6 +6,7 @@ import subprocess
 import os.path
 import pathlib
 import sys
+from collections import defaultdict
 
 if not "NO_VENV" in os.environ.keys():
     from venv import create
@@ -389,6 +390,11 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
 
     return (entries, missing, success)
 
+# Sort descending total failure count (missing + failure), then by descending failure count, then by name
+# (put the failed ones at the top)
+def device_entry_sort_key(kv): 
+    return (-(kv[1]["missing_candidate"] + kv[1]["failed"]), -(kv[1]["failed"]), kv[0])
+
 # returns entries sorted into identical, passing and failing as well as html str list of each
 # based on arguments passed, we may or may not return all of the string lists, but we always return the object lists
 def sort_entries(entries):
@@ -403,11 +409,50 @@ def sort_entries(entries):
     sorted_failed_entires = sorted(failed_entires, reverse=True)
 
     sorted_failed_str = [str(entry) for entry in sorted_failed_entires]
-    
+
+    # Build a list of stat counts by device name
+    all_device_stats = dict()
+    for entry in entries:
+        if entry.device not in all_device_stats:
+            all_device_stats[entry.device] = defaultdict(int)
+            all_device_stats[entry.device]["url"] = entry.browserstack_details['browser_url'] if entry.browserstack_details is not None else ' '
+        all_device_stats[entry.device][entry.type] += 1
+
+    # Now build the device summary text using the template
+    device_summary_str = ""
+    with open(os.path.join(TEMPLATE_PATH, "device_summary_entry.html")) as t:
+        device_summary_entry_template = t.read()
+
+        for device_name, device_summary in sorted(all_device_stats.items(), key=device_entry_sort_key):
+            none_succeeded = device_summary["pass"] == 0 and device_summary["identical"] == 0
+            any_failed = device_summary["failed"] > 0
+            any_missing = device_summary["missing_candidate"] > 0
+            device_summary_str += device_summary_entry_template.format(
+                name=device_name, 
+                url=device_summary["url"],
+                failed_count=device_summary["failed"] if any_failed else "-",
+                failed_class="fail" if any_failed else "deemphasize",
+                missing_count=device_summary["missing_candidate"] if any_missing else "-",
+                missing_class="fail" if any_missing else "deemphasize",
+                pass_count=device_summary["pass"],
+                pass_class="fail" if none_succeeded else "success",
+                identical_count=device_summary["identical"],
+                identical_class="fail" if none_succeeded else "" if device_summary["identical"] == 0 else "success")
+
     # if we are only doing fails then only sort those and return empty html lists for "pass" and "identical" we still build and return
     # identical and pass object lists for cleaning, but we dont bother sorting them
     if args.fails_only:
-        return (sorted_failed_entires, pass_entires, identical_entires, sorted_failed_str, [], [], missing_golden_str, missing_candidate_str)
+        return (
+            sorted_failed_entires,
+            pass_entires,
+            identical_entires,
+            sorted_failed_str,
+            [],
+            [],
+            missing_golden_str,
+            missing_candidate_str,
+            device_summary_str,
+            len(all_device_stats))
 
     
     # now sort passed entires and build the html list
@@ -416,22 +461,35 @@ def sort_entries(entries):
 
     # if we are cleaning then return empty html list for identical. do everything else the same
     if args.clean:
-         return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, [], missing_golden_str, missing_candidate_str)
+         return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, [], missing_golden_str, missing_candidate_str, device_summary_str, len(all_device_stats))
 
     # otherwise build identical html entry list and include it in the return
     identical_str = [str(entry) for entry in identical_entires]
 
-    return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, identical_str, missing_golden_str, missing_candidate_str)
+    return (
+        sorted_failed_entires,
+        sorted_passed_entires,
+        identical_entires,
+        sorted_failed_str,
+        sorted_passed_str,
+        identical_str,
+        missing_golden_str,
+        missing_candidate_str,
+        device_summary_str,
+        len(all_device_stats))
 
-def write_html(templates_path, failed_entries, passing_entries, identical_entries, missing_golden_entries, missing_candidate_entries, output_path):
+def write_html(templates_path, failed_entries, passing_entries, identical_entries, missing_golden_entries, missing_candidate_entries, device_summary_str, device_number, output_path):
     with open(os.path.join(templates_path, "index.html")) as t:
         index_template = t.read()
     
-    html = index_template.format(identical=identical_entries, passing=passing_entries,
-                                 failed=failed_entries, failed_number=len(failed_entries),
+    html = index_template.format(identical=" ".join(identical_entries), passing=" ".join(passing_entries),
+                                 failed=" ".join(failed_entries), failed_number=len(failed_entries),
                                  passing_number=len(passing_entries), identical_number=len(identical_entries),
-                                 missing_candidate=missing_candidate_entries, missing_candidate_number=len(missing_candidate_entries),
-                                 missing_golden=missing_golden_entries, missing_golden_number=len(missing_golden_entries))
+                                 missing_candidate=" ".join(missing_candidate_entries), missing_candidate_number=len(missing_candidate_entries),
+                                 missing_golden=" ".join(missing_golden_entries), missing_golden_number=len(missing_golden_entries),
+                                 device_summaries=device_summary_str, device_number=device_number,
+                                 pass_hide_class="hidden" if args.fails_only else "",
+                                 identical_hide_class="hidden" if args.fails_only or args.clean else "")
 
     with open(os.path.join(output_path, "index.html"), "w") as file:
         file.write(html)
@@ -469,7 +527,7 @@ def diff_directory_deep(candidates_path, output_path):
             if args.pack:
                 shallow_copy_images(folder.path, output)
 
-    (failed, passed, identical, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str) = sort_entries(all_entries)
+    (failed, passed, identical, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, device_summary_str, device_number) = sort_entries(all_entries)
 
     to_clean = []
     to_check = []
@@ -498,7 +556,7 @@ def diff_directory_deep(candidates_path, output_path):
             os.remove(os.path.join(args.goldens, f"{obj.name}.png"))
 
 
-    write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, output_path)
+    write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, device_summary_str, device_number, output_path)
 
     print(f"total entries {len(all_entries)}")
     write_min_csv(len(passed), len(failed), len(identical), len(all_entries), output_path + "/issues.csv")
@@ -528,9 +586,9 @@ def main(argv=None):
     else:
         (entries, missing, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
         if len(entries) > 0:
-            (failed, passed, identical, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str) = sort_entries(entries)
+            (failed, passed, identical, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, device_summary_str, device_number) = sort_entries(entries)
             assert(len(failed) + len(passed) + len(identical) + len(missing_candidate_str) + len(missing_golden_str) == len(entries))
-            write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, args.output)
+            write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, device_summary_str, device_number, args.output)
             # note could add these to the html output but w/e
             missing_candidates = [os.path.basename(entry.candidates_path_abs) for entry in missing if entry.type == 'missing_candidate']
             write_csv(entries, args.goldens, args.candidates, args.output, missing_candidates)

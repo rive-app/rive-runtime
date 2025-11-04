@@ -5,15 +5,36 @@
     <link rel="icon" href="favicon.ico">
     <link href="https://unpkg.com/bonsai.css@latest/dist/bonsai.min.css" rel="stylesheet">
     <style>
+        :root {{
+            --standard-text-color: #c2baba;
+            --failure-text-color: #f04646;
+            --success-text-color: #46d046;
+            --deemphasized-text-color: #687e7e;
+            
+            --far-background-color: #18191a;
+            --panel-background-color: #43484b;
+            --header-background-color: #292b2c;
+            --alternate-row-background-color: #373B3D;
+        }}
+
+        details h2:not(:first-of-type) {{
+            padding-top: 50px;
+        }}
+        
         header {{
             text-align: left;
         }}
         body {{
-            background-color: #18191a;
+            background-color: var(--far-background-color);
+            color: var(--standard-text-color);
+        }}
+
+        .hidden {{
+          display: none;
         }}
 
         details {{
-            background-color: #43484b;
+            background-color: var(--panel-background-color);
         }}
 
         td {{
@@ -24,46 +45,29 @@
             text-align: left;
         }}
 
-        img {{
-            float: left;
+        details summary {{
+            background-color: var(--header-background-color);
+            overflow: auto;
+            color: var(--standard-text-color);
         }}
 
-        .success {{
-            background-color: rgb(8, 128, 8);
-            overflow:auto;
+        .success  {{
+            color: var(--success-text-color);
         }}
 
-        .success_summary {{
-            background-color: #292b2c;
-            color: rgb(8, 128, 8);
-            overflow:auto;
+        .fail {{
+            color: var(--failure-text-color);
         }}
 
-        .failed {{
-            background-color: rgb(175, 13, 13);
-            overflow:auto;
-        }}
-
-        .failed_summary {{
-            background-color: #292b2c;
-            color: rgb(175, 13, 13);
-            overflow:auto;
-        }}
-
-        .identical_summary {{
-            background-color: #292b2c;
-            color: rgb(194, 186, 186);
-            overflow:auto;
+        .deemphasize {{
+            color: var(--deemphasized-text-color);
         }}
 
         .legend_summary {{
-            background-color: #292b2c;
-            color: rgb(194, 186, 186);
-            overflow:auto;
+            font-weight: bold;
         }}
 
         .entry {{
-            float: left;
             font-size: 20px;
             vertical-align:top;
         }}
@@ -71,63 +75,75 @@
         .entry_table_values {{
             border-spacing: 10px 0; 
             text-align: right;
-            color: rgb(177, 184, 177);
+            padding-top: 20px;
         }}
 
         .entry_table_images {{
             border-spacing: 10px 0; 
             text-align: right;
-            color: rgb(177, 184, 177);
         }}
 
         .header_table {{
             width:100%;
             text-align:left;
-            color: rgb(194, 186, 186);
         }}
 
-        .white_text {{
-            color: rgb(194, 186, 186);
-        }}
-
-        .off_white {{
-            background-color: whitesmoke;
+        .header_table tbody tr:nth-child(odd),
+        .device_summary_values tbody tr:nth-child(odd) {{
+            background-color: var(--alternate-row-background-color);
         }}
     </style>
 </head>
 <body>
     <details open>
-        <summary class="failed_summary">{failed_number} Failed Tests</summary>
+        <summary class="fail">{failed_number} Failed Tests</summary>
         <p>
             {failed}
         </p>
     </details>
     <details open>
-        <summary class="failed_summary">{missing_candidate_number} Missing Candidate</summary>
+        <summary class="fail">{missing_candidate_number} Missing Candidate</summary>
         <p>
             {missing_candidate}
         </p>
     </details>
     <details open>
-        <summary class="failed_summary">{missing_golden_number} Missing Golden</summary>
+        <summary class="fail">{missing_golden_number} Missing Golden</summary>
         <p>
             {missing_golden}
         </p>
     </details>
-    <details>
-        <summary class="success_summary">{passing_number} Passing Tests</summary>
+    <details class="{pass_hide_class}">
+        <summary class="success">{passing_number} Passing Tests</summary>
         <p>
             {passing}
         </p>
     </details>
-    <details>
-        <summary class="identical_summary">{identical_number} Identical Images</summary>
+    <details class="{identical_hide_class}">
+        <summary>{identical_number} Identical Images</summary>
         <p>
             {identical}
         </p>
     </details>
     <details>
-        <summary class="legend_summary"><b>legend</b></summary>
+        <summary class="device_summary">Device Summary ({device_number} device(s))</summary>
+            <table class="device_summary_values">
+                <thead> 
+                    <tr> 
+                        <th>Device Name</th>
+                        <th>Fail Count</th>
+                        <th>Missing Count</th>
+                        <th>Passing Count</th>
+                        <th>Identical Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {device_summaries}
+                </tbody>
+            </table>
+        </details>
+    <details>
+        <summary class="legend_summary">legend</summary>
         <table class="header_table">
             <thead>
                 <tr> 
