@@ -112,7 +112,7 @@ int luaopen_rive_image(lua_State* L)
     lua_setfield(L, LUA_GLOBALSINDEX, ScriptedImageSampler::luaName);
     lua_register_rive<ScriptedImageSampler>(L);
 
-    return 2;
+    return 0;
 }
 
 #endif

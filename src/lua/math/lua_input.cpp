@@ -69,16 +69,37 @@ static int pointer_event_namecall(lua_State* L)
                ScriptedPointerEvent::luaName);
     return 0;
 }
+
+static int pointer_event_new(lua_State* L)
+{
+
+    int id = luaL_checkinteger(L, 1);
+    auto vec = lua_checkvec2d(L, 2);
+    lua_newrive<ScriptedPointerEvent>(L, id, Vec2D(vec->x, vec->y));
+    return 1;
+}
+
+static const luaL_Reg pointerEventsStaticMethods[] = {
+    {"new", pointer_event_new},
+    {nullptr, nullptr}};
+
 int luaopen_rive_input(lua_State* L)
 {
-    lua_register_rive<ScriptedPointerEvent>(L);
-    lua_pushcfunction(L, pointer_event_index, nullptr);
-    lua_setfield(L, -2, "__index");
-    lua_pushcfunction(L, pointer_event_namecall, nullptr);
-    lua_setfield(L, -2, "__namecall");
+    {
+        luaL_register(L,
+                      ScriptedPointerEvent::luaName,
+                      pointerEventsStaticMethods);
+    }
+    {
+        lua_register_rive<ScriptedPointerEvent>(L);
+        lua_pushcfunction(L, pointer_event_index, nullptr);
+        lua_setfield(L, -2, "__index");
+        lua_pushcfunction(L, pointer_event_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
 
-    lua_setreadonly(L, -1, true);
-    lua_pop(L, 1); // pop the metatable
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
 
     return 1;
 }

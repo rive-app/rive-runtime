@@ -200,7 +200,7 @@ int luaopen_rive_renderer(lua_State* L)
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
-    return 1;
+    return 0;
 }
 
 #endif

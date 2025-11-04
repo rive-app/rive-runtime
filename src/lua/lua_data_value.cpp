@@ -407,6 +407,6 @@ int luaopen_rive_data_values(lua_State* L)
         lua_pop(L, 1); // pop the metatable
     }
 
-    return 5;
+    return 1;
 }
 #endif

@@ -1158,6 +1158,6 @@ int luaopen_rive_properties(lua_State* L)
         lua_pop(L, 1); // pop the metatable
     }
 
-    return 9;
+    return 0;
 }
 #endif
