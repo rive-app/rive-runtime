@@ -1,5 +1,5 @@
 local dependency = require('dependency')
-local luau = dependency.github('luigi-rosso/luau', 'rive_0_20')
+local luau = dependency.github('luigi-rosso/luau', 'rive_0_21')
 
 dofile('rive_build_config.lua')
 
