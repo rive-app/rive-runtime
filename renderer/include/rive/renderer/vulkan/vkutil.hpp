@@ -215,7 +215,9 @@ public:
     ImageAccess& lastAccess() { return m_lastAccess; }
 
     // Deferred mechanism for uploading image data without a command buffer.
-    void scheduleUpload(const void* imageData, size_t imageDataSizeInBytes);
+    void scheduleUpload(const void* imageDataRGBAPremul,
+                        size_t imageDataSizeInBytes);
+    void scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul);
 
     void barrier(VkCommandBuffer,
                  const ImageAccess& dstAccess,

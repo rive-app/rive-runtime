@@ -312,17 +312,25 @@ Texture2D::Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo info) :
     m_imageView = vk->makeImageView(m_image);
 }
 
-void Texture2D::scheduleUpload(const void* imageData,
+void Texture2D::scheduleUpload(const void* imageDataRGBAPremul,
                                size_t imageDataSizeInBytes)
 {
-    m_imageUploadBuffer = m_image->vk()->makeBuffer(
+    rcp<vkutil::Buffer> imageBufferRGBAPremul = m_image->vk()->makeBuffer(
         {
             .size = imageDataSizeInBytes,
             .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         },
         vkutil::Mappability::writeOnly);
-    memcpy(m_imageUploadBuffer->contents(), imageData, imageDataSizeInBytes);
-    m_imageUploadBuffer->flushContents();
+    memcpy(imageBufferRGBAPremul->contents(),
+           imageDataRGBAPremul,
+           imageDataSizeInBytes);
+    imageBufferRGBAPremul->flushContents();
+    scheduleUpload(std::move(imageBufferRGBAPremul));
+}
+
+void Texture2D::scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul)
+{
+    m_imageUploadBuffer = std::move(imageBufferRGBAPremul);
 }
 
 void Texture2D::applyImageUploadBuffer(VkCommandBuffer commandBuffer)
