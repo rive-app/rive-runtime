@@ -88,6 +88,20 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     return texture;
 }
 
+rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
+    uint32_t width, uint32_t height, uint32_t mipLevelCount,
+    rcp<vkutil::Buffer> imageBufferRGBAPremul)
+{
+  assert(imageBufferRGBAPremul->info().size >= height * width * 4);
+  auto texture = m_vk->makeTexture2D({
+      .format = VK_FORMAT_R8G8B8A8_UNORM,
+      .extent = {width, height},
+      .mipLevels = mipLevelCount,
+  });
+  texture->scheduleUpload(imageBufferRGBAPremul);
+  return texture;
+}
+  
 // Renders color ramps to the gradient texture.
 class RenderContextVulkanImpl::ColorRampPipeline
 {

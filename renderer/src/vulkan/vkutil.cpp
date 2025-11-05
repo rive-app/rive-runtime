@@ -315,14 +315,20 @@ Texture2D::Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo info) :
 void Texture2D::scheduleUpload(const void* imageData,
                                size_t imageDataSizeInBytes)
 {
-    m_imageUploadBuffer = m_image->vk()->makeBuffer(
-        {
-            .size = imageDataSizeInBytes,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        },
-        vkutil::Mappability::writeOnly);
-    memcpy(m_imageUploadBuffer->contents(), imageData, imageDataSizeInBytes);
-    m_imageUploadBuffer->flushContents();
+  rcp<vkutil::Buffer> imageUploadBuffer = m_image->vk()->makeBuffer(
+      {
+          .size = imageDataSizeInBytes,
+          .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      },
+      vkutil::Mappability::writeOnly);
+  memcpy(imageUploadBuffer->contents(), imageData, imageDataSizeInBytes);
+  scheduleUpload(imageUploadBuffer);
+}
+
+void Texture2D::scheduleUpload(rcp<vkutil::Buffer> imageBuffer)
+{
+  m_imageUploadBuffer = imageBuffer;
+  m_imageUploadBuffer->flushContents();
 }
 
 void Texture2D::applyImageUploadBuffer(VkCommandBuffer commandBuffer)
