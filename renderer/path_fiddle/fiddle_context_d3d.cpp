@@ -10,11 +10,12 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions)
 #else
 
 #include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/d3d/d3d_utils.hpp"
 #include "rive/renderer/d3d11/render_context_d3d_impl.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include <array>
 #include <dxgi1_2.h>
-
+#include <iostream>
 #define GLFW_INCLUDE_NONE
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include "GLFW/glfw3.h"
@@ -227,14 +228,50 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(
         // coverage.
         contextOptions.disableTypedUAVLoadStore = true;
     }
+    bool shouldUseNameFilter = false;
+    std::wstring gpuNameFilterW;
+    if (fiddleOptions.gpuNameFilter)
+    {
+        shouldUseNameFilter =
+            d3d_utils::GetWStringFromString(fiddleOptions.gpuNameFilter,
+                                            gpuNameFilterW);
+    }
+
     for (UINT i = 0; factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND;
          ++i)
     {
         adapter->GetDesc(&adapterDesc);
+        if (shouldUseNameFilter)
+        {
+            std::wstring gpuName(adapterDesc.Description,
+                                 wcslen(adapterDesc.Description));
+            if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
+            {
+                adapterDesc = {};
+                continue;
+            }
+        }
+
         contextOptions.isIntel = adapterDesc.VendorId == 0x163C ||
                                  adapterDesc.VendorId == 0x8086 ||
                                  adapterDesc.VendorId == 0x8087;
+
         break;
+    }
+
+    // if we used a filter and we foud nothing, use the first adaptor.
+    if (shouldUseNameFilter && adapterDesc.DeviceId == 0)
+    {
+        std::cout << "Failed to find adaptor named \""
+                  << fiddleOptions.gpuNameFilter
+                  << "\" using first adaptor instead.\n";
+        if (factory->EnumAdapters(0, &adapter) != DXGI_ERROR_NOT_FOUND)
+        {
+            adapter->GetDesc(&adapterDesc);
+            contextOptions.isIntel = adapterDesc.VendorId == 0x163C ||
+                                     adapterDesc.VendorId == 0x8086 ||
+                                     adapterDesc.VendorId == 0x8087;
+        }
     }
 
     ComPtr<ID3D11Device> gpu;

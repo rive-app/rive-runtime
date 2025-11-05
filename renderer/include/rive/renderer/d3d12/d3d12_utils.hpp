@@ -65,6 +65,13 @@ public:
                         UINT numElements,
                         UINT elementByteStride,
                         UINT64 firstElement);
+    void markSrvToIndex(ID3D12Device* device,
+                        D3D12Buffer* resource,
+                        UINT index,
+                        UINT numElements,
+                        UINT elementByteStride,
+                        UINT gpuByteStride,
+                        UINT64 firstElement);
     void markUavToIndex(ID3D12Device* device,
                         D3D12Buffer* resource,
                         DXGI_FORMAT format,

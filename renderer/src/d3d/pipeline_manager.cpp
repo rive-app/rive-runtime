@@ -41,8 +41,7 @@ static std::string build_shader(DrawType drawType,
     }
     if (d3dCapabilities.supportsRasterizerOrderedViews)
     {
-        if (interlockMode == InterlockMode::rasterOrdering &&
-            drawType != DrawType::interiorTriangulation)
+        if (interlockMode == InterlockMode::rasterOrdering)
         {
             s << "#define " << GLSL_ENABLE_RASTERIZER_ORDERED_VIEWS << '\n';
         }

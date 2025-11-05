@@ -128,6 +128,37 @@ void D3D12DescriptorHeap::markSrvToIndex(ID3D12Device* device,
     device->CreateShaderResourceView(resource->resource(), &srvDesc, srvHandle);
 }
 
+void D3D12DescriptorHeap::markSrvToIndex(ID3D12Device* device,
+                                         D3D12Buffer* resource,
+                                         UINT index,
+                                         UINT numElements,
+                                         UINT elementByteStride,
+                                         UINT gpuByteStride,
+                                         UINT64 firstElement)
+{
+    assert(m_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    assert(elementByteStride % gpuByteStride == 0);
+
+    const UINT cpuScale = elementByteStride / gpuByteStride;
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Buffer.FirstElement = firstElement * cpuScale;
+    srvDesc.Buffer.NumElements = numElements * cpuScale;
+    srvDesc.Buffer.StructureByteStride = gpuByteStride;
+    srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+    srvDesc.Format = resource->desc().Format;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
+        m_heap->GetCPUDescriptorHandleForHeapStart(),
+        index,
+        m_heapDescriptorSize);
+
+    device->CreateShaderResourceView(resource->resource(), &srvDesc, srvHandle);
+}
+
 void D3D12DescriptorHeap::markUavToIndex(ID3D12Device* device,
                                          D3D12Buffer* resource,
                                          DXGI_FORMAT format,

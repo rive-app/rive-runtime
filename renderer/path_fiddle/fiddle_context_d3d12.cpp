@@ -11,6 +11,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 #else
 
 #include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/d3d/d3d_utils.hpp"
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include <dxgi1_6.h>
 
@@ -22,14 +23,23 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 using namespace rive;
 using namespace rive::gpu;
 
-void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter)
+bool GetHardwareAdapter(IDXGIFactory1* pFactory,
+                        const char* gpuNameFilter,
+                        IDXGIAdapter1** ppAdapter)
 {
     using namespace Microsoft::WRL;
 
     *ppAdapter = nullptr;
 
-    ComPtr<IDXGIAdapter1> adapter;
+    bool shouldUseNameFilter = false;
+    std::wstring gpuNameFilterW;
+    if (gpuNameFilter)
+    {
+        shouldUseNameFilter =
+            d3d_utils::GetWStringFromString(gpuNameFilter, gpuNameFilterW);
+    }
 
+    ComPtr<IDXGIAdapter1> adapter;
     ComPtr<IDXGIFactory6> factory6;
     if (SUCCEEDED(pFactory->QueryInterface(IID_PPV_ARGS(&factory6))))
     {
@@ -49,6 +59,16 @@ void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter)
                 continue;
             }
 
+            if (shouldUseNameFilter)
+            {
+                std::wstring gpuName(desc.Description,
+                                     wcslen(desc.Description));
+                if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
+                {
+                    continue;
+                }
+            }
+
             // Check to see whether the adapter supports Direct3D 12, but don't
             // create the actual device yet.
             if (SUCCEEDED(D3D12CreateDevice(adapter.Get(),
@@ -56,7 +76,8 @@ void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter)
                                             _uuidof(ID3D12Device),
                                             nullptr)))
             {
-                break;
+                *ppAdapter = adapter.Detach();
+                return true;
             }
         }
     }
@@ -78,6 +99,16 @@ void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter)
                 continue;
             }
 
+            if (shouldUseNameFilter)
+            {
+                std::wstring gpuName(desc.Description,
+                                     wcslen(desc.Description));
+                if (gpuName.find(gpuNameFilterW) == std::wstring::npos)
+                {
+                    continue;
+                }
+            }
+
             // Check to see whether the adapter supports Direct3D 12, but don't
             // create the actual device yet.
             if (SUCCEEDED(D3D12CreateDevice(adapter.Get(),
@@ -85,12 +116,13 @@ void GetHardwareAdapter(IDXGIFactory1* pFactory, IDXGIAdapter1** ppAdapter)
                                             _uuidof(ID3D12Device),
                                             nullptr)))
             {
-                break;
+                *ppAdapter = adapter.Detach();
+                return true;
             }
         }
     }
 
-    *ppAdapter = adapter.Detach();
+    return false;
 }
 
 class FiddleContextD3D12PLS : public FiddleContext
@@ -606,7 +638,21 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
     {
         ComPtr<IDXGIAdapter1> hardwareAdapter;
         DXGI_ADAPTER_DESC adapterDesc{};
-        GetHardwareAdapter(factory.Get(), &hardwareAdapter);
+
+        if (!GetHardwareAdapter(factory.Get(),
+                                fiddleOptions.gpuNameFilter,
+                                &hardwareAdapter))
+        {
+            std::cout << "Failed to get adapter with name filter \""
+                      << fiddleOptions.gpuNameFilter
+                      << "\" trying again with out one.\n";
+            // try again with now filter
+            if (!GetHardwareAdapter(factory.Get(), nullptr, &hardwareAdapter))
+            {
+                std::cerr << "Failed to get hardware adaptor for dx12.\n";
+                assert(false);
+            }
+        }
         hardwareAdapter->GetDesc(&adapterDesc);
         contextOptions.isIntel = adapterDesc.VendorId == 0x163C ||
                                  adapterDesc.VendorId == 0x8086 ||
