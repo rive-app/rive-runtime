@@ -30,8 +30,7 @@ def _get_src_dir():
 
 
 def _get_srcs():
-    return []
-
+    return [ _get_src_dir() + '/webgpu.c' ]
 
 def _recurse_dir(path):
     for (dirpath, dirnames, filenames) in os.walk(path):
@@ -72,7 +71,7 @@ def process_args(ports):
 
 def _get_flags(settings):
     lib_name_suffix = ''
-    flags = ['-lexports.js']
+    flags = []
     return (lib_name_suffix, flags)
 
 
@@ -102,7 +101,7 @@ def get(ports, settings, shared):
     def create(final):
         includes = [_get_include_dir()]
         (_, flags) = _get_flags(settings)
-        flags += ['-g', '-std=c++20', '-fno-exceptions', '-fno-rtti']
+        flags += []
         ports.build_port(_get_src_dir(), final, 'webgpu', includes=includes, flags=flags, srcs=_get_srcs())
 
     lib_name = _get_name(settings)
@@ -116,6 +115,9 @@ def linker_setup(ports, settings):
     src_dir = _get_src_dir()
 
     settings.JS_LIBRARIES += [ os.path.join(src_dir, 'library_webgpu_stubs.js') ]
+
+    # Ensure the function gets exported
+    settings.EXPORTED_FUNCTIONS += ['_wgpuWagyuGetCompiledVersion']
 
     if _opts['wagyu'] == 'true':
         settings.JS_LIBRARIES += [ os.path.join(src_dir, 'library_webgpu_wagyu_stubs.js') ]
