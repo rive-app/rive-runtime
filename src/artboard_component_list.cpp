@@ -327,8 +327,7 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
                 // finally settle in the same value
                 if (!newFrame)
                 {
-                    if (stateMachine->tryChangeState() ||
-                        stateMachine->needsAdvance())
+                    if (stateMachine->tryChangeState())
                     {
                         if (stateMachine->advance(elapsedSeconds, newFrame))
                         {

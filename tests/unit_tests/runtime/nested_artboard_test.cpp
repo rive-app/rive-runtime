@@ -306,3 +306,30 @@ TEST_CASE("Quantize and speed on nested artboards", "[silver]")
 
     CHECK(silver.matches("nested_artboard_quantize_and_speed"));
 }
+
+TEST_CASE("Nested artboard needs advance", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/nested_needs_advance.riv", &silver);
+
+    auto artboard = file->artboardNamed("node");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 120;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("nested_needs_advance"));
+}

@@ -514,10 +514,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
             {
                 if (animation->is<NestedStateMachine>())
                 {
-                    auto nestedSM = animation->as<NestedStateMachine>();
-                    if (nestedSM->tryChangeState() ||
-                        (nestedSM->stateMachineInstance() != nullptr &&
-                         nestedSM->stateMachineInstance()->needsAdvance()))
+                    if (animation->as<NestedStateMachine>()->tryChangeState())
                     {
                         if (animation->advance(localElapsedSeconds, newFrame))
                         {
