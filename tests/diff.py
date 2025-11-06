@@ -287,7 +287,7 @@ def write_csv(entries, origpath, candidatepath, diffpath, missing_candidates):
             writer.writerow(entry.csv_dict)
             
 
-def write_min_csv(total_passing, total_failing, total_identical, total_entries, csv_path):
+def write_min_csv(total_passing, total_failing, total_missing_candidates, total_missing_goldens, total_identical, total_entries, csv_path):
     # delete and old data
     if os.path.exists(csv_path):
         os.remove(csv_path)
@@ -296,6 +296,8 @@ def write_min_csv(total_passing, total_failing, total_identical, total_entries, 
         csv_writer = csv.DictWriter(csv_file, fieldnames=['type', 'number'])
         csv_writer.writerow({'type':'failed', 'number' : str(total_failing)})
         csv_writer.writerow({'type':'pass', 'number' : str(total_passing)})
+        csv_writer.writerow({'type':'missing_candidates', 'number' : str(total_missing_candidates)})
+        csv_writer.writerow({'type':'missing_goldens', 'number' : str(total_missing_goldens)})
         csv_writer.writerow({'type':'identical', 'number' : str(total_identical)})
         csv_writer.writerow({'type':'total', 'number' : str(total_entries)})
 
@@ -559,7 +561,7 @@ def diff_directory_deep(candidates_path, output_path):
     write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, device_summary_str, device_number, output_path)
 
     print(f"total entries {len(all_entries)}")
-    write_min_csv(len(passed), len(failed), len(identical), len(all_entries), output_path + "/issues.csv")
+    write_min_csv(len(passed), len(failed), len(missing_candidate_str), len(missing_golden_str), len(identical), len(all_entries), output_path + "/issues.csv")
 
 def main(argv=None):    
     if not os.path.exists(args.goldens):
