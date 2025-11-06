@@ -44,6 +44,11 @@ public:
     {
         wgpu::BackendType backendType = wgpu::BackendType::Undefined;
 #ifdef RIVE_WAGYU
+        // Driver extensions.
+        bool VK_EXT_rasterization_order_attachment_access = false;
+        bool GL_EXT_shader_pixel_local_storage = false;
+        bool GL_EXT_shader_pixel_local_storage2 = false;
+
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
 
         // Rive requires 4 storage buffers in the vertex shader. We polyfill
@@ -84,7 +89,8 @@ private:
                             const ContextOptions&);
 
     // Create a standard PLS "draw" pipeline for the current implementation.
-    wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType drawType,
+    wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType,
+                                          gpu::ShaderMiscFlags,
                                           wgpu::TextureFormat framebufferFormat,
                                           wgpu::ShaderModule vertexShader,
                                           wgpu::ShaderModule fragmentShader);
@@ -93,7 +99,8 @@ private:
     wgpu::RenderPassEncoder makePLSRenderPass(wgpu::CommandEncoder,
                                               const RenderTargetWebGPU*,
                                               wgpu::LoadOp,
-                                              const wgpu::Color& clearColor);
+                                              const wgpu::Color& clearColor,
+                                              bool fixedFunctionColorOutput);
 
     wgpu::PipelineLayout drawPipelineLayout() const
     {
@@ -135,7 +142,7 @@ private:
     // Draws emulated render-pass load/store actions for
     // EXT_shader_pixel_local_storage.
     class LoadStoreEXTPipeline;
-    std::map<LoadStoreActionsEXT, LoadStoreEXTPipeline> m_loadStoreEXTPipelines;
+    std::map<uint32_t, LoadStoreEXTPipeline> m_loadStoreEXTPipelines;
     wgpu::ShaderModule m_loadStoreEXTVertexShader;
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
 #endif

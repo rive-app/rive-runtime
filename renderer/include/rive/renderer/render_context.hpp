@@ -776,8 +776,9 @@ private:
         // gpu::DrawBatch objects during writeResources().
         std::vector<DrawUniquePtr> m_draws;
         IAABB m_combinedDrawBounds;
+        gpu::DrawContents m_combinedDrawContents;
 
-        // Layout state.
+        // State computed during layout.
         uint32_t m_pathPaddingCount;
         uint32_t m_paintPaddingCount;
         uint32_t m_paintAuxPaddingCount;
@@ -787,15 +788,14 @@ private:
         uint32_t m_outerCubicTessEndLocation;
         uint32_t m_outerCubicTessVertexIdx;
         uint32_t m_midpointFanTessVertexIdx;
-
         gpu::GradTextureLayout m_gradTextureLayout;
+        gpu::ShaderMiscFlags m_baselineShaderMiscFlags;
 
         gpu::FlushDescriptor m_flushDesc;
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
         const DrawBatch** m_nextDstBlendBarrier = nullptr;
 
-        gpu::DrawContents m_combinedDrawContents;
         gpu::ShaderFeatures m_combinedShaderFeatures;
 
         // Most recent path and contour state.

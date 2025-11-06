@@ -176,7 +176,7 @@ struct GLCapabilities
     // local storage corruption issues with our renderer. Using some of the
     // EXT_shader_pixel_local_storage2 API is an apparent workaround that comes
     // with worse performance and other, less severe visual artifacts.
-    bool needsPixelLocalStorage2;
+    bool usePixelLocalStorage2AsWorkaround;
     // ANGLE_shader_pixel_local_storage is currently broken with
     // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
     bool avoidTexture2DArrayWithWebGLPLS;

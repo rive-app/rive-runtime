@@ -21,6 +21,7 @@ RenderContextNULL::RenderContextNULL()
     m_platformFeatures.supportsRasterOrderingMode = true;
     m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.supportsClockwiseMode = true;
+    m_platformFeatures.supportsClockwiseFixedFunctionMode = true;
     m_platformFeatures.supportsClockwiseAtomicMode = true;
 }
 

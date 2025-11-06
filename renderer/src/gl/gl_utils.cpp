@@ -124,6 +124,10 @@ GLuint CompileShader(GLuint type,
     {
         shaderSource << "#define " << GLSL_TESS_TEXTURE_FLOATING_POINT << '\n';
     }
+    if (capabilities.isMali)
+    {
+        shaderSource << "#define " << GLSL_GL_RENDERER_MALI << '\n';
+    }
     shaderSource << rive::gpu::glsl::glsl << "\n";
     for (size_t i = 0; i < numInputSources; ++i)
     {

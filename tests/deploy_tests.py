@@ -90,9 +90,12 @@ parser.add_argument("-k", "--options",
 parser.add_argument("-S", "--server_only",
                     action='store_true',
                     help="Start servers but don't launch gms or goldens tools")
-parser.add_argument("-r", "--remote",
+parser.add_argument("--remote",
                     action='store_true',
                     help="target is remote; serve from host IP instead of localhost")
+parser.add_argument("-r", "--release",
+                    action='store_true',
+                    help="use release build")
 parser.add_argument("--build-only", action='store_true',
                     help="only build, don't deploy")
 parser.add_argument("-i", "--install-only", action='store_true',
@@ -643,15 +646,17 @@ def main():
         if args.verbose:
             print("[server] skipped_golden_tests: ", skipped_golden_tests, flush=True)
 
+    buildconfig = "release" if args.release else "debug"
+
     if args.target == "android":
         args.jobs_per_tool = 1 # Android can only launch one process at a time.
         if args.builddir == None:
-            args.builddir = f"out/android_{args.android_arch}_debug"
+            args.builddir = f"out/android_{args.android_arch}_{buildconfig}"
         if args.backend == None:
             args.backend = "gl"
     elif args.target == "ios":
         if args.builddir == None:
-            args.builddir = "out/ios_debug"
+            args.builddir = f"out/ios_{buildconfig}"
         elif args.builddir != "out/ios_debug":
             print("The iOS wrapper app requires --builddir=out/ios_debug")
             return -1
@@ -666,7 +671,7 @@ def main():
                                                    device_info).group(1))
     elif args.target == "iossim":
         if args.builddir == None:
-            args.builddir = "out/iossim_universal_debug"
+            args.builddir = f"out/iossim_universal_{buildconfig}"
         elif args.builddir != "out/iossim_universal_debug":
             print("The iOS-simulator wrapper app requires --builddir=out/iossim_universal_debug")
             return -1
@@ -680,19 +685,19 @@ def main():
          # currently, unreal needs to run only one job at a time for goldens and gms to work
         args.jobs_per_tool = 1
         if args.builddir == None:
-            args.builddir = os.path.join("out", "debug")
+            args.builddir = os.path.join("out", buildconfig)
         # unreal is currently always rhi, we may have seperate rhi types in the future like rhi_metal etc..
         args.backend = 'rhi'
     elif args.target.startswith("web"):
         args.jobs_per_tool = 1
         if args.builddir == None:
-            args.builddir = "out/wasm_debug"
+            args.builddir = f"out/wasm_{buildconfig}"
         if args.backend == None:
             args.backend = "gl"
     else:
         assert(args.target == "host")
         if args.builddir == None:
-            args.builddir = os.path.join("out", "debug")
+            args.builddir = os.path.join("out", buildconfig)
         if args.backend == None:
             args.backend = "metal" if platform.system() == "Darwin" else \
                            "d3d" if platform.system() == "Windows" else \

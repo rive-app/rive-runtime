@@ -2926,7 +2926,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             // severe visual artifacts.
             // Require this workaround before the earliest known good driver,
             // which is 1.11.
-            capabilities.needsPixelLocalStorage2 = true;
+            capabilities.usePixelLocalStorage2AsWorkaround = true;
         }
     }
 

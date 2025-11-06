@@ -45,6 +45,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         {
             platformFeatures->supportsRasterOrderingMode = true;
             platformFeatures->supportsClockwiseMode = true;
+            platformFeatures->supportsClockwiseFixedFunctionMode = true;
         }
         platformFeatures->supportsAtomicMode = true;
     }
@@ -113,10 +114,6 @@ class RenderContextGLImpl::PLSImplRWTexture
                                          gpu::DrawType drawType) const final
     {
         auto flags = gpu::ShaderMiscFlags::none;
-        if (desc.fixedFunctionColorOutput)
-        {
-            flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
-        }
         if (drawType == gpu::DrawType::renderPassResolve &&
             wants_coalesced_atomic_resolve_and_transfer(desc))
         {

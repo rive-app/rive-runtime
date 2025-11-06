@@ -233,6 +233,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::wgpu;
     }
+    if (nameStr == "wgpucw")
+    {
+        params->clockwise = true;
+        return Backend::wgpu;
+    }
     if (nameStr == "rhi")
     {
         return Backend::rhi;

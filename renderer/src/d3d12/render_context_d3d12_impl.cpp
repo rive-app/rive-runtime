@@ -1405,10 +1405,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
-        if (desc.fixedFunctionColorOutput)
-        {
-            shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
-        }
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
             (batch.drawContents & gpu::DrawContents::clockwiseFill))
         {

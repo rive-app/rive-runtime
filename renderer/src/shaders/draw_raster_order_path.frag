@@ -61,22 +61,8 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @CLOCKWISE_FILL
     if (@CLOCKWISE_FILL)
     {
-#ifdef @VULKAN_VENDOR_ID
-        if (@VULKAN_VENDOR_ID == VULKAN_VENDOR_ARM)
-        {
-            // ARM hits a bug if we use clamp() here.
-            if (coverageCount < .0)
-                coverage = .0;
-            else if (coverageCount <= 1.)
-                coverage = coverageCount;
-            else
-                coverage = 1.;
-        }
-        else
-#endif
-        {
-            coverage = clamp(coverageCount, make_half(.0), make_half(1.));
-        }
+        coverage =
+            safe_clamp_for_mali(coverageCount, make_half(.0), make_half(1.));
     }
     else
 #endif // CLOCKWISE_FILL

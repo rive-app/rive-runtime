@@ -16,13 +16,15 @@ namespace rive::gpu
 enum class LoadStoreActionsEXT
 {
     none = 0,
-    clearColor = 1,
-    loadColor = 2,
-    storeColor = 4,
-    clearCoverage = 8,
-    clearClip = 16,
+    clearColor = 1 << 0,
+    loadColor = 1 << 1,
+    storeColor = 1 << 2,
+    clearCoverage = 1 << 3,
+    clearClip = 1 << 4,
 };
 RIVE_MAKE_ENUM_BITSET(LoadStoreActionsEXT)
+
+constexpr static uint32_t LOAD_STORE_ACTIONS_EXT_COUNT = 5;
 
 // Determines the specific load actions that need to be emulated for the given
 // render pass, and unpacks the clear color, if required.

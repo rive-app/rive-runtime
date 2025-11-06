@@ -365,7 +365,13 @@
 
 #ifdef @PLS_IMPL_EXT_NATIVE
 
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+// fixedFunctionColorOutput renders directly to the framebuffer, which requires
+// EXT_shader_pixel_local_storage2.
+#extension GL_EXT_shader_pixel_local_storage2 : require
+#else
 #extension GL_EXT_shader_pixel_local_storage : require
+#endif
 
 #define PLS_BLOCK_BEGIN                                                        \
     __pixel_localEXT PLS                                                       \
@@ -387,6 +393,17 @@
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
 
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+// EXT_shader_pixel_local_storage2 requires explicit output format qualifiers
+// on fragment shader outputs.
+#define PLS_FRAG_COLOR_MAIN(NAME)                                              \
+    layout(location = 0, rgba8) out half4 _fragColor;                          \
+    PLS_MAIN(NAME)
+
+#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
+    layout(location = 0, rgba8) out half4 _fragColor;                          \
+    PLS_MAIN(NAME)
+#endif
 #endif
 
 #ifdef @PLS_IMPL_STORAGE_TEXTURE
@@ -581,6 +598,19 @@
 
 #define EMIT_PLS }
 
+// Storage textures are expensive to update. It's faster to conditionally update
+// them when possible.
+#define PLS_STORE4F_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
+    if (!(CONDITION))                                                          \
+    {                                                                          \
+        PLS_STORE4F(PLANE, VALUE);                                             \
+    }
+#define PLS_STOREUI_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
+    if (!(CONDITION))                                                          \
+    {                                                                          \
+        PLS_STOREUI(PLANE, VALUE);                                             \
+    }
+
 #else // !USING_PLS_STORAGE_TEXTURES
 
 #define PLS_CONTEXT_DECL
@@ -589,17 +619,28 @@
 #define PLS_MAIN(NAME) void main()
 #define EMIT_PLS
 
+// Cheap forms of PLS do better to update unconditionally, even if it might be a
+// no-op. (Especially since we otherwise would have had to preserve anyway.)
+#define PLS_STORE4F_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
+    PLS_STORE4F(PLANE, VALUE);
+#define PLS_STOREUI_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
+    PLS_STOREUI(PLANE, VALUE);
+
 #endif // !USING_PLS_STORAGE_TEXTURES
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
 
+#ifndef PLS_FRAG_COLOR_MAIN
 #define PLS_FRAG_COLOR_MAIN(NAME)                                              \
     layout(location = 0) out half4 _fragColor;                                 \
     PLS_MAIN(NAME)
+#endif
 
+#ifndef PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS
 #define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
     layout(location = 0) out half4 _fragColor;                                 \
     PLS_MAIN(NAME)
+#endif
 
 #define EMIT_PLS_AND_FRAG_COLOR EMIT_PLS
 

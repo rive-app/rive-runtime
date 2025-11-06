@@ -122,6 +122,9 @@ struct PlatformFeatures
     bool supportsRasterOrderingMode = false;
     bool supportsAtomicMode = false;
     bool supportsClockwiseMode = false;
+    // InterlockMode::Clockwise with fixedFunctionColorOutput and srcOver blend.
+    // (Only viable for frames that don't use advanced blend.)
+    bool supportsClockwiseFixedFunctionMode = false;
     bool supportsClockwiseAtomicMode = false;
     // Use KHR_blend_equation_advanced in msaa mode?
     bool supportsBlendAdvancedKHR = false;

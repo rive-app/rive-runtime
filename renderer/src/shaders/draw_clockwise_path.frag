@@ -110,8 +110,8 @@ PLS_MAIN(@drawFragmentMain)
         // *want* it to be blended after this fragment. The geometry is ordered
         // such that if c1 > 0, c1 >= c0 as well.
         maxCoverage = max(maxCoverage, .0);
-        half c0 = clamp(initialCoverage, .0, maxCoverage);
-        half c1 = clamp(finalCoverage, .0, maxCoverage);
+        half c0 = safe_clamp_for_mali(initialCoverage, .0, maxCoverage);
+        half c1 = safe_clamp_for_mali(finalCoverage, .0, maxCoverage);
 
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
@@ -190,33 +190,33 @@ PLS_MAIN(@drawFragmentMain)
         // Update the coverage buffer with our final value if we aren't an
         // interior triangle, because another fragment from this same path might
         // come along at this pixel. The only exception is if we're src-over and
-        // fully opaque, because at that point next fragment will effectively be
-        // a no-op (since any color blended with itself is a no-op). We can't
-        // skip the write for advanced blends because they also use the ID in
-        // the coverage buffer to detect the first fragment of the path for dst
-        // reads.
-        if (
+        // fully opaque, because at that point the next fragment will
+        // effectively be a no-op (since any color blended with itself is a
+        // no-op).
 #ifdef @ENABLE_ADVANCED_BLEND
-            (@ENABLE_ADVANCED_BLEND &&
-             v_blendMode != cast_uint_to_half(BLEND_SRC_OVER)) ||
+        // We can't skip the write for advanced blends either because they use
+        // the ID in the coverage buffer to detect the first fragment of the
+        // path for dst reads.
+#define COVERAGE_UPDATE_OPTIONAL                                               \
+    (!@ENABLE_ADVANCED_BLEND ||                                                \
+     v_blendMode == cast_uint_to_half(BLEND_SRC_OVER)) &&                      \
+        paintColor.a >= 1.
+#else
+#define COVERAGE_UPDATE_OPTIONAL paintColor.a >= 1.
 #endif
-            paintColor.a < 1.)
-        {
-            PLS_STOREUI(coverageBuffer,
-                        packHalf2x16(make_half2(finalCoverage, v_pathID)));
-        }
-        else
-#endif // !@DRAW_INTERIOR_TRIANGLES
-        {
-            PLS_PRESERVE_UI(coverageBuffer);
-        }
+        PLS_STOREUI_OPTIONAL_IF(
+            COVERAGE_UPDATE_OPTIONAL,
+            coverageBuffer,
+            packHalf2x16(make_half2(finalCoverage, v_pathID)));
+#else // -> @DRAW_INTERIOR_TRIANGLES
+        PLS_PRESERVE_UI(coverageBuffer);
+#endif
 
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-        if (paintColor.a != .0)
-        {
-            PLS_STORE4F(colorBuffer,
-                        dstColorPremul * (1. - paintColor.a) + paintColor);
-        }
+        PLS_STORE4F_OPTIONAL_IF(paintColor.a == .0,
+                                colorBuffer,
+                                dstColorPremul * (1. - paintColor.a) +
+                                    paintColor);
 #endif
     }
 

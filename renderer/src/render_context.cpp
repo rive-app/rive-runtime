@@ -224,6 +224,7 @@ void RenderContext::LogicalFlush::rewind()
     m_outerCubicTessEndLocation = 0;
     m_outerCubicTessVertexIdx = 0;
     m_midpointFanTessVertexIdx = 0;
+    m_baselineShaderMiscFlags = gpu::ShaderMiscFlags::none;
 
     m_flushDesc = FlushDescriptor();
 
@@ -957,6 +958,7 @@ static uint32_t pls_transient_backing_plane_count(
 }
 
 static bool wants_fixed_function_color_output(
+    gpu::PlatformFeatures platformFeatures,
     gpu::InterlockMode interlockMode,
     gpu::DrawContents combinedDrawContents)
 {
@@ -974,7 +976,8 @@ static bool wants_fixed_function_color_output(
         case gpu::InterlockMode::clockwise:
             assert(!(combinedDrawContents & (gpu::DrawContents::nonZeroFill |
                                              gpu::DrawContents::evenOddFill)));
-            return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
+            return platformFeatures.supportsClockwiseFixedFunctionMode &&
+                   !(combinedDrawContents & gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::clockwiseAtomic:
             // clockwiseAtomic currently always sets fixedFunctionColorOutput.
@@ -1082,8 +1085,14 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
     m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
     m_flushDesc.fixedFunctionColorOutput =
-        wants_fixed_function_color_output(m_ctx->frameInterlockMode(),
+        wants_fixed_function_color_output(m_ctx->platformFeatures(),
+                                          m_ctx->frameInterlockMode(),
                                           m_combinedDrawContents);
+    if (m_flushDesc.fixedFunctionColorOutput)
+    {
+        m_baselineShaderMiscFlags |=
+            gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+    }
 
     // In atomic mode, we may be able to skip the explicit clear of the color
     // buffer and fold it into the atomic "resolve" operation instead.
@@ -1551,7 +1560,7 @@ void RenderContext::LogicalFlush::writeResources()
             // require a barrier before or after.
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     gpu::DrawType::renderPassInitialize,
-                                    gpu::ShaderMiscFlags::none,
+                                    m_baselineShaderMiscFlags,
                                     gpu::DrawContents::none,
                                     1,
                                     0,
@@ -1570,7 +1579,7 @@ void RenderContext::LogicalFlush::writeResources()
             // LoadAction::preserveRenderTarget is specified.
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     gpu::DrawType::renderPassInitialize,
-                                    gpu::ShaderMiscFlags::none,
+                                    m_baselineShaderMiscFlags,
                                     gpu::DrawContents::opaquePaint,
                                     1,
                                     0,
@@ -1674,7 +1683,7 @@ void RenderContext::LogicalFlush::writeResources()
             m_drawList
                 .emplace_back(m_ctx->perFrameAllocator(),
                               gpu::DrawType::renderPassResolve,
-                              gpu::ShaderMiscFlags::none,
+                              m_baselineShaderMiscFlags,
                               gpu::DrawContents::none,
                               1,
                               0,
@@ -2813,7 +2822,7 @@ void RenderContext::LogicalFlush::pushAtlasBlit(PathDraw* draw, uint32_t pathID)
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 1, pathID);
     pushPathDraw(draw,
                  DrawType::atlasBlit,
-                 gpu::ShaderMiscFlags::none,
+                 m_baselineShaderMiscFlags,
                  6,
                  baseVertex);
 }
@@ -2837,7 +2846,7 @@ void RenderContext::LogicalFlush::pushImageRectDraw(ImageRectDraw* draw)
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageRect,
-                                gpu::ShaderMiscFlags::none,
+                                m_baselineShaderMiscFlags,
                                 PaintType::image,
                                 1,
                                 0);
@@ -2860,7 +2869,7 @@ void RenderContext::LogicalFlush::pushImageMeshDraw(ImageMeshDraw* draw)
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageMesh,
-                                gpu::ShaderMiscFlags::none,
+                                m_baselineShaderMiscFlags,
                                 PaintType::image,
                                 draw->indexCount(),
                                 0);
@@ -2892,7 +2901,7 @@ void RenderContext::LogicalFlush::pushStencilClipResetDraw(
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 0, z);
     pushDraw(draw,
              DrawType::msaaStencilClipReset,
-             gpu::ShaderMiscFlags::none,
+             m_baselineShaderMiscFlags,
              PaintType::clipUpdate,
              6,
              baseVertex);
@@ -3007,6 +3016,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
     assert(elementCount > 0);
+
+    shaderMiscFlags |= m_baselineShaderMiscFlags;
 
     bool canMergeWithPreviousBatch;
     switch (drawType)

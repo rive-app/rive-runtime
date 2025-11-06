@@ -224,6 +224,27 @@ INLINE half min_value(half4 min4)
 
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 
+// ARM Mali has experienced multiple errors for us when calling clamp(), in both
+// GL and Vulkan.
+INLINE half safe_clamp_for_mali(half x, half lo, half hi)
+{
+#if defined(@GL_RENDERER_MALI) || defined(@VULKAN_VENDOR_ID)
+#ifdef @VULKAN_VENDOR_ID
+    if (@VULKAN_VENDOR_ID == VULKAN_VENDOR_ARM)
+#endif
+    {
+        if (x < hi)
+            if (x > lo)
+                return x;
+            else
+                return lo;
+        else
+            return hi;
+    }
+#endif // @GL_RENDERER_MALI || @VULKAN_VENDOR_ID
+    return clamp(x, lo, hi);
+}
+
 #ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
 UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @FlushUniforms)
 float gradInverseViewportY;
@@ -330,20 +351,20 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 
 #ifdef @FRAGMENT
 #ifdef @NEEDS_GAMMA_CORRECTION
-half gamma_to_linear(half color)
+INLINE half gamma_to_linear(half color)
 {
     return (color <= 0.04045) ? color / 12.92
                               : pow(abs((color + 0.055) / 1.055), 2.4);
 }
 
-half3 gamma_to_linear(half3 color)
+INLINE half3 gamma_to_linear(half3 color)
 {
     return make_half3(gamma_to_linear(color.r),
                       gamma_to_linear(color.g),
                       gamma_to_linear(color.b));
 }
 
-half4 gamma_to_linear(half4 color)
+INLINE half4 gamma_to_linear(half4 color)
 {
     return make_half4(gamma_to_linear(color.rgb), color.a);
 }
@@ -372,7 +393,7 @@ UNIFORM_BLOCK_END(imageDrawUniforms)
 // clang-format off
 #if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
 // clang-format on
-half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
+INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
 {
     if (sampleMask == 0xf)
     {
@@ -393,5 +414,4 @@ half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
         return ret;
     }
 }
-#endif // @FRAGMENT && @RENDER_MODE_MSAA &&
-       // !@FIXED_FUNCTION_COLOR_OUTPUT
+#endif // @FRAGMENT && @RENDER_MODE_MSAA && !@FIXED_FUNCTION_COLOR_OUTPUT

@@ -72,6 +72,8 @@ constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/draw_clockwise_path.frag.hpp"
+#include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_raster_order_mesh.frag.hpp"
 
@@ -129,6 +131,22 @@ namespace rive::gpu
 class RenderContextWebGPUImpl::LoadStoreEXTPipeline
 {
 public:
+    constexpr static uint32_t Key(LoadStoreActionsEXT actions,
+                                  wgpu::TextureFormat framebufferFormat)
+    {
+        uint32_t key = static_cast<uint32_t>(framebufferFormat);
+
+        assert(key << LOAD_STORE_ACTIONS_EXT_COUNT >>
+                   LOAD_STORE_ACTIONS_EXT_COUNT ==
+               key);
+        assert(static_cast<uint32_t>(actions) <
+               1 << LOAD_STORE_ACTIONS_EXT_COUNT);
+        key = (key << LOAD_STORE_ACTIONS_EXT_COUNT) |
+              static_cast<uint32_t>(actions);
+
+        return key;
+    }
+
     LoadStoreEXTPipeline(RenderContextWebGPUImpl* context,
                          LoadStoreActionsEXT actions,
                          wgpu::TextureFormat framebufferFormat) :
@@ -718,6 +736,8 @@ public:
     DrawPipeline(RenderContextWebGPUImpl* context,
                  DrawType drawType,
                  gpu::ShaderFeatures shaderFeatures,
+                 gpu::InterlockMode interlockMode,
+                 gpu::ShaderMiscFlags shaderMiscFlags,
                  bool targetIsGLFBO0)
     {
         wgpu::ShaderModule vertexShader, fragmentShader;
@@ -785,6 +805,7 @@ public:
                 case DrawType::midpointFanPatches:
                 case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
+                    addDefine(GLSL_DRAW_PATH);
                     addDefine(GLSL_ENABLE_INSTANCE_INDEX);
                     break;
                 case DrawType::interiorTriangulation:
@@ -831,6 +852,11 @@ public:
                     addDefine(GetShaderFeatureGLSLName(feature));
                 }
             }
+            if (shaderMiscFlags &
+                gpu::ShaderMiscFlags::fixedFunctionColorOutput)
+            {
+                addDefine(GLSL_FIXED_FUNCTION_COLOR_OUTPUT);
+            }
             glsl << gpu::glsl::glsl << '\n';
             glsl << gpu::glsl::constants << '\n';
             glsl << gpu::glsl::common << '\n';
@@ -849,15 +875,22 @@ public:
                 case DrawType::midpointFanPatches:
                 case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
-                    addDefine(GLSL_DRAW_PATH);
-                    glsl << gpu::glsl::draw_path_common << '\n';
-                    glsl << gpu::glsl::draw_path_vert << '\n';
-                    glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
-                    break;
                 case DrawType::interiorTriangulation:
                     glsl << gpu::glsl::draw_path_common << '\n';
                     glsl << gpu::glsl::draw_path_vert << '\n';
-                    glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
+                    if (interlockMode == gpu::InterlockMode::rasterOrdering)
+                    {
+                        glsl << gpu::glsl::draw_raster_order_path_frag << '\n';
+                    }
+                    else
+                    {
+                        assert(interlockMode == gpu::InterlockMode::clockwise);
+                        glsl << ((shaderMiscFlags &
+                                  gpu::ShaderMiscFlags::clipUpdateOnly)
+                                     ? gpu::glsl::draw_clockwise_clip_frag
+                                     : gpu::glsl::draw_clockwise_path_frag)
+                             << '\n';
+                    }
                     break;
                 case DrawType::atlasBlit:
                     glsl << gpu::glsl::draw_path_common << '\n';
@@ -971,6 +1004,7 @@ public:
             int pipelineIdx = RenderPipelineIdx(framebufferFormat);
             m_renderPipelines[pipelineIdx] =
                 context->makeDrawPipeline(drawType,
+                                          shaderMiscFlags,
                                           framebufferFormat,
                                           vertexShader,
                                           fragmentShader);
@@ -994,6 +1028,45 @@ private:
     wgpu::RenderPipeline m_renderPipelines[2];
 };
 
+#ifdef RIVE_WAGYU
+static void parse_vendor_extensions(WGPUAdapter adapter,
+                                    WGPUDevice device,
+                                    RenderContextWebGPUImpl::Capabilities* caps)
+{
+    WGPUWagyuStringArray extensions = WGPU_WAGYU_STRING_ARRAY_INIT;
+    if (caps->backendType == wgpu::BackendType::Vulkan)
+    {
+        wgpuWagyuDeviceGetExtensions(device, &extensions);
+        for (size_t i = 0; i < extensions.stringCount; ++i)
+        {
+            if (!strcmp(extensions.strings[i].data,
+                        "VK_EXT_rasterization_order_attachment_access"))
+            {
+                caps->VK_EXT_rasterization_order_attachment_access = true;
+            }
+        }
+    }
+    else if (caps->backendType == wgpu::BackendType::OpenGLES)
+    {
+        wgpuWagyuAdapterGetExtensions(adapter, &extensions);
+        for (size_t i = 0; i < extensions.stringCount; ++i)
+        {
+            if (!strcmp(extensions.strings[i].data,
+                        "GL_EXT_shader_pixel_local_storage"))
+            {
+                caps->GL_EXT_shader_pixel_local_storage = true;
+            }
+            else if (!strcmp(extensions.strings[i].data,
+                             "GL_EXT_shader_pixel_local_storage2"))
+            {
+                caps->GL_EXT_shader_pixel_local_storage2 = true;
+            }
+        }
+    }
+    wgpuWagyuStringArrayFreeMembers(extensions);
+}
+#endif
+
 RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     wgpu::Adapter adapter,
     wgpu::Device device,
@@ -1010,36 +1083,25 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
 #ifdef RIVE_WAGYU
     m_capabilities.backendType = static_cast<wgpu::BackendType>(
         wgpuWagyuAdapterGetBackend(adapter.Get()));
-    WGPUWagyuStringArray extensions = WGPU_WAGYU_STRING_ARRAY_INIT;
-    if (m_capabilities.backendType == wgpu::BackendType::Vulkan)
+
+    parse_vendor_extensions(adapter.Get(), device.Get(), &m_capabilities);
+
+    // Determine plsType.
+    if (m_capabilities.VK_EXT_rasterization_order_attachment_access)
     {
-        wgpuWagyuDeviceGetExtensions(device.Get(), &extensions);
+        m_capabilities.plsType =
+            PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access;
     }
-    else if (m_capabilities.backendType == wgpu::BackendType::OpenGLES)
+    else if (m_capabilities.GL_EXT_shader_pixel_local_storage)
     {
-        wgpuWagyuAdapterGetExtensions(adapter.Get(), &extensions);
+        m_capabilities.plsType =
+            PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
+        m_platformFeatures.supportsClockwiseMode = true;
+        m_platformFeatures.supportsClockwiseFixedFunctionMode =
+            m_capabilities.GL_EXT_shader_pixel_local_storage2;
     }
-    for (size_t i = 0; i < extensions.stringCount; ++i)
-    {
-        if (m_capabilities.backendType == wgpu::BackendType::Vulkan)
-        {
-            if (!strcmp(extensions.strings[i].data,
-                        "VK_EXT_rasterization_order_attachment_access"))
-            {
-                m_capabilities.plsType = PixelLocalStorageType::
-                    VK_EXT_rasterization_order_attachment_access;
-            }
-        }
-        else if (m_capabilities.backendType == wgpu::BackendType::OpenGLES)
-        {
-            if (!strcmp(extensions.strings[i].data,
-                        "GL_EXT_shader_pixel_local_storage"))
-            {
-                m_capabilities.plsType =
-                    PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
-            }
-        }
-    }
+
+    // Compatibility workarounds.
     if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
         gl_max_vertex_shader_storage_blocks() < 4)
     {
@@ -1047,7 +1109,6 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
         // if the hardware doesn't support this.
         m_capabilities.polyfillVertexStorageBuffers = true;
     }
-    wgpuWagyuStringArrayFreeMembers(extensions);
 #endif
 }
 
@@ -2119,6 +2180,7 @@ void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
 
 wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     rive::gpu::DrawType drawType,
+    gpu::ShaderMiscFlags shaderMiscFlags,
     wgpu::TextureFormat framebufferFormat,
     wgpu::ShaderModule vertexShader,
     wgpu::ShaderModule fragmentShader)
@@ -2245,7 +2307,9 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             .format = static_cast<WGPUTextureFormat>(framebufferFormat),
             .blend =
 #ifdef RIVE_WAGYU
-                m_capabilities.plsType != PixelLocalStorageType::none
+                (!(shaderMiscFlags &
+                   gpu::ShaderMiscFlags::fixedFunctionColorOutput) &&
+                 m_capabilities.plsType != PixelLocalStorageType::none)
                     ? nullptr
                     :
 #endif
@@ -2340,7 +2404,8 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     wgpu::CommandEncoder encoder,
     const RenderTargetWebGPU* renderTarget,
     wgpu::LoadOp loadOp,
-    const wgpu::Color& clearColor)
+    const wgpu::Color& clearColor,
+    bool fixedFunctionColorOutput)
 {
     WGPURenderPassColorAttachment plsAttachments[4] = {
         {
@@ -2448,6 +2513,12 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     {
         wagyuRenderPassDescriptor.pixelLocalStorageEnabled =
             WGPUOptionalBool_True;
+        if (fixedFunctionColorOutput)
+        {
+            assert(m_capabilities.GL_EXT_shader_pixel_local_storage2);
+            wagyuRenderPassDescriptor.pixelLocalStorageSize =
+                2 * sizeof(uint32_t);
+        }
         passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
     }
 #endif
@@ -2793,7 +2864,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
     wgpu::RenderPassEncoder drawPass =
-        makePLSRenderPass(encoder, renderTarget, loadOp, clearColor);
+        makePLSRenderPass(encoder,
+                          renderTarget,
+                          loadOp,
+                          clearColor,
+                          desc.fixedFunctionColorOutput);
     drawPass.SetViewport(0.f,
                          0.f,
                          renderTarget->width(),
@@ -2842,46 +2917,66 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     if (m_capabilities.plsType ==
         PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
     {
-        // Draw the load action for EXT_shader_pixel_local_storage.
-        std::array<float, 4> clearColor;
-        LoadStoreActionsEXT loadActions =
-            gpu::BuildLoadActionsEXT(desc, &clearColor);
-        const LoadStoreEXTPipeline& loadPipeline =
-            m_loadStoreEXTPipelines
-                .try_emplace(loadActions,
-                             this,
-                             loadActions,
-                             renderTarget->framebufferFormat())
-                .first->second;
-
-        if (loadActions & LoadStoreActionsEXT::clearColor)
+        if (desc.fixedFunctionColorOutput)
         {
-            void* uniformData =
-                m_loadStoreEXTUniforms->mapBuffer(sizeof(clearColor));
-            memcpy(uniformData, clearColor.data(), sizeof(clearColor));
-            m_loadStoreEXTUniforms->unmapAndSubmitBuffer();
-
-            wgpu::BindGroupEntry uniformBindingEntries[] = {
-                {
-                    .binding = 0,
-                    .buffer = webgpu_buffer(m_loadStoreEXTUniforms.get()),
-                },
+            // Clear PLS using the EXT_shader_pixel_local_storage2 API.
+            assert(m_capabilities.GL_EXT_shader_pixel_local_storage2);
+            uint32_t plsClearValues[2] = {
+                desc.coverageClearValue,
+                /*clipClearValue=*/0u,
             };
-
-            wgpu::BindGroupDescriptor uniformBindGroupDesc = {
-                .layout = loadPipeline.bindGroupLayout(),
-                .entryCount = std::size(uniformBindingEntries),
-                .entries = uniformBindingEntries,
-            };
-
-            wgpu::BindGroup uniformBindings =
-                m_device.CreateBindGroup(&uniformBindGroupDesc);
-            drawPass.SetBindGroup(0, uniformBindings);
+            wgpuWagyuRenderPassEncoderClearPixelLocalStorage(
+                drawPass.Get(),
+                0,
+                std::size(plsClearValues),
+                plsClearValues);
         }
+        else
+        {
+            // EXT_shader_pixel_local_storage doesn't have an initialization
+            // API. Initialize PLS by drawing a fullscreen quad.
+            std::array<float, 4> clearColor;
+            LoadStoreActionsEXT loadActions =
+                gpu::BuildLoadActionsEXT(desc, &clearColor);
+            const LoadStoreEXTPipeline& loadPipeline =
+                m_loadStoreEXTPipelines
+                    .try_emplace(LoadStoreEXTPipeline::Key(
+                                     loadActions,
+                                     renderTarget->framebufferFormat()),
+                                 this,
+                                 loadActions,
+                                 renderTarget->framebufferFormat())
+                    .first->second;
 
-        drawPass.SetPipeline(
-            loadPipeline.renderPipeline(renderTarget->framebufferFormat()));
-        drawPass.Draw(4);
+            if (loadActions & LoadStoreActionsEXT::clearColor)
+            {
+                void* uniformData =
+                    m_loadStoreEXTUniforms->mapBuffer(sizeof(clearColor));
+                memcpy(uniformData, clearColor.data(), sizeof(clearColor));
+                m_loadStoreEXTUniforms->unmapAndSubmitBuffer();
+
+                wgpu::BindGroupEntry uniformBindingEntries[] = {
+                    {
+                        .binding = 0,
+                        .buffer = webgpu_buffer(m_loadStoreEXTUniforms.get()),
+                    },
+                };
+
+                wgpu::BindGroupDescriptor uniformBindGroupDesc = {
+                    .layout = loadPipeline.bindGroupLayout(),
+                    .entryCount = std::size(uniformBindingEntries),
+                    .entries = uniformBindingEntries,
+                };
+
+                wgpu::BindGroup uniformBindings =
+                    m_device.CreateBindGroup(&uniformBindGroupDesc);
+                drawPass.SetBindGroup(0, uniformBindings);
+            }
+
+            drawPass.SetPipeline(
+                loadPipeline.renderPipeline(renderTarget->framebufferFormat()));
+            drawPass.Draw(4);
+        }
     }
 #endif
 
@@ -2957,19 +3052,21 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 renderTarget->m_targetTexture.Get());
         }
 #endif
-        uint32_t webgpuShaderKey =
-            (gpu::ShaderUniqueKey(drawType,
-                                  batch.shaderFeatures,
-                                  gpu::InterlockMode::rasterOrdering,
-                                  gpu::ShaderMiscFlags::none)
-             << 1) |
-            static_cast<uint32_t>(targetIsGLFBO0);
+        uint32_t webgpuShaderKey = gpu::ShaderUniqueKey(drawType,
+                                                        batch.shaderFeatures,
+                                                        desc.interlockMode,
+                                                        batch.shaderMiscFlags);
+        assert(webgpuShaderKey << 1 >> 1 == webgpuShaderKey);
+        webgpuShaderKey =
+            (webgpuShaderKey << 1) | static_cast<uint32_t>(targetIsGLFBO0);
         const DrawPipeline& drawPipeline =
             m_drawPipelines
                 .try_emplace(webgpuShaderKey,
                              this,
                              drawType,
                              batch.shaderFeatures,
+                             desc.interlockMode,
+                             batch.shaderMiscFlags,
                              targetIsGLFBO0)
                 .first->second;
         drawPass.SetPipeline(
@@ -3033,14 +3130,19 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
 #ifdef RIVE_WAGYU
     if (m_capabilities.plsType ==
-        PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
+            PixelLocalStorageType::GL_EXT_shader_pixel_local_storage &&
+        !desc.fixedFunctionColorOutput)
     {
-        // Draw the store action for EXT_shader_pixel_local_storage.
-        LoadStoreActionsEXT actions = LoadStoreActionsEXT::storeColor;
+        // EXT_shader_pixel_local_storage doesn't support concurrent rendering
+        // to PLS and the framebuffer. Now that we're done, issue a fullscreen
+        // draw that transfers the color information from PLS to the main
+        // framebuffer.
+        LoadStoreActionsEXT storeActions = LoadStoreActionsEXT::storeColor;
         auto it = m_loadStoreEXTPipelines.try_emplace(
-            actions,
+            LoadStoreEXTPipeline::Key(storeActions,
+                                      renderTarget->framebufferFormat()),
             this,
-            actions,
+            storeActions,
             renderTarget->framebufferFormat());
         LoadStoreEXTPipeline* storePipeline = &it.first->second;
         drawPass.SetPipeline(
