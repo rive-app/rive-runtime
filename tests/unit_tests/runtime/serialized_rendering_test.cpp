@@ -4,6 +4,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
+#include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
@@ -1504,4 +1505,57 @@ TEST_CASE("Recursive data binding artboards are skipped", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("recursive_data_bind"));
+}
+
+TEST_CASE("Collapsable data binds get added when object is uncollapsed",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/collapsable_data_binding.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    auto soloIndexProp =
+        vmi->propertyValue("soloIndex")->as<ViewModelInstanceNumber>();
+    auto colorProp = vmi->propertyValue("col")->as<ViewModelInstanceColor>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    auto redColor = (255 << 24) | (255 << 16);
+    // Setting the red color should update both data binds although one is
+    // soloed
+    colorProp->propertyValue(redColor);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    soloIndexProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    auto greenColor = (255 << 24) | (255 << 8);
+    colorProp->propertyValue(greenColor);
+    soloIndexProp->propertyValue(0);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    soloIndexProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("collapsable_data_binding"));
 }

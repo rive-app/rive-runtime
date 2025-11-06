@@ -65,13 +65,9 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
     dataBind->container(this);
 }
 
-bool DataBindContainer::updateDataBind(DataBind* dataBind,
+void DataBindContainer::updateDataBind(DataBind* dataBind,
                                        bool applyTargetToSource)
 {
-    if (dataBind->canSkip())
-    {
-        return false;
-    }
     auto d = dataBind->dirt();
 
     // Update dependents before applying both target to source and source to
@@ -96,29 +92,34 @@ bool DataBindContainer::updateDataBind(DataBind* dataBind,
 
         dataBind->updateSourceBinding();
     }
-    return true;
 }
 
 void DataBindContainer::updateDataBinds(bool applyTargetToSource)
 {
+    m_isProcessing = true;
     for (auto& dataBind : m_persistingDataBinds)
     {
-        updateDataBind(dataBind, applyTargetToSource);
+        if (!dataBind->canSkip())
+        {
+            updateDataBind(dataBind, applyTargetToSource);
+        }
     }
     for (auto& dataBind : m_dirtyDataBinds)
     {
         // data binds on this list don't need to apply target to source because
         // any data bind that applies to source is collected on the
         // m_persistingDataBinds list
-        if (!updateDataBind(dataBind, false))
-        {
-            m_unprocessedDirtyDataBinds.push_back(dataBind);
-        }
+        updateDataBind(dataBind, false);
     }
     m_dirtyDataBinds.clear();
-    m_dirtyDataBinds.assign(m_unprocessedDirtyDataBinds.begin(),
-                            m_unprocessedDirtyDataBinds.end());
-    m_unprocessedDirtyDataBinds.clear();
+    if (m_pendingDirtyDataBinds.size() > 0)
+    {
+
+        m_dirtyDataBinds.assign(m_pendingDirtyDataBinds.begin(),
+                                m_pendingDirtyDataBinds.end());
+        m_pendingDirtyDataBinds.clear();
+    }
+    m_isProcessing = false;
 }
 
 void DataBindContainer::sortDataBinds()
@@ -145,10 +146,11 @@ void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
     {
         return;
     }
-    auto itr =
-        std::find(m_dirtyDataBinds.begin(), m_dirtyDataBinds.end(), dataBind);
-    if (itr == m_dirtyDataBinds.end())
+    auto& insertingList =
+        m_isProcessing ? m_pendingDirtyDataBinds : m_dirtyDataBinds;
+    auto itr = std::find(insertingList.begin(), insertingList.end(), dataBind);
+    if (itr == insertingList.end())
     {
-        m_dirtyDataBinds.push_back(dataBind);
+        insertingList.push_back(dataBind);
     }
 }

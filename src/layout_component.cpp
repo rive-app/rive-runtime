@@ -233,10 +233,12 @@ bool LayoutComponent::isCollapsed() const
 
 void LayoutComponent::propagateCollapse(bool collapse)
 {
+    auto collapsed = collapse || isCollapsed();
     for (Component* child : children())
     {
-        child->collapse(collapse || isCollapsed());
+        child->collapse(collapsed);
     }
+    updateCollapsables();
 }
 
 bool LayoutComponent::collapse(bool value)
@@ -245,10 +247,7 @@ bool LayoutComponent::collapse(bool value)
     {
         return false;
     }
-    for (Component* child : children())
-    {
-        child->collapse(value || isCollapsed());
-    }
+    propagateCollapse(value);
     return true;
 }
 

@@ -59,6 +59,7 @@ StatusCode DataBind::import(ImportStack& importStack)
     backboardImporter->addDataConverterReferencer(this);
     if (target())
     {
+        initialize();
         if (target()->is<DataConverter>())
         {
             target()->as<DataConverter>()->addDataBind(this);
@@ -339,7 +340,7 @@ void DataBind::addDirt(ComponentDirt value, bool recurse)
     {
         m_ContextValue->invalidate();
     }
-    if (m_container)
+    if (m_container && !m_isCollapsed)
     {
         m_container->addDirtyDataBind(this);
     }
@@ -382,3 +383,26 @@ bool DataBind::advance(float elapsedTime)
 void DataBind::file(File* value) { m_file = value; };
 
 File* DataBind::file() const { return m_file; };
+
+void DataBind::collapse(bool isCollapsed)
+{
+    if (m_isCollapsed == isCollapsed ||
+        propertyKey() == LayoutComponentStyleBase::displayValuePropertyKey ||
+        toSource())
+    {
+        return;
+    }
+    m_isCollapsed = isCollapsed;
+    if (!m_isCollapsed && m_Dirt != ComponentDirt::None && m_container)
+    {
+        m_container->addDirtyDataBind(this);
+    }
+}
+
+void DataBind::initialize()
+{
+    if (target() && target()->is<Component>())
+    {
+        target()->as<Component>()->addCollapsable(this);
+    }
+}

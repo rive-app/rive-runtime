@@ -51,6 +51,11 @@ public:
     DataType sourceOutputType();
     void container(DataBindContainer*);
     DataBindContainer* m_container = nullptr;
+    void collapse(bool collapsed);
+    void initialize();
+
+private:
+    bool m_isCollapsed = false;
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;

@@ -23,11 +23,12 @@ protected:
     void sortDataBinds();
 
 private:
-    bool updateDataBind(DataBind* dataBind, bool applyTargetToSource);
+    void updateDataBind(DataBind* dataBind, bool applyTargetToSource);
     std::vector<DataBind*> m_dataBinds;
     std::vector<DataBind*> m_persistingDataBinds;
     std::vector<DataBind*> m_dirtyDataBinds;
-    std::vector<DataBind*> m_unprocessedDirtyDataBinds;
+    std::vector<DataBind*> m_pendingDirtyDataBinds;
+    bool m_isProcessing = false;
 };
 } // namespace rive
 
