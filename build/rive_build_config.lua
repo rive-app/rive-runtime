@@ -798,18 +798,6 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
         linkoptions({ '-s MIN_SAFARI_VERSION=120000' })
     end
 
-    filter({ 'options:arch=wasm', 'options:config=debug' })
-    do
-        buildoptions({
-            '-fsanitize=address',
-            '-g2',
-        })
-        linkoptions({
-            '-fsanitize=address',
-            '-g2',
-        })
-    end
-
     filter('options:arch=js')
     do
         linkoptions({ '-sWASM=0' })
