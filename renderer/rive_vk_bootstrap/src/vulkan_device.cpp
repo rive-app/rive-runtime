@@ -44,10 +44,11 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         nameFilter = gpuFromEnv;
     }
 
-    auto findResult = findCompatiblePhysicalDevice(
-        instance,
-        nameFilter,
-        opts.presentationSurfaceForDeviceSelection);
+    auto findResult =
+        findCompatiblePhysicalDevice(instance,
+                                     nameFilter,
+                                     opts.presentationSurfaceForDeviceSelection,
+                                     opts.minimumSupportedAPIVersion);
     m_physicalDevice = findResult.physicalDevice;
 
     DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures, instance);
@@ -70,7 +71,7 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
     };
 
     m_riveVulkanFeatures = {
-        .apiVersion = instance.apiVersion(),
+        .apiVersion = findResult.deviceAPIVersion,
         .independentBlend = bool(requestedFeatures.independentBlend),
         .fillModeNonSolid = bool(requestedFeatures.fillModeNonSolid),
         .fragmentStoresAndAtomics =
@@ -258,10 +259,44 @@ VkSurfaceCapabilitiesKHR VulkanDevice::getSurfaceCapabilities(
     return caps;
 }
 
+bool VulkanDevice::hasSupportedDevice(VulkanInstance& instance,
+                                      uint32_t minimumSupportedAPIVersion)
+{
+    std::vector<VkPhysicalDevice> physicalDevices;
+    {
+        DEFINE_AND_LOAD_INSTANCE_FUNC(vkEnumeratePhysicalDevices, instance);
+        assert(vkEnumeratePhysicalDevices != nullptr);
+
+        uint32_t count;
+        VK_CHECK(
+            vkEnumeratePhysicalDevices(instance.vkInstance(), &count, nullptr));
+        physicalDevices.resize(count);
+        VK_CHECK(vkEnumeratePhysicalDevices(instance.vkInstance(),
+                                            &count,
+                                            physicalDevices.data()));
+    }
+
+    DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceProperties, instance);
+    assert(vkGetPhysicalDeviceProperties != nullptr);
+
+    for (auto& device : physicalDevices)
+    {
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties(device, &props);
+        if (props.apiVersion >= minimumSupportedAPIVersion)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
     VulkanInstance& instance,
     const char* nameFilter,
-    VkSurfaceKHR optionalSurfaceForValidation)
+    VkSurfaceKHR optionalSurfaceForValidation,
+    uint32_t minimumSupportedAPIVersion)
 {
     if (nameFilter != nullptr && nameFilter[0] == '\0')
     {
@@ -337,12 +372,20 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
 
             VkPhysicalDeviceProperties props{};
             vkGetPhysicalDeviceProperties(device, &props);
+
+            if (props.apiVersion < minimumSupportedAPIVersion)
+            {
+                // This device is below our minimum supported API version
+                continue;
+            }
+
             if (strstr(props.deviceName, nameFilter) != nullptr)
             {
                 matchResult = {
                     .physicalDevice = device,
                     .deviceName = props.deviceName,
                     .deviceType = props.deviceType,
+                    .deviceAPIVersion = props.apiVersion,
                 };
                 matchedDeviceNames.push_back(std::string{props.deviceName});
             }
@@ -383,6 +426,12 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
                 VkPhysicalDeviceProperties props{};
                 vkGetPhysicalDeviceProperties(device, &props);
 
+                if (props.apiVersion < minimumSupportedAPIVersion)
+                {
+                    // This device is below our minimum supported API version
+                    continue;
+                }
+
                 if (optionalSurfaceForValidation != VK_NULL_HANDLE &&
                     !IsSurfaceSupported(device))
                 {
@@ -398,6 +447,7 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
                         .physicalDevice = device,
                         .deviceName = props.deviceName,
                         .deviceType = props.deviceType,
+                        .deviceAPIVersion = props.apiVersion,
                     };
                 }
             }

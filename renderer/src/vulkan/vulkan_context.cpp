@@ -20,26 +20,6 @@ static VmaAllocator make_vma_allocator(
         .vkGetPhysicalDeviceProperties = vk->GetPhysicalDeviceProperties,
     };
 
-    uint32_t vmaAPIVersion = vk->features.apiVersion;
-    if (vmaAPIVersion > VK_API_VERSION_1_0)
-    {
-        const auto vkGetBufferMemoryRequirements2 =
-            vk->GetDeviceProcAddr(vk->device, "vkGetBufferMemoryRequirements2");
-
-        const auto vkGetImageMemoryRequirements2 =
-            vk->GetDeviceProcAddr(vk->device, "vkGetImageMemoryRequirements2");
-
-        if (vkGetBufferMemoryRequirements2 == nullptr ||
-            vkGetImageMemoryRequirements2 == nullptr)
-        {
-            // Some Android drivers don't have these functions even though they
-            // say they're Vulkan 1.1 (which included these functions standard),
-            // so tell VMA it's 1.0 in those cases so it doesn't fail trying to
-            // use them.
-            vmaAPIVersion = VK_API_VERSION_1_0;
-        }
-    }
-
     VmaAllocatorCreateInfo vmaCreateInfo = {
         // We are single-threaded.
         .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
@@ -47,7 +27,7 @@ static VmaAllocator make_vma_allocator(
         .device = vk->device,
         .pVulkanFunctions = &vmaVulkanFunctions,
         .instance = vk->instance,
-        .vulkanApiVersion = vmaAPIVersion,
+        .vulkanApiVersion = vk->features.apiVersion,
     };
     VK_CHECK(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator));
     return vmaAllocator;
@@ -74,6 +54,17 @@ VulkanContext::VulkanContext(
 #undef LOAD_VULKAN_DEVICE_COMMAND
             m_vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
 {
+#ifdef NDEBUG
+    // Check that we weren't told the device was more capable than it is
+    {
+        VkPhysicalDeviceProperties props{};
+        GetPhysicalDeviceProperties(physicalDevice, &props);
+        assert(
+            props.apiVersion >= features.apiVersion &&
+            "Supplied API version should not be newer than the physical device");
+    }
+#endif
+
     // VK spec says between D24_S8 and D32_S8, one of them must be supported
     m_supportsD24S8 = isFormatSupportedWithFeatureFlags(
         VK_FORMAT_D24_UNORM_S8_UINT,

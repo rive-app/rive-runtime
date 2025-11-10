@@ -22,6 +22,8 @@ public:
         const char* gpuNameFilter = nullptr;
         bool headless = false;
 
+        uint32_t minimumSupportedAPIVersion = VK_API_VERSION_1_0;
+
         // If this is set to a valid surface (and not a headless device), device
         // discovery will test for present compatibility to this surface
         VkSurfaceKHR presentationSurfaceForDeviceSelection = VK_NULL_HANDLE;
@@ -59,18 +61,23 @@ public:
         return m_graphicsQueueFamilyIndex;
     }
 
+    static bool hasSupportedDevice(VulkanInstance&,
+                                   uint32_t minimumSupportedAPIVersion);
+
 private:
     struct FindDeviceResult
     {
         VkPhysicalDevice physicalDevice;
         std::string deviceName;
         VkPhysicalDeviceType deviceType;
+        uint32_t deviceAPIVersion;
     };
 
-    FindDeviceResult findCompatiblePhysicalDevice(
+    static FindDeviceResult findCompatiblePhysicalDevice(
         VulkanInstance&,
         const char* nameFilter,
-        VkSurfaceKHR optionalSurfaceForValidation);
+        VkSurfaceKHR optionalSurfaceForValidation,
+        uint32_t minimumSupportedAPIVersion);
 
     std::optional<VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT>
     tryEnableRasterOrderFeatures(

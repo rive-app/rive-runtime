@@ -222,14 +222,14 @@ VulkanInstance::VulkanInstance(const Options& opts)
 
     LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(vkDestroyInstance, *this);
 
-    if (m_instanceVersion >= VK_API_VERSION_1_1)
+    // This should always exist on Vulkan 1.1 but there are some devices where
+    // the reported instance version is > 1.0 that actually only
+    // have 1.0-enabled devices.
+    LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures2, *this);
+    if (m_vkGetPhysicalDeviceFeatures2 == nullptr &&
+        enabledKHRDeviceProperties2)
     {
-        LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures2, *this);
-    }
-    else if (enabledKHRDeviceProperties2)
-    {
-        LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures2KHR,
-                                           *this);
+        LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures2KHR, *this);
     }
 
     if (enableDebugCallbacks)
