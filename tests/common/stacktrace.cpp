@@ -175,6 +175,15 @@ static void handle_signal(int signo) noexcept
     build_stack(signo);
     // set the signal handler to the original
     signal(signo, SIG_DFL);
+
+#ifdef _WIN32
+    if (IsDebuggerPresent())
+    {
+        // Cause the debugger to break
+        DebugBreak();
+    }
+#endif
+
     // re raise the signal
     raise(signo);
 }
