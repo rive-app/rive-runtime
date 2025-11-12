@@ -454,7 +454,7 @@ std::unique_ptr<RenderContext> RenderContextD3D12Impl::MakeContext(
             sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS))))
     {
         d3dCapabilities.supportsRasterizerOrderedViews =
-            d3d12Options.ROVsSupported;
+            d3d12Options.ROVsSupported && !contextOptions.isIntelArc;
         if (d3d12Options.TypedUAVLoadAdditionalFormats)
         {
             // TypedUAVLoadAdditionalFormats is true. Now check if we can
@@ -1140,6 +1140,16 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         m_resourceManager->transition(cmdList,
                                       m_tesselationTexture.get(),
                                       D3D12_RESOURCE_STATE_GENERIC_READ);
+
+        if (m_capabilities.isIntel)
+        {
+            // workaround similiar to d3d11.
+            // Intel needs this which is basically a
+            // "VK_DEPENDENCY_BY_REGION_BIT" pipeline barrier
+            const auto barrier =
+                CD3DX12_RESOURCE_BARRIER::Aliasing(nullptr, nullptr);
+            cmdList->ResourceBarrier(1, &barrier);
+        }
     }
 
     D3D12_VERTEX_BUFFER_VIEW NULL_VIEW;

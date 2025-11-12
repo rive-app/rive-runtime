@@ -45,5 +45,6 @@ struct D3DContextOptions
     bool disableRasterizerOrderedViews = false; // Primarily for testing.
     bool disableTypedUAVLoadStore = false;      // Primarily for testing.
     bool isIntel = false;
+    bool isIntelArc = false;
 };
 } // namespace rive::gpu

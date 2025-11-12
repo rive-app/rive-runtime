@@ -23,6 +23,17 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 using namespace rive;
 using namespace rive::gpu;
 
+void SetIntelInformation(const DXGI_ADAPTER_DESC& desc,
+                         D3DContextOptions& contextOptions)
+{
+    contextOptions.isIntel = desc.VendorId == 0x163C ||
+                             desc.VendorId == 0x8086 || desc.VendorId == 0x8087;
+
+    contextOptions.isIntelArc =
+        contextOptions.isIntel &&
+        std::wstring(desc.Description).find(L"Arc") != std::wstring::npos;
+}
+
 bool GetHardwareAdapter(IDXGIFactory1* pFactory,
                         const char* gpuNameFilter,
                         IDXGIAdapter1** ppAdapter)
@@ -626,9 +637,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
         DXGI_ADAPTER_DESC adapterDesc{};
         VERIFY_OK(factory->EnumWarpAdapter(IID_PPV_ARGS(&warpAdapter)));
         warpAdapter->GetDesc(&adapterDesc);
-        contextOptions.isIntel = adapterDesc.VendorId == 0x163C ||
-                                 adapterDesc.VendorId == 0x8086 ||
-                                 adapterDesc.VendorId == 0x8087;
+        SetIntelInformation(adapterDesc, contextOptions);
         VERIFY_OK(D3D12CreateDevice(warpAdapter.Get(),
                                     D3D_FEATURE_LEVEL_11_0,
                                     IID_PPV_ARGS(&device)));
@@ -654,9 +663,9 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
             }
         }
         hardwareAdapter->GetDesc(&adapterDesc);
-        contextOptions.isIntel = adapterDesc.VendorId == 0x163C ||
-                                 adapterDesc.VendorId == 0x8086 ||
-                                 adapterDesc.VendorId == 0x8087;
+
+        SetIntelInformation(adapterDesc, contextOptions);
+
         VERIFY_OK(D3D12CreateDevice(hardwareAdapter.Get(),
                                     D3D_FEATURE_LEVEL_11_0,
                                     IID_PPV_ARGS(&device)));
