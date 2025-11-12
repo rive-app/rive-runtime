@@ -178,9 +178,9 @@ void ScriptedObject::scriptUpdate()
 bool ScriptedObject::scriptInit(LuaState* luaState)
 {
     auto state = luaState->state;
-    for (auto input : m_customProperties)
+    for (auto prop : m_customProperties)
     {
-        auto scriptInput = ScriptInput::from(input);
+        auto scriptInput = ScriptInput::from(prop);
         if (scriptInput && !scriptInput->validateForScriptInit())
         {
             rive_lua_pop(state, 1);
@@ -201,9 +201,9 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
     {
         m_self = lua_ref(state, -1);
         m_state = luaState;
-        for (auto input : m_customProperties)
+        for (auto prop : m_customProperties)
         {
-            auto scriptInput = ScriptInput::from(input);
+            auto scriptInput = ScriptInput::from(prop);
             if (scriptInput)
             {
                 scriptInput->initScriptedValue();
@@ -304,9 +304,4 @@ void ScriptedObject::setAsset(rcp<FileAsset> asset)
     {
         FileAssetReferencer::setAsset(asset);
     }
-}
-
-void ScriptedObject::addPropertyChild(Component* child)
-{
-    syncCustomProperties();
 }

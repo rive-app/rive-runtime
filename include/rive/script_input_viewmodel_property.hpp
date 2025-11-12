@@ -18,13 +18,13 @@ protected:
     std::vector<uint32_t> m_DataBindPathIdsBuffer;
 
 public:
-    ScriptedObject* scriptedObject() { return ScriptedObject::from(parent()); }
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(
         const ScriptInputViewModelPropertyBase& object) override;
     std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
     void initScriptedValue() override;
     bool validateForScriptInit() override;
+    StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

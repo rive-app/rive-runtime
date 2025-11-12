@@ -15,9 +15,9 @@ private:
 
 public:
     void artboard(Artboard* artboard) { m_artboard = artboard; }
-    ScriptedObject* scriptedObject() { return ScriptedObject::from(parent()); }
     void initScriptedValue() override
     {
+        ScriptInput::initScriptedValue();
         if (m_artboard == nullptr)
         {
             return;

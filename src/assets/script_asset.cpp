@@ -4,6 +4,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
 #include "rive/script_input_artboard.hpp"
+#include "rive/script_input_boolean.hpp"
 #include "rive/script_input_color.hpp"
 #include "rive/script_input_number.hpp"
 #include "rive/script_input_string.hpp"
@@ -13,12 +14,14 @@
 
 using namespace rive;
 
-ScriptInput* ScriptInput::from(Component* component)
+ScriptInput* ScriptInput::from(Core* component)
 {
     switch (component->coreType())
     {
         case ScriptInputArtboard::typeKey:
             return component->as<ScriptInputArtboard>();
+        case ScriptInputBoolean::typeKey:
+            return component->as<ScriptInputBoolean>();
         case ScriptInputColor::typeKey:
             return component->as<ScriptInputColor>();
         case ScriptInputNumber::typeKey:
@@ -32,6 +35,8 @@ ScriptInput* ScriptInput::from(Component* component)
     }
     return nullptr;
 }
+
+void ScriptInput::initScriptedValue() {}
 
 bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 {

@@ -2,6 +2,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 #include "rive/component_dirt.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 
 using namespace rive;
@@ -78,12 +79,6 @@ bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
     return scriptAdvance(elapsedSeconds);
 }
 
-void ScriptedDrawable::addChild(Component* child)
-{
-    Drawable::addChild(child);
-    addPropertyChild(child);
-}
-
 bool ScriptedDrawable::addScriptedDirt(ComponentDirt value, bool recurse)
 {
     return Drawable::addDirt(value, recurse);
@@ -106,6 +101,16 @@ Core* ScriptedDrawable::clone() const
     if (m_fileAsset != nullptr)
     {
         twin->setAsset(m_fileAsset);
+    }
+    for (auto prop : m_customProperties)
+    {
+        auto clonedValue = prop->clone()->as<CustomProperty>();
+        twin->addProperty(clonedValue);
+        auto scriptInput = ScriptInput::from(clonedValue);
+        if (scriptInput != nullptr)
+        {
+            scriptInput->scriptedObject(twin);
+        }
     }
     return twin;
 }

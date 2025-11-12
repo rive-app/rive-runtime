@@ -1,3 +1,5 @@
+#include "rive/importers/scripted_object_importer.hpp"
+#include "rive/scripted/scripted_drawable.hpp"
 #include "rive/script_input_viewmodel_property.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
@@ -25,6 +27,7 @@ void ScriptInputViewModelProperty::copyDataBindPathIds(
 
 void ScriptInputViewModelProperty::initScriptedValue()
 {
+    ScriptInput::initScriptedValue();
     if (m_viewModelInstanceValue == nullptr)
     {
         return;
@@ -56,4 +59,17 @@ bool ScriptInputViewModelProperty::validateForScriptInit()
     }
     m_viewModelInstanceValue = instanceValue;
     return true;
+}
+
+StatusCode ScriptInputViewModelProperty::import(ImportStack& importStack)
+{
+    auto importer =
+        importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
+    if (importer == nullptr)
+    {
+        return StatusCode::MissingObject;
+    }
+    importer->addInput(this);
+
+    return Super::import(importStack);
 }

@@ -9,9 +9,9 @@ namespace rive
 class ScriptInputString : public ScriptInputStringBase, public ScriptInput
 {
 public:
-    ScriptedObject* scriptedObject() { return ScriptedObject::from(parent()); }
     void initScriptedValue() override
     {
+        ScriptInput::initScriptedValue();
         auto obj = scriptedObject();
         if (obj)
         {
@@ -19,6 +19,7 @@ public:
         }
     }
     bool validateForScriptInit() override { return true; }
+    StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

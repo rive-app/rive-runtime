@@ -22,10 +22,15 @@ enum ScriptType
 
 class ScriptInput
 {
+protected:
+    ScriptedObject* m_scriptedObject = nullptr;
+
 public:
-    virtual void initScriptedValue() = 0;
+    virtual void initScriptedValue();
     virtual bool validateForScriptInit() = 0;
-    static ScriptInput* from(Component* component);
+    static ScriptInput* from(Core* component);
+    ScriptedObject* scriptedObject() { return m_scriptedObject; }
+    void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
 };
 
 class ScriptAsset : public ScriptAssetBase

@@ -33,7 +33,6 @@ public:
     {
         return children();
     }
-    void addChild(Component* component) override;
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
 };
 } // namespace rive

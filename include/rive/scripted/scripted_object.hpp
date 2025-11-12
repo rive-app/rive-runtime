@@ -47,7 +47,6 @@ public:
     virtual bool scriptInit(LuaState* state);
 #endif
     void scriptDispose();
-    void addPropertyChild(Component* child) override;
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;
     void setAsset(rcp<FileAsset> asset) override;
     static ScriptedObject* from(Core* object);

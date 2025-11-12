@@ -14,7 +14,7 @@ protected:
     void syncCustomProperties();
 
 public:
-    virtual void addPropertyChild(Component* component) {}
+    virtual void addProperty(CustomProperty* prop);
     virtual const std::vector<Component*>& containerChildren() const
     {
         static const std::vector<Component*> emptyVec;

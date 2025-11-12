@@ -9,14 +9,13 @@ namespace rive
 class ScriptInputTrigger : public ScriptInputTriggerBase, public ScriptInput
 {
 public:
-    ScriptedObject* scriptedObject() { return ScriptedObject::from(parent()); }
-    void initScriptedValue() override {}
     bool validateForScriptInit() override { return true; }
     void fire(const CallbackData& value) override
     {
         Super::fire(value);
         scriptedObject()->trigger(name());
     }
+    StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

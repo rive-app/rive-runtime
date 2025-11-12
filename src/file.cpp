@@ -19,6 +19,7 @@
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
+#include "rive/importers/scripted_object_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/importers/state_machine_listener_importer.hpp"
 #include "rive/importers/state_machine_layer_importer.hpp"
@@ -57,6 +58,8 @@
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
+#include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_object.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -503,6 +506,15 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case NestedArtboardLayout::typeKey:
             case NestedArtboardLeaf::typeKey:
                 object->as<NestedArtboard>()->file(this);
+                break;
+            case ScriptedDrawable::typeKey:
+                auto scriptedObject = ScriptedObject::from(object);
+                if (scriptedObject != nullptr)
+                {
+                    stackObject = rivestd::make_unique<ScriptedObjectImporter>(
+                        scriptedObject);
+                    stackType = ScriptedDrawable::typeKey;
+                }
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=
