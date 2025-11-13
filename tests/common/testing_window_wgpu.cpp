@@ -339,8 +339,8 @@ public:
         }
 
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
-            .renderTargetWidth = surfaceWidth,
-            .renderTargetHeight = surfaceHeight,
+            .renderTargetWidth = m_renderTarget->width(),
+            .renderTargetHeight = m_renderTarget->height(),
             .loadAction = options.doClear
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,

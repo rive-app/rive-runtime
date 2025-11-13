@@ -2072,11 +2072,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             assert(m_plsImpl != nullptr);
             shaderMiscFlags |= m_plsImpl->shaderMiscFlags(desc, drawType);
         }
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-            (batch.drawContents & gpu::DrawContents::clockwiseFill))
-        {
-            shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
-        }
         const DrawProgram* drawProgram = m_pipelineManager.tryGetPipeline(
             {
                 .drawType = drawType,

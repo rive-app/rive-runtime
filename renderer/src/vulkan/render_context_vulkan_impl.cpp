@@ -2470,11 +2470,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 : batch.shaderFeatures;
 
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-            (batch.drawContents & gpu::DrawContents::clockwiseFill))
-        {
-            shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
-        }
         if ((pipelineLayout.options() &
              DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer) &&
             (drawType == gpu::DrawType::renderPassResolve))

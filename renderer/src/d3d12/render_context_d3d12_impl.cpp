@@ -1415,11 +1415,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-            (batch.drawContents & gpu::DrawContents::clockwiseFill))
-        {
-            shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
-        }
 
         auto* pipeline = m_pipelineManager.tryGetPipeline(
             {

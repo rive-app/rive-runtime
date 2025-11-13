@@ -1565,11 +1565,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
         gpu::ShaderMiscFlags batchMiscFlags =
             baselineShaderMiscFlags | batch.shaderMiscFlags;
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-            (batch.drawContents & gpu::DrawContents::clockwiseFill))
-        {
-            batchMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
-        }
         if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
             if (batch.drawType == gpu::DrawType::renderPassResolve)

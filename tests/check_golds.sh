@@ -1,5 +1,7 @@
 set -e
 
+TESTS="gms goldens"
+
 TARGET="host"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     DEFAULT_BACKEND=metal
@@ -20,6 +22,10 @@ DIFF_ARGS=
 
 while :; do
     case $1 in
+        --gms)
+            TESTS="gms"
+            shift
+        ;;
         -u)
             TARGET="unreal"
             DEFAULT_BACKEND=rhi
@@ -78,6 +84,10 @@ while :; do
             shift
         ;;
         -r)
+            ARGS="$ARGS --release"
+            shift
+        ;;
+        --remote)
             ARGS="$ARGS --remote"
             shift
         ;;
@@ -137,12 +147,12 @@ do
         echo
         echo "Rebaselining $ID..."
         rm -fr .gold/$ID
-        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
+        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
     else
         echo
         echo "Checking $ID..."
         rm -fr .gold/candidates/$ID
-        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
+        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
         
         echo
         echo "Checking $ID..."

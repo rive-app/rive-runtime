@@ -2917,6 +2917,16 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
+    // Clockwise fills get their own shaders in rasterOrdering mode.
+    // TODO: eventually we will use draw_clockwise_path.frag for these
+    // draws in rasterOrdering mode, instead of just making a variant of
+    // draw_raster_order_path.frag.
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering &&
+        (draw->drawContents() & gpu::DrawContents::clockwiseFill))
+    {
+        shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
+    }
+
     // Clockwise mode gives clip updates a dedicated draw by setting
     // gpu::ShaderMiscFlags::clipUpdateOnly.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwise &&
@@ -2960,31 +2970,28 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     return batch;
 }
 
-RIVE_ALWAYS_INLINE static bool can_combine_draw_contents(
-    gpu::InterlockMode interlockMode,
-    gpu::DrawContents batchContents,
-    const Draw* draw)
+RIVE_ALWAYS_INLINE static bool can_combine_shader_misc_flags(
+    const gpu::DrawBatch* batch,
+    const Draw* draw,
+    gpu::ShaderMiscFlags shaderMiscFlags)
 {
-    // Feathered fills should never attempt to combine with fills, strokes, or
-    // feathered strokes because they use a different DrawType.
-    assert((batchContents & gpu::DrawContents::featheredFill).bits() ==
-           (draw->drawContents() & gpu::DrawContents::featheredFill).bits());
+    // If a path doesn't have ANY_PATH_FILL bits, it means it's a stroke.
+    constexpr static auto ANY_PATH_FILL = gpu::DrawContents::clockwiseFill |
+                                          gpu::DrawContents::evenOddFill |
+                                          gpu::DrawContents::nonZeroFill;
 
-    constexpr static auto ANY_FILL = gpu::DrawContents::clockwiseFill |
-                                     gpu::DrawContents::evenOddFill |
-                                     gpu::DrawContents::nonZeroFill;
-    // Raster ordering uses a different shader for clockwise fills, so we
-    // can't combine both legacy and clockwise fills into the same draw.
-    if (interlockMode == gpu::InterlockMode::rasterOrdering &&
-        // Anything can be combined if either the existing batch or the new draw
-        // don't have fills yet.
-        (batchContents & ANY_FILL) && (draw->drawContents() & ANY_FILL))
+    gpu::ShaderMiscFlags compareMask = ~gpu::ShaderMiscFlags::none;
+
+    // Strokes draw identically in the clockwise and legacy shaders, so strokes
+    // can be combined with paths of any fill type.
+    if ((!(batch->drawContents & ANY_PATH_FILL) ||
+         !(draw->drawContents() & ANY_PATH_FILL)))
     {
-        assert(!(draw->drawContents() & gpu::DrawContents::stroke));
-        return (batchContents & gpu::DrawContents::clockwiseFill).bits() ==
-               (draw->drawContents() & gpu::DrawContents::clockwiseFill).bits();
+        compareMask &= ~gpu::ShaderMiscFlags::clockwiseFill;
     }
-    return true;
+
+    return (batch->shaderMiscFlags & compareMask).bits() ==
+           (shaderMiscFlags & compareMask).bits();
 }
 
 RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
@@ -3040,10 +3047,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                 const DrawBatch* currentBatch = m_drawList.tail();
                 canMergeWithPreviousBatch =
                     currentBatch->drawType == drawType &&
-                    currentBatch->shaderMiscFlags == shaderMiscFlags &&
-                    can_combine_draw_contents(m_ctx->frameInterlockMode(),
-                                              currentBatch->drawContents,
-                                              draw) &&
+                    can_combine_shader_misc_flags(currentBatch,
+                                                  draw,
+                                                  shaderMiscFlags) &&
                     can_combine_draw_images(currentBatch->imageTexture,
                                             draw->imageTexture(),
                                             currentBatch->imageSampler,
@@ -3093,7 +3099,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         batch = m_drawList.tail();
         assert(m_pendingBarriers == BarrierFlags::none);
         assert(batch->drawType == drawType);
-        assert(batch->shaderMiscFlags == shaderMiscFlags);
         assert(batch->baseElement + batch->elementCount == baseElement);
 
         batch->elementCount += elementCount;
@@ -3103,9 +3108,18 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             m_ctx->frameInterlockMode() != gpu::InterlockMode::clockwise ||
             (batch->drawContents & gpu::DrawContents::clipUpdate).bits() ==
                 (draw->drawContents() & gpu::DrawContents::clipUpdate).bits());
+
+        // Feathered fills should never combine with fills, strokes, or
+        // feathered strokes because they use a different DrawType.
+        assert(
+            (batch->drawContents & gpu::DrawContents::featheredFill).bits() ==
+            (draw->drawContents() & gpu::DrawContents::featheredFill).bits());
+
         // msaa can't mix drawContents in a batch.
         assert(m_ctx->frameInterlockMode() != gpu::InterlockMode::msaa ||
                batch->drawContents == draw->drawContents());
+
+        batch->shaderMiscFlags |= shaderMiscFlags;
         batch->drawContents |= draw->drawContents();
     }
 

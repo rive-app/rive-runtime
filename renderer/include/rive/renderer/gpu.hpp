@@ -1083,7 +1083,7 @@ struct DrawBatch
     {}
 
     const DrawType drawType;
-    const ShaderMiscFlags shaderMiscFlags;
+    ShaderMiscFlags shaderMiscFlags;
     DrawContents drawContents;
     uint32_t elementCount; // Vertex, index, or instance count.
     uint32_t baseElement;  // Base vertex, index, or instance.

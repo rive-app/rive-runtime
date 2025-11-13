@@ -857,6 +857,14 @@ public:
             {
                 addDefine(GLSL_FIXED_FUNCTION_COLOR_OUTPUT);
             }
+            if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+            {
+                addDefine(GLSL_CLOCKWISE_FILL);
+            }
+            if (shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
+            {
+                addDefine(GLSL_BORROWED_COVERAGE_PASS);
+            }
             glsl << gpu::glsl::glsl << '\n';
             glsl << gpu::glsl::constants << '\n';
             glsl << gpu::glsl::common << '\n';
