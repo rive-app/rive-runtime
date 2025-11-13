@@ -13,6 +13,7 @@ namespace rive
 {
 class Artboard;
 class Component;
+class DataContext;
 class ScriptAsset;
 class ViewModelInstanceValue;
 
@@ -29,6 +30,8 @@ protected:
     int m_self = 0;
 #ifdef WITH_RIVE_SCRIPTING
     LuaState* m_state = nullptr;
+
+    virtual void verifyInterface(LuaState* luaState);
 #endif
 
 public:
@@ -43,6 +46,7 @@ public:
     bool scriptAdvance(float elapsedSeconds);
     void scriptUpdate();
     void reinit();
+    virtual DataContext* dataContext() { return nullptr; }
 #ifdef WITH_RIVE_SCRIPTING
     virtual bool scriptInit(LuaState* state);
 #endif

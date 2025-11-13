@@ -1,0 +1,43 @@
+#ifndef _RIVE_SCRIPTED_LAYOUT_HPP_
+#define _RIVE_SCRIPTED_LAYOUT_HPP_
+#ifdef WITH_RIVE_SCRIPTING
+#include "rive/lua/rive_lua_libs.hpp"
+#endif
+#include "rive/layout/layout_enums.hpp"
+#include "rive/layout/layout_measure_mode.hpp"
+#include "rive/generated/scripted/scripted_layout_base.hpp"
+#include <stdio.h>
+namespace rive
+{
+class ScriptedLayout : public ScriptedLayoutBase
+{
+private:
+    Vec2D m_size;
+#ifdef WITH_RIVE_SCRIPTING
+    bool m_measures = false;
+    void callScriptedResize(Vec2D size);
+#endif
+
+public:
+#ifdef WITH_RIVE_SCRIPTING
+    bool scriptInit(LuaState* luaState) override;
+#endif
+    Vec2D measureLayout(float width,
+                        LayoutMeasureMode widthMode,
+                        float height,
+                        LayoutMeasureMode heightMode) override;
+
+    void controlSize(Vec2D size,
+                     LayoutScaleType widthScaleType,
+                     LayoutScaleType heightScaleType,
+                     LayoutDirection direction) override;
+    Core* clone() const override;
+
+protected:
+#ifdef WITH_RIVE_SCRIPTING
+    void verifyInterface(LuaState* state) override;
+#endif
+};
+} // namespace rive
+
+#endif

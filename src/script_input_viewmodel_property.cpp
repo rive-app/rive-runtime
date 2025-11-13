@@ -42,7 +42,12 @@ void ScriptInputViewModelProperty::initScriptedValue()
 bool ScriptInputViewModelProperty::validateForScriptInit()
 {
     m_viewModelInstanceValue = nullptr;
-    auto dataContext = artboard()->dataContext();
+    auto scriptedObj = scriptedObject();
+    if (scriptedObj == nullptr)
+    {
+        return false;
+    }
+    auto dataContext = scriptedObj->dataContext();
     if (dataContext == nullptr)
     {
         return false;

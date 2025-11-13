@@ -210,6 +210,7 @@
 #include "rive/script_input_viewmodel_property.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_layout.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/contour_mesh_vertex.hpp"
 #include "rive/shapes/cubic_asymmetric_vertex.hpp"
@@ -433,6 +434,8 @@ public:
                 return new ScriptedDrawable();
             case ScriptedDataConverterBase::typeKey:
                 return new ScriptedDataConverter();
+            case ScriptedLayoutBase::typeKey:
+                return new ScriptedLayout();
             case ScriptInputNumberBase::typeKey:
                 return new ScriptInputNumber();
             case NestedArtboardLayoutBase::typeKey:

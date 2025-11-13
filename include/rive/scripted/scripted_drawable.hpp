@@ -34,6 +34,14 @@ public:
         return children();
     }
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
+    DataContext* dataContext() override
+    {
+        if (artboard() != nullptr)
+        {
+            return artboard()->dataContext();
+        }
+        return nullptr;
+    }
 };
 } // namespace rive
 

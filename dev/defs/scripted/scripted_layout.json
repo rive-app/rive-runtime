@@ -1,0 +1,8 @@
+{
+  "name": "ScriptedLayout",
+  "key": {
+    "int": 637,
+    "string": "scriptedLayout"
+  },
+  "extends": "scripted/scripted_drawable.json"
+}

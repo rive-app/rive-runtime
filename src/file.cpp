@@ -59,6 +59,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
@@ -508,6 +509,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 object->as<NestedArtboard>()->file(this);
                 break;
             case ScriptedDrawable::typeKey:
+            case ScriptedLayout::typeKey:
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
                 {

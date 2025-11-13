@@ -6,15 +6,17 @@
   },
   "extends": "assets/file_asset.json",
   "properties": {
-    "fileId": {
-      "type": "uint",
-      "initialValue": "0",
+    "codeFileId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
       "key": {
-        "int": 738,
-        "string": "fileid"
+        "int": 901,
+        "string": "codefileid"
       },
-      "description": "Id of the core script file.",
-      "runtime": false
+      "description": "The codefile this ScriptAsset is backed by",
+      "runtime": false,
+      "journal": false
     },
     "recentlyEditedIndex": {
       "type": "FractionalIndex",
@@ -23,7 +25,8 @@
         "string": "recentlyeditedindex"
       },
       "runtime": false,
-      "coop": false
+      "coop": false,
+      "journal": false
     },
     "generatorFunctionRef": {
       "type": "uint",
@@ -34,7 +37,8 @@
       },
       "description": "The ref of the generator function (the function returned by the compiled code).",
       "coop": false,
-      "withRiveToolsOnly": true
+      "withRiveToolsOnly": true,
+      "journal": false
     }
   }
 }

@@ -2,7 +2,7 @@
   "name": "ScriptedDrawable",
   "key": {
     "int": 603,
-    "string": "scripteddrawable"
+    "string": "scriptedDrawable"
   },
   "extends": "drawable.json",
   "properties": {
@@ -13,7 +13,7 @@
       "initialValueRuntime": "-1",
       "key": {
         "int": 848,
-        "string": "scriptassetid"
+        "string": "scriptAssetId"
       }
     }
   }

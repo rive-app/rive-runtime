@@ -5,6 +5,7 @@
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
 
 using namespace rive;
@@ -15,6 +16,8 @@ ScriptedObject* ScriptedObject::from(Core* object)
     {
         case ScriptedDrawable::typeKey:
             return object->as<ScriptedDrawable>();
+        case ScriptedLayout::typeKey:
+            return object->as<ScriptedLayout>();
     }
     return nullptr;
 }
@@ -101,7 +104,30 @@ void ScriptedObject::setViewModelInput(std::string name,
     }
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
-    // pushViewModelInstanceValue(state, value);
+    switch (value->coreType())
+    {
+        case ViewModelInstanceViewModelBase::typeKey:
+        {
+            auto vm = value->as<ViewModelInstanceViewModel>();
+            auto vmi = vm->referenceViewModelInstance();
+            if (vmi == nullptr)
+            {
+                fprintf(stderr,
+                        "riveLuaPushViewModelInstanceValue - passed in a "
+                        "ViewModelInstanceViewModel with no associated "
+                        "ViewModelInstance.\n");
+                return;
+            }
+
+            lua_newrive<ScriptedViewModel>(state,
+                                           state,
+                                           ref_rcp(vmi->viewModel()),
+                                           vmi);
+            break;
+        }
+        default:
+            break;
+    }
     lua_setfield(state, -2, name.c_str());
     rive_lua_pop(state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
@@ -240,16 +266,22 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
         {
             rive_lua_pop(state, 1);
             assert(static_cast<lua_Type>(lua_type(state, -1)) == LUA_TTABLE);
-            m_updates = static_cast<lua_Type>(
-                            lua_getfield(state, -1, "update")) == LUA_TFUNCTION;
+            verifyInterface(luaState);
             rive_lua_pop(state, 1);
-            m_advances =
-                static_cast<lua_Type>(lua_getfield(state, -1, "advance")) ==
-                LUA_TFUNCTION;
-            rive_lua_pop(state, 2);
         }
     }
     return true;
+}
+
+void ScriptedObject::verifyInterface(LuaState* luaState)
+{
+    auto state = luaState->state;
+    m_updates = static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
+                LUA_TFUNCTION;
+    rive_lua_pop(state, 1);
+    m_advances = static_cast<lua_Type>(lua_getfield(state, -1, "advance")) ==
+                 LUA_TFUNCTION;
+    rive_lua_pop(state, 1);
 }
 
 void ScriptedObject::scriptDispose()
