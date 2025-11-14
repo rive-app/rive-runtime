@@ -68,6 +68,11 @@ do
     defines({ 'RIVE_WEBGPU=' .. _OPTIONS['webgpu-version'] })
 end
 
+newoption({
+    trigger = 'with-libs-only',
+    description = 'only builds the libraries',
+})
+
 filter({})
 
 newoption({
