@@ -15,6 +15,7 @@ enum class DirectBlendSource : unsigned int
 class BlendAnimationDirect : public BlendAnimationDirectBase
 {
 public:
+    ~BlendAnimationDirect();
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode import(ImportStack& importStack) override;

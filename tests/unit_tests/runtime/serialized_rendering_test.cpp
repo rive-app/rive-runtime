@@ -1559,3 +1559,109 @@ TEST_CASE("Collapsable data binds get added when object is uncollapsed",
 
     CHECK(silver.matches("collapsable_data_binding"));
 }
+
+// Note to this test for future reference: This test is passing because when an
+// artboard list is initialized, it populates its nested artboards only after
+// option C has advanced a second time. This causes tryChangeState to run before
+// advancing, and that allows the state to be available for the first advance to
+// mix its blend values. That's not the case for nested artboard, so if any of
+// these premises changes in the future, this test would catch the change.
+TEST_CASE(
+    "Virtualized list with blended animations as initial state correctly render their mixed values",
+    "[silver]")
+{
+    RandomProvider::clearRandoms();
+    REQUIRE(RandomProvider::totalCalls() == 0);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/virtualize_blendmode.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(4.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("virtualize_blendmode"));
+}
+
+TEST_CASE("Advance two consecutive blend modes and apply inputs", "[silver]")
+{
+    RandomProvider::clearRandoms();
+    REQUIRE(RandomProvider::totalCalls() == 0);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/advance_blend_mode.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-inputs");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("advance_blend_mode-inputs"));
+}
+
+TEST_CASE("Advance two consecutive blend modes and apply view model",
+          "[silver]")
+{
+    RandomProvider::clearRandoms();
+    REQUIRE(RandomProvider::totalCalls() == 0);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/advance_blend_mode.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-vms");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("advance_blend_mode-vms"));
+}

@@ -7,6 +7,15 @@
 
 using namespace rive;
 
+BlendAnimationDirect::~BlendAnimationDirect()
+{
+    if (m_bindableProperty != nullptr)
+    {
+        delete m_bindableProperty;
+        m_bindableProperty = nullptr;
+    }
+}
+
 StatusCode BlendAnimationDirect::onAddedDirty(CoreContext* context)
 {
     return StatusCode::Ok;

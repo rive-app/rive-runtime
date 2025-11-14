@@ -418,16 +418,22 @@ public:
             {
                 m_holdAnimationFrom = transition->pauseOnExit();
             }
-            if (m_stateFrom != nullptr &&
-                m_stateFrom->state()->is<AnimationState>() &&
-                m_currentState != nullptr)
+            if (m_currentState != nullptr)
             {
-                auto instance =
-                    static_cast<AnimationStateInstance*>(m_stateFrom)
-                        ->animationInstance();
+                auto advanceTime = 0.0f;
+                if (m_stateFrom != nullptr)
+                {
+                    if (m_stateFrom->state()->is<AnimationState>())
+                    {
 
-                auto spilledTime = instance->spilledTime();
-                m_currentState->advance(spilledTime, m_stateMachineInstance);
+                        auto instance =
+                            static_cast<AnimationStateInstance*>(m_stateFrom)
+                                ->animationInstance();
+
+                        advanceTime = instance->spilledTime();
+                    }
+                }
+                m_currentState->advance(advanceTime, m_stateMachineInstance);
             }
             m_mix = 0.0f;
             updateMix(0.0f);
