@@ -155,7 +155,7 @@ void ScriptedObject::trigger(std::string name)
 
 bool ScriptedObject::scriptAdvance(float elapsedSeconds)
 {
-    if (!m_advances || m_state == nullptr)
+    if (!advances() || m_state == nullptr)
     {
         return false;
     }
@@ -181,7 +181,7 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds)
 
 void ScriptedObject::scriptUpdate()
 {
-    if (!m_updates || m_state == nullptr)
+    if (!updates() || m_state == nullptr)
     {
         return;
     }
@@ -266,22 +266,10 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
         {
             rive_lua_pop(state, 1);
             assert(static_cast<lua_Type>(lua_type(state, -1)) == LUA_TTABLE);
-            verifyInterface(luaState);
             rive_lua_pop(state, 1);
         }
     }
     return true;
-}
-
-void ScriptedObject::verifyInterface(LuaState* luaState)
-{
-    auto state = luaState->state;
-    m_updates = static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
-                LUA_TFUNCTION;
-    rive_lua_pop(state, 1);
-    m_advances = static_cast<lua_Type>(lua_getfield(state, -1, "advance")) ==
-                 LUA_TFUNCTION;
-    rive_lua_pop(state, 1);
 }
 
 void ScriptedObject::scriptDispose()

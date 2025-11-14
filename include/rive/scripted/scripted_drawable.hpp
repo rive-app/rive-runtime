@@ -42,6 +42,7 @@ public:
         }
         return nullptr;
     }
+    ScriptType scriptType() override { return ScriptType::drawing; }
 };
 } // namespace rive
 

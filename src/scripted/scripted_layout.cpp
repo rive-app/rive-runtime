@@ -18,15 +18,6 @@ bool ScriptedLayout::scriptInit(LuaState* state)
     return true;
 }
 
-void ScriptedLayout::verifyInterface(LuaState* luaState)
-{
-    Super::verifyInterface(luaState);
-    auto state = luaState->state;
-    m_measures = static_cast<lua_Type>(lua_getfield(state, -1, "measure")) ==
-                 LUA_TFUNCTION;
-    rive_lua_pop(state, 1);
-}
-
 void ScriptedLayout::callScriptedResize(Vec2D size)
 {
     if (m_state == nullptr)
@@ -59,7 +50,7 @@ Vec2D ScriptedLayout::measureLayout(float width,
                                     float height,
                                     LayoutMeasureMode heightMode)
 {
-    if (!m_measures || m_state == nullptr)
+    if (!measures() || m_state == nullptr)
     {
         return Vec2D(0, 0);
     }

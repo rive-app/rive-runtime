@@ -10,6 +10,8 @@
 #include "rive/script_input_string.hpp"
 #include "rive/script_input_trigger.hpp"
 #include "rive/script_input_viewmodel_property.hpp"
+#include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
 
 using namespace rive;
@@ -37,6 +39,87 @@ ScriptInput* ScriptInput::from(Core* component)
 }
 
 void ScriptInput::initScriptedValue() {}
+
+bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
+                                                   LuaState* luaState)
+{
+#ifdef WITH_RIVE_SCRIPTING
+    auto state = luaState->state;
+    lua_pushvalue(state, -1);
+    if (static_cast<lua_Status>(rive_lua_pcall(state, 0, 1)) != LUA_OK)
+    {
+        fprintf(stderr, "Verifying implementation pcall failed\n");
+        rive_lua_pop(state, 1);
+        return false;
+    }
+    if (static_cast<lua_Type>(lua_type(state, -1)) != LUA_TTABLE)
+    {
+        fprintf(stderr, "Verifying implementation not a table?\n");
+        rive_lua_pop(state, 1);
+        return false;
+    }
+    m_implementedMethods = 0;
+
+    if (scriptType == ScriptType::drawing || scriptType == ScriptType::layout)
+    {
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_updatesBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "advance")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_advancesBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerDown")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsPointerDownBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerUp")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsPointerUpBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerMove")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsPointerMoveBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerCanceled")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsPointerCancelBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerExit")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsPointerExitBit;
+        }
+        rive_lua_pop(state, 1);
+    }
+    if (scriptType == ScriptType::layout)
+    {
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "measure")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_measuresBit;
+        }
+        rive_lua_pop(state, 1);
+    }
+    rive_lua_pop(state, 1);
+    return true;
+#else
+    return false;
+#endif
+}
 
 bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 {
@@ -67,6 +150,13 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                 "at generatorFunctionRef, instead it pushed a %d\n ",
                 pushedType);
     }
+    if (!m_initted)
+    {
+        m_scriptType = object->scriptType();
+        verifyImplementation(m_scriptType, vm());
+        m_initted = true;
+    }
+    object->implementedMethods(implementedMethods());
     return object->scriptInit(vm());
 #else
     return false;

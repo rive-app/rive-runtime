@@ -14,7 +14,6 @@ class ScriptedLayout : public ScriptedLayoutBase
 private:
     Vec2D m_size;
 #ifdef WITH_RIVE_SCRIPTING
-    bool m_measures = false;
     void callScriptedResize(Vec2D size);
 #endif
 
@@ -32,11 +31,7 @@ public:
                      LayoutScaleType heightScaleType,
                      LayoutDirection direction) override;
     Core* clone() const override;
-
-protected:
-#ifdef WITH_RIVE_SCRIPTING
-    void verifyInterface(LuaState* state) override;
-#endif
+    ScriptType scriptType() override { return ScriptType::layout; }
 };
 } // namespace rive
 

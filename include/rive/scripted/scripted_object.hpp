@@ -4,6 +4,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 #include "rive/assets/file_asset_referencer.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "rive/custom_property.hpp"
 #include "rive/custom_property_container.hpp"
 #include "rive/refcnt.hpp"
@@ -14,24 +15,16 @@ namespace rive
 class Artboard;
 class Component;
 class DataContext;
-class ScriptAsset;
 class ViewModelInstanceValue;
 
 class ScriptedObject : public FileAssetReferencer,
-                       public CustomPropertyContainer
+                       public CustomPropertyContainer,
+                       public OptionalScriptedMethods
 {
-private:
-#ifdef WITH_RIVE_SCRIPTING
-    bool m_advances = false;
-    bool m_updates = false;
-#endif
-
 protected:
     int m_self = 0;
 #ifdef WITH_RIVE_SCRIPTING
     LuaState* m_state = nullptr;
-
-    virtual void verifyInterface(LuaState* luaState);
 #endif
 
 public:
@@ -54,6 +47,7 @@ public:
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;
     void setAsset(rcp<FileAsset> asset) override;
     static ScriptedObject* from(Core* object);
+    virtual ScriptType scriptType() = 0;
 };
 } // namespace rive
 
