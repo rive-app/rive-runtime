@@ -145,6 +145,19 @@ if _OPTIONS['with_optick'] then
     RIVE_OPTICK_VERSION = '1.4.0.0'
 end 
 
+-- Optional sysroot for cross builds (primarily Linux)
+newoption({
+    trigger = 'sysroot',
+    value = 'PATH',
+    description = 'Path to a sysroot for cross-compiling (adds --sysroot=PATH to compile and link options)',
+})
+
+-- Optional pthread enabling (used e.g. for Emscripten wagyu builds)
+newoption({
+    trigger = 'with_pthread',
+    description = 'Enable pthread compile/link flags (-pthread)',
+})
+
 location(RIVE_BUILD_OUT)
 targetdir(RIVE_BUILD_OUT)
 objdir(RIVE_BUILD_OUT .. '/obj')
@@ -422,7 +435,7 @@ if _OPTIONS['for_android'] then
 
     -- Detect the NDK.
     local EXPECTED_NDK_VERSION = 'r27c'
-    local NDK_LONG_VERSION_STRING = "27.2.12479018"
+    local NDK_LONG_VERSION_STRING = "25.2.9519653"
     if _OPTIONS['for_unreal'] then
         EXPECTED_NDK_VERSION = '25.1.8937393'
         NDK_LONG_VERSION_STRING = '25.1.8937393'
@@ -558,6 +571,37 @@ do
 end
 
 filter({})
+
+-- Cross-compilation helpers for Linux. When targeting a Linux architecture that does not match
+-- the host, add an explicit target triple so clang uses the correct backend. Optionally honor a
+-- provided --sysroot for both compilation and linking.
+if os.target() == 'linux' then
+    local host_arch = os.outputof('uname -m') or ''
+
+    -- Apply target triple if host arch doesn't match requested arch
+    if _OPTIONS['arch'] == 'x64' and host_arch ~= 'x86_64' then
+        buildoptions({ '--target=x86_64-linux-gnu' })
+        linkoptions({ '--target=x86_64-linux-gnu' })
+    elseif _OPTIONS['arch'] == 'arm64' and host_arch ~= 'aarch64' then
+        buildoptions({ '--target=aarch64-linux-gnu' })
+        linkoptions({ '--target=aarch64-linux-gnu' })
+    elseif _OPTIONS['arch'] == 'arm' and not host_arch:match('arm') then
+        buildoptions({ '--target=arm-linux-gnueabihf' })
+        linkoptions({ '--target=arm-linux-gnueabihf' })
+    end
+
+    -- Optional sysroot
+    if _OPTIONS['sysroot'] ~= nil then
+        buildoptions({ '--sysroot=' .. _OPTIONS['sysroot'] })
+        linkoptions({ '--sysroot=' .. _OPTIONS['sysroot'] })
+    end
+end
+
+-- Apply pthread flags when requested
+if _OPTIONS['with_pthread'] then
+    buildoptions({ '-pthread' })
+    linkoptions({ '-pthread' })
+end
 
 filter('system:macosx')
 do
