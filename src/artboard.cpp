@@ -1575,6 +1575,8 @@ void Artboard::internalDataContext(DataContext* value)
     bindDataBindsFromContext(m_DataContext);
     sortDataBinds();
 
+    // TODO: Currently we reinit when a datacontext is set but ultimately
+    // we need to find a better way since there may not be a VM attached
     for (auto obj : m_ScriptedObjects)
     {
         obj->reinit();

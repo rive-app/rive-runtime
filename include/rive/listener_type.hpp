@@ -11,7 +11,7 @@ enum class ListenerType : int
     move = 4,
     event = 5,
     click = 6,
-    draggableConstraint = 7,
+    componentProvided = 7,
     textInput = 8,
     dragStart = 9,
     dragEnd = 10,

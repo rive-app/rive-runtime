@@ -48,6 +48,7 @@ public:
     void setAsset(rcp<FileAsset> asset) override;
     static ScriptedObject* from(Core* object);
     virtual ScriptType scriptType() = 0;
+    int self() { return m_self; }
 };
 } // namespace rive
 
