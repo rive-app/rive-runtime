@@ -1117,6 +1117,7 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
         // if the hardware doesn't support this.
         m_capabilities.polyfillVertexStorageBuffers = true;
     }
+    wgpuWagyuStringArrayFreeMembers(extensions);
 #endif
 }
 
