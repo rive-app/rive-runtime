@@ -14,6 +14,11 @@ Dash::Dash(float value, bool percentage)
 float Dash::normalizedLength(float contourLength) const
 {
     float right = lengthIsPercentage() ? 1.0f : contourLength;
+    if (right == 0.0f)
+    {
+        return 0.0f;
+    }
+
     float p = fmodf(length(), right);
     if (p < 0.0f)
     {
