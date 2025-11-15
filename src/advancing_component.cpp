@@ -11,7 +11,7 @@
 
 using namespace rive;
 
-AdvancingComponent* AdvancingComponent::from(Component* component)
+AdvancingComponent* AdvancingComponent::from(Core* component)
 {
     switch (component->coreType())
     {

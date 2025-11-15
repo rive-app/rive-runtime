@@ -286,6 +286,11 @@ StatusCode Artboard::initialize()
                 break;
             }
         }
+        auto advancingComponent = AdvancingComponent::from(object);
+        if (advancingComponent)
+        {
+            m_advancingComponents.push_back(advancingComponent);
+        }
     }
 
     if (!isInstance())
@@ -1056,10 +1061,9 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
     bool didUpdate = false;
 
-    for (auto dep : m_DependencyOrder)
+    for (auto adv : m_advancingComponents)
     {
-        auto adv = AdvancingComponent::from(dep);
-        if (adv != nullptr && adv->advanceComponent(elapsedSeconds, flags))
+        if (adv->advanceComponent(elapsedSeconds, flags))
         {
             didUpdate = true;
         }

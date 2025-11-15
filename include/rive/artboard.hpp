@@ -82,6 +82,7 @@ private:
     std::vector<Joystick*> m_Joysticks;
     std::vector<ResettingComponent*> m_Resettables;
     std::vector<ScriptedObject*> m_ScriptedObjects;
+    std::vector<AdvancingComponent*> m_advancingComponents;
     DataContext* m_DataContext = nullptr;
     bool m_ownsDataContext = false;
     bool m_JoysticksApplyBeforeUpdate = true;
