@@ -29,6 +29,8 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"close", (int16_t)LuaAtoms::close},
     {"reset", (int16_t)LuaAtoms::reset},
     {"add", (int16_t)LuaAtoms::add},
+    {"contours", (int16_t)LuaAtoms::contours},
+    {"measure", (int16_t)LuaAtoms::measure},
     {"invert", (int16_t)LuaAtoms::invert},
     {"isIdentity", (int16_t)LuaAtoms::isIdentity},
     {"width", (int16_t)LuaAtoms::width},
@@ -117,6 +119,11 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"parent", (int16_t)LuaAtoms::parent},
     {"node", (int16_t)LuaAtoms::node},
     {"addToPath", (int16_t)LuaAtoms::addToPath},
+    {"positionAndTangent", (int16_t)LuaAtoms::positionAndTangent},
+    {"warp", (int16_t)LuaAtoms::warp},
+    {"extract", (int16_t)LuaAtoms::extract},
+    {"next", (int16_t)LuaAtoms::next},
+    {"isClosed", (int16_t)LuaAtoms::isClosed},
 };
 
 static const luaL_Reg lualibs[] = {

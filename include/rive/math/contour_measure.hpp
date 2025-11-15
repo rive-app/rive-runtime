@@ -132,6 +132,14 @@ public:
         this->rewind(path, tol);
     }
 
+    // Constructor that copies the path, allowing ContourMeasure objects to
+    // outlive the original path.
+    ContourMeasureIter(const RawPath& path, float tol = kDefaultTolerance)
+    {
+        m_optionalCopy = path;
+        this->rewind(&m_optionalCopy, tol);
+    }
+
     void rewind(const RawPath*, float = kDefaultTolerance);
 
     // Returns a measure object for each contour in the path
@@ -152,6 +160,24 @@ public:
     // Temporary storage used during tryNext(), for counting up how many
     // segments a contour will be divided into.
     std::vector<uint32_t> m_segmentCounts;
+};
+
+// Ref-counted wrapper for ContourMeasureIter, used when the iterator needs
+// to outlive stack scope (e.g., in script bindings).
+class RefCntContourMeasureIter : public RefCnt<RefCntContourMeasureIter>
+{
+public:
+    RefCntContourMeasureIter(
+        const RawPath& path,
+        float tol = ContourMeasureIter::kDefaultTolerance) :
+        m_iter(path, tol)
+    {}
+
+    ContourMeasureIter* get() { return &m_iter; }
+    ContourMeasureIter* operator->() { return &m_iter; }
+
+private:
+    ContourMeasureIter m_iter;
 };
 
 } // namespace rive

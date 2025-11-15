@@ -7,6 +7,8 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/math/contour_measure.hpp"
+#include "rive/math/path_measure.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
@@ -58,6 +60,8 @@ enum class LuaAtoms : int16_t
     close,
     reset,
     add,
+    contours,
+    measure,
 
     // Mat2D
     invert,
@@ -166,7 +170,14 @@ enum class LuaAtoms : int16_t
     decompose,
     children,
     parent,
-    node
+    node,
+
+    // PathMeasure/ContourMeasure
+    positionAndTangent,
+    warp,
+    extract,
+    next,
+    isClosed
 };
 
 struct ScriptedMat2D
@@ -804,6 +815,41 @@ public:
 private:
     rcp<ScriptReffedArtboard> m_artboard;
     TransformComponent* m_component;
+};
+
+class ScriptedContourMeasure
+{
+public:
+    ScriptedContourMeasure(rcp<ContourMeasure> measure,
+                           rcp<RefCntContourMeasureIter> iter) :
+        m_measure(measure), m_iter(iter)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 26;
+    static constexpr const char* luaName = "ContourMeasure";
+    static constexpr bool hasMetatable = true;
+
+    ContourMeasure* measure() { return m_measure.get(); }
+    rcp<RefCntContourMeasureIter> iter() { return m_iter; }
+
+private:
+    rcp<ContourMeasure> m_measure;
+    rcp<RefCntContourMeasureIter> m_iter;
+};
+
+class ScriptedPathMeasure
+{
+public:
+    ScriptedPathMeasure(PathMeasure measure) : m_measure(std::move(measure)) {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 27;
+    static constexpr const char* luaName = "PathMeasure";
+    static constexpr bool hasMetatable = true;
+
+    PathMeasure* measure() { return &m_measure; }
+
+private:
+    PathMeasure m_measure;
 };
 
 static void interruptCPP(lua_State* L, int gc);
