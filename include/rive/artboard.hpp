@@ -70,6 +70,7 @@ class Artboard : public ArtboardBase,
 
 private:
     std::vector<Core*> m_Objects;
+    std::vector<Core*> m_invalidObjects;
     std::vector<LinearAnimation*> m_Animations;
     std::vector<StateMachine*> m_StateMachines;
     std::vector<Component*> m_DependencyOrder;

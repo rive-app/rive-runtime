@@ -74,6 +74,10 @@ Artboard::~Artboard()
         }
         delete object;
     }
+    for (auto object : m_invalidObjects)
+    {
+        delete object;
+    }
 
     deleteDataBinds();
 
@@ -136,7 +140,13 @@ bool Artboard::validateObjects()
                 {
                     continue;
                 }
-                delete m_Objects[i];
+                // Instead of immediately deleting invalid objects, we keep them
+                // around in case other objects are referencing them. One
+                // example is the backboard_importer keeping a reference on its
+                // m_FileAssetReferencers. So the invalid objects are taken out
+                // of the objects list but only deleted when the artboard is
+                // destroyed.
+                m_invalidObjects.push_back(m_Objects[i]);
                 m_Objects[i] = nullptr;
             }
         }
