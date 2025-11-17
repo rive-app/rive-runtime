@@ -225,6 +225,9 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
     }
     else
     {
+        lua_newrive<ScriptedContext>(state, this);
+        m_context = lua_ref(state, -1);
+        rive_lua_pop(state, 1);
         m_self = lua_ref(state, -1);
         m_state = luaState;
         for (auto prop : m_customProperties)
@@ -239,27 +242,34 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
             LUA_TFUNCTION)
         {
             lua_unref(state, m_self);
+            lua_unref(state, m_context);
             rive_lua_pop(state, 2);
             m_state = nullptr;
             m_self = 0;
+            m_context = 0;
             return false;
         }
         lua_pushvalue(state, -2);
-        auto pCallResult = rive_lua_pcall(state, 1, 1);
+        rive_lua_pushRef(state, m_context);
+        auto pCallResult = rive_lua_pcall(state, 2, 1);
         if (static_cast<lua_Status>(pCallResult) != LUA_OK)
         {
             lua_unref(state, m_self);
+            lua_unref(state, m_context);
             rive_lua_pop(state, 2);
             m_state = nullptr;
             m_self = 0;
+            m_context = 0;
             return false;
         }
         if (!lua_toboolean(state, -1))
         {
             lua_unref(state, m_self);
+            lua_unref(state, m_context);
             rive_lua_pop(state, 1);
             m_state = nullptr;
             m_self = 0;
+            m_context = 0;
             return false;
         }
         else
@@ -277,6 +287,7 @@ void ScriptedObject::scriptDispose()
     if (m_state != nullptr)
     {
         lua_unref(m_state->state, m_self);
+        lua_unref(m_state->state, m_context);
     }
     m_state = nullptr;
     m_self = 0;
@@ -325,3 +336,5 @@ void ScriptedObject::setAsset(rcp<FileAsset> asset)
         FileAssetReferencer::setAsset(asset);
     }
 }
+
+void ScriptedObject::markNeedsUpdate() {}

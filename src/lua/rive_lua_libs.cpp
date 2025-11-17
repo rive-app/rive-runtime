@@ -13,6 +13,7 @@ int luaopen_rive_properties(lua_State* L);
 int luaopen_rive_artboards(lua_State* L);
 int luaopen_rive_data_values(lua_State* L);
 int luaopen_rive_input(lua_State* L);
+int luaopen_rive_contex(lua_State* L);
 
 std::unordered_map<std::string, int16_t> atoms = {
     {"length", (int16_t)LuaAtoms::length},
@@ -124,6 +125,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"extract", (int16_t)LuaAtoms::extract},
     {"next", (int16_t)LuaAtoms::next},
     {"isClosed", (int16_t)LuaAtoms::isClosed},
+    {"markNeedsUpdate", (int16_t)LuaAtoms::markNeedsUpdate},
 };
 
 static const luaL_Reg lualibs[] = {
@@ -140,6 +142,7 @@ static const luaL_Reg lualibs[] = {
     {"artboard", luaopen_rive_artboards},
     {"dataValue", luaopen_rive_data_values},
     {"input", luaopen_rive_input},
+    {"context", luaopen_rive_contex},
     {NULL, NULL},
 };
 

@@ -177,7 +177,10 @@ enum class LuaAtoms : int16_t
     warp,
     extract,
     next,
-    isClosed
+    isClosed,
+
+    // Scripted Context
+    markNeedsUpdate,
 };
 
 struct ScriptedMat2D
@@ -850,6 +853,19 @@ public:
 
 private:
     PathMeasure m_measure;
+};
+
+class ScriptedContext
+{
+public:
+    ScriptedContext(ScriptedObject*);
+    ScriptedObject* scriptedObject() { return m_scriptedObject; }
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 28;
+    static constexpr const char* luaName = "Context";
+    static constexpr bool hasMetatable = true;
+
+private:
+    ScriptedObject* m_scriptedObject = nullptr;
 };
 
 static void interruptCPP(lua_State* L, int gc);

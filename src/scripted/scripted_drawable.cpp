@@ -194,6 +194,11 @@ Core* ScriptedDrawable::clone() const
     return twin;
 }
 
+void ScriptedDrawable::markNeedsUpdate()
+{
+    addScriptedDirt(ComponentDirt::ScriptUpdate);
+}
+
 bool ScriptedDrawable::worldToLocal(Vec2D world, Vec2D* local)
 {
     Mat2D toMountedArtboard;

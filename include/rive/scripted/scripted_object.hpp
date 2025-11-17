@@ -23,6 +23,7 @@ class ScriptedObject : public FileAssetReferencer,
 {
 protected:
     int m_self = 0;
+    int m_context = 0;
 #ifdef WITH_RIVE_SCRIPTING
     LuaState* m_state = nullptr;
 #endif
@@ -39,6 +40,7 @@ public:
     bool scriptAdvance(float elapsedSeconds);
     void scriptUpdate();
     void reinit();
+    virtual void markNeedsUpdate();
     virtual DataContext* dataContext() { return nullptr; }
 #ifdef WITH_RIVE_SCRIPTING
     virtual bool scriptInit(LuaState* state);

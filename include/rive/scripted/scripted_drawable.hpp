@@ -56,6 +56,7 @@ public:
     }
     std::vector<HitComponent*> hitComponents(StateMachineInstance* sm) override;
     bool worldToLocal(Vec2D world, Vec2D* local);
+    void markNeedsUpdate() override;
 };
 
 class HitScriptedDrawable : public HitComponent
