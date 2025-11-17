@@ -51,6 +51,7 @@ public:
     static ScriptedObject* from(Core* object);
     virtual ScriptType scriptType() = 0;
     int self() { return m_self; }
+    virtual Component* component() = 0;
 };
 } // namespace rive
 

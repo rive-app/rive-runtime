@@ -4,6 +4,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
@@ -14,6 +15,8 @@ ScriptedObject* ScriptedObject::from(Core* object)
 {
     switch (object->coreType())
     {
+        case ScriptedDataConverter::typeKey:
+            return object->as<ScriptedDataConverter>();
         case ScriptedDrawable::typeKey:
             return object->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:

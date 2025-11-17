@@ -11,6 +11,7 @@ namespace rive
 {
 class Artboard;
 class Component;
+class DataBind;
 class File;
 class ScriptedObject;
 
@@ -18,18 +19,23 @@ enum ScriptType
 {
     none,
     drawing,
-    layout
+    layout,
+    util,
+    converter
 };
 
 class ScriptInput
 {
 protected:
     ScriptedObject* m_scriptedObject = nullptr;
+    DataBind* m_dataBind = nullptr;
 
 public:
     virtual void initScriptedValue();
     virtual bool validateForScriptInit() = 0;
     static ScriptInput* from(Core* component);
+    DataBind* dataBind() { return m_dataBind; }
+    void dataBind(DataBind* dataBind) { m_dataBind = dataBind; }
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
     void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
 };

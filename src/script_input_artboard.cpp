@@ -24,7 +24,14 @@ StatusCode ScriptInputArtboard::import(ImportStack& importStack)
     }
     importer->addInput(this);
 
-    return Super::import(importStack);
+    auto obj = scriptedObject();
+    if (obj && obj->component() != nullptr)
+    {
+        // If the ScriptedObject is a Component, we need the ArtboardImporter
+        // to add it as a Component, otherwise, return Ok
+        return Super::import(importStack);
+    }
+    return StatusCode::Ok;
 }
 
 Core* ScriptInputArtboard::clone() const

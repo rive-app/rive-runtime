@@ -63,7 +63,7 @@ void Solo::updateByIndex(size_t index)
     }
 }
 
-void Solo::updateByName(std::string& name)
+void Solo::updateByName(const std::string& name)
 {
     for (auto& child : children())
     {

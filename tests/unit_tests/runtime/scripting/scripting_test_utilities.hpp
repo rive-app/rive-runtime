@@ -126,6 +126,7 @@ class ScriptedObjectTest : public ScriptedObject
     uint32_t assetId() override { return 0; }
     ScriptType scriptType() override { return ScriptType::none; }
     void markNeedsUpdate() override { m_markedToUpdate = true; }
+    Component* component() override { return nullptr; }
 
 public:
     bool needsUpdate() { return m_markedToUpdate; }

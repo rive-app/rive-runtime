@@ -508,6 +508,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case NestedArtboardLeaf::typeKey:
                 object->as<NestedArtboard>()->file(this);
                 break;
+            case ScriptedDataConverter::typeKey:
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
                 auto scriptedObject = ScriptedObject::from(object);
