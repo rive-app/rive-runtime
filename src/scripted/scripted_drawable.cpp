@@ -155,6 +155,10 @@ bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
+    if ((flags & AdvanceFlags::AdvanceNested) == 0)
+    {
+        elapsedSeconds = 0;
+    }
     return scriptAdvance(elapsedSeconds);
 }
 

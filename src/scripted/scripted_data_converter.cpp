@@ -95,8 +95,8 @@ void ScriptedDataConverter::bindFromContext(DataContext* dataContext,
                                             DataBind* dataBind)
 {
     m_dataContext = dataContext;
-    reinit();
     Super::bindFromContext(dataContext, dataBind);
+    reinit();
     for (auto prop : m_customProperties)
     {
         auto input = ScriptInput::from(prop);

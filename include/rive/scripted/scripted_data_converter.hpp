@@ -36,7 +36,8 @@ public:
     Core* clone() const override;
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
     {
-        return false;
+        markConverterDirty();
+        return true;
     }
     ScriptType scriptType() override { return ScriptType::converter; }
     Component* component() override { return nullptr; }
