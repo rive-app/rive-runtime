@@ -1,5 +1,6 @@
 local dependency = require('dependency')
 local luau = dependency.github('luigi-rosso/luau', 'rive_0_23')
+local libhydrogen = dependency.github('luigi-rosso/libhydrogen', 'rive_0_1')
 
 dofile('rive_build_config.lua')
 
@@ -59,4 +60,4 @@ do
     end
 end
 
-return { luau = luau }
+return { luau = luau, libhydrogen = libhydrogen }

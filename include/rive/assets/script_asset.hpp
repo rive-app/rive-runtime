@@ -24,6 +24,10 @@ enum ScriptType
     converter
 };
 
+#ifdef WITH_RIVE_SCRIPTING
+class ScriptAssetImporter;
+#endif
+
 class ScriptInput
 {
 protected:
@@ -97,22 +101,24 @@ public:
 
 class ScriptAsset : public ScriptAssetBase, public OptionalScriptedMethods
 {
-private:
-    File* m_file = nullptr;
-    // SimpleArray<uint8_t>& m_bytes;
-    bool initScriptedObjectWith(ScriptedObject* object);
+public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool m_initted = false;
-    ScriptType m_scriptType = ScriptType::none;
+    friend class ScriptAssetImporter;
+
+    bool verified() const { return m_verified; }
+    Span<uint8_t> bytecode() { return m_bytecode; }
 #endif
 
-public:
     bool initScriptedObject(ScriptedObject* object);
-    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override
-    {
-        // m_bytes = data;
-        return true;
-    }
+
+    /// Sets the bytecode if the signature verifies.
+    bool bytecode(Span<uint8_t> bytecode, Span<uint8_t> signature);
+
+    /// Bytecode provided via decode should only happen with in-band bytecode.
+    /// The signature will later be verified once file loading completes, so it
+    /// is immediately marked as unverified.
+    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
+
     std::string fileExtension() const override { return "lua"; }
     void file(File* value) { m_file = value; }
     File* file() const { return m_file; }
@@ -126,6 +132,17 @@ public:
         return m_file->scriptingVM();
     }
 #endif
+
+private:
+    File* m_file = nullptr;
+#ifdef WITH_RIVE_SCRIPTING
+    bool m_verified = false;
+    SimpleArray<uint8_t> m_bytecode;
+    bool m_initted = false;
+    ScriptType m_scriptType = ScriptType::none;
+#endif
+
+    bool initScriptedObjectWith(ScriptedObject* object);
 };
 } // namespace rive
 

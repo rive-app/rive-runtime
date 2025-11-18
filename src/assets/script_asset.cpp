@@ -1,5 +1,7 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "libhydrogen.h"
+#include "rive/importers/script_asset_importer.hpp"
 #endif
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
@@ -161,4 +163,38 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 #else
     return false;
 #endif
+}
+
+bool ScriptAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
+{
+#ifdef WITH_RIVE_SCRIPTING
+    m_verified = false;
+    // Don't move here as the script asset importer needs to keep the bytecode
+    // around for verification.
+    m_bytecode = SimpleArray<uint8_t>(data);
+#endif
+    return true;
+}
+
+bool ScriptAsset::bytecode(Span<uint8_t> bytecode, Span<uint8_t> signature)
+{
+#ifdef WITH_RIVE_SCRIPTING
+    if (signature.size() != hydro_sign_BYTES)
+    {
+        return false;
+    }
+    if (hydro_sign_verify(signature.data(),
+                          bytecode.data(),
+                          bytecode.size(),
+                          "rive",
+                          g_scriptVerificationPublicKey) != 0)
+    {
+        // Forged.
+        m_verified = false;
+        return false;
+    }
+    m_verified = true;
+    m_bytecode = SimpleArray<uint8_t>(bytecode);
+#endif
+    return true;
 }

@@ -43,9 +43,12 @@ if _OPTIONS['with_optick'] then
 end
 
 if _OPTIONS['with_rive_scripting'] then
-    luau = require(path.join(path.getabsolute('scripting/'), 'premake5')).luau
+    local scripting = require(path.join(path.getabsolute('scripting/'), 'premake5'))
+    luau = scripting.luau
+    libhydrogen = scripting.libhydrogen
 else
     luau = ''
+    libhydrogen = ''
 end
 
 project('rive')
@@ -132,7 +135,16 @@ do
     do
         includedirs({
             luau .. '/VM/include',
+            libhydrogen,
         })
+        files({
+            libhydrogen .. '/libhydrogen.c',
+        })
+    end
+    filter({ 'options:with_rive_scripting', 'options:not with_rive_tools' })
+    do
+        -- at runtime we only need signature verification
+        defines({ 'HYDRO_SIGN_VERIFY_ONLY' })
     end
 end
 

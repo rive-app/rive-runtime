@@ -31,3 +31,16 @@ void FileAssetContents::copyBytes(const FileAssetContentsBase& object)
 }
 
 SimpleArray<uint8_t>& FileAssetContents::bytes() { return m_bytes; }
+
+void FileAssetContents::decodeSignature(Span<const uint8_t> value)
+{
+    m_signature = SimpleArray<uint8_t>(value.data(), value.size());
+}
+
+void FileAssetContents::copySignature(const FileAssetContentsBase& object)
+{
+    // Should never be called.
+    assert(false);
+}
+
+SimpleArray<uint8_t>& FileAssetContents::signature() { return m_signature; }

@@ -15,6 +15,7 @@
 #include "rive/importers/data_converter_formula_importer.hpp"
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
+#include "rive/importers/script_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
@@ -267,6 +268,9 @@ rcp<File> File::import(Span<const uint8_t> bytes,
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
     ImportStack importStack;
+#ifdef WITH_RIVE_SCRIPTING
+    std::vector<InBandByteCode> inBandBytecode;
+#endif
     // TODO: @hernan consider moving this to a special importer. It's not that
     // simple because Core doesn't have a typeKey, so it should be treated as
     // a special case. In any case, it's not that bad having it here for now.
@@ -441,14 +445,20 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     m_factory);
                 stackType = FileAsset::typeKey;
                 break;
+#ifdef WITH_RIVE_SCRIPTING
             case ScriptAsset::typeKey:
-                stackObject = rivestd::make_unique<FileAssetImporter>(
-                    object->as<FileAsset>(),
-                    m_assetLoader,
-                    m_factory);
+            {
+                auto scriptAsset = object->as<ScriptAsset>();
+                stackObject =
+                    rivestd::make_unique<ScriptAssetImporter>(scriptAsset,
+                                                              m_assetLoader,
+                                                              m_factory,
+                                                              &inBandBytecode);
                 stackType = FileAsset::typeKey;
-                object->as<ScriptAsset>()->file(this);
+                scriptAsset->file(this);
                 break;
+            }
+#endif
             case ViewModel::typeKey:
                 stackObject = rivestd::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());

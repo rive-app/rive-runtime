@@ -29,13 +29,21 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t bytesPropertyKey = 212;
+    static const uint16_t signaturePropertyKey = 911;
 
 public:
     virtual void decodeBytes(Span<const uint8_t> value) = 0;
     virtual void copyBytes(const FileAssetContentsBase& object) = 0;
 
+    virtual void decodeSignature(Span<const uint8_t> value) = 0;
+    virtual void copySignature(const FileAssetContentsBase& object) = 0;
+
     Core* clone() const override;
-    void copy(const FileAssetContentsBase& object) { copyBytes(object); }
+    void copy(const FileAssetContentsBase& object)
+    {
+        copyBytes(object);
+        copySignature(object);
+    }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
     {
@@ -44,12 +52,16 @@ public:
             case bytesPropertyKey:
                 decodeBytes(CoreBytesType::deserialize(reader));
                 return true;
+            case signaturePropertyKey:
+                decodeSignature(CoreBytesType::deserialize(reader));
+                return true;
         }
         return false;
     }
 
 protected:
     virtual void bytesChanged() {}
+    virtual void signatureChanged() {}
 };
 } // namespace rive
 
