@@ -326,6 +326,13 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
                                           float2 pixelPosition
                                               CLIP_CONTEXT_FORWARD)
 {
+// MSAA uses gl_ClipDistance when ENABLE_CLIP_RECT is set, but since SPIRV uses
+// specialization constants (as opposed to compile-time flags), it means that
+// the usage of them is in the compiled shader even if that codepath is not
+// going to be taken, which ends up as a validation failure on systems that do
+// not support that extension. In those cases, we compile separate SPIRV
+// binaries with gl_ClipDistance explicitly disabled.
+#ifndef @DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
     if (any(notEqual(float4(clipRectInverseMatrix), float4(.0, .0, .0, .0))))
     {
         float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
@@ -343,6 +350,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
         gl_ClipDistance[0] = gl_ClipDistance[1] = gl_ClipDistance[2] =
             gl_ClipDistance[3] = clipRectInverseTranslate.x - .5;
     }
+#endif // !@DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
 }
 #endif // ENABLE_CLIP_RECT
 

@@ -2155,8 +2155,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                      draw = draw->nextDstRead())
                 {
                     assert(draw->blendMode() != BlendMode::srcOver);
-                    glutils::BlitFramebuffer(draw->pixelBounds(),
-                                             renderTarget->height());
+                    glutils::BlitFramebuffer(
+                        desc.renderTargetUpdateBounds.intersect(
+                            draw->pixelBounds()),
+                        renderTarget->height());
                 }
                 renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
             }

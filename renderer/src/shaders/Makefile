@@ -175,25 +175,11 @@ SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/draw_msaa_path.main \
     spirv/draw_msaa_stencil.main \
 
-# Files that need separate vertex shaders that are built with DISABLE_CLIP_RECT_FOR_VULKAN_MSAA
-SPIRV_NOCLIPDISTANCE_VERT_INPUTS := \
+# MSAA vertex and fragment shaders are built multiple times with different flags.
+SPIRV_DRAW_MSAA_INPUTS := \
     spirv/draw_msaa_path.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_atlas_blit.main \
-
-# Files that need separate vertex shaders that are compatible with WebGPU
-SPIRV_WEBGPU_VERT_INPUTS := \
-    spirv/draw_path.main \
-    spirv/draw_interior_triangles.main \
-    spirv/draw_atlas_blit.main \
-
-# Files that need separate fragment shaders that are compatible with WebGPU
-SPIRV_WEBGPU_FRAG_INPUTS := \
-    spirv/draw_path.main \
-    spirv/draw_interior_triangles.main \
-    spirv/draw_atlas_blit.main \
-    spirv/draw_image_mesh.main \
-
 
 
 ## Helpers for use in SPIRV_LIST_RULE (using lower_snake_case to distinguish things that use inputs like $1, $2, etc)
@@ -350,9 +336,11 @@ $(eval $(call make_spirv_rules, $(SPIRV_STANDARD_INPUTS), vert frag))
 
 ## Each of the specialized SPIRV lists have their own associated rules
 $(eval $(call make_spirv_rules, $(SPIRV_FIXEDCOLOR_FRAG_INPUTS), fixedcolor_frag, -DFIXED_FUNCTION_COLOR_OUTPUT))
-$(eval $(call make_spirv_rules, $(SPIRV_NOCLIPDISTANCE_VERT_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_RECT_FOR_VULKAN_MSAA))
-$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_VERT_INPUTS), webgpu_vert, -DSPEC_CONST_NONE))
-$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_FRAG_INPUTS), webgpu_frag, -DSPEC_CONST_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_vert, -DSPEC_CONST_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_noclipdistance_vert, -DSPEC_CONST_NONE -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_frag, -DSPEC_CONST_NONE -DINPUT_ATTACHMENT_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_fixedcolor_frag, -DSPEC_CONST_NONE -DINPUT_ATTACHMENT_NONE -DFIXED_FUNCTION_COLOR_OUTPUT))
 
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)

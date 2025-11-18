@@ -81,14 +81,14 @@
 #endif
 
 // clang-format off
-#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES)
-// clang-format on
+#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES) && !defined(@DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS)
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)
 #extension GL_ANGLE_clip_cull_distance : require
 #endif
-#endif // RENDER_MODE_MSAA && ENABLE_CLIP_RECT
+#endif // RENDER_MODE_MSAA && ENABLE_CLIP_RECT && GL_ES && !DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
+// clang-format on
 
 #if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
@@ -169,10 +169,6 @@
 #define TEXTURE_R32UI(SET, IDX, NAME)                                          \
     layout(binding = IDX) uniform highp utexture2D NAME
 #if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
-#define DST_COLOR_TEXTURE(NAME)                                                \
-    layout(input_attachment_index = 0,                                         \
-           binding = COLOR_PLANE_IDX,                                          \
-           set = PLS_TEXTURE_BINDINGS_SET) uniform lowp subpassInputMS NAME
 #endif // @FRAGMENT && @RENDER_MODE_MSAA
 #elif @GLSL_VERSION >= 310
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
@@ -187,8 +183,6 @@
     layout(binding = IDX) uniform highp isampler2D NAME
 #define TEXTURE_R32UI(SET, IDX, NAME)                                          \
     layout(binding = IDX) uniform highp usampler2D NAME
-#define DST_COLOR_TEXTURE(NAME)                                                \
-    TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
 #else
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform highp sampler2D NAME
@@ -196,8 +190,6 @@
 #define TEXTURE_R16F(SET, IDX, NAME) uniform mediump sampler2D NAME
 #define TEXTURE_R32I(SET, IDX, NAME) uniform highp isampler2D NAME
 #define TEXTURE_R32UI(SET, IDX, NAME) uniform highp usampler2D NAME
-#define DST_COLOR_TEXTURE(NAME)                                                \
-    TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
 #endif
 
 #ifdef @TARGET_VULKAN
@@ -219,12 +211,6 @@
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
 #if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
 #extension GL_OES_sample_variables : require
-#define DST_COLOR_FETCH(NAME)                                                  \
-    dst_color_fetch(mat4(subpassLoad(NAME, 0),                                 \
-                         subpassLoad(NAME, 1),                                 \
-                         subpassLoad(NAME, 2),                                 \
-                         subpassLoad(NAME, 3)),                                \
-                    gl_SampleMaskIn[0])
 #endif // @FRAGMENT && @RENDER_MODE_MSAA
 #else  // @TARGET_VULKAN -> !@TARGET_VULKAN
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
@@ -239,7 +225,6 @@
     texture(NAME, COORD, LODBIAS)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
-#define DST_COLOR_FETCH(NAME) texelFetch(NAME, ivec2(floor(_fragCoord.xy)), 0)
 #endif // !@TARGET_VULKAN
 
 #define TEXTURE_SAMPLE_DYNAMIC(TEXTURE, SAMPLER_NAME, COORD)                   \
@@ -643,6 +628,23 @@
 #endif
 
 #define EMIT_PLS_AND_FRAG_COLOR EMIT_PLS
+
+#if defined(@TARGET_VULKAN) && !defined(@INPUT_ATTACHMENT_NONE)
+#define DST_COLOR_TEXTURE(NAME)                                                \
+    layout(input_attachment_index = 0,                                         \
+           binding = COLOR_PLANE_IDX,                                          \
+           set = PLS_TEXTURE_BINDINGS_SET) uniform lowp subpassInputMS NAME
+#define DST_COLOR_FETCH(NAME)                                                  \
+    dst_color_fetch(mat4(subpassLoad(NAME, 0),                                 \
+                         subpassLoad(NAME, 1),                                 \
+                         subpassLoad(NAME, 2),                                 \
+                         subpassLoad(NAME, 3)),                                \
+                    gl_SampleMaskIn[0])
+#else
+#define DST_COLOR_TEXTURE(NAME)                                                \
+    TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
+#define DST_COLOR_FETCH(NAME) texelFetch(NAME, ivec2(floor(_fragCoord.xy)), 0)
+#endif
 
 #define MUL(A, B) ((A) * (B))
 

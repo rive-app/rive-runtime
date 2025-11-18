@@ -105,6 +105,11 @@ public:
         return m_renderContext.get();
     }
 
+    rive::gpu::RenderContextWebGPUImpl* renderContextWebGPUImpl() const final
+    {
+        return m_renderContext->static_impl_cast<RenderContextWebGPUImpl>();
+    }
+
     rive::gpu::RenderTarget* renderTargetOrNull() override
     {
         return m_renderTarget.get();
@@ -247,11 +252,10 @@ public:
         wgpuSurfaceConfigure(m_surface.Get(), &surfaceConfig);
         m_surfaceIsConfigured = true;
 
-        m_renderTarget =
-            m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-                ->makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm,
-                                   width,
-                                   height);
+        m_renderTarget = renderContextWebGPUImpl()->makeRenderTarget(
+            wgpu::TextureFormat::RGBA8Unorm,
+            width,
+            height);
         m_pixelReadBuff = {};
     }
 

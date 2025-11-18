@@ -1248,6 +1248,7 @@ struct FlushDescriptor
     // List of draws in the main render pass. These are rendered directly to the
     // renderTarget.
     const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
+    const DrawBatch* firstDstBlendBarrier = nullptr;
 };
 
 // Returns the area of the (potentially non-rectangular) quadrilateral that

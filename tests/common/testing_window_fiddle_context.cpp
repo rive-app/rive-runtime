@@ -382,6 +382,16 @@ public:
                 riveRenderable);
         }
 #endif
+#if defined(RIVE_WEBGPU) || defined(RIVE_DAWN)
+        if (auto* renderContextWebGPU =
+                m_fiddleContext->renderContextWebGPUImpl())
+        {
+            return rive_tests::OffscreenRenderTarget::MakeWebGPU(
+                renderContextWebGPU,
+                width,
+                height);
+        }
+#endif
         return nullptr;
     }
 

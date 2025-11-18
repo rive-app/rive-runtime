@@ -71,82 +71,6 @@ static const char* pls_impl_name(
     return "<no pixel local storage>";
 }
 
-class OffscreenRenderTargetWGPU : public rive_tests::OffscreenRenderTarget
-{
-public:
-    OffscreenRenderTargetWGPU(
-        rive::gpu::RenderContextWebGPUImpl* renderContextImpl,
-        wgpu::TextureFormat format,
-        uint32_t width,
-        uint32_t height) :
-        m_textureTarget(rive::make_rcp<TextureTarget>(renderContextImpl,
-                                                      format,
-                                                      width,
-                                                      height))
-    {}
-
-    rive::RenderImage* asRenderImage() override
-    {
-        return m_textureTarget->renderImage();
-    }
-
-    rive::gpu::RenderTarget* asRenderTarget() override
-    {
-        return m_textureTarget.get();
-    }
-
-private:
-    class TextureTarget : public RenderTargetWebGPU
-    {
-    public:
-        TextureTarget(rive::gpu::RenderContextWebGPUImpl* renderContextImpl,
-                      wgpu::TextureFormat format,
-                      uint32_t width,
-                      uint32_t height) :
-            RenderTargetWebGPU(renderContextImpl->device(),
-                               renderContextImpl->capabilities(),
-                               format,
-                               width,
-                               height)
-        {
-            wgpu::TextureDescriptor textureDesc = {
-                .usage = wgpu::TextureUsage::TextureBinding |
-                         wgpu::TextureUsage::RenderAttachment,
-                .dimension = wgpu::TextureDimension::e2D,
-                .size = {width, height},
-                .format = format,
-            };
-#ifdef RIVE_WAGYU
-            if (renderContextImpl->capabilities().plsType ==
-                RenderContextWebGPUImpl::PixelLocalStorageType::
-                    VK_EXT_rasterization_order_attachment_access)
-            {
-                textureDesc.usage |= static_cast<wgpu::TextureUsage>(
-                    WGPUTextureUsage_WagyuInputAttachment);
-            }
-#endif
-
-            auto texture = make_rcp<TextureWebGPUImpl>(
-                width,
-                height,
-                renderContextImpl->device().CreateTexture(&textureDesc));
-            setTargetTextureView(texture->textureView(), texture->texture());
-            m_renderImage =
-                rive::make_rcp<rive::RiveRenderImage>(std::move(texture));
-        }
-
-        rive::RiveRenderImage* renderImage() const
-        {
-            return m_renderImage.get();
-        }
-
-    private:
-        rive::rcp<rive::RiveRenderImage> m_renderImage;
-    };
-
-    rive::rcp<TextureTarget> m_textureTarget;
-};
-
 class TestingWindowWGPU : public TestingWindow
 {
 public:
@@ -257,20 +181,9 @@ public:
         uint32_t height,
         bool riveRenderable) const override
     {
-        return make_rcp<OffscreenRenderTargetWGPU>(
-            impl(),
-            // The format has no impact on whether Rive can render directly to
-            // the texture, but switch on that flag to test both formats.
-            //
-            // NOTE: The WebGPU backend currently has no code to handle
-            // non-renderable textures. GL_EXT_shader_pixel_local_storage has no
-            // such restrictions and
-            // VK_EXT_rasterization_order_attachment_access mode requires the
-            // texture to support input attachments.
-            riveRenderable ? wgpu::TextureFormat::RGBA8Unorm
-                           : wgpu::TextureFormat::BGRA8Unorm,
-            width,
-            height);
+        return rive_tests::OffscreenRenderTarget::MakeWebGPU(impl(),
+                                                             width,
+                                                             height);
     }
 
     void resize(int width, int height) override

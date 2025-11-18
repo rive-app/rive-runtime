@@ -647,10 +647,12 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             break;
 
         case VULKAN_VENDOR_ARM:
-            // This is undocumented, but raster ordering always works on ARM
-            // Mali GPUs if you define a subpass dependency, even without
+        case VULKAN_VENDOR_IMG_TEC:
+            // This is undocumented, but raster ordering works on Mali and
+            // PowerVR if you define a subpass dependency, even without
             // EXT_rasterization_order_attachment_access.
-            m_platformFeatures.supportsRasterOrderingMode = true;
+            m_platformFeatures.supportsRasterOrderingMode =
+                !contextOptions.forceAtomicMode;
             break;
     }
 }

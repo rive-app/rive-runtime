@@ -90,17 +90,41 @@ private:
 
     // Create a standard PLS "draw" pipeline for the current implementation.
     wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType,
+                                          gpu::InterlockMode,
                                           gpu::ShaderMiscFlags,
                                           wgpu::TextureFormat framebufferFormat,
                                           wgpu::ShaderModule vertexShader,
-                                          wgpu::ShaderModule fragmentShader);
+                                          wgpu::ShaderModule fragmentShader,
+                                          const gpu::PipelineState&);
 
-    // Create a standard PLS "draw" render pass for the current implementation.
-    wgpu::RenderPassEncoder makePLSRenderPass(wgpu::CommandEncoder,
-                                              const RenderTargetWebGPU*,
-                                              wgpu::LoadOp,
-                                              const wgpu::Color& clearColor,
-                                              bool fixedFunctionColorOutput);
+    // Begin a Rive render pass that uses pixel local storage.
+    wgpu::RenderPassEncoder beginPLSRenderPass(wgpu::CommandEncoder,
+                                               const FlushDescriptor&);
+
+    // Specifies how to load MSAA color/depth/stencil attachments when beginning
+    // an MSAA render pass.
+    enum class MSAABeginType : bool
+    {
+        primary,
+        restartAfterDstCopy,
+    };
+
+    // Specifies how to store MSAA color/depth/stencil attachments when ending
+    // an MSAA render pass.
+    enum class MSAAEndType : bool
+    {
+        finish,
+        breakForDstCopy,
+    };
+
+    // Begin a Rive render pass that uses MSAA.
+    wgpu::RenderPassEncoder beginMSAARenderPass(wgpu::CommandEncoder,
+                                                MSAABeginType,
+                                                MSAAEndType,
+                                                const FlushDescriptor&);
+
+    // Set the initial render pass state for draws (viewport, bindings, etc.).
+    void initDrawRenderPass(wgpu::RenderPassEncoder, const FlushDescriptor&);
 
     wgpu::PipelineLayout drawPipelineLayout() const
     {
@@ -134,7 +158,7 @@ private:
     constexpr static int COLOR_RAMP_BINDINGS_COUNT = 1;
     constexpr static int TESS_BINDINGS_COUNT = 6;
     constexpr static int ATLAS_BINDINGS_COUNT = 7;
-    constexpr static int DRAW_BINDINGS_COUNT = 10;
+    constexpr static int DRAW_BINDINGS_COUNT = 11;
     std::array<wgpu::BindGroupLayoutEntry, DRAW_BINDINGS_COUNT>
         m_perFlushBindingLayouts;
 
@@ -174,7 +198,7 @@ private:
 
     // Draw paths and image meshes using the gradient and tessellation textures.
     class DrawPipeline;
-    std::map<uint32_t, DrawPipeline> m_drawPipelines;
+    std::map<uint64_t, DrawPipeline> m_drawPipelines;
     wgpu::BindGroupLayout m_drawBindGroupLayouts[4 /*BINDINGS_SET_COUNT*/];
     wgpu::Sampler m_linearSampler;
     wgpu::Sampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
@@ -188,9 +212,9 @@ private:
     wgpu::Texture m_featherTexture;
     wgpu::TextureView m_featherTextureView;
 
-    // Bound when there is not an image paint.
-    wgpu::Texture m_nullImagePaintTexture;
-    wgpu::TextureView m_nullImagePaintTextureView;
+    // Bound when a texture binding is unused.
+    wgpu::Texture m_nullTexture;
+    wgpu::TextureView m_nullTextureView;
 };
 
 class RenderTargetWebGPU : public RenderTarget
@@ -201,6 +225,8 @@ public:
         return m_framebufferFormat;
     }
 
+    wgpu::Texture targetTexture() const { return m_targetTexture; };
+    wgpu::TextureView targetTextureView() const { return m_targetTextureView; };
     void setTargetTextureView(wgpu::TextureView, wgpu::Texture);
 
 protected:
@@ -210,20 +236,42 @@ protected:
                        uint32_t width,
                        uint32_t height);
 
+    // Lazily loaded render pass resources.
+    wgpu::TextureView coverageTextureView();
+    wgpu::TextureView clipTextureView();
+    wgpu::TextureView scratchColorTextureView();
+    wgpu::TextureView msaaColorTextureView();
+    wgpu::TextureView msaaDepthStencilTextureView();
+    wgpu::Texture dstColorTexture();
+    wgpu::TextureView dstColorTextureView();
+
+    // Copies a sub-rectangle of the targetTexture to the dstColorTexture for
+    // shader blending. Shaders can't read from the targetTexture itself because
+    // it's also the resolveTarget.
+    void copyTargetToDstColorTexture(wgpu::CommandEncoder, IAABB dstReadBounds);
+
 private:
     friend class RenderContextWebGPUImpl;
 
+    const wgpu::Device m_device;
     const wgpu::TextureFormat m_framebufferFormat;
+    wgpu::TextureUsage m_transientPLSUsage;
 
     wgpu::Texture m_targetTexture;
     wgpu::Texture m_coverageTexture;
     wgpu::Texture m_clipTexture;
     wgpu::Texture m_scratchColorTexture;
+    wgpu::Texture m_msaaColorTexture;
+    wgpu::Texture m_msaaDepthStencilTexture;
+    wgpu::Texture m_dstColorTexture;
 
     wgpu::TextureView m_targetTextureView;
     wgpu::TextureView m_coverageTextureView;
     wgpu::TextureView m_clipTextureView;
     wgpu::TextureView m_scratchColorTextureView;
+    wgpu::TextureView m_msaaColorTextureView;
+    wgpu::TextureView m_msaaDepthStencilTextureView;
+    wgpu::TextureView m_dstColorTextureView;
 };
 
 class TextureWebGPUImpl : public Texture

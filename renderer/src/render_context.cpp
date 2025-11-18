@@ -229,7 +229,8 @@ void RenderContext::LogicalFlush::rewind()
     m_flushDesc = FlushDescriptor();
 
     m_drawList.reset();
-    m_nextDstBlendBarrier = nullptr;
+    m_firstDstBlendBarrier = nullptr;
+    m_dstBlendBarrierListTail = &m_firstDstBlendBarrier;
     m_combinedShaderFeatures = gpu::ShaderFeatures::NONE;
 
     m_currentPathID = 0;
@@ -1577,22 +1578,30 @@ void RenderContext::LogicalFlush::writeResources()
             // draw the old renderTarget contents into the framebuffer at the
             // beginning of the render pass when
             // LoadAction::preserveRenderTarget is specified.
-            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    gpu::DrawType::renderPassInitialize,
-                                    m_baselineShaderMiscFlags,
-                                    gpu::DrawContents::opaquePaint,
-                                    1,
-                                    0,
-                                    BlendMode::srcOver,
-                                    ImageSampler::LinearClamp(),
-                                    // The MSAA init reads the framebuffer, so
-                                    // it needs the equivalent of a "dstBlend"
-                                    // barrier.
-                                    BarrierFlags::dstBlend);
+            m_drawList.emplace_back(
+                m_ctx->perFrameAllocator(),
+                gpu::DrawType::renderPassInitialize,
+                m_baselineShaderMiscFlags,
+                gpu::DrawContents::opaquePaint,
+                1,
+                0,
+                // A more realistic value here would be "BlendMode::none" (which
+                // is what actually happens), but since that isn't a Rive blend
+                // mode, we just need any value here. It will get ignored by the
+                // draw.
+                BlendMode::srcOver,
+                ImageSampler{.filter = ImageFilter::bilinear},
+                // The MSAA init reads the framebuffer, so it needs the
+                // equivalent of a "dstBlend" barrier.
+                BarrierFlags::dstBlend);
             m_combinedDrawContents |= m_drawList.tail()->drawContents;
             // The draw that follows the this init will need a special
             // "msaaPostInit" barrier.
             m_pendingBarriers |= BarrierFlags::msaaPostInit;
+            assert(m_dstBlendBarrierListTail == &m_firstDstBlendBarrier);
+            assert(m_firstDstBlendBarrier == nullptr);
+            m_firstDstBlendBarrier = m_drawList.tail();
+            m_dstBlendBarrierListTail = &m_drawList.tail()->nextDstBlendBarrier;
         }
 
         // Find a mask that tells us when to insert barriers, and which barriers
@@ -1831,6 +1840,7 @@ void RenderContext::LogicalFlush::writeResources()
         initialTriangleVertexDataSize;
 
     m_flushDesc.drawList = &m_drawList;
+    m_flushDesc.firstDstBlendBarrier = m_firstDstBlendBarrier;
 
     // Write out the uniforms for this flush now that the flushDescriptor is
     // complete.
@@ -3213,23 +3223,22 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             // that barrier for the first subpass is all we need.)
             if (draw->nextDstRead() == nullptr)
             {
-                batch->barriers |= BarrierFlags::dstBlend;
                 batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
-                if (m_nextDstBlendBarrier != nullptr)
+                assert(m_dstBlendBarrierListTail != nullptr);
+                if (!(batch->barriers & BarrierFlags::dstBlend))
                 {
-                    *m_nextDstBlendBarrier = batch;
+                    batch->barriers |= BarrierFlags::dstBlend;
+                    // Add ourselves to the "dstBlendBarrier" list.
+                    assert(*m_dstBlendBarrierListTail == nullptr);
+                    *m_dstBlendBarrierListTail = batch;
+                    assert(batch->nextDstBlendBarrier == nullptr);
+                    m_dstBlendBarrierListTail = &batch->nextDstBlendBarrier;
                 }
-                m_nextDstBlendBarrier = &batch->nextDstBlendBarrier;
+                // We either added ourselves to the dstBlendBarrier list or
+                // merged into a batch that was already part of it.
+                assert(m_dstBlendBarrierListTail ==
+                       &batch->nextDstBlendBarrier);
             }
-        }
-
-        // The first batch in a drawList is also the head of the
-        // "nextDstBlendBarrier" sub-list, regardless of whether it has a
-        // dstBlend barrier of its own. (But after this first batch, only
-        // batches with a dstBlend barrier will participate.)
-        if (m_nextDstBlendBarrier == nullptr)
-        {
-            m_nextDstBlendBarrier = &batch->nextDstBlendBarrier;
         }
     }
 

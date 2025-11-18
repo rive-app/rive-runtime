@@ -9,6 +9,7 @@ namespace rive::gpu
 {
 class RenderContextGLImpl;
 class RenderContextVulkanImpl;
+class RenderContextWebGPUImpl;
 } // namespace rive::gpu
 
 struct FiddleContextOptions
@@ -42,6 +43,10 @@ public:
         return nullptr;
     }
     virtual rive::gpu::RenderContextVulkanImpl* renderContextVulkanImpl() const
+    {
+        return nullptr;
+    }
+    virtual rive::gpu::RenderContextWebGPUImpl* renderContextWebGPUImpl() const
     {
         return nullptr;
     }

@@ -238,6 +238,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         params->clockwise = true;
         return Backend::wgpu;
     }
+    if (nameStr == "wgpumsaa")
+    {
+        params->msaa = true;
+        return Backend::wgpu;
+    }
     if (nameStr == "rhi")
     {
         return Backend::rhi;
