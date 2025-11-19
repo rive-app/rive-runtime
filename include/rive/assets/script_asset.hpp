@@ -15,12 +15,11 @@ class DataBind;
 class File;
 class ScriptedObject;
 
-enum ScriptType
+enum ScriptProtocol
 {
-    none,
-    drawing,
+    utility,
+    node,
     layout,
-    util,
     converter
 };
 
@@ -55,11 +54,14 @@ private:
     static const int m_wantsPointerUpBit = 1 << 5;
     static const int m_wantsPointerExitBit = 1 << 6;
     static const int m_wantsPointerCancelBit = 1 << 7;
+    static const int m_drawsBit = 1 << 8;
+    static const int m_initsBit = 1 << 9;
 
     int m_implementedMethods = 0;
 
 protected:
-    bool verifyImplementation(ScriptType scriptType, LuaState* luaState);
+    bool verifyImplementation(ScriptProtocol scriptProtocol,
+                              LuaState* luaState);
 
 public:
     int implementedMethods() { return m_implementedMethods; }
@@ -97,6 +99,8 @@ public:
     {
         return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
     }
+    bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
+    bool inits() { return (m_implementedMethods & m_initsBit) != 0; }
 };
 
 class ScriptAsset : public ScriptAssetBase, public OptionalScriptedMethods
@@ -140,7 +144,7 @@ private:
     bool m_verified = false;
     SimpleArray<uint8_t> m_bytecode;
     bool m_initted = false;
-    ScriptType m_scriptType = ScriptType::none;
+    ScriptProtocol m_scriptProtocol = ScriptProtocol::utility;
 #endif
 
     bool initScriptedObjectWith(ScriptedObject* object);

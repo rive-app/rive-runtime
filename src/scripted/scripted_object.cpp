@@ -206,6 +206,10 @@ void ScriptedObject::scriptUpdate()
 
 bool ScriptedObject::scriptInit(LuaState* luaState)
 {
+    if (!inits() || m_state == nullptr)
+    {
+        return false;
+    }
     auto state = luaState->state;
     for (auto prop : m_customProperties)
     {

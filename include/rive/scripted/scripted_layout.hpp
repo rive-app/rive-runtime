@@ -31,7 +31,7 @@ public:
                      LayoutScaleType heightScaleType,
                      LayoutDirection direction) override;
     Core* clone() const override;
-    ScriptType scriptType() override { return ScriptType::layout; }
+    ScriptProtocol scriptProtocol() override { return ScriptProtocol::layout; }
 };
 } // namespace rive
 

@@ -124,7 +124,7 @@ class ScriptedObjectTest : public ScriptedObject
     }
     bool m_markedToUpdate = false;
     uint32_t assetId() override { return 0; }
-    ScriptType scriptType() override { return ScriptType::none; }
+    ScriptProtocol scriptProtocol() override { return ScriptProtocol::utility; }
     void markNeedsUpdate() override { m_markedToUpdate = true; }
     Component* component() override { return nullptr; }
 

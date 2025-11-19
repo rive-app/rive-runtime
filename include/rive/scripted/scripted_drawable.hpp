@@ -49,7 +49,7 @@ public:
         }
         return nullptr;
     }
-    ScriptType scriptType() override { return ScriptType::drawing; }
+    ScriptProtocol scriptProtocol() override { return ScriptProtocol::node; }
     std::vector<ListenerGroupWithTargets*> listenerGroups() override
     {
         return {};

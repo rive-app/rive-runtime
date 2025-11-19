@@ -17,7 +17,7 @@ bool ScriptedDrawable::scriptInit(LuaState* state)
 
 void ScriptedDrawable::draw(Renderer* renderer)
 {
-    if (m_state == nullptr)
+    if (m_state == nullptr || !draws())
     {
         return;
     }

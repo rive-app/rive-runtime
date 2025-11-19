@@ -42,8 +42,9 @@ ScriptInput* ScriptInput::from(Core* component)
 
 void ScriptInput::initScriptedValue() {}
 
-bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
-                                                   LuaState* luaState)
+bool OptionalScriptedMethods::verifyImplementation(
+    ScriptProtocol scriptProtocol,
+    LuaState* luaState)
 {
 #ifdef WITH_RIVE_SCRIPTING
     auto state = luaState->state;
@@ -62,7 +63,8 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
     }
     m_implementedMethods = 0;
 
-    if (scriptType == ScriptType::drawing || scriptType == ScriptType::layout)
+    if (scriptProtocol == ScriptProtocol::node ||
+        scriptProtocol == ScriptProtocol::layout)
     {
         if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
             LUA_TFUNCTION)
@@ -106,13 +108,35 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
             m_implementedMethods |= m_wantsPointerExitBit;
         }
         rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_initsBit;
+        }
+        rive_lua_pop(state, 1);
     }
-    if (scriptType == ScriptType::layout)
+    if (scriptProtocol == ScriptProtocol::layout)
     {
         if (static_cast<lua_Type>(lua_getfield(state, -1, "measure")) ==
             LUA_TFUNCTION)
         {
             m_implementedMethods |= m_measuresBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_drawsBit;
+        }
+        rive_lua_pop(state, 1);
+    }
+    else if (scriptProtocol == ScriptProtocol::node)
+    {
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_drawsBit;
         }
         rive_lua_pop(state, 1);
     }
@@ -154,8 +178,8 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
     }
     if (!m_initted)
     {
-        m_scriptType = object->scriptType();
-        verifyImplementation(m_scriptType, vm());
+        m_scriptProtocol = object->scriptProtocol();
+        verifyImplementation(m_scriptProtocol, vm());
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());

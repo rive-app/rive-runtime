@@ -11,7 +11,7 @@ TEST_CASE("Scripted Context markNeedsUpdate works", "[scripting]")
         R"(
 
 -- Called once when the script initializes.
-function init(self: MyDrawing, context: Context): boolean
+function init(self: MyNode, context: Context): boolean
   context:markNeedsUpdate()
   return true
 end

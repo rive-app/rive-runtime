@@ -39,7 +39,10 @@ public:
         markConverterDirty();
         return true;
     }
-    ScriptType scriptType() override { return ScriptType::converter; }
+    ScriptProtocol scriptProtocol() override
+    {
+        return ScriptProtocol::converter;
+    }
     Component* component() override { return nullptr; }
 };
 } // namespace rive
