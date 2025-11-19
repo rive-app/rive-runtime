@@ -1773,9 +1773,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             vkutil::ImageAccessAction::invalidateContents);
         colorImageView = renderTarget->msaaColorTexture()->vkImageView();
 
+#if 0
+        // TODO: Some early Qualcomm devices struggle when seeding from and
+        // resolving to the same texture, even if we implement the MSAA resolve
+        // manually. For now, always copy out the render target to a separate
+        // texture when there's a preserve, but we should investigate this
+        // further.
         if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget &&
-            renderTarget->targetUsageFlags() &
-                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+            (renderTarget->targetUsageFlags() &
+             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
         {
             // We can seed from, and resolve to the the same texture.
             msaaColorSeedImageView = msaaResolveImageView =
@@ -1792,6 +1798,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     });
         }
         else
+#endif
         {
             if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
             {
