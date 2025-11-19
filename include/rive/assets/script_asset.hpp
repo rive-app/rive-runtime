@@ -101,6 +101,7 @@ public:
 
 class ScriptAsset : public ScriptAssetBase, public OptionalScriptedMethods
 {
+
 public:
 #ifdef WITH_RIVE_SCRIPTING
     friend class ScriptAssetImporter;
