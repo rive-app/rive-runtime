@@ -20,7 +20,8 @@ enum ScriptProtocol
     utility,
     node,
     layout,
-    converter
+    converter,
+    pathEffect
 };
 
 #ifdef WITH_RIVE_SCRIPTING

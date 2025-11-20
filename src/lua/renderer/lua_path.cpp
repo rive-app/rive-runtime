@@ -33,6 +33,13 @@ RenderPath* ScriptedPath::renderPath(lua_State* L)
     return m_renderPath.get();
 }
 
+ScriptedPathData::ScriptedPathData(const RawPath* path)
+{
+    rawPath.addPath(*path);
+}
+
+int ScriptedPathData::totalCommands() { return (int)rawPath.verbs().size(); }
+
 static ScriptedPath* lua_pushpath(lua_State* L)
 {
     return lua_newrive<ScriptedPath>(L);
@@ -101,17 +108,88 @@ static int path_reset(lua_State* L)
 
 static int path_add(lua_State* L)
 {
-    auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
-    auto scriptedPathToAdd = lua_torive<ScriptedPath>(L, 2);
-    // TODO: Mat2D at 3
-    scriptedPath->rawPath.addPath(scriptedPathToAdd->rawPath);
+    auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, 1);
+    auto scriptedPathToAdd = (ScriptedPathData*)lua_touserdata(L, 2);
+    const Mat2D* transform = nullptr;
+    int nargs = lua_gettop(L);
+    if (nargs == 3)
+    {
+        auto matrix = lua_torive<ScriptedMat2D>(L, 3);
+        transform = &matrix->value;
+    }
+    scriptedPath->rawPath.addPath(scriptedPathToAdd->rawPath, transform);
     scriptedPath->markDirty();
     return 0;
 }
 
+static int path_command(lua_State* L)
+{
+    auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, 1);
+    auto rawPath = scriptedPath->rawPath;
+    auto verbs = rawPath.verbs();
+    auto points = rawPath.points();
+    auto verbIndex = int(luaL_checknumber(L, 2));
+    auto verbName = "none";
+    std::vector<Vec2D> verbPoints;
+
+    if (verbIndex >= 0 && verbIndex < (int)verbs.size())
+    {
+        auto verb = verbs[verbIndex];
+
+        // Calculate the point index for this verb by summing point counts of
+        // previous verbs
+        int pointIndex = 0;
+        for (int i = 0; i < verbIndex; i++)
+        {
+            pointIndex += path_verb_to_point_count(verbs[i]);
+        }
+
+        switch (verb)
+        {
+            case PathVerb::move:
+                verbName = "moveTo";
+                if (pointIndex < (int)points.size())
+                {
+                    verbPoints.push_back(points[pointIndex]);
+                }
+                break;
+            case PathVerb::line:
+                verbName = "lineTo";
+                if (pointIndex < (int)points.size())
+                {
+                    verbPoints.push_back(points[pointIndex]);
+                }
+                break;
+            case PathVerb::quad:
+                verbName = "quadTo";
+                if (pointIndex + 1 < (int)points.size())
+                {
+                    verbPoints.push_back(points[pointIndex]);
+                    verbPoints.push_back(points[pointIndex + 1]);
+                }
+                break;
+            case PathVerb::cubic:
+                verbName = "cubicTo";
+                if (pointIndex + 2 < (int)points.size())
+                {
+                    verbPoints.push_back(points[pointIndex]);
+                    verbPoints.push_back(points[pointIndex + 1]);
+                    verbPoints.push_back(points[pointIndex + 2]);
+                }
+                break;
+            case PathVerb::close:
+                verbName = "close";
+                // close has no points
+                break;
+        }
+    }
+    lua_newrive<ScriptedPathCommand>(L, verbName, verbPoints);
+    return 1;
+}
+
 static int path_contours(lua_State* L)
 {
-    auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
+    auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, 1);
     // Use the copy constructor to ensure ContourMeasure outlives the path
     auto iter = make_rcp<RefCntContourMeasureIter>(scriptedPath->rawPath);
     auto firstContour = iter->get()->next();
@@ -126,7 +204,7 @@ static int path_contours(lua_State* L)
 
 static int path_measure(lua_State* L)
 {
-    auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
+    auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, 1);
     PathMeasure pathMeasure(&scriptedPath->rawPath);
     lua_newrive<ScriptedPathMeasure>(L, std::move(pathMeasure));
     return 1;
@@ -230,6 +308,37 @@ static int contour_measure_next(lua_State* L)
         }
     }
     lua_pushnil(L);
+    return 1;
+}
+
+static int path_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+
+    // If it's not a string/atom, treat it as a numeric index
+    if (!key)
+    {
+        int index = luaL_checkinteger(L, 2);
+        // Convert from 1-based Lua index to 0-based C++ index
+        // Replace the index at position 2 with the 0-based version
+        lua_pushinteger(L, index - 1); // Push 0-based index
+        lua_replace(L, 2);             // Replace the value at position 2
+        // Now stack has: 1=path, 2=0-based index, which is what path_command
+        // expects
+        return path_command(L);
+    }
+
+    // String indices are handled by __namecall for methods
+    return 0;
+}
+
+static int path_length(lua_State* L)
+{
+    auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, 1);
+
+    auto totalCommands = scriptedPath->totalCommands();
+    lua_pushnumber(L, totalCommands);
     return 1;
 }
 
@@ -379,6 +488,91 @@ static int path_measure_namecall(lua_State* L)
     return 0;
 }
 
+static int property_namecall_atom(lua_State* L,
+                                  ScriptedPathCommand* pathCommand,
+                                  uint8_t tag,
+                                  int atom,
+                                  bool& error)
+{
+    switch (atom)
+    {
+        case (int)LuaAtoms::type:
+        {
+            lua_pushstring(L, pathCommand->type().c_str());
+            return 1;
+        }
+    }
+    error = true;
+    return 0;
+}
+
+static int pathCommand_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+
+    // If it's not a string/atom, treat it as a numeric index
+    if (!key)
+    {
+        int luaIndex = luaL_checkinteger(L, 2);
+        int index = luaIndex - 1;
+
+        auto pathCommand = (ScriptedPathCommand*)lua_touserdata(L, 1);
+        auto points = pathCommand->points();
+        auto size = (int)points.size();
+        if (index >= 0 && index < size)
+        {
+            auto point = points[index];
+            lua_pushvec2d(L, point);
+            return 1;
+        }
+    }
+    else
+    {
+        int atom;
+        lua_tostringatom(L, 2, &atom);
+
+        size_t namelen = 0;
+        const char* name = luaL_checklstring(L, 2, &namelen);
+
+        auto tag = lua_userdatatag(L, 1);
+        auto pathCommand = (ScriptedPathCommand*)lua_touserdata(L, 1);
+
+        bool error = false;
+        int stackChange =
+            property_namecall_atom(L, pathCommand, tag, atom, error);
+        if (!error)
+        {
+            return stackChange;
+        }
+
+        luaL_error(L, "'%s' is not a valid index of PathCommand", name);
+        return 0;
+    }
+    return 0;
+}
+
+static int pathCommand_length(lua_State* L)
+{
+    auto pathCommand = (ScriptedPathCommand*)lua_touserdata(L, 1);
+
+    auto points = pathCommand->points();
+    lua_pushnumber(L, (int)points.size());
+    return 1;
+}
+
+static int pathCommand_namecall(lua_State* L)
+{
+    int atom;
+    const char* str = lua_namecallatom(L, &atom);
+
+    luaL_error(L,
+               "%s is not a valid method of %s",
+               str,
+               ScriptedPathCommand::luaName);
+    return 0;
+}
+
 static const luaL_Reg pathStaticMethods[] = {
     {"new", path_new},
     {NULL, NULL},
@@ -386,14 +580,52 @@ static const luaL_Reg pathStaticMethods[] = {
 
 int luaopen_rive_path(lua_State* L)
 {
-    luaL_register(L, ScriptedPath::luaName, pathStaticMethods);
-    lua_register_rive<ScriptedPath>(L);
+    {
+        lua_register_rive<ScriptedPathData>(L);
 
-    lua_pushcfunction(L, path_namecall, nullptr);
-    lua_setfield(L, -2, "__namecall");
+        lua_pushcfunction(L, path_index, nullptr);
+        lua_setfield(L, -2, "__index");
 
-    lua_setreadonly(L, -1, true);
-    lua_pop(L, 1); // pop the metatable
+        lua_pushcfunction(L, path_length, nullptr);
+        lua_setfield(L, -2, "__len");
+
+        lua_pushcfunction(L, path_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+    {
+        luaL_register(L, ScriptedPath::luaName, pathStaticMethods);
+        lua_register_rive<ScriptedPath>(L);
+
+        lua_pushcfunction(L, path_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, path_length, nullptr);
+        lua_setfield(L, -2, "__len");
+
+        lua_pushcfunction(L, path_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+    {
+        lua_register_rive<ScriptedPathCommand>(L);
+
+        lua_pushcfunction(L, pathCommand_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, pathCommand_length, nullptr);
+        lua_setfield(L, -2, "__len");
+
+        lua_pushcfunction(L, pathCommand_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
 
     // Register ContourMeasure
     lua_register_rive<ScriptedContourMeasure>(L);

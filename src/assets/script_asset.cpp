@@ -64,7 +64,9 @@ bool OptionalScriptedMethods::verifyImplementation(
     m_implementedMethods = 0;
 
     if (scriptProtocol == ScriptProtocol::node ||
-        scriptProtocol == ScriptProtocol::layout)
+        scriptProtocol == ScriptProtocol::layout ||
+        scriptProtocol == ScriptProtocol::converter ||
+        scriptProtocol == ScriptProtocol::pathEffect)
     {
         if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
             LUA_TFUNCTION)

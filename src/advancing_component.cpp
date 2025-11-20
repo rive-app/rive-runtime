@@ -9,6 +9,7 @@
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 
 using namespace rive;
 
@@ -34,6 +35,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return component->as<ScriptedLayout>();
+        case ScriptedPathEffect::typeKey:
+            return component->as<ScriptedPathEffect>();
     }
     return nullptr;
 }

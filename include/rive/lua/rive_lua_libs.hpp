@@ -63,6 +63,10 @@ enum class LuaAtoms : int16_t
     contours,
     measure,
 
+    // Path Command
+    type,
+    points,
+
     // Mat2D
     invert,
     isIdentity,
@@ -201,21 +205,52 @@ struct ScriptedMat2D
 static_assert(std::is_trivially_destructible<ScriptedMat2D>::value,
               "ScriptedMat2D must be trivially destructible");
 
-class ScriptedPath
+class ScriptedPathCommand
 {
 public:
+    ScriptedPathCommand(std::string type, std::vector<Vec2D> points = {}) :
+        m_type(type), m_points(points)
+    {}
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 29;
+    static constexpr const char* luaName = "PathCommand";
+    static constexpr bool hasMetatable = true;
+    std::string type() { return m_type; }
+    std::vector<Vec2D> points() { return m_points; }
+
+private:
+    std::string m_type;
+    std::vector<Vec2D> m_points;
+};
+
+class ScriptedPathData
+{
+public:
+    ScriptedPathData() {}
+    ScriptedPathData(const RawPath* path);
+    int totalCommands();
+    void markDirty() { m_isRenderPathDirty = true; }
     RawPath rawPath;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 30;
+    static constexpr const char* luaName = "PathData";
+    static constexpr bool hasMetatable = true;
+
+protected:
+    rcp<RenderPath> m_renderPath;
+
+    bool m_isRenderPathDirty = true;
+};
+
+class ScriptedPath : public ScriptedPathData
+{
+public:
+    ScriptedPath() {}
+    ScriptedPath(const RawPath* path) : ScriptedPathData(path) {}
     RenderPath* renderPath(lua_State* L);
     static constexpr uint8_t luaTag = LUA_T_COUNT + 2;
     static constexpr const char* luaName = "Path";
     static constexpr bool hasMetatable = true;
 
-    void markDirty() { m_isRenderPathDirty = true; }
-
 private:
-    rcp<RenderPath> m_renderPath;
-
-    bool m_isRenderPathDirty = true;
 };
 
 class ScriptedGradient

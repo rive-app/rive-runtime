@@ -62,6 +62,7 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -521,6 +522,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedDataConverter::typeKey:
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
+            case ScriptedPathEffect::typeKey:
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
                 {

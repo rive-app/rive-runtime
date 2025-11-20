@@ -7,6 +7,7 @@
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_object.hpp"
 
 using namespace rive;
@@ -21,6 +22,8 @@ ScriptedObject* ScriptedObject::from(Core* object)
             return object->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return object->as<ScriptedLayout>();
+        case ScriptedPathEffect::typeKey:
+            return object->as<ScriptedPathEffect>();
     }
     return nullptr;
 }

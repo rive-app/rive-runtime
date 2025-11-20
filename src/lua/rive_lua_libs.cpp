@@ -28,6 +28,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"quadTo", (int16_t)LuaAtoms::quadTo},
     {"cubicTo", (int16_t)LuaAtoms::cubicTo},
     {"close", (int16_t)LuaAtoms::close},
+    {"type", (int16_t)LuaAtoms::type},
     {"reset", (int16_t)LuaAtoms::reset},
     {"add", (int16_t)LuaAtoms::add},
     {"contours", (int16_t)LuaAtoms::contours},
