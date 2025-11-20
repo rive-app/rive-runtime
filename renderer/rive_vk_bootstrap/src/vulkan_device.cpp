@@ -50,6 +50,7 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
                                      opts.presentationSurfaceForDeviceSelection,
                                      opts.minimumSupportedAPIVersion);
     m_physicalDevice = findResult.physicalDevice;
+    m_name = findResult.deviceName;
 
     DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures, instance);
     assert(vkGetPhysicalDeviceFeatures != nullptr);

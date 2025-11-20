@@ -45,7 +45,12 @@ public:
                                                         : VK_API_VERSION_1_3,
             .requiredExtensions = make_span(glfwExtensions, glfwExtensionCount),
 #ifndef NDEBUG
-            .wantValidationLayers = options.enableVulkanValidationLayers,
+            .desiredValidationType =
+                options.enableVulkanCoreValidationLayers
+                    ? VulkanValidationType::Core
+                    : (options.enableVulkanSynchronizationValidationLayers
+                           ? VulkanValidationType::Synchronization
+                           : VulkanValidationType::None),
             .wantDebugCallbacks = !options.disableDebugCallbacks,
 #endif
         });

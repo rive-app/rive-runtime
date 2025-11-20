@@ -65,24 +65,7 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
         VK_CHECK(m_vkAllocateCommandBuffers(m_device,
                                             &cbufferAllocateInfo,
                                             &sync.commandBuffer));
-        static constexpr VkSemaphoreCreateInfo semaCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        };
-
-        VK_CHECK(m_vkCreateSemaphore(m_device,
-                                     &semaCreateInfo,
-                                     nullptr,
-                                     &sync.frameEndSemaphore));
-
-        if (opts.externalGPUSynchronization)
-        {
-            // For external synchronization we have a unique semaphore for each
-            // frame's command buffer submission to wait on.
-            VK_CHECK(m_vkCreateSemaphore(m_device,
-                                         &semaCreateInfo,
-                                         nullptr,
-                                         &sync.externallySignaledSemaphore));
-        }
+        sync.semaphore = createSemaphore();
 
         sync.safeFrameNumber = m_monotonicFrameNumber;
     }
@@ -96,7 +79,7 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &prev().frameEndSemaphore,
+            .pSignalSemaphores = &prev().semaphore,
         };
 
         m_vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
@@ -109,13 +92,7 @@ VulkanFrameSynchronizer::~VulkanFrameSynchronizer()
     // idle so we can safely destroy things here.
     for (auto& frame : m_inFlightFrames)
     {
-        if (frame.externallySignaledSemaphore != VK_NULL_HANDLE)
-        {
-            m_vkDestroySemaphore(m_device,
-                                 frame.externallySignaledSemaphore,
-                                 nullptr);
-        }
-        m_vkDestroySemaphore(m_device, frame.frameEndSemaphore, nullptr);
+        destroySemaphore(frame.semaphore);
         m_vkFreeCommandBuffers(m_device,
                                m_commandPool,
                                1,
@@ -144,12 +121,12 @@ VkSemaphore VulkanFrameSynchronizer::waitForFenceAndBeginFrame()
     m_monotonicFrameNumber++;
 
     // Return the semaphore that external GPU synchronization (i.e. a swapchain)
-    // will signal. This will just return VK_NULL_HANDLE if there is not
-    // external GPU synchronization.
-    return current().externallySignaledSemaphore;
+    // will signal.
+    return current().semaphore;
 }
 
-VkSemaphore VulkanFrameSynchronizer::endFrame()
+void VulkanFrameSynchronizer::endFrame(
+    std::optional<VkSemaphore> externalSignalSemaphore)
 {
     auto& frame = current();
 
@@ -161,12 +138,15 @@ VkSemaphore VulkanFrameSynchronizer::endFrame()
 
     VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
-    // If we have an externally-signaled semaphore, use that. Otherwise, we tell
-    // the GPU to wait for the previous frame to signal that it was complete
-    // before continuing.
-    auto waitSemaphore = (frame.externallySignaledSemaphore != VK_NULL_HANDLE)
-                             ? frame.externallySignaledSemaphore
-                             : prev().frameEndSemaphore;
+    // If we were provided an external semaphore to signal (i.e. from a
+    // swapchain), we'll wait on the current frame's semaphore and signal the
+    // external one, otherwise we'll wait for the previous frame's semaphore and
+    // signal the current one.
+    auto waitSemaphore = externalSignalSemaphore.has_value() ? frame.semaphore
+                                                             : prev().semaphore;
+    auto signalSemaphore = externalSignalSemaphore.has_value()
+                               ? externalSignalSemaphore.value()
+                               : frame.semaphore;
 
     VkSubmitInfo submitInfo = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -176,7 +156,7 @@ VkSemaphore VulkanFrameSynchronizer::endFrame()
         .commandBufferCount = 1,
         .pCommandBuffers = &frame.commandBuffer,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &frame.frameEndSemaphore,
+        .pSignalSemaphores = &signalSemaphore,
     };
 
     VK_CHECK(m_vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, frame.fence));
@@ -192,10 +172,6 @@ VkSemaphore VulkanFrameSynchronizer::endFrame()
     {
         m_pixelReadState = PixelReadState::Ready;
     }
-
-    // External synchronization will need to wait for the frame to end before
-    // doing its final step (i.e. a swapchain queuing presentation)
-    return frame.frameEndSemaphore;
 }
 
 void VulkanFrameSynchronizer::queueImageCopy(
@@ -315,6 +291,23 @@ void VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
     }
 
     m_pixelReadState = PixelReadState::None;
+}
+
+VkSemaphore VulkanFrameSynchronizer::createSemaphore()
+{
+    static constexpr VkSemaphoreCreateInfo semaCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    VkSemaphore semaphore;
+    VK_CHECK(
+        m_vkCreateSemaphore(m_device, &semaCreateInfo, nullptr, &semaphore));
+    return semaphore;
+}
+
+void VulkanFrameSynchronizer::destroySemaphore(VkSemaphore semaphore)
+{
+    m_vkDestroySemaphore(m_device, semaphore, nullptr);
 }
 
 } // namespace rive_vkb

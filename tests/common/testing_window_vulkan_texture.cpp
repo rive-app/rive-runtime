@@ -36,7 +36,12 @@ public:
             .idealAPIVersion =
                 m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
 #ifndef NDEBUG
-            .wantValidationLayers = !m_backendParams.disableValidationLayers,
+            .desiredValidationType =
+                m_backendParams.disableValidationLayers
+                    ? VulkanValidationType::None
+                    : (m_backendParams.wantVulkanSynchronizationValidation
+                           ? VulkanValidationType::Synchronization
+                           : VulkanValidationType::Core),
             .wantDebugCallbacks = !m_backendParams.disableDebugCallbacks,
 #endif
         });

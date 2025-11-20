@@ -79,11 +79,13 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     uint32_t mipLevelCount,
     const uint8_t imageDataRGBAPremul[])
 {
-    auto texture = m_vk->makeTexture2D({
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .extent = {width, height},
-        .mipLevels = mipLevelCount,
-    });
+    auto texture = m_vk->makeTexture2D(
+        {
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = {width, height},
+            .mipLevels = mipLevelCount,
+        },
+        "RenderContext imageTexture");
     texture->scheduleUpload(imageDataRGBAPremul, height * width * 4);
     return texture;
 }
@@ -174,8 +176,29 @@ public:
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+
+        VkSubpassDependency dependencies[] = {
+            // Wait for previous accesses to complete before this renderpass
+            // starts
+            {
+                .srcSubpass = VK_SUBPASS_EXTERNAL,
+                .dstSubpass = 0,
+                .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            },
+            {
+                .srcSubpass = 0,
+                .dstSubpass = VK_SUBPASS_EXTERNAL,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            },
         };
         VkRenderPassCreateInfo renderPassCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -183,12 +206,17 @@ public:
             .pAttachments = &attachment,
             .subpassCount = 1,
             .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
+            .dependencyCount = std::size(dependencies),
+            .pDependencies = dependencies,
         };
 
         VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
                                         &renderPassCreateInfo,
                                         nullptr,
                                         &m_renderPass));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
+                                    VK_OBJECT_TYPE_RENDER_PASS,
+                                    "Color Ramp RenderPass");
 
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -211,6 +239,9 @@ public:
                                                &pipelineCreateInfo,
                                                nullptr,
                                                &m_renderPipeline));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPipeline),
+                                    VK_OBJECT_TYPE_PIPELINE,
+                                    "Color Ramp Pipeline");
 
         m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
         m_vk->DestroyShaderModule(m_vk->device, fragmentShader, nullptr);
@@ -350,18 +381,45 @@ public:
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
+
+        VkSubpassDependency dependencies[] = {
+            {
+                .srcSubpass = VK_SUBPASS_EXTERNAL,
+                .dstSubpass = 0,
+                .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            },
+
+            //
+            {
+                .srcSubpass = 0,
+                .dstSubpass = VK_SUBPASS_EXTERNAL,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            },
+        };
+
         VkRenderPassCreateInfo renderPassCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .attachmentCount = 1,
             .pAttachments = &attachment,
             .subpassCount = 1,
             .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
+            .dependencyCount = std::size(dependencies),
+            .pDependencies = dependencies,
         };
 
         VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
                                         &renderPassCreateInfo,
                                         nullptr,
                                         &m_renderPass));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
+                                    VK_OBJECT_TYPE_RENDER_PASS,
+                                    "Tesselation RenderPass");
 
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -384,6 +442,9 @@ public:
                                                &pipelineCreateInfo,
                                                nullptr,
                                                &m_renderPipeline));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPipeline),
+                                    VK_OBJECT_TYPE_PIPELINE,
+                                    "Tesselation Pipeline");
 
         m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
         m_vk->DestroyShaderModule(m_vk->device, fragmentShader, nullptr);
@@ -493,17 +554,45 @@ public:
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
+
+        // Ensure that the image transition protects against the clear on the
+        // way in, and that any uses of the atlas texture are protected after
+        // the render pass ends.
+        VkSubpassDependency dependencies[] = {
+            {
+                .srcSubpass = VK_SUBPASS_EXTERNAL,
+                .dstSubpass = 0,
+                .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            },
+            {
+                .srcSubpass = 0,
+                .dstSubpass = VK_SUBPASS_EXTERNAL,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            },
+        };
         VkRenderPassCreateInfo renderPassCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .attachmentCount = 1,
             .pAttachments = &attachment,
             .subpassCount = 1,
             .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
+            .dependencyCount = std::size(dependencies),
+            .pDependencies = dependencies,
         };
+
         VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
                                         &renderPassCreateInfo,
                                         nullptr,
                                         &m_renderPass));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
+                                    VK_OBJECT_TYPE_RENDER_PASS,
+                                    "Atlas RenderPass");
 
         VkPipelineColorBlendAttachmentState blendState =
             VkPipelineColorBlendAttachmentState{
@@ -541,6 +630,9 @@ public:
                                                &pipelineCreateInfo,
                                                nullptr,
                                                &m_fillPipeline));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_fillPipeline),
+                                    VK_OBJECT_TYPE_PIPELINE,
+                                    "Atlas Fill Pipeline");
 
         stages[1].module = fragmentStrokeShader;
         blendState.colorBlendOp = VK_BLEND_OP_MAX;
@@ -550,6 +642,9 @@ public:
                                                &pipelineCreateInfo,
                                                nullptr,
                                                &m_strokePipeline));
+        m_vk->setDebugNameIfEnabled(uint64_t(m_strokePipeline),
+                                    VK_OBJECT_TYPE_PIPELINE,
+                                    "Atlas Stroke Pipeline");
 
         m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
         m_vk->DestroyShaderModule(m_vk->device, fragmentFillShader, nullptr);
@@ -663,10 +758,12 @@ void RenderContextVulkanImpl::initGPUObjects(
 {
     // Bound when there is not an image paint.
     constexpr static uint8_t black[] = {0, 0, 0, 1};
-    m_nullImageTexture = m_vk->makeTexture2D({
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .extent = {1, 1},
-    });
+    m_nullImageTexture = m_vk->makeTexture2D(
+        {
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = {1, 1},
+        },
+        "null image texture");
     m_nullImageTexture->scheduleUpload(black, sizeof(black));
 
     m_pipelineManager = std::make_unique<PipelineManagerVulkan>(
@@ -710,14 +807,16 @@ void RenderContextVulkanImpl::initGPUObjects(
            sizeof(gpu::g_inverseGaussianIntegralTableF16));
     static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
     static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
-    m_featherTexture = m_vk->makeTexture2D({
-        .format = VK_FORMAT_R16_SFLOAT,
-        .extent =
-            {
-                .width = gpu::GAUSSIAN_TABLE_SIZE,
-                .height = FEATHER_TEXTURE_1D_ARRAY_LENGTH,
-            },
-    });
+    m_featherTexture = m_vk->makeTexture2D(
+        {
+            .format = VK_FORMAT_R16_SFLOAT,
+            .extent =
+                {
+                    .width = gpu::GAUSSIAN_TABLE_SIZE,
+                    .height = FEATHER_TEXTURE_1D_ARRAY_LENGTH,
+                },
+        },
+        "feather texture");
     m_featherTexture->scheduleUpload(featherTextureData,
                                      sizeof(featherTextureData));
 
@@ -797,12 +896,14 @@ void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width,
     width = std::max(width, 1u);
     height = std::max(height, 1u);
 
-    m_gradTexture = m_vk->makeTexture2D({
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
-        .extent = {width, height},
-        .usage =
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    });
+    m_gradTexture = m_vk->makeTexture2D(
+        {
+            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .extent = {width, height},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT,
+        },
+        "gradient texture");
 
     m_gradTextureFramebuffer = m_vk->makeFramebuffer({
         .renderPass = m_colorRampPipeline->renderPass(),
@@ -820,12 +921,14 @@ void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
     width = std::max(width, 1u);
     height = std::max(height, 1u);
 
-    m_tessTexture = m_vk->makeTexture2D({
-        .format = VK_FORMAT_R32G32B32A32_UINT,
-        .extent = {width, height},
-        .usage =
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    });
+    m_tessTexture = m_vk->makeTexture2D(
+        {
+            .format = VK_FORMAT_R32G32B32A32_UINT,
+            .extent = {width, height},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT,
+        },
+        "tesselation texture");
 
     m_tessTextureFramebuffer = m_vk->makeFramebuffer({
         .renderPass = m_tessellatePipeline->renderPass(),
@@ -843,12 +946,14 @@ void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
     width = std::max(width, 1u);
     height = std::max(height, 1u);
 
-    m_atlasTexture = m_vk->makeTexture2D({
-        .format = m_pipelineManager->atlasFormat(),
-        .extent = {width, height},
-        .usage =
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-    });
+    m_atlasTexture = m_vk->makeTexture2D(
+        {
+            .format = m_pipelineManager->atlasFormat(),
+            .extent = {width, height},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT,
+        },
+        "atlas texture");
 
     m_atlasFramebuffer = m_vk->makeFramebuffer({
         .renderPass = m_atlasPipeline->renderPass(),
@@ -882,13 +987,15 @@ void RenderContextVulkanImpl::resizeAtomicCoverageBacking(uint32_t width,
 
     if (width != 0 && height != 0)
     {
-        m_plsAtomicCoverageTexture = m_vk->makeTexture2D({
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width, height},
-            .usage =
-                VK_IMAGE_USAGE_STORAGE_BIT |
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
-        });
+        m_plsAtomicCoverageTexture = m_vk->makeTexture2D(
+            {
+                .format = VK_FORMAT_R32_UINT,
+                .extent = {width, height},
+                .usage =
+                    VK_IMAGE_USAGE_STORAGE_BIT |
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
+            },
+            "atomic coverage backing");
     }
 }
 
@@ -919,13 +1026,15 @@ vkutil::Image* RenderContextVulkanImpl::plsTransientImageArray()
 
     if (m_plsTransientImageArray == nullptr)
     {
-        m_plsTransientImageArray = m_vk->makeImage({
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = VK_FORMAT_R32_UINT,
-            .extent = m_plsExtent,
-            .arrayLayers = std::min(m_plsTransientPlaneCount, 2u),
-            .usage = m_plsTransientUsageFlags,
-        });
+        m_plsTransientImageArray = m_vk->makeImage(
+            {
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = VK_FORMAT_R32_UINT,
+                .extent = m_plsExtent,
+                .arrayLayers = std::min(m_plsTransientPlaneCount, 2u),
+                .usage = m_plsTransientUsageFlags,
+            },
+            "plsTransientImageArray");
     }
 
     return m_plsTransientImageArray.get();
@@ -947,7 +1056,8 @@ vkutil::ImageView* RenderContextVulkanImpl::plsTransientCoverageView()
                         .baseArrayLayer = 0,
                         .layerCount = 1,
                     },
-            });
+            },
+            "plsTransientCoverageView");
     }
 
     return m_plsTransientCoverageView.get();
@@ -980,7 +1090,8 @@ vkutil::ImageView* RenderContextVulkanImpl::plsTransientClipView()
                             .baseArrayLayer = 1,
                             .layerCount = 1,
                         },
-                });
+                },
+                "plsTransientClipView");
         }
     }
 
@@ -996,11 +1107,13 @@ vkutil::Texture2D* RenderContextVulkanImpl::plsTransientScratchColorTexture()
 
     if (m_plsTransientScratchColorTexture == nullptr)
     {
-        m_plsTransientScratchColorTexture = m_vk->makeTexture2D({
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent = m_plsExtent,
-            .usage = m_plsTransientUsageFlags,
-        });
+        m_plsTransientScratchColorTexture = m_vk->makeTexture2D(
+            {
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .extent = m_plsExtent,
+                .usage = m_plsTransientUsageFlags,
+            },
+            "plsTransientScratchColorTexture");
     }
 
     return m_plsTransientScratchColorTexture.get();
@@ -1018,15 +1131,17 @@ vkutil::Texture2D* RenderContextVulkanImpl::accessPLSOffscreenColorTexture(
 
     if (m_plsOffscreenColorTexture == nullptr)
     {
-        m_plsOffscreenColorTexture = m_vk->makeTexture2D({
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent = m_plsExtent,
-            .usage = (m_plsTransientUsageFlags |
-                      // For copying back to the main render target.
-                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT) &
-                     // This texture is never transient.
-                     ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        });
+        m_plsOffscreenColorTexture = m_vk->makeTexture2D(
+            {
+                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .extent = m_plsExtent,
+                .usage = (m_plsTransientUsageFlags |
+                          // For copying back to the main render target.
+                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT) &
+                         // This texture is never transient.
+                         ~VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+            },
+            "PLSOffscreenColorTexture");
     }
 
     m_plsOffscreenColorTexture->barrier(commandBuffer,
@@ -1256,7 +1371,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_descriptorSetPoolPool->acquire();
 
     // Apply pending texture updates.
-    m_featherTexture->prepareForFragmentShaderRead(commandBuffer);
+    m_featherTexture->prepareForVertexOrFragmentShaderRead(commandBuffer);
     m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -1413,17 +1528,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Render the complex color ramps to the gradient texture.
     if (desc.gradSpanCount > 0)
     {
-        // Wait for previous accesses to finish before rendering to the gradient
-        // texture.
-        m_gradTexture->barrier(
-            commandBuffer,
-            {
-                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            vkutil::ImageAccessAction::invalidateContents);
-
         VkRect2D renderArea = {
             .extent = {gpu::kGradTextureWidth, desc.gradDataHeight},
         };
@@ -1481,17 +1585,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_gradTexture->lastAccess().layout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
-
-    // Ensure the gradient texture has finished updating before the path
-    // fragment shaders read it.
-    m_gradTexture->barrier(
-        commandBuffer,
-        {
-            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .accessMask = VK_ACCESS_SHADER_READ_BIT,
-            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        });
-
+    else
+    {
+        // The above render pass has the barriers in it, but if it was not run,
+        // we still are going to bind it as READ_ONLY_OPTIMAL so need to
+        // transition it
+        // TODO: Perhaps we should have a "null" texture that we can bind for
+        // cases like this where we need to bind all the textures but know it's
+        // not needed
+        m_gradTexture->barrier(
+            commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .accessMask = VK_ACCESS_SHADER_READ_BIT,
+                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            });
+    }
     VkDescriptorSet immutableSamplerDescriptorSet =
         m_pipelineManager->immutableSamplerDescriptorSet();
 
@@ -1500,6 +1609,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     {
         // Don't render new vertices until the previous flush has finished using
         // the tessellation texture.
+        // TODO: What this barrier does is also part of the tesselation
+        // renderpass, and should be handled automatically, but on early PowerVR
+        // devices (Reno 3 Plus, Vivo Y21) tesselation is still incorrect
+        // without this explicit barrier. Figure out why.
         m_tessTexture->barrier(
             commandBuffer,
             {
@@ -1583,6 +1696,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     // Ensure the tessellation texture has finished rendering before the path
     // vertex shaders read it.
+    // TODO: Similar to the barrier on the way into rendering the tesselation
+    // texture, this barrier should already be covered by the tesselation
+    // renderpass but fails on early PowerVR devices.
     m_tessTexture->barrier(
         commandBuffer,
         {
@@ -1594,17 +1710,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
-        // Don't render new vertices until the previous flush has finished using
-        // the atlas texture.
-        m_atlasTexture->barrier(
-            commandBuffer,
-            {
-                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            vkutil::ImageAccessAction::invalidateContents);
-
         VkRect2D renderArea = {
             .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
         };
@@ -1708,16 +1813,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    // Ensure the atlas texture has finished rendering before the fragment
-    // shaders read it.
-    m_atlasTexture->barrier(
-        commandBuffer,
-        {
-            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .accessMask = VK_ACCESS_SHADER_READ_BIT,
-            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        });
-
     // In the case of Vulkan, fixedFunctionColorOutput means the color buffer
     // will never be bound as an input attachment.
     const bool fixedFunctionColorOutput = desc.fixedFunctionColorOutput;
@@ -1765,12 +1860,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     if (desc.interlockMode == gpu::InterlockMode::msaa)
     {
-        // MSAA mode always renders to a transient MSAA color buffer. (The
-        // render target is single-sampled.)
-        renderTarget->msaaColorTexture()->barrier(
-            commandBuffer,
-            colorLoadAccess,
-            vkutil::ImageAccessAction::invalidateContents);
         colorImageView = renderTarget->msaaColorTexture()->vkImageView();
 
 #if 0
@@ -2175,26 +2264,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     else
     {
-        // Ensure any color writes in prior frames complete before we execute
-        // the load operations.
-        // NOTE: This currently only works becauses we never support PLS as
-        // storage texture (i.e., clockwise) and rasterOrdering at the same
-        // time. If that changes, we will need to consider that the
-        // plsTransientImageArray may have been bound previously as storage
-        // textures.
+        // Any color writes in prior frames should already be complete before
+        // the following load operations. NOTE: This currently only works
+        // because we never support PLS as storage texture (i.e. clockwise) and
+        // rasterOrdering at the same time. If that changes, we will need to
+        // consider that the plsTransientImageArray may have been bound
+        // previously as storage textures.
         assert(desc.interlockMode != gpu::InterlockMode::rasterOrdering ||
                !m_platformFeatures.supportsClockwiseMode);
-        m_vk->memoryBarrier(
-            commandBuffer,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            // "Load" operations always occur in
-            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            0,
-            {
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            });
     }
 
     if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)

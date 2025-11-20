@@ -63,7 +63,12 @@ public:
             .requiredExtensions =
                 make_span(extensionNames.data(), extensionNames.size()),
 #ifndef NDEBUG
-            .wantValidationLayers = !m_backendParams.disableDebugCallbacks,
+            .desiredValidationType =
+                m_backendParams.disableValidationLayers
+                    ? VulkanValidationType::None
+                    : (m_backendParams.wantVulkanSynchronizationValidation
+                           ? VulkanValidationType::Synchronization
+                           : VulkanValidationType::Core),
             .wantDebugCallbacks = !m_backendParams.disableValidationLayers,
 #endif
         });
@@ -153,6 +158,20 @@ public:
                                      m_height,
                                      m_swapchain->imageFormat(),
                                      m_swapchain->imageUsageFlags());
+
+        if (m_device->name() == "Mali-G76" || m_device->name() == "Mali-G72")
+        {
+            // These devices (like the Huawei P30 or Galaxy S10) will end up
+            // with a DEVICE_LOST error if we blit to the screen, so don't.
+            m_allowBlitOffscreenToScreen = false;
+        }
+
+        if (m_device->name() == "PowerVR Rogue GM9446")
+        {
+            // These devices (like the Oppo Reno 3 Pro) only give correct
+            // results when rendering to an off-screen texture.
+            m_alwaysUseOffscreenTexture = true;
+        }
     }
 
     ~TestingWindowAndroidVulkan()
@@ -193,7 +212,8 @@ public:
                                      m_height,
                                      m_swapchain->imageFormat(),
                                      m_swapchain->imageUsageFlags());
-        if (m_width > m_androidWindowWidth || m_height > m_androidWindowHeight)
+        if (m_alwaysUseOffscreenTexture || m_width > m_androidWindowWidth ||
+            m_height > m_androidWindowHeight)
         {
             VkImageUsageFlags overflowTextureUsageFlags =
                 m_swapchain->imageUsageFlags();
@@ -203,12 +223,14 @@ public:
             // usage and pixel readbacks. For now, just don't enable the input
             // attachment flag on the overflow texture.
             overflowTextureUsageFlags &= ~VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-            m_overflowTexture = vk()->makeTexture2D({
-                .format = m_swapchain->imageFormat(),
-                .extent = {static_cast<uint32_t>(m_width),
-                           static_cast<uint32_t>(m_height)},
-                .usage = m_swapchain->imageUsageFlags(),
-            });
+            m_overflowTexture = vk()->makeTexture2D(
+                {
+                    .format = m_swapchain->imageFormat(),
+                    .extent = {static_cast<uint32_t>(m_width),
+                               static_cast<uint32_t>(m_height)},
+                    .usage = m_swapchain->imageUsageFlags(),
+                },
+                "overflow texture");
         }
         else
         {
@@ -296,35 +318,50 @@ public:
         }
         else
         {
-            // Blit the overflow texture onto the screen in order to give some
-            // visual feedback.
-            vkutil::ImageAccess swapchainLastAccess =
-                vk()->simpleImageMemoryBarrier(
+            if (m_allowBlitOffscreenToScreen)
+            {
+                // Blit the overflow texture onto the screen in order to give
+                // some visual feedback.
+                vkutil::ImageAccess swapchainLastAccess =
+                    vk()->simpleImageMemoryBarrier(
+                        m_swapchain->currentCommandBuffer(),
+                        m_swapchain->currentLastAccess(),
+                        {
+                            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                            .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        },
+                        m_swapchain->currentVkImage());
+                vk()->blitSubRect(
                     m_swapchain->currentCommandBuffer(),
-                    m_swapchain->currentLastAccess(),
-                    {
-                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                        .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    },
-                    m_swapchain->currentVkImage());
-            vk()->blitSubRect(
-                m_swapchain->currentCommandBuffer(),
-                m_renderTarget->accessTargetImage(
-                    m_swapchain->currentCommandBuffer(),
-                    {
-                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                        .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    }),
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                m_swapchain->currentVkImage(),
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                IAABB{0,
-                      0,
-                      std::min<int>(m_width, m_androidWindowWidth),
-                      std::min<int>(m_height, m_androidWindowHeight)});
+                    m_renderTarget->accessTargetImage(
+                        m_swapchain->currentCommandBuffer(),
+                        {
+                            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                            .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        }),
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    m_swapchain->currentVkImage(),
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    IAABB{0,
+                          0,
+                          std::min<int>(m_width, m_androidWindowWidth),
+                          std::min<int>(m_height, m_androidWindowHeight)});
+            }
 
+            // TODO: find  the right way to do this (and ideally merge it into
+            // the memory barrier in swapchain::endFrame), but this avoids a
+            // write-after-write hazard.
+            vk()->memoryBarrier(
+                m_swapchain->currentCommandBuffer(),
+                VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                0,
+                {
+                    .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_NONE,
+                });
             m_overflowTexture->lastAccess() =
                 m_renderTarget->targetLastAccess();
 
@@ -364,6 +401,9 @@ private:
     rcp<vkutil::Texture2D> m_overflowTexture; // Used when the desired render
                                               // size doesn't fit in the window.
     PFN_vkDestroySurfaceKHR m_vkDestroySurfaceKHR = nullptr;
+
+    bool m_allowBlitOffscreenToScreen = true;
+    bool m_alwaysUseOffscreenTexture = false;
 };
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(

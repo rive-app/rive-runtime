@@ -347,6 +347,7 @@ int main(int argc, const char* argv[])
     TestingWindow::BackendParams backendParams;
     auto visibility = TestingWindow::Visibility::window;
     int pngThreads = 2;
+    bool wantVulkanSynchronizationValidation = false;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -354,6 +355,11 @@ int main(int argc, const char* argv[])
         {
             TestHarness::Instance().init(TCPClient::Connect(argv[++i]),
                                          pngThreads);
+            continue;
+        }
+        if (strcmp(argv[i], "--sync-validation") == 0)
+        {
+            wantVulkanSynchronizationValidation = true;
             continue;
         }
         if (is_arg(argv[i], "--output", "-o"))
@@ -407,6 +413,9 @@ int main(int argc, const char* argv[])
     }
 
     void* platformWindow = nullptr;
+    backendParams.wantVulkanSynchronizationValidation =
+        wantVulkanSynchronizationValidation;
+
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
     // Make sure the testing harness always gets initialized on Android so we
     // pipe stdout & stderr to the android log always get pngs.

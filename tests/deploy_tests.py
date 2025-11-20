@@ -105,6 +105,8 @@ parser.add_argument("--no-rebuild", action='store_true',
 parser.add_argument("-n", "--no-install", action='store_true',
                     help="don't package & reinstall the mobile app prior to launch")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
+parser.add_argument("--sync-validation", action='store_true',
+                    help="run with Vulkan synchronization validation")
 
 args = parser.parse_args()
 skipped_golden_tests = set()
@@ -557,11 +559,13 @@ def launch_gms(test_harness_server):
            "--test_harness", "%s:%u" % test_harness_server.server_address]
     if not args.target.startswith("web"):
         cmd = cmd + ["--headless",
-                     "-p%i" % args.png_threads];
+                     "-p%i" % args.png_threads]
     if args.match:
-        cmd = cmd + ["--match", args.match];
+        cmd = cmd + ["--match", args.match]
     if args.verbose:
-        cmd = cmd + ["--verbose"];
+        cmd = cmd + ["--verbose"]
+    if args.sync_validation:
+        cmd = cmd + ["--sync-validation"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     procs = [CheckProcess(cmd, env) for i in range(0, args.jobs_per_tool)]
@@ -581,7 +585,7 @@ def launch_goldens(test_harness_server):
 
     if not os.path.exists(args.src):
         print("Can't find rivspath " + args.src, flush=True)
-        return -1;
+        return -1
 
     if os.path.isdir(args.src):
         for riv in glob.iglob(os.path.join(args.src, "*.riv")):
@@ -596,9 +600,9 @@ def launch_goldens(test_harness_server):
            "--cols", str(args.cols)]
     if not args.target.startswith("web"):
         cmd = cmd + ["--headless",
-                     "-p%i" % args.png_threads];
+                     "-p%i" % args.png_threads]
     if args.verbose:
-        cmd = cmd + ["--verbose"];
+        cmd = cmd + ["--verbose"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     procs = [CheckProcess(cmd, env) for i in range(0, args.jobs_per_tool)]
@@ -610,7 +614,7 @@ def launch_goldens(test_harness_server):
 def launch_player(test_harness_server):
     if not os.path.exists(args.src):
         print("Can't find riv path " + args.src, flush=True)
-        return -1;
+        return -1
 
     tool = os.path.join(args.builddir, "player")
     if platform.system() == "Windows" and args.target  == 'host':
@@ -736,10 +740,10 @@ def main():
         if args.target == "unreal_android":
             unreal_android_path = os.path.join(args.builddir, "Android_ASTC")
             current = os.getcwd()
-            os.chdir(unreal_android_path);
+            os.chdir(unreal_android_path)
             subprocess.check_call(["Install_rive_unreal-arm64.bat"])
             print()
-            os.chdir(current);
+            os.chdir(current)
         if args.target == "android":
             # Copy the native libraries into the android_tests project.
             jnidir = os.path.join("android_tests", "app", "src", "main", "jniLibs")
@@ -760,11 +764,11 @@ def main():
                     # Download the Vulkan validation layers.
                     print("Downloading Android Vulkan validation layers...", flush=True)
                     url = "https://github.com/KhronosGroup/Vulkan-ValidationLayers/releases/download/"\
-                          "vulkan-sdk-1.3.290.0/android-binaries-1.3.290.0.zip"
+                          "vulkan-sdk-1.4.328.0/android-binaries-1.4.328.0.zip"
                     zipfile.ZipFile(urllib.request.urlretrieve(url)[0], 'r').extractall(path=layerpath)
                 # Bundle the Vulkan validation layers.
                 for lib in glob.glob(os.path.join(layerpath,
-                                                  "android-binaries-1.3.290.0",
+                                                  "android-binaries-1.4.328.0",
                                                   arch_full_name,
                                                   "*.so")):
                     dst = os.path.join(jnidir, arch_full_name, os.path.basename(lib))

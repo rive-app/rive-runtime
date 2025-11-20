@@ -107,7 +107,7 @@ VulkanInstance::VulkanInstance(const Options& opts)
     }
 
     bool enableDebugCallbacks = opts.wantDebugCallbacks;
-    bool enableValidationLayers = opts.wantValidationLayers;
+    auto validationType = opts.desiredValidationType;
 
     std::vector<const char*> extensions;
     std::vector<const char*> layers;
@@ -168,9 +168,30 @@ VulkanInstance::VulkanInstance(const Options& opts)
 #endif
 
     bool useFallbackDebugCallbacks = false;
+    if (validationType != VulkanValidationType::None)
+    {
+        if (!add_layer_if_supported("VK_LAYER_KHRONOS_validation"))
+        {
+            LOG_ERROR_LINE("WARNING: Validation layers are not supported. "
+                           "Creating context without validation layers.\n");
+            validationType = VulkanValidationType::None;
+        }
+        else
+        {
+            extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+        }
+    }
+
     if (enableDebugCallbacks)
     {
-        if (!add_extension_if_supported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+        if (validationType != VulkanValidationType::None)
+        {
+            // If we are enabling validation layers, VK_EXT_debug_utils willl
+            // come along with that, even though it currently isn't in the
+            // reported list of extensions, so just assume that it will work.
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
+        else if (!add_extension_if_supported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
         {
             if (add_extension_if_supported(VK_EXT_DEBUG_REPORT_EXTENSION_NAME))
             {
@@ -184,16 +205,6 @@ VulkanInstance::VulkanInstance(const Options& opts)
                                "Creating context without debug callbacks.\n");
                 enableDebugCallbacks = false;
             }
-        }
-    }
-
-    if (enableValidationLayers)
-    {
-        if (!add_layer_if_supported("VK_LAYER_KHRONOS_validation"))
-        {
-            LOG_ERROR_LINE("WARNING: Validation layers are not supported. "
-                           "Creating context without validation layers.\n");
-            enableValidationLayers = false;
         }
     }
 
@@ -213,6 +224,45 @@ VulkanInstance::VulkanInstance(const Options& opts)
         .enabledExtensionCount = uint32_t(extensions.size()),
         .ppEnabledExtensionNames = extensions.data(),
     };
+
+    // Options to switch to synchronization validation vs. core validation
+    constexpr VkBool32 vkFalseBool = VK_FALSE;
+    constexpr VkBool32 vkTrueBool = VK_TRUE;
+    const VkLayerSettingEXT settingsForSyncValidate[] = {
+        {
+            .pLayerName = "VK_LAYER_KHRONOS_validation",
+            .pSettingName = "validate_core",
+            .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+            .valueCount = 1,
+            .pValues = &vkFalseBool,
+        },
+        {
+            .pLayerName = "VK_LAYER_KHRONOS_validation",
+            .pSettingName = "validate_sync",
+            .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+            .valueCount = 1,
+            .pValues = &vkTrueBool,
+        },
+        {
+            .pLayerName = "VK_LAYER_KHRONOS_validation",
+            .pSettingName = "thread_safety",
+            .type = VK_LAYER_SETTING_TYPE_BOOL32_EXT,
+            .valueCount = 1,
+            .pValues = &vkTrueBool,
+        },
+    };
+
+    VkLayerSettingsCreateInfoEXT validationLayerSettingsForSyncValidation = {
+        .sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+        .settingCount = std::size(settingsForSyncValidate),
+        .pSettings = settingsForSyncValidate,
+    };
+
+    if (validationType == VulkanValidationType::Synchronization)
+    {
+        validationLayerSettingsForSyncValidation.pNext = createInfo.pNext;
+        createInfo.pNext = &validationLayerSettingsForSyncValidation;
+    }
 
     VK_CHECK(
         m_library->createInstance(&createInfo, VK_NULL_HANDLE, &m_instance));

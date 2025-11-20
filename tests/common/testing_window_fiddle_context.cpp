@@ -273,8 +273,12 @@ public:
             .coreFeaturesOnly = backendParams.core,
             .srgb = m_backendParams.srgb,
             .allowHeadlessRendering = visibility == Visibility::headless,
-            .enableVulkanValidationLayers =
-                !backendParams.disableValidationLayers,
+            .enableVulkanCoreValidationLayers =
+                !backendParams.disableValidationLayers &&
+                !backendParams.wantVulkanSynchronizationValidation,
+            .enableVulkanSynchronizationValidationLayers =
+                !backendParams.disableValidationLayers &&
+                backendParams.wantVulkanSynchronizationValidation,
             .disableDebugCallbacks = backendParams.disableDebugCallbacks,
             .gpuNameFilter = backendParams.gpuNameFilter.c_str(),
         };

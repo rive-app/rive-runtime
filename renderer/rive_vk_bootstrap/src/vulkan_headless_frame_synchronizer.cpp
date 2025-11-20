@@ -26,13 +26,17 @@ VulkanHeadlessFrameSynchronizer::VulkanHeadlessFrameSynchronizer(
     m_imageUsageFlags(opts.imageUsageFlags),
     m_width(opts.width),
     m_height(opts.height),
-    m_image(context()->makeImage({
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = m_imageFormat,
-        .extent = {m_width, m_height, 1},
-        .usage = m_imageUsageFlags,
-    })),
-    m_imageView(context()->makeImageView(m_image))
+    m_image(context()->makeImage(
+        {
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = m_imageFormat,
+            .extent = {m_width, m_height, 1},
+            .usage = m_imageUsageFlags,
+        },
+        "Vulkan Headless Frame Synchronizer Image")),
+    m_imageView(
+        context()->makeImageView(m_image,
+                                 "Vulkan Headless Frame Synchronizer Image"))
 {
     assert(opts.width > 0 && opts.height > 0 &&
            "Offscreen frame dimensions must be set");
@@ -58,7 +62,9 @@ void VulkanHeadlessFrameSynchronizer::beginFrame()
 {
     assert(!isFrameStarted());
 
-    Super::waitForFenceAndBeginFrame();
+    // We don't need to do anything with the semaphore that is returned, so
+    // ignore it.
+    std::ignore = Super::waitForFenceAndBeginFrame();
 
     m_isInFrame = true;
 }

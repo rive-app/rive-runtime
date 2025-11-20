@@ -98,9 +98,10 @@ rcp<vkutil::Buffer> VulkanContext::makeBuffer(const VkBufferCreateInfo& info,
     return rcp(new vkutil::Buffer(ref_rcp(this), info, mappability));
 }
 
-rcp<vkutil::Image> VulkanContext::makeImage(const VkImageCreateInfo& info)
+rcp<vkutil::Image> VulkanContext::makeImage(const VkImageCreateInfo& info,
+                                            const char* name)
 {
-    return rcp(new vkutil::Image(ref_rcp(this), info));
+    return rcp(new vkutil::Image(ref_rcp(this), info, name));
 }
 
 rcp<vkutil::Framebuffer> VulkanContext::makeFramebuffer(
@@ -138,7 +139,8 @@ static VkImageAspectFlags image_aspect_flags_for_format(VkFormat format)
     RIVE_UNREACHABLE();
 }
 
-rcp<vkutil::ImageView> VulkanContext::makeImageView(rcp<vkutil::Image> image)
+rcp<vkutil::ImageView> VulkanContext::makeImageView(rcp<vkutil::Image> image,
+                                                    const char* name)
 {
     const VkImageCreateInfo& texInfo = image->info();
 
@@ -153,28 +155,34 @@ rcp<vkutil::ImageView> VulkanContext::makeImageView(rcp<vkutil::Image> image)
                     .levelCount = texInfo.mipLevels,
                     .layerCount = 1,
                 },
-        });
+        },
+        name);
 }
 
 rcp<vkutil::ImageView> VulkanContext::makeImageView(
     rcp<vkutil::Image> image,
-    const VkImageViewCreateInfo& info)
+    const VkImageViewCreateInfo& info,
+    const char* name)
 {
     assert(image);
-    return rcp(new vkutil::ImageView(ref_rcp(this), std::move(image), info));
+    return rcp(
+        new vkutil::ImageView(ref_rcp(this), std::move(image), info, name));
 }
 
 rcp<vkutil::ImageView> VulkanContext::makeExternalImageView(
-    const VkImageViewCreateInfo& info)
+    const VkImageViewCreateInfo& info,
+    const char* name)
 {
     return rcp<vkutil::ImageView>(
-        new vkutil::ImageView(ref_rcp(this), nullptr, info));
+        new vkutil::ImageView(ref_rcp(this), nullptr, info, name));
 }
 
 rcp<vkutil::Texture2D> VulkanContext::makeTexture2D(
-    const VkImageCreateInfo& info)
+    const VkImageCreateInfo& info,
+    const char* name)
 {
-    return rcp<vkutil::Texture2D>(new vkutil::Texture2D(ref_rcp(this), info));
+    return rcp<vkutil::Texture2D>(
+        new vkutil::Texture2D(ref_rcp(this), info, name));
 }
 
 void VulkanContext::updateImageDescriptorSets(
@@ -378,4 +386,22 @@ void VulkanContext::blitSubRect(VkCommandBuffer commandBuffer,
                  &imageBlit,
                  VK_FILTER_NEAREST);
 }
+
+void VulkanContext::setDebugNameIfEnabled(uint64_t handle,
+                                          VkObjectType objectType,
+                                          const char* name)
+{
+    if (SetDebugUtilsObjectNameEXT != nullptr && name != nullptr)
+    {
+        VkDebugUtilsObjectNameInfoEXT nameInfo = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = objectType,
+            .objectHandle = handle,
+            .pObjectName = name,
+        };
+
+        SetDebugUtilsObjectNameEXT(device, &nameInfo);
+    }
+}
+
 } // namespace rive::gpu

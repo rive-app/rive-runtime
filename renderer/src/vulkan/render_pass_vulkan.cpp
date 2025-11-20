@@ -2,6 +2,9 @@
  * Copyright 2025 Rive
  */
 
+#include <optional>
+#include <sstream>
+#include <string>
 #include <vulkan/vulkan.h>
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/stack_vector.hpp"
@@ -122,9 +125,9 @@ RenderPassVulkan::RenderPassVulkan(
                                                     : VK_SAMPLE_COUNT_1_BIT;
     StackVector<VkAttachmentDescription, PLS_PLANE_COUNT> attachments;
     StackVector<VkAttachmentReference, PLS_PLANE_COUNT> colorAttachmentRefs;
-    StackVector<VkAttachmentReference, 1> plsResolveAttachmentRef;
-    StackVector<VkAttachmentReference, 1> depthStencilAttachmentRef;
-    StackVector<VkAttachmentReference, 1> msaaResolveAttachmentRef;
+    std::optional<VkAttachmentReference> plsResolveAttachmentRef;
+    std::optional<VkAttachmentReference> depthStencilAttachmentRef;
+    std::optional<VkAttachmentReference> msaaResolveAttachmentRef;
     if (pipelineManager->plsBackingType(interlockMode) ==
             PipelineManagerVulkan::PLSBackingType::inputAttachment ||
         (layoutOptions &
@@ -248,19 +251,19 @@ RenderPassVulkan::RenderPassVulkan(
             // And the "coalesced" resolve shader outputs to color
             // attachment 0, so alias the COALESCED_ATOMIC_RESOLVE
             // attachment on output 0 for this subpass.
-            assert(plsResolveAttachmentRef.size() == 0);
-            plsResolveAttachmentRef.push_back({
+            assert(!plsResolveAttachmentRef.has_value());
+            plsResolveAttachmentRef = {
                 .attachment = COALESCED_ATOMIC_RESOLVE_IDX,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            });
+            };
         }
         else
         {
             // When not in "coalesced" mode, the resolve texture is the
             // same as the COLOR texture.
             static_assert(COLOR_PLANE_IDX == 0);
-            assert(plsResolveAttachmentRef.size() == 0);
-            plsResolveAttachmentRef.push_back(colorAttachmentRefs[0]);
+            assert(!plsResolveAttachmentRef.has_value());
+            plsResolveAttachmentRef = colorAttachmentRefs[0];
         }
     }
     else if (interlockMode == gpu::InterlockMode::msaa)
@@ -278,10 +281,10 @@ RenderPassVulkan::RenderPassVulkan(
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         });
-        depthStencilAttachmentRef.push_back({
+        depthStencilAttachmentRef = {
             .attachment = MSAA_DEPTH_STENCIL_IDX,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        });
+        };
 
         // MSAA_RESOLVE attachment.
         const bool readsMSAAResolveAttachment =
@@ -312,11 +315,10 @@ RenderPassVulkan::RenderPassVulkan(
                     : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = msaaResolveLayout,
         });
-        msaaResolveAttachmentRef.push_back({
+        msaaResolveAttachmentRef = {
             .attachment = MSAA_RESOLVE_IDX,
             .layout = msaaResolveLayout,
-        });
-        assert(msaaResolveAttachmentRef.size() == colorAttachmentRefs.size());
+        };
 
         if (layoutOptions &
             DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
@@ -377,15 +379,38 @@ RenderPassVulkan::RenderPassVulkan(
     constexpr uint32_t MAX_SUBPASSES = 3;
     StackVector<VkSubpassDescription, MAX_SUBPASSES> subpassDescs;
 
-    constexpr uint32_t MAX_SUBPASS_DEPS = MAX_SUBPASSES + 1;
+    constexpr uint32_t MAX_SUBPASS_DEPS = 9;
     StackVector<VkSubpassDependency, MAX_SUBPASS_DEPS> subpassDeps;
 
-    // MSAA resolve needs its own set of input references vs.
-    // inputAttachmentRefs, specifically because the color buffer always needs
-    // to be used for the resolve (whereas normally it's occasioanlly set to
-    // VK_ATTACHMENT_UNUSED because we only use it when doing advanced blend)
-    StackVector<VkAttachmentReference, PLS_PLANE_COUNT>
-        msaaResolveInputAttachmentRefs;
+    // The standard initial external input dependency, to ensure that all
+    // previous writes to subpass 0's color attachment are completed before this
+    // render pass starts.
+    static constexpr VkSubpassDependency EXTERNAL_COLOR_INPUT_DEPENDENCY = {
+        .srcSubpass = VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = VK_ACCESS_NONE,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+        .dependencyFlags = 0,
+    };
+
+    // Helper to add a typical dependency between the current subpass and the
+    // next one, which blocks between the color attachment being written in the
+    // current pass and fragment shader reads from the next.
+    auto addStandardColorDependencyToNextSubpass =
+        [&](uint32_t dstSubpassIndex) {
+            subpassDeps.push_back({
+                .srcSubpass = dstSubpassIndex - 1,
+                .dstSubpass = dstSubpassIndex,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+            });
+        };
 
     // MSAA color-load subpass.
     if (interlockMode == gpu::InterlockMode::msaa &&
@@ -394,6 +419,9 @@ RenderPassVulkan::RenderPassVulkan(
         assert(msaaColorSeedInputAttachmentRef.size() ==
                colorAttachmentRefs.size());
         assert(subpassDescs.size() == 0);
+
+        // The color-load subpass takes the seed texture (which may be the same
+        // as the resolve texture) and writes it out.
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
             .inputAttachmentCount = msaaColorSeedInputAttachmentRef.size(),
@@ -401,10 +429,15 @@ RenderPassVulkan::RenderPassVulkan(
             .colorAttachmentCount = colorAttachmentRefs.size(),
             .pColorAttachments = colorAttachmentRefs.data(),
         });
+
         // The color-load subpass has a self dependency because it reads the
         // result of seed attachment's loadOp when it draws it into the MSAA
         // attachment. (loadOps always occur in
         // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.)
+        // NOTE: This subpass, per the vulkan synchronization validation,
+        // should not be necessary, as the external input subpass dependency
+        // should handle it, but in practice without this extra barrier
+        // everything fails to render properly on Adreno devices.
         subpassDeps.push_back({
             .srcSubpass = 0,
             .dstSubpass = 0,
@@ -414,14 +447,68 @@ RenderPassVulkan::RenderPassVulkan(
             .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
             .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
         });
+
+        // This subpass needs an external dependency on the color stages to
+        // ensure that all of the color rendering from before this renderpass
+        // completes.
+        subpassDeps.push_back(EXTERNAL_COLOR_INPUT_DEPENDENCY);
+
+        if (layoutOptions &
+            DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
+        {
+            // If we're seeding from offscreen texture, this pass needs an
+            // external output dependency to ensure that any future writes
+            // finish after we're done with it.
+            subpassDeps.push_back({
+                .srcSubpass = 0,
+                .dstSubpass = VK_SUBPASS_EXTERNAL,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_NONE,
+                .dependencyFlags = 0,
+            });
+        }
+
+        // The next subpass (the main subpass) needs an external dependency on
+        //  the depth buffer (which is not used in this subpass but is used in
+        //  that one)
+        subpassDeps.push_back({
+            .srcSubpass = VK_SUBPASS_EXTERNAL,
+            .dstSubpass = 1,
+            .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+            .srcAccessMask = VK_ACCESS_NONE,
+            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = 0,
+        });
+
+        // Finally, the standard color dependency from subpass 0 -> subpass 1
+        addStandardColorDependencyToNextSubpass(subpassDescs.size());
+    }
+    else
+    {
+        // Without the extra color-load subpass we need an external dependency
+        // into the main subpass
+        auto externalInDep = EXTERNAL_COLOR_INPUT_DEPENDENCY;
+        if (interlockMode == gpu::InterlockMode::msaa)
+        {
+            // for msaa where the main subpass is first, the external dependency
+            // additionally needs to cover depth/stencil.
+            externalInDep.srcStageMask |=
+                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            externalInDep.dstStageMask |=
+                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+            externalInDep.dstAccessMask |=
+                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        }
+        subpassDeps.push_back(externalInDep);
     }
 
     // Main subpass.
     const uint32_t mainSubpassIdx = subpassDescs.size();
     assert(colorAttachmentRefs.size() ==
            m_drawPipelineLayout->colorAttachmentCount(0, layoutOptions));
-    assert(msaaResolveAttachmentRef.size() == 0 ||
-           msaaResolveAttachmentRef.size() == colorAttachmentRefs.size());
     subpassDescs.push_back({
         .flags =
             rasterOrderedAttachmentAccess
@@ -432,32 +519,12 @@ RenderPassVulkan::RenderPassVulkan(
         .pInputAttachments = inputAttachmentRefs.data(),
         .colorAttachmentCount = colorAttachmentRefs.size(),
         .pColorAttachments = colorAttachmentRefs.data(),
-        .pDepthStencilAttachment = depthStencilAttachmentRef.dataOrNull(),
+        .pDepthStencilAttachment = depthStencilAttachmentRef.has_value()
+                                       ? &depthStencilAttachmentRef.value()
+                                       : nullptr,
     });
 
-    if (msaaResolveAttachmentRef.size() > 0)
-    {
-        // Some Android drivers (some Android 12 and earlier Adreno drivers)
-        // have issues with having both a self-dependency and resolve
-        // attachments. The resolve can instead be done as a second pass (in
-        // which no actual rendering occurs), which eliminates some corruption
-        // during blending on the affected devices.
-
-        msaaResolveInputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
-                                                   colorAttachmentRefs.data());
-        msaaResolveInputAttachmentRefs[0].layout = VK_IMAGE_LAYOUT_GENERAL;
-
-        subpassDescs.push_back({
-            .flags = 0u,
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = msaaResolveInputAttachmentRefs.size(),
-            .pInputAttachments = msaaResolveInputAttachmentRefs.data(),
-            .colorAttachmentCount = colorAttachmentRefs.size(),
-            .pColorAttachments = colorAttachmentRefs.data(),
-            .pResolveAttachments = msaaResolveAttachmentRef.data(),
-        });
-    }
-
+    // Add any main subpass self-dependencies if needed
     if ((interlockMode == gpu::InterlockMode::rasterOrdering &&
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||
@@ -492,8 +559,8 @@ RenderPassVulkan::RenderPassVulkan(
         // clockwiseAtomic mode has a dependency when we switch from
         // borrowed coverage into forward.
         subpassDeps.push_back({
-            .srcSubpass = 0,
-            .dstSubpass = 0,
+            .srcSubpass = mainSubpassIdx,
+            .dstSubpass = mainSubpassIdx,
             .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
@@ -502,42 +569,107 @@ RenderPassVulkan::RenderPassVulkan(
         });
     }
 
+    if (interlockMode == gpu::InterlockMode::msaa)
+    {
+        // Main subpass needs a separate external dependency for depth/stencil
+        subpassDeps.push_back({
+            .srcSubpass = subpassDescs.size() - 1,
+            .dstSubpass = VK_SUBPASS_EXTERNAL,
+            .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_NONE,
+            .dependencyFlags = 0,
+        });
+
+        // Add the dependency from main subpass to the resolve subpass (note
+        // that this is different than the standard COLOR_ATTACHMENT_WRITE ->
+        // INPUT_ATTACHMENT_READ barrier between subpasses).
+        // NOTE: The fragment/input attachment bits here seem like they should
+        // not be necessary (nothing renders during this path, it's purely a
+        // resolve), but it seems on some Android devices at least, the resolve
+        // may be getting done *as* a fragment shader (instead of during
+        // COLOR_ATTACHMENT_OUTPUT, which is what seems to happen on desktop),
+        // so it's necessary. Ditto the input attachment for this subpass, as
+        // just having color and resolve *should* work, but doesn't on Android.
+        subpassDeps.push_back({
+            .srcSubpass = subpassDescs.size() - 1,
+            .dstSubpass = subpassDescs.size(),
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                             VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        });
+
+        // Some Android drivers (some Android 12 and earlier Adreno drivers)
+        // have issues with having both a self-dependency and resolve
+        // attachments. The resolve can instead be done as a second pass (in
+        // which no actual rendering occurs), which eliminates some corruption
+        // during blending on the affected devices.
+
+        // This should be MSAA and there should only be a single color
+        // attachment.
+        assert(interlockMode == gpu::InterlockMode::msaa);
+        assert(colorAttachmentRefs.size() == 1);
+        assert(msaaResolveAttachmentRef.has_value());
+
+        VkAttachmentReference msaaResolveInputAttachmentRef =
+            colorAttachmentRefs[0];
+
+        // the layout is not allowed to be COLOR_ATTACHMENT_OPTIMAL, so instead
+        // use GENERAL.
+        msaaResolveInputAttachmentRef.layout = VK_IMAGE_LAYOUT_GENERAL;
+
+        subpassDescs.push_back({
+            .flags = 0u,
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = 1,
+            .pInputAttachments = &msaaResolveInputAttachmentRef,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = colorAttachmentRefs.data(),
+            .pResolveAttachments = &msaaResolveAttachmentRef.value(),
+        });
+    }
+
     // PLS-resolve subpass (atomic mode only).
     if (interlockMode == gpu::InterlockMode::atomics)
     {
+        // Add the dependency from main subpass to the resolve subpass.
+        addStandardColorDependencyToNextSubpass(subpassDescs.size());
+
         // The resolve happens in a separate subpass.
         assert(subpassDescs.size() == 1);
-        assert(plsResolveAttachmentRef.size() ==
-               m_drawPipelineLayout->colorAttachmentCount(1, layoutOptions));
+        assert(m_drawPipelineLayout->colorAttachmentCount(1, layoutOptions) ==
+               1);
+        assert(plsResolveAttachmentRef.has_value());
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
             .inputAttachmentCount = inputAttachmentRefs.size(),
             .pInputAttachments = inputAttachmentRefs.data(),
-            .colorAttachmentCount = plsResolveAttachmentRef.size(),
-            .pColorAttachments = plsResolveAttachmentRef.data(),
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &plsResolveAttachmentRef.value(),
         });
     }
 
-    for (uint32_t i = 1; i < subpassDescs.size(); ++i)
-    {
-        // In the case of multiple subpasses, supbass N always consumes the
-        // color outputs from supbass N-1.
-        subpassDeps.push_back({
-            .srcSubpass = i - 1,
-            .dstSubpass = i,
-            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            // TODO: Atomic mode should add SHADER_READ/SHADER_WRITE flags for
-            // the coverage buffer as well, and add
-            // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT to the srcStageMask, but
-            // ironically, adding those causes artifacts on Qualcomm. Leave them
-            // out for now unless we find a case where we don't work without
-            // them.
-            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        });
-    }
+    // There always needs to be a final external output dependency for the color
+    // attachment
+    subpassDeps.push_back({
+        .srcSubpass = subpassDescs.size() - 1,
+        .dstSubpass = VK_SUBPASS_EXTERNAL,
+        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_NONE,
+        .dependencyFlags = 0,
+    });
 
     VkRenderPassCreateInfo renderPassCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -553,6 +685,17 @@ RenderPassVulkan::RenderPassVulkan(
                                     &renderPassCreateInfo,
                                     nullptr,
                                     &m_renderPass));
+
+    const std::string renderPipelineLabel =
+        (std::ostringstream()
+         << "RIVE_Draw{interlockMode=" << int(interlockMode)
+         << ", layoutOptions=" << int(layoutOptions)
+         << ", renderTargetFormat=" << int(renderTargetFormat)
+         << ", loadAction=" << int(loadAction) << '}')
+            .str();
+    m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
+                                VK_OBJECT_TYPE_RENDER_PASS,
+                                renderPipelineLabel.c_str());
 }
 
 RenderPassVulkan::~RenderPassVulkan()

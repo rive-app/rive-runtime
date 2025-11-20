@@ -47,7 +47,7 @@ static bool should_error_message_be_fully_ignored(const char* message)
 
 static bool should_error_message_abort(const char* message)
 {
-    static std::array<const char*, 4> s_ignoredValidationMsgList = {
+    static std::array s_ignoredValidationMsgList = {
         // Swiftshader generates this error during
         // vkEnumeratePhysicalDevices. It seems fine to ignore.
         "Copying old device 0 into new device 0",
@@ -55,7 +55,15 @@ static bool should_error_message_abort(const char* message)
         // harmless.
         "terminator_CreateInstance: Received return code -3 from call to vkCreateInstance in ICD /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so. Skipping this driver.",
         "Override layer has override paths set to D:\\VulkanSDK\\1.3.296.0\\Bin",
+
+        // These warnings occur on the S23 and the text from the link is
+        // "Renderpass is not qualified for multipass due to a given subpass"
+        // This seems to indicate that something we're doing is disabling
+        // tile-based subpass overlapping (multipass rendering), but it's not
+        // clear what. Ignoring them for now while we just try to get things
+        // running.
         "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/docs/adreno-gpu/developer-guide/index.html",
+        "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
     };
 
     for (const char* msg : s_ignoredValidationMsgList)

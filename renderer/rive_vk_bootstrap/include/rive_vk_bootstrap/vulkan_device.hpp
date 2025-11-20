@@ -64,6 +64,8 @@ public:
     static bool hasSupportedDevice(VulkanInstance&,
                                    uint32_t minimumSupportedAPIVersion);
 
+    const std::string& name() const { return m_name; }
+
 private:
     struct FindDeviceResult
     {
@@ -97,6 +99,7 @@ private:
         std::vector<const char*>& extensions);
 
     std::vector<VkQueueFamilyProperties> m_queueFamilyProperties;
+    std::string m_name;
 
     VkPhysicalDevice m_physicalDevice;
     VkDevice m_device;

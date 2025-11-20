@@ -61,7 +61,8 @@ public:
 #define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
-    F(GetPhysicalDeviceProperties)
+    F(GetPhysicalDeviceProperties)                                             \
+    F(SetDebugUtilsObjectNameEXT)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateDescriptorSets)                                                  \
@@ -115,12 +116,15 @@ public:
     // Resource allocation.
     rcp<vkutil::Buffer> makeBuffer(const VkBufferCreateInfo&,
                                    vkutil::Mappability);
-    rcp<vkutil::Image> makeImage(const VkImageCreateInfo&);
-    rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>);
+    rcp<vkutil::Image> makeImage(const VkImageCreateInfo&, const char* name);
+    rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>, const char* name);
     rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>,
-                                         const VkImageViewCreateInfo&);
-    rcp<vkutil::ImageView> makeExternalImageView(const VkImageViewCreateInfo&);
-    rcp<vkutil::Texture2D> makeTexture2D(const VkImageCreateInfo&);
+                                         const VkImageViewCreateInfo&,
+                                         const char* name);
+    rcp<vkutil::ImageView> makeExternalImageView(const VkImageViewCreateInfo&,
+                                                 const char* name);
+    rcp<vkutil::Texture2D> makeTexture2D(const VkImageCreateInfo&,
+                                         const char* name);
     rcp<vkutil::Framebuffer> makeFramebuffer(const VkFramebufferCreateInfo&);
 
     // Helpers.
@@ -182,6 +186,10 @@ public:
                      VkImage dstImage,
                      VkImageLayout dstImageLayout,
                      const IAABB&);
+
+    void setDebugNameIfEnabled(uint64_t handle,
+                               VkObjectType objectType,
+                               const char* name);
 
 private:
     const VmaAllocator m_vmaAllocator;

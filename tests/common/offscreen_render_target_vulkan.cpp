@@ -78,11 +78,13 @@ private:
                                           VK_IMAGE_USAGE_STORAGE_BIT
                                     : VK_IMAGE_USAGE_TRANSFER_DST_BIT)),
             m_renderImage(
-                rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D({
-                    .format = framebufferFormat(),
-                    .extent = {width, height},
-                    .usage = targetUsageFlags(),
-                })))
+                rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D(
+                    {
+                        .format = framebufferFormat(),
+                        .extent = {width, height},
+                        .usage = targetUsageFlags(),
+                    },
+                    "OffscreenRenderTargetVulkan::TextureTarget")))
         {}
 
         rive::RiveRenderImage* renderImage() const

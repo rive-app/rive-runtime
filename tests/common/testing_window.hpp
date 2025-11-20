@@ -82,6 +82,8 @@ public:
         bool clockwise = false;
         bool disableValidationLayers = false;
         bool disableDebugCallbacks = false;
+        bool wantVulkanSynchronizationValidation = false;
+
         ANGLERenderer angleRenderer =
 #ifdef __APPLE__
             ANGLERenderer::metal;
