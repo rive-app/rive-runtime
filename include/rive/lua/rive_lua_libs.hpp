@@ -43,7 +43,7 @@ namespace rive
 class Factory;
 enum class LuaAtoms : int16_t
 {
-    // Vec2D
+    // Vector
     length,
     lengthSquared,
     normalized,

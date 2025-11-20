@@ -22,9 +22,9 @@ function init(self: MyLayout, context: Context): boolean
   return true
 end
 
-function measure(self: MyLayout): Vec2D
+function measure(self: MyLayout): Vector
   measureCallCount = measureCallCount + 1
-  return Vec2D.xy(200, 150)
+  return Vector.xy(200, 150)
 end
 
 function getMeasureCallCount(): number
@@ -72,13 +72,13 @@ TEST_CASE("scripted layout resize function can be called", "[scripting]")
     ScriptingTest vm(
         R"(type MyLayout = {}
 local resizeCallCount = 0
-local lastResizeSize: Vec2D?
+local lastResizeSize: Vector?
 
 function init(self: MyLayout, context: Context): boolean
   return true
 end
 
-function resize(self: MyLayout, size: Vec2D)
+function resize(self: MyLayout, size: Vector)
   resizeCallCount = resizeCallCount + 1
   lastResizeSize = size
 end
@@ -87,7 +87,7 @@ function getResizeCallCount(): number
   return resizeCallCount
 end
 
-function getLastResizeSize(): Vec2D?
+function getLastResizeSize(): Vector?
   return lastResizeSize
 end
 

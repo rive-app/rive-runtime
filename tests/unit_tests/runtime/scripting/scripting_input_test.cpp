@@ -569,11 +569,11 @@ function advance(self: MyLayout, seconds: number): boolean
   return true
 end
 
-function measure(self: MyLayout): Vec2D
-  return Vec2D.xy(200, 150)
+function measure(self: MyLayout): Vector
+  return Vector.xy(200, 150)
 end
 
-function resize(self: MyLayout, size: Vec2D)
+function resize(self: MyLayout, size: Vector)
 end
 
 return function(): Layout<MyLayout>

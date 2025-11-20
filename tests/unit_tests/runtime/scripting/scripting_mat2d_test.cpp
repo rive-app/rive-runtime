@@ -41,23 +41,23 @@ TEST_CASE("mat2d static methods work", "[scripting]")
               ScriptingTest("return Mat2D.withTranslation(10, 20).ty").state(),
               -1) == 20.0f);
 
+    CHECK(lua_tonumber(ScriptingTest(
+                           "return Mat2D.withTranslation(Vector.xy(10, 20)).tx")
+                           .state(),
+                       -1) == 10.0f);
+
+    CHECK(lua_tonumber(ScriptingTest(
+                           "return Mat2D.withTranslation(Vector.xy(10, 20)).ty")
+                           .state(),
+                       -1) == 20.0f);
+
     CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withTranslation(Vec2D.xy(10, 20)).tx")
+              ScriptingTest("return Mat2D.withScale(Vector.xy(10, 20)).xx")
                   .state(),
               -1) == 10.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withTranslation(Vec2D.xy(10, 20)).ty")
-                  .state(),
-              -1) == 20.0f);
-
-    CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withScale(Vec2D.xy(10, 20)).xx")
-                  .state(),
-              -1) == 10.0f);
-
-    CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withScale(Vec2D.xy(10, 20)).yy")
+              ScriptingTest("return Mat2D.withScale(Vector.xy(10, 20)).yy")
                   .state(),
               -1) == 20.0f);
 
@@ -75,25 +75,25 @@ TEST_CASE("mat2d static methods work", "[scripting]")
     CHECK(lua_tonumber(ScriptingTest("return Mat2D.withScale(3).xx").state(),
                        -1) == 3.0f);
 
-    // scaleAndTranslation(scale:Vec2D, translation:Vec2D)
+    // scaleAndTranslation(scale:Vector, translation:Vector)
     CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withScaleAndTranslation(Vec2D.xy(2, "
-                            "3),Vec2D.xy(10, 20)).xx")
+              ScriptingTest("return Mat2D.withScaleAndTranslation(Vector.xy(2, "
+                            "3),Vector.xy(10, 20)).xx")
                   .state(),
               -1) == 2.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withScaleAndTranslation(Vec2D.xy(2, "
-                            "3),Vec2D.xy(10, 20)).yy")
+              ScriptingTest("return Mat2D.withScaleAndTranslation(Vector.xy(2, "
+                            "3),Vector.xy(10, 20)).yy")
                   .state(),
               -1) == 3.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withScaleAndTranslation(Vec2D.xy(2, "
-                            "3),Vec2D.xy(10, 20)).tx")
+              ScriptingTest("return Mat2D.withScaleAndTranslation(Vector.xy(2, "
+                            "3),Vector.xy(10, 20)).tx")
                   .state(),
               -1) == 10.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return Mat2D.withScaleAndTranslation(Vec2D.xy(2, "
-                            "3),Vec2D.xy(10, 20)).ty")
+              ScriptingTest("return Mat2D.withScaleAndTranslation(Vector.xy(2, "
+                            "3),Vector.xy(10, 20)).ty")
                   .state(),
               -1) == 20.0f);
 
@@ -177,7 +177,7 @@ TEST_CASE("mat2d meta methods work", "[scripting]")
               -1) == 0);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return (Mat2D.withScale(2) * Vec2D.xy(1,1)).x")
+              ScriptingTest("return (Mat2D.withScale(2) * Vector.xy(1,1)).x")
                   .state(),
               -1) == 2);
 

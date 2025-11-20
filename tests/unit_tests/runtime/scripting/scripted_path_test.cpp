@@ -9,9 +9,9 @@ using namespace rive;
 TEST_CASE("path contours returns first contour", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "path:close()\n"
                      "local contour = path:contours()\n"
                      "return contour ~= nil\n");
@@ -22,9 +22,9 @@ TEST_CASE("path contours returns first contour", "[scripting]")
 TEST_CASE("contour measure has length", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "path:close()\n"
                      "local contour = path:contours()\n"
                      "return contour.length\n");
@@ -37,9 +37,9 @@ TEST_CASE("contour measure has length", "[scripting]")
 TEST_CASE("contour measure isClosed", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "path:close()\n"
                      "local contour = path:contours()\n"
                      "return contour.isClosed\n");
@@ -50,9 +50,9 @@ TEST_CASE("contour measure isClosed", "[scripting]")
 TEST_CASE("contour measure isClosed false for open path", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local contour = path:contours()\n"
                      "return contour.isClosed\n");
     lua_State* L = vm.state();
@@ -62,8 +62,8 @@ TEST_CASE("contour measure isClosed false for open path", "[scripting]")
 TEST_CASE("contour measure positionAndTangent", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "local contour = path:contours()\n"
                      "local pos, tan = contour:positionAndTangent(0)\n"
                      "return pos.x, pos.y, tan.x, tan.y\n",
@@ -82,10 +82,10 @@ TEST_CASE("contour measure positionAndTangent", "[scripting]")
 TEST_CASE("contour measure warp", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "local contour = path:contours()\n"
-                     "local result = contour:warp(Vec2D.xy(5, 2))\n"
+                     "local result = contour:warp(Vector.xy(5, 2))\n"
                      "return result.x, result.y\n",
                      2);
     lua_State* L = vm.state();
@@ -98,9 +98,9 @@ TEST_CASE("contour measure warp", "[scripting]")
 TEST_CASE("contour measure extract", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local contour = path:contours()\n"
                      "local destPath: Path = Path.new()\n"
                      "contour:extract(0, 10, destPath, true)\n"
@@ -116,9 +116,9 @@ TEST_CASE("contour measure extract defaults to startWithMove true",
           "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local contour = path:contours()\n"
                      "local destPath: Path = Path.new()\n"
                      "contour:extract(0, 10, destPath)\n"
@@ -135,12 +135,12 @@ TEST_CASE("contour measure extract defaults to startWithMove true",
 TEST_CASE("contour measure extract with startWithMove false", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local contour = path:contours()\n"
                      "local destPath: Path = Path.new()\n"
-                     "destPath:moveTo(Vec2D.xy(100, 100))\n"
+                     "destPath:moveTo(Vector.xy(100, 100))\n"
                      "contour:extract(0, 10, destPath, false)\n"
                      "return destPath\n");
     lua_State* L = vm.state();
@@ -158,11 +158,11 @@ TEST_CASE("contour measure extract with startWithMove false", "[scripting]")
 TEST_CASE("contour measure next iterates contours", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "path:close()\n"
-                     "path:moveTo(Vec2D.xy(20, 20))\n"
-                     "path:lineTo(Vec2D.xy(30, 20))\n"
+                     "path:moveTo(Vector.xy(20, 20))\n"
+                     "path:lineTo(Vector.xy(30, 20))\n"
                      "path:close()\n"
                      "local contour1 = path:contours()\n"
                      "local contour2 = contour1.next\n"
@@ -176,8 +176,8 @@ TEST_CASE("contour measure next iterates contours", "[scripting]")
 TEST_CASE("contour measure next returns nil when done", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "path:close()\n"
                      "local contour1 = path:contours()\n"
                      "local contour2 = contour1.next\n"
@@ -189,9 +189,9 @@ TEST_CASE("contour measure next returns nil when done", "[scripting]")
 TEST_CASE("path measure returns PathMeasure", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "path:close()\n"
                      "local measure = path:measure()\n"
                      "return measure ~= nil\n");
@@ -202,9 +202,9 @@ TEST_CASE("path measure returns PathMeasure", "[scripting]")
 TEST_CASE("path measure has length", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "path:close()\n"
                      "local measure = path:measure()\n"
                      "return measure.length\n");
@@ -217,9 +217,9 @@ TEST_CASE("path measure has length", "[scripting]")
 TEST_CASE("path measure isClosed for single closed contour", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "path:close()\n"
                      "local measure = path:measure()\n"
                      "return measure.isClosed\n");
@@ -230,11 +230,11 @@ TEST_CASE("path measure isClosed for single closed contour", "[scripting]")
 TEST_CASE("path measure isClosed false for multiple contours", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "path:close()\n"
-                     "path:moveTo(Vec2D.xy(20, 20))\n"
-                     "path:lineTo(Vec2D.xy(30, 20))\n"
+                     "path:moveTo(Vector.xy(20, 20))\n"
+                     "path:lineTo(Vector.xy(30, 20))\n"
                      "path:close()\n"
                      "local measure = path:measure()\n"
                      "return measure.isClosed\n");
@@ -245,9 +245,9 @@ TEST_CASE("path measure isClosed false for multiple contours", "[scripting]")
 TEST_CASE("path measure isClosed false for open path", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local measure = path:measure()\n"
                      "return measure.isClosed\n");
     lua_State* L = vm.state();
@@ -257,8 +257,8 @@ TEST_CASE("path measure isClosed false for open path", "[scripting]")
 TEST_CASE("path measure positionAndTangent", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "local measure = path:measure()\n"
                      "local pos, tan = measure:positionAndTangent(0)\n"
                      "return pos.x, pos.y, tan.x, tan.y\n",
@@ -277,10 +277,10 @@ TEST_CASE("path measure positionAndTangent", "[scripting]")
 TEST_CASE("path measure warp", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "local measure = path:measure()\n"
-                     "local result = measure:warp(Vec2D.xy(5, 2))\n"
+                     "local result = measure:warp(Vector.xy(5, 2))\n"
                      "return result.x, result.y\n",
                      2);
     lua_State* L = vm.state();
@@ -293,9 +293,9 @@ TEST_CASE("path measure warp", "[scripting]")
 TEST_CASE("path measure extract", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local measure = path:measure()\n"
                      "local destPath: Path = Path.new()\n"
                      "measure:extract(0, 10, destPath, true)\n"
@@ -309,9 +309,9 @@ TEST_CASE("path measure extract", "[scripting]")
 TEST_CASE("path measure extract defaults to startWithMove true", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local measure = path:measure()\n"
                      "local destPath: Path = Path.new()\n"
                      "measure:extract(0, 10, destPath)\n"
@@ -328,12 +328,12 @@ TEST_CASE("path measure extract defaults to startWithMove true", "[scripting]")
 TEST_CASE("path measure extract with startWithMove false", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 10))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
+                     "path:lineTo(Vector.xy(10, 10))\n"
                      "local measure = path:measure()\n"
                      "local destPath: Path = Path.new()\n"
-                     "destPath:moveTo(Vec2D.xy(100, 100))\n"
+                     "destPath:moveTo(Vector.xy(100, 100))\n"
                      "measure:extract(0, 10, destPath, false)\n"
                      "return destPath\n");
     lua_State* L = vm.state();
@@ -351,11 +351,11 @@ TEST_CASE("path measure extract with startWithMove false", "[scripting]")
 TEST_CASE("path measure extract across multiple contours", "[scripting]")
 {
     ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vec2D.xy(0, 0))\n"
-                     "path:lineTo(Vec2D.xy(10, 0))\n"
+                     "path:moveTo(Vector.xy(0, 0))\n"
+                     "path:lineTo(Vector.xy(10, 0))\n"
                      "path:close()\n"
-                     "path:moveTo(Vec2D.xy(20, 0))\n"
-                     "path:lineTo(Vec2D.xy(30, 0))\n"
+                     "path:moveTo(Vector.xy(20, 0))\n"
+                     "path:lineTo(Vector.xy(30, 0))\n"
                      "path:close()\n"
                      "local measure = path:measure()\n"
                      "local destPath: Path = Path.new()\n"
