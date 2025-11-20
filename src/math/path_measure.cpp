@@ -92,7 +92,7 @@ void PathMeasure::getSegment(float startDistance,
             contour->getSegment(localStart,
                                 localEnd,
                                 dst,
-                                isFirstSegment && startWithMove);
+                                !isFirstSegment || startWithMove);
             isFirstSegment = false;
         }
 

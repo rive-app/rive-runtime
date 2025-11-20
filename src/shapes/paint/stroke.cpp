@@ -23,11 +23,15 @@ RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
 void Stroke::update(ComponentDirt value)
 {
     Super::update(value);
-    if (hasDirt(value, ComponentDirt::Path) && m_Effect != nullptr)
+    if (hasDirt(value, ComponentDirt::Path) && m_effects.size() > 0)
     {
         auto container = ShapePaintContainer::from(parent());
         auto path = pickPath(container);
-        m_Effect->updateEffect(path);
+        for (auto& effect : m_effects)
+        {
+            effect->updateEffect(path);
+            path = effect->effectPath();
+        }
     }
 }
 
@@ -64,16 +68,29 @@ void Stroke::joinChanged()
     m_RenderPaint->join((StrokeJoin)join());
 }
 
-void Stroke::addStrokeEffect(StrokeEffect* effect) { m_Effect = effect; }
-
-void Stroke::invalidateEffects()
+void Stroke::addStrokeEffect(StrokeEffect* effect)
 {
-    if (m_Effect != nullptr)
+    m_effects.push_back(effect);
+}
+
+void Stroke::invalidateEffects(StrokeEffect* invalidatingEffect)
+{
+    auto found = invalidatingEffect == nullptr;
+    for (auto& effect : m_effects)
     {
-        m_Effect->invalidateEffect();
+        if (found)
+        {
+            effect->invalidateEffect();
+        }
+        if (invalidatingEffect && invalidatingEffect == effect)
+        {
+            found = true;
+        }
     }
     invalidateRendering();
 }
+
+void Stroke::invalidateEffects() { invalidateEffects(nullptr); }
 
 void Stroke::invalidateRendering()
 {
@@ -97,9 +114,9 @@ void Stroke::draw(Renderer* renderer,
                   bool usePathFillRule,
                   RenderPaint* overridePaint)
 {
-    if (m_Effect != nullptr)
+    if (m_effects.size() > 0)
     {
-        shapePaintPath = m_Effect->effectPath();
+        shapePaintPath = m_effects.back()->effectPath();
     }
 
     Super::draw(renderer,

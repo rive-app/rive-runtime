@@ -1,15 +1,12 @@
 #include "rive/shapes/paint/dash_path.hpp"
 #include "rive/shapes/paint/dash.hpp"
 #include "rive/shapes/paint/stroke.hpp"
+#include "rive/math/path_measure.hpp"
 #include "rive/factory.hpp"
 
 using namespace rive;
 
-void PathDasher::invalidateSourcePath()
-{
-    m_contours.clear();
-    invalidateDash();
-}
+void PathDasher::invalidateSourcePath() { invalidateDash(); }
 
 void PathDasher::invalidateDash() { m_path.rewind(); }
 
@@ -30,31 +27,15 @@ ShapePaintPath* PathDasher::applyDash(const RawPath* source,
                                       Dash* offset,
                                       Span<Dash*> dashes)
 {
-    if (m_contours.empty())
-    {
-        // 0.5f / 8.0f is a value that seems to look good on dashes with small
-        // gaps and scaled
-        ContourMeasureIter iter(source, 0.0625f);
-        while (auto meas = iter.next())
-        {
-            m_contours.push_back(meas);
-        }
-    }
+    m_pathMeasure = PathMeasure(source);
 
     // Make sure dashes have some length.
     bool hasValidDash = false;
-    for (const rcp<ContourMeasure>& contour : m_contours)
+    for (auto dash : dashes)
     {
-        for (auto dash : dashes)
+        if (dash->normalizedLength(m_pathMeasure.length(), false) > 0.0f)
         {
-            if (dash->normalizedLength(contour->length()) > 0.0f)
-            {
-                hasValidDash = true;
-                break;
-            }
-        }
-        if (hasValidDash)
-        {
+            hasValidDash = true;
             break;
         }
     }
@@ -62,67 +43,60 @@ ShapePaintPath* PathDasher::applyDash(const RawPath* source,
     {
         int dashIndex = 0;
         auto rawPath = m_path.mutableRawPath();
-        for (const rcp<ContourMeasure>& contour : m_contours)
+        float dashed = 0.0f;
+        float distance = offset->normalizedLength(m_pathMeasure.length(), true);
+        bool draw = true;
+        while (dashed < m_pathMeasure.length())
         {
-            float dashed = 0.0f;
-            float distance = offset->normalizedLength(contour->length());
-            bool draw = true;
-            while (dashed < contour->length())
+            const Dash* dash = dashes[dashIndex++ % dashes.size()];
+            float dashLength =
+                dash->normalizedLength(m_pathMeasure.length(), false);
+            if (dashLength > m_pathMeasure.length())
             {
-                const Dash* dash = dashes[dashIndex++ % dashes.size()];
-                float dashLength = dash->normalizedLength(contour->length());
-                if (dashLength > contour->length())
-                {
-                    dashLength = contour->length();
-                }
-                float endLength = distance + dashLength;
-                if (endLength > contour->length())
-                {
-                    endLength -= contour->length();
-                    if (draw)
-                    {
-                        if (distance < contour->length())
-                        {
-                            contour->getSegment(distance,
-                                                contour->length(),
-                                                rawPath,
-                                                true);
-                            contour->getSegment(0.0f,
-                                                endLength,
-                                                rawPath,
-                                                !contour->isClosed());
-                        }
-                        else
-                        {
-                            contour->getSegment(0.0f, endLength, rawPath, true);
-                        }
-                    }
-
-                    // Setup next step.
-                    distance = endLength - dashLength;
-                }
-                else if (draw)
-                {
-                    contour->getSegment(distance, endLength, rawPath, true);
-                }
-                distance += dashLength;
-                dashed += dashLength;
-                draw = !draw;
+                dashLength = m_pathMeasure.length();
             }
+            float endLength = distance + dashLength;
+            if (endLength > m_pathMeasure.length())
+            {
+                endLength -= m_pathMeasure.length();
+                if (draw)
+                {
+                    if (distance < m_pathMeasure.length())
+                    {
+                        m_pathMeasure.getSegment(distance,
+                                                 m_pathMeasure.length(),
+                                                 rawPath,
+                                                 true);
+                        m_pathMeasure.getSegment(0.0f,
+                                                 endLength,
+                                                 rawPath,
+                                                 !m_pathMeasure.isClosed());
+                    }
+                    else
+                    {
+                        m_pathMeasure.getSegment(0.0f,
+                                                 endLength,
+                                                 rawPath,
+                                                 true);
+                    }
+                }
+
+                // Setup next step.
+                distance = endLength - dashLength;
+            }
+            else if (draw)
+            {
+                m_pathMeasure.getSegment(distance, endLength, rawPath, true);
+            }
+            distance += dashLength;
+            dashed += dashLength;
+            draw = !draw;
         }
     }
     return &m_path;
 }
 
-float PathDasher::pathLength() const
-{
-    float totalLength = 0.0f;
-    for (auto contour : m_contours)
-    {
-        totalLength += contour->length();
-    }
-    return totalLength;
-}
+float PathDasher::pathLength() const { return m_pathMeasure.length(); }
 
 StatusCode DashPath::onAddedClean(CoreContext* context)
 {
@@ -170,6 +144,6 @@ void DashPath::invalidateDash()
     {
         auto stroke = parent()->as<Stroke>();
         stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateRendering();
+        stroke->invalidateEffects(this);
     }
 }

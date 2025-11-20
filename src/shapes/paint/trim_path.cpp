@@ -182,7 +182,7 @@ void TrimPath::invalidateTrim()
     {
         auto stroke = parent()->as<Stroke>();
         stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateRendering();
+        stroke->invalidateEffects(this);
     }
 }
 

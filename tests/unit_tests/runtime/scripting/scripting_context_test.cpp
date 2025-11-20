@@ -24,7 +24,6 @@ end
         lua_getglobal(L, "init");
         lua_pushvalue(L, -2);
         lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-
         CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
         rive_lua_pop(L, 1);
         CHECK(top == lua_gettop(L));

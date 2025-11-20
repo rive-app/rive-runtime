@@ -16,6 +16,7 @@
 #include "rive_file_reader.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "utils/serializing_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
@@ -520,4 +521,41 @@ TEST_CASE("Path  with feather render", "[path]")
     REQUIRE(feather->renderCount == 1);
     machine->advanceAndApply(0.25f);
     REQUIRE(feather->renderCount == 2);
+}
+
+TEST_CASE("Apply stacked path effects to paths", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/stacked_path_effects.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("stacked_path_effects"));
 }

@@ -8,13 +8,14 @@ class StrokeEffect;
 class Stroke : public StrokeBase
 {
 private:
-    StrokeEffect* m_Effect = nullptr;
+    std::vector<StrokeEffect*> m_effects;
 
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
     PathFlags pathFlags() const override;
     void addStrokeEffect(StrokeEffect* effect);
-    bool hasStrokeEffect() { return m_Effect != nullptr; }
+    bool hasStrokeEffect() { return m_effects.size() > 0; }
+    void invalidateEffects(StrokeEffect* effect);
     void invalidateEffects();
     bool isVisible() const override;
     void invalidateRendering();
@@ -29,7 +30,10 @@ public:
     void buildDependencies() override;
     void update(ComponentDirt value) override;
 #ifdef TESTING
-    StrokeEffect* effect() { return m_Effect; }
+    StrokeEffect* effect()
+    {
+        return m_effects.size() > 0 ? m_effects.back() : nullptr;
+    }
 #endif
 
 protected:

@@ -10,7 +10,7 @@ public:
     Dash();
     Dash(float value, bool percentage);
 
-    float normalizedLength(float length) const;
+    float normalizedLength(float length, bool wraps) const;
 
     StatusCode onAddedClean(CoreContext* context) override;
 
