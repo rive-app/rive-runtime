@@ -809,7 +809,7 @@ public:
                  TransformComponent* component);
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 25;
-    static constexpr const char* luaName = "Node";
+    static constexpr const char* luaName = "NodeData";
     static constexpr bool hasMetatable = true;
 
     TransformComponent* component() { return m_component; }
