@@ -104,6 +104,7 @@ private:
     void cloneObjectDataBinds(const Core* object,
                               Core* clone,
                               Artboard* artboard) const;
+    void initScriptedObjects();
 
     // Variable that tracks whenever the draw order changes. It is used by the
     // state machine controllers to sort their hittable components when they are

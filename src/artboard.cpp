@@ -459,6 +459,7 @@ StatusCode Artboard::initialize()
     {
         m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
     }
+    initScriptedObjects();
     return StatusCode::Ok;
 }
 
@@ -583,6 +584,17 @@ void Artboard::addStateMachine(StateMachine* object)
 void Artboard::addScriptedObject(ScriptedObject* object)
 {
     m_ScriptedObjects.push_back(object);
+}
+
+void Artboard::initScriptedObjects()
+{
+    if (isInstance())
+    {
+        for (auto obj : m_ScriptedObjects)
+        {
+            obj->reinit();
+        }
+    }
 }
 
 Core* Artboard::resolve(uint32_t id) const
@@ -1578,13 +1590,7 @@ void Artboard::internalDataContext(DataContext* value)
     }
     bindDataBindsFromContext(m_DataContext);
     sortDataBinds();
-
-    // TODO: Currently we reinit when a datacontext is set but ultimately
-    // we need to find a better way since there may not be a VM attached
-    for (auto obj : m_ScriptedObjects)
-    {
-        obj->reinit();
-    }
+    initScriptedObjects();
 }
 
 void Artboard::rebind() { internalDataContext(m_DataContext); }

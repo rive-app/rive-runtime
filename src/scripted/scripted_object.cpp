@@ -206,10 +206,6 @@ void ScriptedObject::scriptUpdate()
 
 bool ScriptedObject::scriptInit(LuaState* luaState)
 {
-    if (!inits() || m_state == nullptr)
-    {
-        return false;
-    }
     auto state = luaState->state;
     for (auto prop : m_customProperties)
     {
@@ -245,44 +241,54 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
                 scriptInput->initScriptedValue();
             }
         }
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) !=
-            LUA_TFUNCTION)
+        if (inits())
         {
-            lua_unref(state, m_self);
-            lua_unref(state, m_context);
-            rive_lua_pop(state, 2);
-            m_state = nullptr;
-            m_self = 0;
-            m_context = 0;
-            return false;
-        }
-        lua_pushvalue(state, -2);
-        rive_lua_pushRef(state, m_context);
-        auto pCallResult = rive_lua_pcall(state, 2, 1);
-        if (static_cast<lua_Status>(pCallResult) != LUA_OK)
-        {
-            lua_unref(state, m_self);
-            lua_unref(state, m_context);
-            rive_lua_pop(state, 2);
-            m_state = nullptr;
-            m_self = 0;
-            m_context = 0;
-            return false;
-        }
-        if (!lua_toboolean(state, -1))
-        {
-            lua_unref(state, m_self);
-            lua_unref(state, m_context);
-            rive_lua_pop(state, 1);
-            m_state = nullptr;
-            m_self = 0;
-            m_context = 0;
-            return false;
+            if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) !=
+                LUA_TFUNCTION)
+            {
+                lua_unref(state, m_self);
+                lua_unref(state, m_context);
+                rive_lua_pop(state, 2);
+                m_state = nullptr;
+                m_self = 0;
+                m_context = 0;
+                return false;
+            }
+            lua_pushvalue(state, -2);
+            rive_lua_pushRef(state, m_context);
+            auto pCallResult = rive_lua_pcall(state, 2, 1);
+            if (static_cast<lua_Status>(pCallResult) != LUA_OK)
+            {
+                lua_unref(state, m_self);
+                lua_unref(state, m_context);
+                rive_lua_pop(state, 2);
+                m_state = nullptr;
+                m_self = 0;
+                m_context = 0;
+                return false;
+            }
+            if (!lua_toboolean(state, -1))
+            {
+                lua_unref(state, m_self);
+                lua_unref(state, m_context);
+                // Pop boolean and self table
+                rive_lua_pop(state, 2);
+                m_state = nullptr;
+                m_self = 0;
+                m_context = 0;
+                return false;
+            }
+            else
+            {
+                rive_lua_pop(state, 1);
+                assert(static_cast<lua_Type>(lua_type(state, -1)) ==
+                       LUA_TTABLE);
+                rive_lua_pop(state, 1);
+            }
         }
         else
         {
-            rive_lua_pop(state, 1);
-            assert(static_cast<lua_Type>(lua_type(state, -1)) == LUA_TTABLE);
+            // Init function doesn't exist, just pop the self table
             rive_lua_pop(state, 1);
         }
     }

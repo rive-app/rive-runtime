@@ -47,14 +47,6 @@ void ScriptedDrawable::draw(Renderer* renderer)
 std::vector<HitComponent*> ScriptedDrawable::hitComponents(
     StateMachineInstance* sm)
 {
-    // TODO: Figure out a more foolproof way to make sure the ScriptedObject is
-    // initted before this is called.
-    auto asset = scriptAsset();
-    if (asset != nullptr && asset->vm() != nullptr && m_self == 0)
-    {
-        reinit();
-    }
-
     if (!listensToPointerEvents())
     {
         return {};

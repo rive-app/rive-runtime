@@ -132,7 +132,6 @@ bool OptionalScriptedMethods::verifyImplementation(
     }
     else if (scriptProtocol == ScriptProtocol::node)
     {
-        rive_lua_pop(state, 1);
         if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
             LUA_TFUNCTION)
         {
