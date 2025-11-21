@@ -4,7 +4,7 @@
 #include "rive/component.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/foreground_layout_drawable.hpp"
-#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_input_selected_text.hpp"
@@ -59,9 +59,9 @@ void ShapePaintContainer::invalidateStrokeEffects()
 {
     for (auto paint : m_ShapePaints)
     {
-        if (paint->is<Stroke>())
+        if (paint->is<ShapePaint>())
         {
-            paint->as<Stroke>()->invalidateEffects();
+            paint->as<ShapePaint>()->invalidateEffects();
         }
     }
 }

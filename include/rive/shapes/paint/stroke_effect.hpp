@@ -2,6 +2,7 @@
 #define _RIVE_STROKE_EFFECT_HPP_
 
 #include "rive/rive_types.hpp"
+#include "rive/shape_paint_type.hpp"
 
 namespace rive
 {
@@ -14,7 +15,8 @@ class StrokeEffect
 {
 public:
     virtual ~StrokeEffect() {}
-    virtual void updateEffect(const ShapePaintPath* source) = 0;
+    virtual void updateEffect(const ShapePaintPath* source,
+                              ShapePaintType shapePaintType) = 0;
     virtual ShapePaintPath* effectPath() = 0;
     virtual void invalidateEffect() = 0;
 };

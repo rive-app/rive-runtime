@@ -16,7 +16,8 @@ bool ScriptedPathEffect::scriptInit(LuaState* state)
     return true;
 }
 
-void ScriptedPathEffect::updateEffect(const ShapePaintPath* source)
+void ScriptedPathEffect::updateEffect(const ShapePaintPath* source,
+                                      ShapePaintType shapePaintType)
 {
     if (m_path.hasRenderPath())
     {
@@ -40,7 +41,10 @@ void ScriptedPathEffect::updateEffect(const ShapePaintPath* source)
     {
         lua_pushvalue(state, -2);
         lua_newrive<ScriptedPathData>(state, source->rawPath());
-        if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 1)) != LUA_OK)
+        lua_pushstring(state,
+                       shapePaintType == ShapePaintType::stroke ? "stroke"
+                                                                : "fill");
+        if (static_cast<lua_Status>(rive_lua_pcall(state, 3, 1)) != LUA_OK)
         {
             fprintf(stderr, "update function failed\n");
         }
@@ -55,7 +59,9 @@ void ScriptedPathEffect::updateEffect(const ShapePaintPath* source)
     rive_lua_pop(state, 1);
 }
 #else
-void ScriptedPathEffect::updateEffect(const ShapePaintPath* source) {}
+void ScriptedPathEffect::updateEffect(const ShapePaintPath* source,
+                                      ShapePaintType shapePaintType)
+{}
 #endif
 
 StatusCode ScriptedPathEffect::onAddedDirty(CoreContext* context)
@@ -71,12 +77,12 @@ StatusCode ScriptedPathEffect::onAddedDirty(CoreContext* context)
 
 StatusCode ScriptedPathEffect::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<Stroke>())
+    if (!parent()->is<ShapePaint>())
     {
         return StatusCode::InvalidObject;
     }
 
-    parent()->as<Stroke>()->addStrokeEffect(this);
+    parent()->as<ShapePaint>()->addStrokeEffect(this);
 
     return StatusCode::Ok;
 }
@@ -95,7 +101,7 @@ bool ScriptedPathEffect::addScriptedDirt(ComponentDirt value, bool recurse)
 {
     if (parent() != nullptr)
     {
-        auto stroke = parent()->as<Stroke>();
+        auto stroke = parent()->as<ShapePaint>();
         stroke->parent()->addDirt(ComponentDirt::Paint);
         stroke->invalidateEffects(this);
     }

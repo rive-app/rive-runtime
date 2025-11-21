@@ -8,38 +8,21 @@ class StrokeEffect;
 class Stroke : public StrokeBase
 {
 private:
-    std::vector<StrokeEffect*> m_effects;
-
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
     PathFlags pathFlags() const override;
-    void addStrokeEffect(StrokeEffect* effect);
-    bool hasStrokeEffect() { return m_effects.size() > 0; }
-    void invalidateEffects(StrokeEffect* effect);
-    void invalidateEffects();
     bool isVisible() const override;
-    void invalidateRendering();
     void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
     ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
 
-    void draw(Renderer* renderer,
-              ShapePaintPath* shapePaintPath,
-              const Mat2D& transform,
-              bool usePathFillRule,
-              RenderPaint* overridePaint) override;
     void buildDependencies() override;
-    void update(ComponentDirt value) override;
-#ifdef TESTING
-    StrokeEffect* effect()
-    {
-        return m_effects.size() > 0 ? m_effects.back() : nullptr;
-    }
-#endif
+    void invalidateRendering() override;
 
 protected:
     void thicknessChanged() override;
     void capChanged() override;
     void joinChanged() override;
+    ShapePaintType paintType() override { return ShapePaintType::stroke; }
 };
 } // namespace rive
 

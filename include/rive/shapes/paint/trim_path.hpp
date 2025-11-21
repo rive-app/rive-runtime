@@ -22,7 +22,8 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     void invalidateEffect() override;
 
-    void updateEffect(const ShapePaintPath* source) override;
+    void updateEffect(const ShapePaintPath* source,
+                      ShapePaintType shapePaintType) override;
     ShapePaintPath* effectPath() override;
 
     void startChanged() override;
@@ -38,7 +39,7 @@ public:
 
 protected:
     void invalidateTrim();
-    void trimPath(const RawPath* source);
+    void trimPath(const RawPath* source, ShapePaintType shapePaintType);
     ShapePaintPath m_path;
     std::vector<rcp<ContourMeasure>> m_contours;
 };

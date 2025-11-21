@@ -43,7 +43,8 @@ public:
     void invalidateEffect() override;
     void offsetChanged() override;
     void offsetIsPercentageChanged() override;
-    void updateEffect(const ShapePaintPath* source) override;
+    void updateEffect(const ShapePaintPath* source,
+                      ShapePaintType shapePaintType) override;
     ShapePaintPath* effectPath() override;
     void invalidateDash() override;
 

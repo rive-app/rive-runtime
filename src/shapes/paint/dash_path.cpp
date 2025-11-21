@@ -100,11 +100,11 @@ float PathDasher::pathLength() const { return m_pathMeasure.length(); }
 
 StatusCode DashPath::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<Stroke>())
+    if (!parent()->is<ShapePaint>())
     {
         return StatusCode::InvalidObject;
     }
-    parent()->as<Stroke>()->addStrokeEffect(this);
+    parent()->as<ShapePaint>()->addStrokeEffect(this);
 
     m_dashes.clear();
     for (auto child : children())
@@ -122,7 +122,8 @@ void DashPath::invalidateEffect() { invalidateSourcePath(); }
 void DashPath::offsetChanged() { invalidateDash(); }
 void DashPath::offsetIsPercentageChanged() { invalidateDash(); }
 
-void DashPath::updateEffect(const ShapePaintPath* source)
+void DashPath::updateEffect(const ShapePaintPath* source,
+                            ShapePaintType shapePaintType)
 {
 
     if (m_path.hasRenderPath())
@@ -130,9 +131,16 @@ void DashPath::updateEffect(const ShapePaintPath* source)
         return;
     }
     m_path.rewind(source->isLocal());
-
-    Dash dashOffset(offset(), offsetIsPercentage());
-    applyDash(source->rawPath(), &dashOffset, m_dashes);
+    // Dash is not supported on fills so it will use the source as output
+    if (shapePaintType == ShapePaintType::fill)
+    {
+        m_path.addPath(source);
+    }
+    else
+    {
+        Dash dashOffset(offset(), offsetIsPercentage());
+        applyDash(source->rawPath(), &dashOffset, m_dashes);
+    }
 }
 
 ShapePaintPath* DashPath::effectPath() { return &m_path; }
@@ -142,7 +150,7 @@ void DashPath::invalidateDash()
     PathDasher::invalidateDash();
     if (parent() != nullptr)
     {
-        auto stroke = parent()->as<Stroke>();
+        auto stroke = parent()->as<ShapePaint>();
         stroke->parent()->addDirt(ComponentDirt::Paint);
         stroke->invalidateEffects(this);
     }

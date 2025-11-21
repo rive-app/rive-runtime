@@ -6,6 +6,7 @@
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include "rive/shapes/path_flags.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
+#include "rive/shapes/paint/stroke_effect.hpp"
 #include "rive/math/raw_path.hpp"
 
 namespace rive
@@ -19,9 +20,16 @@ class ShapePaint : public ShapePaintBase
 protected:
     rcp<RenderPaint> m_RenderPaint;
     ShapePaintMutator* m_PaintMutator = nullptr;
+    std::vector<StrokeEffect*> m_effects;
+    virtual ShapePaintType paintType() = 0;
 
 public:
     StatusCode onAddedClean(CoreContext* context) override;
+    void addStrokeEffect(StrokeEffect* effect);
+    bool hasStrokeEffect() { return m_effects.size() > 0; }
+    void invalidateEffects(StrokeEffect* effect);
+    void invalidateEffects();
+    virtual void invalidateRendering();
 
     float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
     void renderOpacity(float value) { m_PaintMutator->renderOpacity(value); }
@@ -70,6 +78,13 @@ public:
     Feather* feather() const;
 
     virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
+    void update(ComponentDirt value) override;
+#ifdef TESTING
+    StrokeEffect* effect()
+    {
+        return m_effects.size() > 0 ? m_effects.back() : nullptr;
+    }
+#endif
 
 private:
     Feather* m_feather = nullptr;

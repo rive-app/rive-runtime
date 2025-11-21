@@ -26,6 +26,21 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
+void ShapePaint::update(ComponentDirt value)
+{
+    Super::update(value);
+    if (hasDirt(value, ComponentDirt::Path) && m_effects.size() > 0)
+    {
+        auto container = ShapePaintContainer::from(parent());
+        auto path = pickPath(container);
+        for (auto& effect : m_effects)
+        {
+            effect->updateEffect(path, paintType());
+            path = effect->effectPath();
+        }
+    }
+}
+
 RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator)
 {
     assert(m_RenderPaint == nullptr);
@@ -90,6 +105,11 @@ void ShapePaint::draw(Renderer* renderer,
         renderer->transform(transform);
     }
 
+    if (m_effects.size() > 0)
+    {
+        pathToDraw = m_effects.back()->effectPath();
+    }
+
     if (m_feather != nullptr)
     {
         if (m_feather->inner())
@@ -144,3 +164,29 @@ void ShapePaint::draw(Renderer* renderer,
         renderer->restore();
     }
 }
+
+void ShapePaint::addStrokeEffect(StrokeEffect* effect)
+{
+    m_effects.push_back(effect);
+}
+
+void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
+{
+    auto found = invalidatingEffect == nullptr;
+    for (auto& effect : m_effects)
+    {
+        if (found)
+        {
+            effect->invalidateEffect();
+        }
+        if (invalidatingEffect && invalidatingEffect == effect)
+        {
+            found = true;
+        }
+    }
+    invalidateRendering();
+}
+
+void ShapePaint::invalidateEffects() { invalidateEffects(nullptr); }
+
+void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path); }

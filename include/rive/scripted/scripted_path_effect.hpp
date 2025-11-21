@@ -36,7 +36,8 @@ public:
         return ScriptProtocol::pathEffect;
     }
     void invalidateEffect() override;
-    void updateEffect(const ShapePaintPath* source) override;
+    void updateEffect(const ShapePaintPath* source,
+                      ShapePaintType shapePaintType) override;
     ShapePaintPath* effectPath() override;
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;

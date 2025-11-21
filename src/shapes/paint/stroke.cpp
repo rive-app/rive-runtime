@@ -1,7 +1,6 @@
 #include "rive/artboard.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
-#include "rive/shapes/paint/stroke_effect.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
 
 using namespace rive;
@@ -18,21 +17,6 @@ RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
     renderPaint->cap((StrokeCap)cap());
     renderPaint->join((StrokeJoin)join());
     return renderPaint;
-}
-
-void Stroke::update(ComponentDirt value)
-{
-    Super::update(value);
-    if (hasDirt(value, ComponentDirt::Path) && m_effects.size() > 0)
-    {
-        auto container = ShapePaintContainer::from(parent());
-        auto path = pickPath(container);
-        for (auto& effect : m_effects)
-        {
-            effect->updateEffect(path);
-            path = effect->effectPath();
-        }
-    }
 }
 
 void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier)
@@ -68,35 +52,11 @@ void Stroke::joinChanged()
     m_RenderPaint->join((StrokeJoin)join());
 }
 
-void Stroke::addStrokeEffect(StrokeEffect* effect)
-{
-    m_effects.push_back(effect);
-}
-
-void Stroke::invalidateEffects(StrokeEffect* invalidatingEffect)
-{
-    auto found = invalidatingEffect == nullptr;
-    for (auto& effect : m_effects)
-    {
-        if (found)
-        {
-            effect->invalidateEffect();
-        }
-        if (invalidatingEffect && invalidatingEffect == effect)
-        {
-            found = true;
-        }
-    }
-    invalidateRendering();
-}
-
-void Stroke::invalidateEffects() { invalidateEffects(nullptr); }
-
 void Stroke::invalidateRendering()
 {
     assert(m_RenderPaint != nullptr);
     m_RenderPaint->invalidateStroke();
-    addDirt(ComponentDirt::Path);
+    Super::invalidateRendering();
 }
 
 ShapePaintPath* Stroke::pickPath(ShapePaintContainer* shape) const
@@ -106,24 +66,6 @@ ShapePaintPath* Stroke::pickPath(ShapePaintContainer* shape) const
         return shape->localPath();
     }
     return shape->worldPath();
-}
-
-void Stroke::draw(Renderer* renderer,
-                  ShapePaintPath* shapePaintPath,
-                  const Mat2D& transform,
-                  bool usePathFillRule,
-                  RenderPaint* overridePaint)
-{
-    if (m_effects.size() > 0)
-    {
-        shapePaintPath = m_effects.back()->effectPath();
-    }
-
-    Super::draw(renderer,
-                shapePaintPath,
-                transform,
-                usePathFillRule,
-                overridePaint);
 }
 
 void Stroke::buildDependencies()
