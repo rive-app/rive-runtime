@@ -742,12 +742,28 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             break;
 
         case VULKAN_VENDOR_ARM:
-        case VULKAN_VENDOR_IMG_TEC:
-            // This is undocumented, but raster ordering works on Mali and
-            // PowerVR if you define a subpass dependency, even without
-            // EXT_rasterization_order_attachment_access.
+            // Raster ordering is known to work on ARM hardware, even on old
+            // drivers without EXT_rasterization_order_attachment_access, as
+            // long as you define a subpass self-dependency.
             m_platformFeatures.supportsRasterOrderingMode =
                 !contextOptions.forceAtomicMode;
+            break;
+
+        case VULKAN_VENDOR_IMG_TEC:
+            // Raster ordering is known to work on IMG hardware, even without
+            // EXT_rasterization_order_attachment_access, as long as you define
+            // a subpass self-dependency.
+            // IMG just can't expose the extension because they do _not_
+            // guarantee raster ordering across samples, which is required by
+            // the extension, but irrelevant to Rive.
+            // THAT BEING SAID: while Google Chrome relies on implicit raster
+            // ordering on all IMG devices, it has only been observed to work
+            // with Rive on Vulkan 1.3 contexts (PowerVR Rogue GE9215 -- driver
+            // 1.555, and PowerVR D-Series DXT-48-1536 (Pixel 10) -- driver
+            // 1.602).
+            m_platformFeatures.supportsRasterOrderingMode =
+                !contextOptions.forceAtomicMode &&
+                m_vk->features.apiVersion >= VK_API_VERSION_1_3;
             break;
     }
 }
