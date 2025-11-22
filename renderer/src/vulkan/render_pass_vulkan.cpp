@@ -304,14 +304,14 @@ RenderPassVulkan::RenderPassVulkan(
                           : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .initialLayout =
-                readsMSAAResolveAttachment
+                (readsMSAAResolveAttachment ||
+                 (layoutOptions &
+                  DrawPipelineLayoutVulkan::Options::msaaManualResolve))
                     ? msaaResolveLayout
                     // NOTE: This can only be VK_IMAGE_LAYOUT_UNDEFINED because
-                    // Vulkan does not support partial MSAA resolves, so every
-                    // MSAA render pass covers the entire render area.
-                    // TODO: If we add a new subpass that reads the MSAA buffer
-                    // and resolves it manually for partial updates, this will
-                    // need to change to "msaaResolveLayout".
+                    // Vulkan does not support partial resolves to MSAA resolve
+                    // attachments. So every MSAA render pass without
+                    // "msaaManualResolve" covers the entire render area.
                     : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = msaaResolveLayout,
         });
@@ -319,6 +319,7 @@ RenderPassVulkan::RenderPassVulkan(
             .attachment = MSAA_RESOLVE_IDX,
             .layout = msaaResolveLayout,
         };
+        assert(colorAttachmentRefs.size() == 1);
 
         if (layoutOptions &
             DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
@@ -472,16 +473,36 @@ RenderPassVulkan::RenderPassVulkan(
 
         // The next subpass (the main subpass) needs an external dependency on
         //  the depth buffer (which is not used in this subpass but is used in
-        //  that one)
-        subpassDeps.push_back({
+        //  that one).
+        VkSubpassDependency externalInputDeps = {
             .srcSubpass = VK_SUBPASS_EXTERNAL,
             .dstSubpass = 1,
             .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             .srcAccessMask = VK_ACCESS_NONE,
-            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .dependencyFlags = 0,
-        });
+        };
+
+        if (!(layoutOptions &
+              DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+        {
+            // If we are not doing the manual MSAA resolve, this pass also needs
+            // barriers to protect the layout transition of the resolve target
+            // from the load op (even though it's LOAD_OP_DONT_CARE, it is
+            // possible that it performs a write), so we also need to specify
+            // COLOR_ATTACHMENT_WRITE as a destination access flag.
+            // (If we *were* doing the manual resolve the transition and load
+            // would happen in that subpass instead of this one)
+            externalInputDeps.dstStageMask |=
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            externalInputDeps.dstAccessMask |=
+                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        }
+
+        subpassDeps.push_back(externalInputDeps);
 
         // Finally, the standard color dependency from subpass 0 -> subpass 1
         addStandardColorDependencyToNextSubpass(subpassDescs.size());
@@ -519,6 +540,12 @@ RenderPassVulkan::RenderPassVulkan(
         .pInputAttachments = inputAttachmentRefs.data(),
         .colorAttachmentCount = colorAttachmentRefs.size(),
         .pColorAttachments = colorAttachmentRefs.data(),
+        .pResolveAttachments =
+            (interlockMode == gpu::InterlockMode::msaa &&
+             !(layoutOptions &
+               DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+                ? &msaaResolveAttachmentRef.value()
+                : nullptr,
         .pDepthStencilAttachment = depthStencilAttachmentRef.has_value()
                                        ? &depthStencilAttachmentRef.value()
                                        : nullptr,
@@ -585,57 +612,26 @@ RenderPassVulkan::RenderPassVulkan(
             .dependencyFlags = 0,
         });
 
-        // Add the dependency from main subpass to the resolve subpass (note
-        // that this is different than the standard COLOR_ATTACHMENT_WRITE ->
-        // INPUT_ATTACHMENT_READ barrier between subpasses).
-        // NOTE: The fragment/input attachment bits here seem like they should
-        // not be necessary (nothing renders during this path, it's purely a
-        // resolve), but it seems on some Android devices at least, the resolve
-        // may be getting done *as* a fragment shader (instead of during
-        // COLOR_ATTACHMENT_OUTPUT, which is what seems to happen on desktop),
-        // so it's necessary. Ditto the input attachment for this subpass, as
-        // just having color and resolve *should* work, but doesn't on Android.
-        subpassDeps.push_back({
-            .srcSubpass = subpassDescs.size() - 1,
-            .dstSubpass = subpassDescs.size(),
-            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-                             VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        });
+        // Manual MSAA resolve, if needed.
+        if ((layoutOptions &
+             DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+        {
+            assert(
+                !(layoutOptions &
+                  DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput));
+            assert(inputAttachmentRefs[0].attachment == COLOR_PLANE_IDX);
 
-        // Some Android drivers (some Android 12 and earlier Adreno drivers)
-        // have issues with having both a self-dependency and resolve
-        // attachments. The resolve can instead be done as a second pass (in
-        // which no actual rendering occurs), which eliminates some corruption
-        // during blending on the affected devices.
+            addStandardColorDependencyToNextSubpass(subpassDescs.size());
 
-        // This should be MSAA and there should only be a single color
-        // attachment.
-        assert(interlockMode == gpu::InterlockMode::msaa);
-        assert(colorAttachmentRefs.size() == 1);
-        assert(msaaResolveAttachmentRef.has_value());
-
-        VkAttachmentReference msaaResolveInputAttachmentRef =
-            colorAttachmentRefs[0];
-
-        // the layout is not allowed to be COLOR_ATTACHMENT_OPTIMAL, so instead
-        // use GENERAL.
-        msaaResolveInputAttachmentRef.layout = VK_IMAGE_LAYOUT_GENERAL;
-
-        subpassDescs.push_back({
-            .flags = 0u,
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = 1,
-            .pInputAttachments = &msaaResolveInputAttachmentRef,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = colorAttachmentRefs.data(),
-            .pResolveAttachments = &msaaResolveAttachmentRef.value(),
-        });
+            subpassDescs.push_back({
+                .flags = 0u,
+                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                .inputAttachmentCount = 1u,
+                .pInputAttachments = inputAttachmentRefs.data(),
+                .colorAttachmentCount = 1u,
+                .pColorAttachments = &msaaResolveAttachmentRef.value(),
+            });
+        }
     }
 
     // PLS-resolve subpass (atomic mode only).

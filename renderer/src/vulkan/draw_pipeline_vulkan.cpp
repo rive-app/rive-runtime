@@ -434,9 +434,11 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 
     VkPipelineMultisampleStateCreateInfo msaaState = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = interlockMode == gpu::InterlockMode::msaa
-                                    ? VK_SAMPLE_COUNT_4_BIT
-                                    : VK_SAMPLE_COUNT_1_BIT,
+        .rasterizationSamples =
+            (interlockMode == gpu::InterlockMode::msaa &&
+             props.drawType != gpu::DrawType::renderPassResolve)
+                ? VK_SAMPLE_COUNT_4_BIT
+                : VK_SAMPLE_COUNT_1_BIT,
     };
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {

@@ -54,16 +54,11 @@ VulkanContext::VulkanContext(
 #undef LOAD_VULKAN_DEVICE_COMMAND
             m_vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
 {
-#ifdef NDEBUG
+    GetPhysicalDeviceProperties(physicalDevice, &m_physicalDeviceProperties);
+
     // Check that we weren't told the device was more capable than it is
-    {
-        VkPhysicalDeviceProperties props{};
-        GetPhysicalDeviceProperties(physicalDevice, &props);
-        assert(
-            props.apiVersion >= features.apiVersion &&
-            "Supplied API version should not be newer than the physical device");
-    }
-#endif
+    assert(m_physicalDeviceProperties.apiVersion >= features.apiVersion &&
+           "Supplied API version should not be newer than the physical device");
 
     // VK spec says between D24_S8 and D32_S8, one of them must be supported
     m_supportsD24S8 = isFormatSupportedWithFeatureFlags(

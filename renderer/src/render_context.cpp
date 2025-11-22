@@ -958,10 +958,34 @@ static uint32_t pls_transient_backing_plane_count(
     RIVE_UNREACHABLE();
 }
 
-static bool wants_fixed_function_color_output(
-    gpu::PlatformFeatures platformFeatures,
-    gpu::InterlockMode interlockMode,
+static bool wants_msaa_manual_resolve(
+    const gpu::PlatformFeatures& platformFeatures,
+    const RenderTarget* renderTarget,
+    const IAABB& renderTargetUpdateBounds,
     gpu::DrawContents combinedDrawContents)
+{
+    if (platformFeatures.msaaResolveNeedsDraw)
+    {
+        return true;
+    }
+    if (platformFeatures.msaaResolveWithPartialBoundsNeedsDraw &&
+        !renderTargetUpdateBounds.contains(renderTarget->bounds()))
+    {
+        return true;
+    }
+    if (platformFeatures.msaaResolveAfterDstReadNeedsDraw &&
+        (combinedDrawContents & gpu::DrawContents::advancedBlend))
+    {
+        return true;
+    }
+    return false;
+}
+
+static bool wants_fixed_function_color_output(
+    const gpu::PlatformFeatures& platformFeatures,
+    gpu::InterlockMode interlockMode,
+    gpu::DrawContents combinedDrawContents,
+    bool msaaManualResolve)
 {
     switch (interlockMode)
     {
@@ -971,7 +995,6 @@ static bool wants_fixed_function_color_output(
             return false;
 
         case gpu::InterlockMode::atomics:
-        case gpu::InterlockMode::msaa:
             return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::clockwise:
@@ -983,6 +1006,12 @@ static bool wants_fixed_function_color_output(
         case gpu::InterlockMode::clockwiseAtomic:
             // clockwiseAtomic currently always sets fixedFunctionColorOutput.
             return true;
+
+        case gpu::InterlockMode::msaa:
+            // Manual MSAA resolves read the framebuffer, so they can't use
+            // fixedFunctionColorOutput.
+            return !msaaManualResolve &&
+                   !(combinedDrawContents & gpu::DrawContents::advancedBlend);
     }
 
     RIVE_UNREACHABLE();
@@ -1085,15 +1114,6 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.renderTarget = flushResources.renderTarget;
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
     m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
-    m_flushDesc.fixedFunctionColorOutput =
-        wants_fixed_function_color_output(m_ctx->platformFeatures(),
-                                          m_ctx->frameInterlockMode(),
-                                          m_combinedDrawContents);
-    if (m_flushDesc.fixedFunctionColorOutput)
-    {
-        m_baselineShaderMiscFlags |=
-            gpu::ShaderMiscFlags::fixedFunctionColorOutput;
-    }
 
     // In atomic mode, we may be able to skip the explicit clear of the color
     // buffer and fold it into the atomic "resolve" operation instead.
@@ -1170,6 +1190,23 @@ void RenderContext::LogicalFlush::layoutResources(
         m_flushDesc.renderTargetUpdateBounds = {0, 0, 0, 0};
     }
 
+    m_flushDesc.msaaManualResolve =
+        m_flushDesc.interlockMode == gpu::InterlockMode::msaa &&
+        wants_msaa_manual_resolve(m_ctx->platformFeatures(),
+                                  m_flushDesc.renderTarget,
+                                  m_flushDesc.renderTargetUpdateBounds,
+                                  m_combinedDrawContents);
+
+    m_flushDesc.fixedFunctionColorOutput =
+        wants_fixed_function_color_output(m_ctx->platformFeatures(),
+                                          m_ctx->frameInterlockMode(),
+                                          m_combinedDrawContents,
+                                          m_flushDesc.msaaManualResolve);
+    if (m_flushDesc.fixedFunctionColorOutput)
+    {
+        m_baselineShaderMiscFlags |=
+            gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+    }
     m_flushDesc.atlasContentWidth = m_atlasMaxX;
     m_flushDesc.atlasContentHeight = m_atlasMaxY;
 
@@ -1685,22 +1722,27 @@ void RenderContext::LogicalFlush::writeResources()
             m_draws[drawIndex]->pushToRenderContext(this, subpassIndex);
             priorSignedKey = signedKey;
         }
+    }
 
-        // Atomic mode needs one more draw to resolve all the pixels.
-        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
-        {
-            m_drawList
-                .emplace_back(m_ctx->perFrameAllocator(),
-                              gpu::DrawType::renderPassResolve,
-                              m_baselineShaderMiscFlags,
-                              gpu::DrawContents::none,
-                              1,
-                              0,
-                              BlendMode::srcOver,
-                              ImageSampler::LinearClamp(),
-                              BarrierFlags::plsAtomicPreResolve)
-                ->shaderFeatures = m_combinedShaderFeatures;
-        }
+    // Some modes need one more draw to resolve all the pixels.
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics ||
+        m_flushDesc.msaaManualResolve)
+    {
+        m_drawList.emplace_back(
+            m_ctx->perFrameAllocator(),
+            gpu::DrawType::renderPassResolve,
+            m_baselineShaderMiscFlags,
+            (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
+                ? gpu::DrawContents::none
+                : gpu::DrawContents::opaquePaint,
+            1,
+            0,
+            BlendMode::srcOver,
+            ImageSampler::LinearClamp(),
+            (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
+                ? BarrierFlags::plsAtomicPreResolve
+                : BarrierFlags::msaaPreResolve);
+        m_combinedDrawContents |= m_drawList.tail()->drawContents;
     }
 
     // Write out the draws to the feather atlas. Do this after the main draws

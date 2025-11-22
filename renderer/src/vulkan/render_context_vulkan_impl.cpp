@@ -727,6 +727,24 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     // texture. We need to draw the previous renderTarget contents into it
     // manually when LoadAction::preserveRenderTarget is specified.
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;
+    if (physicalDeviceProps.vendorID != VULKAN_VENDOR_SAMSUNG)
+    {
+        // Vulkan builtin MSAA resolves only support resolving the entire render
+        // target. Opting for manual resolves when there are only partial
+        // updates will all us to implement our own partial resolve, and
+        // hopefully get better performance.
+        // NOTE: Early Xclipse drivers struggle with the manual resolve, so we
+        // always do automatic fullscreen resolves on that GPU family.
+        m_platformFeatures.msaaResolveWithPartialBoundsNeedsDraw = true;
+    }
+    if (physicalDeviceProps.vendorID == VULKAN_VENDOR_QUALCOMM)
+    {
+        // Some Android drivers (some Android 12 and earlier Adreno drivers)
+        // have issues with having both a self-dependency for dst reads and
+        // resolve attachments. For now we just always manually resolve these
+        // render passes that use advanced blend on Qualcomm.
+        m_platformFeatures.msaaResolveAfterDstReadNeedsDraw = true;
+    }
     m_platformFeatures.maxCoverageBufferLength =
         std::min(physicalDeviceProps.limits.maxStorageBufferRange, 1u << 28) /
         sizeof(uint32_t);
@@ -1373,13 +1391,33 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         return;
     }
 
+    auto pipelineLayoutOptions = DrawPipelineLayoutVulkan::Options::none;
+    if (desc.fixedFunctionColorOutput)
+    {
+        // In the case of Vulkan, fixedFunctionColorOutput means the color
+        // buffer will never be bound as an input attachment.
+        pipelineLayoutOptions |=
+            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput;
+    }
     if (desc.interlockMode == gpu::InterlockMode::msaa)
     {
-        // Vulkan does not support partial MSAA resolves.
-        // TODO: We should consider adding a new subpass that reads the MSAA
-        // buffer and resolves it manually for partial updates.
-        drawBounds = renderTarget->bounds();
+        if (desc.msaaManualResolve)
+        {
+            // We're going to resolve MSAA manually in a shader instead of using
+            // a resolve attachment.
+            pipelineLayoutOptions |=
+                DrawPipelineLayoutVulkan::Options::msaaManualResolve;
+        }
+        else
+        {
+            // Vulkan does not support partial MSAA resolves when using resolve
+            // attachments.
+            drawBounds = renderTarget->bounds();
+        }
     }
+    // Vulkan builtin MSAA resolves don't support partial drawBounds.
+    assert(desc.interlockMode != gpu::InterlockMode::msaa ||
+           desc.msaaManualResolve || drawBounds == renderTarget->bounds());
 
     auto commandBuffer =
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
@@ -1829,10 +1867,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    // In the case of Vulkan, fixedFunctionColorOutput means the color buffer
-    // will never be bound as an input attachment.
-    const bool fixedFunctionColorOutput = desc.fixedFunctionColorOutput;
-
     // Ensures any previous accesses to a color attachment complete before we
     // begin rendering.
     const vkutil::ImageAccess colorLoadAccess = {
@@ -1840,7 +1874,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
         .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .layout = fixedFunctionColorOutput
+        .layout = (pipelineLayoutOptions &
+                   DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)
                       ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                       : VK_IMAGE_LAYOUT_GENERAL,
     };
@@ -1866,13 +1901,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     VkImageView msaaResolveImageView = VK_NULL_HANDLE;
     VkImageView msaaColorSeedImageView = VK_NULL_HANDLE;
-
-    auto pipelineLayoutOptions = DrawPipelineLayoutVulkan::Options::none;
-    if (fixedFunctionColorOutput)
-    {
-        pipelineLayoutOptions |=
-            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput;
-    }
 
     if (desc.interlockMode == gpu::InterlockMode::msaa)
     {
@@ -1939,7 +1967,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     : vkutil::ImageAccessAction::preserveContents);
         }
     }
-    else if (fixedFunctionColorOutput ||
+    else if ((pipelineLayoutOptions &
+              DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput) ||
              ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
                desc.interlockMode == gpu::InterlockMode::atomics) &&
               (renderTarget->targetUsageFlags() &
@@ -2059,7 +2088,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     StackVector<VkImageView, PLS_PLANE_COUNT> framebufferViews;
     StackVector<VkClearValue, PLS_PLANE_COUNT> clearValues;
     if (plsBackingType == PLSBackingType::inputAttachment ||
-        fixedFunctionColorOutput)
+        (pipelineLayoutOptions &
+         DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput))
     {
         assert(framebufferViews.size() == COLOR_PLANE_IDX);
         framebufferViews.push_back(colorImageView);
@@ -2185,7 +2215,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // of its RGBA format.
         const bool usesScratchColorTexture =
             desc.interlockMode == gpu::InterlockMode::atomics ||
-            !fixedFunctionColorOutput;
+            !(pipelineLayoutOptions &
+              DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput);
         if (usesScratchColorTexture)
         {
             // Don't use the scratch color texture until shaders in previous
@@ -2375,7 +2406,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         inputAttachmentDescriptorSet = descriptorSetPool->allocateDescriptorSet(
             pipelineLayout.plsLayout());
 
-        if (!fixedFunctionColorOutput)
+        if (!(pipelineLayoutOptions &
+              DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput))
         {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
@@ -2409,7 +2441,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
             if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
                 (desc.interlockMode == gpu::InterlockMode::clockwise &&
-                 !fixedFunctionColorOutput))
+                 !(pipelineLayoutOptions & DrawPipelineLayoutVulkan::Options::
+                                               fixedFunctionColorOutput)))
             {
                 m_vk->updateImageDescriptorSets(
                     inputAttachmentDescriptorSet,
@@ -2613,17 +2646,19 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 m_platformFeatures);
 
         if (batch.barriers & (gpu::BarrierFlags::plsAtomicPreResolve |
-                              gpu::BarrierFlags::msaaPostInit))
+                              gpu::BarrierFlags::msaaPostInit |
+                              gpu::BarrierFlags::msaaPreResolve))
         {
             // vkCmdNextSubpass() supersedes the pipeline barrier we would
             // insert for plsAtomic | dstBlend. So if those flags are also in
             // the barrier, we can just call vkCmdNextSubpass() and skip
             // vkCmdPipelineBarrier().
-            assert(
-                !(batch.barriers &
-                  ~(gpu::BarrierFlags::plsAtomicPreResolve |
-                    gpu::BarrierFlags::msaaPostInit | BarrierFlags::plsAtomic |
-                    BarrierFlags::dstBlend | BarrierFlags::drawBatchBreak)));
+            assert(!(batch.barriers &
+                     ~(gpu::BarrierFlags::plsAtomicPreResolve |
+                       gpu::BarrierFlags::msaaPostInit |
+                       gpu::BarrierFlags::msaaPreResolve |
+                       BarrierFlags::plsAtomic | BarrierFlags::dstBlend |
+                       BarrierFlags::drawBatchBreak)));
             m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
         }
         else if (batch.barriers &
@@ -2794,16 +2829,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 break;
             }
         }
-    }
-
-    if (desc.interlockMode == InterlockMode::msaa)
-    {
-        // MSAA needs a follow-up subpass to resolve the MSAA buffer to the
-        // single-sampled render target. No actually rendering is necessary, it
-        // is taken care of entirely via the render pass mechanisms. This is
-        // a workaround for what appears to be a driver bug in some early Adreno
-        // drivers.
-        m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
     }
 
     m_vk->CmdEndRenderPass(commandBuffer);

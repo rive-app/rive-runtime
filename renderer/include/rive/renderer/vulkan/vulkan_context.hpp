@@ -110,6 +110,11 @@ public:
 
     VmaAllocator allocator() const { return m_vmaAllocator; }
 
+    const VkPhysicalDeviceProperties& physicalDeviceProperties() const
+    {
+        return m_physicalDeviceProperties;
+    }
+
     bool isFormatSupportedWithFeatureFlags(VkFormat, VkFormatFeatureFlagBits);
     bool supportsD24S8() const { return m_supportsD24S8; }
 
@@ -193,6 +198,8 @@ public:
 
 private:
     const VmaAllocator m_vmaAllocator;
+
+    VkPhysicalDeviceProperties m_physicalDeviceProperties;
 
     // Vulkan spec: must support one of D24S8 and D32S8.
     bool m_supportsD24S8 = false;

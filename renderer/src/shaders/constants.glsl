@@ -251,6 +251,7 @@
 #define VULKAN_VENDOR_ARM 0x13B5u
 #define VULKAN_VENDOR_QUALCOMM 0x5143u
 #define VULKAN_VENDOR_INTEL 0x8086u
+#define VULKAN_VENDOR_SAMSUNG 0x144d
 
 // Indices for SPIRV specialization constants (used in lieu of #defines in
 // Vulkan.)

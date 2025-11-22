@@ -318,12 +318,16 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     // MSAA render passes get initialized by drawing the
                     // previous contents into the framebuffer.
                     // (LoadAction::preserveRenderTarget only.)
-                    vertCode = spirv::copy_attachment_to_attachment_vert;
+                    vertCode = spirv::draw_fullscreen_quad_vert;
                     fragCode = spirv::copy_attachment_to_attachment_frag;
                     break;
 
-                case DrawType::imageRect:
                 case DrawType::renderPassResolve:
+                    vertCode = spirv::draw_fullscreen_quad_vert;
+                    fragCode = spirv::draw_msaa_resolve_frag;
+                    break;
+
+                case DrawType::imageRect:
                     RIVE_UNREACHABLE();
             }
             break;

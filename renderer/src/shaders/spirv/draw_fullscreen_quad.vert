@@ -3,4 +3,4 @@
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "common.minified.glsl"
-#include "copy_attachment_to_attachment.minified.glsl"
+#include "draw_fullscreen_quad.minified.vert"

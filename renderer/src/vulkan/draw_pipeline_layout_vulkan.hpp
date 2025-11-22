@@ -37,9 +37,13 @@ public:
         // texture bound as an input attachment, because the final render target
         // itself can't be bound as an input attachment.
         msaaSeedFromOffscreenTexture = 1 << 2,
+
+        // MSAA will be resolved manually in a shader instead of setting up the
+        // render pass with a resolve attachment.
+        msaaManualResolve = 1 << 3,
     };
 
-    constexpr static int OPTION_COUNT = 3;
+    constexpr static int OPTION_COUNT = 4;
 
     DrawPipelineLayoutVulkan(PipelineManagerVulkan*,
                              gpu::InterlockMode,
