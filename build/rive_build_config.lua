@@ -145,13 +145,6 @@ if _OPTIONS['with_optick'] then
     RIVE_OPTICK_VERSION = '1.4.0.0'
 end 
 
--- Optional sysroot for cross builds (primarily Linux)
-newoption({
-    trigger = 'sysroot',
-    value = 'PATH',
-    description = 'Path to a sysroot for cross-compiling (adds --sysroot=PATH to compile and link options)',
-})
-
 -- Optional pthread enabling (used e.g. for Emscripten wagyu builds)
 newoption({
     trigger = 'with_pthread',
@@ -582,18 +575,15 @@ if os.target() == 'linux' then
     if _OPTIONS['arch'] == 'x64' and host_arch ~= 'x86_64' then
         buildoptions({ '--target=x86_64-linux-gnu' })
         linkoptions({ '--target=x86_64-linux-gnu' })
+    elseif _OPTIONS['arch'] == 'x86' and host_arch ~= 'i686' and host_arch ~= 'i386' then
+        buildoptions({ '--target=i686-linux-gnu' })
+        linkoptions({ '--target=i686-linux-gnu' })
     elseif _OPTIONS['arch'] == 'arm64' and host_arch ~= 'aarch64' then
         buildoptions({ '--target=aarch64-linux-gnu' })
         linkoptions({ '--target=aarch64-linux-gnu' })
     elseif _OPTIONS['arch'] == 'arm' and not host_arch:match('arm') then
         buildoptions({ '--target=arm-linux-gnueabihf' })
         linkoptions({ '--target=arm-linux-gnueabihf' })
-    end
-
-    -- Optional sysroot
-    if _OPTIONS['sysroot'] ~= nil then
-        buildoptions({ '--sysroot=' .. _OPTIONS['sysroot'] })
-        linkoptions({ '--sysroot=' .. _OPTIONS['sysroot'] })
     end
 end
 
