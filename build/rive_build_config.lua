@@ -565,6 +565,15 @@ end
 
 filter({})
 
+-- Always build position independent code on Linux
+-- Ensures static libs can link into shared objects without relocation errors.
+filter({ 'system:linux' })
+do
+    pic('on')
+    buildoptions({ '-fPIC' })
+    linkoptions({ '-fPIC' })
+end
+
 -- Cross-compilation helpers for Linux. When targeting a Linux architecture that does not match
 -- the host, add an explicit target triple so clang uses the correct backend. Optionally honor a
 -- provided --sysroot for both compilation and linking.
