@@ -6,9 +6,7 @@ namespace rive
 {
 class TransitionValueArtboardComparator
     : public TransitionValueArtboardComparatorBase
-{
-public:
-};
+{};
 } // namespace rive
 
 #endif

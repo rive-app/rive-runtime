@@ -12,10 +12,6 @@ class TransitionPropertyViewModelComparator
 public:
     ~TransitionPropertyViewModelComparator();
     StatusCode import(ImportStack& importStack) override;
-    bool compare(TransitionComparator* comparand,
-                 TransitionConditionOp operation,
-                 const StateMachineInstance* stateMachineInstance,
-                 StateMachineLayerInstance* layerInstance) override;
     template <typename T = BindableProperty, typename U>
     U value(const StateMachineInstance* stateMachineInstance)
     {
@@ -31,10 +27,9 @@ public:
         }
         return T::defaultValue;
     };
-    float valueToFloat(const StateMachineInstance* stateMachineInstance);
     void useInLayer(const StateMachineInstance* stateMachineInstance,
                     StateMachineLayerInstance* layerInstance) const override;
-    DataType instanceDataType(const StateMachineInstance* stateMachineInstance);
+    BindableProperty* bindableProperty() { return m_bindableProperty; }
 
 protected:
     BindableProperty* m_bindableProperty;

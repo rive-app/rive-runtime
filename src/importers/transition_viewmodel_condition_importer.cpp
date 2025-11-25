@@ -15,3 +15,9 @@ void TransitionViewModelConditionImporter::setComparator(
 {
     m_TransitionViewModelCondition->comparator(comparator);
 }
+
+StatusCode TransitionViewModelConditionImporter::resolve()
+{
+    m_TransitionViewModelCondition->initialize();
+    return StatusCode::Ok;
+}
