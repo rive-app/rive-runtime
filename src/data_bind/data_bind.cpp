@@ -259,6 +259,10 @@ void DataBind::bind()
         default:
             break;
     }
+    if (m_dataConverter)
+    {
+        m_dataConverter->reset();
+    }
     addDirt(ComponentDirt::Bindings, true);
 }
 

@@ -92,6 +92,7 @@ bool InterpolatorAdvancer::advance(float elapsedTime)
     }
     auto prevTime = animationData->elapsedSeconds;
     advanceAnimationData(elapsedTime);
+
     if (prevTime < m_converter->duration())
     {
         m_converter->markConverterDirty();
@@ -101,21 +102,6 @@ bool InterpolatorAdvancer::advance(float elapsedTime)
         return true;
     }
     return false;
-}
-
-void DataConverterInterpolator::initialize(DataType inputType)
-{
-    switch (inputType)
-    {
-        case DataType::number:
-            startAdvancer<DataValueNumber>();
-            break;
-        case DataType::color:
-            startAdvancer<DataValueColor>();
-            break;
-        default:
-            break;
-    }
 }
 
 DataConverterInterpolator::~DataConverterInterpolator()
@@ -141,16 +127,16 @@ void DataConverterInterpolator::interpolator(KeyFrameInterpolator* interpolator)
 
 bool DataConverterInterpolator::advance(float elapsedTime)
 {
-    if (m_output == nullptr)
-    {
-        return false;
-    }
     // Advance can be called multiple times in a single frame.
     // We want to make sure that two advances with time > 0 have elapsed before
     // considering the state as second frame.
-    if (m_advanceCount < 2)
+    if (m_advanceCount < 2 && elapsedTime > 0)
     {
         m_advanceCount++;
+    }
+    if (!m_advancer.initialized())
+    {
+        return true;
     }
     return m_advancer.advance(elapsedTime);
 }
@@ -158,6 +144,21 @@ bool DataConverterInterpolator::advance(float elapsedTime)
 DataValue* DataConverterInterpolator::convert(DataValue* input,
                                               DataBind* dataBind)
 {
+    if (!m_advancer.initialized())
+    {
+        if (input->is<DataValueNumber>())
+        {
+            startAdvancer<DataValueNumber>();
+        }
+        else if (input->is<DataValueColor>())
+        {
+            startAdvancer<DataValueColor>();
+        }
+        else
+        {
+            return input;
+        }
+    }
     if (m_output != nullptr &&
         (input->is<DataValueNumber>() || input->is<DataValueColor>()))
     {
@@ -173,6 +174,12 @@ DataValue* DataConverterInterpolator::convert(DataValue* input,
         return m_output;
     }
     return input;
+}
+
+void DataConverterInterpolator::reset()
+{
+    m_advanceCount = 0;
+    m_advancer.reset();
 }
 
 DataValue* DataConverterInterpolator::reverseConvert(DataValue* input,

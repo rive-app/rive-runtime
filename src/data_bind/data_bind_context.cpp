@@ -53,7 +53,6 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
         if (m_dataConverter != nullptr)
         {
             m_dataConverter->bindFromContext(dataContext, this);
-            m_dataConverter->initialize(sourceOutputType());
         }
     }
 }

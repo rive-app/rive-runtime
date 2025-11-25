@@ -28,6 +28,7 @@ public:
     }
     void dispose()
     {
+        elapsedSeconds = 0;
         if (from != nullptr)
         {
             delete from;
@@ -44,12 +45,14 @@ public:
     template <typename T = DataValue>
     void initialize(DataConverterInterpolator* converter)
     {
+        m_initialized = true;
         m_converter = converter;
 
         m_animationDataA.initialize<T>();
         m_animationDataB.initialize<T>();
         m_currentValue = new T();
     }
+    bool initialized() { return m_initialized; }
     void dispose();
     void resetValues(DataValue* input)
     {
@@ -57,6 +60,12 @@ public:
         input->copyValue(animationData->from);
         input->copyValue(animationData->to);
         input->copyValue(m_currentValue);
+    }
+    void reset()
+    {
+        dispose();
+        m_isSmoothingAnimation = false;
+        m_initialized = false;
     }
     void updateValues(DataValue* input)
     {
@@ -93,6 +102,7 @@ private:
     InterpolatorAnimationData m_animationDataB;
     InterpolatorAnimationData* currentAnimationData();
     bool m_isSmoothingAnimation = false;
+    bool m_initialized = false;
     DataValue* m_currentValue = nullptr;
     DataConverterInterpolator* m_converter = nullptr;
 };
@@ -110,14 +120,18 @@ public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
     bool advance(float elapsedTime) override;
+    void reset() override;
     void copy(const DataConverterInterpolatorBase& object);
     void durationChanged() override;
     template <typename T = DataValue> void startAdvancer()
     {
+        if (m_output != nullptr)
+        {
+            delete m_output;
+        }
         m_output = new T();
         m_advancer.initialize<T>(this);
     }
-    void initialize(DataType inputType) override;
 
 private:
     DataValue* m_output = nullptr;

@@ -22,7 +22,6 @@ public:
     };
     virtual DataType outputType() { return DataType::none; };
     virtual void bindFromContext(DataContext* dataContext, DataBind* dataBind);
-    virtual void initialize(DataType inputType) {}
     virtual void unbind();
     StatusCode import(ImportStack& importStack) override;
     void markConverterDirty();
@@ -30,6 +29,7 @@ public:
     void copy(const DataConverter& object);
     virtual bool advance(float elapsedTime);
     void addDirtyDataBind(DataBind*) override;
+    virtual void reset() {};
 
 protected:
     DataBind* m_parentDataBind;
