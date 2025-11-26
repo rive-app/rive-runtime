@@ -172,27 +172,17 @@ void TrimPath::trimPath(const RawPath* source, ShapePaintType shapePaintType)
 
 void TrimPath::invalidateEffect()
 {
-    invalidateTrim();
+    StrokeEffect::invalidateEffect();
+    m_path.rewind();
     // This is usually sent when the path is changed so we need to also
     // invalidate the contours, not just the trim effect.
     m_contours.clear();
 }
 
-void TrimPath::invalidateTrim()
-{
-    m_path.rewind();
-    if (parent() != nullptr)
-    {
-        auto stroke = parent()->as<ShapePaint>();
-        stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateEffects(this);
-    }
-}
-
-void TrimPath::startChanged() { invalidateTrim(); }
-void TrimPath::endChanged() { invalidateTrim(); }
-void TrimPath::offsetChanged() { invalidateTrim(); }
-void TrimPath::modeValueChanged() { invalidateTrim(); }
+void TrimPath::startChanged() { invalidateEffectFromLocal(); }
+void TrimPath::endChanged() { invalidateEffectFromLocal(); }
+void TrimPath::offsetChanged() { invalidateEffectFromLocal(); }
+void TrimPath::modeValueChanged() { invalidateEffectFromLocal(); }
 
 StatusCode TrimPath::onAddedDirty(CoreContext* context)
 {

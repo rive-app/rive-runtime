@@ -2,6 +2,7 @@
 #define _RIVE_DASH_PATH_HPP_
 #include "rive/generated/shapes/paint/dash_path_base.hpp"
 
+#include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
@@ -47,6 +48,10 @@ public:
                       ShapePaintType shapePaintType) override;
     ShapePaintPath* effectPath() override;
     void invalidateDash() override;
+    ShapePaint* parentPaint() override
+    {
+        return parent() != nullptr ? parent()->as<ShapePaint>() : nullptr;
+    }
 
 private:
     std::vector<Dash*> m_dashes;

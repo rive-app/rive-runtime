@@ -94,17 +94,16 @@ bool ScriptedPathEffect::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
+    if ((flags & AdvanceFlags::AdvanceNested) == 0)
+    {
+        elapsedSeconds = 0;
+    }
     return scriptAdvance(elapsedSeconds);
 }
 
 bool ScriptedPathEffect::addScriptedDirt(ComponentDirt value, bool recurse)
 {
-    if (parent() != nullptr)
-    {
-        auto stroke = parent()->as<ShapePaint>();
-        stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateEffects(this);
-    }
+    invalidateEffectFromLocal();
     return Component::addDirt(value, recurse);
 }
 
@@ -143,8 +142,8 @@ Core* ScriptedPathEffect::clone() const
 
 void ScriptedPathEffect::invalidateEffect()
 {
+    StrokeEffect::invalidateEffect();
     m_path.rewind();
-    addScriptedDirt(ComponentDirt::Paint, true);
 }
 
 void ScriptedPathEffect::markNeedsUpdate()

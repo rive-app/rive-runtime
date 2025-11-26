@@ -3,6 +3,7 @@
 #include "rive/generated/scripted/scripted_path_effect_base.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/advancing_component.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
 #include <stdio.h>
 namespace rive
@@ -43,6 +44,10 @@ public:
     Core* clone() const override;
     void markNeedsUpdate() override;
     Component* component() override { return this; }
+    ShapePaint* parentPaint() override
+    {
+        return parent() != nullptr ? parent()->as<ShapePaint>() : nullptr;
+    }
 
 private:
     ShapePaintPath m_path;

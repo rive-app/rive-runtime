@@ -117,10 +117,14 @@ StatusCode DashPath::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void DashPath::invalidateEffect() { invalidateSourcePath(); }
+void DashPath::invalidateEffect()
+{
+    PathDasher::invalidateDash();
+    StrokeEffect::invalidateEffect();
+}
 
-void DashPath::offsetChanged() { invalidateDash(); }
-void DashPath::offsetIsPercentageChanged() { invalidateDash(); }
+void DashPath::offsetChanged() { invalidateEffectFromLocal(); }
+void DashPath::offsetIsPercentageChanged() { invalidateEffectFromLocal(); }
 
 void DashPath::updateEffect(const ShapePaintPath* source,
                             ShapePaintType shapePaintType)
@@ -145,13 +149,4 @@ void DashPath::updateEffect(const ShapePaintPath* source,
 
 ShapePaintPath* DashPath::effectPath() { return &m_path; }
 
-void DashPath::invalidateDash()
-{
-    PathDasher::invalidateDash();
-    if (parent() != nullptr)
-    {
-        auto stroke = parent()->as<ShapePaint>();
-        stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateEffects(this);
-    }
-}
+void DashPath::invalidateDash() { invalidateEffectFromLocal(); }
