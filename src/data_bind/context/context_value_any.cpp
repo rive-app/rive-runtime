@@ -13,21 +13,23 @@ void DataBindContextValueAny::apply(Core* target,
                                     bool isMainDirection)
 {
     syncSourceValue();
+    auto dataValue =
+        calculateUntypedDataValue(m_dataValue, isMainDirection, m_dataBind);
     switch (CoreRegistry::propertyFieldId(propertyKey))
     {
         case CoreDoubleType::id:
-            if (m_dataValue->is<DataValueNumber>())
+            if (dataValue->is<DataValueNumber>())
             {
                 CoreRegistry::setDouble(
                     target,
                     propertyKey,
-                    m_dataValue->as<DataValueNumber>()->value());
+                    dataValue->as<DataValueNumber>()->value());
             }
             break;
         case CoreUintType::id:
-            if (m_dataValue->is<DataValueNumber>())
+            if (dataValue->is<DataValueNumber>())
             {
-                auto value = m_dataValue->as<DataValueNumber>()->value();
+                auto value = dataValue->as<DataValueNumber>()->value();
                 if (target && target->is<Solo>())
                 {
                     target->as<Solo>()->updateByIndex(
@@ -39,40 +41,40 @@ void DataBindContextValueAny::apply(Core* target,
                     CoreRegistry::setUint(target, propertyKey, rounded);
                 }
             }
-            else if (m_dataValue->is<DataValueString>())
+            else if (dataValue->is<DataValueString>())
             {
                 if (target && target->is<Solo>())
                 {
                     target->as<Solo>()->updateByName(
-                        m_dataValue->as<DataValueString>()->value());
+                        dataValue->as<DataValueString>()->value());
                 }
             }
             break;
         case CoreStringType::id:
-            if (m_dataValue->is<DataValueString>())
+            if (dataValue->is<DataValueString>())
             {
                 CoreRegistry::setString(
                     target,
                     propertyKey,
-                    m_dataValue->as<DataValueString>()->value());
+                    dataValue->as<DataValueString>()->value());
             }
             break;
         case CoreBoolType::id:
-            if (m_dataValue->is<DataValueBoolean>())
+            if (dataValue->is<DataValueBoolean>())
             {
                 CoreRegistry::setBool(
                     target,
                     propertyKey,
-                    m_dataValue->as<DataValueBoolean>()->value());
+                    dataValue->as<DataValueBoolean>()->value());
             }
             break;
         case CoreColorType::id:
-            if (m_dataValue->is<DataValueColor>())
+            if (dataValue->is<DataValueColor>())
             {
                 CoreRegistry::setColor(
                     target,
                     propertyKey,
-                    m_dataValue->as<DataValueColor>()->value());
+                    dataValue->as<DataValueColor>()->value());
             }
             break;
     }

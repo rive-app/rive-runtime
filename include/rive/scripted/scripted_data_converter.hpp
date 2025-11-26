@@ -19,11 +19,29 @@ class ScriptedDataConverter : public ScriptedDataConverterBase,
 {
 private:
     DataContext* m_dataContext = nullptr;
+    DataValue* m_dataValue = nullptr;
+    template <typename T = DataValue> void storeData(DataValue* input)
+    {
+        if (m_dataValue && !m_dataValue->is<T>())
+        {
+            delete m_dataValue;
+        }
+        if (!m_dataValue)
+        {
+            m_dataValue = new T();
+            m_dataValue->as<T>()->value(input->as<T>()->value());
+        }
+    };
+#ifdef WITH_RIVE_SCRIPTING
+    DataValue* applyConversion(DataValue* value, const std::string& method);
+#endif
 
 public:
+    ~ScriptedDataConverter();
 #ifdef WITH_RIVE_SCRIPTING
     bool scriptInit(LuaState* state) override;
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
+    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 #endif
     void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
     DataContext* dataContext() override { return m_dataContext; }

@@ -8,11 +8,20 @@
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
+#include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 
 using namespace rive;
+
+ScriptedDataConverter::~ScriptedDataConverter()
+{
+    if (m_dataValue)
+    {
+        delete m_dataValue;
+    }
+}
 
 #ifdef WITH_RIVE_SCRIPTING
 bool ScriptedDataConverter::scriptInit(LuaState* state)
@@ -22,19 +31,19 @@ bool ScriptedDataConverter::scriptInit(LuaState* state)
     return true;
 }
 
-DataValue* ScriptedDataConverter::convert(DataValue* value, DataBind* dataBind)
+DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
+                                                  const std::string& method)
 {
     if (m_state == nullptr)
     {
         return value;
     }
-    DataValue* dataValueResult = new DataValue();
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, "convert")) !=
+    if (static_cast<lua_Type>(lua_getfield(state, -1, method.c_str())) !=
         LUA_TFUNCTION)
     {
-        fprintf(stderr, "expected convert to be a function\n");
+        fprintf(stderr, "expected %s to be a function\n", method.c_str());
     }
     else
     {
@@ -62,6 +71,14 @@ DataValue* ScriptedDataConverter::convert(DataValue* value, DataBind* dataBind)
                 state,
                 value->as<DataValueBoolean>()->value());
         }
+        else if (value->is<DataValueColor>())
+        {
+            lua_pushvalue(state, -2);
+            lua_newrive<ScriptedDataValueColor>(
+                state,
+                state,
+                value->as<DataValueColor>()->value());
+        }
         if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 1)) != LUA_OK)
         {
             rive_lua_pop(state, 1);
@@ -71,23 +88,39 @@ DataValue* ScriptedDataConverter::convert(DataValue* value, DataBind* dataBind)
             auto result = (ScriptedDataValue*)lua_touserdata(state, -1);
             if (result->isNumber())
             {
-                dataValueResult = new DataValueNumber(
-                    result->dataValue()->as<DataValueNumber>()->value());
+                storeData<DataValueNumber>(result->dataValue());
             }
             else if (result->isString())
             {
-                dataValueResult = new DataValueString(
-                    result->dataValue()->as<DataValueString>()->value());
+                storeData<DataValueString>(result->dataValue());
             }
             else if (result->isBoolean())
             {
-                dataValueResult = new DataValueBoolean(
-                    result->dataValue()->as<DataValueBoolean>()->value());
+                storeData<DataValueBoolean>(result->dataValue());
+            }
+            else if (result->isColor())
+            {
+                storeData<DataValueColor>(result->dataValue());
             }
             rive_lua_pop(state, 2);
         }
     }
-    return dataValueResult;
+    if (!m_dataValue)
+    {
+        m_dataValue = new DataValue();
+    }
+    return m_dataValue;
+}
+
+DataValue* ScriptedDataConverter::convert(DataValue* value, DataBind* dataBind)
+{
+    return applyConversion(value, "convert");
+}
+
+DataValue* ScriptedDataConverter::reverseConvert(DataValue* value,
+                                                 DataBind* dataBind)
+{
+    return applyConversion(value, "reverseConvert");
 }
 #endif
 
