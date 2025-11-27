@@ -44,6 +44,7 @@ public:
     virtual DataContext* dataContext() { return nullptr; }
 #ifdef WITH_RIVE_SCRIPTING
     virtual bool scriptInit(LuaState* state);
+    LuaState* state() { return m_state; }
 #endif
     void scriptDispose();
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;

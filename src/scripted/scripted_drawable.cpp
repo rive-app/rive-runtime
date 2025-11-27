@@ -63,7 +63,7 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
 {
     HitResult hitResult = HitResult::none;
     auto scriptAsset = m_drawable->scriptAsset();
-    auto vm = scriptAsset->vm();
+    auto vm = m_drawable->state();
     if (vm == nullptr || scriptAsset == nullptr ||
         !handlesEvent(canHit, hitType))
     {
