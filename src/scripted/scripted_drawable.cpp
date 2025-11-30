@@ -22,25 +22,37 @@ void ScriptedDrawable::draw(Renderer* renderer)
         return;
     }
     auto state = m_state->state;
-    renderer->save();
-    renderer->transform(worldTransform());
 
-    rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) != LUA_TFUNCTION)
+    ClipResult clipResult = applyClip(renderer);
+    if (clipResult == ClipResult::noClip)
     {
-        fprintf(stderr, "expected draw to be a function\n");
+        // We didn't clip, so make sure to save as we'll be doing some
+        // transformations.
+        renderer->save();
     }
-    else
+    if (clipResult != ClipResult::emptyClip)
     {
-        lua_pushvalue(state, -2);
-        auto scriptedRenderer = lua_newrive<ScriptedRenderer>(state, renderer);
-        if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
+        renderer->transform(worldTransform());
+
+        rive_lua_pushRef(state, m_self);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) !=
+            LUA_TFUNCTION)
         {
-            rive_lua_pop(state, 1);
+            fprintf(stderr, "expected draw to be a function\n");
         }
-        scriptedRenderer->end();
+        else
+        {
+            lua_pushvalue(state, -2);
+            auto scriptedRenderer =
+                lua_newrive<ScriptedRenderer>(state, renderer);
+            if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
+            {
+                rive_lua_pop(state, 1);
+            }
+            scriptedRenderer->end();
+        }
+        rive_lua_pop(state, 1);
     }
-    rive_lua_pop(state, 1);
     renderer->restore();
 }
 
