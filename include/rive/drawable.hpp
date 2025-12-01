@@ -27,6 +27,9 @@ private:
     Drawable* prev = nullptr;
     Drawable* next = nullptr;
 
+protected:
+    bool m_needsSaveOperation = true;
+
 public:
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
     ClipResult applyClip(Renderer* renderer) const;
@@ -55,12 +58,18 @@ public:
     }
 
     virtual bool isProxy() { return false; }
+    virtual bool isClipStart() { return false; }
+    virtual bool isClipEnd() { return false; }
+    virtual bool willDraw();
+    void needsSaveOperation(bool value) { m_needsSaveOperation = value; }
 
     bool isChildOfLayout(LayoutComponent* layout);
 
     StatusCode onAddedDirty(CoreContext* context) override;
 
     virtual Drawable* hittableComponent() { return this; }
+
+    virtual int emptyClipCount() { return 0; }
 };
 
 class ProxyDrawing

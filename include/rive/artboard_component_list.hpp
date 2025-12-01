@@ -59,6 +59,7 @@ public:
     void updateWorldTransform() override;
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
     void draw(Renderer* renderer) override;
+    bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void update(ComponentDirt value) override;
     void updateConstraints() override;

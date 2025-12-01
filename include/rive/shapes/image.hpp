@@ -26,6 +26,7 @@ public:
     void setMesh(MeshDrawable* mesh);
     ImageAsset* imageAsset() const;
     void draw(Renderer* renderer) override;
+    bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     StatusCode import(ImportStack& importStack) override;
     void setAsset(rcp<FileAsset>) override;

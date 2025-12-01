@@ -438,55 +438,29 @@ void ArtboardComponentList::markHostingLayoutDirty(
     markWorldTransformDirty();
 }
 
+bool ArtboardComponentList::willDraw()
+{
+    return Super::willDraw() && m_listItems.size() > 0;
+}
+
 void ArtboardComponentList::draw(Renderer* renderer)
 {
-    if (m_listItems.size() == 0)
+    if (m_needsSaveOperation)
     {
-        return;
-    }
-    ClipResult clipResult = applyClip(renderer);
-    if (clipResult == ClipResult::noClip)
-    {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
         renderer->save();
     }
-    if (clipResult != ClipResult::emptyClip)
+    if (virtualizationEnabled())
     {
-        if (virtualizationEnabled())
+        renderer->transform(
+            parent()->as<WorldTransformComponent>()->worldTransform());
+        if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
         {
-            renderer->transform(
-                parent()->as<WorldTransformComponent>()->worldTransform());
-            if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
-            {
-                // We need to render in the correct order so we get the correct
-                // z-index for items in cases where there is overlap
-                auto startIndex = m_visibleStartIndex % (int)m_listItems.size();
-                auto endIndex = m_visibleEndIndex % (int)m_listItems.size();
-                int i = startIndex;
-                while (true)
-                {
-                    auto artboard = artboardInstance(i);
-                    if (artboard != nullptr)
-                    {
-                        renderer->save();
-                        auto transform = m_artboardTransforms[artboard];
-                        renderer->transform(transform);
-                        artboard->draw(renderer);
-                        renderer->restore();
-                    }
-                    if (i == endIndex)
-                    {
-                        break;
-                    }
-                    i = (i + 1) % m_listItems.size();
-                }
-            }
-        }
-        else
-        {
-            renderer->transform(worldTransform());
-            for (int i = 0; i < artboardCount(); i++)
+            // We need to render in the correct order so we get the correct
+            // z-index for items in cases where there is overlap
+            auto startIndex = m_visibleStartIndex % (int)m_listItems.size();
+            auto endIndex = m_visibleEndIndex % (int)m_listItems.size();
+            int i = startIndex;
+            while (true)
             {
                 auto artboard = artboardInstance(i);
                 if (artboard != nullptr)
@@ -497,10 +471,34 @@ void ArtboardComponentList::draw(Renderer* renderer)
                     artboard->draw(renderer);
                     renderer->restore();
                 }
+                if (i == endIndex)
+                {
+                    break;
+                }
+                i = (i + 1) % m_listItems.size();
             }
         }
     }
-    renderer->restore();
+    else
+    {
+        renderer->transform(worldTransform());
+        for (int i = 0; i < artboardCount(); i++)
+        {
+            auto artboard = artboardInstance(i);
+            if (artboard != nullptr)
+            {
+                renderer->save();
+                auto transform = m_artboardTransforms[artboard];
+                renderer->transform(transform);
+                artboard->draw(renderer);
+                renderer->restore();
+            }
+        }
+    }
+    if (m_needsSaveOperation)
+    {
+        renderer->restore();
+    }
 }
 
 Core* ArtboardComponentList::hitTest(HitInfo*, const Mat2D&) { return nullptr; }

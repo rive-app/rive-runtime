@@ -32,33 +32,24 @@ const Mat2D& TextInputDrawable::shapeWorldTransform() const
 
 void TextInputDrawable::draw(Renderer* renderer)
 {
-    if (renderOpacity() == 0.0f)
+    for (auto shapePaint : m_ShapePaints)
     {
-        return;
-    }
-    ClipResult clipResult = applyClip(renderer);
-
-    if (clipResult != ClipResult::emptyClip)
-    {
-        for (auto shapePaint : m_ShapePaints)
+        if (!shapePaint->isVisible())
         {
-            if (!shapePaint->isVisible())
-            {
-                continue;
-            }
-            auto shapePaintPath = shapePaint->pickPath(this);
-            if (shapePaintPath == nullptr)
-            {
-                continue;
-            }
-            shapePaint->draw(renderer,
-                             shapePaintPath,
-                             textInput()->worldTransform());
+            continue;
         }
+        auto shapePaintPath = shapePaint->pickPath(this);
+        if (shapePaintPath == nullptr)
+        {
+            continue;
+        }
+        shapePaint->draw(renderer,
+                         shapePaintPath,
+                         textInput()->worldTransform());
     }
+}
 
-    if (clipResult != ClipResult::noClip)
-    {
-        renderer->restore();
-    }
+bool TextInputDrawable::willDraw()
+{
+    return Super::willDraw() && renderOpacity() != 0.0f;
 }

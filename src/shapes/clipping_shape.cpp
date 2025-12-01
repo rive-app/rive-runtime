@@ -9,6 +9,76 @@
 
 using namespace rive;
 
+void ClippingShapeStart::draw(Renderer* renderer, bool needsSaveOperation)
+{
+    if (!m_clippingShape->isVisible())
+    {
+        return;
+    }
+    if (needsSaveOperation)
+    {
+
+        renderer->save();
+    }
+    if (m_clippingShape)
+    {
+        ShapePaintPath* path = m_clippingShape->path();
+        if (!path)
+        {
+            return;
+        }
+        RenderPath* renderPath = path->renderPath(m_clippingShape);
+        renderer->clipPath(renderPath);
+    }
+}
+
+int ClippingShapeStart::emptyClipCount()
+{
+    if (m_clippingShape && m_clippingShape->isVisible())
+    {
+        ShapePaintPath* path = m_clippingShape->path();
+        if (!path)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int ClippingShapeEnd::emptyClipCount()
+{
+    if (m_clippingShape && m_clippingShape->isVisible())
+    {
+        ShapePaintPath* path = m_clippingShape->path();
+        if (!path)
+        {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+void ClippingShapeEnd::draw(Renderer* renderer, bool needsSaveOperation)
+{
+    if (!m_clippingShape->isVisible() || !needsSaveOperation)
+    {
+        return;
+    }
+    renderer->restore();
+}
+
+ClippingShape::~ClippingShape()
+{
+    for (auto& proxy : m_proxyDrawables)
+    {
+        delete proxy;
+    }
+    for (auto& proxy : m_pooledProxyDrawables)
+    {
+        delete proxy;
+    }
+}
+
 StatusCode ClippingShape::onAddedClean(CoreContext* context)
 {
     auto clippingHolder = parent();
@@ -83,6 +153,8 @@ void ClippingShape::buildDependencies()
     {
         shape->pathComposer()->addDependent(this);
     }
+    clipStart.clippingShape(this);
+    clipEnd.clippingShape(this);
 }
 
 static Mat2D identity;

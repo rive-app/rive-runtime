@@ -75,6 +75,8 @@ ClipResult Drawable::applyClip(Renderer* renderer) const
     return ClipResult::clip;
 }
 
+bool Drawable::willDraw() { return !isHidden(); }
+
 bool Drawable::isChildOfLayout(LayoutComponent* layout)
 {
     for (ContainerComponent* parent = this; parent != nullptr;

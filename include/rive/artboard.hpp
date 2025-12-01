@@ -75,6 +75,7 @@ private:
     std::vector<StateMachine*> m_StateMachines;
     std::vector<Component*> m_DependencyOrder;
     std::vector<Drawable*> m_Drawables;
+    std::vector<ClippingShape*> m_clippingShapes;
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<ArtboardComponentList*> m_ComponentLists;
@@ -121,6 +122,7 @@ private:
 
     void sortDependencies();
     void sortDrawOrder();
+    void clearRedundantOperations(Drawable* drawable);
     void updateRenderPath() override;
     void update(ComponentDirt value) override;
 

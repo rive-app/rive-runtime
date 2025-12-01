@@ -42,6 +42,7 @@ public:
 
     void update(ComponentDirt value) override;
     void draw(Renderer* renderer) override;
+    bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
 
     const PathComposer* pathComposer() const { return &m_PathComposer; }

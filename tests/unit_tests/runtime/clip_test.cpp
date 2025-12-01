@@ -6,7 +6,11 @@
 #include <rive/shapes/shape.hpp>
 #include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <catch.hpp>
+
+using namespace rive;
 
 TEST_CASE("clipping loads correctly", "[clipping]")
 {
@@ -161,4 +165,36 @@ TEST_CASE("Shape returns an empty clip when one clipping shape is empty",
     rive::NoOpRenderer renderer;
     auto clipResult = shape->applyClip(&renderer);
     REQUIRE(clipResult == rive::ClipResult::emptyClip);
+}
+
+TEST_CASE("Apply clipping to elements that are moved outside their hierarchy",
+          "[clipping]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/clipping_and_draw_order.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.16f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("clipping_and_draw_order"));
 }

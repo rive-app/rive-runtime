@@ -157,23 +157,21 @@ static Mat2D makeTranslate(const Artboard* artboard)
 
 void NestedArtboard::draw(Renderer* renderer)
 {
-    if (m_Artboard == nullptr)
+    if (m_needsSaveOperation)
     {
-        return;
-    }
-    ClipResult clipResult = applyClip(renderer);
-    if (clipResult == ClipResult::noClip)
-    {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
         renderer->save();
     }
-    if (clipResult != ClipResult::emptyClip)
+    renderer->transform(worldTransform());
+    m_Artboard->draw(renderer);
+    if (m_needsSaveOperation)
     {
-        renderer->transform(worldTransform());
-        m_Artboard->draw(renderer);
+        renderer->restore();
     }
-    renderer->restore();
+}
+
+bool NestedArtboard::willDraw()
+{
+    return Super::willDraw() && m_Artboard != nullptr;
 }
 
 Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
