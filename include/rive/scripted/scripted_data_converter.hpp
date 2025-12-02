@@ -29,8 +29,8 @@ private:
         if (!m_dataValue)
         {
             m_dataValue = new T();
-            m_dataValue->as<T>()->value(input->as<T>()->value());
         }
+        m_dataValue->as<T>()->value(input->as<T>()->value());
     };
 #ifdef WITH_RIVE_SCRIPTING
     DataValue* applyConversion(DataValue* value, const std::string& method);
