@@ -17,43 +17,34 @@ bool ScriptedDrawable::scriptInit(LuaState* state)
 
 void ScriptedDrawable::draw(Renderer* renderer)
 {
-    if (m_state == nullptr || !draws())
-    {
-        return;
-    }
     auto state = m_state->state;
 
-    ClipResult clipResult = applyClip(renderer);
-    if (clipResult == ClipResult::noClip)
+    if (m_needsSaveOperation)
     {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
         renderer->save();
     }
-    if (clipResult != ClipResult::emptyClip)
-    {
-        renderer->transform(worldTransform());
+    renderer->transform(worldTransform());
 
-        rive_lua_pushRef(state, m_self);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) !=
-            LUA_TFUNCTION)
-        {
-            fprintf(stderr, "expected draw to be a function\n");
-        }
-        else
-        {
-            lua_pushvalue(state, -2);
-            auto scriptedRenderer =
-                lua_newrive<ScriptedRenderer>(state, renderer);
-            if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
-            {
-                rive_lua_pop(state, 1);
-            }
-            scriptedRenderer->end();
-        }
-        rive_lua_pop(state, 1);
+    rive_lua_pushRef(state, m_self);
+    if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) != LUA_TFUNCTION)
+    {
+        fprintf(stderr, "expected draw to be a function\n");
     }
-    renderer->restore();
+    else
+    {
+        lua_pushvalue(state, -2);
+        auto scriptedRenderer = lua_newrive<ScriptedRenderer>(state, renderer);
+        if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
+        {
+            rive_lua_pop(state, 1);
+        }
+        scriptedRenderer->end();
+    }
+    rive_lua_pop(state, 1);
+    if (m_needsSaveOperation)
+    {
+        renderer->restore();
+    }
 }
 
 std::vector<HitComponent*> ScriptedDrawable::hitComponents(
@@ -111,6 +102,12 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     rive_lua_pop(state, 1);
     return hitResult;
 }
+
+bool ScriptedDrawable::willDraw()
+{
+    return Super::willDraw() && m_state != nullptr && draws();
+}
+
 #else
 void ScriptedDrawable::draw(Renderer* renderer) {}
 
@@ -128,6 +125,9 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
 {
     return HitResult::none;
 }
+
+bool ScriptedDrawable::willDraw() { return Super::willDraw() && draws(); }
+
 #endif
 
 void ScriptedDrawable::update(ComponentDirt value)

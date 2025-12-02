@@ -104,69 +104,6 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
     }
 }
 
-TEST_CASE("Shape does not have any clipping paths visible", "[clipping]")
-{
-    ClippingFactory factory;
-    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
-
-    auto artboard = file->artboard("Empty-Shape");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    auto node = artboard->find("Ellipse-clipper");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
-    rive::Shape* shape = static_cast<rive::Shape*>(node);
-    REQUIRE(shape->isEmpty() == true);
-    auto clippedNode = artboard->find("Rectangle-clipped");
-    REQUIRE(clippedNode != nullptr);
-    REQUIRE(clippedNode->is<rive::Shape>());
-    rive::Shape* clippedShape = static_cast<rive::Shape*>(clippedNode);
-    rive::NoOpRenderer renderer;
-    auto clipResult = clippedShape->applyClip(&renderer);
-    REQUIRE(clipResult == rive::ClipResult::emptyClip);
-}
-
-TEST_CASE("Shape has at least a clipping path visible", "[clipping]")
-{
-    ClippingFactory factory;
-    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
-
-    auto artboard = file->artboard("Hidden-Path-Visible-Path");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    auto node = artboard->find("Ellipse-clipper");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
-    rive::Shape* shape = static_cast<rive::Shape*>(node);
-    REQUIRE(shape->isEmpty() == false);
-    auto clippedNode = artboard->find("Rectangle-clipped");
-    REQUIRE(clippedNode != nullptr);
-    REQUIRE(clippedNode->is<rive::Shape>());
-    rive::Shape* clippedShape = static_cast<rive::Shape*>(clippedNode);
-    rive::NoOpRenderer renderer;
-    auto clipResult = clippedShape->applyClip(&renderer);
-    REQUIRE(clipResult == rive::ClipResult::clip);
-}
-
-TEST_CASE("Shape returns an empty clip when one clipping shape is empty",
-          "[clipping]")
-{
-    ClippingFactory factory;
-    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
-
-    auto artboard = file->artboard("One-Clipping-Shape-Visible-One-Hidden");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    auto node = artboard->find("Rectangle-clipped");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
-    rive::Shape* shape = static_cast<rive::Shape*>(node);
-
-    rive::NoOpRenderer renderer;
-    auto clipResult = shape->applyClip(&renderer);
-    REQUIRE(clipResult == rive::ClipResult::emptyClip);
-}
-
 TEST_CASE("Apply clipping to elements that are moved outside their hierarchy",
           "[clipping]")
 {

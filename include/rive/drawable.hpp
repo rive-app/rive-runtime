@@ -32,7 +32,6 @@ protected:
 
 public:
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
-    ClipResult applyClip(Renderer* renderer) const;
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
     bool hitTestPoint(const Vec2D& position,
