@@ -613,6 +613,23 @@ void TransitionViewModelCondition::initialize()
                                 rightBindableProperty
                                     ->as<BindablePropertyInteger>());
                         m_comparison =
+                            new ConditionComparisonUint32(leftComparand,
+                                                          rightComparand,
+                                                          operation(op()));
+                        return;
+                    }
+                    else if (rightBindableProperty
+                                 ->is<BindablePropertyNumber>())
+                    {
+                        auto leftComparand =
+                            new ConditionComparandNumberBindableInteger(
+                                leftBindableProperty
+                                    ->as<BindablePropertyInteger>());
+                        auto rightComparand =
+                            new ConditionComparandNumberBindable(
+                                rightBindableProperty
+                                    ->as<BindablePropertyNumber>());
+                        m_comparison =
                             new ConditionComparisonNumber(leftComparand,
                                                           rightComparand,
                                                           operation(op()));
@@ -622,8 +639,10 @@ void TransitionViewModelCondition::initialize()
                 else if (rightComparator()
                              ->is<TransitionValueNumberComparator>())
                 {
-                    auto leftComparand = new ConditionComparandIntegerBindable(
-                        leftBindableProperty->as<BindablePropertyInteger>());
+                    auto leftComparand =
+                        new ConditionComparandNumberBindableInteger(
+                            leftBindableProperty
+                                ->as<BindablePropertyInteger>());
                     auto rightComparand = new ConditionComparandNumberValue(
                         rightComparator()
                             ->as<TransitionValueNumberComparator>());

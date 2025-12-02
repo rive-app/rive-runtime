@@ -17,7 +17,10 @@
 #include <rive/shapes/shape.hpp>
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
 #include <cstdio>
+
+using namespace rive;
 
 TEST_CASE("file with state machine be read", "[file]")
 {
@@ -501,4 +504,27 @@ TEST_CASE("Triggers will only be used on allowed state changes.", "[file]")
     REQUIRE(currentLayerState == animationState1);
 
     delete stateMachineInstance;
+}
+
+TEST_CASE("Transition with list index can be compared to a number", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/transition_index_condition.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("transition_index_condition"));
 }

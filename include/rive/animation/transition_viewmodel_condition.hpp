@@ -447,19 +447,19 @@ public:
 private:
     TransitionValueTriggerComparator* m_value;
 };
-class ConditionComparandIntegerBindable : public ConditionComparandNumber
+class ConditionComparandIntegerBindable : public ConditionComparandUint32
 {
 public:
     ConditionComparandIntegerBindable(BindablePropertyInteger* property) :
         m_bindableProperty(property)
     {}
-    float value(const StateMachineInstance* stateMachineInstance) override
+    uint32_t value(const StateMachineInstance* stateMachineInstance) override
     {
         auto bindableInstance =
             stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
         if (bindableInstance)
         {
-            return (float)bindableInstance->as<BindablePropertyInteger>()
+            return bindableInstance->as<BindablePropertyInteger>()
                 ->propertyValue();
         }
         return 0;
