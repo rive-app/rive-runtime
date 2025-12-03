@@ -228,7 +228,7 @@ bool ArtboardComponentList ::listsAreEqual(
 void ArtboardComponentList::updateList(
     std::vector<rcp<ViewModelInstanceListItem>>* list)
 {
-    if (listsAreEqual(&m_oldItems, list))
+    if (listsAreEqual(&m_listItems, list))
     {
         return;
     }

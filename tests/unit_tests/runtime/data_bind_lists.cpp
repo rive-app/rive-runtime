@@ -5,6 +5,7 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -96,4 +97,44 @@ TEST_CASE("data bind list with number to list and lists children", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("number_to_list_nested_children"));
+}
+
+TEST_CASE("Test that adding and removing an item updates the list", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/list_items.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto lis1 = vmi->propertyValue("lis1")->as<ViewModelInstanceList>();
+
+    auto vmChild = file->viewModel("child");
+    auto vmiChild1 = file->createViewModelInstance(vmChild);
+    vmiChild1->propertyValue("label")
+        ->as<ViewModelInstanceString>()
+        ->propertyValue("test");
+    auto vmiChildListItem = make_rcp<ViewModelInstanceListItem>();
+    vmiChildListItem->viewModelInstance(vmiChild1);
+    lis1->addItem(vmiChildListItem);
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    lis1->removeItem(vmiChildListItem);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("list_items"));
 }
