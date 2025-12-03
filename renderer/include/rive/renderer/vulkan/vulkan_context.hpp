@@ -31,7 +31,7 @@ struct VulkanFeatures
     bool fragmentShaderPixelInterlock = false;
 
     // Indicates a nonconformant driver, like MoltenVK.
-    bool VK_KHR_portability_subset;
+    bool VK_KHR_portability_subset = false;
 };
 
 // Wraps a VkDevice, function dispatch table, and VMA library instance.

@@ -674,7 +674,6 @@ private:
 
 RenderContextVulkanImpl::RenderContextVulkanImpl(
     rcp<VulkanContext> vk,
-    const VkPhysicalDeviceProperties& physicalDeviceProps,
     const ContextOptions& contextOptions) :
     m_vk(std::move(vk)),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
@@ -688,6 +687,8 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_triangleBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_descriptorSetPoolPool(make_rcp<DescriptorSetPoolPool>(m_vk))
 {
+    const auto& physicalDeviceProps = m_vk->physicalDeviceProperties();
+
     m_platformFeatures.supportsRasterOrderingMode =
         !contextOptions.forceAtomicMode &&
         m_vk->features.rasterizationOrderColorAttachmentAccess;
@@ -787,8 +788,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 }
 
 void RenderContextVulkanImpl::initGPUObjects(
-    ShaderCompilationMode shaderCompilationMode,
-    uint32_t vendorID)
+    ShaderCompilationMode shaderCompilationMode)
 {
     // Bound when there is not an image paint.
     constexpr static uint8_t black[] = {0, 0, 0, 1};
@@ -800,10 +800,28 @@ void RenderContextVulkanImpl::initGPUObjects(
         "null image texture");
     m_nullImageTexture->scheduleUpload(black, sizeof(black));
 
+    if (strstr(m_vk->physicalDeviceProperties().deviceName, "Adreno (TM) 8") !=
+        nullptr)
+    {
+        // The Adreno 8s (at least on the Galaxy S25) have a strange
+        // synchronization issue around our tesselation texture, where the
+        // barriers appear to not work properly (leading to tesselation texture
+        // corruption, even across frames).
+        // We can do a blit to a 1x1 texture, however, which seems to make the
+        // synchronization play nice.
+        m_tesselationSyncIssueWorkaroundTexture = m_vk->makeTexture2D(
+            {
+                .format = VK_FORMAT_R8G8B8A8_UINT,
+                .extent = {1, 1},
+                .usage = VK_IMAGE_USAGE_SAMPLED_BIT |
+                         VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            },
+            "tesselation sync bug workaround texture");
+    }
+
     m_pipelineManager = std::make_unique<PipelineManagerVulkan>(
         m_vk,
         shaderCompilationMode,
-        vendorID,
         m_nullImageTexture->vkImageView());
 
     // The pipelines reference our vulkan objects. Delete them first.
@@ -955,12 +973,21 @@ void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
     width = std::max(width, 1u);
     height = std::max(height, 1u);
 
+    VkImageUsageFlags usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    // If we are doing the Adreno synchronization workaround we also need the
+    // TRANSFER_SRC bit
+    if (m_tesselationSyncIssueWorkaroundTexture != nullptr)
+    {
+        usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+
     m_tessTexture = m_vk->makeTexture2D(
         {
             .format = VK_FORMAT_R32G32B32A32_UINT,
             .extent = {width, height},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_SAMPLED_BIT,
+            .usage = usage,
         },
         "tesselation texture");
 
@@ -1746,6 +1773,54 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
         m_tessTexture->lastAccess().layout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        if (m_tesselationSyncIssueWorkaroundTexture != nullptr)
+        {
+            // On the Adreno 8xx series drivers we've encountered, there is some
+            // sort of synchronization issue with the tesselation texture that
+            // causes the barriers to not work, and it ends up being corrupted.
+            // However, if we first just blit it to an offscreen texture (just a
+            // 1x1 texture), the render corruption goes away.
+            m_tessTexture->barrier(
+                commandBuffer,
+                {
+                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                });
+
+            // We need this transition but really only one time (if we haven't
+            // done so already)
+            if (m_tesselationSyncIssueWorkaroundTexture->lastAccess().layout !=
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+            {
+                m_tesselationSyncIssueWorkaroundTexture->barrier(
+                    commandBuffer,
+                    {
+                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    },
+                    vkutil::ImageAccessAction::invalidateContents);
+            }
+
+            m_vk->blitSubRect(
+                commandBuffer,
+                m_tessTexture->vkImage(),
+                VK_IMAGE_LAYOUT_GENERAL,
+                m_tesselationSyncIssueWorkaroundTexture->vkImage(),
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                IAABB::MakeWH(
+                    m_tesselationSyncIssueWorkaroundTexture->width(),
+                    m_tesselationSyncIssueWorkaroundTexture->height()));
+
+            // NOTE: Technically there should be a barrier after this blit to
+            // prevent a write-after-write hazard. However, we don't use this
+            // texture at all and thus don't care if we overwrite it, so there
+            // is intentionally no barrier here...but you will get a failure on
+            // this texture if you enable synchronization validation on a device
+            // with the workaround enabled.
+        }
     }
 
     // Ensure the tessellation texture has finished rendering before the path
@@ -2909,22 +2984,28 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
                                                     device,
                                                     features,
                                                     pfnvkGetInstanceProcAddr);
-    VkPhysicalDeviceProperties physicalDeviceProps;
-    vk->GetPhysicalDeviceProperties(vk->physicalDevice, &physicalDeviceProps);
+
+    if (vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_1)
+    {
+        fprintf(
+            stderr,
+            "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.1.\n");
+        return nullptr;
+    }
+
     std::unique_ptr<RenderContextVulkanImpl> impl(
-        new RenderContextVulkanImpl(std::move(vk),
-                                    physicalDeviceProps,
-                                    contextOptions));
+        new RenderContextVulkanImpl(std::move(vk), contextOptions));
+
     if (contextOptions.forceAtomicMode &&
         !impl->platformFeatures().supportsClockwiseAtomicMode)
     {
-        fprintf(stderr,
-                "ERROR: Requested \"atomic\" mode but Vulkan does not support "
-                "fragmentStoresAndAtomics on this platform.\n");
+        fprintf(
+            stderr,
+            "ERROR: Requested \"atomic\" mode but Vulkan does not support fragmentStoresAndAtomics on this platform.\n");
         return nullptr;
     }
-    impl->initGPUObjects(contextOptions.shaderCompilationMode,
-                         physicalDeviceProps.vendorID);
+
+    impl->initGPUObjects(contextOptions.shaderCompilationMode);
     return std::make_unique<RenderContext>(std::move(impl));
 }
 } // namespace rive::gpu

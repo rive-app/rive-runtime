@@ -65,10 +65,10 @@ public:
 #ifndef NDEBUG
             .desiredValidationType =
                 m_backendParams.disableValidationLayers
-                    ? VulkanValidationType::None
+                    ? VulkanValidationType::none
                     : (m_backendParams.wantVulkanSynchronizationValidation
-                           ? VulkanValidationType::Synchronization
-                           : VulkanValidationType::Core),
+                           ? VulkanValidationType::synchronization
+                           : VulkanValidationType::core),
             .wantDebugCallbacks = !m_backendParams.disableValidationLayers,
 #endif
         });

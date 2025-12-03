@@ -47,10 +47,10 @@ public:
 #ifndef NDEBUG
             .desiredValidationType =
                 options.enableVulkanCoreValidationLayers
-                    ? VulkanValidationType::Core
+                    ? VulkanValidationType::core
                     : (options.enableVulkanSynchronizationValidationLayers
-                           ? VulkanValidationType::Synchronization
-                           : VulkanValidationType::None),
+                           ? VulkanValidationType::synchronization
+                           : VulkanValidationType::none),
             .wantDebugCallbacks = !options.disableDebugCallbacks,
 #endif
         });

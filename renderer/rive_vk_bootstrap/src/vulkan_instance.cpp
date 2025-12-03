@@ -168,23 +168,26 @@ VulkanInstance::VulkanInstance(const Options& opts)
 #endif
 
     bool useFallbackDebugCallbacks = false;
-    if (validationType != VulkanValidationType::None)
+    if (validationType != VulkanValidationType::none)
     {
         if (!add_layer_if_supported("VK_LAYER_KHRONOS_validation"))
         {
             LOG_ERROR_LINE("WARNING: Validation layers are not supported. "
                            "Creating context without validation layers.\n");
-            validationType = VulkanValidationType::None;
+            validationType = VulkanValidationType::none;
         }
-        else
+        else if (validationType != VulkanValidationType::core)
         {
+            // If we're doing any other type of validation, add the settings
+            // extension. (RenderDoc does not work when this extension is,
+            // enabled, which is why we don't always enable it)
             extensions.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
         }
     }
 
     if (enableDebugCallbacks)
     {
-        if (validationType != VulkanValidationType::None)
+        if (validationType != VulkanValidationType::none)
         {
             // If we are enabling validation layers, VK_EXT_debug_utils willl
             // come along with that, even though it currently isn't in the
@@ -258,7 +261,7 @@ VulkanInstance::VulkanInstance(const Options& opts)
         .pSettings = settingsForSyncValidate,
     };
 
-    if (validationType == VulkanValidationType::Synchronization)
+    if (validationType == VulkanValidationType::synchronization)
     {
         validationLayerSettingsForSyncValidation.pNext = createInfo.pNext;
         createInfo.pNext = &validationLayerSettingsForSyncValidation;

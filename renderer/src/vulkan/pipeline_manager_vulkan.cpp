@@ -50,7 +50,6 @@ static VkFilter vk_filter(rive::ImageFilter option)
 
 PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
                                              ShaderCompilationMode mode,
-                                             uint32_t vendorID,
                                              VkImageView nullTextureView) :
     Super(mode),
     m_vk(std::move(vk)),
@@ -58,8 +57,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
                       VK_FORMAT_R32_SFLOAT,
                       VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT)
                       ? VK_FORMAT_R32_SFLOAT
-                      : VK_FORMAT_R16_SFLOAT),
-    m_vendorID(vendorID)
+                      : VK_FORMAT_R16_SFLOAT)
 {
     // Create the immutable samplers.
     VkSamplerCreateInfo linearSamplerCreateInfo = {

@@ -3,9 +3,11 @@
  */
 
 #include <string>
+#include <sstream>
 #include "rive/renderer/vulkan/vkutil.hpp"
 #include "rive_vk_bootstrap/vulkan_device.hpp"
 #include "rive_vk_bootstrap/vulkan_instance.hpp"
+#include "shaders/constants.glsl"
 #include "logging.hpp"
 #include "vulkan_library.hpp"
 
@@ -27,6 +29,36 @@ static const char* physicalDeviceTypeName(VkPhysicalDeviceType type)
             return "CPU";
         default:
             return "Other";
+    }
+}
+
+void unpackDriverVersion(const VkPhysicalDeviceProperties& props,
+                         uint32_t* majorOut,
+                         uint32_t* minorOut,
+                         uint32_t* patchOut)
+{
+    if (props.vendorID == VULKAN_VENDOR_NVIDIA)
+    {
+        // NVidia uses 10|8|8|6 encoding for driver version. We'll ignore the
+        // fourth version section.
+        *majorOut = props.driverVersion >> 22;
+        *minorOut = (props.driverVersion >> 14) & 0xff;
+        *patchOut = (props.driverVersion >> 6) & 0xff;
+    }
+#ifdef _WIN32
+    else if (props.vendorID == VULKAN_VENDOR_INTEL)
+    {
+        *majorOut = props.driverVersion >> 14;
+        *minorOut = props.driverVersion & 0x3fff;
+        *patchOut = 0;
+    }
+#endif
+    else
+    {
+        // Everything else seems to use the standard Vulkan encoding.
+        *majorOut = VK_API_VERSION_MAJOR(props.driverVersion);
+        *minorOut = VK_API_VERSION_MINOR(props.driverVersion);
+        *patchOut = VK_API_VERSION_PATCH(props.driverVersion);
     }
 }
 
@@ -220,12 +252,15 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
     LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
                               instance);
 
-    printf("==== Vulkan %i.%i.%i GPU (%s): %s [ ",
+    printf("==== Vulkan %i.%i.%i GPU (%s): %s (driver %i.%i.%i) [ ",
            VK_API_VERSION_MAJOR(m_riveVulkanFeatures.apiVersion),
            VK_API_VERSION_MINOR(m_riveVulkanFeatures.apiVersion),
            VK_API_VERSION_PATCH(m_riveVulkanFeatures.apiVersion),
            physicalDeviceTypeName(findResult.deviceType),
-           findResult.deviceName.c_str());
+           findResult.deviceName.c_str(),
+           findResult.driverVersionMajor,
+           findResult.driverVersionMinor,
+           findResult.driverVersionPatch);
     struct CommaSeparator
     {
         const char* m_separator = "";
@@ -382,11 +417,16 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
 
             if (strstr(props.deviceName, nameFilter) != nullptr)
             {
+                uint32_t major, minor, patch;
+                unpackDriverVersion(props, &major, &minor, &patch);
                 matchResult = {
                     .physicalDevice = device,
                     .deviceName = props.deviceName,
                     .deviceType = props.deviceType,
                     .deviceAPIVersion = props.apiVersion,
+                    .driverVersionMajor = major,
+                    .driverVersionMinor = minor,
+                    .driverVersionPatch = patch,
                 };
                 matchedDeviceNames.push_back(std::string{props.deviceName});
             }
@@ -444,11 +484,17 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
                 if (!onlyAcceptDesiredType ||
                     props.deviceType == desiredDeviceType)
                 {
+                    uint32_t major, minor, patch;
+                    unpackDriverVersion(props, &major, &minor, &patch);
+
                     return {
                         .physicalDevice = device,
                         .deviceName = props.deviceName,
                         .deviceType = props.deviceType,
                         .deviceAPIVersion = props.apiVersion,
+                        .driverVersionMajor = major,
+                        .driverVersionMinor = minor,
+                        .driverVersionPatch = patch,
                     };
                 }
             }

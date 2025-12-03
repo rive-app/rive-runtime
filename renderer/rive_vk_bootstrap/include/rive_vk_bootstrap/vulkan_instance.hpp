@@ -7,19 +7,19 @@ namespace rive_vkb
 {
 enum class VulkanValidationType
 {
-    None,
-    Core,
-    Synchronization,
+    none,
+    core,
+    synchronization,
 };
 
 #ifndef NDEBUG
 constexpr bool RIVE_DEFAULT_VULKAN_DEBUG_PREFERENCE = true;
 constexpr VulkanValidationType RIVE_DEFAULT_VULKAN_VALIDATION_TYPE =
-    VulkanValidationType::Core;
+    VulkanValidationType::core;
 #else
 constexpr bool RIVE_DEFAULT_VULKAN_DEBUG_PREFERENCE = false;
 constexpr VulkanValidationType RIVE_DEFAULT_VULKAN_VALIDATION_TYPE =
-    VulkanValidationType::None;
+    VulkanValidationType::none;
 #endif
 
 class VulkanLibrary;

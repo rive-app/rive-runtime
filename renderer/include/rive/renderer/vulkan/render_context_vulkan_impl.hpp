@@ -71,12 +71,10 @@ public:
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
 private:
-    RenderContextVulkanImpl(rcp<VulkanContext>,
-                            const VkPhysicalDeviceProperties&,
-                            const ContextOptions&);
+    RenderContextVulkanImpl(rcp<VulkanContext>, const ContextOptions&);
 
     // Called outside the constructor so we can use virtual methods.
-    void initGPUObjects(ShaderCompilationMode, uint32_t vendorID);
+    void initGPUObjects(ShaderCompilationMode);
 
     void prepareToFlush(uint64_t nextFrameNumber,
                         uint64_t safeFrameNumber) override;
@@ -232,6 +230,7 @@ private:
     std::unique_ptr<TessellatePipeline> m_tessellatePipeline;
     rcp<vkutil::Buffer> m_tessSpanIndexBuffer;
     rcp<vkutil::Texture2D> m_tessTexture;
+    rcp<vkutil::Texture2D> m_tesselationSyncIssueWorkaroundTexture;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
 
     // Renders feathers to the atlas.

@@ -73,6 +73,9 @@ private:
         std::string deviceName;
         VkPhysicalDeviceType deviceType;
         uint32_t deviceAPIVersion;
+        uint32_t driverVersionMajor;
+        uint32_t driverVersionMinor;
+        uint32_t driverVersionPatch;
     };
 
     static FindDeviceResult findCompatiblePhysicalDevice(
