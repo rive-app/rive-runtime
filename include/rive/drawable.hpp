@@ -59,6 +59,7 @@ public:
     virtual bool isProxy() { return false; }
     virtual bool isClipStart() { return false; }
     virtual bool isClipEnd() { return false; }
+    virtual bool willClip() { return false; }
     virtual bool willDraw();
     void needsSaveOperation(bool value) { m_needsSaveOperation = value; }
 

@@ -45,6 +45,15 @@ int ClippingShapeStart::emptyClipCount()
     return 0;
 }
 
+bool ClippingShapeStart::isVisible()
+{
+    if (m_clippingShape)
+    {
+        return m_clippingShape->isVisible();
+    }
+    return false;
+}
+
 int ClippingShapeEnd::emptyClipCount()
 {
     if (m_clippingShape && m_clippingShape->isVisible())

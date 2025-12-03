@@ -22,6 +22,7 @@ public:
     virtual int emptyClipCount() = 0;
     void clippingShape(ClippingShape* shape) { m_clippingShape = shape; }
     virtual bool isStart() { return false; }
+    virtual bool isVisible() { return true; }
 
 protected:
     ClippingShape* m_clippingShape = nullptr;
@@ -33,6 +34,7 @@ public:
     void draw(Renderer* renderer, bool needsSaveOperation) override;
     int emptyClipCount() override;
     bool isStart() override { return true; }
+    bool isVisible() override;
 };
 
 class ClippingShapeEnd : public ClippingShapeOperation
@@ -74,6 +76,7 @@ public:
 
     bool isClipStart() override { return m_clippingShapeOperation->isStart(); }
     bool isClipEnd() override { return !m_clippingShapeOperation->isStart(); }
+    bool willClip() override { return m_clippingShapeOperation->isVisible(); }
 
 private:
     ClippingShapeOperation* m_clippingShapeOperation = nullptr;

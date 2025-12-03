@@ -693,9 +693,8 @@ void Artboard::clearRedundantOperations(Drawable* drawable)
     auto prev = drawable;
     while (true)
     {
-
-        if (next->next && next->next->isClipStart() && prev->prev &&
-            prev->prev->isClipEnd())
+        if (next->next && next->next->isClipStart() && next->next->willClip() &&
+            prev->prev && prev->prev->isClipEnd())
         {
             next->needsSaveOperation(false);
             prev->needsSaveOperation(false);
