@@ -2114,6 +2114,34 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
+        // Begin the render pass before binding buffers or updating descriptor
+        // sets. It's valid Vulkan to do these tasks in any order, but Adreno
+        // 730, 740, and 840 appreciate it when we begin the render pass first.
+        m_atlasPipeline->beginRenderPass(desc, *m_atlasFramebuffer);
+
+        // Some early Android tilers are known to crash when a render pass is
+        // too complex. This is a mechanism to interrupt and begin a new render
+        // pass on affected devices after a pre-set complexity is reached.
+        uint32_t patchCountInCurrentAtlasPass = 0;
+        auto interruptAtlasPassIfNeeded = [&](uint32_t nextInstanceCount) {
+            assert(nextInstanceCount <=
+                   m_workarounds.maxInstancesPerRenderPass);
+            if (patchCountInCurrentAtlasPass + nextInstanceCount >
+                m_workarounds.maxInstancesPerRenderPass)
+            {
+                m_vk->CmdEndRenderPass(commandBuffer);
+                m_atlasPipeline->beginRenderPass(
+                    desc,
+                    *m_atlasFramebuffer,
+                    AtlasPipeline::RenderPassType::resume);
+                // We don't need to bind new pipelines, even though we changed
+                // the render pass, because Vulkan allows for pipelines to be
+                // used interchangeably with "compatible" render passes.
+                patchCountInCurrentAtlasPass = 0;
+            }
+            patchCountInCurrentAtlasPass += nextInstanceCount;
+        };
+
         m_vk->CmdBindVertexBuffers(commandBuffer,
                                    0,
                                    1,
@@ -2139,31 +2167,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     &immutableSamplerDescriptorSet,
                                     0,
                                     nullptr);
-
-        m_atlasPipeline->beginRenderPass(desc, *m_atlasFramebuffer);
-
-        // Some early Android tilers are known to crash when a render pass is
-        // too complex. This is a mechanism to interrupt and begin a new render
-        // pass on affected devices after a pre-set complexity is reached.
-        uint32_t patchCountInCurrentAtlasPass = 0;
-        auto interruptAtlasPassIfNeeded = [&](uint32_t nextInstanceCount) {
-            assert(nextInstanceCount <=
-                   m_workarounds.maxInstancesPerRenderPass);
-            if (patchCountInCurrentAtlasPass + nextInstanceCount >
-                m_workarounds.maxInstancesPerRenderPass)
-            {
-                m_vk->CmdEndRenderPass(commandBuffer);
-                m_atlasPipeline->beginRenderPass(
-                    desc,
-                    *m_atlasFramebuffer,
-                    AtlasPipeline::RenderPassType::resume);
-                // We don't need to bind new pipelines, even though we changed
-                // the render pass, because Vulkan allows for pipelines to be
-                // used interchangeably with "compatible" render passes.
-                patchCountInCurrentAtlasPass = 0;
-            }
-            patchCountInCurrentAtlasPass += nextInstanceCount;
-        };
 
         if (desc.atlasFillBatchCount != 0)
         {
@@ -2640,6 +2643,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
+    // Begin the render pass before binding buffers or updating descriptor sets.
+    // It's valid Vulkan to do these tasks in any order, but Adreno 730, 740,
+    // and 840 appreciate it when we begin the render pass first.
     const DrawPipelineLayoutVulkan& pipelineLayout =
         beginDrawRenderPass(desc,
                             renderPassOptions,
