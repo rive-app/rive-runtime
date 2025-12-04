@@ -150,6 +150,29 @@ ArtboardHandle CommandQueue::instantiateArtboardNamed(
     return handle;
 }
 
+void CommandQueue::setArtboardSize(ArtboardHandle artboardHandle,
+                                   float width,
+                                   float height,
+                                   float scale,
+                                   uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setArtboardSize;
+    m_commandStream << artboardHandle;
+    m_commandStream << width / scale;
+    m_commandStream << height / scale;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::resetArtboardSize(ArtboardHandle artboardHandle,
+                                     uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::resetArtboardSize;
+    m_commandStream << artboardHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle,
                                   uint64_t requestId)
 {

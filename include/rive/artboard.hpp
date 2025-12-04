@@ -274,6 +274,12 @@ public:
     void xChanged() override;
     void yChanged() override;
 
+    void resetSize()
+    {
+        width(m_originalWidth);
+        height(m_originalHeight);
+    }
+
     // Can we hide these from the public? (they use playable)
     bool isTranslucent() const;
     bool isTranslucent(const LinearAnimation*) const;

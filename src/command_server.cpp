@@ -873,6 +873,60 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::setArtboardSize:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                float width, height;
+                commandStream >> handle;
+                commandStream >> width;
+                commandStream >> height;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto artboardInstance = getArtboardInstance(handle))
+                {
+                    artboardInstance->width(width);
+                    artboardInstance->height(height);
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "artboard " << handle
+                        << " not found when trying to set artboard size";
+                }
+            }
+            break;
+
+            case CommandQueue::Command::resetArtboardSize:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto artboardInstance = getArtboardInstance(handle))
+                {
+                    artboardInstance->resetSize();
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "artboard " << handle
+                        << " not found when trying to reset artboard size";
+                }
+            }
+            break;
+
             case CommandQueue::Command::deleteArtboard:
             {
                 ArtboardHandle handle;
