@@ -9,6 +9,7 @@
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "shaders/constants.glsl"
+#include "draw_pipeline_layout_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
 
@@ -34,27 +35,130 @@ constexpr static VkAttachmentLoadOp vk_load_op(gpu::LoadAction loadAction,
     RIVE_UNREACHABLE();
 }
 
-static uint32_t vk_render_format_key(VkFormat format)
+constexpr static VkFormat LAST_NON_SPARSE_VK_FORMAT =
+    VK_FORMAT_ASTC_12x12_SRGB_BLOCK;
+
+// The VkFormat values are very sparse after LAST_NON_SPARSE_VK_FORMAT. This
+// table converts the sparse formats to a 0-based, tightly-packed index that can
+// be used to build a key.
+static uint32_t vk_sparse_format_index(VkFormat format)
 {
-    uint32_t key = static_cast<uint32_t>(format);
-    if (key > VK_FORMAT_ASTC_12x12_SRGB_BLOCK)
+    assert(format > LAST_NON_SPARSE_VK_FORMAT);
+    switch (format)
     {
-        // There is a large gap between VK_FORMAT_ASTC_12x12_SRGB_BLOCK (184),
-        // and VK_FORMAT_G8B8G8R8_422_UNORM (1000156000). Removing this gap gets
-        // our FORMAT_BIT_COUNT down to 19.
-        // NOTE: Some compressed ASTC and PVRTC formats live in this gap, but
-        // they're non-renderable.
-        assert(key >= VK_FORMAT_G8B8G8R8_422_UNORM);
-        key -=
-            VK_FORMAT_G8B8G8R8_422_UNORM - VK_FORMAT_ASTC_12x12_SRGB_BLOCK - 1;
-        assert(key > VK_FORMAT_ASTC_12x12_SRGB_BLOCK);
+        // Turn off clang-format so we can fit our case labels on one line.
+        // clang-format off
+        case VK_FORMAT_G8B8G8R8_422_UNORM: return 0;
+        case VK_FORMAT_B8G8R8G8_422_UNORM: return 1;
+        case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM: return 2;
+        case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM: return 3;
+        case VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM: return 4;
+        case VK_FORMAT_G8_B8R8_2PLANE_422_UNORM: return 5;
+        case VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM: return 6;
+        case VK_FORMAT_R10X6_UNORM_PACK16: return 7;
+        case VK_FORMAT_R10X6G10X6_UNORM_2PACK16: return 8;
+        case VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16: return 9;
+        case VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16: return 10;
+        case VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16: return 11;
+        case VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16: return 12;
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16: return 13;
+        case VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16: return 14;
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16: return 15;
+        case VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16: return 16;
+        case VK_FORMAT_R12X4_UNORM_PACK16: return 17;
+        case VK_FORMAT_R12X4G12X4_UNORM_2PACK16: return 18;
+        case VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16: return 19;
+        case VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16: return 20;
+        case VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16: return 21;
+        case VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16: return 22;
+        case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16: return 23;
+        case VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16: return 24;
+        case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16: return 25;
+        case VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16: return 26;
+        case VK_FORMAT_G16B16G16R16_422_UNORM: return 27;
+        case VK_FORMAT_B16G16R16G16_422_UNORM: return 28;
+        case VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM: return 29;
+        case VK_FORMAT_G16_B16R16_2PLANE_420_UNORM: return 30;
+        case VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM: return 31;
+        case VK_FORMAT_G16_B16R16_2PLANE_422_UNORM: return 32;
+        case VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM: return 33;
+        case VK_FORMAT_G8_B8R8_2PLANE_444_UNORM: return 34;
+        case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16: return 35;
+        case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16: return 36;
+        case VK_FORMAT_G16_B16R16_2PLANE_444_UNORM: return 37;
+        case VK_FORMAT_A4R4G4B4_UNORM_PACK16: return 38;
+        case VK_FORMAT_A4B4G4R4_UNORM_PACK16: return 39;
+        case VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK: return 40;
+        case VK_FORMAT_ASTC_5x4_SFLOAT_BLOCK: return 41;
+        case VK_FORMAT_ASTC_5x5_SFLOAT_BLOCK: return 42;
+        case VK_FORMAT_ASTC_6x5_SFLOAT_BLOCK: return 43;
+        case VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK: return 44;
+        case VK_FORMAT_ASTC_8x5_SFLOAT_BLOCK: return 45;
+        case VK_FORMAT_ASTC_8x6_SFLOAT_BLOCK: return 46;
+        case VK_FORMAT_ASTC_8x8_SFLOAT_BLOCK: return 47;
+        case VK_FORMAT_ASTC_10x5_SFLOAT_BLOCK: return 48;
+        case VK_FORMAT_ASTC_10x6_SFLOAT_BLOCK: return 49;
+        case VK_FORMAT_ASTC_10x8_SFLOAT_BLOCK: return 50;
+        case VK_FORMAT_ASTC_10x10_SFLOAT_BLOCK: return 51;
+        case VK_FORMAT_ASTC_12x10_SFLOAT_BLOCK: return 52;
+        case VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK: return 53;
+        case VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG: return 56;
+        case VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG: return 57;
+        case VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG: return 58;
+        case VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG: return 59;
+        case VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG: return 60;
+        case VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG: return 61;
+        case VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG: return 62;
+        case VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG: return 63;
+#ifndef __APPLE__
+        // Apple clang++ intentionally prioritizes '/usr/local/include' over any
+        // search paths provided via -I or -isystem. This means we get the
+        // locally installed MoltenVk headers instead of the Rive-official
+        // Vulkan headers when building for Apple.
+        // The following VkFormats are not defined in MoltenVK's headers.
+        case VK_FORMAT_A1B5G5R5_UNORM_PACK16: return 54;
+        case VK_FORMAT_A8_UNORM: return 55;
+        case VK_FORMAT_R8_BOOL_ARM: return 64;
+        case VK_FORMAT_R16G16_SFIXED5_NV: return 65;
+        case VK_FORMAT_R10X6_UINT_PACK16_ARM: return 66;
+        case VK_FORMAT_R10X6G10X6_UINT_2PACK16_ARM: return 67;
+        case VK_FORMAT_R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM: return 68;
+        case VK_FORMAT_R12X4_UINT_PACK16_ARM: return 69;
+        case VK_FORMAT_R12X4G12X4_UINT_2PACK16_ARM: return 70;
+        case VK_FORMAT_R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM: return 71;
+        case VK_FORMAT_R14X2_UINT_PACK16_ARM: return 72;
+        case VK_FORMAT_R14X2G14X2_UINT_2PACK16_ARM: return 73;
+        case VK_FORMAT_R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM: return 74;
+        case VK_FORMAT_R14X2_UNORM_PACK16_ARM: return 75;
+        case VK_FORMAT_R14X2G14X2_UNORM_2PACK16_ARM: return 76;
+        case VK_FORMAT_R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM: return 77;
+        case VK_FORMAT_G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM: return 78;
+        case VK_FORMAT_G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM: return 79;
+#endif
+        default: break;
+            // clang-format on
     }
-    assert(key <= 1 << RenderPassVulkan::FORMAT_BIT_COUNT);
-    return key;
+    assert(false && "Given sparse VkFormat is not supported");
+    return (1 << RenderPassVulkan::FORMAT_BIT_COUNT) - 1 -
+           (LAST_NON_SPARSE_VK_FORMAT + 1);
+}
+
+static uint32_t vk_format_key(VkFormat format)
+{
+    if (format <= LAST_NON_SPARSE_VK_FORMAT)
+    {
+        // Basic case: Almost all normal formats already fit in 8 bits.
+        return static_cast<uint32_t>(format);
+    }
+    else
+    {
+        // Pack the sparse VkFormats into a tighter key.
+        return vk_sparse_format_index(format) + LAST_NON_SPARSE_VK_FORMAT + 1;
+    }
 }
 
 uint32_t RenderPassVulkan::KeyNoInterlockMode(
-    DrawPipelineLayoutVulkan::Options layoutOptions,
+    RenderPassOptionsVulkan renderPassOptions,
     VkFormat renderTargetFormat,
     gpu::LoadAction loadAction)
 {
@@ -63,31 +167,29 @@ uint32_t RenderPassVulkan::KeyNoInterlockMode(
     uint32_t key = static_cast<uint32_t>(loadAction);
 
     // VkFormat.
-    const uint32_t renderFormatKey = vk_render_format_key(renderTargetFormat);
-    assert(key << FORMAT_BIT_COUNT >> FORMAT_BIT_COUNT == key);
+    const uint32_t renderFormatKey = vk_format_key(renderTargetFormat);
     assert(renderFormatKey < 1 << FORMAT_BIT_COUNT);
+    assert(key << FORMAT_BIT_COUNT >> FORMAT_BIT_COUNT == key);
     key = (key << FORMAT_BIT_COUNT) | renderFormatKey;
 
     // DrawPipelineLayoutVulkan::Options.
-    assert(key << DrawPipelineLayoutVulkan::OPTION_COUNT >>
-               DrawPipelineLayoutVulkan::OPTION_COUNT ==
-           key);
-    assert(static_cast<uint32_t>(layoutOptions) <
-           1 << DrawPipelineLayoutVulkan::OPTION_COUNT);
-    key = (key << DrawPipelineLayoutVulkan::OPTION_COUNT) |
-          static_cast<uint32_t>(layoutOptions);
+    assert(static_cast<uint32_t>(renderPassOptions) <
+           1 << RENDER_PASS_OPTION_COUNT);
+    assert(key << RENDER_PASS_OPTION_COUNT >> RENDER_PASS_OPTION_COUNT == key);
+    key = (key << RENDER_PASS_OPTION_COUNT) |
+          static_cast<uint32_t>(renderPassOptions);
 
     assert(key < 1 << KEY_NO_INTERLOCK_MODE_BIT_COUNT);
     return key;
 }
 
 uint32_t RenderPassVulkan::Key(gpu::InterlockMode interlockMode,
-                               DrawPipelineLayoutVulkan::Options layoutOptions,
+                               RenderPassOptionsVulkan renderPassOptions,
                                VkFormat renderTargetFormat,
                                gpu::LoadAction loadAction)
 {
     uint32_t key =
-        KeyNoInterlockMode(layoutOptions, renderTargetFormat, loadAction);
+        KeyNoInterlockMode(renderPassOptions, renderTargetFormat, loadAction);
 
     // gpu::InterlockMode.
     assert(key << gpu::INTERLOCK_MODE_BIT_COUNT >>
@@ -102,22 +204,20 @@ uint32_t RenderPassVulkan::Key(gpu::InterlockMode interlockMode,
     return key;
 }
 
-RenderPassVulkan::RenderPassVulkan(
-    PipelineManagerVulkan* pipelineManager,
-    gpu::InterlockMode interlockMode,
-    DrawPipelineLayoutVulkan::Options layoutOptions,
-    VkFormat renderTargetFormat,
-    gpu::LoadAction loadAction) :
+RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
+                                   gpu::InterlockMode interlockMode,
+                                   RenderPassOptionsVulkan renderPassOptions,
+                                   VkFormat renderTargetFormat,
+                                   gpu::LoadAction loadAction) :
     m_vk(ref_rcp(pipelineManager->vulkanContext()))
 {
     m_drawPipelineLayout =
         &pipelineManager->getDrawPipelineLayoutSynchronous(interlockMode,
-                                                           layoutOptions);
+                                                           renderPassOptions);
 
     // COLOR attachment.
     const VkImageLayout colorAttachmentLayout =
-        (layoutOptions &
-         DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)
+        (renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput)
             ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
             : VK_IMAGE_LAYOUT_GENERAL;
     const VkSampleCountFlagBits msaaSampleCount =
@@ -130,8 +230,7 @@ RenderPassVulkan::RenderPassVulkan(
     std::optional<VkAttachmentReference> msaaResolveAttachmentRef;
     if (pipelineManager->plsBackingType(interlockMode) ==
             PipelineManagerVulkan::PLSBackingType::inputAttachment ||
-        (layoutOptions &
-         DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput))
+        (renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput))
     {
         assert(attachments.size() == COLOR_PLANE_IDX);
         assert(colorAttachmentRefs.size() == COLOR_PLANE_IDX);
@@ -139,11 +238,12 @@ RenderPassVulkan::RenderPassVulkan(
             .format = renderTargetFormat,
             .samples = msaaSampleCount,
             .loadOp = vk_load_op(loadAction, interlockMode),
-            .storeOp = ((layoutOptions & DrawPipelineLayoutVulkan::Options::
-                                             coalescedResolveAndTransfer) ||
-                        interlockMode == gpu::InterlockMode::msaa)
-                           ? VK_ATTACHMENT_STORE_OP_DONT_CARE
-                           : VK_ATTACHMENT_STORE_OP_STORE,
+            .storeOp =
+                ((renderPassOptions &
+                  RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer) ||
+                 interlockMode == gpu::InterlockMode::msaa)
+                    ? VK_ATTACHMENT_STORE_OP_DONT_CARE
+                    : VK_ATTACHMENT_STORE_OP_STORE,
             // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
             // invalidate the portion outside the renderArea when it isn't the
             // full renderTarget, and currently we don't have separate render
@@ -152,8 +252,8 @@ RenderPassVulkan::RenderPassVulkan(
             // vkutil::ImageAccessAction::invalidateContents to invalidate the
             // color attachment when we can.
             .initialLayout =
-                (((layoutOptions & DrawPipelineLayoutVulkan::Options::
-                                       coalescedResolveAndTransfer) &&
+                (((renderPassOptions & RenderPassOptionsVulkan::
+                                           atomicCoalescedResolveAndTransfer) &&
                   loadAction != gpu::LoadAction::preserveRenderTarget) ||
                  interlockMode == gpu::InterlockMode::msaa)
                     ? VK_IMAGE_LAYOUT_UNDEFINED
@@ -179,8 +279,16 @@ RenderPassVulkan::RenderPassVulkan(
                           ? VK_FORMAT_R8G8B8A8_UNORM
                           : VK_FORMAT_R32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .loadOp = (interlockMode == gpu::InterlockMode::rasterOrdering &&
+                       (renderPassOptions &
+                        RenderPassOptionsVulkan::rasterOrderingResume))
+                          ? VK_ATTACHMENT_LOAD_OP_LOAD
+                          : VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = (interlockMode == gpu::InterlockMode::rasterOrdering &&
+                        (renderPassOptions &
+                         RenderPassOptionsVulkan::rasterOrderingInterruptible))
+                           ? VK_ATTACHMENT_STORE_OP_STORE
+                           : VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
@@ -198,8 +306,14 @@ RenderPassVulkan::RenderPassVulkan(
         attachments.push_back({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .loadOp = (renderPassOptions &
+                       RenderPassOptionsVulkan::rasterOrderingResume)
+                          ? VK_ATTACHMENT_LOAD_OP_LOAD
+                          : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .storeOp = (renderPassOptions &
+                        RenderPassOptionsVulkan::rasterOrderingInterruptible)
+                           ? VK_ATTACHMENT_STORE_OP_STORE
+                           : VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
@@ -214,8 +328,14 @@ RenderPassVulkan::RenderPassVulkan(
         attachments.push_back({
             .format = VK_FORMAT_R32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .loadOp = (renderPassOptions &
+                       RenderPassOptionsVulkan::rasterOrderingResume)
+                          ? VK_ATTACHMENT_LOAD_OP_LOAD
+                          : VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = (renderPassOptions &
+                        RenderPassOptionsVulkan::rasterOrderingInterruptible)
+                           ? VK_ATTACHMENT_STORE_OP_STORE
+                           : VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
@@ -226,8 +346,8 @@ RenderPassVulkan::RenderPassVulkan(
     }
     else if (interlockMode == gpu::InterlockMode::atomics)
     {
-        if (layoutOptions &
-            DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer)
+        if (renderPassOptions &
+            RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)
         {
             // COALESCED_ATOMIC_RESOLVE attachment (primary render target).
             assert(attachments.size() == COALESCED_ATOMIC_RESOLVE_IDX);
@@ -289,8 +409,8 @@ RenderPassVulkan::RenderPassVulkan(
         // MSAA_RESOLVE attachment.
         const bool readsMSAAResolveAttachment =
             loadAction == gpu::LoadAction::preserveRenderTarget &&
-            !(layoutOptions &
-              DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture);
+            !(renderPassOptions &
+              RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture);
         const VkImageLayout msaaResolveLayout =
             readsMSAAResolveAttachment
                 ? VK_IMAGE_LAYOUT_GENERAL
@@ -305,8 +425,8 @@ RenderPassVulkan::RenderPassVulkan(
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .initialLayout =
                 (readsMSAAResolveAttachment ||
-                 (layoutOptions &
-                  DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+                 (renderPassOptions &
+                  RenderPassOptionsVulkan::msaaManualResolve))
                     ? msaaResolveLayout
                     // NOTE: This can only be VK_IMAGE_LAYOUT_UNDEFINED because
                     // Vulkan does not support partial resolves to MSAA resolve
@@ -321,8 +441,8 @@ RenderPassVulkan::RenderPassVulkan(
         };
         assert(colorAttachmentRefs.size() == 1);
 
-        if (layoutOptions &
-            DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
+        if (renderPassOptions &
+            RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
         {
             // MSAA_SEED attachment.
             assert(loadAction == gpu::LoadAction::preserveRenderTarget);
@@ -345,8 +465,8 @@ RenderPassVulkan::RenderPassVulkan(
     {
         inputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
                                         colorAttachmentRefs.data());
-        if (layoutOptions &
-            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)
+        if (renderPassOptions &
+            RenderPassOptionsVulkan::fixedFunctionColorOutput)
         {
             // COLOR is not an input attachment if we're using fixed function
             // blending.
@@ -364,8 +484,8 @@ RenderPassVulkan::RenderPassVulkan(
         {
             msaaColorSeedInputAttachmentRef.push_back({
                 .attachment =
-                    (layoutOptions & DrawPipelineLayoutVulkan::Options::
-                                         msaaSeedFromOffscreenTexture)
+                    (renderPassOptions &
+                     RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
                         ? MSAA_COLOR_SEED_IDX
                         : MSAA_RESOLVE_IDX,
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
@@ -454,8 +574,8 @@ RenderPassVulkan::RenderPassVulkan(
         // completes.
         subpassDeps.push_back(EXTERNAL_COLOR_INPUT_DEPENDENCY);
 
-        if (layoutOptions &
-            DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
+        if (renderPassOptions &
+            RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
         {
             // If we're seeding from offscreen texture, this pass needs an
             // external output dependency to ensure that any future writes
@@ -486,8 +606,7 @@ RenderPassVulkan::RenderPassVulkan(
             .dependencyFlags = 0,
         };
 
-        if (!(layoutOptions &
-              DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+        if (!(renderPassOptions & RenderPassOptionsVulkan::msaaManualResolve))
         {
             // If we are not doing the manual MSAA resolve, this pass also needs
             // barriers to protect the layout transition of the resolve target
@@ -529,7 +648,7 @@ RenderPassVulkan::RenderPassVulkan(
     // Main subpass.
     const uint32_t mainSubpassIdx = subpassDescs.size();
     assert(colorAttachmentRefs.size() ==
-           m_drawPipelineLayout->colorAttachmentCount(0, layoutOptions));
+           m_drawPipelineLayout->colorAttachmentCount(0, renderPassOptions));
     subpassDescs.push_back({
         .flags =
             rasterOrderedAttachmentAccess
@@ -542,8 +661,7 @@ RenderPassVulkan::RenderPassVulkan(
         .pColorAttachments = colorAttachmentRefs.data(),
         .pResolveAttachments =
             (interlockMode == gpu::InterlockMode::msaa &&
-             !(layoutOptions &
-               DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+             !(renderPassOptions & RenderPassOptionsVulkan::msaaManualResolve))
                 ? &msaaResolveAttachmentRef.value()
                 : nullptr,
         .pDepthStencilAttachment = depthStencilAttachmentRef.has_value()
@@ -556,8 +674,8 @@ RenderPassVulkan::RenderPassVulkan(
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||
         (interlockMode == gpu::InterlockMode::msaa &&
-         !(layoutOptions &
-           DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)))
+         !(renderPassOptions &
+           RenderPassOptionsVulkan::fixedFunctionColorOutput)))
     {
         // Any subpass that reads the framebuffer or PLS planes has a self
         // dependency.
@@ -613,12 +731,10 @@ RenderPassVulkan::RenderPassVulkan(
         });
 
         // Manual MSAA resolve, if needed.
-        if ((layoutOptions &
-             DrawPipelineLayoutVulkan::Options::msaaManualResolve))
+        if ((renderPassOptions & RenderPassOptionsVulkan::msaaManualResolve))
         {
-            assert(
-                !(layoutOptions &
-                  DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput));
+            assert(!(renderPassOptions &
+                     RenderPassOptionsVulkan::fixedFunctionColorOutput));
             assert(inputAttachmentRefs[0].attachment == COLOR_PLANE_IDX);
 
             addStandardColorDependencyToNextSubpass(subpassDescs.size());
@@ -642,8 +758,9 @@ RenderPassVulkan::RenderPassVulkan(
 
         // The resolve happens in a separate subpass.
         assert(subpassDescs.size() == 1);
-        assert(m_drawPipelineLayout->colorAttachmentCount(1, layoutOptions) ==
-               1);
+        assert(
+            m_drawPipelineLayout->colorAttachmentCount(1, renderPassOptions) ==
+            1);
         assert(plsResolveAttachmentRef.has_value());
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -685,7 +802,7 @@ RenderPassVulkan::RenderPassVulkan(
     const std::string renderPipelineLabel =
         (std::ostringstream()
          << "RIVE_Draw{interlockMode=" << int(interlockMode)
-         << ", layoutOptions=" << int(layoutOptions)
+         << ", renderPassOptions=" << int(renderPassOptions)
          << ", renderTargetFormat=" << int(renderTargetFormat)
          << ", loadAction=" << int(loadAction) << '}')
             .str();

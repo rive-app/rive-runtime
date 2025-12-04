@@ -5,8 +5,8 @@
 #pragma once
 
 #include "rive/renderer/gpu.hpp"
-#include "draw_pipeline_layout_vulkan.hpp"
 #include "draw_shader_vulkan.hpp"
+#include "render_pass_vulkan.hpp"
 
 namespace rive::gpu
 {
@@ -34,7 +34,7 @@ public:
         gpu::PipelineState pipelineState;
 
         Options drawPipelineOptions;
-        DrawPipelineLayoutVulkan::Options pipelineLayoutOptions;
+        RenderPassOptionsVulkan renderPassOptions;
         VkFormat renderTargetFormat;
         LoadAction colorLoadAction;
         uint32_t subpassIndex;

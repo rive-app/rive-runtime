@@ -6,8 +6,8 @@
 
 #include "rive/renderer/async_pipeline_manager.hpp"
 #include "draw_pipeline_vulkan.hpp"
-#include "draw_pipeline_layout_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
+
 namespace rive::gpu
 {
 class PipelineManagerVulkan : public AsyncPipelineManager<DrawPipelineVulkan>
@@ -20,15 +20,14 @@ public:
                           VkImageView nullTextureView);
     ~PipelineManagerVulkan();
 
-    RenderPassVulkan& getRenderPassSynchronous(
-        InterlockMode,
-        DrawPipelineLayoutVulkan::Options,
-        VkFormat,
-        LoadAction);
+    RenderPassVulkan& getRenderPassSynchronous(InterlockMode,
+                                               RenderPassOptionsVulkan,
+                                               VkFormat,
+                                               LoadAction);
 
     DrawPipelineLayoutVulkan& getDrawPipelineLayoutSynchronous(
         InterlockMode,
-        DrawPipelineLayoutVulkan::Options);
+        RenderPassOptionsVulkan);
 
     uint32_t vendorID() const
     {

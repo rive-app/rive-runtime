@@ -13,9 +13,11 @@
 
 namespace rive::gpu
 {
+class DrawPipelineLayoutVulkan;
 class RenderTargetVulkan;
 class RenderTargetVulkanImpl;
 class PipelineManagerVulkan;
+enum class RenderPassOptionsVulkan;
 
 class RenderContextVulkanImpl : public RenderContextImpl
 {
@@ -177,6 +179,14 @@ private:
         VkDescriptorPool m_vkDescriptorPool;
     };
 
+    const DrawPipelineLayoutVulkan& beginDrawRenderPass(
+        const FlushDescriptor& desc,
+        RenderPassOptionsVulkan,
+        const IAABB& drawBounds,
+        VkImageView colorImageView,
+        VkImageView msaaColorSeedImageView,
+        VkImageView msaaResolveImageView);
+
     void flush(const FlushDescriptor&) override;
 
     void postFlush(const RenderContext::FlushResources&) override;
@@ -188,6 +198,16 @@ private:
     }
 
     const rcp<VulkanContext> m_vk;
+
+    struct DriverWorkarounds
+    {
+        // Some early Android tilers are known to crash when a render pass is
+        // too complex. On these devices, we limit the maximum number of
+        // instances that can be issued in a single render pass.
+        uint32_t maxInstancesPerRenderPass = UINT32_MAX;
+    };
+
+    const DriverWorkarounds m_workarounds;
 
     // Rive buffer pools. These don't need to be rcp<> because the destructor of
     // RenderContextVulkanImpl is already synchronized.

@@ -16,9 +16,11 @@
 #include "draw_shader_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
+#include "instance_chunker.hpp"
 
 namespace rive::gpu
 {
+using PLSBackingType = PipelineManagerVulkan::PLSBackingType;
 
 static VkBufferUsageFlagBits render_buffer_usage_flags(
     RenderBufferType renderBufferType)
@@ -472,7 +474,8 @@ private:
 class RenderContextVulkanImpl::AtlasPipeline
 {
 public:
-    AtlasPipeline(PipelineManagerVulkan* pipelineManager) :
+    AtlasPipeline(PipelineManagerVulkan* pipelineManager,
+                  const DriverWorkarounds& workarounds) :
         m_vk(ref_rcp(pipelineManager->vulkanContext()))
     {
         VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
@@ -546,7 +549,7 @@ public:
             },
         };
 
-        VkAttachmentDescription attachment = {
+        const VkAttachmentDescription attachment = {
             .format = pipelineManager->atlasFormat(),
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -558,7 +561,7 @@ public:
         // Ensure that the image transition protects against the clear on the
         // way in, and that any uses of the atlas texture are protected after
         // the render pass ends.
-        VkSubpassDependency dependencies[] = {
+        const VkSubpassDependency dependencies[] = {
             {
                 .srcSubpass = VK_SUBPASS_EXTERNAL,
                 .dstSubpass = 0,
@@ -576,7 +579,7 @@ public:
                 .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
             },
         };
-        VkRenderPassCreateInfo renderPassCreateInfo = {
+        const VkRenderPassCreateInfo renderPassCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .attachmentCount = 1,
             .pAttachments = &attachment,
@@ -593,6 +596,30 @@ public:
         m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
                                     VK_OBJECT_TYPE_RENDER_PASS,
                                     "Atlas RenderPass");
+
+        if (workarounds.maxInstancesPerRenderPass != UINT32_MAX)
+        {
+            // We are running on a device that is known to crash if a render
+            // pass is too complex. Create another render pass that is designed
+            // to resume atlas rendering in the event that the previous render
+            // pass had to be interrupted (in order to work around the crash).
+            auto resumingAttachment = attachment;
+            resumingAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            resumingAttachment.initialLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            VkRenderPassCreateInfo resumingRenderPassCreateInfo =
+                renderPassCreateInfo;
+            resumingRenderPassCreateInfo.pAttachments = &resumingAttachment;
+
+            VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
+                                            &resumingRenderPassCreateInfo,
+                                            nullptr,
+                                            &m_resumingRenderPass));
+            m_vk->setDebugNameIfEnabled(uint64_t(m_resumingRenderPass),
+                                        VK_OBJECT_TYPE_RENDER_PASS,
+                                        "Atlas RESUME RenderPass");
+        }
 
         VkPipelineColorBlendAttachmentState blendState =
             VkPipelineColorBlendAttachmentState{
@@ -655,6 +682,12 @@ public:
     {
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
         m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
+        if (m_resumingRenderPass != VK_NULL_HANDLE)
+        {
+            m_vk->DestroyRenderPass(m_vk->device,
+                                    m_resumingRenderPass,
+                                    nullptr);
+        }
         m_vk->DestroyPipeline(m_vk->device, m_fillPipeline, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_strokePipeline, nullptr);
     }
@@ -664,10 +697,55 @@ public:
     VkPipeline fillPipeline() const { return m_fillPipeline; }
     VkPipeline strokePipeline() const { return m_strokePipeline; }
 
+    enum class RenderPassType
+    {
+        primary,
+        resume,
+    };
+
+    void beginRenderPass(
+        const FlushDescriptor& desc,
+        VkFramebuffer framebuffer,
+        RenderPassType renderPassType = RenderPassType::primary)
+    {
+        const auto commandBuffer =
+            reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
+
+        const VkRenderPass renderPass =
+            (renderPassType == RenderPassType::primary) ? m_renderPass
+                                                        : m_resumingRenderPass;
+        assert(renderPass != VK_NULL_HANDLE);
+
+        VkRect2D renderArea = {
+            .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
+        };
+
+        VkClearValue atlasClearValue = {};
+
+        VkRenderPassBeginInfo renderPassBeginInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass = renderPass,
+            .framebuffer = framebuffer,
+            .renderArea = renderArea,
+            .clearValueCount = 1,
+            .pClearValues = &atlasClearValue,
+        };
+
+        m_vk->CmdBeginRenderPass(commandBuffer,
+                                 &renderPassBeginInfo,
+                                 VK_SUBPASS_CONTENTS_INLINE);
+
+        m_vk->CmdSetViewport(commandBuffer,
+                             0,
+                             1,
+                             vkutil::ViewportFromRect2D(renderArea));
+    }
+
 private:
     rcp<VulkanContext> m_vk;
     VkPipelineLayout m_pipelineLayout;
     VkRenderPass m_renderPass;
+    VkRenderPass m_resumingRenderPass = VK_NULL_HANDLE;
     VkPipeline m_fillPipeline;
     VkPipeline m_strokePipeline;
 };
@@ -676,6 +754,17 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     rcp<VulkanContext> vk,
     const ContextOptions& contextOptions) :
     m_vk(std::move(vk)),
+    m_workarounds({
+        .maxInstancesPerRenderPass =
+            (m_vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3 &&
+             (m_vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_ARM ||
+              m_vk->physicalDeviceProperties().vendorID ==
+                  VULKAN_VENDOR_IMG_TEC))
+                // Early Mali and PowerVR devices are known to crash when a
+                // single render pass is too complex.
+                ? (1u << 13) - 1u
+                : UINT32_MAX,
+    }),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
     m_imageDrawUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
     m_pathBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
@@ -715,7 +804,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             !m_platformFeatures.supportsRasterOrderingMode;
 #endif
     m_platformFeatures.supportsClockwiseAtomicMode =
-        m_vk->features.fragmentStoresAndAtomics;
+        m_platformFeatures.supportsAtomicMode;
     m_platformFeatures.supportsClipPlanes =
         m_vk->features.shaderClipDistance &&
         // The Vulkan spec mandates that the minimum value for maxClipDistances
@@ -829,7 +918,8 @@ void RenderContextVulkanImpl::initGPUObjects(
         std::make_unique<ColorRampPipeline>(m_pipelineManager.get());
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get());
-    m_atlasPipeline = std::make_unique<AtlasPipeline>(m_pipelineManager.get());
+    m_atlasPipeline =
+        std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
 
     // Determine usage flags for transient PLS backing textures.
     m_plsTransientUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
@@ -841,9 +931,11 @@ void RenderContextVulkanImpl::initGPUObjects(
                                     // For vkCmdClearColorImage.
                                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
-    else
+    else if (m_workarounds.maxInstancesPerRenderPass == UINT32_MAX)
     {
         // Otherwise, PLS backings are always transient input attachments.
+        // (But only allocate them as transient if workarounds are not in place
+        // that may require us to interrupt the render pass.)
         m_plsTransientUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
     }
 
@@ -1405,12 +1497,159 @@ rcp<RenderContextVulkanImpl::DescriptorSetPool> RenderContextVulkanImpl::
     return descriptorSetPool;
 }
 
+const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::beginDrawRenderPass(
+    const FlushDescriptor& desc,
+    RenderPassOptionsVulkan renderPassOptions,
+    const IAABB& drawBounds,
+    VkImageView colorImageView,
+    VkImageView msaaColorSeedImageView,
+    VkImageView msaaResolveImageView)
+{
+    const auto commandBuffer =
+        reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
+    auto* const renderTarget =
+        static_cast<RenderTargetVulkan*>(desc.renderTarget);
+
+    RenderPassVulkan& renderPass = m_pipelineManager->getRenderPassSynchronous(
+        desc.interlockMode,
+        renderPassOptions,
+        renderTarget->framebufferFormat(),
+        desc.colorLoadAction);
+
+    const DrawPipelineLayoutVulkan& pipelineLayout =
+        *renderPass.drawPipelineLayout();
+
+    // Create the framebuffer.
+    StackVector<VkImageView, PLS_PLANE_COUNT> framebufferViews;
+    StackVector<VkClearValue, PLS_PLANE_COUNT> clearValues;
+    if (m_pipelineManager->plsBackingType(desc.interlockMode) ==
+            PLSBackingType::inputAttachment ||
+        (pipelineLayout.renderPassOptions() &
+         RenderPassOptionsVulkan::fixedFunctionColorOutput))
+    {
+        assert(framebufferViews.size() == COLOR_PLANE_IDX);
+        framebufferViews.push_back(colorImageView);
+        clearValues.push_back(
+            {.color = vkutil::color_clear_rgba32f(desc.colorClearValue)});
+    }
+    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
+    {
+        assert(framebufferViews.size() == CLIP_PLANE_IDX);
+        framebufferViews.push_back(*plsTransientClipView());
+        clearValues.push_back({});
+
+        assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
+        framebufferViews.push_back(
+            plsTransientScratchColorTexture()->vkImageView());
+        clearValues.push_back({});
+
+        assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
+        framebufferViews.push_back(*plsTransientCoverageView());
+        clearValues.push_back(
+            {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)});
+    }
+    else if (desc.interlockMode == gpu::InterlockMode::atomics)
+    {
+        assert(framebufferViews.size() == CLIP_PLANE_IDX);
+        framebufferViews.push_back(
+            plsTransientScratchColorTexture()->vkImageView());
+        clearValues.push_back({});
+
+        if (pipelineLayout.renderPassOptions() &
+            RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)
+        {
+            assert(framebufferViews.size() == COALESCED_ATOMIC_RESOLVE_IDX);
+            framebufferViews.push_back(renderTarget->accessTargetImageView(
+                commandBuffer,
+                {
+                    .pipelineStages =
+                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                },
+                drawBounds.contains(
+                    IAABB{0,
+                          0,
+                          static_cast<int32_t>(renderTarget->width()),
+                          static_cast<int32_t>(renderTarget->height())})
+                    ? vkutil::ImageAccessAction::invalidateContents
+                    : vkutil::ImageAccessAction::preserveContents));
+            clearValues.push_back({});
+        }
+    }
+    else if (desc.interlockMode == gpu::InterlockMode::msaa)
+    {
+        assert(framebufferViews.size() == MSAA_DEPTH_STENCIL_IDX);
+        framebufferViews.push_back(
+            renderTarget->msaaDepthStencilTexture()->vkImageView());
+        clearValues.push_back(
+            {.depthStencil = {desc.depthClearValue, desc.stencilClearValue}});
+
+        assert(framebufferViews.size() == MSAA_RESOLVE_IDX);
+        framebufferViews.push_back(msaaResolveImageView);
+        clearValues.push_back({});
+
+        if (pipelineLayout.renderPassOptions() &
+            RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
+        {
+            assert(desc.colorLoadAction ==
+                   gpu::LoadAction::preserveRenderTarget);
+            assert(msaaColorSeedImageView != VK_NULL_HANDLE);
+            assert(msaaColorSeedImageView != msaaResolveImageView);
+            assert(framebufferViews.size() == MSAA_COLOR_SEED_IDX);
+            framebufferViews.push_back(msaaColorSeedImageView);
+            clearValues.push_back({});
+        }
+    }
+
+    rcp<vkutil::Framebuffer> framebuffer = m_vk->makeFramebuffer({
+        .renderPass = renderPass,
+        .attachmentCount = framebufferViews.size(),
+        .pAttachments = framebufferViews.data(),
+        .width = static_cast<uint32_t>(renderTarget->width()),
+        .height = static_cast<uint32_t>(renderTarget->height()),
+        .layers = 1,
+    });
+
+    VkRect2D renderArea = {
+        .offset = {drawBounds.left, drawBounds.top},
+        .extent = {static_cast<uint32_t>(drawBounds.width()),
+                   static_cast<uint32_t>(drawBounds.height())},
+    };
+
+    assert(clearValues.size() == framebufferViews.size());
+    VkRenderPassBeginInfo renderPassBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = renderPass,
+        .framebuffer = *framebuffer,
+        .renderArea = renderArea,
+        .clearValueCount = clearValues.size(),
+        .pClearValues = clearValues.data(),
+    };
+
+    m_vk->CmdBeginRenderPass(commandBuffer,
+                             &renderPassBeginInfo,
+                             VK_SUBPASS_CONTENTS_INLINE);
+
+    m_vk->CmdSetViewport(
+        commandBuffer,
+        0,
+        1,
+        vkutil::ViewportFromRect2D(
+            {.extent = {renderTarget->width(), renderTarget->height()}}));
+
+    m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
+
+    return pipelineLayout;
+}
+
 void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
     constexpr static VkDeviceSize ZERO_OFFSET[1] = {0};
     constexpr static uint32_t ZERO_OFFSET_32[1] = {0};
 
-    auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
+    auto* const renderTarget =
+        static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
     IAABB drawBounds = desc.renderTargetUpdateBounds;
     if (drawBounds.empty())
@@ -1418,13 +1657,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         return;
     }
 
-    auto pipelineLayoutOptions = DrawPipelineLayoutVulkan::Options::none;
+    auto renderPassOptions = RenderPassOptionsVulkan::none;
     if (desc.fixedFunctionColorOutput)
     {
         // In the case of Vulkan, fixedFunctionColorOutput means the color
         // buffer will never be bound as an input attachment.
-        pipelineLayoutOptions |=
-            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput;
+        renderPassOptions |= RenderPassOptionsVulkan::fixedFunctionColorOutput;
     }
     if (desc.interlockMode == gpu::InterlockMode::msaa)
     {
@@ -1432,8 +1670,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         {
             // We're going to resolve MSAA manually in a shader instead of using
             // a resolve attachment.
-            pipelineLayoutOptions |=
-                DrawPipelineLayoutVulkan::Options::msaaManualResolve;
+            renderPassOptions |= RenderPassOptionsVulkan::msaaManualResolve;
         }
         else
         {
@@ -1446,21 +1683,59 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     assert(desc.interlockMode != gpu::InterlockMode::msaa ||
            desc.msaaManualResolve || drawBounds == renderTarget->bounds());
 
-    auto commandBuffer =
+    const auto commandBuffer =
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     rcp<DescriptorSetPool> descriptorSetPool =
         m_descriptorSetPoolPool->acquire();
 
-    // Apply pending texture updates.
     m_featherTexture->prepareForVertexOrFragmentShaderRead(commandBuffer);
     m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);
+
+    uint32_t pendingTessPatchCount = 0;
     for (const DrawBatch& batch : *desc.drawList)
     {
+        // Apply pending image texture updates.
         if (auto imageTextureVulkan =
                 static_cast<vkutil::Texture2D*>(batch.imageTexture))
         {
             imageTextureVulkan->prepareForFragmentShaderRead(commandBuffer);
         }
+
+        // Count up the complexity in tessellation patches of this flush.
+        switch (batch.drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
+            case DrawType::outerCurvePatches:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+                pendingTessPatchCount += batch.elementCount;
+                break;
+            case DrawType::msaaStencilClipReset:
+            case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
+            case DrawType::imageRect:
+            case DrawType::imageMesh:
+            case DrawType::renderPassInitialize:
+            case DrawType::renderPassResolve:
+                break;
+        }
+    }
+    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+        pendingTessPatchCount > m_workarounds.maxInstancesPerRenderPass)
+    {
+        // Some early Android tilers are known to crash when a render pass is
+        // too complex. Make this render pass interruptible so we can break it
+        // up and avoid the crash.
+        assert(!(m_plsTransientUsageFlags &
+                 VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT));
+        renderPassOptions |=
+            RenderPassOptionsVulkan::rasterOrderingInterruptible;
     }
 
     // Create a per-flush descriptor set.
@@ -1839,28 +2114,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
-        VkRect2D renderArea = {
-            .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
-        };
-
-        VkClearValue atlasClearValue = {};
-
-        VkRenderPassBeginInfo renderPassBeginInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass = m_atlasPipeline->renderPass(),
-            .framebuffer = *m_atlasFramebuffer,
-            .renderArea = renderArea,
-            .clearValueCount = 1,
-            .pClearValues = &atlasClearValue,
-        };
-
-        m_vk->CmdBeginRenderPass(commandBuffer,
-                                 &renderPassBeginInfo,
-                                 VK_SUBPASS_CONTENTS_INLINE);
-        m_vk->CmdSetViewport(commandBuffer,
-                             0,
-                             1,
-                             vkutil::ViewportFromRect2D(renderArea));
         m_vk->CmdBindVertexBuffers(commandBuffer,
                                    0,
                                    1,
@@ -1886,6 +2139,32 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     &immutableSamplerDescriptorSet,
                                     0,
                                     nullptr);
+
+        m_atlasPipeline->beginRenderPass(desc, *m_atlasFramebuffer);
+
+        // Some early Android tilers are known to crash when a render pass is
+        // too complex. This is a mechanism to interrupt and begin a new render
+        // pass on affected devices after a pre-set complexity is reached.
+        uint32_t patchCountInCurrentAtlasPass = 0;
+        auto interruptAtlasPassIfNeeded = [&](uint32_t nextInstanceCount) {
+            assert(nextInstanceCount <=
+                   m_workarounds.maxInstancesPerRenderPass);
+            if (patchCountInCurrentAtlasPass + nextInstanceCount >
+                m_workarounds.maxInstancesPerRenderPass)
+            {
+                m_vk->CmdEndRenderPass(commandBuffer);
+                m_atlasPipeline->beginRenderPass(
+                    desc,
+                    *m_atlasFramebuffer,
+                    AtlasPipeline::RenderPassType::resume);
+                // We don't need to bind new pipelines, even though we changed
+                // the render pass, because Vulkan allows for pipelines to be
+                // used interchangeably with "compatible" render passes.
+                patchCountInCurrentAtlasPass = 0;
+            }
+            patchCountInCurrentAtlasPass += nextInstanceCount;
+        };
+
         if (desc.atlasFillBatchCount != 0)
         {
             m_vk->CmdBindPipeline(commandBuffer,
@@ -1900,12 +2179,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                fillBatch.scissor.height()},
                 };
                 m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissor);
-                m_vk->CmdDrawIndexed(commandBuffer,
-                                     gpu::kMidpointFanCenterAAPatchIndexCount,
-                                     fillBatch.patchCount,
-                                     gpu::kMidpointFanCenterAAPatchBaseIndex,
-                                     0,
-                                     fillBatch.basePatch);
+                for (auto [chunkPatchCount, chunkFirstPatch] :
+                     InstanceChunker(fillBatch.patchCount,
+                                     fillBatch.basePatch,
+                                     m_workarounds.maxInstancesPerRenderPass))
+
+                {
+                    interruptAtlasPassIfNeeded(chunkPatchCount);
+                    m_vk->CmdDrawIndexed(
+                        commandBuffer,
+                        gpu::kMidpointFanCenterAAPatchIndexCount,
+                        chunkPatchCount,
+                        gpu::kMidpointFanCenterAAPatchBaseIndex,
+                        0,
+                        chunkFirstPatch);
+                }
             }
         }
 
@@ -1925,12 +2213,20 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                strokeBatch.scissor.height()},
                 };
                 m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissor);
-                m_vk->CmdDrawIndexed(commandBuffer,
-                                     gpu::kMidpointFanPatchBorderIndexCount,
-                                     strokeBatch.patchCount,
-                                     gpu::kMidpointFanPatchBaseIndex,
-                                     0,
-                                     strokeBatch.basePatch);
+                for (auto [chunkPatchCount, chunkFirstPatch] :
+                     InstanceChunker(strokeBatch.patchCount,
+                                     strokeBatch.basePatch,
+                                     m_workarounds.maxInstancesPerRenderPass))
+
+                {
+                    interruptAtlasPassIfNeeded(chunkPatchCount);
+                    m_vk->CmdDrawIndexed(commandBuffer,
+                                         gpu::kMidpointFanPatchBorderIndexCount,
+                                         chunkPatchCount,
+                                         gpu::kMidpointFanPatchBaseIndex,
+                                         0,
+                                         chunkFirstPatch);
+                }
             }
         }
 
@@ -1949,8 +2245,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
         .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .layout = (pipelineLayoutOptions &
-                   DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)
+        .layout = (renderPassOptions &
+                   RenderPassOptionsVulkan::fixedFunctionColorOutput)
                       ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                       : VK_IMAGE_LAYOUT_GENERAL,
     };
@@ -1967,7 +2263,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             ? vkutil::ImageAccessAction::invalidateContents
             : vkutil::ImageAccessAction::preserveContents;
 
-    using PLSBackingType = PipelineManagerVulkan::PLSBackingType;
     const PLSBackingType plsBackingType =
         m_pipelineManager->plsBackingType(desc.interlockMode);
 
@@ -2026,8 +2321,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                             },
                             drawBounds)
                         ->vkImageView();
-                pipelineLayoutOptions |= DrawPipelineLayoutVulkan::Options::
-                    msaaSeedFromOffscreenTexture;
+                renderPassOptions |=
+                    RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture;
             }
             msaaResolveImageView = renderTarget->accessTargetImageView(
                 commandBuffer,
@@ -2042,8 +2337,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     : vkutil::ImageAccessAction::preserveContents);
         }
     }
-    else if ((pipelineLayoutOptions &
-              DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput) ||
+    else if ((renderPassOptions &
+              RenderPassOptionsVulkan::fixedFunctionColorOutput) ||
              ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
                desc.interlockMode == gpu::InterlockMode::atomics) &&
               (renderTarget->targetUsageFlags() &
@@ -2145,112 +2440,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
-            pipelineLayoutOptions |=
-                DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer;
+            renderPassOptions |=
+                RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer;
         }
         colorAttachmentIsOffscreen = true;
     }
-
-    RenderPassVulkan& renderPass = m_pipelineManager->getRenderPassSynchronous(
-        desc.interlockMode,
-        pipelineLayoutOptions,
-        renderTarget->framebufferFormat(),
-        desc.colorLoadAction);
-    const DrawPipelineLayoutVulkan& pipelineLayout =
-        *renderPass.drawPipelineLayout();
-
-    // Create the framebuffer.
-    StackVector<VkImageView, PLS_PLANE_COUNT> framebufferViews;
-    StackVector<VkClearValue, PLS_PLANE_COUNT> clearValues;
-    if (plsBackingType == PLSBackingType::inputAttachment ||
-        (pipelineLayoutOptions &
-         DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput))
-    {
-        assert(framebufferViews.size() == COLOR_PLANE_IDX);
-        framebufferViews.push_back(colorImageView);
-        clearValues.push_back(
-            {.color = vkutil::color_clear_rgba32f(desc.colorClearValue)});
-    }
-    if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
-    {
-        assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(*plsTransientClipView());
-        clearValues.push_back({});
-
-        assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
-        framebufferViews.push_back(
-            plsTransientScratchColorTexture()->vkImageView());
-        clearValues.push_back({});
-
-        assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
-        framebufferViews.push_back(*plsTransientCoverageView());
-        clearValues.push_back(
-            {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)});
-    }
-    else if (desc.interlockMode == gpu::InterlockMode::atomics)
-    {
-        assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(
-            plsTransientScratchColorTexture()->vkImageView());
-        clearValues.push_back({});
-
-        if (pipelineLayout.options() &
-            DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer)
-        {
-            assert(framebufferViews.size() == COALESCED_ATOMIC_RESOLVE_IDX);
-            framebufferViews.push_back(renderTarget->accessTargetImageView(
-                commandBuffer,
-                {
-                    .pipelineStages =
-                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                },
-                renderAreaIsFullTarget
-                    ? vkutil::ImageAccessAction::invalidateContents
-                    : vkutil::ImageAccessAction::preserveContents));
-            clearValues.push_back({});
-        }
-    }
-    else if (desc.interlockMode == gpu::InterlockMode::msaa)
-    {
-        assert(framebufferViews.size() == MSAA_DEPTH_STENCIL_IDX);
-        framebufferViews.push_back(
-            renderTarget->msaaDepthStencilTexture()->vkImageView());
-        clearValues.push_back(
-            {.depthStencil = {desc.depthClearValue, desc.stencilClearValue}});
-
-        assert(framebufferViews.size() == MSAA_RESOLVE_IDX);
-        framebufferViews.push_back(msaaResolveImageView);
-        clearValues.push_back({});
-
-        if (pipelineLayout.options() &
-            DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
-        {
-            assert(desc.colorLoadAction ==
-                   gpu::LoadAction::preserveRenderTarget);
-            assert(msaaColorSeedImageView != VK_NULL_HANDLE);
-            assert(msaaColorSeedImageView != msaaResolveImageView);
-            assert(framebufferViews.size() == MSAA_COLOR_SEED_IDX);
-            framebufferViews.push_back(msaaColorSeedImageView);
-            clearValues.push_back({});
-        }
-    }
-
-    rcp<vkutil::Framebuffer> framebuffer = m_vk->makeFramebuffer({
-        .renderPass = renderPass,
-        .attachmentCount = framebufferViews.size(),
-        .pAttachments = framebufferViews.data(),
-        .width = static_cast<uint32_t>(renderTarget->width()),
-        .height = static_cast<uint32_t>(renderTarget->height()),
-        .layers = 1,
-    });
-
-    VkRect2D renderArea = {
-        .offset = {drawBounds.left, drawBounds.top},
-        .extent = {static_cast<uint32_t>(drawBounds.width()),
-                   static_cast<uint32_t>(drawBounds.height())},
-    };
 
     const bool usesStorageTextures =
         plsBackingType == PLSBackingType::storageTexture ||
@@ -2290,8 +2484,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // of its RGBA format.
         const bool usesScratchColorTexture =
             desc.interlockMode == gpu::InterlockMode::atomics ||
-            !(pipelineLayoutOptions &
-              DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput);
+            !(renderPassOptions &
+              RenderPassOptionsVulkan::fixedFunctionColorOutput);
         if (usesScratchColorTexture)
         {
             // Don't use the scratch color texture until shaders in previous
@@ -2446,28 +2640,60 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    assert(clearValues.size() == framebufferViews.size());
-    VkRenderPassBeginInfo renderPassBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = renderPass,
-        .framebuffer = *framebuffer,
-        .renderArea = renderArea,
-        .clearValueCount = clearValues.size(),
-        .pClearValues = clearValues.data(),
+    const DrawPipelineLayoutVulkan& pipelineLayout =
+        beginDrawRenderPass(desc,
+                            renderPassOptions,
+                            drawBounds,
+                            colorImageView,
+                            msaaColorSeedImageView,
+                            msaaResolveImageView);
+
+    // Some early Android tilers are known to crash when a render pass is too
+    // complex. This is a mechanism to interrupt and begin a new render pass on
+    // affected devices after a pre-set complexity is reached.
+    uint32_t patchCountInCurrentDrawPass = 0;
+    auto interruptDrawPassIfNeeded = [&](uint32_t nextTessPatchCount) {
+        assert(nextTessPatchCount <= m_workarounds.maxInstancesPerRenderPass);
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+            patchCountInCurrentDrawPass + nextTessPatchCount >
+                m_workarounds.maxInstancesPerRenderPass)
+        {
+            assert(renderPassOptions &
+                   RenderPassOptionsVulkan::rasterOrderingInterruptible);
+            m_vk->CmdEndRenderPass(commandBuffer);
+
+            auto resumingDesc = desc;
+            resumingDesc.colorLoadAction =
+                gpu::LoadAction::preserveRenderTarget;
+            renderPassOptions |= RenderPassOptionsVulkan::rasterOrderingResume;
+            if (pendingTessPatchCount <=
+                m_workarounds.maxInstancesPerRenderPass)
+            {
+                renderPassOptions &=
+                    ~RenderPassOptionsVulkan::rasterOrderingInterruptible;
+            }
+            const DrawPipelineLayoutVulkan& resumingLayout RIVE_MAYBE_UNUSED =
+                beginDrawRenderPass(resumingDesc,
+                                    renderPassOptions,
+                                    drawBounds,
+                                    colorImageView,
+                                    msaaColorSeedImageView,
+                                    msaaResolveImageView);
+            // We don't need to bind new pipelines, even though we changed the
+            // render pass, because Vulkan allows for pipelines to be used
+            // interchangeably with "compatible" render passes.
+
+            // The renderPassOptions dealing with interrupting a render pass
+            // don't affect the layout. We count on the new render pass having
+            // the same VkPipelineLayout so we don't have to update any
+            // descriptor sets after the interruption.
+            assert(&resumingLayout == &pipelineLayout);
+
+            patchCountInCurrentDrawPass = 0;
+        }
+        patchCountInCurrentDrawPass += nextTessPatchCount;
+        pendingTessPatchCount -= nextTessPatchCount;
     };
-
-    m_vk->CmdBeginRenderPass(commandBuffer,
-                             &renderPassBeginInfo,
-                             VK_SUBPASS_CONTENTS_INLINE);
-
-    m_vk->CmdSetViewport(
-        commandBuffer,
-        0,
-        1,
-        vkutil::ViewportFromRect2D(
-            {.extent = {renderTarget->width(), renderTarget->height()}}));
-
-    m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
     // Update the PLS input attachment descriptor sets.
     VkDescriptorSet inputAttachmentDescriptorSet = VK_NULL_HANDLE;
@@ -2481,8 +2707,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         inputAttachmentDescriptorSet = descriptorSetPool->allocateDescriptorSet(
             pipelineLayout.plsLayout());
 
-        if (!(pipelineLayoutOptions &
-              DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput))
+        if (!(renderPassOptions &
+              RenderPassOptionsVulkan::fixedFunctionColorOutput))
         {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
@@ -2516,8 +2742,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
             if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
                 (desc.interlockMode == gpu::InterlockMode::clockwise &&
-                 !(pipelineLayoutOptions & DrawPipelineLayoutVulkan::Options::
-                                               fixedFunctionColorOutput)))
+                 !(renderPassOptions &
+                   RenderPassOptionsVulkan::fixedFunctionColorOutput)))
             {
                 m_vk->updateImageDescriptorSets(
                     inputAttachmentDescriptorSet,
@@ -2680,9 +2906,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 : batch.shaderFeatures;
 
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if ((pipelineLayout.options() &
-             DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer) &&
-            (drawType == gpu::DrawType::renderPassResolve))
+        if ((renderPassOptions &
+             RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer) &&
+            drawType == gpu::DrawType::renderPassResolve)
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             shaderMiscFlags |=
@@ -2700,25 +2926,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                 desc,
                                 m_platformFeatures,
                                 &pipelineState);
-
-        const DrawPipelineVulkan* drawPipeline =
-            m_pipelineManager->tryGetPipeline(
-                {
-                    .drawType = drawType,
-                    .shaderFeatures = shaderFeatures,
-                    .interlockMode = desc.interlockMode,
-                    .shaderMiscFlags = shaderMiscFlags,
-
-                    .pipelineState = pipelineState,
-                    .drawPipelineOptions = drawPipelineOptions,
-                    .pipelineLayoutOptions = pipelineLayoutOptions,
-                    .renderTargetFormat = renderTarget->framebufferFormat(),
-                    .colorLoadAction = desc.colorLoadAction,
-#ifdef WITH_RIVE_TOOLS
-                    .synthesizedFailureType = desc.synthesizedFailureType,
-#endif
-                },
-                m_platformFeatures);
 
         if (batch.barriers & (gpu::BarrierFlags::plsAtomicPreResolve |
                               gpu::BarrierFlags::msaaPostInit |
@@ -2779,14 +2986,30 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                 });
         }
 
-        if (drawPipeline == nullptr)
-        {
-            continue;
-        }
+        const DrawPipelineVulkan* drawPipeline =
+            m_pipelineManager->tryGetPipeline(
+                {
+                    .drawType = drawType,
+                    .shaderFeatures = shaderFeatures,
+                    .interlockMode = desc.interlockMode,
+                    .shaderMiscFlags = shaderMiscFlags,
+                    .pipelineState = pipelineState,
+                    .drawPipelineOptions = drawPipelineOptions,
+                    .renderPassOptions = renderPassOptions,
+                    .renderTargetFormat = renderTarget->framebufferFormat(),
+                    .colorLoadAction = desc.colorLoadAction,
+#ifdef WITH_RIVE_TOOLS
+                    .synthesizedFailureType = desc.synthesizedFailureType,
+#endif
+                },
+                m_platformFeatures);
 
-        m_vk->CmdBindPipeline(commandBuffer,
-                              VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              *drawPipeline);
+        if (drawPipeline != nullptr)
+        {
+            m_vk->CmdBindPipeline(commandBuffer,
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  *drawPipeline);
+        }
 
         switch (drawType)
         {
@@ -2812,12 +3035,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                          *m_pathPatchIndexBuffer,
                                          0,
                                          VK_INDEX_TYPE_UINT16);
-                m_vk->CmdDrawIndexed(commandBuffer,
-                                     gpu::PatchIndexCount(drawType),
-                                     batch.elementCount,
-                                     gpu::PatchBaseIndex(drawType),
-                                     0,
-                                     batch.baseElement);
+                for (auto [chunkPatchCount, chunkFirstPatch] :
+                     InstanceChunker(batch.elementCount,
+                                     batch.baseElement,
+                                     m_workarounds.maxInstancesPerRenderPass))
+                {
+                    interruptDrawPassIfNeeded(chunkPatchCount);
+                    if (drawPipeline != nullptr)
+                    {
+                        m_vk->CmdDrawIndexed(commandBuffer,
+                                             gpu::PatchIndexCount(drawType),
+                                             chunkPatchCount,
+                                             gpu::PatchBaseIndex(drawType),
+                                             0,
+                                             chunkFirstPatch);
+                    }
+                }
                 break;
             }
 
@@ -2831,11 +3064,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                            1,
                                            &buffer,
                                            ZERO_OFFSET);
-                m_vk->CmdDraw(commandBuffer,
-                              batch.elementCount,
-                              1,
-                              batch.baseElement,
-                              0);
+                if (drawPipeline != nullptr)
+                {
+                    m_vk->CmdDraw(commandBuffer,
+                                  batch.elementCount,
+                                  1,
+                                  batch.baseElement,
+                                  0);
+                }
                 break;
             }
 
@@ -2852,12 +3088,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                          *m_imageRectIndexBuffer,
                                          0,
                                          VK_INDEX_TYPE_UINT16);
-                m_vk->CmdDrawIndexed(commandBuffer,
-                                     std::size(gpu::kImageRectIndices),
-                                     1,
-                                     batch.baseElement,
-                                     0,
-                                     0);
+                if (drawPipeline != nullptr)
+                {
+                    m_vk->CmdDrawIndexed(commandBuffer,
+                                         std::size(gpu::kImageRectIndices),
+                                         1,
+                                         batch.baseElement,
+                                         0,
+                                         0);
+                }
                 break;
             }
 
@@ -2888,29 +3127,36 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                          *indexBuffer->currentBuffer(),
                                          0,
                                          VK_INDEX_TYPE_UINT16);
-                m_vk->CmdDrawIndexed(commandBuffer,
-                                     batch.elementCount,
-                                     1,
-                                     batch.baseElement,
-                                     0,
-                                     0);
+                if (drawPipeline != nullptr)
+                {
+                    m_vk->CmdDrawIndexed(commandBuffer,
+                                         batch.elementCount,
+                                         1,
+                                         batch.baseElement,
+                                         0,
+                                         0);
+                }
                 break;
             }
 
             case DrawType::renderPassInitialize:
             case DrawType::renderPassResolve:
             {
-                m_vk->CmdDraw(commandBuffer, 4, 1, 0, 0);
+                if (drawPipeline != nullptr)
+                {
+                    m_vk->CmdDraw(commandBuffer, 4, 1, 0, 0);
+                }
                 break;
             }
         }
     }
 
+    assert(pendingTessPatchCount == 0);
     m_vk->CmdEndRenderPass(commandBuffer);
 
     if (colorAttachmentIsOffscreen &&
-        !(pipelineLayout.options() &
-          DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer))
+        !(renderPassOptions &
+          RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer))
     {
         // Copy from the offscreen texture back to the target.
         constexpr static vkutil::ImageAccess ACCESS_COPY_FROM = {
@@ -2968,7 +3214,8 @@ void RenderContextVulkanImpl::hotloadShaders(
         std::make_unique<ColorRampPipeline>(m_pipelineManager.get());
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get());
-    m_atlasPipeline = std::make_unique<AtlasPipeline>(m_pipelineManager.get());
+    m_atlasPipeline =
+        std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
 }
 
 std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
@@ -2997,7 +3244,7 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
         new RenderContextVulkanImpl(std::move(vk), contextOptions));
 
     if (contextOptions.forceAtomicMode &&
-        !impl->platformFeatures().supportsClockwiseAtomicMode)
+        !impl->platformFeatures().supportsAtomicMode)
     {
         fprintf(
             stderr,
