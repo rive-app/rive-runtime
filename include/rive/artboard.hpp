@@ -122,7 +122,7 @@ private:
 
     void sortDependencies();
     void sortDrawOrder();
-    void clearRedundantOperations(Drawable* drawable);
+    void clearRedundantOperations();
     void updateRenderPath() override;
     void update(ComponentDirt value) override;
 

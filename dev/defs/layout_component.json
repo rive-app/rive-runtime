@@ -10,11 +10,13 @@
       "type": "bool",
       "initialValue": "true",
       "initialValueRuntime": "false",
+      "animates": true,
       "key": {
         "int": 196,
         "string": "clip"
       },
-      "description": "True when the layout component bounds clip its contents."
+      "description": "True when the layout component bounds clip its contents.",
+      "bindable": true
     },
     "width": {
       "type": "double",

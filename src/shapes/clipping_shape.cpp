@@ -190,3 +190,8 @@ void ClippingShape::update(ComponentDirt value)
         }
     }
 }
+
+void ClippingShape::isVisibleChanged()
+{
+    artboard()->addDirt(ComponentDirt::Clipping);
+}

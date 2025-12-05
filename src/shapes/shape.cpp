@@ -148,7 +148,11 @@ void Shape::draw(Renderer* renderer)
         {
             continue;
         }
-        shapePaint->draw(renderer, shapePaintPath, worldTransform());
+        shapePaint->draw(renderer,
+                         shapePaintPath,
+                         worldTransform(),
+                         false,
+                         nullptr);
     }
 }
 

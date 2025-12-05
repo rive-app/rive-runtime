@@ -98,6 +98,7 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     void buildDependencies() override;
     void update(ComponentDirt value) override;
+    void isVisibleChanged() override;
 
     ShapePaintPath* path() { return m_clipPath; }
     void resetDrawables()

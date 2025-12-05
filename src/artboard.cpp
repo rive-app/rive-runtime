@@ -569,7 +569,6 @@ void Artboard::sortDrawOrder()
     }
     Drawable* currentDrawable = m_FirstDrawable;
     Drawable* nextDrawable = nullptr;
-    Drawable* unchangedNextDrawable = nullptr;
     std::vector<ClippingShape*> _clippingStack;
     while (currentDrawable)
     {
@@ -654,9 +653,7 @@ void Artboard::sortDrawOrder()
                 _clippingStack.push_back(clippingShape);
             }
         }
-        clearRedundantOperations(unchangedNextDrawable);
         nextDrawable = currentDrawable;
-        unchangedNextDrawable = currentDrawable;
         currentDrawable = currentDrawable->prev;
     }
     // Add closing calls to remaining clippings in the stack
@@ -677,35 +674,69 @@ void Artboard::sortDrawOrder()
             nextDrawable = proxyDrawable;
         }
     }
-    clearRedundantOperations(unchangedNextDrawable);
+    clearRedundantOperations();
 }
 
 // Look for drawables that are preceeding and succeeding drawables that call
 // save and restore. If found, the drawable does not need to call save and
 // restore itself.
-void Artboard::clearRedundantOperations(Drawable* drawable)
+void Artboard::clearRedundantOperations()
 {
-    if (!drawable)
+    Drawable* currentDrawable = m_FirstDrawable;
+    bool prevAppliedSave = false;
+    // Keep a stack of clipStart operation results to apply the same operation
+    // to its clipEnd
+    std::vector<bool> appliedClippingSaveOperations;
+    while (currentDrawable)
     {
-        return;
-    }
-    auto next = drawable;
-    auto prev = drawable;
-    while (true)
-    {
-        if (next->next && next->next->isClipStart() && next->next->willClip() &&
-            prev->prev && prev->prev->isClipEnd())
+        currentDrawable->needsSaveOperation(true);
+        // If previous operation applied a save operation
+        if (prevAppliedSave)
         {
-            next->needsSaveOperation(false);
-            prev->needsSaveOperation(false);
-            next = next->next;
-            prev = prev->prev;
+            // With consecutive clippings, we can skip the save and restore
+            // operation since the previous one has applied it
+            if (currentDrawable->isClipStart())
+            {
+                appliedClippingSaveOperations.push_back(false);
+                currentDrawable->needsSaveOperation(false);
+            }
+            else if (currentDrawable->isClipEnd())
+            {
+                // Apply or skip the clipEnd Restore operation matching its clip
+                // start counterpart
+                auto operationApplied = appliedClippingSaveOperations.back();
+                appliedClippingSaveOperations.pop_back();
+                currentDrawable->needsSaveOperation(operationApplied);
+            }
+            else
+            {
+                // Check if next is clip end, if it is, we can skip the drawable
+                // save/restore because it is tightly wrapped in a clipping
+                // operation
+                auto nextDrawable = currentDrawable->prev;
+                if (nextDrawable->isClipEnd())
+                {
+                    currentDrawable->needsSaveOperation(false);
+                }
+            }
         }
-        else
+        else if (currentDrawable->isClipStart())
         {
-            break;
+            appliedClippingSaveOperations.push_back(true);
         }
+        else if (currentDrawable->isClipEnd())
+        {
+            // Apply or skip the clipEnd Restore operation matching its clip
+            // start counterpart
+            auto operationApplied = appliedClippingSaveOperations.back();
+            currentDrawable->needsSaveOperation(operationApplied);
+            appliedClippingSaveOperations.pop_back();
+        }
+        prevAppliedSave = currentDrawable->isClipStart() &&
+                          (currentDrawable->willClip() || prevAppliedSave);
+        currentDrawable = currentDrawable->prev;
     }
+    assert(appliedClippingSaveOperations.size() == 0);
 }
 
 void Artboard::sortDependencies()
@@ -936,6 +967,10 @@ void Artboard::update(ComponentDirt value)
     if (hasDirt(value, ComponentDirt::DrawOrder))
     {
         sortDrawOrder();
+    }
+    if (hasDirt(value, ComponentDirt::Clipping))
+    {
+        clearRedundantOperations();
     }
 #ifdef WITH_RIVE_LAYOUT
     if (hasDirt(value, ComponentDirt::LayoutStyle))

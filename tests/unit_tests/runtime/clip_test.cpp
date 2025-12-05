@@ -135,3 +135,65 @@ TEST_CASE("Apply clipping to elements that are moved outside their hierarchy",
 
     CHECK(silver.matches("clipping_and_draw_order"));
 }
+
+TEST_CASE("Animated node clippings work", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/animated_clipping.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-nodes");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0 / 0.048f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.048f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("animated_clipping-nodes"));
+}
+
+TEST_CASE("Animated layout clippings work", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/animated_clipping.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-layout");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0 / 0.048f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.048f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("animated_clipping-layout"));
+}
