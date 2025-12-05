@@ -289,7 +289,12 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                          RenderPassOptionsVulkan::rasterOrderingInterruptible))
                            ? VK_ATTACHMENT_STORE_OP_STORE
                            : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout =
+                (interlockMode == gpu::InterlockMode::rasterOrdering &&
+                 (renderPassOptions &
+                  RenderPassOptionsVulkan::rasterOrderingResume))
+                    ? VK_IMAGE_LAYOUT_GENERAL
+                    : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
         colorAttachmentRefs.push_back({
@@ -314,7 +319,10 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                         RenderPassOptionsVulkan::rasterOrderingInterruptible)
                            ? VK_ATTACHMENT_STORE_OP_STORE
                            : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout = (renderPassOptions &
+                              RenderPassOptionsVulkan::rasterOrderingResume)
+                                 ? VK_IMAGE_LAYOUT_GENERAL
+                                 : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
         colorAttachmentRefs.push_back({
@@ -336,7 +344,10 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                         RenderPassOptionsVulkan::rasterOrderingInterruptible)
                            ? VK_ATTACHMENT_STORE_OP_STORE
                            : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .initialLayout = (renderPassOptions &
+                              RenderPassOptionsVulkan::rasterOrderingResume)
+                                 ? VK_IMAGE_LAYOUT_GENERAL
+                                 : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
         colorAttachmentRefs.push_back({
