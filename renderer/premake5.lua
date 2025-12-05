@@ -6,11 +6,11 @@ dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_glfw_v2.lua')
 
 newoption({ trigger = 'with-skia', description = 'use skia' })
-if _OPTIONS['with-skia'] then
+if _OPTIONS['with-skia'] and not _OPTIONS['with-libs-only'] then
     dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/premake5_v2.lua')
 end
 
-if not _OPTIONS['with-webgpu'] then
+if not _OPTIONS['with-webgpu'] and not _OPTIONS['with-libs-only'] then
     project('path_fiddle')
     do
         dependson('rive')
@@ -179,7 +179,7 @@ if not _OPTIONS['with-webgpu'] then
     end
 end
 
-if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
+if (_OPTIONS['with-webgpu'] or _OPTIONS['with-dawn']) and not _OPTIONS['with-libs-only']  then
     project('webgpu_player')
     do
         kind('ConsoleApp')
