@@ -835,6 +835,8 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         // render passes that use advanced blend on Qualcomm.
         m_platformFeatures.msaaResolveAfterDstReadNeedsDraw = true;
     }
+    m_platformFeatures.maxTextureSize =
+        physicalDeviceProps.limits.maxImageDimension2D;
     m_platformFeatures.maxCoverageBufferLength =
         std::min(physicalDeviceProps.limits.maxStorageBufferRange, 1u << 28) /
         sizeof(uint32_t);
