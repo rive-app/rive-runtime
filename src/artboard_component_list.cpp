@@ -804,7 +804,7 @@ void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
     m_stateMachinesMap.erase(item);
 }
 
-void ArtboardComponentList::createArtboardRecorders(Artboard* artboard)
+void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)
 {
     if (artboard == nullptr)
     {
@@ -825,25 +825,24 @@ void ArtboardComponentList::createArtboardRecorders(Artboard* artboard)
 }
 
 void ArtboardComponentList::applyRecorders(Artboard* artboard,
-                                           Artboard* sourceArtboard)
+                                           const Artboard* sourceArtboard)
 {
-    auto propertyRecorder = m_propertyRecordersMap[sourceArtboard].get();
-    propertyRecorder->apply(artboard);
-    auto artboards = m_file->artboards();
+    auto sourcedArtboardIt = m_propertyRecordersMap.find(sourceArtboard);
+    if (sourcedArtboardIt != m_propertyRecordersMap.end())
+    {
+        auto propertyRecorder = sourcedArtboardIt->second.get();
+        propertyRecorder->apply(artboard);
+    }
     for (auto& nestedArtboard : artboard->nestedArtboards())
     {
-        if (nestedArtboard->artboardId() < artboards.size())
-        {
-            auto sourceNestedArtboard = artboards[nestedArtboard->artboardId()];
-            applyRecorders(nestedArtboard->sourceArtboard(),
-                           sourceNestedArtboard);
-        }
+        applyRecorders(nestedArtboard->sourceArtboard(),
+                       nestedArtboard->sourceArtboard()->artboardSource());
     }
 }
 
 void ArtboardComponentList::applyRecorders(
     StateMachineInstance* stateMachineInstance,
-    Artboard* sourceArtboard)
+    const Artboard* sourceArtboard)
 {
     auto propertyRecorder = m_propertyRecordersMap[sourceArtboard].get();
     propertyRecorder->apply(stateMachineInstance);
