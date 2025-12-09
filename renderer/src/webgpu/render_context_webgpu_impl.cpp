@@ -234,9 +234,9 @@ static wgpu::ShaderModule compile_shader_module_spirv(wgpu::Device device,
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_raster_order_mesh.frag.hpp"
 
-// When compiling "glslRaw" shaders, the WebGPU driver will automatically
-// search for a uniform with this name and update its value when draw commands
-// have a base instance.
+// When compiling "glslRaw" shaders, the WebGPU driver will automatically search
+// for a uniform with this name and update its value when draw commands have a
+// base instance.
 constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "nrdp_BaseInstance";
 
 EM_JS(int, gl_max_vertex_shader_storage_blocks, (), {
@@ -261,6 +261,21 @@ wgpu::ShaderModule compile_shader_module_wagyu(wgpu::Device device,
     descriptor.nextInChain = chainedShaderModuleDescriptor;
     auto ret = wgpuDeviceCreateShaderModule(device.Get(), &descriptor);
     return wgpu::ShaderModule::Acquire(ret);
+}
+
+static bool using_pls(rive::gpu::InterlockMode interlockMode)
+{
+    switch (interlockMode)
+    {
+        case rive::gpu::InterlockMode::rasterOrdering:
+        case rive::gpu::InterlockMode::clockwise:
+            return true;
+        case rive::gpu::InterlockMode::atomics:
+        case rive::gpu::InterlockMode::clockwiseAtomic:
+        case rive::gpu::InterlockMode::msaa:
+            return false;
+    }
+    RIVE_UNREACHABLE();
 }
 #endif // RIVE_WAGYU
 
@@ -891,12 +906,7 @@ public:
         wgpu::ShaderModule vertexShader, fragmentShader;
 #ifdef RIVE_WAGYU
         PixelLocalStorageType plsType = context->m_capabilities.plsType;
-        if ((interlockMode == gpu::InterlockMode::rasterOrdering ||
-             interlockMode == gpu::InterlockMode::clockwise) &&
-            (context->m_capabilities.backendType ==
-                 wgpu::BackendType::OpenGLES ||
-             plsType == PixelLocalStorageType::
-                            VK_EXT_rasterization_order_attachment_access))
+        if (using_pls(interlockMode))
         {
             WGPUWagyuShaderLanguage language;
             const char* versionString;
@@ -1573,10 +1583,10 @@ void RenderContextWebGPUImpl::initGPUObjects()
     m_samplerBindings = m_device.CreateBindGroup(&samplerBindGroupDesc);
 
 #ifdef RIVE_WAGYU
-    bool needsInputAttachmentBindings =
+    const bool supportsPLSInputAttachmentBindings =
         m_capabilities.plsType ==
         PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access;
-    if (needsInputAttachmentBindings)
+    if (supportsPLSInputAttachmentBindings)
     {
         WGPUWagyuInputTextureBindingLayout inputAttachmentLayout =
             WGPU_WAGYU_INPUT_TEXTURE_BINDING_LAYOUT_INIT;
@@ -1606,9 +1616,9 @@ void RenderContextWebGPUImpl::initGPUObjects()
     wgpu::PipelineLayoutDescriptor drawPipelineLayoutDesc = {
         .bindGroupLayoutCount = static_cast<size_t>(
 #ifdef RIVE_WAGYU
-            needsInputAttachmentBindings ? BINDINGS_SET_COUNT :
+            supportsPLSInputAttachmentBindings ? BINDINGS_SET_COUNT :
 #endif
-                                         BINDINGS_SET_COUNT - 1),
+                                               BINDINGS_SET_COUNT - 1),
         .bindGroupLayouts = m_drawBindGroupLayouts,
     };
     static_assert(PLS_TEXTURE_BINDINGS_SET == BINDINGS_SET_COUNT - 1);
@@ -1620,8 +1630,10 @@ void RenderContextWebGPUImpl::initGPUObjects()
     m_emptyBindingsLayout = m_device.CreateBindGroupLayout(&emptyBindingsDesc);
 
 #ifdef RIVE_WAGYU
-    if (m_capabilities.plsType ==
-        PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
+    const bool supportsShaderPixelLocalStorageEXT =
+        m_capabilities.plsType ==
+        PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
+    if (supportsShaderPixelLocalStorageEXT)
     {
         // We have to manually implement load/store operations from a shader
         // when using EXT_shader_pixel_local_storage.
@@ -1783,7 +1795,7 @@ wgpu::TextureView RenderTargetWebGPU::clipTextureView()
         m_clipTexture = m_device.CreateTexture(&desc);
         m_clipTextureView = m_clipTexture.CreateView();
     }
-    return m_clipTextureView = m_clipTexture.CreateView();
+    return m_clipTextureView;
 }
 
 wgpu::TextureView RenderTargetWebGPU::scratchColorTextureView()
@@ -2549,10 +2561,13 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
 
     WGPUChainedStruct* extraColorTargetState = nullptr;
 #ifdef RIVE_WAGYU
+    const bool usingPLSInputAttachments =
+        using_pls(interlockMode) &&
+        m_capabilities.plsType ==
+            PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access;
     WGPUWagyuColorTargetState wagyuColorTargetState =
         WGPU_WAGYU_COLOR_TARGET_STATE_INIT;
-    if (m_capabilities.plsType ==
-        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
+    if (usingPLSInputAttachments)
     {
         // WGPUWagyu needs us to tell it when color attachments are also used as
         // input attachments.
@@ -2577,8 +2592,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     });
 
 #ifdef RIVE_WAGYU
-    if (m_capabilities.plsType ==
-        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
+    if (usingPLSInputAttachments)
     {
         assert(colorAttachments.size() == CLIP_PLANE_IDX);
         colorAttachments.push_back({
@@ -2613,8 +2627,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
 #ifdef RIVE_WAGYU
     WGPUWagyuInputAttachmentState inputAttachments[PLS_PLANE_COUNT];
     WGPUWagyuFragmentState wagyuFragmentState = WGPU_WAGYU_FRAGMENT_STATE_INIT;
-    if (m_capabilities.plsType ==
-        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
+    if (usingPLSInputAttachments)
     {
         for (size_t i = 0; i < PLS_PLANE_COUNT; ++i)
         {
@@ -2706,6 +2719,12 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::beginPLSRenderPass(
 
     StackVector<WGPURenderPassColorAttachment, PLS_PLANE_COUNT> plsAttachments;
 
+    WGPUColor targetClearValue =
+        math::bit_cast<WGPUColor>(wgpu_color_premul(desc.colorClearValue));
+
+    WGPURenderPassDescriptor passDesc = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
+    passDesc.label = WGPU_STRING_VIEW("RIVE_PLS_RenderPass");
+
     // framebuffer
     assert(plsAttachments.size() == COLOR_PLANE_IDX);
     plsAttachments.push_back({
@@ -2713,51 +2732,8 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::beginPLSRenderPass(
         .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
         .loadOp = colorLoadOp,
         .storeOp = WGPUStoreOp_Store,
-        .clearValue =
-            math::bit_cast<WGPUColor>(wgpu_color_premul(desc.colorClearValue)),
+        .clearValue = targetClearValue,
     });
-
-#ifdef RIVE_WAGYU
-    if (m_capabilities.plsType ==
-        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
-    {
-        // clip
-        assert(plsAttachments.size() == CLIP_PLANE_IDX);
-        plsAttachments.push_back({
-            .view = renderTarget->clipTextureView().Get(),
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Discard,
-            .clearValue = {},
-        });
-
-        // scratchColor
-        assert(plsAttachments.size() == SCRATCH_COLOR_PLANE_IDX);
-        plsAttachments.push_back({
-            .view = renderTarget->scratchColorTextureView().Get(),
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Discard,
-            .clearValue = {},
-        });
-
-        // coverage
-        assert(plsAttachments.size() == COVERAGE_PLANE_IDX);
-        plsAttachments.push_back({
-            .view = renderTarget->coverageTextureView().Get(),
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Discard,
-            .clearValue = {},
-        });
-    }
-#endif
-
-    WGPURenderPassDescriptor passDesc = {
-        .label = WGPU_STRING_VIEW("RIVE_PLS_RenderPass"),
-        .colorAttachmentCount = plsAttachments.size(),
-        .colorAttachments = plsAttachments.data(),
-    };
 
 #ifdef RIVE_WAGYU
     WGPUWagyuRenderPassDescriptor wagyuRenderPassDescriptor =
@@ -2766,66 +2742,98 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::beginPLSRenderPass(
     StackVector<WGPUWagyuRenderPassInputAttachment, PLS_PLANE_COUNT>
         inputAttachments;
 
-    if (m_capabilities.plsType ==
-        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
+    if (using_pls(desc.interlockMode))
     {
-        WGPUColor targetClearValue = wgpu_color_premul(desc.colorClearValue);
-
-        WGPUColor zeroClearValue = {};
-
-        assert(plsAttachments.size() == COLOR_PLANE_IDX);
-        inputAttachments.push_back({
-            .view = renderTarget->targetTextureView().Get(),
-            .clearValue = &targetClearValue,
-            .loadOp = colorLoadOp,
-            .storeOp = WGPUStoreOp_Store,
-        });
-
-        assert(plsAttachments.size() == CLIP_PLANE_IDX);
-        inputAttachments.push_back({
-            .view = renderTarget->clipTextureView().Get(),
-            .clearValue = &zeroClearValue,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Discard,
-        });
-
-        assert(plsAttachments.size() == SCRATCH_COLOR_PLANE_IDX);
-        inputAttachments.push_back({
-            .view = renderTarget->scratchColorTextureView().Get(),
-            .clearValue = &zeroClearValue,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Discard,
-        });
-
-        assert(plsAttachments.size() == COVERAGE_PLANE_IDX);
-        inputAttachments.push_back({
-            .view = renderTarget->coverageTextureView().Get(),
-            .clearValue = &zeroClearValue,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Discard,
-        });
-
-        assert(plsAttachments.size() == PLS_PLANE_COUNT);
-
-        wagyuRenderPassDescriptor.inputAttachmentCount =
-            inputAttachments.size();
-        wagyuRenderPassDescriptor.inputAttachments = inputAttachments.data();
-        passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
-    }
-    else if (m_capabilities.plsType ==
-             PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
-    {
-        wagyuRenderPassDescriptor.pixelLocalStorageEnabled =
-            WGPUOptionalBool_True;
-        if (desc.fixedFunctionColorOutput)
+        if (m_capabilities.plsType ==
+            PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
         {
-            assert(m_capabilities.GL_EXT_shader_pixel_local_storage2);
-            wagyuRenderPassDescriptor.pixelLocalStorageSize =
-                2 * sizeof(uint32_t);
+            assert(inputAttachments.size() == COLOR_PLANE_IDX);
+            inputAttachments.push_back({
+                .view = renderTarget->targetTextureView().Get(),
+                .clearValue = &targetClearValue,
+                .loadOp = colorLoadOp,
+                .storeOp = WGPUStoreOp_Store,
+            });
+
+            WGPUColor zeroClearValue = {};
+
+            // clip
+            assert(plsAttachments.size() == CLIP_PLANE_IDX);
+            plsAttachments.push_back({
+                .view = renderTarget->clipTextureView().Get(),
+                .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                .loadOp = WGPULoadOp_Clear,
+                .storeOp = WGPUStoreOp_Discard,
+                .clearValue = {},
+            });
+            assert(inputAttachments.size() == CLIP_PLANE_IDX);
+            inputAttachments.push_back({
+                .view = renderTarget->clipTextureView().Get(),
+                .clearValue = &zeroClearValue,
+                .loadOp = WGPULoadOp_Clear,
+                .storeOp = WGPUStoreOp_Discard,
+            });
+
+            // scratchColor
+            assert(plsAttachments.size() == SCRATCH_COLOR_PLANE_IDX);
+            plsAttachments.push_back({
+                .view = renderTarget->scratchColorTextureView().Get(),
+                .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                .loadOp = WGPULoadOp_Clear,
+                .storeOp = WGPUStoreOp_Discard,
+                .clearValue = {},
+            });
+            assert(inputAttachments.size() == SCRATCH_COLOR_PLANE_IDX);
+            inputAttachments.push_back({
+                .view = renderTarget->scratchColorTextureView().Get(),
+                .clearValue = &zeroClearValue,
+                .loadOp = WGPULoadOp_Clear,
+                .storeOp = WGPUStoreOp_Discard,
+            });
+
+            // coverage
+            assert(plsAttachments.size() == COVERAGE_PLANE_IDX);
+            plsAttachments.push_back({
+                .view = renderTarget->coverageTextureView().Get(),
+                .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
+                .loadOp = WGPULoadOp_Clear,
+                .storeOp = WGPUStoreOp_Discard,
+                .clearValue = {},
+            });
+            assert(inputAttachments.size() == COVERAGE_PLANE_IDX);
+            inputAttachments.push_back({
+                .view = renderTarget->coverageTextureView().Get(),
+                .clearValue = &zeroClearValue,
+                .loadOp = WGPULoadOp_Clear,
+                .storeOp = WGPUStoreOp_Discard,
+            });
+
+            assert(plsAttachments.size() == PLS_PLANE_COUNT);
+            assert(inputAttachments.size() == PLS_PLANE_COUNT);
+
+            wagyuRenderPassDescriptor.inputAttachmentCount =
+                inputAttachments.size();
+            wagyuRenderPassDescriptor.inputAttachments =
+                inputAttachments.data();
+        }
+        else if (m_capabilities.plsType ==
+                 PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
+        {
+            wagyuRenderPassDescriptor.pixelLocalStorageEnabled =
+                WGPUOptionalBool_True;
+            if (desc.fixedFunctionColorOutput)
+            {
+                assert(m_capabilities.GL_EXT_shader_pixel_local_storage2);
+                wagyuRenderPassDescriptor.pixelLocalStorageSize =
+                    2 * sizeof(uint32_t);
+            }
         }
         passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
     }
 #endif
+
+    passDesc.colorAttachmentCount = plsAttachments.size();
+    passDesc.colorAttachments = plsAttachments.data();
 
     wgpu::RenderPassEncoder drawPass = wgpu::RenderPassEncoder::Acquire(
         wgpuCommandEncoderBeginRenderPass(commandEncoder.Get(), &passDesc));
@@ -3254,12 +3262,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
 #ifdef RIVE_WAGYU
-    bool needsInputAttachmentBindings =
-        (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-         desc.interlockMode == gpu::InterlockMode::clockwise) &&
+    const bool usingInputAttachmentBindings =
+        using_pls(desc.interlockMode) &&
         m_capabilities.plsType ==
             PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access;
-    if (needsInputAttachmentBindings)
+    if (usingInputAttachmentBindings)
     {
         wgpu::BindGroupEntry plsTextureBindingEntries[] = {
             {
@@ -3293,10 +3300,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 #endif
 
 #ifdef RIVE_WAGYU
-    if ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-         desc.interlockMode == gpu::InterlockMode::clockwise) &&
+    const bool usingShaderPixelLocalStorageEXT =
+        using_pls(desc.interlockMode) &&
         m_capabilities.plsType ==
-            PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
+            PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
+    if (usingShaderPixelLocalStorageEXT)
     {
         if (desc.fixedFunctionColorOutput)
         {
@@ -3385,7 +3393,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             assert(!desc.fixedFunctionColorOutput ||
                    drawType == gpu::DrawType::renderPassInitialize);
 #ifdef RIVE_WAGYU
-            assert(!needsInputAttachmentBindings);
+            assert(!usingInputAttachmentBindings);
 #endif
 
             MSAABeginType msaaBeginType;
@@ -3608,9 +3616,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
 #ifdef RIVE_WAGYU
-    if (m_capabilities.plsType ==
-            PixelLocalStorageType::GL_EXT_shader_pixel_local_storage &&
-        !desc.fixedFunctionColorOutput)
+    if (usingShaderPixelLocalStorageEXT && !desc.fixedFunctionColorOutput)
     {
         // EXT_shader_pixel_local_storage doesn't support concurrent rendering
         // to PLS and the framebuffer. Now that we're done, issue a fullscreen
