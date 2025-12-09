@@ -51,7 +51,8 @@ public:
                       ShapePaintPath* shapePaintPath,
                       const Mat2D& transform,
                       bool usePathFillRule = false,
-                      RenderPaint* overridePaint = nullptr);
+                      RenderPaint* overridePaint = nullptr,
+                      bool needsSaveOperation = true);
 
     RenderPaint* renderPaint() { return m_RenderPaint.get(); }
 

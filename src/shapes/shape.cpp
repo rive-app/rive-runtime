@@ -137,6 +137,7 @@ void Shape::addToRawPath(RawPath& path, const Mat2D* transform)
 void Shape::draw(Renderer* renderer)
 {
     RIVE_PROF_SCOPE()
+    auto needsSaveOperation = m_needsSaveOperation || m_ShapePaints.size() > 1;
     for (auto shapePaint : m_ShapePaints)
     {
         if (!shapePaint->isVisible())
@@ -152,7 +153,8 @@ void Shape::draw(Renderer* renderer)
                          shapePaintPath,
                          worldTransform(),
                          false,
-                         nullptr);
+                         nullptr,
+                         needsSaveOperation);
     }
 }
 

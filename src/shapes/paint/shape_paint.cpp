@@ -73,12 +73,13 @@ void ShapePaint::draw(Renderer* renderer,
                       ShapePaintPath* shapePaintPath,
                       const Mat2D& transform,
                       bool usePathFillRule,
-                      RenderPaint* overridePaint)
+                      RenderPaint* overridePaint,
+                      bool needsSaveOperation)
 {
     RIVE_PROF_SCOPE()
 
     ShapePaintPath* pathToDraw = shapePaintPath;
-    bool saved = false;
+    bool saved = !needsSaveOperation;
     if (m_feather != nullptr)
     {
         bool offsetInArtboard = m_feather->space() == TransformSpace::world;
@@ -159,7 +160,7 @@ void ShapePaint::draw(Renderer* renderer,
                                                     : renderPaint());
     }
 
-    if (saved)
+    if (saved && needsSaveOperation)
     {
         renderer->restore();
     }
