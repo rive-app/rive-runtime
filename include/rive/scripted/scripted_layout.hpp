@@ -30,6 +30,7 @@ public:
                      LayoutScaleType widthScaleType,
                      LayoutScaleType heightScaleType,
                      LayoutDirection direction) override;
+    void addProperty(CustomProperty* prop) override;
     Core* clone() const override;
     ScriptProtocol scriptProtocol() override { return ScriptProtocol::layout; }
 };

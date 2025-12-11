@@ -1,6 +1,7 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive_file_reader.hpp"
 
@@ -282,4 +283,31 @@ TEST_CASE("can add artboard to path", "[scripting]")
     lua_getglobal(L, "addToPath");
     lua_pushvalue(L, -2);
     CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+}
+
+TEST_CASE("script instances Artboard input", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_artboard_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("Artboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_artboards"));
 }

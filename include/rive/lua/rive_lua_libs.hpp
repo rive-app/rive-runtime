@@ -3,6 +3,7 @@
 #define _RIVE_LUA_LIBS_HPP_
 #include "lua.h"
 #include "lualib.h"
+#include "rive/assets/script_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
@@ -26,13 +27,14 @@
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
-#include "rive/artboard.hpp"
-#include "rive/file.hpp"
-#include "rive/animation/state_machine_instance.hpp"
 #include "rive/hit_result.hpp"
+#include "rive/refcnt.hpp"
 
 #include <chrono>
 #include <unordered_map>
+#include <functional>
+#include <string>
+#include <vector>
 
 static const int maxCStack = 8000;
 static const int luaGlobalsIndex = -maxCStack - 2002;
@@ -40,7 +42,14 @@ static const int luaRegistryIndex = -maxCStack - 2000;
 
 namespace rive
 {
+class Artboard;
+class ArtboardInstance;
 class Factory;
+class File;
+class ModuleDetails;
+class ScriptedObject;
+class StateMachineInstance;
+class TransformComponent;
 enum class LuaAtoms : int16_t
 {
     // Vector
@@ -423,9 +432,9 @@ public:
                          std::unique_ptr<ArtboardInstance>&& artboardInstance);
 
     ~ScriptReffedArtboard();
-    rive::rcp<rive::File> file() { return m_file; }
-    Artboard* artboard() { return m_artboard.get(); }
-    StateMachineInstance* stateMachine() { return m_stateMachine.get(); }
+    rive::rcp<rive::File> file();
+    Artboard* artboard();
+    StateMachineInstance* stateMachine();
     rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
 
 private:
@@ -440,6 +449,7 @@ class ScriptedArtboard
 public:
     ScriptedArtboard(rcp<File> file,
                      std::unique_ptr<ArtboardInstance>&& artboardInstance);
+    ~ScriptedArtboard();
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
     static constexpr const char* luaName = "Artboard";
@@ -464,6 +474,8 @@ public:
     int instance(lua_State* L);
 
     bool advance(float seconds);
+
+    void cleanupDataRef(lua_State* L);
 
 private:
     rcp<ScriptReffedArtboard> m_scriptReffedArtboard;
@@ -716,8 +728,27 @@ public:
     virtual void printEndLine() = 0;
     virtual int pCall(lua_State* state, int nargs, int nresults) = 0;
 
+    void queuePendingModule(ModuleDetails* moduleDetails);
+    void clearPendingModule(const std::string& name);
+
+    // Add a module to be registered later via performRegistration()
+    void addModule(ModuleDetails* moduleDetails);
+
+    // Perform registration of all added modules, handling dependencies and
+    // retries
+    void performRegistration(lua_State* state);
+
+private:
+    bool tryRegisterModule(lua_State* state,
+                           ModuleDetails* moduleDetails,
+                           int& functionRef);
+
+    void retryPendingModules(lua_State* state);
+
 private:
     Factory* m_factory;
+    std::vector<ModuleDetails*> m_pendingModules;
+    std::vector<ModuleDetails*> m_modulesToRegister;
 };
 
 class ScriptingVM
@@ -730,6 +761,17 @@ public:
     lua_State* state() { return m_state; }
 
     static void init(lua_State* state, ScriptingContext* context);
+
+    // Add a module to be registered later via performRegistration()
+    void addModule(ModuleDetails* moduleDetails)
+    {
+        m_context->addModule(moduleDetails);
+    }
+
+    // Perform registration of all added modules, handling dependencies and
+    // retries
+    void performRegistration() { m_context->performRegistration(m_state); }
+
     static bool registerModule(lua_State* state,
                                const char* name,
                                Span<uint8_t> bytecode);
@@ -742,6 +784,7 @@ public:
                                Span<uint8_t> bytecode);
 
     bool registerScript(const char* name, Span<uint8_t> bytecode);
+
     static void dumpStack(lua_State* state);
 
 private:
@@ -909,6 +952,7 @@ class CPPRuntimeScriptingContext : public ScriptingContext
 {
 public:
     CPPRuntimeScriptingContext(Factory* factory) : ScriptingContext(factory) {}
+    virtual ~CPPRuntimeScriptingContext() = default;
 
     std::chrono::time_point<std::chrono::steady_clock> executionTime;
 

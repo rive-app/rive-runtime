@@ -107,6 +107,16 @@ bool ScriptedPathEffect::addScriptedDirt(ComponentDirt value, bool recurse)
     return Component::addDirt(value, recurse);
 }
 
+void ScriptedPathEffect::addProperty(CustomProperty* prop)
+{
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
+    {
+        scriptInput->scriptedObject(this);
+    }
+    CustomPropertyContainer::addProperty(prop);
+}
+
 StatusCode ScriptedPathEffect::import(ImportStack& importStack)
 {
     auto result = registerReferencer(importStack);
@@ -126,16 +136,6 @@ Core* ScriptedPathEffect::clone() const
     if (m_fileAsset != nullptr)
     {
         twin->setAsset(m_fileAsset);
-    }
-    for (auto prop : m_customProperties)
-    {
-        auto clonedValue = prop->clone()->as<CustomProperty>();
-        twin->addProperty(clonedValue);
-        auto scriptInput = ScriptInput::from(clonedValue);
-        if (scriptInput != nullptr)
-        {
-            scriptInput->scriptedObject(twin);
-        }
     }
     return twin;
 }

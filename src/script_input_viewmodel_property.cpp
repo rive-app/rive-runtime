@@ -4,8 +4,18 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
+#include "rive/custom_property_container.hpp"
 
 using namespace rive;
+
+ScriptInputViewModelProperty::~ScriptInputViewModelProperty()
+{
+    auto obj = scriptedObject();
+    if (obj != nullptr)
+    {
+        obj->removeProperty(this);
+    }
+}
 
 void ScriptInputViewModelProperty::decodeDataBindPathIds(
     Span<const uint8_t> value)
@@ -83,5 +93,26 @@ StatusCode ScriptInputViewModelProperty::import(ImportStack& importStack)
         // to add it as a Component, otherwise, return Ok
         return Super::import(importStack);
     }
+    return StatusCode::Ok;
+}
+
+StatusCode ScriptInputViewModelProperty::onAddedClean(CoreContext* context)
+{
+    StatusCode code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+
+    auto p = parent();
+    if (p != nullptr)
+    {
+        auto scriptedObj = ScriptedObject::from(p);
+        if (scriptedObj != nullptr)
+        {
+            scriptedObj->addProperty(this);
+        }
+    }
+
     return StatusCode::Ok;
 }

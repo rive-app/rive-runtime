@@ -1,5 +1,8 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/file.hpp"
+#include "rive/artboard.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/node.hpp"
@@ -31,6 +34,15 @@ ScriptReffedArtboard::~ScriptReffedArtboard()
     // Make sure artboard is deleted before file.
     m_artboard = nullptr;
     m_file = nullptr;
+}
+
+rive::rcp<rive::File> ScriptReffedArtboard::file() { return m_file; }
+
+Artboard* ScriptReffedArtboard::artboard() { return m_artboard.get(); }
+
+StateMachineInstance* ScriptReffedArtboard::stateMachine()
+{
+    return m_stateMachine.get();
 }
 
 static int artboard_draw(lua_State* L)
@@ -299,6 +311,17 @@ ScriptedArtboard::ScriptedArtboard(
         make_rcp<ScriptReffedArtboard>(file, std::move(artboardInstance)))
 {}
 
+ScriptedArtboard::~ScriptedArtboard() { m_scriptReffedArtboard = nullptr; }
+
+void ScriptedArtboard::cleanupDataRef(lua_State* L)
+{
+    if (m_dataRef != 0)
+    {
+        lua_unref(L, m_dataRef);
+        m_dataRef = 0;
+    }
+}
+
 static int node_index(lua_State* L)
 {
     int atom;
@@ -539,9 +562,22 @@ static int node_namecall(lua_State* L)
     return 0;
 }
 
+static void scripted_artboard_dtor(lua_State* L, void* data)
+{
+    ScriptedArtboard* artboard = static_cast<ScriptedArtboard*>(data);
+    // Clean up m_dataRef before calling the C++ destructor
+    // (we can't do this in ~ScriptedArtboard() because it doesn't have access
+    // to lua_State*)
+    artboard->cleanupDataRef(L);
+    // Call the C++ destructor
+    artboard->~ScriptedArtboard();
+}
+
 int luaopen_rive_artboards(lua_State* L)
 {
     lua_register_rive<ScriptedArtboard>(L);
+    // Override the default destructor to clean up m_dataRef first
+    lua_setuserdatadtor(L, ScriptedArtboard::luaTag, scripted_artboard_dtor);
 
     lua_pushcfunction(L, artboard_index, nullptr);
     lua_setfield(L, -2, "__index");

@@ -18,6 +18,7 @@ protected:
     std::vector<uint32_t> m_DataBindPathIdsBuffer;
 
 public:
+    ~ScriptInputViewModelProperty();
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(
         const ScriptInputViewModelPropertyBase& object) override;
@@ -25,6 +26,7 @@ public:
     void initScriptedValue() override;
     bool validateForScriptInit() override;
     StatusCode import(ImportStack& importStack) override;
+    StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

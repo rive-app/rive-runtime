@@ -3,8 +3,18 @@
 #include "rive/importers/scripted_object_importer.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/script_input_string.hpp"
+#include "rive/custom_property_container.hpp"
 
 using namespace rive;
+
+ScriptInputString::~ScriptInputString()
+{
+    auto obj = scriptedObject();
+    if (obj != nullptr)
+    {
+        obj->removeProperty(this);
+    }
+}
 
 StatusCode ScriptInputString::import(ImportStack& importStack)
 {
@@ -24,4 +34,34 @@ StatusCode ScriptInputString::import(ImportStack& importStack)
         return Super::import(importStack);
     }
     return StatusCode::Ok;
+}
+
+StatusCode ScriptInputString::onAddedClean(CoreContext* context)
+{
+    StatusCode code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+
+    auto p = parent();
+    if (p != nullptr)
+    {
+        auto scriptedObj = ScriptedObject::from(p);
+        if (scriptedObj != nullptr)
+        {
+            scriptedObj->addProperty(this);
+        }
+    }
+
+    return StatusCode::Ok;
+}
+
+void ScriptInputString::propertyValueChanged()
+{
+    auto obj = scriptedObject();
+    if (obj != nullptr)
+    {
+        obj->setStringInput(name(), propertyValue());
+    }
 }

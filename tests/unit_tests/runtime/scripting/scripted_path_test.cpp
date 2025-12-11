@@ -1,8 +1,11 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/math/path_types.hpp"
+#include "rive_file_reader.hpp"
+#include "rive_testing.hpp"
 
 using namespace rive;
 
@@ -366,4 +369,58 @@ TEST_CASE("path measure extract across multiple contours", "[scripting]")
     CHECK(destPath != nullptr);
     // Should extract from both contours
     CHECK(destPath->rawPath.verbs().count() > 0);
+}
+
+TEST_CASE("path drawing examples", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_paths_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("PathsScript");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_paths"));
+}
+
+TEST_CASE("path effects examples", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_path_effects_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("PathEffects");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_path_effects"));
 }

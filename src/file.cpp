@@ -17,6 +17,9 @@
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/script_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
+#ifdef WITH_RIVE_SCRIPTING
+#include "rive/lua/rive_lua_libs.hpp"
+#endif
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
@@ -220,6 +223,9 @@ File::~File()
         delete physics;
     }
     delete m_backboard;
+#ifdef WITH_RIVE_SCRIPTING
+    cleanupScriptingVM();
+#endif
 }
 
 rcp<File> File::import(Span<const uint8_t> bytes,
@@ -569,10 +575,63 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         }
     }
 
-    return !reader.hasError() && importStack.resolve() == StatusCode::Ok
+    auto resolved = importStack.resolve();
+#ifdef WITH_RIVE_SCRIPTING
+    registerScripts();
+#endif
+    return !reader.hasError() && resolved == StatusCode::Ok
                ? ImportResult::success
                : ImportResult::malformed;
 }
+
+#ifdef WITH_RIVE_SCRIPTING
+void File::registerScripts()
+{
+    if (m_scriptingVM == nullptr)
+    {
+        makeScriptingVM();
+    }
+
+    // Add all scripts to the VM for registration
+    for (auto asset : m_fileAssets)
+    {
+        if (asset->is<ScriptAsset>())
+        {
+            ScriptAsset* scriptAsset = asset->as<ScriptAsset>();
+            // At runtime, generatorFunctionRef should be 0, meaning
+            // it hasn't been registered yet with a VM.
+            if (scriptAsset->verified())
+            {
+                m_scriptingVM->addModule(scriptAsset);
+            }
+        }
+    }
+
+    // Perform registration - ScriptingContext will handle dependencies and
+    // retries
+    m_scriptingVM->performRegistration();
+}
+
+void File::makeScriptingVM()
+{
+    cleanupScriptingVM();
+    m_scriptingContext =
+        rivestd::make_unique<CPPRuntimeScriptingContext>(m_factory);
+    m_scriptingVM = rivestd::make_unique<ScriptingVM>(m_scriptingContext.get());
+    m_luaState = new LuaState(m_scriptingVM->state());
+}
+
+void File::cleanupScriptingVM()
+{
+    if (m_scriptingVM != nullptr)
+    {
+        delete m_luaState;
+        m_luaState = nullptr;
+        m_scriptingVM.reset();
+        m_scriptingContext.reset();
+    }
+}
+#endif
 
 Artboard* File::artboard(std::string name) const
 {

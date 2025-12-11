@@ -24,11 +24,13 @@ class ScriptedObject : public FileAssetReferencer,
 protected:
     int m_self = 0;
     int m_context = 0;
+    virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
     LuaState* m_state = nullptr;
 #endif
 
 public:
+    virtual ~ScriptedObject() { scriptDispose(); }
     ScriptAsset* scriptAsset() const;
     void setArtboardInput(std::string name, Artboard* artboard);
     void setBooleanInput(std::string name, bool value);

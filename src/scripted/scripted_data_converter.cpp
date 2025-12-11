@@ -17,9 +17,26 @@ using namespace rive;
 
 ScriptedDataConverter::~ScriptedDataConverter()
 {
+    disposeScriptInputs();
     if (m_dataValue)
     {
         delete m_dataValue;
+    }
+}
+
+void ScriptedDataConverter::disposeScriptInputs()
+{
+    auto props = m_customProperties;
+    ScriptedObject::disposeScriptInputs();
+    for (auto prop : props)
+    {
+        auto scriptInput = ScriptInput::from(prop);
+        if (scriptInput != nullptr)
+        {
+            // ScriptedDataConverters need to delete their own inputs
+            // because they are not components
+            delete scriptInput;
+        }
     }
 }
 
@@ -158,6 +175,16 @@ bool ScriptedDataConverter::advanceComponent(float elapsedSeconds,
     return scriptAdvance(elapsedSeconds);
 }
 
+void ScriptedDataConverter::addProperty(CustomProperty* prop)
+{
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
+    {
+        scriptInput->scriptedObject(this);
+    }
+    CustomPropertyContainer::addProperty(prop);
+}
+
 StatusCode ScriptedDataConverter::import(ImportStack& importStack)
 {
     auto result = registerReferencer(importStack);
@@ -180,19 +207,6 @@ Core* ScriptedDataConverter::clone() const
     {
         auto clonedValue = prop->clone()->as<CustomProperty>();
         twin->addProperty(clonedValue);
-        auto scriptInput = ScriptInput::from(clonedValue);
-        if (scriptInput != nullptr)
-        {
-            scriptInput->scriptedObject(twin);
-            if (scriptInput->dataBind() != nullptr)
-            {
-                auto clonedDataBind =
-                    scriptInput->dataBind()->clone()->as<DataBind>();
-                clonedDataBind->target(clonedValue);
-                scriptInput->dataBind(clonedDataBind);
-                twin->addDirtyDataBind(clonedDataBind);
-            }
-        }
     }
     return twin;
 }

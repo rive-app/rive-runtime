@@ -171,6 +171,16 @@ bool ScriptedDrawable::addScriptedDirt(ComponentDirt value, bool recurse)
     return Drawable::addDirt(value, recurse);
 }
 
+void ScriptedDrawable::addProperty(CustomProperty* prop)
+{
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
+    {
+        scriptInput->scriptedObject(this);
+    }
+    CustomPropertyContainer::addProperty(prop);
+}
+
 StatusCode ScriptedDrawable::import(ImportStack& importStack)
 {
     auto result = registerReferencer(importStack);
@@ -188,16 +198,6 @@ Core* ScriptedDrawable::clone() const
     if (m_fileAsset != nullptr)
     {
         twin->setAsset(m_fileAsset);
-    }
-    for (auto prop : m_customProperties)
-    {
-        auto clonedValue = prop->clone()->as<CustomProperty>();
-        twin->addProperty(clonedValue);
-        auto scriptInput = ScriptInput::from(clonedValue);
-        if (scriptInput != nullptr)
-        {
-            scriptInput->scriptedObject(twin);
-        }
     }
     return twin;
 }

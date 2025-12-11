@@ -4,6 +4,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/script_input_artboard.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
@@ -35,6 +36,7 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     {
         return;
     }
+
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
     lua_newrive<ScriptedArtboard>(state,
@@ -298,12 +300,32 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
     return true;
 }
 
+void ScriptedObject::disposeScriptInputs()
+{
+    for (auto prop : m_customProperties)
+    {
+        auto scriptInput = ScriptInput::from(prop);
+        if (scriptInput != nullptr)
+        {
+            scriptInput->scriptedObject(nullptr);
+        }
+    }
+    m_customProperties.clear();
+}
+
 void ScriptedObject::scriptDispose()
 {
+    disposeScriptInputs();
+
     if (m_state != nullptr)
     {
         lua_unref(m_state->state, m_self);
         lua_unref(m_state->state, m_context);
+#ifdef TESTING
+        // Force GC to collect any ScriptedArtboard instances created via
+        // instance()
+        lua_gc(m_state->state, LUA_GCCOLLECT, 0);
+#endif
     }
     m_state = nullptr;
     m_self = 0;
@@ -330,6 +352,8 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds) { return false; }
 void ScriptedObject::scriptUpdate() {}
 
 void ScriptedObject::scriptDispose() {}
+
+void ScriptedObject::disposeScriptInputs() {}
 #endif
 
 void ScriptedObject::reinit()

@@ -4,10 +4,13 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/layout/layout_enums.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive_file_reader.hpp"
 #include "utils/no_op_renderer.hpp"
 
 using namespace rive;
@@ -286,4 +289,56 @@ end
         lua_pop(L, 1);
         CHECK(top == lua_gettop(L));
     }
+}
+
+TEST_CASE("layout grid script", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_layout_test.riv", &silver);
+    auto artboard = file->artboardNamed("LayoutScript");
+
+    silver.frameSize(artboard->width(), artboard->height());
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    auto rows = vmi->propertyValue("Rows")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(rows != nullptr);
+    auto rowsValue = rows->propertyValue();
+    REQUIRE(rowsValue == 5);
+    auto cols =
+        vmi->propertyValue("Columns")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(cols != nullptr);
+    auto colsValue = cols->propertyValue();
+    REQUIRE(colsValue == 5);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 20;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    rows->propertyValue(8);
+    rowsValue = rows->propertyValue();
+    REQUIRE(rowsValue == 8);
+    cols->propertyValue(7);
+    colsValue = cols->propertyValue();
+    REQUIRE(colsValue == 7);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+    CHECK(silver.matches("script_layout_grid"));
 }

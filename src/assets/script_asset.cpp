@@ -42,9 +42,8 @@ ScriptInput* ScriptInput::from(Core* component)
 
 void ScriptInput::initScriptedValue() {}
 
-bool OptionalScriptedMethods::verifyImplementation(
-    ScriptProtocol scriptProtocol,
-    LuaState* luaState)
+bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
+                                                   LuaState* luaState)
 {
 #ifdef WITH_RIVE_SCRIPTING
     auto state = luaState->state;
@@ -63,6 +62,7 @@ bool OptionalScriptedMethods::verifyImplementation(
     }
     m_implementedMethods = 0;
 
+    auto scriptProtocol = object->scriptProtocol();
     if (scriptProtocol == ScriptProtocol::node ||
         scriptProtocol == ScriptProtocol::layout ||
         scriptProtocol == ScriptProtocol::converter ||
@@ -148,6 +148,19 @@ bool OptionalScriptedMethods::verifyImplementation(
 #endif
 }
 
+#ifdef WITH_RIVE_SCRIPTING
+LuaState* ScriptAsset::vm()
+{
+    if (m_file == nullptr)
+    {
+        return nullptr;
+    }
+    // We get the scripting VM from File for now, however,
+    // this will need to change if/when we support multiple VMs
+    return m_file->scriptingVM();
+}
+#endif
+
 bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 {
 #ifdef WITH_RIVE_SCRIPTING
@@ -161,26 +174,47 @@ bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 #endif
 }
 
+#if defined(WITH_RIVE_SCRIPTING)
+void ScriptAsset::registrationComplete(int ref)
+{
+    if (isModule())
+    {
+        m_scriptRegistered = true;
+    }
+    else
+    {
+        generatorFunctionRef(ref);
+    }
+}
+#endif
+
 bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 {
-#if defined(WITH_RIVE_SCRIPTING) && defined(WITH_RIVE_TOOLS)
-    if (vm() == nullptr || generatorFunctionRef() == 0)
+#if defined(WITH_RIVE_SCRIPTING)
+    if (vm() == nullptr)
     {
         return false;
     }
-    auto vmState = vm()->state;
-    auto pushedType = rive_lua_pushRef(vmState, generatorFunctionRef());
-    if (static_cast<lua_Type>(pushedType) != LUA_TFUNCTION)
+    if (generatorFunctionRef() == 0)
     {
         fprintf(stderr,
-                "ScriptAsset::initScriptedObjectWith: did not push a function "
-                "at generatorFunctionRef, instead it pushed a %d\n ",
-                pushedType);
+                "ScriptAsset doesn't have a generator function %s\n",
+                name().c_str());
+        return false;
     }
+    auto vmState = vm()->state;
+    rive_lua_pushRef(vmState, generatorFunctionRef());
+
     if (!m_initted)
     {
-        m_scriptProtocol = object->scriptProtocol();
-        verifyImplementation(m_scriptProtocol, vm());
+        if (!verifyImplementation(object, vm()))
+        {
+            fprintf(stderr,
+                    "ScriptAsset failed to verify method implementation %s\n",
+                    name().c_str());
+            rive_lua_pop(vmState, 1);
+            return false;
+        }
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());

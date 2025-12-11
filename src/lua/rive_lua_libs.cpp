@@ -1,7 +1,9 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "lualib.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 
 using namespace rive;
@@ -446,10 +448,148 @@ static void dump_stack(lua_State* state)
 
 void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
 
+void ScriptingContext::addModule(ModuleDetails* moduleDetails)
+{
+    m_modulesToRegister.push_back(moduleDetails);
+}
+
+bool ScriptingContext::tryRegisterModule(lua_State* state,
+                                         ModuleDetails* moduleDetails,
+                                         int& functionRef)
+{
+    const std::string& name = moduleDetails->moduleName();
+    functionRef = 0;
+    if (moduleDetails->isProtocolScript())
+    {
+        if (ScriptingVM::registerScript(state,
+                                        name.c_str(),
+                                        moduleDetails->moduleBytecode()))
+        {
+            // registerScript leaves the function on the stack
+            if (static_cast<lua_Type>(lua_type(state, -1)) == LUA_TFUNCTION)
+            {
+                functionRef = lua_ref(state, -1);
+            }
+            lua_pop(state, 1);
+            return true;
+        }
+    }
+    else
+    {
+        if (ScriptingVM::registerModule(state,
+                                        name.c_str(),
+                                        moduleDetails->moduleBytecode()))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void ScriptingContext::retryPendingModules(lua_State* state)
+{
+    bool anyRetried = true;
+    while (anyRetried)
+    {
+        anyRetried = false;
+        // Track which modules we've tried in this iteration to avoid infinite
+        // loops
+        std::unordered_set<std::string> triedThisCycle;
+        auto currentPending = m_pendingModules;
+
+        for (ModuleDetails* moduleDetails : currentPending)
+        {
+            const std::string& name = moduleDetails->moduleName();
+
+            // Skip if we've already tried this module in this iteration
+            if (triedThisCycle.find(name) != triedThisCycle.end())
+            {
+                continue;
+            }
+
+            triedThisCycle.insert(name);
+
+            int functionRef = 0;
+            if (tryRegisterModule(state, moduleDetails, functionRef))
+            {
+                // Successfully registered, remove from pending list
+                clearPendingModule(name);
+
+                moduleDetails->registrationComplete(
+                    moduleDetails->isProtocolScript() ? functionRef : 0);
+
+                anyRetried = true;
+                break;
+            }
+        }
+    }
+}
+
+void ScriptingContext::performRegistration(lua_State* state)
+{
+    // Try to register all modules
+    std::unordered_set<std::string> tried;
+
+    bool anyRegistered = true;
+    while (anyRegistered)
+    {
+        anyRegistered = false;
+
+        for (ModuleDetails* moduleDetails : m_modulesToRegister)
+        {
+            const std::string& name = moduleDetails->moduleName();
+
+            // Skip if already registered
+            if (checkRegisteredModules(state, name.c_str()) == 1)
+            {
+                continue;
+            }
+
+            // Skip if we've already tried this module
+            if (tried.find(name) != tried.end())
+            {
+                continue;
+            }
+
+            tried.insert(name);
+
+            // Try to register the module
+            int functionRef = 0;
+            if (tryRegisterModule(state, moduleDetails, functionRef))
+            {
+                // Successfully registered
+                anyRegistered = true;
+
+                moduleDetails->registrationComplete(
+                    moduleDetails->isProtocolScript() ? functionRef : 0);
+
+                this->retryPendingModules(state);
+                break;
+            }
+            else
+            {
+                // Registration failed - likely missing dependencies
+                // Queue for retry
+                queuePendingModule(moduleDetails);
+            }
+        }
+    }
+
+    // Clear the modules list after registration attempt
+    m_modulesToRegister.clear();
+}
+
 bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
 {
+    // Check if already registered
+    if (checkRegisteredModules(state, name) == 1)
+    {
+        return true;
+    }
+
     if (!push_module(state, name, bytecode))
     {
         return false;
@@ -462,6 +602,12 @@ bool ScriptingVM::registerModule(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
 {
+    // Check if already registered
+    if (checkRegisteredModules(state, name) == 1)
+    {
+        return true;
+    }
+
     lua_pushcfunction(state, register_module, nullptr);
     lua_pushstring(state, name);
     if (!push_module(state, name, bytecode))
@@ -496,6 +642,22 @@ bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
 bool ScriptingVM::registerScript(const char* name, Span<uint8_t> bytecode)
 {
     return registerScript(m_state, name, bytecode);
+}
+
+void ScriptingContext::queuePendingModule(ModuleDetails* moduleDetails)
+{
+    m_pendingModules.push_back(moduleDetails);
+}
+
+void ScriptingContext::clearPendingModule(const std::string& name)
+{
+    m_pendingModules.erase(std::remove_if(m_pendingModules.begin(),
+                                          m_pendingModules.end(),
+                                          [&name](ModuleDetails* module) {
+                                              return module->moduleName() ==
+                                                     name;
+                                          }),
+                           m_pendingModules.end());
 }
 
 int CPPRuntimeScriptingContext::pCall(lua_State* state, int nargs, int nresults)

@@ -1,7 +1,11 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive_file_reader.hpp"
 
 using namespace rive;
 
@@ -341,4 +345,102 @@ end
         lua_pop(L, 1);
         CHECK(top == lua_gettop(L));
     }
+}
+
+TEST_CASE("scripted string converter", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/script_string_converter_test.riv", &silver);
+    auto artboard = file->artboardNamed("Converter");
+
+    silver.frameSize(artboard->width(), artboard->height());
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto field1 =
+        vmi->propertyValue("Field1")->as<rive::ViewModelInstanceString>();
+    REQUIRE(field1 != nullptr);
+    field1->propertyValue("H#e%l&l*o");
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    auto field2 =
+        vmi->propertyValue("Field2")->as<rive::ViewModelInstanceString>();
+    REQUIRE(field2 != nullptr);
+    field2->propertyValue("____one two three___");
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    auto field3 =
+        vmi->propertyValue("Field3")->as<rive::ViewModelInstanceString>();
+    REQUIRE(field3 != nullptr);
+    field3->propertyValue("  **This uses a string converter@@. ");
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    auto field4 =
+        vmi->propertyValue("Field4")->as<rive::ViewModelInstanceString>();
+    REQUIRE(field4 != nullptr);
+    field4->propertyValue("It strips special characters like *&^%$#@!)()");
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("script_string_converter"));
+}
+
+TEST_CASE("scripted data converter using multi chain requires", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_dependency_test.riv", &silver);
+    auto artboard = file->artboardNamed("Artboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    rive::ViewModelInstanceNumber* num =
+        vmi->propertyValue("InputValue1")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(num != nullptr);
+
+    int counter = 0;
+    int frames = 30;
+    for (int i = 0; i < frames; i++)
+    {
+        num->propertyValue(counter);
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        counter += 5;
+    }
+
+    CHECK(silver.matches("script_converter_with_dependency"));
 }

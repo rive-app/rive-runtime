@@ -8,6 +8,9 @@
 #include "utils/no_op_renderer.hpp"
 #include "rive/layout/layout_enums.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_color.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
+#include "rive_file_reader.hpp"
 #include <memory>
 
 using namespace rive;
@@ -757,4 +760,40 @@ end
 
     // Cleanup - must happen before luaState goes out of scope
     converter->scriptDispose();
+}
+
+TEST_CASE("scripted input color and trigger test", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_inputs_test_1.riv", &silver);
+    auto artboard = file->artboardNamed("Artboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    rive::ViewModelInstanceTrigger* trigger =
+        vmi->propertyValue("Trigger")->as<rive::ViewModelInstanceTrigger>();
+    REQUIRE(trigger != nullptr);
+
+    int frames = 30;
+    for (int i = 0; i < frames; i++)
+    {
+        trigger->trigger();
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_input_color_trigger"));
 }

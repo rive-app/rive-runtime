@@ -11,9 +11,10 @@ class Artboard;
 class ScriptInputArtboard : public ScriptInputArtboardBase, public ScriptInput
 {
 private:
-    Artboard* m_artboard;
+    Artboard* m_artboard = nullptr;
 
 public:
+    ~ScriptInputArtboard();
     void artboard(Artboard* artboard) { m_artboard = artboard; }
     void initScriptedValue() override
     {
@@ -31,6 +32,7 @@ public:
     bool validateForScriptInit() override { return m_artboard != nullptr; }
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
+    StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

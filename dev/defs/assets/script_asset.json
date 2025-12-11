@@ -37,8 +37,17 @@
       },
       "description": "The ref of the generator function (the function returned by the compiled code).",
       "coop": false,
-      "withRiveToolsOnly": true,
+      "exportsToRuntimeConditionally": true,
       "journal": false
+    },
+    "isModule": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 914,
+        "string": "ismodule"
+      },
+      "description": "Whether the script is a module (doesn't implement a protocol like Node, Layout, etc."
     }
   }
 }

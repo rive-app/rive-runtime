@@ -16,7 +16,6 @@ void ScriptedObjectImporter::addInput(CustomProperty* value)
     if (input != nullptr)
     {
         m_scriptedObject->addProperty(value);
-        input->scriptedObject(m_scriptedObject);
     }
 }
 

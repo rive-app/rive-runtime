@@ -40,6 +40,7 @@ public:
     {
         return children();
     }
+    void addProperty(CustomProperty* prop) override;
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
     DataContext* dataContext() override
     {

@@ -17,6 +17,7 @@ public:
 #ifdef WITH_RIVE_SCRIPTING
     bool scriptInit(LuaState* state) override;
 #endif
+    void addProperty(CustomProperty* prop) override;
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     uint32_t assetId() override { return scriptAssetId(); }

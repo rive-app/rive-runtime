@@ -1508,11 +1508,9 @@ public:
             case FileAssetBase::assetIdPropertyKey:
                 object->as<FileAssetBase>()->assetId(value);
                 break;
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 object->as<ScriptAssetBase>()->generatorFunctionRef(value);
                 break;
-#endif
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
                 break;
@@ -1753,6 +1751,9 @@ public:
                 break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
+                break;
+            case ScriptAssetBase::isModulePropertyKey:
+                object->as<ScriptAssetBase>()->isModule(value);
                 break;
         }
     }
@@ -2940,10 +2941,8 @@ public:
                 return object->as<CustomPropertyEnumBase>()->enumId();
             case FileAssetBase::assetIdPropertyKey:
                 return object->as<FileAssetBase>()->assetId();
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->as<ScriptAssetBase>()->generatorFunctionRef();
-#endif
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
             case ScriptInputArtboardBase::artboardIdPropertyKey:
@@ -3123,6 +3122,8 @@ public:
                 return object->as<TextFollowPathModifierBase>()->orient();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
+            case ScriptAssetBase::isModulePropertyKey:
+                return object->as<ScriptAssetBase>()->isModule();
         }
         return false;
     }
@@ -3804,9 +3805,7 @@ public:
             case CustomPropertyEnumBase::propertyValuePropertyKey:
             case CustomPropertyEnumBase::enumIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
-#endif
             case AudioEventBase::assetIdPropertyKey:
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 return CoreUintType::id;
@@ -3883,6 +3882,7 @@ public:
             case TextFollowPathModifierBase::radialPropertyKey:
             case TextFollowPathModifierBase::orientPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
+            case ScriptAssetBase::isModulePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
             case CustomPropertyNumberBase::propertyValuePropertyKey:
@@ -4559,10 +4559,8 @@ public:
                 return object->is<CustomPropertyEnumBase>();
             case FileAssetBase::assetIdPropertyKey:
                 return object->is<FileAssetBase>();
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->is<ScriptAssetBase>();
-#endif
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
             case ScriptInputArtboardBase::artboardIdPropertyKey:
@@ -4709,6 +4707,8 @@ public:
                 return object->is<TextFollowPathModifierBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();
+            case ScriptAssetBase::isModulePropertyKey:
+                return object->is<ScriptAssetBase>();
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceNumberBase>();
             case CustomPropertyNumberBase::propertyValuePropertyKey:

@@ -32,6 +32,7 @@ private:
         }
         m_dataValue->as<T>()->value(input->as<T>()->value());
     };
+    virtual void disposeScriptInputs() override;
 #ifdef WITH_RIVE_SCRIPTING
     DataValue* applyConversion(DataValue* value, const std::string& method);
 #endif
@@ -51,6 +52,7 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
     StatusCode import(ImportStack& importStack) override;
+    void addProperty(CustomProperty* prop) override;
     Core* clone() const override;
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
     {

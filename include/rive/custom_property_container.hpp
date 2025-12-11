@@ -15,6 +15,7 @@ protected:
 
 public:
     virtual void addProperty(CustomProperty* prop);
+    virtual void removeProperty(CustomProperty* prop);
     virtual const std::vector<Component*>& containerChildren() const
     {
         static const std::vector<Component*> emptyVec;

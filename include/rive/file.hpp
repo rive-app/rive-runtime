@@ -31,6 +31,10 @@ class Factory;
 class ScrollPhysics;
 class ViewModelRuntime;
 class BindableArtboard;
+#ifdef WITH_RIVE_SCRIPTING
+class CPPRuntimeScriptingContext;
+class ScriptingVM;
+#endif
 
 ///
 /// Tracks the success/failure result when importing a Rive file.
@@ -162,8 +166,27 @@ public:
 
     std::vector<Artboard*> artboards() { return m_artboards; };
 
-    void scriptingVM(LuaState* vm) { m_luaState = vm; }
-    LuaState* scriptingVM() { return m_luaState; }
+    // When the runtime is hosted in the editor, we get a pointer
+    // to the VM that we can use. If this is nullptr, we can assume
+    // we are running in the runtime and should instance our own VMs
+    // and pass them down to the root
+#ifdef WITH_RIVE_SCRIPTING
+    void scriptingVM(LuaState* vm)
+    {
+        cleanupScriptingVM();
+        m_luaState = vm;
+    }
+    LuaState* scriptingVM()
+    {
+        // For now, if we don't have a vm, create one. In the future, we
+        // may need a way to create multiple vms in parallel
+        if (m_luaState == nullptr)
+        {
+            makeScriptingVM();
+        }
+        return m_luaState;
+    }
+#endif
 
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
@@ -221,7 +244,14 @@ private:
     /// with the file.
     rcp<FileAssetLoader> m_assetLoader;
 
+#ifdef WITH_RIVE_SCRIPTING
     LuaState* m_luaState = nullptr;
+    std::unique_ptr<CPPRuntimeScriptingContext> m_scriptingContext;
+    std::unique_ptr<ScriptingVM> m_scriptingVM;
+    void makeScriptingVM();
+    void cleanupScriptingVM();
+    void registerScripts();
+#endif
 
     rcp<ViewModelInstance> copyViewModelInstance(
         ViewModelInstance* viewModelInstance,
