@@ -94,14 +94,17 @@ public:
                      UINT width,
                      UINT height,
                      UINT mipLevel,
-                     const uint8_t imageDataRGBA[]) :
+                     const uint8_t imageDataRGBA[],
+                     bool usesCommandList) :
         Texture(width, height),
-        m_gpuTexture(manager->make2DTexture(width,
-                                            height,
-                                            mipLevel,
-                                            DXGI_FORMAT_R8G8B8A8_UNORM,
-                                            D3D12_RESOURCE_FLAG_NONE,
-                                            D3D12_RESOURCE_STATE_COMMON))
+        m_gpuTexture(manager->make2DTexture(
+            width,
+            height,
+            mipLevel,
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            D3D12_RESOURCE_FLAG_NONE,
+            usesCommandList ? D3D12_RESOURCE_STATE_COMMON
+                            : D3D12_RESOURCE_STATE_COPY_DEST))
     {
         D3D12_SUBRESOURCE_DATA srcData;
         srcData.pData = imageDataRGBA;
@@ -112,6 +115,7 @@ public:
         UINT64 rowSizeInBtes;
         UINT64 totalBytes;
         auto desc = m_gpuTexture->resource()->GetDesc();
+        SNAME_D3D12_OBJECT(m_gpuTexture, "riveImage");
         manager->device()->GetCopyableFootprints(&desc,
                                                  0,
                                                  1,
@@ -317,7 +321,7 @@ void RenderTargetD3D12::setTargetTexture(ComPtr<ID3D12Resource> tex)
 
     m_targetTexture =
         m_manager->makeExternalTexture(tex, D3D12_RESOURCE_STATE_PRESENT);
-    SNAME_D3D12_OBJECT(m_targetTexture, "color");
+    SNAME_D3D12_OBJECT(m_targetTexture, "colorExternal");
 }
 
 D3D12Texture* RenderTargetD3D12::offscreenTexture()
@@ -406,7 +410,7 @@ void RenderTargetD3D12::markScratchColorUAV(D3D12DescriptorHeap* heap)
                                      1,
                                      DXGI_FORMAT_R8G8B8A8_TYPELESS,
                                      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-                                     D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                      D3D12_HEAP_FLAG_ALLOW_SHADER_ATOMICS);
         SNAME_D3D12_OBJECT(m_scratchColorTexture, "scratchColor");
     }
@@ -671,7 +675,8 @@ rcp<Texture> RenderContextD3D12Impl::makeImageTexture(
                                       width,
                                       height,
                                       mipLevelCount,
-                                      imageDataRGBAPremul);
+                                      imageDataRGBAPremul,
+                                      m_usesCopyCommandList);
 }
 
 void rive::gpu::RenderContextD3D12Impl::resizeGradientTexture(uint32_t width,
@@ -816,7 +821,15 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     // it's ok but less efficient to use one command list for everything
     // and a copy command list may not be guaranteed on certain platforms
     if (!copyCmdList)
+    {
         copyCmdList = cmdList;
+        m_usesCopyCommandList = false;
+    }
+    else
+    {
+        m_usesCopyCommandList = true;
+    }
+
     assert(copyCmdList);
     assert(cmdList);
 
