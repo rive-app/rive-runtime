@@ -46,6 +46,7 @@
 #include "rive/audio_event.hpp"
 #include "rive/dirtyable.hpp"
 #include "rive/profiler/profiler_macros.h"
+#include "rive/text/text_input.hpp"
 #include <unordered_map>
 #include <chrono>
 
@@ -2081,4 +2082,27 @@ DataBind* StateMachineInstance::bindableDataBindToTarget(
         return nullptr;
     }
     return dataBind->second;
+}
+
+bool StateMachineInstance::keyInput(Key value,
+                                    KeyModifiers modifiers,
+                                    bool isPressed,
+                                    bool isRepeat)
+{
+    // For now just find a text input.
+    auto textInput = m_artboardInstance->objects<TextInput>().first();
+    if (textInput != nullptr)
+    {
+        return textInput->keyInput(value, modifiers, isPressed, isRepeat);
+    }
+    return false;
+}
+bool StateMachineInstance::textInput(const std::string& text)
+{
+    auto textInput = m_artboardInstance->objects<TextInput>().first();
+    if (textInput != nullptr)
+    {
+        return textInput->textInput(text);
+    }
+    return false;
 }

@@ -564,6 +564,11 @@ do
     defines({ 'RIVE_MACOSX' })
 end
 
+filter('system:windows')
+do
+    defines({ 'RIVE_WINDOWS' })
+end
+
 filter({})
 
 if _OPTIONS['os'] == 'ios' then

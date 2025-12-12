@@ -11,7 +11,7 @@ class Constraint : public ConstraintBase
 {
 public:
     void strengthChanged() override;
-    StatusCode onAddedClean(CoreContext* context) override;
+    StatusCode onAddedDirty(CoreContext* context) override;
     virtual void markConstraintDirty();
     virtual void constrain(TransformComponent* component) = 0;
     void buildDependencies() override;
