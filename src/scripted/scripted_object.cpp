@@ -40,6 +40,7 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
     lua_newrive<ScriptedArtboard>(state,
+                                  state,
                                   ref_rcp(scriptAsset()->file()),
                                   artboard->instance());
     lua_setfield(state, -2, name.c_str());

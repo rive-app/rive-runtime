@@ -24,6 +24,7 @@
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
+#include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
@@ -149,6 +150,11 @@ enum class LuaAtoms : int16_t
     addListener,
     removeListener,
     fire,
+    push,
+    insert,
+    shift,
+    pop,
+    swap,
 
     // Artboards
     draw,
@@ -162,6 +168,7 @@ enum class LuaAtoms : int16_t
     pointerUp,
     pointerExit,
     addToPath,
+    name,
 
     // Scripted DataValues
     isNumber,
@@ -447,7 +454,8 @@ private:
 class ScriptedArtboard
 {
 public:
-    ScriptedArtboard(rcp<File> file,
+    ScriptedArtboard(lua_State* L,
+                     rcp<File> file,
                      std::unique_ptr<ArtboardInstance>&& artboardInstance);
     ~ScriptedArtboard();
 
@@ -478,6 +486,7 @@ public:
     void cleanupDataRef(lua_State* L);
 
 private:
+    lua_State* m_state;
     rcp<ScriptReffedArtboard> m_scriptReffedArtboard;
     int m_dataRef = 0;
 };
@@ -522,8 +531,13 @@ public:
     static constexpr const char* luaName = "ViewModel";
     static constexpr bool hasMetatable = true;
     int pushValue(const char* name, int coreType = 0);
+    int instance(lua_State* L);
 
     const lua_State* state() const { return m_state; }
+    rcp<ViewModelInstance> viewModelInstance() const
+    {
+        return m_viewModelInstance;
+    }
 
 private:
     lua_State* m_state;
@@ -582,6 +596,7 @@ public:
     int pushLength();
     int pushValue(int index);
     void valueChanged() override;
+    void append(ViewModelInstance*);
 
 private:
     bool m_changed = false;

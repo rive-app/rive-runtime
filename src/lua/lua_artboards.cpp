@@ -220,6 +220,7 @@ int ScriptedArtboard::pushData(lua_State* L)
 int ScriptedArtboard::instance(lua_State* L)
 {
     lua_newrive<ScriptedArtboard>(L,
+                                  L,
                                   m_scriptReffedArtboard->file(),
                                   artboard()->instance());
     return 1;
@@ -305,13 +306,19 @@ static int artboard_newindex(lua_State* L)
 }
 
 ScriptedArtboard::ScriptedArtboard(
+    lua_State* L,
     rcp<File> file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance) :
+    m_state(L),
     m_scriptReffedArtboard(
         make_rcp<ScriptReffedArtboard>(file, std::move(artboardInstance)))
 {}
 
-ScriptedArtboard::~ScriptedArtboard() { m_scriptReffedArtboard = nullptr; }
+ScriptedArtboard::~ScriptedArtboard()
+{
+    lua_unref(m_state, m_dataRef);
+    m_scriptReffedArtboard = nullptr;
+}
 
 void ScriptedArtboard::cleanupDataRef(lua_State* L)
 {

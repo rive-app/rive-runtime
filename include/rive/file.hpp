@@ -24,6 +24,10 @@
 ///
 namespace rive
 {
+#ifdef WITH_RIVE_TOOLS
+class ViewModelInstance;
+typedef void (*ViewModelInstanceCreated)(ViewModelInstance* instance);
+#endif
 class BinaryReader;
 class DataBind;
 class RuntimeHeader;
@@ -206,6 +210,16 @@ public:
         return m_assetLoader.get();
     }
 #endif
+#ifdef WITH_RIVE_TOOLS
+    void onViewModelInstanceCreated(ViewModelInstanceCreated callback)
+    {
+        m_viewmodelInstanceCreatedCallback = callback;
+    }
+    void triggerViewModelCreatedCallback(bool value)
+    {
+        m_triggerViewModelCreatedCallback = value;
+    }
+#endif
 
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
@@ -261,6 +275,10 @@ private:
     rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
 
     uint32_t findViewModelId(ViewModel* search) const;
+#ifdef WITH_RIVE_TOOLS
+    ViewModelInstanceCreated m_viewmodelInstanceCreatedCallback = nullptr;
+    bool m_triggerViewModelCreatedCallback = true;
+#endif
 };
 } // namespace rive
 #endif

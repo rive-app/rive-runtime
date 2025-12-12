@@ -27,7 +27,7 @@ TEST_CASE("can access artboard width/height", "[scripting]")
     auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "accessWidth");
     lua_pushvalue(L, -2);
@@ -76,7 +76,7 @@ TEST_CASE("can access artboard bounds", "[scripting]")
     auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "boundsMinX");
     lua_pushvalue(L, -2);
@@ -113,7 +113,7 @@ TEST_CASE("can render an artboard via the scripting engine", "[scripting]")
     auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
     for (int i = 0; i < 10; i++)
     {
         if (i != 0)
@@ -185,7 +185,7 @@ TEST_CASE("can access nodes from artboards", "[scripting]")
     auto file = ReadRiveFile("assets/joel_v3.riv", vm.serializer());
     auto artboard = file->artboard("Character");
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "getNode");
     lua_pushvalue(L, -2);
@@ -278,7 +278,7 @@ TEST_CASE("can add artboard to path", "[scripting]")
     auto file = ReadRiveFile("assets/joel_v3.riv", vm.serializer());
     auto artboard = file->artboard("Character");
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "addToPath");
     lua_pushvalue(L, -2);

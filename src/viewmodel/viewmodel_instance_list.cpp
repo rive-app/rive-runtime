@@ -26,6 +26,12 @@ ViewModelInstanceList::~ViewModelInstanceList()
 void ViewModelInstanceList::propertyValueChanged()
 {
     addDirt(ComponentDirt::Bindings);
+#ifdef WITH_RIVE_TOOLS
+    if (m_changedCallback != nullptr)
+    {
+        m_changedCallback(this);
+    }
+#endif
     onValueChanged();
 }
 
@@ -81,6 +87,31 @@ void ViewModelInstanceList::removeItem(int index)
         m_ListItems.erase(m_ListItems.begin() + index);
         propertyValueChanged();
     }
+}
+
+rcp<ViewModelInstanceListItem> ViewModelInstanceList::pop()
+{
+    if (m_ListItems.size() > 0)
+    {
+
+        auto listItem = m_ListItems.back();
+        m_ListItems.pop_back();
+        propertyValueChanged();
+        return listItem;
+    }
+    return nullptr;
+}
+
+rcp<ViewModelInstanceListItem> ViewModelInstanceList::shift()
+{
+    if (m_ListItems.size() > 0)
+    {
+
+        auto listItem = m_ListItems.front();
+        removeItem(0);
+        return listItem;
+    }
+    return nullptr;
 }
 
 void ViewModelInstanceList::removeItem(rcp<ViewModelInstanceListItem> listItem)

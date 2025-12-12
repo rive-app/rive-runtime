@@ -470,6 +470,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject = rivestd::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());
                 stackType = ViewModel::typeKey;
+                object->as<ViewModel>()->file(this);
                 break;
             case ViewModelInstance::typeKey:
                 stackObject = rivestd::make_unique<ViewModelInstanceImporter>(
@@ -803,6 +804,14 @@ rcp<ViewModelInstance> File::copyViewModelInstance(
     auto copy = rcp<ViewModelInstance>(
         viewModelInstance->clone()->as<ViewModelInstance>());
     completeViewModelInstance(copy, instancesMap);
+#ifdef WITH_RIVE_TOOLS
+    if (copy && m_triggerViewModelCreatedCallback &&
+        m_viewmodelInstanceCreatedCallback)
+    {
+        // Serialize and send to Dart when instance is created
+        m_viewmodelInstanceCreatedCallback(copy.get());
+    }
+#endif
     return copy;
 }
 
@@ -956,6 +965,14 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
             viewModelInstance->addValue(viewModelInstanceValue);
             propertyId++;
         }
+#ifdef WITH_RIVE_TOOLS
+        if (viewModelInstance && m_triggerViewModelCreatedCallback &&
+            m_viewmodelInstanceCreatedCallback)
+        {
+            // Serialize and send to Dart when instance is created
+            m_viewmodelInstanceCreatedCallback(viewModelInstance);
+        }
+#endif
         return rcp<ViewModelInstance>(viewModelInstance);
     }
     return nullptr;
@@ -997,6 +1014,14 @@ rcp<ViewModelInstance> File::createDefaultViewModelInstance(
         auto copy = rcp<ViewModelInstance>(
             viewModelInstance->clone()->as<ViewModelInstance>());
         completeViewModelInstance(copy);
+#ifdef WITH_RIVE_TOOLS
+        if (copy && m_triggerViewModelCreatedCallback &&
+            m_viewmodelInstanceCreatedCallback)
+        {
+            // Serialize and send to Dart when instance is created
+            m_viewmodelInstanceCreatedCallback(copy.get());
+        }
+#endif
         return copy;
     }
     return createViewModelInstance(viewModel);
