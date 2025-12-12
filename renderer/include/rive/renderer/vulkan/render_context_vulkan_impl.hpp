@@ -239,6 +239,10 @@ private:
     // Bound when there is not an image paint.
     rcp<vkutil::Texture2D> m_nullImageTexture;
 
+    // Common base class for a pipeline that renders a texture resource at the
+    // beginning of a flush, which is then read during the main draw pass.
+    class ResourceTexturePipeline;
+
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
     std::unique_ptr<ColorRampPipeline> m_colorRampPipeline;

@@ -17,6 +17,7 @@
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
 #include "instance_chunker.hpp"
+#include <sstream>
 
 namespace rive::gpu
 {
@@ -91,6 +92,191 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     texture->scheduleUpload(imageDataRGBAPremul, height * width * 4);
     return texture;
 }
+
+// Common base class for a pipeline that renders a texture resource at the
+// beginning of a flush, which is then read during the main draw pass.
+class RenderContextVulkanImpl::ResourceTexturePipeline
+{
+public:
+    ResourceTexturePipeline(rcp<VulkanContext> vk,
+                            VkFormat format,
+                            VkAttachmentLoadOp loadOp,
+                            VkPipelineStageFlags resourceConsumptionStage,
+                            const char* label,
+                            const DriverWorkarounds& workarounds) :
+        m_vk(std::move(vk))
+    {
+        const VkAttachmentDescription attachment = {
+            .format = format,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = loadOp,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+
+        const VkSubpassDependency dependencies[] = {
+            {
+                .srcSubpass = VK_SUBPASS_EXTERNAL,
+                .dstSubpass = 0,
+                .srcStageMask = resourceConsumptionStage,
+                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            },
+            {
+                .srcSubpass = 0,
+                .dstSubpass = VK_SUBPASS_EXTERNAL,
+                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dstStageMask = resourceConsumptionStage,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            },
+        };
+
+        const VkRenderPassCreateInfo renderPassCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .attachmentCount = 1,
+            .pAttachments = &attachment,
+            .subpassCount = 1,
+            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
+            .dependencyCount = std::size(dependencies),
+            .pDependencies = dependencies,
+        };
+
+        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
+                                        &renderPassCreateInfo,
+                                        nullptr,
+                                        &m_renderPass));
+
+        const std::string renderPassLabel =
+            (std::ostringstream() << label << " RenderPass").str();
+        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
+                                    VK_OBJECT_TYPE_RENDER_PASS,
+                                    renderPassLabel.c_str());
+
+        if (workarounds.maxInstancesPerRenderPass != UINT32_MAX)
+        {
+            // We are running on a device that is known to crash if a render
+            // pass is too complex. Create another render pass that is designed
+            // to resume atlas rendering in the event that the previous render
+            // pass had to be interrupted (in order to work around the crash).
+            auto resumingAttachment = attachment;
+            resumingAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+            resumingAttachment.initialLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            VkRenderPassCreateInfo resumingRenderPassCreateInfo =
+                renderPassCreateInfo;
+            resumingRenderPassCreateInfo.pAttachments = &resumingAttachment;
+
+            VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
+                                            &resumingRenderPassCreateInfo,
+                                            nullptr,
+                                            &m_resumingRenderPass));
+
+            const std::string resumingRenderPassLabel =
+                (std::ostringstream() << label << " RESUME RenderPass").str();
+            m_vk->setDebugNameIfEnabled(uint64_t(m_resumingRenderPass),
+                                        VK_OBJECT_TYPE_RENDER_PASS,
+                                        resumingRenderPassLabel.c_str());
+        }
+    }
+
+    virtual ~ResourceTexturePipeline()
+    {
+        m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
+        if (m_resumingRenderPass != VK_NULL_HANDLE)
+        {
+            m_vk->DestroyRenderPass(m_vk->device,
+                                    m_resumingRenderPass,
+                                    nullptr);
+        }
+    }
+
+    VkRenderPass renderPass() const { return m_renderPass; }
+
+    void beginRenderPass(VkCommandBuffer commandBuffer,
+                         VkRect2D renderArea,
+                         VkFramebuffer framebuffer)
+    {
+        beginRenderPass(commandBuffer,
+                        renderArea,
+                        framebuffer,
+                        RenderPassType::primary);
+    }
+
+    // Some early Android tilers are known to crash when a render pass is too
+    // complex. This is a mechanism to interrupt and begin a new render pass on
+    // affected devices after a pre-set complexity is reached.
+    void interruptRenderPassIfNeeded(VkCommandBuffer commandBuffer,
+                                     VkRect2D renderArea,
+                                     VkFramebuffer framebuffer,
+                                     uint32_t nextInstanceCount,
+                                     const DriverWorkarounds& workarounds)
+    {
+        assert(m_instanceCountInCurrentRenderPass <=
+               workarounds.maxInstancesPerRenderPass);
+        assert(nextInstanceCount <= workarounds.maxInstancesPerRenderPass);
+
+        if (m_instanceCountInCurrentRenderPass + nextInstanceCount >
+            workarounds.maxInstancesPerRenderPass)
+        {
+            m_vk->CmdEndRenderPass(commandBuffer);
+
+            // We don't need to bind new pipelines, even though we changed
+            // the render pass, because Vulkan allows for pipelines to be
+            // used interchangeably with "compatible" render passes.
+            beginRenderPass(commandBuffer,
+                            renderArea,
+                            framebuffer,
+                            RenderPassType::resume);
+        }
+        m_instanceCountInCurrentRenderPass += nextInstanceCount;
+    };
+
+protected:
+    const rcp<VulkanContext> m_vk;
+
+private:
+    enum class RenderPassType
+    {
+        primary,
+        resume,
+    };
+
+    void beginRenderPass(VkCommandBuffer commandBuffer,
+                         VkRect2D renderArea,
+                         VkFramebuffer framebuffer,
+                         RenderPassType renderPassType)
+    {
+        constexpr static VkClearValue CLEAR_ZERO = {};
+
+        const VkRenderPass renderPass =
+            (renderPassType == RenderPassType::primary) ? m_renderPass
+                                                        : m_resumingRenderPass;
+        assert(renderPass != VK_NULL_HANDLE);
+
+        VkRenderPassBeginInfo renderPassBeginInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass = renderPass,
+            .framebuffer = framebuffer,
+            .renderArea = renderArea,
+            .clearValueCount = 1,
+            .pClearValues = &CLEAR_ZERO,
+        };
+
+        m_vk->CmdBeginRenderPass(commandBuffer,
+                                 &renderPassBeginInfo,
+                                 VK_SUBPASS_CONTENTS_INLINE);
+
+        m_instanceCountInCurrentRenderPass = 0;
+    }
+
+    VkRenderPass m_renderPass;
+    VkRenderPass m_resumingRenderPass = VK_NULL_HANDLE;
+    uint32_t m_instanceCountInCurrentRenderPass;
+};
 
 // Renders color ramps to the gradient texture.
 class RenderContextVulkanImpl::ColorRampPipeline
@@ -269,10 +455,17 @@ private:
 
 // Renders tessellated vertices to the tessellation texture.
 class RenderContextVulkanImpl::TessellatePipeline
+    : public ResourceTexturePipeline
 {
 public:
-    TessellatePipeline(PipelineManagerVulkan* pipelineManager) :
-        m_vk(ref_rcp(pipelineManager->vulkanContext()))
+    TessellatePipeline(PipelineManagerVulkan* pipelineManager,
+                       const DriverWorkarounds& workarounds) :
+        ResourceTexturePipeline(ref_rcp(pipelineManager->vulkanContext()),
+                                VK_FORMAT_R32G32B32A32_UINT,
+                                VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                                "Tessellate",
+                                workarounds)
     {
         VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
             pipelineManager->perFlushDescriptorSetLayout(),
@@ -375,54 +568,6 @@ public:
                 .pVertexAttributeDescriptions = vertexAttributeDescriptions,
             };
 
-        VkAttachmentDescription attachment = {
-            .format = VK_FORMAT_R32G32B32A32_UINT,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-
-        VkSubpassDependency dependencies[] = {
-            {
-                .srcSubpass = VK_SUBPASS_EXTERNAL,
-                .dstSubpass = 0,
-                .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            },
-
-            //
-            {
-                .srcSubpass = 0,
-                .dstSubpass = VK_SUBPASS_EXTERNAL,
-                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            },
-        };
-
-        VkRenderPassCreateInfo renderPassCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = &attachment,
-            .subpassCount = 1,
-            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
-            .dependencyCount = std::size(dependencies),
-            .pDependencies = dependencies,
-        };
-
-        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
-                                        &renderPassCreateInfo,
-                                        nullptr,
-                                        &m_renderPass));
-        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
-                                    VK_OBJECT_TYPE_RENDER_PASS,
-                                    "Tesselation RenderPass");
-
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .stageCount = 2,
@@ -435,7 +580,7 @@ public:
             .pColorBlendState = &layout::SINGLE_ATTACHMENT_BLEND_DISABLED,
             .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = m_pipelineLayout,
-            .renderPass = m_renderPass,
+            .renderPass = renderPass(),
         };
 
         VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
@@ -452,31 +597,32 @@ public:
         m_vk->DestroyShaderModule(m_vk->device, fragmentShader, nullptr);
     }
 
-    ~TessellatePipeline()
+    ~TessellatePipeline() override
     {
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_renderPipeline, nullptr);
     }
 
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
-    VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
-    rcp<VulkanContext> m_vk;
     VkPipelineLayout m_pipelineLayout;
-    VkRenderPass m_renderPass;
     VkPipeline m_renderPipeline;
 };
 
 // Renders feathers to the atlas.
-class RenderContextVulkanImpl::AtlasPipeline
+class RenderContextVulkanImpl::AtlasPipeline : public ResourceTexturePipeline
 {
 public:
     AtlasPipeline(PipelineManagerVulkan* pipelineManager,
                   const DriverWorkarounds& workarounds) :
-        m_vk(ref_rcp(pipelineManager->vulkanContext()))
+        ResourceTexturePipeline(ref_rcp(pipelineManager->vulkanContext()),
+                                pipelineManager->atlasFormat(),
+                                VK_ATTACHMENT_LOAD_OP_CLEAR,
+                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                "Atlas",
+                                workarounds)
     {
         VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
             pipelineManager->perFlushDescriptorSetLayout(),
@@ -549,78 +695,6 @@ public:
             },
         };
 
-        const VkAttachmentDescription attachment = {
-            .format = pipelineManager->atlasFormat(),
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-
-        // Ensure that the image transition protects against the clear on the
-        // way in, and that any uses of the atlas texture are protected after
-        // the render pass ends.
-        const VkSubpassDependency dependencies[] = {
-            {
-                .srcSubpass = VK_SUBPASS_EXTERNAL,
-                .dstSubpass = 0,
-                .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            },
-            {
-                .srcSubpass = 0,
-                .dstSubpass = VK_SUBPASS_EXTERNAL,
-                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            },
-        };
-        const VkRenderPassCreateInfo renderPassCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = &attachment,
-            .subpassCount = 1,
-            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
-            .dependencyCount = std::size(dependencies),
-            .pDependencies = dependencies,
-        };
-
-        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
-                                        &renderPassCreateInfo,
-                                        nullptr,
-                                        &m_renderPass));
-        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
-                                    VK_OBJECT_TYPE_RENDER_PASS,
-                                    "Atlas RenderPass");
-
-        if (workarounds.maxInstancesPerRenderPass != UINT32_MAX)
-        {
-            // We are running on a device that is known to crash if a render
-            // pass is too complex. Create another render pass that is designed
-            // to resume atlas rendering in the event that the previous render
-            // pass had to be interrupted (in order to work around the crash).
-            auto resumingAttachment = attachment;
-            resumingAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-            resumingAttachment.initialLayout =
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-            VkRenderPassCreateInfo resumingRenderPassCreateInfo =
-                renderPassCreateInfo;
-            resumingRenderPassCreateInfo.pAttachments = &resumingAttachment;
-
-            VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
-                                            &resumingRenderPassCreateInfo,
-                                            nullptr,
-                                            &m_resumingRenderPass));
-            m_vk->setDebugNameIfEnabled(uint64_t(m_resumingRenderPass),
-                                        VK_OBJECT_TYPE_RENDER_PASS,
-                                        "Atlas RESUME RenderPass");
-        }
-
         VkPipelineColorBlendAttachmentState blendState =
             VkPipelineColorBlendAttachmentState{
                 .blendEnable = VK_TRUE,
@@ -646,7 +720,7 @@ public:
             .pColorBlendState = &blendStateCreateInfo,
             .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = m_pipelineLayout,
-            .renderPass = m_renderPass,
+            .renderPass = renderPass(),
         };
 
         stages[1].module = fragmentFillShader;
@@ -678,74 +752,19 @@ public:
         m_vk->DestroyShaderModule(m_vk->device, fragmentStrokeShader, nullptr);
     }
 
-    ~AtlasPipeline()
+    ~AtlasPipeline() override
     {
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
-        if (m_resumingRenderPass != VK_NULL_HANDLE)
-        {
-            m_vk->DestroyRenderPass(m_vk->device,
-                                    m_resumingRenderPass,
-                                    nullptr);
-        }
         m_vk->DestroyPipeline(m_vk->device, m_fillPipeline, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_strokePipeline, nullptr);
     }
 
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
-    VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline fillPipeline() const { return m_fillPipeline; }
     VkPipeline strokePipeline() const { return m_strokePipeline; }
 
-    enum class RenderPassType
-    {
-        primary,
-        resume,
-    };
-
-    void beginRenderPass(
-        const FlushDescriptor& desc,
-        VkFramebuffer framebuffer,
-        RenderPassType renderPassType = RenderPassType::primary)
-    {
-        const auto commandBuffer =
-            reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
-
-        const VkRenderPass renderPass =
-            (renderPassType == RenderPassType::primary) ? m_renderPass
-                                                        : m_resumingRenderPass;
-        assert(renderPass != VK_NULL_HANDLE);
-
-        VkRect2D renderArea = {
-            .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
-        };
-
-        VkClearValue atlasClearValue = {};
-
-        VkRenderPassBeginInfo renderPassBeginInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass = renderPass,
-            .framebuffer = framebuffer,
-            .renderArea = renderArea,
-            .clearValueCount = 1,
-            .pClearValues = &atlasClearValue,
-        };
-
-        m_vk->CmdBeginRenderPass(commandBuffer,
-                                 &renderPassBeginInfo,
-                                 VK_SUBPASS_CONTENTS_INLINE);
-
-        m_vk->CmdSetViewport(commandBuffer,
-                             0,
-                             1,
-                             vkutil::ViewportFromRect2D(renderArea));
-    }
-
 private:
-    rcp<VulkanContext> m_vk;
     VkPipelineLayout m_pipelineLayout;
-    VkRenderPass m_renderPass;
-    VkRenderPass m_resumingRenderPass = VK_NULL_HANDLE;
     VkPipeline m_fillPipeline;
     VkPipeline m_strokePipeline;
 };
@@ -919,7 +938,8 @@ void RenderContextVulkanImpl::initGPUObjects(
     m_colorRampPipeline =
         std::make_unique<ColorRampPipeline>(m_pipelineManager.get());
     m_tessellatePipeline =
-        std::make_unique<TessellatePipeline>(m_pipelineManager.get());
+        std::make_unique<TessellatePipeline>(m_pipelineManager.get(),
+                                             m_workarounds);
     m_atlasPipeline =
         std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
 
@@ -1967,7 +1987,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     {
         // Don't render new vertices until the previous flush has finished using
         // the tessellation texture.
-        // TODO: What this barrier does is also part of the tesselation
+        // TODO: What this barrier does is also part of the tessellation
         // renderpass, and should be handled automatically, but on early PowerVR
         // devices (Reno 3 Plus, Vivo Y21) tesselation is still incorrect
         // without this explicit barrier. Figure out why.
@@ -1980,31 +2000,20 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             },
             vkutil::ImageAccessAction::invalidateContents);
 
-        VkRect2D renderArea = {
+        const VkRect2D tessellateArea = {
             .extent = {gpu::kTessTextureWidth, desc.tessDataHeight},
         };
 
-        VkRenderPassBeginInfo renderPassBeginInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass = m_tessellatePipeline->renderPass(),
-            .framebuffer = *m_tessTextureFramebuffer,
-            .renderArea = renderArea,
-        };
-
-        m_vk->CmdBeginRenderPass(commandBuffer,
-                                 &renderPassBeginInfo,
-                                 VK_SUBPASS_CONTENTS_INLINE);
-
-        m_vk->CmdBindPipeline(commandBuffer,
-                              VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              m_tessellatePipeline->renderPipeline());
+        m_tessellatePipeline->beginRenderPass(commandBuffer,
+                                              tessellateArea,
+                                              *m_tessTextureFramebuffer);
 
         m_vk->CmdSetViewport(commandBuffer,
                              0,
                              1,
-                             vkutil::ViewportFromRect2D(renderArea));
+                             vkutil::ViewportFromRect2D(tessellateArea));
 
-        m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
+        m_vk->CmdSetScissor(commandBuffer, 0, 1, &tessellateArea);
 
         VkBuffer tessBuffer = *m_tessSpanBuffer;
         VkDeviceSize tessOffset =
@@ -2037,12 +2046,29 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     0,
                                     nullptr);
 
-        m_vk->CmdDrawIndexed(commandBuffer,
-                             std::size(gpu::kTessSpanIndices),
-                             desc.tessVertexSpanCount,
+        m_vk->CmdBindPipeline(commandBuffer,
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              m_tessellatePipeline->renderPipeline());
+
+        for (auto [chunkInstanceCount, chunkFirstInstance] :
+             InstanceChunker(desc.tessVertexSpanCount,
                              0,
-                             0,
-                             0);
+                             m_workarounds.maxInstancesPerRenderPass))
+
+        {
+            m_tessellatePipeline->interruptRenderPassIfNeeded(
+                commandBuffer,
+                tessellateArea,
+                *m_tessTextureFramebuffer,
+                chunkInstanceCount,
+                m_workarounds);
+            m_vk->CmdDrawIndexed(commandBuffer,
+                                 std::size(gpu::kTessSpanIndices),
+                                 chunkInstanceCount,
+                                 0,
+                                 0,
+                                 chunkFirstInstance);
+        }
 
         m_vk->CmdEndRenderPass(commandBuffer);
 
@@ -2116,33 +2142,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
+        VkRect2D renderArea = {
+            .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
+        };
+
         // Begin the render pass before binding buffers or updating descriptor
         // sets. It's valid Vulkan to do these tasks in any order, but Adreno
         // 730, 740, and 840 appreciate it when we begin the render pass first.
-        m_atlasPipeline->beginRenderPass(desc, *m_atlasFramebuffer);
+        m_atlasPipeline->beginRenderPass(commandBuffer,
+                                         renderArea,
+                                         *m_atlasFramebuffer);
 
-        // Some early Android tilers are known to crash when a render pass is
-        // too complex. This is a mechanism to interrupt and begin a new render
-        // pass on affected devices after a pre-set complexity is reached.
-        uint32_t patchCountInCurrentAtlasPass = 0;
-        auto interruptAtlasPassIfNeeded = [&](uint32_t nextInstanceCount) {
-            assert(nextInstanceCount <=
-                   m_workarounds.maxInstancesPerRenderPass);
-            if (patchCountInCurrentAtlasPass + nextInstanceCount >
-                m_workarounds.maxInstancesPerRenderPass)
-            {
-                m_vk->CmdEndRenderPass(commandBuffer);
-                m_atlasPipeline->beginRenderPass(
-                    desc,
-                    *m_atlasFramebuffer,
-                    AtlasPipeline::RenderPassType::resume);
-                // We don't need to bind new pipelines, even though we changed
-                // the render pass, because Vulkan allows for pipelines to be
-                // used interchangeably with "compatible" render passes.
-                patchCountInCurrentAtlasPass = 0;
-            }
-            patchCountInCurrentAtlasPass += nextInstanceCount;
-        };
+        m_vk->CmdSetViewport(commandBuffer,
+                             0,
+                             1,
+                             vkutil::ViewportFromRect2D(renderArea));
 
         m_vk->CmdBindVertexBuffers(commandBuffer,
                                    0,
@@ -2190,7 +2204,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                      m_workarounds.maxInstancesPerRenderPass))
 
                 {
-                    interruptAtlasPassIfNeeded(chunkPatchCount);
+                    m_atlasPipeline->interruptRenderPassIfNeeded(
+                        commandBuffer,
+                        renderArea,
+                        *m_atlasFramebuffer,
+                        chunkPatchCount,
+                        m_workarounds);
                     m_vk->CmdDrawIndexed(
                         commandBuffer,
                         gpu::kMidpointFanCenterAAPatchIndexCount,
@@ -2224,7 +2243,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                      m_workarounds.maxInstancesPerRenderPass))
 
                 {
-                    interruptAtlasPassIfNeeded(chunkPatchCount);
+                    m_atlasPipeline->interruptRenderPassIfNeeded(
+                        commandBuffer,
+                        renderArea,
+                        *m_atlasFramebuffer,
+                        chunkPatchCount,
+                        m_workarounds);
                     m_vk->CmdDrawIndexed(commandBuffer,
                                          gpu::kMidpointFanPatchBorderIndexCount,
                                          chunkPatchCount,
@@ -3221,7 +3245,8 @@ void RenderContextVulkanImpl::hotloadShaders(
     m_colorRampPipeline =
         std::make_unique<ColorRampPipeline>(m_pipelineManager.get());
     m_tessellatePipeline =
-        std::make_unique<TessellatePipeline>(m_pipelineManager.get());
+        std::make_unique<TessellatePipeline>(m_pipelineManager.get(),
+                                             m_workarounds);
     m_atlasPipeline =
         std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
 }
