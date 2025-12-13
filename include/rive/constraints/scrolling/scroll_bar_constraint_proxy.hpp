@@ -41,7 +41,6 @@ public:
         m_hittable = hittable;
     }
     ~TrackDraggableProxy() {}
-    bool isOpaque() override { return true; }
     bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
     bool drag(Vec2D mousePosition, float timeStamp = 0) override
     {
