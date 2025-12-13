@@ -139,28 +139,25 @@ public:
             makeDeviceAndRenderContext();
         }
 
-        m_renderTarget =
-            impl()->makeRenderTarget(m_width,
-                                     m_height,
-                                     m_swapchain->imageFormat(),
-                                     m_swapchain->imageUsageFlags());
+        VkImageUsageFlags renderTargetUsageFlags =
+            m_swapchain->imageUsageFlags();
         if (m_alwaysUseOffscreenTexture || m_width > m_androidWindowWidth ||
             m_height > m_androidWindowHeight)
         {
-            VkImageUsageFlags overflowTextureUsageFlags =
-                m_swapchain->imageUsageFlags();
             // Some ARM Mali GPUs experience a device loss when rendering to the
             // overflow texture as an input attachment. The current assumption
             // is that it has to do with some combination of input attachment
             // usage and pixel readbacks. For now, just don't enable the input
             // attachment flag on the overflow texture.
-            overflowTextureUsageFlags &= ~VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            // This also helps us get stronger testing coverage on the codepath
+            // that works without input attachments.
+            renderTargetUsageFlags &= ~VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
             m_overflowTexture = vk()->makeTexture2D(
                 {
                     .format = m_swapchain->imageFormat(),
                     .extent = {static_cast<uint32_t>(m_width),
                                static_cast<uint32_t>(m_height)},
-                    .usage = m_swapchain->imageUsageFlags(),
+                    .usage = renderTargetUsageFlags,
                 },
                 "overflow texture");
         }
@@ -168,6 +165,10 @@ public:
         {
             m_overflowTexture.reset();
         }
+        m_renderTarget = impl()->makeRenderTarget(m_width,
+                                                  m_height,
+                                                  m_swapchain->imageFormat(),
+                                                  renderTargetUsageFlags);
     }
 
     rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
@@ -323,9 +324,14 @@ public:
         // Mali devices with a driver version before 50 have been known to run
         // out of memory, so for these devices, tear down the device between
         // GMs.
+        // Adreno devices pre 1.3 (specifically Galaxy A11, Adreno 506, running
+        // Vulkan 1.1) also have sporadic crashes, and tearing down the device
+        // appears to help.
         if (m_device != nullptr &&
-            strstr(m_device->name().c_str(), "Mali") != nullptr &&
-            m_device->driverVersion().major < 50)
+            ((strstr(m_device->name().c_str(), "Mali") != nullptr &&
+              m_device->driverVersion().major < 50) ||
+             (strstr(m_device->name().c_str(), "Adreno") != nullptr &&
+              m_device->vulkanFeatures().apiVersion < VK_API_VERSION_1_3)))
         {
             destroyRenderContext();
         }
