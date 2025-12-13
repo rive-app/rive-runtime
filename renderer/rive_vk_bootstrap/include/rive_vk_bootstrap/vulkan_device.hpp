@@ -21,12 +21,20 @@ public:
         bool coreFeaturesOnly = false;
         const char* gpuNameFilter = nullptr;
         bool headless = false;
+        bool printInitializationMessage = true;
 
         uint32_t minimumSupportedAPIVersion = VK_API_VERSION_1_0;
 
         // If this is set to a valid surface (and not a headless device), device
         // discovery will test for present compatibility to this surface
         VkSurfaceKHR presentationSurfaceForDeviceSelection = VK_NULL_HANDLE;
+    };
+
+    struct DriverVersion
+    {
+        uint32_t major;
+        uint32_t minor;
+        uint32_t patch;
     };
 
     VulkanDevice(VulkanInstance&, const Options&);
@@ -66,6 +74,8 @@ public:
 
     const std::string& name() const { return m_name; }
 
+    const DriverVersion& driverVersion() const { return m_driverVersion; }
+
 private:
     struct FindDeviceResult
     {
@@ -73,9 +83,7 @@ private:
         std::string deviceName;
         VkPhysicalDeviceType deviceType;
         uint32_t deviceAPIVersion;
-        uint32_t driverVersionMajor;
-        uint32_t driverVersionMinor;
-        uint32_t driverVersionPatch;
+        DriverVersion driverVersion;
     };
 
     static FindDeviceResult findCompatiblePhysicalDevice(
@@ -103,6 +111,7 @@ private:
 
     std::vector<VkQueueFamilyProperties> m_queueFamilyProperties;
     std::string m_name;
+    DriverVersion m_driverVersion;
 
     VkPhysicalDevice m_physicalDevice;
     VkDevice m_device;

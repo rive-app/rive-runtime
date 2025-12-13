@@ -170,6 +170,9 @@ public:
         m_height = height;
     }
 
+    // This is called by the gm testing after each GM runs
+    virtual void onceAfterGM() {}
+
     struct FrameOptions
     {
         uint32_t clearColor;

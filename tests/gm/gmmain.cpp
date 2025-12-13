@@ -205,23 +205,33 @@ static void dumpGMs(const std::string& match, bool interactive)
 
     for (const auto& [make_gm, name] : gmRegistry)
     {
-        std::unique_ptr<GM> gm(make_gm());
+        // Scope the GM so that it destructs (and releases its resources) before
+        // we call `onceAfterGM` which potentially tears down the entire display
+        // devices (see: TestingWindowAndroidVulkan)
+        {
+            std::unique_ptr<GM> gm(make_gm());
 
-        if (!gm)
-        {
-            continue;
-        }
-        if (match.size() && !contains(name, match))
-        {
-            continue; // This gm got filtered out by the '--match' argument.
-        }
-        if (!TestHarness::Instance().claimGMTest(name))
-        {
-            continue; // A different process already drew this gm.
-        }
-        gm->onceBeforeDraw();
+            if (!gm)
+            {
+                continue;
+            }
+            if (match.size() && !contains(name, match))
+            {
+                continue; // This gm got filtered out by the '--match' argument.
+            }
+            if (!TestHarness::Instance().claimGMTest(name))
+            {
+                continue; // A different process already drew this gm.
+            }
+            gm->onceBeforeDraw();
 
-        dump_gm(gm.get(), name);
+            dump_gm(gm.get(), name);
+        }
+
+        // Allow the testing window to do any cleanup it might want to do
+        // between GMs
+        TestingWindow::Get()->onceAfterGM();
+
         if (interactive)
         {
             // Wait for any key if in interactive mode.

@@ -25,6 +25,7 @@ TestingWindow* TestingWindow::MakeAndroidVulkan(const BackendParams&,
 #include <vk_mem_alloc.h>
 #include <android/native_app_glue/android_native_app_glue.h>
 #include <android/log.h>
+#include <thread>
 
 using namespace rive;
 using namespace rive::gpu;
@@ -45,7 +46,7 @@ class TestingWindowAndroidVulkan : public TestingWindow
 public:
     TestingWindowAndroidVulkan(const BackendParams& backendParams,
                                ANativeWindow* window) :
-        m_backendParams(backendParams)
+        m_backendParams(backendParams), m_window(window)
     {
         using namespace rive_vkb;
 
@@ -80,7 +81,7 @@ public:
 
         VkAndroidSurfaceCreateInfoKHR androidSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-            .window = window,
+            .window = m_window,
         };
         auto pfnvkCreateAndroidSurfaceKHR =
             m_instance->loadInstanceFunc<PFN_vkCreateAndroidSurfaceKHR>(
@@ -90,99 +91,11 @@ public:
                                               &androidSurfaceCreateInfo,
                                               nullptr,
                                               &m_windowSurface));
-
-        m_device = std::make_unique<VulkanDevice>(
-            *m_instance,
-            VulkanDevice::Options{
-                .coreFeaturesOnly = m_backendParams.core,
-            });
-
-        m_renderContext = RenderContextVulkanImpl::MakeContext(
-            m_instance->vkInstance(),
-            m_device->vkPhysicalDevice(),
-            m_device->vkDevice(),
-            m_device->vulkanFeatures(),
-            m_instance->getVkGetInstanceProcAddrPtr(),
-            {.forceAtomicMode = backendParams.atomic});
-
-        auto windowCapabilities =
-            m_device->getSurfaceCapabilities(m_windowSurface);
-
-        auto swapOpts = VulkanSwapchain::Options{
-            .formatPreferences =
-                {
-                    {
-                        .format = m_backendParams.srgb
-                                      ? VK_FORMAT_R8G8B8A8_SRGB
-                                      : VK_FORMAT_R8G8B8A8_UNORM,
-                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                    },
-                    // Fall back to either ordering of ARGB
-                    {
-                        .format = VK_FORMAT_R8G8B8A8_UNORM,
-                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                    },
-                    {
-                        .format = VK_FORMAT_B8G8R8A8_UNORM,
-                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                    },
-                },
-            .presentModePreferences =
-                {
-                    VK_PRESENT_MODE_IMMEDIATE_KHR,
-                    VK_PRESENT_MODE_FIFO_KHR,
-                },
-            .imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                               VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        };
-
-        if ((windowCapabilities.supportedUsageFlags &
-             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) != 0)
-        {
-            swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-        }
-
-        m_swapchain =
-            std::make_unique<rive_vkb::VulkanSwapchain>(*m_instance,
-                                                        *m_device,
-                                                        ref_rcp(vk()),
-                                                        m_windowSurface,
-                                                        swapOpts);
-
-        m_androidWindowWidth = m_width = m_swapchain->width();
-        m_androidWindowHeight = m_height = m_swapchain->height();
-
-        m_renderTarget =
-            impl()->makeRenderTarget(m_width,
-                                     m_height,
-                                     m_swapchain->imageFormat(),
-                                     m_swapchain->imageUsageFlags());
-
-        if (m_device->name() == "Mali-G76" || m_device->name() == "Mali-G72")
-        {
-            // These devices (like the Huawei P30 or Galaxy S10) will end up
-            // with a DEVICE_LOST error if we blit to the screen, so don't.
-            m_allowBlitOffscreenToScreen = false;
-        }
-
-        if (m_device->name() == "PowerVR Rogue GM9446")
-        {
-            // These devices (like the Oppo Reno 3 Pro) only give correct
-            // results when rendering to an off-screen texture.
-            m_alwaysUseOffscreenTexture = true;
-        }
     }
 
     ~TestingWindowAndroidVulkan()
     {
-        // Destroy the swapchain first because it synchronizes for in-flight
-        // command buffers.
-        m_swapchain = nullptr;
-
-        m_renderContext.reset();
-        m_renderTarget.reset();
-        m_overflowTexture.reset();
+        destroyRenderContext();
 
         if (m_windowSurface != VK_NULL_HANDLE)
         {
@@ -192,21 +105,40 @@ public:
         }
     }
 
-    Factory* factory() override { return m_renderContext.get(); }
+    Factory* factory() override
+    {
+        // Some GMs call factory() during construction (before the call to
+        // resize will rebuild the device), so this function also needs to build
+        // the render context
+        if (m_renderContext == nullptr)
+        {
+            makeDeviceAndRenderContext();
+        }
+
+        return m_renderContext.get();
+    }
 
     rive::gpu::RenderContext* renderContext() const override
     {
+        assert(m_renderContext != nullptr);
         return m_renderContext.get();
     }
 
     rive::gpu::RenderTarget* renderTarget() const override
     {
+        assert(m_renderTarget != nullptr);
         return m_renderTarget.get();
     }
 
     void resize(int width, int height) override
     {
         TestingWindow::resize(width, height);
+
+        if (m_renderContext == nullptr)
+        {
+            makeDeviceAndRenderContext();
+        }
+
         m_renderTarget =
             impl()->makeRenderTarget(m_width,
                                      m_height,
@@ -252,6 +184,11 @@ public:
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
+        if (m_renderContext == nullptr)
+        {
+            makeDeviceAndRenderContext();
+        }
+
         m_renderContext->beginFrame(RenderContext::FrameDescriptor{
             .renderTargetWidth = m_width,
             .renderTargetHeight = m_height,
@@ -381,7 +318,129 @@ public:
         }
     }
 
+    void onceAfterGM() override
+    {
+        // Mali devices with a driver version before 50 have been known to run
+        // out of memory, so for these devices, tear down the device between
+        // GMs.
+        if (m_device != nullptr &&
+            strstr(m_device->name().c_str(), "Mali") != nullptr &&
+            m_device->driverVersion().major < 50)
+        {
+            destroyRenderContext();
+        }
+    }
+
 private:
+    void makeDeviceAndRenderContext()
+    {
+        using namespace rive_vkb;
+
+        m_device = std::make_unique<VulkanDevice>(
+            *m_instance,
+            VulkanDevice::Options{
+                .coreFeaturesOnly = m_backendParams.core,
+                .printInitializationMessage =
+                    m_printDeviceInitializationMessage,
+            });
+
+        // Only want to print the device initialization message the first time
+        m_printDeviceInitializationMessage = false;
+
+        m_renderContext = RenderContextVulkanImpl::MakeContext(
+            m_instance->vkInstance(),
+            m_device->vkPhysicalDevice(),
+            m_device->vkDevice(),
+            m_device->vulkanFeatures(),
+            m_instance->getVkGetInstanceProcAddrPtr(),
+            {.forceAtomicMode = m_backendParams.atomic});
+
+        auto windowCapabilities =
+            m_device->getSurfaceCapabilities(m_windowSurface);
+
+        auto swapOpts = VulkanSwapchain::Options{
+            .formatPreferences =
+                {
+                    {
+                        .format = m_backendParams.srgb
+                                      ? VK_FORMAT_R8G8B8A8_SRGB
+                                      : VK_FORMAT_R8G8B8A8_UNORM,
+                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                    // Fall back to either ordering of ARGB
+                    {
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                    {
+                        .format = VK_FORMAT_B8G8R8A8_UNORM,
+                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                },
+            .presentModePreferences =
+                {
+                    VK_PRESENT_MODE_IMMEDIATE_KHR,
+                    VK_PRESENT_MODE_FIFO_KHR,
+                },
+            .imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        };
+
+        if ((windowCapabilities.supportedUsageFlags &
+             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) != 0)
+        {
+            swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        }
+
+        m_swapchain =
+            std::make_unique<rive_vkb::VulkanSwapchain>(*m_instance,
+                                                        *m_device,
+                                                        ref_rcp(vk()),
+                                                        m_windowSurface,
+                                                        swapOpts);
+
+        m_androidWindowWidth = m_swapchain->width();
+        m_androidWindowHeight = m_swapchain->height();
+
+        if (m_width == 0)
+        {
+            m_width = m_androidWindowWidth;
+        }
+        if (m_height == 0)
+        {
+            m_height = m_androidWindowHeight;
+        }
+
+        if (m_device->name() == "Mali-G76" || m_device->name() == "Mali-G72")
+        {
+            // These devices (like the Huawei P30 or Galaxy S10) will end up
+            // with a DEVICE_LOST error if we blit to the screen, so don't.
+            m_allowBlitOffscreenToScreen = false;
+        }
+
+        if (m_device->name() == "PowerVR Rogue GM9446")
+        {
+            // These devices (like the Oppo Reno 3 Pro) only give correct
+            // results when rendering to an off-screen texture.
+            m_alwaysUseOffscreenTexture = true;
+        }
+    }
+
+    void destroyRenderContext()
+    {
+        if (m_device != nullptr)
+        {
+            m_device->waitUntilIdle();
+
+            m_swapchain = nullptr;
+            m_renderTarget = nullptr;
+            m_overflowTexture = nullptr;
+            m_renderContext = nullptr;
+            m_device = nullptr;
+        }
+    }
+
     RenderContextVulkanImpl* impl() const
     {
         return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
@@ -389,6 +448,7 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
+    ANativeWindow* m_window = nullptr;
     BackendParams m_backendParams;
     uint32_t m_androidWindowWidth;
     uint32_t m_androidWindowHeight;
@@ -402,6 +462,7 @@ private:
                                               // size doesn't fit in the window.
     PFN_vkDestroySurfaceKHR m_vkDestroySurfaceKHR = nullptr;
 
+    bool m_printDeviceInitializationMessage = true;
     bool m_allowBlitOffscreenToScreen = true;
     bool m_alwaysUseOffscreenTexture = false;
 };
