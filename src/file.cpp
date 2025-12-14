@@ -620,6 +620,7 @@ void File::makeScriptingVM()
         rivestd::make_unique<CPPRuntimeScriptingContext>(m_factory);
     m_scriptingVM = rivestd::make_unique<ScriptingVM>(m_scriptingContext.get());
     m_luaState = new LuaState(m_scriptingVM->state());
+    m_luaState->initializeData(m_ViewModels);
 }
 
 void File::cleanupScriptingVM()

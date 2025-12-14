@@ -26,6 +26,22 @@ static int context_namecall(lua_State* L)
                 scriptedObject->markNeedsUpdate();
                 return 0;
             }
+            case (int)LuaAtoms::viewModel:
+            {
+                auto scriptedObject = scriptedContext->scriptedObject();
+                auto dataContext = scriptedObject->dataContext();
+                if (dataContext && dataContext->viewModelInstance())
+                {
+                    auto viewModelInstance = dataContext->viewModelInstance();
+                    lua_newrive<ScriptedViewModel>(
+                        L,
+                        L,
+                        ref_rcp(viewModelInstance->viewModel()),
+                        viewModelInstance);
+                    return 1;
+                }
+                return 0;
+            }
             default:
                 break;
         }

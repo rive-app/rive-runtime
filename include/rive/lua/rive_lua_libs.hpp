@@ -162,6 +162,7 @@ enum class LuaAtoms : int16_t
     frameOrigin,
     data,
     instance,
+    newAtom,
     bounds,
     pointerDown,
     pointerMove,
@@ -201,6 +202,7 @@ enum class LuaAtoms : int16_t
 
     // Scripted Context
     markNeedsUpdate,
+    viewModel,
 };
 
 struct ScriptedMat2D

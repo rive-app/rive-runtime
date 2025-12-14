@@ -537,6 +537,7 @@ static int vm_namecall(lua_State* L)
                 return vm->pushValue(name, ViewModelInstanceListBase::typeKey);
             }
             case (int)LuaAtoms::instance:
+            case (int)LuaAtoms::newAtom:
             {
                 assert(vm->state() == L);
                 return vm->instance(L);
