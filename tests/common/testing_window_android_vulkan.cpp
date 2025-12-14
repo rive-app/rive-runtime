@@ -330,7 +330,7 @@ public:
         if (m_device != nullptr &&
             ((strstr(m_device->name().c_str(), "Mali") != nullptr &&
               m_device->driverVersion().major < 50) ||
-             (strstr(m_device->name().c_str(), "Adreno") != nullptr &&
+             (strstr(m_device->name().c_str(), "Adreno (TM) 5") != nullptr &&
               m_device->vulkanFeatures().apiVersion < VK_API_VERSION_1_3)))
         {
             destroyRenderContext();
