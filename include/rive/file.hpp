@@ -277,7 +277,7 @@ private:
     uint32_t findViewModelId(ViewModel* search) const;
 #ifdef WITH_RIVE_TOOLS
     ViewModelInstanceCreated m_viewmodelInstanceCreatedCallback = nullptr;
-    bool m_triggerViewModelCreatedCallback = true;
+    bool m_triggerViewModelCreatedCallback = false;
 #endif
 };
 } // namespace rive
