@@ -804,6 +804,7 @@ uint32_t Artboard::idOf(Core* object) const
 
 void Artboard::onComponentDirty(Component* component)
 {
+    m_didChange = true;
     m_Dirt |= ComponentDirt::Components;
 
     /// If the order of the component is less than the current dirt
@@ -1394,7 +1395,7 @@ void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
 void Artboard::draw(Renderer* renderer, DrawOption option)
 {
     RIVE_PROF_SCOPE()
-
+    m_didChange = false;
     if (renderOpacity() == 0)
     {
         return;

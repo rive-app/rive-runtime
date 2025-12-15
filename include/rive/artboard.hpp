@@ -99,6 +99,7 @@ private:
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
     bool m_hostTransformMarkedDirty = false;
+    bool m_didChange = false;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
     bool sharesLayoutWithHost() const;
@@ -155,6 +156,7 @@ public:
     ~Artboard() override;
     bool validateObjects();
     StatusCode initialize();
+    bool didChange() { return m_didChange; }
 
     Core* resolve(uint32_t id) const override;
 #ifdef WITH_RIVE_TOOLS
