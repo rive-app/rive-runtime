@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace skgpu
+namespace rive
 {
 // Pack rectangles and track the current silhouette
 // Based, in part, on Jukka Jylanki's work at http://clb.demon.fi
@@ -82,4 +82,4 @@ private:
     // at x,y.
     void addSkylineLevel(int skylineIndex, int x, int y, int width, int height);
 };
-} // End of namespace skgpu
+} // End of namespace rive

@@ -592,7 +592,7 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(
         uint16_t atlasMaxSize = m_ctx->atlasMaxSize();
         // Use an atlas larger than atlasMaxSize if it's too small for the
         // request (meaning the render target is larger than atlasMaxSize).
-        m_atlasRectanizer = std::make_unique<skgpu::RectanizerSkyline>(
+        m_atlasRectanizer = std::make_unique<rive::RectanizerSkyline>(
             std::max(atlasMaxSize, drawWidth),
             std::max(atlasMaxSize, drawHeight));
     }
