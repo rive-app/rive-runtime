@@ -5,6 +5,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
+#include <set>
 
 using namespace rivegm;
 using namespace rive;
@@ -20,8 +21,10 @@ static void add_circle(PathBuilder&,
 static void draw_spirograph(Renderer*,
                             RenderPaint*,
                             RenderPath* circles,
+                            float2 translate,
                             float2 c,
-                            int depth);
+                            int depth,
+                            std::set<std::tuple<int, int>>* drawnCenters);
 
 // Stress tests the renderer by trying to fit as many tessellation spans into a
 // single flush as possible. This will hopefully detect any potential driver
@@ -52,9 +55,7 @@ private:
         }
         Path circles = pathBuilder.detach();
 
-        renderer->save();
-
-        renderer->translate(512, 512);
+        float2 translate = {512, 512};
         Paint paint;
         paint->style(m_style);
         // Use round joins because they use fewer segments when nearly flat, and
@@ -64,24 +65,35 @@ private:
         paint->color((m_style == RenderPaintStyle::fill) ? 0xff7500ff
                                                          : 0xfffe0089);
         renderer->drawPath(circles, paint);
-
-        renderer->save();
-        draw_spirograph(renderer, paint, circles, float2{-R, 0}, 3);
-        renderer->restore();
-
-        renderer->save();
-        draw_spirograph(renderer, paint, circles, float2{0, R}, 3);
-        renderer->restore();
-
-        renderer->save();
-        draw_spirograph(renderer, paint, circles, float2{R, 0}, 3);
-        renderer->restore();
-
-        renderer->save();
-        draw_spirograph(renderer, paint, circles, float2{0, -R}, 3);
-        renderer->restore();
-
-        renderer->restore();
+        std::set<std::tuple<int, int>> drawnCenters;
+        draw_spirograph(renderer,
+                        paint,
+                        circles,
+                        translate,
+                        float2{-R, 0},
+                        3,
+                        &drawnCenters);
+        draw_spirograph(renderer,
+                        paint,
+                        circles,
+                        translate,
+                        float2{0, R},
+                        3,
+                        &drawnCenters);
+        draw_spirograph(renderer,
+                        paint,
+                        circles,
+                        translate,
+                        float2{R, 0},
+                        3,
+                        &drawnCenters);
+        draw_spirograph(renderer,
+                        paint,
+                        circles,
+                        translate,
+                        float2{0, -R},
+                        3,
+                        &drawnCenters);
     }
 
     const RenderPaintStyle m_style;
@@ -124,16 +136,28 @@ static void add_circle(PathBuilder& pathBuilder,
 static void draw_spirograph(Renderer* renderer,
                             RenderPaint* paint,
                             RenderPath* circles,
+                            float2 translate,
                             float2 c,
-                            int depth)
+                            int depth,
+                            std::set<std::tuple<int, int>>* drawnCenters)
 {
     if (depth <= 0)
     {
         return;
     }
 
-    renderer->translate(c.x, c.y);
-    renderer->drawPath(circles, paint);
+    translate += c;
+
+    // Only draw the circles once, centered within any given pixel. When we draw
+    // overlapping circles, coverage-based AA darkens but MSAA does not, leading
+    // to divergence in golden images.
+    int2 icenter = simd::cast<int>(simd::floor(translate + .5f));
+    if (drawnCenters->insert({int(icenter.x), int(icenter.y)}).second)
+    {
+        AutoRestore ar(renderer, /*doSave=*/true);
+        renderer->translate(translate.x, translate.y);
+        renderer->drawPath(circles, paint);
+    }
 
     // Next draw circles centered on both points of intersection between the
     // circle we just drew and the one before it!
@@ -166,8 +190,20 @@ static void draw_spirograph(Renderer* renderer,
         right = right.yx;
     }
 
-    draw_spirograph(renderer, paint, circles, left, depth - 1);
-    draw_spirograph(renderer, paint, circles, right, depth - 1);
+    draw_spirograph(renderer,
+                    paint,
+                    circles,
+                    translate,
+                    left,
+                    depth - 1,
+                    drawnCenters);
+    draw_spirograph(renderer,
+                    paint,
+                    circles,
+                    translate,
+                    right,
+                    depth - 1,
+                    drawnCenters);
 }
 
 GMREGISTER(lots_of_tess_spans_stroke,

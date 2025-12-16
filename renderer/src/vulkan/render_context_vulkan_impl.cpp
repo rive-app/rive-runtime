@@ -280,10 +280,17 @@ private:
 
 // Renders color ramps to the gradient texture.
 class RenderContextVulkanImpl::ColorRampPipeline
+    : public ResourceTexturePipeline
 {
 public:
-    ColorRampPipeline(PipelineManagerVulkan* pipelineManager) :
-        m_vk(ref_rcp(pipelineManager->vulkanContext()))
+    ColorRampPipeline(PipelineManagerVulkan* pipelineManager,
+                      const DriverWorkarounds& workarounds) :
+        ResourceTexturePipeline(ref_rcp(pipelineManager->vulkanContext()),
+                                VK_FORMAT_R8G8B8A8_UNORM,
+                                VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                "ColorRamp",
+                                workarounds)
     {
         VkDescriptorSetLayout perFlushDescriptorSetLayout =
             pipelineManager->perFlushDescriptorSetLayout();
@@ -359,53 +366,6 @@ public:
                 .pVertexAttributeDescriptions = &vertexAttributeDescription,
             };
 
-        VkAttachmentDescription attachment = {
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-
-        VkSubpassDependency dependencies[] = {
-            // Wait for previous accesses to complete before this renderpass
-            // starts
-            {
-                .srcSubpass = VK_SUBPASS_EXTERNAL,
-                .dstSubpass = 0,
-                .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            },
-            {
-                .srcSubpass = 0,
-                .dstSubpass = VK_SUBPASS_EXTERNAL,
-                .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            },
-        };
-        VkRenderPassCreateInfo renderPassCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = &attachment,
-            .subpassCount = 1,
-            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
-            .dependencyCount = std::size(dependencies),
-            .pDependencies = dependencies,
-        };
-
-        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
-                                        &renderPassCreateInfo,
-                                        nullptr,
-                                        &m_renderPass));
-        m_vk->setDebugNameIfEnabled(uint64_t(m_renderPass),
-                                    VK_OBJECT_TYPE_RENDER_PASS,
-                                    "Color Ramp RenderPass");
-
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .stageCount = 2,
@@ -418,7 +378,7 @@ public:
             .pColorBlendState = &layout::SINGLE_ATTACHMENT_BLEND_DISABLED,
             .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = m_pipelineLayout,
-            .renderPass = m_renderPass,
+            .renderPass = renderPass(),
         };
 
         VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
@@ -438,18 +398,14 @@ public:
     ~ColorRampPipeline()
     {
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_renderPipeline, nullptr);
     }
 
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
-    VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
-    rcp<VulkanContext> m_vk;
     VkPipelineLayout m_pipelineLayout;
-    VkRenderPass m_renderPass;
     VkPipeline m_renderPipeline;
 };
 
@@ -936,7 +892,8 @@ void RenderContextVulkanImpl::initGPUObjects(
 
     // The pipelines reference our vulkan objects. Delete them first.
     m_colorRampPipeline =
-        std::make_unique<ColorRampPipeline>(m_pipelineManager.get());
+        std::make_unique<ColorRampPipeline>(m_pipelineManager.get(),
+                                            m_workarounds);
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get(),
                                              m_workarounds);
@@ -1910,20 +1867,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .extent = {gpu::kGradTextureWidth, desc.gradDataHeight},
         };
 
-        VkRenderPassBeginInfo renderPassBeginInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass = m_colorRampPipeline->renderPass(),
-            .framebuffer = *m_gradTextureFramebuffer,
-            .renderArea = renderArea,
-        };
-
-        m_vk->CmdBeginRenderPass(commandBuffer,
-                                 &renderPassBeginInfo,
-                                 VK_SUBPASS_CONTENTS_INLINE);
-
-        m_vk->CmdBindPipeline(commandBuffer,
-                              VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              m_colorRampPipeline->renderPipeline());
+        m_colorRampPipeline->beginRenderPass(commandBuffer,
+                                             renderArea,
+                                             *m_gradTextureFramebuffer);
 
         m_vk->CmdSetViewport(commandBuffer,
                              0,
@@ -1950,11 +1896,28 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     1,
                                     ZERO_OFFSET_32);
 
-        m_vk->CmdDraw(commandBuffer,
-                      gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
-                      desc.gradSpanCount,
-                      0,
-                      0);
+        m_vk->CmdBindPipeline(commandBuffer,
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              m_colorRampPipeline->renderPipeline());
+
+        for (auto [chunkInstanceCount, chunkFirstInstance] :
+             InstanceChunker(desc.gradSpanCount,
+                             0,
+                             m_workarounds.maxInstancesPerRenderPass))
+
+        {
+            m_colorRampPipeline->interruptRenderPassIfNeeded(
+                commandBuffer,
+                renderArea,
+                *m_gradTextureFramebuffer,
+                chunkInstanceCount,
+                m_workarounds);
+            m_vk->CmdDraw(commandBuffer,
+                          gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
+                          chunkInstanceCount,
+                          0,
+                          chunkFirstInstance);
+        }
 
         m_vk->CmdEndRenderPass(commandBuffer);
 
@@ -3243,7 +3206,8 @@ void RenderContextVulkanImpl::hotloadShaders(
 
     // Delete and replace old shaders
     m_colorRampPipeline =
-        std::make_unique<ColorRampPipeline>(m_pipelineManager.get());
+        std::make_unique<ColorRampPipeline>(m_pipelineManager.get(),
+                                            m_workarounds);
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get(),
                                              m_workarounds);

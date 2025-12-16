@@ -134,21 +134,20 @@ public:
                                                size_t i,
                                                size_t j) override
     {
-        float stops[7] = {0, .147f, .148f, .23f, .67f, .8f, 1};
-        rive::ColorInt colors[7] = {randColor(),
-                                    randColor(),
-                                    randColor(),
-                                    randColor(),
-                                    randColor(),
-                                    randColor(),
-                                    randColor()};
+        rive::ColorInt colors[13];
+        float stops[std::size(colors)];
+        for (size_t i = 0; i < std::size(colors); ++i)
+        {
+            colors[i] = randColor();
+            stops[i] = static_cast<float>(i) / (std::size(stops) - 1);
+        }
         return factory->makeLinearGradient((i & 1) ? 16 : 0,
                                            (j & 1) ? 16 : 0,
                                            (i & 1) ? 0 : 16,
                                            (j & 1) ? 0 : 16,
                                            colors,
                                            stops,
-                                           7);
+                                           std::size(colors));
     }
 };
 GMREGISTER(lots_of_grad_spans, return new LotsOfGradSpansGM)
