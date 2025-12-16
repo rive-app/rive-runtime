@@ -33,6 +33,7 @@
 
 #include <chrono>
 #include <unordered_map>
+#include <unordered_set>
 #include <functional>
 #include <string>
 #include <vector>
@@ -745,27 +746,30 @@ public:
     virtual void printEndLine() = 0;
     virtual int pCall(lua_State* state, int nargs, int nresults) = 0;
 
-    void queuePendingModule(ModuleDetails* moduleDetails);
-    void clearPendingModule(const std::string& name);
-
     // Add a module to be registered later via performRegistration()
     void addModule(ModuleDetails* moduleDetails);
-
     // Perform registration of all added modules, handling dependencies and
     // retries
     void performRegistration(lua_State* state);
+    // Called when a module is required but not found during registration
+    void recordMissingDependency(const std::string& requiringModule,
+                                 const std::string& missingModule);
 
 private:
-    bool tryRegisterModule(lua_State* state,
-                           ModuleDetails* moduleDetails,
-                           int& functionRef);
-
-    void retryPendingModules(lua_State* state);
+    bool tryRegisterModule(lua_State* state, ModuleDetails* moduleDetails);
+    void sortNextModule(ModuleDetails* module,
+                        std::vector<ModuleDetails*>* pendingModules,
+                        std::vector<ModuleDetails*>* sortedModules,
+                        std::unordered_set<ModuleDetails*>* visitedModules);
+    // Called when a module successfully registers
+    void onModuleRegistered(ModuleDetails* moduleDetails);
 
 private:
     Factory* m_factory;
-    std::vector<ModuleDetails*> m_pendingModules;
     std::vector<ModuleDetails*> m_modulesToRegister;
+    std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
+
+    std::unordered_set<ModuleDetails*> m_pendingModules;
 };
 
 class ScriptingVM

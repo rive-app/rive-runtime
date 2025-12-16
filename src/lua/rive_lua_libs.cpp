@@ -5,6 +5,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
+#include <queue>
+#include <vector>
+#include <algorithm>
 
 using namespace rive;
 
@@ -262,6 +265,17 @@ static int lua_requireinternal(lua_State* L, const char* requirerChunkname)
         return 1;
     }
 
+    // Record missing dependency if we're registering a module
+    if (requirerChunkname)
+    {
+        ScriptingContext* context =
+            static_cast<ScriptingContext*>(lua_getthreaddata(L));
+        if (context)
+        {
+            context->recordMissingDependency(requirerChunkname, path);
+        }
+    }
+
     luaL_error(L, "require could not find a script named %s", path);
     return 0;
 }
@@ -458,14 +472,19 @@ void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
 void ScriptingContext::addModule(ModuleDetails* moduleDetails)
 {
     m_modulesToRegister.push_back(moduleDetails);
+    m_moduleLookup[moduleDetails->moduleName()] = moduleDetails;
 }
 
 bool ScriptingContext::tryRegisterModule(lua_State* state,
-                                         ModuleDetails* moduleDetails,
-                                         int& functionRef)
+                                         ModuleDetails* moduleDetails)
 {
+    if (!moduleDetails->verified())
+    {
+        return false;
+    }
     const std::string& name = moduleDetails->moduleName();
-    functionRef = 0;
+    bool registerSuccess = false;
+    int functionRef = 0;
     if (moduleDetails->isProtocolScript())
     {
         if (ScriptingVM::registerScript(state,
@@ -478,7 +497,7 @@ bool ScriptingContext::tryRegisterModule(lua_State* state,
                 functionRef = lua_ref(state, -1);
             }
             lua_pop(state, 1);
-            return true;
+            registerSuccess = true;
         }
     }
     else
@@ -487,104 +506,138 @@ bool ScriptingContext::tryRegisterModule(lua_State* state,
                                         name.c_str(),
                                         moduleDetails->moduleBytecode()))
         {
-            return true;
+            registerSuccess = true;
         }
+    }
+    if (registerSuccess)
+    {
+        moduleDetails->registrationComplete(functionRef);
+        onModuleRegistered(moduleDetails);
+        return true;
     }
 
     return false;
 }
 
-void ScriptingContext::retryPendingModules(lua_State* state)
+void ScriptingContext::performRegistration(lua_State* state)
 {
-    bool anyRetried = true;
-    while (anyRetried)
+    // Loop over all of the modules once. We need do a tryRegister
+    // pass on each module in order to determine if it has any
+    // required dependencies
+    for (ModuleDetails* moduleDetails : m_modulesToRegister)
     {
-        anyRetried = false;
-        // Track which modules we've tried in this iteration to avoid infinite
-        // loops
-        std::unordered_set<std::string> triedThisCycle;
-        auto currentPending = m_pendingModules;
-
-        for (ModuleDetails* moduleDetails : currentPending)
+        // Skip if already registered
+        if (checkRegisteredModules(state,
+                                   moduleDetails->moduleName().c_str()) == 1)
         {
-            const std::string& name = moduleDetails->moduleName();
+            continue;
+        }
+        tryRegisterModule(state, moduleDetails);
+    }
 
-            // Skip if we've already tried this module in this iteration
-            if (triedThisCycle.find(name) != triedThisCycle.end())
-            {
-                continue;
-            }
+    // If any modules had dependencies, resolve their registration order
+    // and try registering again
+    if (!m_pendingModules.empty())
+    {
+        std::vector<ModuleDetails*> pendingModules;
+        for (auto module : m_pendingModules)
+        {
+            pendingModules.push_back(module);
+        }
+        std::vector<ModuleDetails*> sortedModules;
+        std::unordered_set<ModuleDetails*> visitedModules;
 
-            triedThisCycle.insert(name);
+        ModuleDetails* module = pendingModules.back();
+        pendingModules.pop_back();
+        sortNextModule(module,
+                       &pendingModules,
+                       &sortedModules,
+                       &visitedModules);
 
-            int functionRef = 0;
-            if (tryRegisterModule(state, moduleDetails, functionRef))
-            {
-                // Successfully registered, remove from pending list
-                clearPendingModule(name);
+        // Register modules in sorted order
+        for (ModuleDetails* moduleDetails : sortedModules)
+        {
+            tryRegisterModule(state, moduleDetails);
+        }
+    }
 
-                moduleDetails->registrationComplete(
-                    moduleDetails->isProtocolScript() ? functionRef : 0);
+    m_modulesToRegister.clear();
+    m_pendingModules.clear();
+}
 
-                anyRetried = true;
-                break;
-            }
+void ScriptingContext::sortNextModule(
+    ModuleDetails* module,
+    std::vector<ModuleDetails*>* pendingModules,
+    std::vector<ModuleDetails*>* sortedModules,
+    std::unordered_set<ModuleDetails*>* visitedModules)
+{
+    // If already visited, skip
+    if (visitedModules->find(module) != visitedModules->end())
+    {
+        return;
+    }
+
+    auto dependencies = module->missingDependencies();
+    for (const auto& dependencyName : dependencies)
+    {
+        auto lookupIt = m_moduleLookup.find(dependencyName);
+        if (lookupIt != m_moduleLookup.end())
+        {
+            ModuleDetails* dependencyModule = lookupIt->second;
+            // Recursively process the dependency
+            sortNextModule(dependencyModule,
+                           pendingModules,
+                           sortedModules,
+                           visitedModules);
+        }
+    }
+
+    if (std::find(sortedModules->begin(), sortedModules->end(), module) ==
+        sortedModules->end())
+    {
+        sortedModules->push_back(module);
+    }
+    visitedModules->insert(module);
+    if (!pendingModules->empty())
+    {
+        ModuleDetails* nextModule = pendingModules->back();
+        pendingModules->pop_back();
+        sortNextModule(nextModule,
+                       pendingModules,
+                       sortedModules,
+                       visitedModules);
+    }
+}
+
+void ScriptingContext::recordMissingDependency(
+    const std::string& requiringModule,
+    const std::string& missingModule)
+{
+    if (!requiringModule.empty())
+    {
+        ModuleDetails* moduleDetails = m_moduleLookup[requiringModule];
+        if (moduleDetails != nullptr)
+        {
+            moduleDetails->addMissingDependency(missingModule);
+            m_pendingModules.insert(moduleDetails);
         }
     }
 }
 
-void ScriptingContext::performRegistration(lua_State* state)
+void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
 {
-    // Try to register all modules
-    std::unordered_set<std::string> tried;
-
-    bool anyRegistered = true;
-    while (anyRegistered)
+    for (ModuleDetails* module : m_modulesToRegister)
     {
-        anyRegistered = false;
-
-        for (ModuleDetails* moduleDetails : m_modulesToRegister)
+        if (!module->missingDependencies().empty())
         {
-            const std::string& name = moduleDetails->moduleName();
-
-            // Skip if already registered
-            if (checkRegisteredModules(state, name.c_str()) == 1)
-            {
-                continue;
-            }
-
-            // Skip if we've already tried this module
-            if (tried.find(name) != tried.end())
-            {
-                continue;
-            }
-
-            tried.insert(name);
-
-            // Try to register the module
-            int functionRef = 0;
-            if (tryRegisterModule(state, moduleDetails, functionRef))
-            {
-                // Successfully registered
-                anyRegistered = true;
-
-                moduleDetails->registrationComplete(
-                    moduleDetails->isProtocolScript() ? functionRef : 0);
-
-                this->retryPendingModules(state);
-                break;
-            }
-            else
-            {
-                // Registration failed - likely missing dependencies
-                // Queue for retry
-                queuePendingModule(moduleDetails);
-            }
+            moduleDetails->clearMissingDependency(moduleDetails->moduleName());
         }
     }
-
-    // Clear the modules list after registration attempt
-    m_modulesToRegister.clear();
+    auto it = m_pendingModules.find(moduleDetails);
+    if (it != m_pendingModules.end())
+    {
+        m_pendingModules.erase(it);
+    }
 }
 
 bool ScriptingVM::registerScript(lua_State* state,
@@ -649,22 +702,6 @@ bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
 bool ScriptingVM::registerScript(const char* name, Span<uint8_t> bytecode)
 {
     return registerScript(m_state, name, bytecode);
-}
-
-void ScriptingContext::queuePendingModule(ModuleDetails* moduleDetails)
-{
-    m_pendingModules.push_back(moduleDetails);
-}
-
-void ScriptingContext::clearPendingModule(const std::string& name)
-{
-    m_pendingModules.erase(std::remove_if(m_pendingModules.begin(),
-                                          m_pendingModules.end(),
-                                          [&name](ModuleDetails* module) {
-                                              return module->moduleName() ==
-                                                     name;
-                                          }),
-                           m_pendingModules.end());
 }
 
 int CPPRuntimeScriptingContext::pCall(lua_State* state, int nargs, int nresults)

@@ -111,6 +111,23 @@ public:
     virtual void registrationComplete(int ref) {}
     virtual Span<uint8_t> moduleBytecode() { return Span<uint8_t>(); }
     virtual bool isProtocolScript() = 0;
+    virtual bool verified() const { return false; }
+    void addMissingDependency(std::string name) { m_dependencies.insert(name); }
+    void clearMissingDependency(std::string name)
+    {
+        auto it = m_dependencies.find(name);
+        if (it != m_dependencies.end())
+        {
+            m_dependencies.erase(it);
+        }
+    }
+    std::unordered_set<std::string> missingDependencies()
+    {
+        return m_dependencies;
+    }
+
+private:
+    std::unordered_set<std::string> m_dependencies;
 };
 
 class ScriptAsset : public ScriptAssetBase,
@@ -122,7 +139,7 @@ public:
 #ifdef WITH_RIVE_SCRIPTING
     friend class ScriptAssetImporter;
 
-    bool verified() const { return m_verified; }
+    bool verified() const override { return m_verified; }
     Span<uint8_t> moduleBytecode() override { return m_bytecode; }
 #endif
 

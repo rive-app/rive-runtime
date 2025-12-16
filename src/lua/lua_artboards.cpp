@@ -320,15 +320,6 @@ ScriptedArtboard::~ScriptedArtboard()
     m_scriptReffedArtboard = nullptr;
 }
 
-void ScriptedArtboard::cleanupDataRef(lua_State* L)
-{
-    if (m_dataRef != 0)
-    {
-        lua_unref(L, m_dataRef);
-        m_dataRef = 0;
-    }
-}
-
 static int node_index(lua_State* L)
 {
     int atom;
@@ -569,22 +560,9 @@ static int node_namecall(lua_State* L)
     return 0;
 }
 
-static void scripted_artboard_dtor(lua_State* L, void* data)
-{
-    ScriptedArtboard* artboard = static_cast<ScriptedArtboard*>(data);
-    // Clean up m_dataRef before calling the C++ destructor
-    // (we can't do this in ~ScriptedArtboard() because it doesn't have access
-    // to lua_State*)
-    artboard->cleanupDataRef(L);
-    // Call the C++ destructor
-    artboard->~ScriptedArtboard();
-}
-
 int luaopen_rive_artboards(lua_State* L)
 {
     lua_register_rive<ScriptedArtboard>(L);
-    // Override the default destructor to clean up m_dataRef first
-    lua_setuserdatadtor(L, ScriptedArtboard::luaTag, scripted_artboard_dtor);
 
     lua_pushcfunction(L, artboard_index, nullptr);
     lua_setfield(L, -2, "__index");
