@@ -196,7 +196,8 @@ do
     externalincludedirs({'glad/include'})
     fatalwarnings({ 'All' })
 
-    files({ 'src/*.cpp', 'src/*.hpp', 'src/*.h', 'src/shaders/*.glsl', 'include/**.hpp', 'include/**.h' })
+    files({ 'src/*.cpp', 'src/*.hpp', 'src/*.h', 'src/shaders/*.glsl', 
+            'src/shaders/*.frag', 'src/shaders/*.vert', 'include/**.hpp', 'include/**.h' })
 
 
     if _OPTIONS['with_optick'] then
