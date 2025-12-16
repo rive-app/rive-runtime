@@ -3273,6 +3273,15 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
         return nullptr;
     }
 
+    if (vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_IMG_TEC &&
+        vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3)
+    {
+        fprintf(
+            stderr,
+            "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.3 on PowerVR chipsets.\n");
+        return nullptr;
+    }
+
     std::unique_ptr<RenderContextVulkanImpl> impl(
         new RenderContextVulkanImpl(std::move(vk), contextOptions));
 
