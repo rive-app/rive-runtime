@@ -14,10 +14,10 @@ using namespace rive;
 namespace rive
 {
 // Public key for script signature verification (32 bytes)
-// TODO: Replace with permanent production public key.
 const uint8_t g_scriptVerificationPublicKey[32] = {
-    180, 113, 86, 235, 225, 24, 110, 236, 105, 86, 201, 6,   73, 5,   203, 102,
-    81,  179, 12, 240, 226, 55, 103, 134, 227, 94, 82,  187, 51, 178, 96,  46};
+    159, 202, 90,  135, 12,  153, 157, 21,  112, 103, 62,
+    130, 59,  196, 187, 236, 103, 210, 239, 227, 175, 97,
+    222, 254, 70,  53,  212, 18,  191, 143, 101, 108};
 } // namespace rive
 
 ScriptAssetImporter::ScriptAssetImporter(
