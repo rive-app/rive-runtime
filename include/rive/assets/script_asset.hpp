@@ -145,8 +145,11 @@ public:
 
     bool initScriptedObject(ScriptedObject* object);
 
-    /// Sets the bytecode if the signature verifies.
-    bool bytecode(Span<uint8_t> bytecode, Span<uint8_t> signature);
+    /// Sets the bytecode from data with header format:
+    ///   [flags:1] [signature:64 if signed] [luau_bytecode:N]
+    /// Flags byte: bits 0-6 = version, bit 7 = isSigned
+    /// Returns true if bytecode was set (verification is separate from return).
+    bool bytecode(Span<uint8_t> data);
 
     /// Bytecode provided via decode should only happen with in-band bytecode.
     /// The signature will later be verified once file loading completes, so it

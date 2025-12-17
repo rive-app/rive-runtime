@@ -3,6 +3,7 @@
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/bytecode_header.hpp"
 #include "rive/file_asset_loader.hpp"
 #include "rive/span.hpp"
 #include <cstdint>
@@ -37,9 +38,16 @@ void ScriptAssetImporter::onFileAssetContents(
     std::unique_ptr<FileAssetContents> contents)
 {
     // When contents are found in band, this script is part of the verification
-    // set.
-    m_scriptVerificationSet->emplace_back(
-        InBandByteCode(scriptAsset(), contents->bytes()));
+    // set. Strip the header to get raw bytecode for aggregate verification.
+    auto& bytes = contents->bytes();
+    BytecodeHeader header(Span<const uint8_t>(bytes.data(), bytes.size()));
+    if (header.isValid())
+    {
+        auto bytecode = header.bytecode();
+        SimpleArray<uint8_t> rawBytecode(bytecode.data(), bytecode.size());
+        m_scriptVerificationSet->emplace_back(
+            InBandByteCode(scriptAsset(), rawBytecode));
+    }
     FileAssetImporter::onFileAssetContents(std::move(contents));
 }
 

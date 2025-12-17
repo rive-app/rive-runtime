@@ -4,6 +4,7 @@
 #include "rive/importers/script_asset_importer.hpp"
 #endif
 #include "rive/assets/script_asset.hpp"
+#include "rive/bytecode_header.hpp"
 #include "rive/file.hpp"
 #include "rive/script_input_artboard.hpp"
 #include "rive/script_input_boolean.hpp"
@@ -228,24 +229,47 @@ bool ScriptAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
 {
 #ifdef WITH_RIVE_SCRIPTING
     m_verified = false;
-    // Don't move here as the script asset importer needs to keep the bytecode
-    // around for verification.
-    m_bytecode = SimpleArray<uint8_t>(data);
+
+    // For in-band bytecode, isSigned should always be false (signature is
+    // stored separately for aggregate verification).
+    BytecodeHeader header(Span<const uint8_t>(data.data(), data.size()));
+    if (!header.isValid())
+    {
+        return false;
+    }
+
+    // Store just the bytecode (without header) for later verification and use.
+    auto bytecode = header.bytecode();
+    m_bytecode = SimpleArray<uint8_t>(bytecode.data(), bytecode.size());
 #endif
     return true;
 }
 
-bool ScriptAsset::bytecode(Span<uint8_t> bytecode, Span<uint8_t> signature)
+bool ScriptAsset::bytecode(Span<uint8_t> data)
 {
 #ifdef WITH_RIVE_SCRIPTING
-    if (signature.size() != hydro_sign_BYTES)
+    BytecodeHeader header(Span<const uint8_t>(data.data(), data.size()));
+    if (!header.isValid())
     {
+        m_verified = false;
         return false;
     }
+
+    auto bytecode = header.bytecode();
+
+    if (!header.isSigned())
+    {
+        // Unsigned bytecode - mark as unverified
+        m_verified = false;
+        m_bytecode = SimpleArray<uint8_t>(bytecode.data(), bytecode.size());
+        return true;
+    }
+
+    auto signature = header.signature();
     if (hydro_sign_verify(signature.data(),
                           bytecode.data(),
                           bytecode.size(),
-                          "rive",
+                          "RiveCode",
                           g_scriptVerificationPublicKey) != 0)
     {
         // Forged.
@@ -253,7 +277,7 @@ bool ScriptAsset::bytecode(Span<uint8_t> bytecode, Span<uint8_t> signature)
         return false;
     }
     m_verified = true;
-    m_bytecode = SimpleArray<uint8_t>(bytecode);
+    m_bytecode = SimpleArray<uint8_t>(bytecode.data(), bytecode.size());
 #endif
     return true;
 }
