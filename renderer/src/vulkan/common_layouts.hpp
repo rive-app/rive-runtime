@@ -1,6 +1,16 @@
+#include "rive/renderer/gpu.hpp"
+#include "rive/renderer/vulkan/vkutil.hpp"
+#include "shaders/constants.glsl"
+#include <vulkan/vulkan.h>
+
 // Common layout descriptors shared by various pipelines.
 namespace rive::gpu::layout
 {
+// rasterOrdering mode with a non-input-attachment renderTarget currently
+// requires the most attachments in a single pass: all 4 PLS planes plus one
+// more resolve target.
+constexpr static uint32_t MAX_RENDER_PASS_ATTACHMENTS = PLS_PLANE_COUNT + 1;
+
 constexpr VkVertexInputBindingDescription PATH_INPUT_BINDINGS[] = {{
     .binding = 0,
     .stride = sizeof(rive::gpu::PatchVertex),

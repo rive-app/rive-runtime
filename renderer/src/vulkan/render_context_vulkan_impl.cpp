@@ -155,7 +155,7 @@ public:
                                     VK_OBJECT_TYPE_RENDER_PASS,
                                     renderPassLabel.c_str());
 
-        if (workarounds.maxInstancesPerRenderPass != UINT32_MAX)
+        if (workarounds.needsInterruptibleRenderPasses())
         {
             // We are running on a device that is known to crash if a render
             // pass is too complex. Create another render pass that is designed
@@ -739,6 +739,16 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
                 // single render pass is too complex.
                 ? (1u << 13) - 1u
                 : UINT32_MAX,
+        // Early Xclipse drivers struggle with our manual msaa resolve, so we
+        // always do automatic fullscreen resolves on that GPU family.
+        .avoidManualMSAAResolves =
+            m_vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_SAMSUNG,
+        // Some Android drivers (some Android 12 and earlier Adreno drivers)
+        // have issues with having both a self-dependency for dst reads and
+        // resolve attachments. For now we just always manually resolve these
+        // render passes that use advanced blend on Qualcomm.
+        .needsManualMSAAResolveAfterDstRead =
+            m_vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_QUALCOMM,
     }),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
     m_imageDrawUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
@@ -792,24 +802,6 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     // texture. We need to draw the previous renderTarget contents into it
     // manually when LoadAction::preserveRenderTarget is specified.
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;
-    if (physicalDeviceProps.vendorID != VULKAN_VENDOR_SAMSUNG)
-    {
-        // Vulkan builtin MSAA resolves only support resolving the entire render
-        // target. Opting for manual resolves when there are only partial
-        // updates will all us to implement our own partial resolve, and
-        // hopefully get better performance.
-        // NOTE: Early Xclipse drivers struggle with the manual resolve, so we
-        // always do automatic fullscreen resolves on that GPU family.
-        m_platformFeatures.msaaResolveWithPartialBoundsNeedsDraw = true;
-    }
-    if (physicalDeviceProps.vendorID == VULKAN_VENDOR_QUALCOMM)
-    {
-        // Some Android drivers (some Android 12 and earlier Adreno drivers)
-        // have issues with having both a self-dependency for dst reads and
-        // resolve attachments. For now we just always manually resolve these
-        // render passes that use advanced blend on Qualcomm.
-        m_platformFeatures.msaaResolveAfterDstReadNeedsDraw = true;
-    }
     m_platformFeatures.maxTextureSize =
         physicalDeviceProps.limits.maxImageDimension2D;
     m_platformFeatures.maxCoverageBufferLength =
@@ -910,11 +902,10 @@ void RenderContextVulkanImpl::initGPUObjects(
                                     // For vkCmdClearColorImage.
                                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
-    else if (m_workarounds.maxInstancesPerRenderPass == UINT32_MAX)
+    else if (!m_workarounds.needsInterruptibleRenderPasses())
     {
-        // Otherwise, PLS backings are always transient input attachments.
-        // (But only allocate them as transient if workarounds are not in place
-        // that may require us to interrupt the render pass.)
+        // Otherwise, and as long as we don't have to build interruptible render
+        // passes, PLS backings are transient input attachments.
         m_plsTransientUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
     }
 
@@ -1336,6 +1327,49 @@ vkutil::Texture2D* RenderContextVulkanImpl::
     return accessPLSOffscreenColorTexture(commandBuffer, dstAccessAfterCopy);
 }
 
+bool RenderContextVulkanImpl::wantsManualRenderPassResolve(
+    gpu::InterlockMode interlockMode,
+    const RenderTarget* renderTarget,
+    const IAABB& renderTargetUpdateBounds,
+    gpu::DrawContents combinedDrawContents) const
+{
+    if (interlockMode == gpu::InterlockMode::rasterOrdering &&
+        !m_workarounds.needsInterruptibleRenderPasses())
+    {
+#ifndef __APPLE__
+        // If the render target doesn't support input attachment usage, we will
+        // render to an offscreen texture that does. Add a resolve operation at
+        // the end of the render pass that transfers the offscreen data back to
+        // the main render target. On tilers, this saves the memory bandwidth of
+        // a fullscreen copy.
+        // NOTE: The manual resolve doesn't seem to work on MoltenVK, so don't
+        // do it on Apple.
+        auto renderTargetVulkan =
+            static_cast<const RenderTargetVulkan*>(renderTarget);
+        return !(renderTargetVulkan->targetUsageFlags() &
+                 VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+#endif
+    }
+    if (interlockMode == gpu::InterlockMode::msaa &&
+        !m_workarounds.avoidManualMSAAResolves)
+    {
+        if (!renderTargetUpdateBounds.contains(renderTarget->bounds()))
+        {
+            // Do manual resolves after partial updates because automatic
+            // resolves only support fullscreen.
+            // TODO: Identify when and if this is actually better than just
+            // taking the hit of an automatic fullscreen resolve.
+            return true;
+        }
+        if (m_workarounds.needsManualMSAAResolveAfterDstRead &&
+            (combinedDrawContents & gpu::DrawContents::advancedBlend))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
                                              uint64_t safeFrameNumber)
 {
@@ -1499,8 +1533,9 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::beginDrawRenderPass(
         *renderPass.drawPipelineLayout();
 
     // Create the framebuffer.
-    StackVector<VkImageView, PLS_PLANE_COUNT> framebufferViews;
-    StackVector<VkClearValue, PLS_PLANE_COUNT> clearValues;
+    StackVector<VkImageView, layout::MAX_RENDER_PASS_ATTACHMENTS>
+        framebufferViews;
+    StackVector<VkClearValue, layout::MAX_RENDER_PASS_ATTACHMENTS> clearValues;
     if (m_pipelineManager->plsBackingType(desc.interlockMode) ==
             PLSBackingType::inputAttachment ||
         (pipelineLayout.renderPassOptions() &
@@ -1526,6 +1561,23 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::beginDrawRenderPass(
         framebufferViews.push_back(*plsTransientCoverageView());
         clearValues.push_back(
             {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)});
+
+        if (renderPassOptions & RenderPassOptionsVulkan::manuallyResolved)
+        {
+            // The render pass will transfer the color data back into the
+            // renderTarget at the end.
+            assert(framebufferViews.size() == PLS_PLANE_COUNT);
+            framebufferViews.push_back(renderTarget->accessTargetImageView(
+                commandBuffer,
+                {
+                    .pipelineStages =
+                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                },
+                vkutil::ImageAccessAction::invalidateContents));
+            clearValues.push_back({});
+        }
     }
     else if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
@@ -1643,24 +1695,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // buffer will never be bound as an input attachment.
         renderPassOptions |= RenderPassOptionsVulkan::fixedFunctionColorOutput;
     }
-    if (desc.interlockMode == gpu::InterlockMode::msaa)
+    if (desc.manuallyResolved)
     {
-        if (desc.msaaManualResolve)
-        {
-            // We're going to resolve MSAA manually in a shader instead of using
-            // a resolve attachment.
-            renderPassOptions |= RenderPassOptionsVulkan::msaaManualResolve;
-        }
-        else
-        {
-            // Vulkan does not support partial MSAA resolves when using resolve
-            // attachments.
-            drawBounds = renderTarget->bounds();
-        }
+        // The drawList ends with a batch of type of type
+        // DrawType::renderPassResolve, and the render pass needs to be set up
+        // to handle manual resolving.
+        renderPassOptions |= RenderPassOptionsVulkan::manuallyResolved;
+    }
+    else if (desc.interlockMode == gpu::InterlockMode::msaa)
+    {
+        // Vulkan does not support partial MSAA resolves when using resolve
+        // attachments.
+        drawBounds = renderTarget->bounds();
     }
     // Vulkan builtin MSAA resolves don't support partial drawBounds.
     assert(desc.interlockMode != gpu::InterlockMode::msaa ||
-           desc.msaaManualResolve || drawBounds == renderTarget->bounds());
+           desc.manuallyResolved || drawBounds == renderTarget->bounds());
 
     const auto commandBuffer =
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
@@ -1713,6 +1763,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // up and avoid the crash.
         assert(!(m_plsTransientUsageFlags &
                  VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT));
+        // Manually resolved render passes aren't currently compatible with
+        // interruptions.
+        assert(!desc.manuallyResolved);
         renderPassOptions |=
             RenderPassOptionsVulkan::rasterOrderingInterruptible;
     }
@@ -2655,6 +2708,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         {
             assert(renderPassOptions &
                    RenderPassOptionsVulkan::rasterOrderingInterruptible);
+            // Manually resolved render passes aren't currently compatible with
+            // interruptions.
+            assert(!(renderPassOptions &
+                     RenderPassOptionsVulkan::manuallyResolved));
             m_vk->CmdEndRenderPass(commandBuffer);
 
             auto resumingDesc = desc;
@@ -2924,7 +2981,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         if (batch.barriers & (gpu::BarrierFlags::plsAtomicPreResolve |
                               gpu::BarrierFlags::msaaPostInit |
-                              gpu::BarrierFlags::msaaPreResolve))
+                              gpu::BarrierFlags::preManualResolve))
         {
             // vkCmdNextSubpass() supersedes the pipeline barrier we would
             // insert for plsAtomic | dstBlend. So if those flags are also in
@@ -2933,7 +2990,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             assert(!(batch.barriers &
                      ~(gpu::BarrierFlags::plsAtomicPreResolve |
                        gpu::BarrierFlags::msaaPostInit |
-                       gpu::BarrierFlags::msaaPreResolve |
+                       gpu::BarrierFlags::preManualResolve |
                        BarrierFlags::plsAtomic | BarrierFlags::dstBlend |
                        BarrierFlags::drawBatchBreak)));
             m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -3149,11 +3206,32 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     assert(pendingTessPatchCount == 0);
     m_vk->CmdEndRenderPass(commandBuffer);
 
+    // If the color attachment is offscreen and wasn't resolved already, copy
+    // it back to the main renderTarget.
     if (colorAttachmentIsOffscreen &&
         !(renderPassOptions &
-          RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer))
+          (RenderPassOptionsVulkan::manuallyResolved |
+           RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)))
     {
-        // Copy from the offscreen texture back to the target.
+#ifndef __APPLE__
+        // In general, rasterOrdering flushes should not need this copy because
+        // they transfer from offscreen back to the rendreTarget as part of the
+        // draw pass (the one exception being interruptible render passes, which
+        // aren't currently compatible with manual resolves).
+        // NOTE: The manual resolve doesn't seem to work on MoltenVK, so don't
+        // do it on Apple.
+        assert(desc.interlockMode != gpu::InterlockMode::rasterOrdering ||
+               m_workarounds.needsInterruptibleRenderPasses());
+#endif
+
+        // Atomic flushes don't need this copy either because we always use
+        // "atomicCoalescedResolveAndTransfer" when the color attachment is
+        // offscreen.
+        assert(desc.interlockMode != gpu::InterlockMode::atomics);
+
+        // MSAA never needs this copy. It handles resolves differently.
+        assert(desc.interlockMode != gpu::InterlockMode::msaa);
+
         constexpr static vkutil::ImageAccess ACCESS_COPY_FROM = {
             .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
             .accessMask = VK_ACCESS_TRANSFER_READ_BIT,

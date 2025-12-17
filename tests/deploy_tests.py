@@ -760,7 +760,8 @@ def main():
                             os.path.join(jnidir, arch_full_name))
             if "vk" in args.backend or "vulkan" in args.backend:
                 layerpath = os.path.join("dependencies", "Vulkan-ValidationLayers")
-                if not os.path.exists(layerpath):
+                layersubdir = "android-binaries-1.4.328.0"
+                if not os.path.exists(os.path.join(layerpath, layersubdir)):
                     # Download the Vulkan validation layers.
                     print("Downloading Android Vulkan validation layers...", flush=True)
                     url = "https://github.com/KhronosGroup/Vulkan-ValidationLayers/releases/download/"\
@@ -768,7 +769,7 @@ def main():
                     zipfile.ZipFile(urllib.request.urlretrieve(url)[0], 'r').extractall(path=layerpath)
                 # Bundle the Vulkan validation layers.
                 for lib in glob.glob(os.path.join(layerpath,
-                                                  "android-binaries-1.4.328.0",
+                                                  layersubdir,
                                                   arch_full_name,
                                                   "*.so")):
                     dst = os.path.join(jnidir, arch_full_name, os.path.basename(lib))

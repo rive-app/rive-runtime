@@ -3,4 +3,4 @@
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "common.minified.glsl"
-#include "copy_attachment_to_attachment.minified.frag"
+#include "draw_input_attachment.minified.frag"

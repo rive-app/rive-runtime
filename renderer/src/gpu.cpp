@@ -72,7 +72,8 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             drawTypeKey = 5;
             break;
         case DrawType::renderPassResolve:
-            assert(interlockMode == InterlockMode::atomics ||
+            assert(interlockMode == InterlockMode::rasterOrdering ||
+                   interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::msaa);
             drawTypeKey = 6;
             break;
@@ -1273,7 +1274,8 @@ void get_pipeline_state(const DrawBatch& batch,
 
         case DrawType::imageRect:
         case DrawType::renderPassResolve:
-            assert(flushDesc.interlockMode == InterlockMode::atomics ||
+            assert(flushDesc.interlockMode == InterlockMode::rasterOrdering ||
+                   flushDesc.interlockMode == InterlockMode::atomics ||
                    flushDesc.interlockMode == InterlockMode::msaa);
             break;
 

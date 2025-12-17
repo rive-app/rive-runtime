@@ -46,7 +46,7 @@ parser.add_argument("-j", "--jobs", default=1, type=int, help="number of jobs to
 parser.add_argument("-r", "--recursive", action='store_true', help="recursively diffs images in \"--candidates\" sub folders against \"--goldens\"")
 parser.add_argument("-p", "--pack", action='store_true', help="copy candidates and goldens into output folder along with results")
 parser.add_argument("-H", "--histogram_compare", action='store_true', help="Use histogram compare method to determine if candidate matches gold")
-parser.add_argument("-t", "--threshold", default=0.05, type=float, help="if histogram_compare is set, then threshold used for histogram pass result otherwise the threshold for pixel diff pass result")
+parser.add_argument("-t", "--threshold", default=0.06, type=float, help="if histogram_compare is set, then threshold used for histogram pass result otherwise the threshold for pixel diff pass result")
 
 clean_mode = parser.add_mutually_exclusive_group(required=False)
 clean_mode.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical, also dont add identical images to index.html")

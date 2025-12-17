@@ -199,11 +199,6 @@ struct PlatformFeatures
     // DrawType::renderPassInitialize when LoadAction::preserveRenderTarget is
     // specified.
     bool msaaColorPreserveNeedsDraw = false;
-    // Define the conditions under which MSAA must be resolved manually in a
-    // shader instead of relying on the graphics API’s automatic MSAA resolve.
-    bool msaaResolveNeedsDraw = false;
-    bool msaaResolveWithPartialBoundsNeedsDraw = false;
-    bool msaaResolveAfterDstReadNeedsDraw = false;
     // Workaround for precision issues. Determines how far apart we space unique
     // path IDs when they will be bit-casted to fp16.
     uint8_t pathIDGranularity = 1;
@@ -964,7 +959,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             }
             else
             {
-                assert(interlockMode == InterlockMode::msaa);
+                assert(interlockMode == InterlockMode::rasterOrdering ||
+                       interlockMode == InterlockMode::msaa);
                 mask = ShaderFeatures::NONE;
             }
             break;
@@ -1056,20 +1052,21 @@ enum class BarrierFlags : uint8_t
     // loading the render target into the transient MSAA attachment.
     msaaPostInit = 1 << 2,
 
-    // Special barrier (e.g., subpass transition) issued prior to a manual MSAA
-    // resolve. (Only applicable with FlushDescriptor::msaaManualResolve.)
-    msaaPreResolve = 1 << 3,
-
     // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode
     // only.) All "borrowed coverage" draws have now been issued. Ensure they
     // complete at each pixel before beginning the "forward coverage" draws.
-    clockwiseBorrowedCoverage = 1 << 4,
+    clockwiseBorrowedCoverage = 1 << 3,
 
     // The next DrawBatch needs to perform an advanced blend, but the current
     // hardware requires an implementation-dependent barrier before reading the
     // dstColor (pipeline barrier for input attachments, KHR blend barrier, or
     // even a full MSAA resolve & blit into a separate texture.)
-    dstBlend = 1 << 5,
+    dstBlend = 1 << 4,
+
+    // Special barrier (e.g., subpass transition) issued prior to a manual
+    // render pass resolve. (Only applicable with
+    // FlushDescriptor::manuallyResolved.)
+    preManualResolve = 1 << 5,
 
     // Only prevent future DrawBatches from being combined with the current
     // drawList. (No GPU dependencies.)
@@ -1188,9 +1185,9 @@ struct FlushDescriptor
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.
 
-    // True if we are MSAA and the drawList ends with a "renderPassResolve" draw
-    // to resolve MSAA manually in a shader.
-    bool msaaManualResolve = false;
+    // True if the drawList ends with a "renderPassResolve" draw, in which case
+    // the backend may need to perform special setup for a custom resolve.
+    bool manuallyResolved = false;
 
     // True if shaders will never read the color buffer, meaning, the render
     // pass can use a more efficient setup that renders to a standard color

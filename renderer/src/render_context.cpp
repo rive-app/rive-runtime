@@ -958,34 +958,11 @@ static uint32_t pls_transient_backing_plane_count(
     RIVE_UNREACHABLE();
 }
 
-static bool wants_msaa_manual_resolve(
-    const gpu::PlatformFeatures& platformFeatures,
-    const RenderTarget* renderTarget,
-    const IAABB& renderTargetUpdateBounds,
-    gpu::DrawContents combinedDrawContents)
-{
-    if (platformFeatures.msaaResolveNeedsDraw)
-    {
-        return true;
-    }
-    if (platformFeatures.msaaResolveWithPartialBoundsNeedsDraw &&
-        !renderTargetUpdateBounds.contains(renderTarget->bounds()))
-    {
-        return true;
-    }
-    if (platformFeatures.msaaResolveAfterDstReadNeedsDraw &&
-        (combinedDrawContents & gpu::DrawContents::advancedBlend))
-    {
-        return true;
-    }
-    return false;
-}
-
 static bool wants_fixed_function_color_output(
     const gpu::PlatformFeatures& platformFeatures,
     gpu::InterlockMode interlockMode,
     gpu::DrawContents combinedDrawContents,
-    bool msaaManualResolve)
+    bool manuallyResolved)
 {
     switch (interlockMode)
     {
@@ -1010,7 +987,7 @@ static bool wants_fixed_function_color_output(
         case gpu::InterlockMode::msaa:
             // Manual MSAA resolves read the framebuffer, so they can't use
             // fixedFunctionColorOutput.
-            return !msaaManualResolve &&
+            return !manuallyResolved &&
                    !(combinedDrawContents & gpu::DrawContents::advancedBlend);
     }
 
@@ -1190,18 +1167,17 @@ void RenderContext::LogicalFlush::layoutResources(
         m_flushDesc.renderTargetUpdateBounds = {0, 0, 0, 0};
     }
 
-    m_flushDesc.msaaManualResolve =
-        m_flushDesc.interlockMode == gpu::InterlockMode::msaa &&
-        wants_msaa_manual_resolve(m_ctx->platformFeatures(),
-                                  m_flushDesc.renderTarget,
-                                  m_flushDesc.renderTargetUpdateBounds,
-                                  m_combinedDrawContents);
+    m_flushDesc.manuallyResolved = m_ctx->m_impl->wantsManualRenderPassResolve(
+        m_flushDesc.interlockMode,
+        m_flushDesc.renderTarget,
+        m_flushDesc.renderTargetUpdateBounds,
+        m_combinedDrawContents);
 
     m_flushDesc.fixedFunctionColorOutput =
         wants_fixed_function_color_output(m_ctx->platformFeatures(),
                                           m_ctx->frameInterlockMode(),
                                           m_combinedDrawContents,
-                                          m_flushDesc.msaaManualResolve);
+                                          m_flushDesc.manuallyResolved);
     if (m_flushDesc.fixedFunctionColorOutput)
     {
         m_baselineShaderMiscFlags |=
@@ -1726,7 +1702,7 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Some modes need one more draw to resolve all the pixels.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics ||
-        m_flushDesc.msaaManualResolve)
+        m_flushDesc.manuallyResolved)
     {
         m_drawList.emplace_back(
             m_ctx->perFrameAllocator(),
@@ -1741,7 +1717,7 @@ void RenderContext::LogicalFlush::writeResources()
             ImageSampler::LinearClamp(),
             (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
                 ? BarrierFlags::plsAtomicPreResolve
-                : BarrierFlags::msaaPreResolve);
+                : BarrierFlags::preManualResolve);
         m_combinedDrawContents |= m_drawList.tail()->drawContents;
     }
 

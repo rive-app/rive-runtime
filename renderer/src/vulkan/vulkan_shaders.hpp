@@ -100,7 +100,8 @@ extern rive::Span<const uint32_t> draw_msaa_image_mesh_noclipdistance_vert;
 extern rive::Span<const uint32_t> draw_msaa_image_mesh_frag;
 extern rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag;
 extern rive::Span<const uint32_t> draw_fullscreen_quad_vert;
-extern rive::Span<const uint32_t> copy_attachment_to_attachment_frag;
+extern rive::Span<const uint32_t> draw_input_attachment_frag;
+extern rive::Span<const uint32_t> draw_msaa_color_seed_attachment_frag;
 extern rive::Span<const uint32_t> draw_msaa_resolve_frag;
 
 // Reload global SPIRV buffers from runtime data.

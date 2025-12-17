@@ -53,6 +53,11 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     fragCode = spirv::draw_image_mesh_frag;
                     break;
 
+                case DrawType::renderPassResolve:
+                    vertCode = spirv::draw_fullscreen_quad_vert;
+                    fragCode = spirv::draw_input_attachment_frag;
+                    break;
+
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
@@ -62,7 +67,6 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
-                case DrawType::renderPassResolve:
                 case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
             }
@@ -319,7 +323,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     // previous contents into the framebuffer.
                     // (LoadAction::preserveRenderTarget only.)
                     vertCode = spirv::draw_fullscreen_quad_vert;
-                    fragCode = spirv::copy_attachment_to_attachment_frag;
+                    fragCode = spirv::draw_msaa_color_seed_attachment_frag;
                     break;
 
                 case DrawType::renderPassResolve:

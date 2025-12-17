@@ -9,6 +9,7 @@
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "shaders/constants.glsl"
+#include "common_layouts.hpp"
 #include "draw_pipeline_layout_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
@@ -223,11 +224,11 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     const VkSampleCountFlagBits msaaSampleCount =
         (interlockMode == gpu::InterlockMode::msaa) ? VK_SAMPLE_COUNT_4_BIT
                                                     : VK_SAMPLE_COUNT_1_BIT;
-    StackVector<VkAttachmentDescription, PLS_PLANE_COUNT> attachments;
+    StackVector<VkAttachmentDescription, layout::MAX_RENDER_PASS_ATTACHMENTS>
+        attachments;
     StackVector<VkAttachmentReference, PLS_PLANE_COUNT> colorAttachmentRefs;
-    std::optional<VkAttachmentReference> plsResolveAttachmentRef;
     std::optional<VkAttachmentReference> depthStencilAttachmentRef;
-    std::optional<VkAttachmentReference> msaaResolveAttachmentRef;
+    std::optional<VkAttachmentReference> resolveAttachmentRef;
     if (pipelineManager->plsBackingType(interlockMode) ==
             PipelineManagerVulkan::PLSBackingType::inputAttachment ||
         (renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput))
@@ -238,12 +239,13 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .format = renderTargetFormat,
             .samples = msaaSampleCount,
             .loadOp = vk_load_op(loadAction, interlockMode),
-            .storeOp =
-                ((renderPassOptions &
-                  RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer) ||
-                 interlockMode == gpu::InterlockMode::msaa)
-                    ? VK_ATTACHMENT_STORE_OP_DONT_CARE
-                    : VK_ATTACHMENT_STORE_OP_STORE,
+            .storeOp = ((renderPassOptions &
+                         (RenderPassOptionsVulkan::manuallyResolved |
+                          RenderPassOptionsVulkan::
+                              atomicCoalescedResolveAndTransfer)) ||
+                        interlockMode == gpu::InterlockMode::msaa)
+                           ? VK_ATTACHMENT_STORE_OP_DONT_CARE
+                           : VK_ATTACHMENT_STORE_OP_STORE,
             // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
             // invalidate the portion outside the renderArea when it isn't the
             // full renderTarget, and currently we don't have separate render
@@ -354,6 +356,27 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .attachment = COVERAGE_PLANE_IDX,
             .layout = VK_IMAGE_LAYOUT_GENERAL,
         });
+
+        if (renderPassOptions & RenderPassOptionsVulkan::manuallyResolved)
+        {
+            // The renderTarget does not support
+            // VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, so we will instead use an
+            // offscreen color texture for the main subpass, and then transfer
+            // it into the renderTarget at the end of the render pass.
+            assert(attachments.size() == PLS_PLANE_COUNT);
+            attachments.push_back({
+                .format = renderTargetFormat,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            });
+            resolveAttachmentRef = {
+                .attachment = PLS_PLANE_COUNT,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            };
+        }
     }
     else if (interlockMode == gpu::InterlockMode::atomics)
     {
@@ -382,8 +405,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             // And the "coalesced" resolve shader outputs to color
             // attachment 0, so alias the COALESCED_ATOMIC_RESOLVE
             // attachment on output 0 for this subpass.
-            assert(!plsResolveAttachmentRef.has_value());
-            plsResolveAttachmentRef = {
+            assert(!resolveAttachmentRef.has_value());
+            resolveAttachmentRef = {
                 .attachment = COALESCED_ATOMIC_RESOLVE_IDX,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             };
@@ -393,8 +416,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             // When not in "coalesced" mode, the resolve texture is the
             // same as the COLOR texture.
             static_assert(COLOR_PLANE_IDX == 0);
-            assert(!plsResolveAttachmentRef.has_value());
-            plsResolveAttachmentRef = colorAttachmentRefs[0];
+            assert(!resolveAttachmentRef.has_value());
+            resolveAttachmentRef = colorAttachmentRefs[0];
         }
     }
     else if (interlockMode == gpu::InterlockMode::msaa)
@@ -437,16 +460,16 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .initialLayout =
                 (readsMSAAResolveAttachment ||
                  (renderPassOptions &
-                  RenderPassOptionsVulkan::msaaManualResolve))
+                  RenderPassOptionsVulkan::manuallyResolved))
                     ? msaaResolveLayout
                     // NOTE: This can only be VK_IMAGE_LAYOUT_UNDEFINED because
                     // Vulkan does not support partial resolves to MSAA resolve
                     // attachments. So every MSAA render pass without
-                    // "msaaManualResolve" covers the entire render area.
+                    // "manuallyResolved" covers the entire render area.
                     : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = msaaResolveLayout,
         });
-        msaaResolveAttachmentRef = {
+        resolveAttachmentRef = {
             .attachment = MSAA_RESOLVE_IDX,
             .layout = msaaResolveLayout,
         };
@@ -617,7 +640,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .dependencyFlags = 0,
         };
 
-        if (!(renderPassOptions & RenderPassOptionsVulkan::msaaManualResolve))
+        if (!(renderPassOptions & RenderPassOptionsVulkan::manuallyResolved))
         {
             // If we are not doing the manual MSAA resolve, this pass also needs
             // barriers to protect the layout transition of the resolve target
@@ -672,8 +695,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         .pColorAttachments = colorAttachmentRefs.data(),
         .pResolveAttachments =
             (interlockMode == gpu::InterlockMode::msaa &&
-             !(renderPassOptions & RenderPassOptionsVulkan::msaaManualResolve))
-                ? &msaaResolveAttachmentRef.value()
+             !(renderPassOptions & RenderPassOptionsVulkan::manuallyResolved))
+                ? &resolveAttachmentRef.value()
                 : nullptr,
         .pDepthStencilAttachment = depthStencilAttachmentRef.has_value()
                                        ? &depthStencilAttachmentRef.value()
@@ -740,25 +763,6 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .dstAccessMask = VK_ACCESS_NONE,
             .dependencyFlags = 0,
         });
-
-        // Manual MSAA resolve, if needed.
-        if ((renderPassOptions & RenderPassOptionsVulkan::msaaManualResolve))
-        {
-            assert(!(renderPassOptions &
-                     RenderPassOptionsVulkan::fixedFunctionColorOutput));
-            assert(inputAttachmentRefs[0].attachment == COLOR_PLANE_IDX);
-
-            addStandardColorDependencyToNextSubpass(subpassDescs.size());
-
-            subpassDescs.push_back({
-                .flags = 0u,
-                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                .inputAttachmentCount = 1u,
-                .pInputAttachments = inputAttachmentRefs.data(),
-                .colorAttachmentCount = 1u,
-                .pColorAttachments = &msaaResolveAttachmentRef.value(),
-            });
-        }
     }
 
     // PLS-resolve subpass (atomic mode only).
@@ -772,18 +776,42 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         assert(
             m_drawPipelineLayout->colorAttachmentCount(1, renderPassOptions) ==
             1);
-        assert(plsResolveAttachmentRef.has_value());
+        assert(resolveAttachmentRef.has_value());
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
             .inputAttachmentCount = inputAttachmentRefs.size(),
             .pInputAttachments = inputAttachmentRefs.data(),
             .colorAttachmentCount = 1,
-            .pColorAttachments = &plsResolveAttachmentRef.value(),
+            .pColorAttachments = &resolveAttachmentRef.value(),
+        });
+    }
+    else if (renderPassOptions & RenderPassOptionsVulkan::manuallyResolved)
+    {
+        assert(!(renderPassOptions &
+                 RenderPassOptionsVulkan::fixedFunctionColorOutput));
+        // Manually resolved render passes aren't currently compatible with
+        // interruptions.
+        assert(!(renderPassOptions &
+                 RenderPassOptionsVulkan::rasterOrderingInterruptible));
+        assert(inputAttachmentRefs[0].attachment == COLOR_PLANE_IDX);
+
+        addStandardColorDependencyToNextSubpass(subpassDescs.size());
+
+        subpassDescs.push_back({
+            .flags =
+                rasterOrderedAttachmentAccess
+                    ? VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT
+                    : 0u,
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = 1u,
+            .pInputAttachments = inputAttachmentRefs.data(),
+            .colorAttachmentCount = 1u,
+            .pColorAttachments = &resolveAttachmentRef.value(),
         });
     }
 
-    // There always needs to be a final external output dependency for the color
-    // attachment
+    // There always needs to be a final external output dependency for the final
+    // rendering target.
     subpassDeps.push_back({
         .srcSubpass = subpassDescs.size() - 1,
         .dstSubpass = VK_SUBPASS_EXTERNAL,

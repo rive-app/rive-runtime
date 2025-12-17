@@ -78,6 +78,12 @@ private:
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects(ShaderCompilationMode);
 
+    bool wantsManualRenderPassResolve(
+        gpu::InterlockMode,
+        const RenderTarget*,
+        const IAABB& renderTargetUpdateBounds,
+        gpu::DrawContents combinedDrawContents) const override;
+
     void prepareToFlush(uint64_t nextFrameNumber,
                         uint64_t safeFrameNumber) override;
 
@@ -205,6 +211,21 @@ private:
         // too complex. On these devices, we limit the maximum number of
         // instances that can be issued in a single render pass.
         uint32_t maxInstancesPerRenderPass = UINT32_MAX;
+        bool needsInterruptibleRenderPasses() const
+        {
+            // If we have a limit on maxInstancesPerRenderPass, then our render
+            // passes need to be interruptible so we can close them off and
+            // start new ones in case we encounter too many instances.
+            return maxInstancesPerRenderPass != UINT32_MAX;
+        }
+        // Early Xclipse drivers struggle with our manual msaa resolve, so we
+        // always do automatic fullscreen resolves on that GPU family.
+        bool avoidManualMSAAResolves = false;
+        // Some Android drivers (some Android 12 and earlier Adreno drivers)
+        // have issues with having both a self-dependency for dst reads and
+        // resolve attachments. For now we just always manually resolve these
+        // render passes that use advanced blend on Qualcomm.
+        bool needsManualMSAAResolveAfterDstRead = true;
     };
 
     const DriverWorkarounds m_workarounds;

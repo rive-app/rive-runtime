@@ -69,6 +69,20 @@ public:
 
     virtual void preBeginFrame(RenderContext*) {}
 
+    // Returns true if the render context should end the drawList with a batch
+    // of type DrawType::renderPassResolve (and set "manuallyResolved" in the
+    // flush descriptor).
+    // This may be used, e.g., to manually resolve MSAA or to transfer pixels
+    // from an offscreen texture back to the main render target.
+    virtual bool wantsManualRenderPassResolve(
+        gpu::InterlockMode,
+        const RenderTarget*,
+        const IAABB& renderTargetUpdateBounds,
+        gpu::DrawContents combinedDrawContents) const
+    {
+        return false;
+    }
+
     // Perform any bookkeeping or other tasks that need to run before
     // RenderContext begins accessing GPU resources for the flush. (Update
     // counters, advance buffer pools, etc.)

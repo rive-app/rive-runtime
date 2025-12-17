@@ -22,28 +22,29 @@ enum class RenderPassOptionsVulkan
     // no advanced blend modes so we can use built-in hardware blending.
     fixedFunctionColorOutput = 1 << 0,
 
+    // rasterOrdering or msaa only: The render pass has a fullscreen draw at
+    // the end that resolves rendering data into the renderTarget. (e.g., by
+    // transferring color from offscreen or manually averaging MSAA.)
+    manuallyResolved = 1 << 1,
+
     // rasterOrdering mode only: Store all transient attachments to memory
     // so the render pass can be interrupted and restarted.
-    rasterOrderingInterruptible = 1 << 1,
+    rasterOrderingInterruptible = 1 << 2,
 
     // rasterOrdering mode only: This render pass is resuming after an
     // interrupt; load all transient attachments from memory.
-    rasterOrderingResume = 1 << 2,
+    rasterOrderingResume = 1 << 3,
 
     // Atomic mode only: Use an offscreen texture to render color, but also
     // attach the real target texture at the COALESCED_ATOMIC_RESOLVE index,
     // and render to it directly in the atomic resolve step.
-    atomicCoalescedResolveAndTransfer = 1 << 3,
+    atomicCoalescedResolveAndTransfer = 1 << 4,
 
     // MSAA only, while using LoadAction::preserveRenderTarget: We have to
     // initialize the (transient) MSAA color attachment from an offscreen
     // texture bound as an input attachment, because the final render target
     // itself can't be bound as an input attachment.
-    msaaSeedFromOffscreenTexture = 1 << 4,
-
-    // MSAA will be resolved manually in a shader instead of setting up the
-    // render pass with a resolve attachment.
-    msaaManualResolve = 1 << 5,
+    msaaSeedFromOffscreenTexture = 1 << 5,
 };
 RIVE_MAKE_ENUM_BITSET(RenderPassOptionsVulkan);
 

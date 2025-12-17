@@ -143,8 +143,8 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
     switch (m_interlockMode)
     {
         case gpu::InterlockMode::rasterOrdering:
-            assert(subpassIndex == 0);
-            return 4u;
+            assert(subpassIndex == 0 || subpassIndex == 1);
+            return (subpassIndex == 0) ? 4u : 1u;
         case gpu::InterlockMode::atomics:
             assert(subpassIndex <= 1);
             return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.

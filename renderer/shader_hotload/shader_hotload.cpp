@@ -146,7 +146,8 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_msaa_image_mesh.frag.spirv",
         riveSpirvPath / "draw_msaa_image_mesh.fixedcolor_frag.spirv",
         riveSpirvPath / "draw_fullscreen_quad.vert.spirv",
-        riveSpirvPath / "copy_attachment_to_attachment.frag.spirv",
+        riveSpirvPath / "draw_input_attachment.frag.spirv",
+        riveSpirvPath / "draw_msaa_color_seed_attachment.frag.spirv",
         riveSpirvPath / "draw_msaa_resolve.frag.spirv",
     };
     constexpr size_t numFiles = std::size(spirvFileNames);

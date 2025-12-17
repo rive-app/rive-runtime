@@ -98,7 +98,8 @@ namespace embedded
 #include "generated/shaders/spirv/draw_msaa_image_mesh.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_msaa_image_mesh.noclipdistance_vert.h"
 #include "generated/shaders/spirv/draw_fullscreen_quad.vert.h"
-#include "generated/shaders/spirv/copy_attachment_to_attachment.frag.h"
+#include "generated/shaders/spirv/draw_input_attachment.frag.h"
+#include "generated/shaders/spirv/draw_msaa_color_seed_attachment.frag.h"
 #include "generated/shaders/spirv/draw_msaa_resolve.frag.h"
 } // namespace embedded
 
@@ -267,8 +268,10 @@ rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag =
     rive::make_span(embedded::draw_msaa_image_mesh_fixedcolor_frag);
 rive::Span<const uint32_t> draw_fullscreen_quad_vert =
     rive::make_span(embedded::draw_fullscreen_quad_vert);
-rive::Span<const uint32_t> copy_attachment_to_attachment_frag =
-    rive::make_span(embedded::copy_attachment_to_attachment_frag);
+rive::Span<const uint32_t> draw_input_attachment_frag =
+    rive::make_span(embedded::draw_input_attachment_frag);
+rive::Span<const uint32_t> draw_msaa_color_seed_attachment_frag =
+    rive::make_span(embedded::draw_msaa_color_seed_attachment_frag);
 rive::Span<const uint32_t> draw_msaa_resolve_frag =
     rive::make_span(embedded::draw_msaa_resolve_frag);
 
@@ -369,7 +372,8 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_msaa_image_mesh_frag = readNextBytecodeSpan();
     spirv::draw_msaa_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
     spirv::draw_fullscreen_quad_vert = readNextBytecodeSpan();
-    spirv::copy_attachment_to_attachment_frag = readNextBytecodeSpan();
+    spirv::draw_input_attachment_frag = readNextBytecodeSpan();
+    spirv::draw_msaa_color_seed_attachment_frag = readNextBytecodeSpan();
     spirv::draw_msaa_resolve_frag = readNextBytecodeSpan();
 }
 } // namespace rive::gpu::spirv
