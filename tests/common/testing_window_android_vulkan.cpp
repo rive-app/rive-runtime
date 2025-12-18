@@ -418,6 +418,12 @@ private:
             m_height = m_androidWindowHeight;
         }
 
+        m_renderTarget =
+            impl()->makeRenderTarget(m_width,
+                                     m_height,
+                                     m_swapchain->imageFormat(),
+                                     m_swapchain->imageUsageFlags());
+
         if (m_device->name() == "Mali-G76" || m_device->name() == "Mali-G72")
         {
             // These devices (like the Huawei P30 or Galaxy S10) will end up
