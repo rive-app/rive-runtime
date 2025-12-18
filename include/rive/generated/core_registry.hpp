@@ -97,6 +97,7 @@
 #include "rive/assets/folder.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/assets/manifest_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/backboard.hpp"
@@ -795,6 +796,8 @@ public:
                 return new Folder();
             case ScriptAssetBase::typeKey:
                 return new ScriptAsset();
+            case ManifestAssetBase::typeKey:
+                return new ManifestAsset();
             case ImageAssetBase::typeKey:
                 return new ImageAsset();
             case FontAssetBase::typeKey:

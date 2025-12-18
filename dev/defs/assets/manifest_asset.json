@@ -1,0 +1,8 @@
+{
+  "name": "ManifestAsset",
+  "key": {
+    "int": 642,
+    "string": "manifestasset"
+  },
+  "extends": "assets/file_asset.json"
+}

@@ -1978,3 +1978,26 @@ TEST_CASE("Artboards as conditions", "[silver]")
 
     CHECK(silver.matches("databind_artboard"));
 }
+
+TEST_CASE("Relative data binding", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/relative_data_binding.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi =
+        file->createViewModelInstance((int)artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("relative_data_binding"));
+}

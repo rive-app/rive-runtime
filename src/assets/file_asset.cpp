@@ -10,13 +10,16 @@ using namespace rive;
 
 StatusCode FileAsset::import(ImportStack& importStack)
 {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
+    if (addsToBackboard())
     {
-        return StatusCode::MissingObject;
+        auto backboardImporter =
+            importStack.latest<BackboardImporter>(Backboard::typeKey);
+        if (backboardImporter == nullptr)
+        {
+            return StatusCode::MissingObject;
+        }
+        backboardImporter->addFileAsset(ref_rcp(this));
     }
-    backboardImporter->addFileAsset(ref_rcp(this));
 
     return Super::import(importStack);
 }

@@ -2,6 +2,7 @@
 #define _RIVE_DATA_CONTEXT_HPP_
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/name_resolver.hpp"
 #include "rive/refcnt.hpp"
 
 namespace rive
@@ -19,6 +20,9 @@ public:
     void parent(DataContext* value) { m_Parent = value; }
     ViewModelInstanceValue* getViewModelProperty(
         const std::vector<uint32_t> path) const;
+    ViewModelInstanceValue* getRelativeViewModelProperty(
+        const std::vector<uint32_t> path,
+        NameResolver* resolver) const;
     rcp<ViewModelInstance> getViewModelInstance(
         const std::vector<uint32_t> path) const;
     void viewModelInstance(rcp<ViewModelInstance> value);

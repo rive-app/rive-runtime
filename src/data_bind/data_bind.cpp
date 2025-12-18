@@ -396,6 +396,12 @@ bool DataBind::toTarget()
            (flagsValue & DataBindFlags::ToSource) == 0;
 }
 
+bool DataBind::isNameBased()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & DataBindFlags::NameBased) != 0;
+}
+
 bool DataBind::advance(float elapsedTime)
 {
     if (converter())

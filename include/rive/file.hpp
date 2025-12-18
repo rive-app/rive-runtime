@@ -5,6 +5,7 @@
 #include "rive/backboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
+#include "rive/assets/manifest_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
@@ -15,6 +16,7 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/name_resolver.hpp"
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -192,6 +194,15 @@ public:
     }
 #endif
 
+    NameResolver* nameResolver()
+    {
+        if (m_manifest)
+        {
+            return m_manifest.get()->as<ManifestAsset>();
+        }
+        return nullptr;
+    }
+
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
     /// @param data the raw data of the file.
@@ -279,6 +290,8 @@ private:
     ViewModelInstanceCreated m_viewmodelInstanceCreatedCallback = nullptr;
     bool m_triggerViewModelCreatedCallback = false;
 #endif
+
+    rcp<FileAsset> m_manifest = nullptr;
 };
 } // namespace rive
 #endif

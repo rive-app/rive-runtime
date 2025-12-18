@@ -32,7 +32,11 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
     if (dataContext != nullptr)
     {
         auto vmSource =
-            dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
+            isNameBased() && file()
+                ? dataContext->getRelativeViewModelProperty(
+                      m_SourcePathIdsBuffer,
+                      file()->nameResolver())
+                : dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
         if (vmSource != m_Source)
         {
             if (vmSource != nullptr)

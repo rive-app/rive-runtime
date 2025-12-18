@@ -52,6 +52,48 @@ skip_path:
     return nullptr;
 }
 
+ViewModelInstanceValue* DataContext::getRelativeViewModelProperty(
+    const std::vector<uint32_t> path,
+    NameResolver* resolver) const
+{
+    std::vector<uint32_t>::const_iterator it;
+    if (path.size() == 0 || !resolver)
+    {
+        return nullptr;
+    }
+    {
+        rcp<ViewModelInstance> instance = m_ViewModelInstance;
+        for (it = path.begin(); it != path.end() - 1; it++)
+        {
+            auto viewModelInstanceValue =
+                instance->propertyValue(resolver->resolveName(*it));
+            if (viewModelInstanceValue != nullptr &&
+                viewModelInstanceValue->is<ViewModelInstanceViewModel>())
+            {
+                instance =
+                    viewModelInstanceValue->as<ViewModelInstanceViewModel>()
+                        ->referenceViewModelInstance();
+            }
+            else
+            {
+                goto skip_relative_path;
+            }
+        }
+        ViewModelInstanceValue* propertyValue =
+            instance->propertyValue(resolver->resolveName(*it++));
+        if (propertyValue)
+        {
+            return propertyValue;
+        }
+    }
+skip_relative_path:
+    if (m_Parent != nullptr)
+    {
+        return m_Parent->getRelativeViewModelProperty(path, resolver);
+    }
+    return nullptr;
+}
+
 rcp<ViewModelInstance> DataContext::getViewModelInstance(
     const std::vector<uint32_t> path) const
 {

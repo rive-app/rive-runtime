@@ -466,6 +466,14 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             }
 #endif
+            case ManifestAsset::typeKey:
+                stackObject = rivestd::make_unique<FileAssetImporter>(
+                    object->as<FileAsset>(),
+                    m_assetLoader,
+                    m_factory);
+                stackType = FileAsset::typeKey;
+                m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
+                break;
             case ViewModel::typeKey:
                 stackObject = rivestd::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());
