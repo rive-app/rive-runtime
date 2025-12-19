@@ -99,7 +99,7 @@ private:
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
     bool m_hostTransformMarkedDirty = false;
-    bool m_didChange = false;
+    bool m_didChange = true;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
     bool sharesLayoutWithHost() const;
