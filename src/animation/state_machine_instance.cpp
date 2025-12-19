@@ -1024,11 +1024,11 @@ public:
     }
     void addDirt(ComponentDirt value, bool recurse)
     {
-        if (m_viewModelInstanceValue &&
-            m_viewModelInstanceValue->is<ViewModelInstanceTrigger>())
+        if (m_viewModelInstanceValue)
         {
-            if (m_viewModelInstanceValue->as<ViewModelInstanceTrigger>()
-                    ->propertyValue() != 0)
+            if (!m_viewModelInstanceValue->is<ViewModelInstanceTrigger>() ||
+                m_viewModelInstanceValue->as<ViewModelInstanceTrigger>()
+                        ->propertyValue() != 0)
             {
                 m_stateMachineInstance->reportListenerViewModel(this);
             }
@@ -1628,6 +1628,7 @@ void StateMachineInstance::applyEvents()
             m_reportedListenerViewModels.size() > 0) &&
            currentIteration++ < maxIterations)
     {
+        updateDataBinds(false);
         m_reportingEvents = m_reportedEvents;
         m_reportingListenerViewModels = m_reportedListenerViewModels;
         m_reportedEvents.clear();

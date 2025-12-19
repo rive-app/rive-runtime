@@ -2001,3 +2001,42 @@ TEST_CASE("Relative data binding", "[silver]")
 
     CHECK(silver.matches("relative_data_binding"));
 }
+
+TEST_CASE("Listen to view model value changes in state machines", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/listener_view_model.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto colorProp = vmi->propertyValue("col")->as<ViewModelInstanceColor>();
+    auto triggerProp =
+        vmi->propertyValue("tri")->as<ViewModelInstanceTrigger>();
+    auto numProp = vmi->propertyValue("num1")->as<ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    colorProp->propertyValue(rive::colorARGB(100, 0, 10, 15));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    numProp->propertyValue(55);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("listener_view_model"));
+}
