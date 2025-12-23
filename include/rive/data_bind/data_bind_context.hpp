@@ -17,6 +17,10 @@ public:
     void decodeSourcePathIds(Span<const uint8_t> value) override;
     void copySourcePathIds(const DataBindContextBase& object) override;
     void bindFromContext(DataContext* dataContext);
+
+private:
+    void resolvePath();
+    bool m_isPathResolved = false;
 };
 } // namespace rive
 

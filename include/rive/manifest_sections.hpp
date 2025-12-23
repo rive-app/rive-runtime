@@ -6,6 +6,7 @@ namespace rive
 enum class ManifestSections : unsigned char
 {
     names = 0,
+    paths = 1,
 };
 }
 #endif

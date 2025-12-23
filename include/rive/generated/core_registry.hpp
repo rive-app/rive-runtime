@@ -181,6 +181,7 @@
 #include "rive/data_bind/converters/formula/formula_token_value.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
+#include "rive/data_bind/data_bind_path.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
@@ -666,6 +667,8 @@ public:
                 return new ScriptInputString();
             case BindablePropertyArtboardBase::typeKey:
                 return new BindablePropertyArtboard();
+            case DataBindPathBase::typeKey:
+                return new DataBindPath();
             case BindablePropertyIntegerBase::typeKey:
                 return new BindablePropertyInteger();
             case BindablePropertyTriggerBase::typeKey:
@@ -1739,6 +1742,9 @@ public:
                 break;
             case LayoutComponentBase::clipPropertyKey:
                 object->as<LayoutComponentBase>()->clip(value);
+                break;
+            case DataBindPathBase::isRelativePropertyKey:
+                object->as<DataBindPathBase>()->isRelative(value);
                 break;
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 object->as<BindablePropertyBooleanBase>()->propertyValue(value);
@@ -3114,6 +3120,8 @@ public:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
                 return object->as<LayoutComponentBase>()->clip();
+            case DataBindPathBase::isRelativePropertyKey:
+                return object->as<DataBindPathBase>()->isRelative();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyBooleanBase>()
                     ->propertyValue();
@@ -3880,6 +3888,7 @@ public:
             case ClippingShapeBase::isVisiblePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
+            case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
             case TextFollowPathModifierBase::radialPropertyKey:
@@ -4112,6 +4121,7 @@ public:
             case StateMachineFireTriggerBase::viewModelPathIdsPropertyKey:
             case StateMachineListenerBase::viewModelPathIdsPropertyKey:
             case MeshBase::triangleIndexBytesPropertyKey:
+            case DataBindPathBase::pathPropertyKey:
             case DataConverterOperationViewModelBase::sourcePathIdsPropertyKey:
             case DataBindContextBase::sourcePathIdsPropertyKey:
             case FileAssetBase::cdnUuidPropertyKey:
@@ -4700,6 +4710,8 @@ public:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:
                 return object->is<LayoutComponentBase>();
+            case DataBindPathBase::isRelativePropertyKey:
+                return object->is<DataBindPathBase>();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyBooleanBase>();
             case TextModifierRangeBase::clampPropertyKey:

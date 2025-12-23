@@ -34,6 +34,7 @@
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/importers/viewmodel_instance_list_importer.hpp"
+#include "rive/importers/data_bind_path_importer.hpp"
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/entry_state.hpp"
@@ -45,6 +46,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_bind_path.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
@@ -538,6 +540,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
             case ScriptedPathEffect::typeKey:
+            {
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
                 {
@@ -545,6 +548,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         scriptedObject);
                     stackType = ScriptedDrawable::typeKey;
                 }
+                break;
+            }
+            case DataBindPathBase::typeKey:
+                stackObject = rivestd::make_unique<DataBindPathImporter>(
+                    object->as<DataBindPath>());
+                stackType = DataBindPathBase::typeKey;
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=

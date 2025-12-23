@@ -1799,8 +1799,8 @@ void Artboard::internalDataContext(DataContext* value)
     m_DataContext = value;
     for (auto artboardHost : m_ArtboardHosts)
     {
-        auto value = m_DataContext->getViewModelInstance(
-            artboardHost->dataBindPathIds());
+        auto value =
+            m_DataContext->getViewModelInstance(artboardHost->dataBindPath());
         if (value != nullptr && value->is<ViewModelInstance>())
         {
             artboardHost->bindViewModelInstance(value, m_DataContext);

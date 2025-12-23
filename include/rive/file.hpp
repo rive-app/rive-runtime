@@ -16,7 +16,7 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/refcnt.hpp"
-#include "rive/name_resolver.hpp"
+#include "rive/data_resolver.hpp"
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -194,7 +194,7 @@ public:
     }
 #endif
 
-    NameResolver* nameResolver()
+    DataResolver* dataResolver()
     {
         if (m_manifest)
         {

@@ -1,0 +1,29 @@
+{
+  "name": "DataBindPath",
+  "key": {
+    "int": 643,
+    "string": "databindpath"
+  },
+  "properties": {
+    "path": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 920,
+        "string": "path"
+      },
+      "description": "Path to the selected property"
+    },
+    "isRelative": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 921,
+        "string": "isrelative"
+      },
+      "description": "Whether the data bind path is relative"
+    }
+  }
+}

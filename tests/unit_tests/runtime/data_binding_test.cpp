@@ -2001,6 +2001,51 @@ TEST_CASE("Relative data binding", "[silver]")
 
     CHECK(silver.matches("relative_data_binding"));
 }
+TEST_CASE("Relative data binding view model path", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto renderer = silver.makeRenderer();
+    // First use the default view model instance that is attached to the
+    // artboard
+    {
+        auto vmi =
+            file->createViewModelInstance((int)artboard.get()->viewModelId(),
+                                          0);
+
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+    // Next bind it to a different view model type that matches the expected
+    // view model shape
+    {
+        auto vm = file->viewModel("ViewModel1");
+        auto vmi = file->createDefaultViewModelInstance(vm);
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+    // Next bind it to a different view model with the wrong shape
+    {
+        auto vm = file->viewModel("ViewModel2");
+        auto vmi = file->createDefaultViewModelInstance(vm);
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("relative_data_bind_path"));
+}
 
 TEST_CASE("Listen to view model value changes in state machines", "[silver]")
 {
