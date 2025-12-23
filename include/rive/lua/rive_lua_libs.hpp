@@ -270,6 +270,7 @@ public:
     static constexpr bool hasMetatable = true;
 
 private:
+    uint64_t m_renderFrameId = 0;
 };
 
 class ScriptedGradient

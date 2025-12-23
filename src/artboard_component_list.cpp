@@ -468,7 +468,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
                     renderer->save();
                     auto transform = m_artboardTransforms[artboard];
                     renderer->transform(transform);
-                    artboard->draw(renderer);
+                    artboard->drawInternal(renderer);
                     renderer->restore();
                 }
                 if (i == endIndex)
@@ -490,7 +490,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
                 renderer->save();
                 auto transform = m_artboardTransforms[artboard];
                 renderer->transform(transform);
-                artboard->draw(renderer);
+                artboard->drawInternal(renderer);
                 renderer->restore();
             }
         }

@@ -43,6 +43,8 @@
 
 using namespace rive;
 
+uint64_t Artboard::sm_frameId = 0;
+
 Artboard::Artboard()
 {
     // Artboards need to override default clip value to true.
@@ -1390,9 +1392,13 @@ bool Artboard::hitTestPoint(const Vec2D& position,
                                          isPrimaryHit);
 }
 
-void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
+void Artboard::draw(Renderer* renderer)
+{
+    sm_frameId++;
+    drawInternal(renderer);
+}
 
-void Artboard::draw(Renderer* renderer, DrawOption option)
+void Artboard::drawInternal(Renderer* renderer)
 {
     RIVE_PROF_SCOPE()
     m_didChange = false;
@@ -1418,69 +1424,61 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
         renderer->transform(artboardTransform);
     }
 
-    if (option != DrawOption::kHideBG)
+    for (auto shapePaint : m_ShapePaints)
     {
-        for (auto shapePaint : m_ShapePaints)
+        if (!shapePaint->shouldDraw())
         {
-            if (!shapePaint->shouldDraw())
-            {
-                continue;
-            }
-            auto shapePaintPath = shapePaint->pickPath(this);
-            if (shapePaintPath == nullptr)
-            {
-                continue;
-            }
-            shapePaint->draw(renderer, shapePaintPath, worldTransform());
+            continue;
         }
+        auto shapePaintPath = shapePaint->pickPath(this);
+        if (shapePaintPath == nullptr)
+        {
+            continue;
+        }
+        shapePaint->draw(renderer, shapePaintPath, worldTransform());
     }
-
-    if (option != DrawOption::kHideFG)
+    // Empty clips is a counter for clipping shapes that are empty, for
+    // example because they are hidden in a solo. If emptyClips > 0, the
+    // drawables should not be drawn.
+    int emptyClips = 0;
+    // We stack clip operations to avoid calling a save + clip + restore on
+    // clipping that don't have any drawables in between. this is a common
+    // case with drawables in solos where the drawables are not drawn.
+    std::vector<Drawable*> pendingClipOperations;
+    for (auto drawable = m_FirstDrawable; drawable != nullptr;
+         drawable = drawable->prev)
     {
-        // Empty clips is a counter for clipping shapes that are empty, for
-        // example because they are hidden in a solo. If emptyClips > 0, the
-        // drawables should not be drawn.
-        int emptyClips = 0;
-        // We stack clip operations to avoid calling a save + clip + restore on
-        // clipping that don't have any drawables in between. this is a common
-        // case with drawables in solos where the drawables are not drawn.
-        std::vector<Drawable*> pendingClipOperations;
-        for (auto drawable = m_FirstDrawable; drawable != nullptr;
-             drawable = drawable->prev)
+        auto prevClips = emptyClips;
+        emptyClips += drawable->emptyClipCount();
+        if (!drawable->willDraw() || emptyClips != prevClips || emptyClips > 0)
         {
-            auto prevClips = emptyClips;
-            emptyClips += drawable->emptyClipCount();
-            if (!drawable->willDraw() || emptyClips != prevClips ||
-                emptyClips > 0)
-            {
-                continue;
-            }
-            if (drawable->isClipStart())
-            {
-                pendingClipOperations.push_back(drawable);
-                continue;
-            }
-            else if (pendingClipOperations.size() > 0)
-            {
-                // If there are clip operations pending and the next drawable is
-                // a clip end, the clipping operation does not clip anything and
-                // both can be skipped.
-                if (drawable->isClipEnd())
-                {
-                    pendingClipOperations.pop_back();
-                    continue;
-                }
-                else
-                {
-                    for (auto& pendingClip : pendingClipOperations)
-                    {
-                        pendingClip->draw(renderer);
-                    }
-                    pendingClipOperations.clear();
-                }
-            }
-            drawable->draw(renderer);
+            continue;
         }
+        if (drawable->isClipStart())
+        {
+            pendingClipOperations.push_back(drawable);
+            continue;
+        }
+        else if (pendingClipOperations.size() > 0)
+        {
+            // If there are clip operations pending and the next drawable is
+            // a clip end, the clipping operation does not clip anything and
+            // both can be skipped.
+            if (drawable->isClipEnd())
+            {
+                pendingClipOperations.pop_back();
+                continue;
+            }
+            else
+            {
+                for (auto& pendingClip : pendingClipOperations)
+                {
+                    pendingClip->draw(renderer);
+                }
+                pendingClipOperations.clear();
+            }
+        }
+        drawable->draw(renderer);
     }
     if (save)
     {

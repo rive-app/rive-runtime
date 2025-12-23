@@ -102,6 +102,7 @@ private:
     bool m_didChange = true;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
+    static uint64_t sm_frameId;
     bool sharesLayoutWithHost() const;
     void cloneObjectDataBinds(const Core* object,
                               Core* clone,
@@ -128,6 +129,10 @@ private:
     void update(ComponentDirt value) override;
 
 public:
+    static uint64_t frameId() { return sm_frameId; }
+#ifdef TESTING
+    static void incFrameId() { sm_frameId++; }
+#endif
     void updateDataBinds(bool applyTargetToSource = true) override;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
@@ -229,13 +234,7 @@ public:
     Drawable* firstDrawable() { return m_FirstDrawable; };
     void addScriptedObject(ScriptedObject* object);
 
-    enum class DrawOption
-    {
-        kNormal,
-        kHideBG,
-        kHideFG,
-    };
-    void draw(Renderer* renderer, DrawOption option);
+    void drawInternal(Renderer* renderer);
     void draw(Renderer* renderer) override;
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);

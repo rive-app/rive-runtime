@@ -163,7 +163,7 @@ void NestedArtboard::draw(Renderer* renderer)
         renderer->save();
     }
     renderer->transform(worldTransform());
-    m_Artboard->draw(renderer);
+    m_Artboard->drawInternal(renderer);
     if (m_needsSaveOperation)
     {
         renderer->restore();

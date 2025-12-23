@@ -1,6 +1,7 @@
 #include "utils/serializing_factory.hpp"
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/core/binary_reader.hpp"
+#include "rive/artboard.hpp"
 #include <cstring>
 #include <stdlib.h>
 #include <filesystem>
@@ -623,6 +624,7 @@ std::unique_ptr<Renderer> SerializingFactory::makeRenderer()
 
 void SerializingFactory::addFrame()
 {
+    Artboard::incFrameId();
     m_writer.writeVarUint((uint32_t)SerializeOp::frame);
 }
 

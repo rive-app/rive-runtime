@@ -16,6 +16,11 @@ RenderPath* ScriptedPath::renderPath(lua_State* L)
     if (m_isRenderPathDirty)
     {
         m_isRenderPathDirty = false;
+        if (m_renderFrameId == Artboard::frameId())
+        {
+            luaL_error(L, "Path was modified between draws in the same frame.");
+        }
+        m_renderFrameId = Artboard::frameId();
         if (!m_renderPath)
         {
             ScriptingContext* context =
