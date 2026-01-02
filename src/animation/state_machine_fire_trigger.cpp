@@ -8,10 +8,9 @@ void StateMachineFireTrigger::perform(
     StateMachineInstance* stateMachineInstance) const
 {
     auto dataContext = stateMachineInstance->dataContext();
-    if (dataContext != nullptr)
+    if (dataContext != nullptr && m_dataBindPath)
     {
-        auto vmProp =
-            dataContext->getViewModelProperty(m_viewModelPathIdsBuffer);
+        auto vmProp = dataContext->getViewModelProperty(m_dataBindPath);
         if (vmProp && vmProp->is<ViewModelInstanceTrigger>())
         {
             vmProp->as<ViewModelInstanceTrigger>()->trigger();
@@ -19,19 +18,19 @@ void StateMachineFireTrigger::perform(
     }
 }
 
+StatusCode StateMachineFireTrigger::import(ImportStack& importStack)
+{
+    importDataBindPath(importStack);
+    return Super::import(importStack);
+}
+
 void StateMachineFireTrigger::decodeViewModelPathIds(Span<const uint8_t> value)
 {
-    BinaryReader reader(value);
-    while (!reader.reachedEnd())
-    {
-        auto val = reader.readVarUintAs<uint32_t>();
-        m_viewModelPathIdsBuffer.push_back(val);
-    }
+    decodeDataBindPath(value);
 }
 
 void StateMachineFireTrigger::copyViewModelPathIds(
     const StateMachineFireTriggerBase& object)
 {
-    m_viewModelPathIdsBuffer =
-        object.as<StateMachineFireTrigger>()->m_viewModelPathIdsBuffer;
+    copyDataBindPath(object.as<StateMachineFireTrigger>()->dataBindPath());
 }

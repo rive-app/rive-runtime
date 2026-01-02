@@ -1014,8 +1014,8 @@ public:
     void bindFromContext(DataContext* dataContext)
     {
         clearDataContext();
-        auto path = m_listener->viewModelPathIdsBuffer();
-        auto vmProp = dataContext->getViewModelProperty(path);
+        auto vmProp =
+            dataContext->getViewModelProperty(m_listener->dataBindPath());
         if (vmProp != nullptr)
         {
             m_viewModelInstanceValue = rive::ref_rcp(vmProp);
@@ -1341,8 +1341,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             // We are only storing in this unordered map data binds that are
             // targetting the source. For now, this is only the case for
             // listener actions.
-            if (static_cast<DataBindFlags>(dataBindClone->flags()) ==
-                DataBindFlags::ToSource)
+            if ((static_cast<DataBindFlags>(dataBindClone->flags()) &
+                 DataBindFlags::ToSource) == DataBindFlags::ToSource)
             {
                 m_bindableDataBindsToSource[bindablePropertyClone] =
                     dataBindClone;

@@ -42,7 +42,7 @@ const std::vector<uint32_t>& DataBindPath::resolvedPath()
             return m_pathBuffer;
         }
         auto dataResolver = m_file->dataResolver();
-        if (dataResolver)
+        if (dataResolver && m_pathBuffer.size() == 1)
         {
             auto pathId = m_pathBuffer[0];
             m_pathBuffer = dataResolver->resolvePath(pathId);

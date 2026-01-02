@@ -3,6 +3,7 @@
 #include "rive/generated/animation/state_machine_listener_base.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/data_bind_path_referencer.hpp"
 
 namespace rive
 {
@@ -10,7 +11,8 @@ class Shape;
 class StateMachineListenerImporter;
 class ListenerAction;
 class StateMachineInstance;
-class StateMachineListener : public StateMachineListenerBase
+class StateMachineListener : public StateMachineListenerBase,
+                             public DataBindPathReferencer
 {
     friend class StateMachineListenerImporter;
 
@@ -32,13 +34,7 @@ public:
                         Vec2D previousPosition) const;
     void decodeViewModelPathIds(Span<const uint8_t> value) override;
     void copyViewModelPathIds(const StateMachineListenerBase& object) override;
-    std::vector<uint32_t> viewModelPathIdsBuffer() const
-    {
-        return m_viewModelPathIdsBuffer;
-    }
-
-protected:
-    std::vector<uint32_t> m_viewModelPathIdsBuffer;
+    std::vector<uint32_t> viewModelPathIdsBuffer() const;
 
 private:
     void addAction(std::unique_ptr<ListenerAction>);

@@ -2046,6 +2046,171 @@ TEST_CASE("Relative data binding view model path", "[silver]")
 
     CHECK(silver.matches("relative_data_bind_path"));
 }
+TEST_CASE("Relative data binding view model state machine listener", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+
+    auto artboard = file->artboardNamed("listener");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto renderer = silver.makeRenderer();
+    // First use the default view model instance that is attached to the
+    // artboard
+    {
+        auto vmi =
+            file->createViewModelInstance((int)artboard.get()->viewModelId(),
+                                          0);
+        auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
+
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        numProp->propertyValue(100);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+    // Next bind it to a different view model with the same shape
+    {
+        auto vm = file->viewModel("SML_VM2");
+        auto vmi = file->createDefaultViewModelInstance(vm);
+        auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
+
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        numProp->propertyValue(100);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("relative_data_bind_path-listener"));
+}
+
+TEST_CASE("Relative data binding view model state machine fire trigger",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+
+    auto artboard = file->artboardNamed("fire-trigger");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto renderer = silver.makeRenderer();
+    // First use the default view model instance that is attached to the
+    // artboard
+    {
+        auto vmi =
+            file->createViewModelInstance((int)artboard.get()->viewModelId(),
+                                          0);
+        auto resetProp =
+            vmi->propertyValue("reset")->as<ViewModelInstanceTrigger>();
+
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        resetProp->trigger();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+    // Next bind it to a different view model with the same shape
+    {
+        auto vm = file->viewModel("SMFT-VM2");
+        auto vmi = file->createDefaultViewModelInstance(vm);
+
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("relative_data_bind_path-fire-trigger"));
+}
+TEST_CASE("Relative data binding view model scripted input", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+
+    auto artboard = file->artboardNamed("scripted-input");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto renderer = silver.makeRenderer();
+    // First use the default view model instance that is attached to the
+    // artboard
+    {
+        auto vmi =
+            file->createViewModelInstance((int)artboard.get()->viewModelId(),
+                                          0);
+        auto child =
+            vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
+        auto boo = child->referenceViewModelInstance()
+                       ->propertyValue("boo")
+                       ->as<ViewModelInstanceBoolean>();
+        auto paused = child->referenceViewModelInstance()
+                          ->propertyValue("paused")
+                          ->as<ViewModelInstanceBoolean>();
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        paused->propertyValue(false);
+        stateMachine->advanceAndApply(1.0f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        paused->propertyValue(true);
+        boo->propertyValue(false);
+        stateMachine->advanceAndApply(1.0f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+    // Next bind it to a different view model with the same shape
+    {
+        auto vm = file->viewModel("SI-VM2");
+        auto vmi = file->createDefaultViewModelInstance(vm);
+        auto child =
+            vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
+        auto boo = child->referenceViewModelInstance()
+                       ->propertyValue("boo")
+                       ->as<ViewModelInstanceBoolean>();
+        auto paused = child->referenceViewModelInstance()
+                          ->propertyValue("paused")
+                          ->as<ViewModelInstanceBoolean>();
+
+        stateMachine->bindViewModelInstance(vmi);
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        paused->propertyValue(false);
+        stateMachine->advanceAndApply(1.0f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        paused->propertyValue(true);
+        boo->propertyValue(false);
+        stateMachine->advanceAndApply(1.0f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("relative_data_bind_path-scripted-input"));
+}
 
 TEST_CASE("Listen to view model value changes in state machines", "[silver]")
 {

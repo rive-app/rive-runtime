@@ -3,26 +3,24 @@
 #include "rive/generated/script_input_viewmodel_property_base.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/data_bind_path_referencer.hpp"
 #include <stdio.h>
 namespace rive
 {
 class ViewModelInstanceValue;
 
 class ScriptInputViewModelProperty : public ScriptInputViewModelPropertyBase,
-                                     public ScriptInput
+                                     public ScriptInput,
+                                     public DataBindPathReferencer
 {
 private:
     ViewModelInstanceValue* m_viewModelInstanceValue;
-
-protected:
-    std::vector<uint32_t> m_DataBindPathIdsBuffer;
 
 public:
     ~ScriptInputViewModelProperty();
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(
         const ScriptInputViewModelPropertyBase& object) override;
-    std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
     void initScriptedValue() override;
     bool validateForScriptInit() override;
     StatusCode import(ImportStack& importStack) override;

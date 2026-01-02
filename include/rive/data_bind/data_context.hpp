@@ -24,6 +24,7 @@ public:
     ViewModelInstanceValue* getRelativeViewModelProperty(
         const std::vector<uint32_t> path,
         DataResolver* resolver) const;
+    ViewModelInstanceValue* getViewModelProperty(DataBindPath* dataBindPath);
     rcp<ViewModelInstance> getViewModelInstance(
         const std::vector<uint32_t> path) const;
     rcp<ViewModelInstance> getViewModelInstance(DataBindPath*) const;

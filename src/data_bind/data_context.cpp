@@ -98,6 +98,26 @@ skip_relative_path:
     return nullptr;
 }
 
+ViewModelInstanceValue* DataContext::getViewModelProperty(
+    DataBindPath* dataBindPath)
+{
+    if (dataBindPath->isRelative())
+    {
+        auto file = dataBindPath->file();
+        if (file)
+        {
+            auto resolver = file->dataResolver();
+            if (resolver)
+            {
+                return getRelativeViewModelProperty(
+                    dataBindPath->resolvedPath(),
+                    resolver);
+            }
+        }
+    }
+    return getViewModelProperty(dataBindPath->path());
+}
+
 rcp<ViewModelInstance> DataContext::getViewModelInstance(
     const std::vector<uint32_t> path) const
 {

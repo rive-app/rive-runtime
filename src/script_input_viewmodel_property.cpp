@@ -20,19 +20,13 @@ ScriptInputViewModelProperty::~ScriptInputViewModelProperty()
 void ScriptInputViewModelProperty::decodeDataBindPathIds(
     Span<const uint8_t> value)
 {
-    BinaryReader reader(value);
-    while (!reader.reachedEnd())
-    {
-        auto val = reader.readVarUintAs<uint32_t>();
-        m_DataBindPathIdsBuffer.push_back(val);
-    }
+    decodeDataBindPath(value);
 }
 
 void ScriptInputViewModelProperty::copyDataBindPathIds(
     const ScriptInputViewModelPropertyBase& object)
 {
-    m_DataBindPathIdsBuffer =
-        object.as<ScriptInputViewModelProperty>()->m_DataBindPathIdsBuffer;
+    copyDataBindPath(object.as<ScriptInputViewModelProperty>()->dataBindPath());
 }
 
 void ScriptInputViewModelProperty::initScriptedValue()
@@ -62,7 +56,11 @@ bool ScriptInputViewModelProperty::validateForScriptInit()
     {
         return false;
     }
-    auto instanceValue = dataContext->getViewModelProperty(dataBindPathIds());
+    if (m_dataBindPath == nullptr)
+    {
+        return false;
+    }
+    auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
     if (instanceValue == nullptr)
     {
         return false;
@@ -78,6 +76,7 @@ bool ScriptInputViewModelProperty::validateForScriptInit()
 
 StatusCode ScriptInputViewModelProperty::import(ImportStack& importStack)
 {
+    importDataBindPath(importStack);
     auto importer =
         importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
     if (importer == nullptr)
