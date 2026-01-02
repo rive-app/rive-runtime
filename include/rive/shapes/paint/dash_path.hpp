@@ -14,26 +14,37 @@
 namespace rive
 {
 class Dash;
+
+class DashEffectPath : public EffectPath
+{
+public:
+    void invalidateEffect() override;
+    PathMeasure& pathMeasure() { return m_pathMeasure; }
+    void createPathMeasure(const RawPath*);
+    ShapePaintPath* path() override { return &m_path; }
+
+private:
+    ShapePaintPath m_path;
+    PathMeasure m_pathMeasure;
+};
 class PathDasher
 {
     friend class Dash;
 
 protected:
-    void invalidateSourcePath();
     virtual void invalidateDash();
-    ShapePaintPath* dash(const RawPath* source,
+    ShapePaintPath* dash(ShapePaintPath* destination,
+                         const RawPath* source,
+                         PathMeasure* pathMeasure,
                          Dash* offset,
                          Span<Dash*> dashes);
-    ShapePaintPath* applyDash(const RawPath* source,
+    ShapePaintPath* applyDash(ShapePaintPath* destination,
+                              const RawPath* source,
+                              PathMeasure* pathMeasure,
                               Dash* offset,
                               Span<Dash*> dashes);
 
-protected:
-    ShapePaintPath m_path;
-    PathMeasure m_pathMeasure;
-
 public:
-    float pathLength() const;
     virtual ~PathDasher() {}
 };
 
@@ -41,17 +52,14 @@ class DashPath : public DashPathBase, public PathDasher, public StrokeEffect
 {
 public:
     StatusCode onAddedClean(CoreContext* context) override;
-    void invalidateEffect() override;
     void offsetChanged() override;
     void offsetIsPercentageChanged() override;
-    void updateEffect(const ShapePaintPath* source,
+    void updateEffect(PathProvider* pathProvider,
+                      const ShapePaintPath* source,
                       ShapePaintType shapePaintType) override;
-    ShapePaintPath* effectPath() override;
     void invalidateDash() override;
-    ShapePaint* parentPaint() override
-    {
-        return parent() != nullptr ? parent()->as<ShapePaint>() : nullptr;
-    }
+    EffectsContainer* parentPaint() override;
+    virtual EffectPath* createEffectPath() override;
 
 private:
     std::vector<Dash*> m_dashes;

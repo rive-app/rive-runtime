@@ -72,6 +72,9 @@ public:
     virtual bool hitTestPoint(const Vec2D& position,
                               bool skipOnUnclipped,
                               bool isPrimaryHit);
+#ifdef TESTING
+    ComponentDirt dirt() { return m_Dirt; }
+#endif
 };
 } // namespace rive
 

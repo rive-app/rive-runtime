@@ -12,23 +12,55 @@ using namespace rive;
 // work on itself
 void StrokeEffect::invalidateEffectFromLocal()
 {
+    for (auto& effectPath : m_effectPaths)
+    {
+        effectPath.second->invalidateEffect();
+    }
     auto parentShapePaint = parentPaint();
     if (parentShapePaint != nullptr)
     {
         parentShapePaint->invalidateEffects(this);
     }
-    invalidateEffect();
 }
 
 // This is called from outside StrokeEffect.
 // This does the actual invalidation work.
 // This should NOT be called from inside StrokeEffect
 // directly (it is called indirectly via invalidateEffectFromLocal)
-void StrokeEffect::invalidateEffect()
+void StrokeEffect::invalidateEffect(PathProvider* pathProvider)
 {
-    auto parentShapePaint = parentPaint();
-    if (parentShapePaint != nullptr)
+
+    if (pathProvider)
     {
-        parentShapePaint->parent()->addDirt(ComponentDirt::Paint);
+        auto effectPathIt = m_effectPaths.find(pathProvider);
+        if (effectPathIt != m_effectPaths.end())
+        {
+            effectPathIt->second->invalidateEffect();
+        }
     }
+    else
+    {
+        for (auto& effectPath : m_effectPaths)
+        {
+            effectPath.second->invalidateEffect();
+        }
+    }
+}
+
+StrokeEffect::~StrokeEffect()
+{
+    for (auto& effectPath : m_effectPaths)
+    {
+        delete effectPath.second;
+    }
+}
+
+ShapePaintPath* StrokeEffect::effectPath(PathProvider* pathProvider)
+{
+    auto it = m_effectPaths.find(pathProvider);
+    if (it != m_effectPaths.end())
+    {
+        return it->second->path();
+    }
+    return nullptr;
 }

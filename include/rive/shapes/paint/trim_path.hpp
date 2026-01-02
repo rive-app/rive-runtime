@@ -17,19 +17,27 @@ enum class TrimPathMode : uint8_t
 
 };
 
+class TrimEffectPath : public EffectPath
+{
+public:
+    void invalidateEffect() override;
+    std::vector<rcp<ContourMeasure>>& contours() { return m_contours; }
+    ShapePaintPath* path() override { return &m_path; }
+
+private:
+    ShapePaintPath m_path;
+    std::vector<rcp<ContourMeasure>> m_contours;
+};
+
 class TrimPath : public TrimPathBase, public StrokeEffect
 {
 public:
     StatusCode onAddedClean(CoreContext* context) override;
-    void invalidateEffect() override;
 
-    void updateEffect(const ShapePaintPath* source,
+    void updateEffect(PathProvider* pathProvider,
+                      const ShapePaintPath* source,
                       ShapePaintType shapePaintType) override;
-    ShapePaintPath* effectPath() override;
-    ShapePaint* parentPaint() override
-    {
-        return parent() != nullptr ? parent()->as<ShapePaint>() : nullptr;
-    }
+    EffectsContainer* parentPaint() override;
 
     void startChanged() override;
     void endChanged() override;
@@ -40,12 +48,12 @@ public:
 
     StatusCode onAddedDirty(CoreContext* context) override;
 
-    const ShapePaintPath& path() const { return m_path; }
-
 protected:
-    void trimPath(const RawPath* source, ShapePaintType shapePaintType);
-    ShapePaintPath m_path;
-    std::vector<rcp<ContourMeasure>> m_contours;
+    void trimPath(ShapePaintPath* destination,
+                  std::vector<rcp<ContourMeasure>>& contours,
+                  const RawPath* source,
+                  ShapePaintType shapePaintType);
+    virtual EffectPath* createEffectPath() override;
 };
 } // namespace rive
 

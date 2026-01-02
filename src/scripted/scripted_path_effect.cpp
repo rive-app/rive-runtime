@@ -8,6 +8,8 @@
 
 using namespace rive;
 
+void ScriptedEffectPath::invalidateEffect() { m_path.rewind(); }
+
 #ifdef WITH_RIVE_SCRIPTING
 bool ScriptedPathEffect::scriptInit(LuaState* state)
 {
@@ -16,50 +18,59 @@ bool ScriptedPathEffect::scriptInit(LuaState* state)
     return true;
 }
 
-void ScriptedPathEffect::updateEffect(const ShapePaintPath* source,
+void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
+                                      const ShapePaintPath* source,
                                       ShapePaintType shapePaintType)
 {
-    if (m_path.hasRenderPath())
+    auto effectPathIt = m_effectPaths.find(pathProvider);
+    if (effectPathIt != m_effectPaths.end())
     {
-        // Previous result hasn't been invalidated, it's still good.
-        return;
-    }
-
-    m_path.rewind(source->isLocal(), source->fillRule());
-    if (m_state == nullptr)
-    {
-        return;
-    }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) !=
-        LUA_TFUNCTION)
-    {
-        fprintf(stderr, "expected update to be a function\n");
-    }
-    else
-    {
-        lua_pushvalue(state, -2);
-        lua_newrive<ScriptedPathData>(state, source->rawPath());
-        lua_pushstring(state,
-                       shapePaintType == ShapePaintType::stroke ? "stroke"
-                                                                : "fill");
-        if (static_cast<lua_Status>(rive_lua_pcall(state, 3, 1)) != LUA_OK)
+        auto trimEffectPath =
+            static_cast<ScriptedEffectPath*>(effectPathIt->second);
+        auto path = trimEffectPath->path();
+        if (path->hasRenderPath())
         {
-            fprintf(stderr, "update function failed\n");
+            // Previous result hasn't been invalidated, it's still good.
+            return;
+        }
+
+        path->rewind(source->isLocal(), source->fillRule());
+        if (m_state == nullptr)
+        {
+            return;
+        }
+        auto state = m_state->state;
+        rive_lua_pushRef(state, m_self);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) !=
+            LUA_TFUNCTION)
+        {
+            fprintf(stderr, "expected update to be a function\n");
         }
         else
         {
-            auto scriptedPath = (ScriptedPath*)lua_touserdata(state, -1);
-            auto rawPath = m_path.mutableRawPath();
-            rawPath->addPath(scriptedPath->rawPath);
+            lua_pushvalue(state, -2);
+            lua_newrive<ScriptedPathData>(state, source->rawPath());
+            lua_pushstring(state,
+                           shapePaintType == ShapePaintType::stroke ? "stroke"
+                                                                    : "fill");
+            if (static_cast<lua_Status>(rive_lua_pcall(state, 3, 1)) != LUA_OK)
+            {
+                fprintf(stderr, "update function failed\n");
+            }
+            else
+            {
+                auto scriptedPath = (ScriptedPath*)lua_touserdata(state, -1);
+                auto rawPath = path->mutableRawPath();
+                rawPath->addPath(scriptedPath->rawPath);
+            }
+            rive_lua_pop(state, 1);
         }
         rive_lua_pop(state, 1);
     }
-    rive_lua_pop(state, 1);
 }
 #else
-void ScriptedPathEffect::updateEffect(const ShapePaintPath* source,
+void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
+                                      const ShapePaintPath* source,
                                       ShapePaintType shapePaintType)
 {}
 #endif
@@ -77,12 +88,12 @@ StatusCode ScriptedPathEffect::onAddedDirty(CoreContext* context)
 
 StatusCode ScriptedPathEffect::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<ShapePaint>())
+    auto effectsContainer = EffectsContainer::from(parent());
+    if (!effectsContainer)
     {
         return StatusCode::InvalidObject;
     }
-
-    parent()->as<ShapePaint>()->addStrokeEffect(this);
+    effectsContainer->addStrokeEffect(this);
 
     return StatusCode::Ok;
 }
@@ -127,8 +138,6 @@ StatusCode ScriptedPathEffect::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-ShapePaintPath* ScriptedPathEffect::effectPath() { return &m_path; }
-
 Core* ScriptedPathEffect::clone() const
 {
     ScriptedPathEffect* twin =
@@ -140,13 +149,17 @@ Core* ScriptedPathEffect::clone() const
     return twin;
 }
 
-void ScriptedPathEffect::invalidateEffect()
-{
-    StrokeEffect::invalidateEffect();
-    m_path.rewind();
-}
-
 void ScriptedPathEffect::markNeedsUpdate()
 {
     addScriptedDirt(ComponentDirt::ScriptUpdate);
+}
+
+EffectsContainer* ScriptedPathEffect::parentPaint()
+{
+    return EffectsContainer::from(parent());
+}
+
+EffectPath* ScriptedPathEffect::createEffectPath()
+{
+    return new ScriptedEffectPath();
 }

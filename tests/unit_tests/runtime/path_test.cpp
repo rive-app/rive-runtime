@@ -16,6 +16,7 @@
 #include "rive_file_reader.hpp"
 #include "rive/math/path_types.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
@@ -595,4 +596,106 @@ TEST_CASE("Apply trim path effect to fill", "[silver]")
     }
 
     CHECK(silver.matches("fill_trim_path"));
+}
+
+TEST_CASE("Apply group effect to multiple paths", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/group_effect.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto dashValue =
+        vmi->propertyValue("dashValue")->as<rive::ViewModelInstanceNumber>();
+
+    auto shape2 = artboard->find<rive::Shape>("shape2");
+    rive::ShapePaint* shapePaint2 = nullptr;
+    for (auto& child : shape2->children())
+    {
+        if (child->is<rive::ShapePaint>())
+        {
+            shapePaint2 = child->as<rive::ShapePaint>();
+            break;
+        }
+    }
+    REQUIRE(shapePaint2 != nullptr);
+
+    auto shape1 = artboard->find<rive::Shape>("shape1");
+    rive::ShapePaint* shapePaint1 = nullptr;
+    for (auto& child : shape1->children())
+    {
+        if (child->is<rive::ShapePaint>())
+        {
+            shapePaint1 = child->as<rive::ShapePaint>();
+            break;
+        }
+    }
+    REQUIRE(shapePaint1 != nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    dashValue->propertyValue(10);
+
+    // Manually advancing and update data bind to test for dirt
+    artboard->advanceInternal(
+        0.0f,
+        rive::AdvanceFlags::IsRoot | rive::AdvanceFlags::Animate |
+            rive::AdvanceFlags::AdvanceNested | rive::AdvanceFlags::NewFrame);
+    artboard->updateDataBinds();
+    // Ensure that invalidating one shape paint does not cause the other shape
+    // paint to invalidate even if they share the same group effect
+    REQUIRE(shapePaint1->dirt() == rive::ComponentDirt::Path);
+    REQUIRE(shapePaint2->dirt() == rive::ComponentDirt::None);
+    artboard->updatePass(true);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.064f);
+
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.064f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("group_effect"));
+}
+
+TEST_CASE("Apply group effect with missing items", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/group_effect.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-missing-targets");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("group_effect-main-missing-targets"));
 }

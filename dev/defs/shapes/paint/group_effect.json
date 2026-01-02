@@ -1,0 +1,30 @@
+{
+  "name": "GroupEffect",
+  "key": {
+    "int": 645,
+    "string": "groupeffect"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "group": "position",
+      "key": {
+        "int": 917,
+        "string": "x"
+      },
+      "runtime": false
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "group": "position",
+      "key": {
+        "int": 918,
+        "string": "y"
+      },
+      "runtime": false
+    }
+  }
+}

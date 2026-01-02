@@ -230,11 +230,13 @@
 #include "rive/shapes/paint/feather.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
+#include "rive/shapes/paint/group_effect.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
 #include "rive/shapes/paint/radial_gradient.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/solid_color.hpp"
 #include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/target_effect.hpp"
 #include "rive/shapes/paint/trim_path.hpp"
 #include "rive/shapes/parametric_path.hpp"
 #include "rive/shapes/path.hpp"
@@ -585,6 +587,10 @@ public:
                 return new StateMachineBool();
             case BlendAnimation1DBase::typeKey:
                 return new BlendAnimation1D();
+            case GroupEffectBase::typeKey:
+                return new GroupEffect();
+            case TargetEffectBase::typeKey:
+                return new TargetEffect();
             case DashPathBase::typeKey:
                 return new DashPath();
             case LinearGradientBase::typeKey:
@@ -1290,6 +1296,9 @@ public:
                 break;
             case ShapePaintBase::blendModeValuePropertyKey:
                 object->as<ShapePaintBase>()->blendModeValue(value);
+                break;
+            case TargetEffectBase::targetIdPropertyKey:
+                object->as<TargetEffectBase>()->targetId(value);
                 break;
             case StrokeBase::capPropertyKey:
                 object->as<StrokeBase>()->cap(value);
@@ -2796,6 +2805,8 @@ public:
                     ->exitBlendAnimationId();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->as<ShapePaintBase>()->blendModeValue();
+            case TargetEffectBase::targetIdPropertyKey:
+                return object->as<TargetEffectBase>()->targetId();
             case StrokeBase::capPropertyKey:
                 return object->as<StrokeBase>()->cap();
             case StrokeBase::joinPropertyKey:
@@ -3743,6 +3754,7 @@ public:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
+            case TargetEffectBase::targetIdPropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
             case FeatherBase::spaceValuePropertyKey:
@@ -4426,6 +4438,8 @@ public:
                 return object->is<BlendStateTransitionBase>();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->is<ShapePaintBase>();
+            case TargetEffectBase::targetIdPropertyKey:
+                return object->is<TargetEffectBase>();
             case StrokeBase::capPropertyKey:
                 return object->is<StrokeBase>();
             case StrokeBase::joinPropertyKey:

@@ -29,14 +29,19 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
 void ShapePaint::update(ComponentDirt value)
 {
     Super::update(value);
-    if (hasDirt(value, ComponentDirt::Path) && m_effects.size() > 0)
+    auto shapeEffects = effects();
+    if (hasDirt(value, ComponentDirt::Path) && shapeEffects->size() > 0)
     {
         auto container = ShapePaintContainer::from(parent());
         auto path = pickPath(container);
-        for (auto& effect : m_effects)
+        for (auto& effect : *shapeEffects)
         {
-            effect->updateEffect(path, paintType());
-            path = effect->effectPath();
+            effect->updateEffect(this, path, paintType());
+            auto newPath = effect->effectPath(this);
+            if (newPath)
+            {
+                path = newPath;
+            }
         }
     }
 }
@@ -106,9 +111,10 @@ void ShapePaint::draw(Renderer* renderer,
         renderer->transform(transform);
     }
 
-    if (m_effects.size() > 0)
+    auto pathEffect = lastEffectPath(this);
+    if (pathEffect)
     {
-        pathToDraw = m_effects.back()->effectPath();
+        pathToDraw = pathEffect;
     }
 
     if (m_feather != nullptr)
@@ -166,28 +172,18 @@ void ShapePaint::draw(Renderer* renderer,
     }
 }
 
-void ShapePaint::addStrokeEffect(StrokeEffect* effect)
-{
-    m_effects.push_back(effect);
-}
-
 void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
 {
-    auto found = invalidatingEffect == nullptr;
-    for (auto& effect : m_effects)
-    {
-        if (found)
-        {
-            effect->invalidateEffect();
-        }
-        if (invalidatingEffect && invalidatingEffect == effect)
-        {
-            found = true;
-        }
-    }
+    EffectsContainer::invalidateEffects(invalidatingEffect);
     invalidateRendering();
 }
 
 void ShapePaint::invalidateEffects() { invalidateEffects(nullptr); }
 
 void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path); }
+
+void ShapePaint::addStrokeEffect(StrokeEffect* effect)
+{
+    effect->addPathProvider(this);
+    EffectsContainer::addStrokeEffect(effect);
+}

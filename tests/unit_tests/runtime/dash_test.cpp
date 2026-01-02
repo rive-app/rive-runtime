@@ -8,16 +8,24 @@ class _TestDasher : public rive::PathDasher
 {
 
 public:
-    rive::ShapePaintPath* dash(const rive::RawPath* source,
+    rive::ShapePaintPath* dash(rive::ShapePaintPath* destination,
+                               const rive::RawPath* source,
+                               rive::PathMeasure* pathMeasure,
                                rive::Dash* offset,
                                rive::Span<rive::Dash*> dashes)
     {
-        return rive::PathDasher::dash(source, offset, dashes);
+        return rive::PathDasher::dash(destination,
+                                      source,
+                                      pathMeasure,
+                                      offset,
+                                      dashes);
     }
 };
 
 TEST_CASE("0 length dashes don't cause a crash", "[dashing]")
 {
+    rive::ShapePaintPath shapePaint;
+    rive::PathMeasure pathMeasure;
     rive::RawPath path;
     path.addRect({1, 1, 5, 6});
 
@@ -28,5 +36,5 @@ TEST_CASE("0 length dashes don't cause a crash", "[dashing]")
     std::vector<rive::Dash*> dashes = {&a, &b};
 
     rive::Dash offset(0.0f, false);
-    dasher.dash(&path, &offset, dashes);
+    dasher.dash(&shapePaint, &path, &pathMeasure, &offset, dashes);
 }

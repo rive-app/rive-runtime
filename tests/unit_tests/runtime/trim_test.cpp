@@ -51,7 +51,7 @@ static void testRawPath(rive::Artboard* artboard,
     REQUIRE(stroke->is<rive::Stroke>());
     auto effect = stroke->effect();
     REQUIRE(effect != nullptr);
-    auto effectPath = effect->effectPath();
+    auto effectPath = effect->effectPath(stroke);
     REQUIRE(effectPath != nullptr);
     auto rawPath = effectPath->rawPath();
     REQUIRE(rawPath != nullptr);
