@@ -5,6 +5,9 @@
     "string": "scriptinputviewmodelproperty"
   },
   "extends": "custom_property.json",
+  "mixins": [
+    "script_input_common.json"
+  ],
   "properties": {
     "dataTypeId": {
       "type": "Id",
@@ -31,7 +34,7 @@
       "type": "bool",
       "initialValue": "false",
       "key": {
-        "int": 922,
+        "int": 925,
         "string": "isdatabindpathrelative"
       },
       "description": "Whether the data bind path is relative",

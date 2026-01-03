@@ -114,7 +114,6 @@ bool ScriptedPathEffect::advanceComponent(float elapsedSeconds,
 
 bool ScriptedPathEffect::addScriptedDirt(ComponentDirt value, bool recurse)
 {
-    invalidateEffectFromLocal();
     return Component::addDirt(value, recurse);
 }
 
@@ -162,4 +161,23 @@ EffectsContainer* ScriptedPathEffect::parentPaint()
 EffectPath* ScriptedPathEffect::createEffectPath()
 {
     return new ScriptedEffectPath();
+}
+
+void ScriptedPathEffect::buildDependencies()
+{
+    Super::buildDependencies();
+    if (parent())
+    {
+        parent()->addDependent(this);
+    }
+}
+
+void ScriptedPathEffect::update(ComponentDirt value)
+{
+    Super::update(value);
+
+    if (hasDirt(value, ComponentDirt::ScriptUpdate))
+    {
+        invalidateEffectFromLocal();
+    }
 }

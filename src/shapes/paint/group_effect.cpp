@@ -62,3 +62,12 @@ void GroupEffect::invalidateEffect(PathProvider* component)
         effect->invalidateEffect(component);
     }
 }
+
+void GroupEffect::buildDependencies()
+{
+    Super::buildDependencies();
+    if (parent())
+    {
+        parent()->addDependent(this);
+    }
+}

@@ -23,6 +23,7 @@ public:
     void addPathProvider(PathProvider* component) override;
     void addStrokeEffect(StrokeEffect* effect) override;
     void invalidateEffect(PathProvider* effect) override;
+    void buildDependencies() override;
 
 private:
     std::vector<TargetEffect*> m_targetEffects;
