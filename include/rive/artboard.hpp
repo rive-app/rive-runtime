@@ -132,6 +132,8 @@ public:
     static uint64_t frameId() { return sm_frameId; }
 #ifdef TESTING
     static void incFrameId() { sm_frameId++; }
+#elif WITH_RIVE_TOOLS
+    static void incFrameId() { sm_frameId++; }
 #endif
     void updateDataBinds(bool applyTargetToSource = true) override;
     void host(ArtboardHost* artboardHost);

@@ -213,6 +213,21 @@ void ScriptedObject::scriptUpdate()
 bool ScriptedObject::scriptInit(LuaState* luaState)
 {
     auto state = luaState->state;
+
+    // Clean up old references if reinitializing
+    if (m_state != nullptr && (m_self != 0 || m_context != 0))
+    {
+        if (m_self != 0)
+        {
+            lua_unref(m_state->state, m_self);
+            m_self = 0;
+        }
+        if (m_context != 0)
+        {
+            lua_unref(m_state->state, m_context);
+            m_context = 0;
+        }
+    }
     for (auto prop : m_customProperties)
     {
         auto scriptInput = ScriptInput::from(prop);

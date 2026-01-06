@@ -252,11 +252,15 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 30;
     static constexpr const char* luaName = "PathData";
     static constexpr bool hasMetatable = true;
+    RenderPath* renderPath(lua_State* L);
 
 protected:
     rcp<RenderPath> m_renderPath;
 
     bool m_isRenderPathDirty = true;
+
+private:
+    uint64_t m_renderFrameId = 0;
 };
 
 class ScriptedPath : public ScriptedPathData
@@ -264,13 +268,9 @@ class ScriptedPath : public ScriptedPathData
 public:
     ScriptedPath() {}
     ScriptedPath(const RawPath* path) : ScriptedPathData(path) {}
-    RenderPath* renderPath(lua_State* L);
     static constexpr uint8_t luaTag = LUA_T_COUNT + 2;
     static constexpr const char* luaName = "Path";
     static constexpr bool hasMetatable = true;
-
-private:
-    uint64_t m_renderFrameId = 0;
 };
 
 class ScriptedGradient
@@ -423,7 +423,7 @@ public:
     void save(lua_State* L);
     void restore(lua_State* L);
     void transform(lua_State* L, const Mat2D& mat2d);
-    void clipPath(lua_State* L, ScriptedPath* path);
+    void clipPath(lua_State* L, ScriptedPathData* path);
     Renderer* validate(lua_State* L);
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 9;

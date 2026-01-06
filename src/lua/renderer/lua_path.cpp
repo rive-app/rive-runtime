@@ -11,7 +11,7 @@
 
 using namespace rive;
 
-RenderPath* ScriptedPath::renderPath(lua_State* L)
+RenderPath* ScriptedPathData::renderPath(lua_State* L)
 {
     if (m_isRenderPathDirty)
     {

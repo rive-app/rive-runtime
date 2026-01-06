@@ -59,7 +59,8 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
             }
             else
             {
-                auto scriptedPath = (ScriptedPath*)lua_touserdata(state, -1);
+                auto scriptedPath =
+                    (ScriptedPathData*)lua_touserdata(state, -1);
                 auto rawPath = path->mutableRawPath();
                 rawPath->addPath(scriptedPath->rawPath);
             }

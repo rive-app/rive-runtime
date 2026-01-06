@@ -57,7 +57,7 @@ void ScriptedRenderer::transform(lua_State* L, const Mat2D& mat2d)
     m_renderer->transform(mat2d);
 }
 
-void ScriptedRenderer::clipPath(lua_State* L, ScriptedPath* path)
+void ScriptedRenderer::clipPath(lua_State* L, ScriptedPathData* path)
 {
     validate(L);
     m_renderer->clipPath(path->renderPath(L));
