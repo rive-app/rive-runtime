@@ -174,3 +174,8 @@ newoption({
     trigger = 'with_rive_layout',
     description = 'Compiles in layout features.',
 })
+
+newoption({
+    trigger = 'with_rive_docs',
+    description = 'Indicates building for use with the docs generator.',
+})

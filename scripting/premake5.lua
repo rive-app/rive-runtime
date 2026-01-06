@@ -38,25 +38,33 @@ end
 
 project('luau_compiler')
 do
-    kind('StaticLib')
-    exceptionhandling('On')
-
-    includedirs({
-        luau .. '/Compiler/include',
-        luau .. '/Ast/include',
-        luau .. '/Common/include',
+    kind('None')
+    
+    filter({ 
+        'options:with_rive_tools or options:with_rive_docs', 
+        'options:not flutter_runtime or options:with_rive_docs' 
     })
-
-    files({
-        luau .. '/Compiler/src/**.cpp',
-        luau .. '/Ast/src/**.cpp',
-        luau .. '/Common/src/**.cpp',
-    })
-    defines({ 'RIVE_LUAU' })
-    optimize('Size')
-    filter({ 'options:with-asan' })
     do
-        defines({ 'LUAU_ENABLE_ASAN' })
+        kind('StaticLib')
+        exceptionhandling('On')
+
+        includedirs({
+            luau .. '/Compiler/include',
+            luau .. '/Ast/include',
+            luau .. '/Common/include',
+        })
+
+        files({
+            luau .. '/Compiler/src/**.cpp',
+            luau .. '/Ast/src/**.cpp',
+            luau .. '/Common/src/**.cpp',
+        })
+        defines({ 'RIVE_LUAU' })
+        optimize('Size')
+        filter({ 'options:with-asan' })
+        do
+            defines({ 'LUAU_ENABLE_ASAN' })
+        end
     end
 end
 
