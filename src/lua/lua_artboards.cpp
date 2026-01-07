@@ -219,10 +219,12 @@ int ScriptedArtboard::pushData(lua_State* L)
 
 int ScriptedArtboard::instance(lua_State* L)
 {
+    auto artboardInstance = artboard()->instance();
+    artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
                                   m_scriptReffedArtboard->file(),
-                                  artboard()->instance());
+                                  std::move(artboardInstance));
     return 1;
 }
 

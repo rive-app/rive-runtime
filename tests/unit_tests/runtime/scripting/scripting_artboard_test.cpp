@@ -311,3 +311,30 @@ TEST_CASE("script instances Artboard input", "[silver]")
 
     CHECK(silver.matches("script_artboards"));
 }
+
+TEST_CASE("script instances Artboard input with proper origin", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_artboard_origin_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("Artboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_artboards_origin"));
+}

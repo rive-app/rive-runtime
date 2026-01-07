@@ -39,10 +39,12 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
 
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
+    auto artboardInstance = artboard->instance();
+    artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(state,
                                   state,
                                   ref_rcp(scriptAsset()->file()),
-                                  artboard->instance());
+                                  std::move(artboardInstance));
     lua_setfield(state, -2, name.c_str());
     rive_lua_pop(state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
