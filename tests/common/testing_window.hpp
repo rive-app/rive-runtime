@@ -180,6 +180,8 @@ public:
         bool forceMSAA = false;
         bool disableRasterOrdering = false;
         bool wireframe = false;
+        bool fillsDisabled = false;
+        bool strokesDisabled = false;
         bool clockwiseFillOverride = false;
 #ifdef WITH_RIVE_TOOLS
         rive::gpu::SynthesizedFailureType synthesizedFailureType =

@@ -91,6 +91,8 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                 .disableRasterOrdering =
                     m_backendParams.atomic || options.disableRasterOrdering,
                 .wireframe = options.wireframe,
+                .fillsDisabled = options.fillsDisabled,
+                .strokesDisabled = options.strokesDisabled,
                 .clockwiseFillOverride =
                     m_backendParams.clockwise || options.clockwiseFillOverride,
                 .synthesizedFailureType = options.synthesizedFailureType,

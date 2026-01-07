@@ -413,6 +413,8 @@ public:
                 std::max(m_msaaSampleCount, options.forceMSAA ? 4u : 0u),
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
+            .fillsDisabled = options.fillsDisabled,
+            .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride =
                 m_backendParams.clockwise || options.clockwiseFillOverride,
 #ifdef WITH_RIVE_TOOLS

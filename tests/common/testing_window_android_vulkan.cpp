@@ -200,6 +200,8 @@ public:
             .msaaSampleCount = m_backendParams.msaa ? 4u : 0u,
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
+            .fillsDisabled = options.fillsDisabled,
+            .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride =
                 m_backendParams.clockwise || options.clockwiseFillOverride,
             .synthesizedFailureType = options.synthesizedFailureType,
