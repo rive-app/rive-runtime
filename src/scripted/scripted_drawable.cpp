@@ -136,6 +136,7 @@ void ScriptedDrawable::update(ComponentDirt value)
     if ((value & ComponentDirt::ScriptUpdate) == ComponentDirt::ScriptUpdate)
     {
         scriptUpdate();
+        m_isAdvanceActive = true;
     }
 }
 
@@ -159,11 +160,22 @@ bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
+    if (!m_isAdvanceActive)
+    {
+        return false;
+    }
+    m_isAdvanceActive = false;
     if ((flags & AdvanceFlags::AdvanceNested) == 0)
     {
         elapsedSeconds = 0;
     }
-    return scriptAdvance(elapsedSeconds);
+    auto advanced = scriptAdvance(elapsedSeconds);
+    if (advanced)
+    {
+        m_isAdvanceActive = true;
+        addScriptedDirt(ComponentDirt::Paint);
+    }
+    return advanced;
 }
 
 bool ScriptedDrawable::addScriptedDirt(ComponentDirt value, bool recurse)

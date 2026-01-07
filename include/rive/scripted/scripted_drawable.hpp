@@ -60,6 +60,9 @@ public:
     void markNeedsUpdate() override;
     bool willDraw() override;
     Component* component() override { return this; }
+
+private:
+    bool m_isAdvanceActive = true;
 };
 
 class HitScriptedDrawable : public HitComponent
