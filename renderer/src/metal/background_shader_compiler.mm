@@ -12,7 +12,7 @@
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
+#include "generated/shaders/draw_mesh.frag.hpp"
 
 #ifndef RIVE_IOS
 // iOS doesn't need the atomic shaders; every non-simulated iOS device supports
@@ -233,16 +233,12 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::atlasBlit:
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
-                    [source
-                        appendFormat:@"%s\n",
-                                     gpu::glsl::draw_raster_order_mesh_frag];
+                    [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
                     break;
                 case DrawType::imageMesh:
                     [source
                         appendFormat:@"%s\n", gpu::glsl::draw_image_mesh_vert];
-                    [source
-                        appendFormat:@"%s\n",
-                                     gpu::glsl::draw_raster_order_mesh_frag];
+                    [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
                     break;
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:

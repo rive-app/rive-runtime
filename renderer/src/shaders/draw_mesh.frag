@@ -4,13 +4,20 @@
 
 #ifdef @FRAGMENT
 
-#if defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@ENABLE_CLIPPING)
+// This is a basic fragment shader for non-msaa, non-path objects, e.g., image
+// meshes, atlas blits.
+// These objects are simple in that they can write their fragments out directly,
+// without having to cooperate with overlapping fragments to work out coverage.
+
+#if (defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@ENABLE_CLIPPING)) ||   \
+    defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
 // @FIXED_FUNCTION_COLOR_OUTPUT without clipping can skip the interlock.
 #undef NEEDS_INTERLOCK
 #else
 #define NEEDS_INTERLOCK
 #endif
 
+#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
 PLS_BLOCK_BEGIN
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
@@ -21,6 +28,7 @@ PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
 #endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageBuffer);
 PLS_BLOCK_END
+#endif // !@RENDER_MODE_CLOCKWISE_ATOMIC
 
 // ATLAS_BLIT includes draw_path_common.glsl, which declares the textures &
 // samplers, so we only need to declare these for image meshes.
@@ -97,7 +105,7 @@ PLS_MAIN(@drawFragmentMain)
     PLS_INTERLOCK_BEGIN;
 #endif
 
-#ifdef @ENABLE_CLIPPING
+#if defined(@ENABLE_CLIPPING) && !defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
     if (@ENABLE_CLIPPING && v_clipID != .0)
     {
         half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
@@ -114,7 +122,8 @@ PLS_MAIN(@drawFragmentMain)
     coverage *= imageDrawUniforms.opacity;
 #endif
 
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+#if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) &&                                  \
+    !defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
@@ -162,10 +171,12 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
     PLS_STORE4F(colorBuffer, dstColorPremul * (1. - color.a) + color);
-#endif // !@FIXED_FUNCTION_COLOR_OUTPUT
+#endif // !@FIXED_FUNCTION_COLOR_OUTPUT && !@RENDER_MODE_CLOCKWISE_ATOMIC
 
+#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
     PLS_PRESERVE_UI(clipBuffer);
     PLS_PRESERVE_UI(coverageBuffer);
+#endif
 #ifdef NEEDS_INTERLOCK
     PLS_INTERLOCK_END;
 #endif

@@ -71,7 +71,6 @@ static VkBlendOp vk_blend_op(gpu::BlendEquation equation)
     {
         case gpu::BlendEquation::none:
         case gpu::BlendEquation::srcOver:
-            return VK_BLEND_OP_ADD;
         case gpu::BlendEquation::plus:
             return VK_BLEND_OP_ADD;
         case gpu::BlendEquation::max:
@@ -357,7 +356,12 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         {
             // Forward coverage clockwise draws are all unmultiplied src-over.
             blendEquation = gpu::BlendEquation::srcOver;
-            blendEquationPremultiplied = false;
+            // FIXME: clockwiseAtomic paths should be updated to use
+            // premultiplied alpha.
+            const bool isClockwiseAtomicPathDraw =
+                !gpu::DrawTypeIsImageDraw(props.drawType) &&
+                props.drawType != gpu::DrawType::atlasBlit;
+            blendEquationPremultiplied = !isClockwiseAtomicPathDraw;
         }
     }
 

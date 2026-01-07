@@ -126,9 +126,11 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_atomic_interior_triangles.vert.spirv",
         riveSpirvPath / "draw_clockwise_atomic_interior_triangles.frag.spirv",
         riveSpirvPath / "draw_clockwise_atomic_atlas_blit.vert.spirv",
-        riveSpirvPath / "draw_clockwise_atomic_atlas_blit.frag.spirv",
+        riveSpirvPath /
+            "draw_clockwise_atomic_atlas_blit.fixedcolor_frag.spirv",
         riveSpirvPath / "draw_clockwise_atomic_image_mesh.vert.spirv",
-        riveSpirvPath / "draw_clockwise_atomic_image_mesh.frag.spirv",
+        riveSpirvPath /
+            "draw_clockwise_atomic_image_mesh.fixedcolor_frag.spirv",
 
         riveSpirvPath / "draw_msaa_path.vert.spirv",
         riveSpirvPath / "draw_msaa_path.noclipdistance_vert.spirv",

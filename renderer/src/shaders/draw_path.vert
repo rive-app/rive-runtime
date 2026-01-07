@@ -5,7 +5,12 @@
 // undef GENERATE_PREMULTIPLIED_PAINT_COLORS first because this file gets
 // included multiple times with different defines in the Metal library.
 #undef GENERATE_PREMULTIPLIED_PAINT_COLORS
-#ifdef @ENABLE_ADVANCED_BLEND
+
+#ifdef @NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
+// The specific fragment shader we're being compiled for expects un-multiplied
+// paint colors all the time.
+#define GENERATE_PREMULTIPLIED_PAINT_COLORS false
+#elif defined(@ENABLE_ADVANCED_BLEND)
 // If advanced blend is enabled, we generate unmultiplied paint colors in the
 // shader. Otherwise we would have to just turn around and unmultiply them in
 // order to run the blend equation.
@@ -65,6 +70,12 @@ NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
 #ifdef @ENABLE_ADVANCED_BLEND
 @OPTIONALLY_FLAT VARYING(6, half, v_blendMode);
 #endif
+
+#ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
+FLAT VARYING(7, uint2, v_coveragePlacement);
+VARYING(8, float2, v_coverageCoord);
+#endif
+
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -102,6 +113,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_INIT(v_blendMode, half);
+#endif
+#ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
+    VARYING_INIT(v_coveragePlacement, uint2);
+    VARYING_INIT(v_coverageCoord, float2);
 #endif
 
     bool shouldDiscardVertex = false;
@@ -308,6 +323,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 #ifdef @RENDER_MODE_MSAA
         pos.z = normalize_z_index(pathZIndex);
+#elif defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
+        uint4 coverageData =
+            STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
+        v_coveragePlacement = coverageData.xy;
+        v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
 #endif
     }
     else
@@ -342,6 +362,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_PACK(v_blendMode);
+#endif
+#ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
+    VARYING_PACK(v_coveragePlacement);
+    VARYING_PACK(v_coverageCoord);
 #endif
     EMIT_VERTEX(pos);
 }

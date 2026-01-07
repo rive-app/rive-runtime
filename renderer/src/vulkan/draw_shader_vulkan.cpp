@@ -239,12 +239,14 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
 
                 case DrawType::atlasBlit:
                     vertCode = spirv::draw_clockwise_atomic_atlas_blit_vert;
-                    fragCode = spirv::draw_clockwise_atomic_atlas_blit_frag;
+                    fragCode =
+                        spirv::draw_clockwise_atomic_atlas_blit_fixedcolor_frag;
                     break;
 
                 case DrawType::imageMesh:
                     vertCode = spirv::draw_clockwise_atomic_image_mesh_vert;
-                    fragCode = spirv::draw_clockwise_atomic_image_mesh_frag;
+                    fragCode =
+                        spirv::draw_clockwise_atomic_image_mesh_fixedcolor_frag;
                     break;
 
                 case DrawType::imageRect:

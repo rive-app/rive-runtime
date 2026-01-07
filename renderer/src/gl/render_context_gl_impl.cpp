@@ -22,7 +22,7 @@
 #include "generated/shaders/draw_clockwise_path.frag.hpp"
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
+#include "generated/shaders/draw_mesh.frag.hpp"
 #include "generated/shaders/draw_msaa_object.frag.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
@@ -1207,11 +1207,11 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::atlasBlit:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_raster_order_mesh_frag);
+                    sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
                 case gpu::DrawType::imageMesh:
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
-                    sources.push_back(gpu::glsl::draw_raster_order_mesh_frag);
+                    sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
                 case gpu::DrawType::imageRect:
                 case gpu::DrawType::msaaStrokes:

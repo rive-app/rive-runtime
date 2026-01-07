@@ -170,6 +170,8 @@ SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/draw_clockwise_interior_triangles_clip.main \
     spirv/draw_clockwise_atlas_blit.main \
     spirv/draw_clockwise_image_mesh.main \
+    spirv/draw_clockwise_atomic_atlas_blit.main \
+    spirv/draw_clockwise_atomic_image_mesh.main \
     spirv/draw_msaa_atlas_blit.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_path.main \
@@ -188,8 +190,9 @@ spirv_out_filename_no_ext = $(OUT)/$(call spirv_typed_filename,$1,$2)
 spirv_type = $(lastword $(subst _, ,$2))
 spirv_is_vert = $(findstring vert,$(spirv_type))
 spirv_is_webgpu = $(findstring webgpu,$2)
-spirv_is_atomic = $(findstring atomic,$1)
-spirv_is_clockwise = $(findstring clockwise,$1)
+spirv_is_not_clockwise_atomic = $(ifeq $(findstring clockwise_atomic,$1),)
+spirv_is_atomic = $(and $(findstring atomic,$1),spirv_is_not_clockwise_atomic)
+spirv_is_clockwise = $(and $(findstring clockwise,$1),spirv_is_not_clockwise_atomic)
 
 ## SPIR-V Optimizer settings
 

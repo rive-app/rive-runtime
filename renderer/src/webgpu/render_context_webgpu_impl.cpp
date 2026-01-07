@@ -232,7 +232,7 @@ static wgpu::ShaderModule compile_shader_module_spirv(wgpu::Device device,
 #include "generated/shaders/draw_clockwise_path.frag.hpp"
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
+#include "generated/shaders/draw_mesh.frag.hpp"
 
 // When compiling "glslRaw" shaders, the WebGPU driver will automatically search
 // for a uniform with this name and update its value when draw commands have a
@@ -1054,11 +1054,11 @@ public:
                 case DrawType::atlasBlit:
                     glsl << gpu::glsl::draw_path_common << '\n';
                     glsl << gpu::glsl::draw_path_vert << '\n';
-                    glsl << gpu::glsl::draw_raster_order_mesh_frag << '\n';
+                    glsl << gpu::glsl::draw_mesh_frag << '\n';
                     break;
                 case DrawType::imageMesh:
                     glsl << gpu::glsl::draw_image_mesh_vert << '\n';
-                    glsl << gpu::glsl::draw_raster_order_mesh_frag << '\n';
+                    glsl << gpu::glsl::draw_mesh_frag << '\n';
                     break;
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:

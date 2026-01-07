@@ -2,138 +2,8 @@
  * Copyright 2023 Rive
  */
 
-#ifdef @DRAW_PATH
-#ifdef @VERTEX
-ATTR_BLOCK_BEGIN(Attrs)
-// [localVertexID, outset, fillCoverage, vertexType]
-ATTR(0, float4, @a_patchVertexData);
-ATTR(1, float4, @a_mirroredVertexData);
-ATTR_BLOCK_END
-#endif
-
-VARYING_BLOCK_BEGIN
-FLAT VARYING(0, ushort, v_pathID);
-NO_PERSPECTIVE VARYING(1, float4, v_coverages);
-NO_PERSPECTIVE VARYING(2, float2, v_atlasCoord);
-FLAT VARYING(3, uint2, v_coveragePlacement);
-VARYING(4, float2, v_coverageCoord);
-VARYING_BLOCK_END
-
-#ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
-{
-    ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
-    ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
-
-    VARYING_INIT(v_pathID, ushort);
-    VARYING_INIT(v_coverages, float4);
-    VARYING_INIT(v_coveragePlacement, uint2);
-    VARYING_INIT(v_coverageCoord, float2);
-
-    float4 pos;
-    uint pathID;
-    float2 vertexPosition;
-    if (unpack_tessellated_path_vertex(@a_patchVertexData,
-                                       @a_mirroredVertexData,
-                                       _instanceID,
-                                       pathID,
-                                       vertexPosition,
-                                       v_coverages VERTEX_CONTEXT_UNPACK))
-    {
-        uint4 coverageData =
-            STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
-        v_pathID = pathID;
-        v_coveragePlacement = coverageData.xy;
-        v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
-        pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
-    }
-    else
-    {
-        pos = float4(uniforms.vertexDiscardValue,
-                     uniforms.vertexDiscardValue,
-                     uniforms.vertexDiscardValue,
-                     uniforms.vertexDiscardValue);
-    }
-
-    VARYING_PACK(v_pathID);
-    VARYING_PACK(v_coverages);
-    VARYING_PACK(v_coveragePlacement);
-    VARYING_PACK(v_coverageCoord);
-    EMIT_VERTEX(pos);
-}
-#endif // VERTEX
-#endif // DRAW_PATH
-
-#ifdef @DRAW_INTERIOR_TRIANGLES
-#ifdef @VERTEX
-ATTR_BLOCK_BEGIN(Attrs)
-ATTR(0, packed_float3, @a_triangleVertex);
-ATTR_BLOCK_END
-#endif
-
-VARYING_BLOCK_BEGIN
-FLAT VARYING(0, ushort, v_pathID);
-#ifdef @ATLAS_BLIT
-NO_PERSPECTIVE VARYING(1, float2, v_atlasCoord);
-#else
-@OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
-FLAT VARYING(2, uint2, v_coveragePlacement);
-VARYING(3, float2, v_coverageCoord);
-#endif
-VARYING_BLOCK_END
-
-#ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
-{
-    ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
-
-#ifdef @ATLAS_BLIT
-    VARYING_INIT(v_atlasCoord, float2);
-#else
-#endif
-    VARYING_INIT(v_pathID, ushort);
-#ifdef @ATLAS_BLIT
-    VARYING_INIT(v_atlasCoord, float2);
-#else
-    VARYING_INIT(v_windingWeight, half);
-    VARYING_INIT(v_coveragePlacement, uint2);
-    VARYING_INIT(v_coverageCoord, float2);
-#endif
-
-    uint pathID;
-    float2 vertexPosition;
-#ifdef @ATLAS_BLIT
-    vertexPosition =
-        unpack_atlas_coverage_vertex(@a_triangleVertex,
-                                     pathID,
-                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
-#else
-    vertexPosition =
-        unpack_interior_triangle_vertex(@a_triangleVertex,
-                                        pathID,
-                                        v_windingWeight VERTEX_CONTEXT_UNPACK);
-    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
-    v_coveragePlacement = coverageData.xy;
-    v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
-#endif
-    v_pathID = cast_uint_to_ushort(pathID);
-    float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
-
-    VARYING_PACK(v_pathID);
-#ifdef @ATLAS_BLIT
-    VARYING_PACK(v_atlasCoord);
-#else
-    VARYING_PACK(v_windingWeight);
-    VARYING_PACK(v_coveragePlacement);
-    VARYING_PACK(v_coverageCoord);
-#endif
-
-    EMIT_VERTEX(pos);
-}
-#endif // VERTEX
-#endif // DRAW_INTERIOR_TRIANGLES
-
 #ifdef @FRAGMENT
+
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
@@ -304,59 +174,31 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
-    VARYING_UNPACK(v_pathID, ushort);
-#ifdef DRAW_PATH
-    VARYING_UNPACK(v_coverages, float4);
-#elif defined(@ATLAS_BLIT)
-    VARYING_UNPACK(v_atlasCoord, float2);
+    VARYING_UNPACK(v_paint, float4);
+#ifdef @DRAW_INTERIOR_TRIANGLES
+    VARYING_INIT(v_windingWeight, half);
 #else
-    VARYING_UNPACK(v_windingWeight, half);
+    VARYING_INIT(v_coverages, COVERAGE_TYPE);
+#endif //@DRAW_INTERIOR_TRIANGLES
+    VARYING_UNPACK(v_pathID, half);
+#ifdef @ENABLE_CLIPPING
+    VARYING_UNPACK(v_clipIDs, half2);
 #endif
-#ifndef @ATLAS_BLIT
+#ifdef @ENABLE_CLIP_RECT
+    VARYING_UNPACK(v_clipRect, float4);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_blendMode, half);
+#endif
     VARYING_UNPACK(v_coveragePlacement, uint2);
     VARYING_UNPACK(v_coverageCoord, float2);
-#endif
 
     half4 paintColor;
-    uint pathID = v_pathID;
-    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
-    uint paintType = paintData.x & 0xfu;
-    if (paintType <= SOLID_COLOR_PAINT_TYPE) // CLIP_UPDATE_PAINT_TYPE or
-                                             // SOLID_COLOR_PAINT_TYPE
+#if defined(@DRAW_INTERIOR_TRIANGLES) && defined(@BORROWED_COVERAGE_PASS)
+    if (!@BORROWED_COVERAGE_PASS)
+#endif
     {
-        paintColor = unpackUnorm4x8(paintData.y);
-    }
-    else // LINEAR_GRADIENT_PAINT_TYPE,
-         // RADIAL_GRADIENT_PAINT_TYPE, or
-         // IMAGE_PAINT_TYPE
-    {
-        float2x2 M =
-            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
-        float4 translate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
-        float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
-        if (paintType != IMAGE_PAINT_TYPE)
-        {
-            float t = paintType == LINEAR_GRADIENT_PAINT_TYPE
-                          ? /*linear*/ paintCoord.x
-                          : /*radial*/ length(paintCoord);
-            t = clamp(t, .0, 1.);
-            float x = t * translate.z + translate.w;
-            float y = uintBitsToFloat(paintData.y);
-            paintColor =
-                TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0);
-        }
-        else
-        {
-            float opacity = uintBitsToFloat(paintData.y);
-            float lod = translate.z;
-            paintColor = TEXTURE_SAMPLE_LOD(@imageTexture,
-                                            imageSampler,
-                                            paintCoord,
-                                            lod);
-            paintColor =
-                make_half4(unmultiply_rgb(paintColor), paintColor.a * opacity);
-        }
+        paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
     }
 
     if (paintColor.a == .0)
@@ -364,11 +206,13 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         discard;
     }
 
-#ifdef @ATLAS_BLIT
-    paintColor.a *= filter_feather_atlas(
-        v_atlasCoord,
-        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+    half fragCoverage =
+#ifdef @DRAW_INTERIOR_TRIANGLES
+        v_windingWeight;
 #else
+        find_frag_coverage(v_coverages);
+#endif
+
     // Swizzle the coverage buffer in a tiled format, starting with 32x32
     // row-major tiles.
     uint coverageIndex = v_coveragePlacement.x;
@@ -385,24 +229,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @BORROWED_COVERAGE_PASS
     if (@BORROWED_COVERAGE_PASS)
     {
-#ifdef @DRAW_INTERIOR_TRIANGLES
-        half borrowedCoverage = -v_windingWeight;
-#else
-        half fragCoverage;
-#ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
-        {
-            fragCoverage =
-                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
-        }
-        else
-#endif
-        {
-            fragCoverage = v_coverages.x;
-        }
-        half borrowedCoverage = max(-fragCoverage, .0);
-#endif
-        apply_borrowed_coverage(borrowedCoverage, coverageIndex);
+        apply_borrowed_coverage(-fragCoverage, coverageIndex);
         discard;
     }
 #endif // BORROWED_COVERAGE_PASS
@@ -410,45 +237,16 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))
     {
-        half fragCoverage;
-#ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
-        {
-            fragCoverage =
-                eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
-        }
-        else
-#endif
-        {
-            fragCoverage = min(v_coverages.x, v_coverages.y);
-        }
         fragCoverage = clamp(fragCoverage, .0, 1.);
         apply_stroke_coverage(paintColor.a, fragCoverage, coverageIndex);
     }
     else // It's a fill.
-#endif // !DRAW_INTERIOR_TRIANGLES
+#endif   // !DRAW_INTERIOR_TRIANGLES
     {
-#ifdef @DRAW_INTERIOR_TRIANGLES
-        half fragCoverage = v_windingWeight;
-#else
-        half fragCoverage;
-#ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
-        {
-            fragCoverage =
-                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
-        }
-        else
-#endif
-        {
-            fragCoverage = v_coverages.x;
-        }
-        fragCoverage = clamp(fragCoverage, .0, 1.);
-#endif
         apply_fill_coverage(paintColor.a, fragCoverage, coverageIndex);
     }
-#endif // @ATLAS_BLIT
 
     EMIT_FRAG_DATA(paintColor);
 }
+
 #endif // FRAGMENT

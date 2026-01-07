@@ -13,7 +13,7 @@
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_raster_order_mesh.frag.hpp"
+#include "generated/shaders/draw_mesh.frag.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
@@ -131,11 +131,11 @@ static std::string build_shader(DrawType drawType,
             case DrawType::atlasBlit:
                 s << glsl::draw_path_common << '\n';
                 s << glsl::draw_path_vert << '\n';
-                s << glsl::draw_raster_order_mesh_frag << '\n';
+                s << glsl::draw_mesh_frag << '\n';
                 break;
             case DrawType::imageMesh:
                 s << glsl::draw_image_mesh_vert << '\n';
-                s << glsl::draw_raster_order_mesh_frag << '\n';
+                s << glsl::draw_mesh_frag << '\n';
                 break;
             case DrawType::imageRect:
             case DrawType::renderPassResolve:
