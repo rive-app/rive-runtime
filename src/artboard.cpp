@@ -1913,6 +1913,18 @@ bool Artboard::isAncestor(const Artboard* artboard)
     return false;
 }
 
+void Artboard::changed()
+{
+    if (!m_didChange)
+    {
+        m_didChange = true;
+        if (parentArtboard())
+        {
+            parentArtboard()->changed();
+        }
+    }
+}
+
 ////////// ArtboardInstance
 
 #include "rive/animation/linear_animation_instance.hpp"

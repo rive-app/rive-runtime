@@ -241,6 +241,7 @@ public:
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);
 
+    void changed();
 #ifdef TESTING
     ShapePaintPath* clipPath() { return &m_worldPath; }
     ShapePaintPath* backgroundPath() { return &m_localPath; }
