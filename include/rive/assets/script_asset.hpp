@@ -58,6 +58,8 @@ private:
     static const int m_wantsPointerCancelBit = 1 << 7;
     static const int m_drawsBit = 1 << 8;
     static const int m_initsBit = 1 << 9;
+    static const int m_dataConvertsBit = 1 << 10;
+    static const int m_dataReverseConvertsBit = 1 << 11;
 
     int m_implementedMethods = 0;
 
@@ -104,6 +106,14 @@ public:
     }
     bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
     bool inits() { return (m_implementedMethods & m_initsBit) != 0; }
+    bool dataConverts()
+    {
+        return (m_implementedMethods & m_dataConvertsBit) != 0;
+    }
+    bool dataReverseConverts()
+    {
+        return (m_implementedMethods & m_dataReverseConvertsBit) != 0;
+    }
 };
 
 class ModuleDetails

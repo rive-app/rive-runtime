@@ -142,6 +142,21 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
         }
         rive_lua_pop(state, 1);
     }
+    else if (scriptProtocol == ScriptProtocol::converter)
+    {
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "convert")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_dataConvertsBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "reverseConvert")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_dataReverseConvertsBit;
+        }
+        rive_lua_pop(state, 1);
+    }
     rive_lua_pop(state, 1);
     return true;
 }

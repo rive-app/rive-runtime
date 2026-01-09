@@ -35,6 +35,7 @@ private:
     virtual void disposeScriptInputs() override;
 #ifdef WITH_RIVE_SCRIPTING
     DataValue* applyConversion(DataValue* value, const std::string& method);
+    bool pushDataValue(DataValue*);
 #endif
 
 public:

@@ -48,6 +48,45 @@ bool ScriptedDataConverter::scriptInit(LuaState* state)
     return true;
 }
 
+bool ScriptedDataConverter::pushDataValue(DataValue* value)
+{
+    auto state = m_state->state;
+    // Stack: [self, field, self]
+    if (value->is<DataValueNumber>())
+    {
+        lua_newrive<ScriptedDataValueNumber>(
+            state,
+            state,
+            value->as<DataValueNumber>()->value());
+    }
+    else if (value->is<DataValueString>())
+    {
+        lua_newrive<ScriptedDataValueString>(
+            state,
+            state,
+            value->as<DataValueString>()->value());
+    }
+    else if (value->is<DataValueBoolean>())
+    {
+        lua_newrive<ScriptedDataValueBoolean>(
+            state,
+            state,
+            value->as<DataValueBoolean>()->value());
+    }
+    else if (value->is<DataValueColor>())
+    {
+        lua_newrive<ScriptedDataValueColor>(
+            state,
+            state,
+            value->as<DataValueColor>()->value());
+    }
+    else
+    {
+        return false;
+    }
+    return true;
+}
+
 DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
                                                   const std::string& method)
 {
@@ -59,50 +98,13 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
     // Stack: []
     rive_lua_pushRef(state, m_self);
     // Stack: [self]
-    if (static_cast<lua_Type>(lua_getfield(state, -1, method.c_str())) !=
-        LUA_TFUNCTION)
+    lua_getfield(state, -1, method.c_str());
+
+    // Stack: [self, field]
+    lua_pushvalue(state, -2);
+    // Stack: [self, field, self]
+    if (pushDataValue(value))
     {
-        fprintf(stderr, "expected %s to be a function\n", method.c_str());
-    }
-    else
-    {
-        // Stack: [self, field]
-        if (value->is<DataValueNumber>())
-        {
-            lua_pushvalue(state, -2);
-            // Stack: [self, field, self]
-            lua_newrive<ScriptedDataValueNumber>(
-                state,
-                state,
-                value->as<DataValueNumber>()->value());
-        }
-        else if (value->is<DataValueString>())
-        {
-            lua_pushvalue(state, -2);
-            // Stack: [self, field, self]
-            lua_newrive<ScriptedDataValueString>(
-                state,
-                state,
-                value->as<DataValueString>()->value());
-        }
-        else if (value->is<DataValueBoolean>())
-        {
-            lua_pushvalue(state, -2);
-            // Stack: [self, field, self]
-            lua_newrive<ScriptedDataValueBoolean>(
-                state,
-                state,
-                value->as<DataValueBoolean>()->value());
-        }
-        else if (value->is<DataValueColor>())
-        {
-            lua_pushvalue(state, -2);
-            // Stack: [self, field, self]
-            lua_newrive<ScriptedDataValueColor>(
-                state,
-                state,
-                value->as<DataValueColor>()->value());
-        }
         // Stack: [self, field, self, ScriptedData]
         if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 1)) == LUA_OK)
         {
@@ -127,6 +129,11 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
         // Stack: [self, status] or [self, result]
         rive_lua_pop(state, 2);
     }
+    else
+    {
+        // Stack: [self, field, self]
+        rive_lua_pop(state, 3);
+    }
     if (!m_dataValue)
     {
         m_dataValue = new DataValue();
@@ -136,13 +143,21 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
 
 DataValue* ScriptedDataConverter::convert(DataValue* value, DataBind* dataBind)
 {
-    return applyConversion(value, "convert");
+    if (dataConverts())
+    {
+        return applyConversion(value, "convert");
+    }
+    return value;
 }
 
 DataValue* ScriptedDataConverter::reverseConvert(DataValue* value,
                                                  DataBind* dataBind)
 {
-    return applyConversion(value, "reverseConvert");
+    if (dataReverseConverts())
+    {
+        return applyConversion(value, "reverseConvert");
+    }
+    return value;
 }
 #endif
 
