@@ -45,7 +45,9 @@ enum class DataType : unsigned int
     artboard = 12,
 
     /// Special case, this type is used to indicate it uses the input type.
-    input = 99
+    input = 99,
+
+    any = 100
 };
 } // namespace rive
 #endif

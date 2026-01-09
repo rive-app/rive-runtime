@@ -72,7 +72,9 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             drawTypeKey = 5;
             break;
         case DrawType::renderPassResolve:
-            assert(interlockMode == InterlockMode::atomics);
+            assert(interlockMode == InterlockMode::rasterOrdering ||
+                   interlockMode == InterlockMode::atomics ||
+                   interlockMode == InterlockMode::msaa);
             drawTypeKey = 6;
             break;
     }
@@ -819,6 +821,7 @@ static void get_depth_state(InterlockMode interlockMode,
             break;
 
         case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             pipelineState->depthTestEnabled = false;
             pipelineState->depthWriteEnabled = false;
             break;
@@ -826,7 +829,6 @@ static void get_depth_state(InterlockMode interlockMode,
         case DrawType::interiorTriangulation:
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
-        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
 }
@@ -1093,6 +1095,7 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
         }
 
         case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
         {
             pipelineState->stencilTestEnabled = false;
             pipelineState->stencilWriteMask = 0;
@@ -1103,11 +1106,11 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
 
-    assert(stencilKey != 0 || drawType == DrawType::renderPassInitialize);
+    assert(stencilKey != 0 || drawType == DrawType::renderPassInitialize ||
+           drawType == DrawType::renderPassResolve);
     assert(stencilKey < 1 << 4);
     if (effectiveDrawContents.hasActiveClip)
         stencilKey |= (1 << 4);
@@ -1187,7 +1190,8 @@ static BlendEquation get_blend_equation(
                 // When drawing an advanced blend mode, the shader only does the
                 // "color" portion of the blend equation, and relies on the
                 // hardware blend unit to finish the "alpha" portion.
-                assert(batch.drawType != DrawType::renderPassInitialize);
+                assert(batch.drawType != DrawType::renderPassInitialize &&
+                       batch.drawType != DrawType::renderPassResolve);
                 return BlendEquation::srcOver;
             }
             else
@@ -1195,7 +1199,8 @@ static BlendEquation get_blend_equation(
                 // When m_platformFeatures.supportsBlendAdvancedKHR is true in
                 // MSAA mode, the renderContext does not combine draws that have
                 // different blend modes.
-                assert(batch.drawType != DrawType::renderPassInitialize);
+                assert(batch.drawType != DrawType::renderPassInitialize &&
+                       batch.drawType != DrawType::renderPassResolve);
                 return static_cast<BlendEquation>(batch.firstBlendMode);
             }
     }
@@ -1269,7 +1274,9 @@ void get_pipeline_state(const DrawBatch& batch,
 
         case DrawType::imageRect:
         case DrawType::renderPassResolve:
-            assert(flushDesc.interlockMode == InterlockMode::atomics);
+            assert(flushDesc.interlockMode == InterlockMode::rasterOrdering ||
+                   flushDesc.interlockMode == InterlockMode::atomics ||
+                   flushDesc.interlockMode == InterlockMode::msaa);
             break;
 
         case DrawType::renderPassInitialize:

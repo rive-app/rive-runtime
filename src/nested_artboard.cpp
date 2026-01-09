@@ -6,6 +6,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/data_bind/data_bind_path.hpp"
 #include "rive/clip_result.hpp"
 #include <limits>
 #include <cassert>
@@ -157,23 +158,21 @@ static Mat2D makeTranslate(const Artboard* artboard)
 
 void NestedArtboard::draw(Renderer* renderer)
 {
-    if (m_Artboard == nullptr)
+    if (m_needsSaveOperation)
     {
-        return;
-    }
-    ClipResult clipResult = applyClip(renderer);
-    if (clipResult == ClipResult::noClip)
-    {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
         renderer->save();
     }
-    if (clipResult != ClipResult::emptyClip)
+    renderer->transform(worldTransform());
+    m_Artboard->drawInternal(renderer);
+    if (m_needsSaveOperation)
     {
-        renderer->transform(worldTransform());
-        m_Artboard->draw(renderer);
+        renderer->restore();
     }
-    renderer->restore();
+}
+
+bool NestedArtboard::willDraw()
+{
+    return Super::willDraw() && m_Artboard != nullptr;
 }
 
 Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
@@ -211,6 +210,7 @@ Vec2D NestedArtboard::hostTransformPoint(const Vec2D& vec,
 
 StatusCode NestedArtboard::import(ImportStack& importStack)
 {
+    importDataBindPath(importStack);
     auto backboardImporter =
         importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
@@ -380,18 +380,12 @@ void NestedArtboard::controlSize(Vec2D size,
 
 void NestedArtboard::decodeDataBindPathIds(Span<const uint8_t> value)
 {
-    BinaryReader reader(value);
-    while (!reader.reachedEnd())
-    {
-        auto val = reader.readVarUintAs<uint32_t>();
-        m_DataBindPathIdsBuffer.push_back(val);
-    }
+    decodeDataBindPath(value);
 }
 
 void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
 {
-    m_DataBindPathIdsBuffer =
-        object.as<NestedArtboard>()->m_DataBindPathIdsBuffer;
+    copyDataBindPath(object.as<NestedArtboard>()->dataBindPath());
 }
 
 void NestedArtboard::internalDataContext(DataContext* value)

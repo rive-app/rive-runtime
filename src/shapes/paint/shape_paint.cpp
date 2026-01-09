@@ -26,6 +26,26 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
+void ShapePaint::update(ComponentDirt value)
+{
+    Super::update(value);
+    auto shapeEffects = effects();
+    if (hasDirt(value, ComponentDirt::Path) && shapeEffects->size() > 0)
+    {
+        auto container = ShapePaintContainer::from(parent());
+        auto path = pickPath(container);
+        for (auto& effect : *shapeEffects)
+        {
+            effect->updateEffect(this, path, paintType());
+            auto newPath = effect->effectPath(this);
+            if (newPath)
+            {
+                path = newPath;
+            }
+        }
+    }
+}
+
 RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator)
 {
     assert(m_RenderPaint == nullptr);
@@ -58,12 +78,13 @@ void ShapePaint::draw(Renderer* renderer,
                       ShapePaintPath* shapePaintPath,
                       const Mat2D& transform,
                       bool usePathFillRule,
-                      RenderPaint* overridePaint)
+                      RenderPaint* overridePaint,
+                      bool needsSaveOperation)
 {
     RIVE_PROF_SCOPE()
 
     ShapePaintPath* pathToDraw = shapePaintPath;
-    bool saved = false;
+    bool saved = !needsSaveOperation;
     if (m_feather != nullptr)
     {
         bool offsetInArtboard = m_feather->space() == TransformSpace::world;
@@ -88,6 +109,12 @@ void ShapePaint::draw(Renderer* renderer,
             renderer->save();
         }
         renderer->transform(transform);
+    }
+
+    auto pathEffect = lastEffectPath(this);
+    if (pathEffect)
+    {
+        pathToDraw = pathEffect;
     }
 
     if (m_feather != nullptr)
@@ -139,8 +166,24 @@ void ShapePaint::draw(Renderer* renderer,
                                                     : renderPaint());
     }
 
-    if (saved)
+    if (saved && needsSaveOperation)
     {
         renderer->restore();
     }
+}
+
+void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
+{
+    EffectsContainer::invalidateEffects(invalidatingEffect);
+    invalidateRendering();
+}
+
+void ShapePaint::invalidateEffects() { invalidateEffects(nullptr); }
+
+void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path); }
+
+void ShapePaint::addStrokeEffect(StrokeEffect* effect)
+{
+    effect->addPathProvider(this);
+    EffectsContainer::addStrokeEffect(effect);
 }

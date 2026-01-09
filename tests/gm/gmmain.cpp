@@ -89,6 +89,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(lots_of_grad_spans)
     MAKE_GM(lots_of_grads_clipped)
     MAKE_GM(lots_of_grads_mixed)
+    MAKE_GM(lots_of_tess_spans_stroke)
     MAKE_GM(mesh)
     MAKE_GM(mesh_ht_7)
     MAKE_GM(mesh_ht_1)
@@ -204,23 +205,33 @@ static void dumpGMs(const std::string& match, bool interactive)
 
     for (const auto& [make_gm, name] : gmRegistry)
     {
-        std::unique_ptr<GM> gm(make_gm());
+        // Scope the GM so that it destructs (and releases its resources) before
+        // we call `onceAfterGM` which potentially tears down the entire display
+        // devices (see: TestingWindowAndroidVulkan)
+        {
+            std::unique_ptr<GM> gm(make_gm());
 
-        if (!gm)
-        {
-            continue;
-        }
-        if (match.size() && !contains(name, match))
-        {
-            continue; // This gm got filtered out by the '--match' argument.
-        }
-        if (!TestHarness::Instance().claimGMTest(name))
-        {
-            continue; // A different process already drew this gm.
-        }
-        gm->onceBeforeDraw();
+            if (!gm)
+            {
+                continue;
+            }
+            if (match.size() && !contains(name, match))
+            {
+                continue; // This gm got filtered out by the '--match' argument.
+            }
+            if (!TestHarness::Instance().claimGMTest(name))
+            {
+                continue; // A different process already drew this gm.
+            }
+            gm->onceBeforeDraw();
 
-        dump_gm(gm.get(), name);
+            dump_gm(gm.get(), name);
+        }
+
+        // Allow the testing window to do any cleanup it might want to do
+        // between GMs
+        TestingWindow::Get()->onceAfterGM();
+
         if (interactive)
         {
             // Wait for any key if in interactive mode.
@@ -347,6 +358,7 @@ int main(int argc, const char* argv[])
     TestingWindow::BackendParams backendParams;
     auto visibility = TestingWindow::Visibility::window;
     int pngThreads = 2;
+    bool wantVulkanSynchronizationValidation = false;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -354,6 +366,11 @@ int main(int argc, const char* argv[])
         {
             TestHarness::Instance().init(TCPClient::Connect(argv[++i]),
                                          pngThreads);
+            continue;
+        }
+        if (strcmp(argv[i], "--sync-validation") == 0)
+        {
+            wantVulkanSynchronizationValidation = true;
             continue;
         }
         if (is_arg(argv[i], "--output", "-o"))
@@ -407,6 +424,9 @@ int main(int argc, const char* argv[])
     }
 
     void* platformWindow = nullptr;
+    backendParams.wantVulkanSynchronizationValidation =
+        wantVulkanSynchronizationValidation;
+
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
     // Make sure the testing harness always gets initialized on Android so we
     // pipe stdout & stderr to the android log always get pngs.

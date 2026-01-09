@@ -8,6 +8,7 @@
 
 #include "rive/renderer/gpu.hpp"
 #include "rive/refcnt.hpp"
+#include "render_pass_vulkan.hpp"
 
 namespace rive::gpu
 {
@@ -18,32 +19,9 @@ class VulkanContext;
 class DrawPipelineLayoutVulkan
 {
 public:
-    // Rive-specific options for configuring a flush's VkPipelineLayout.
-    enum class Options
-    {
-        none = 0,
-
-        // No need to attach the COLOR texture as an input attachment. There are
-        // no advanced blend modes so we can use built-in hardware blending.
-        fixedFunctionColorOutput = 1 << 0,
-
-        // Atomic mode only: Use an offscreen texture to render color, but also
-        // attach the real target texture at the COALESCED_ATOMIC_RESOLVE index,
-        // and render to it directly in the atomic resolve step.
-        coalescedResolveAndTransfer = 1 << 1,
-
-        // MSAA only, while using LoadAction::preserveRenderTarget: We have to
-        // initialize the (transient) MSAA color attachment from an offscreen
-        // texture bound as an input attachment, because the final render target
-        // itself can't be bound as an input attachment.
-        msaaSeedFromOffscreenTexture = 1 << 2,
-    };
-
-    constexpr static int OPTION_COUNT = 3;
-
     DrawPipelineLayoutVulkan(PipelineManagerVulkan*,
                              gpu::InterlockMode,
-                             Options);
+                             RenderPassOptionsVulkan);
     ~DrawPipelineLayoutVulkan();
 
     DrawPipelineLayoutVulkan(const DrawPipelineLayoutVulkan&) = delete;
@@ -51,9 +29,13 @@ public:
         delete;
 
     gpu::InterlockMode interlockMode() const { return m_interlockMode; }
-    Options options() const { return m_options; }
+    RenderPassOptionsVulkan renderPassOptions() const
+    {
+        return m_renderPassOptions;
+    }
 
-    uint32_t colorAttachmentCount(uint32_t subpassIndex, Options) const;
+    uint32_t colorAttachmentCount(uint32_t subpassIndex,
+                                  RenderPassOptionsVulkan) const;
 
     VkDescriptorSetLayout plsLayout() const
     {
@@ -66,23 +48,9 @@ public:
 private:
     const rcp<VulkanContext> m_vk;
     const gpu::InterlockMode m_interlockMode;
-    const Options m_options;
+    const RenderPassOptionsVulkan m_renderPassOptions;
 
     VkDescriptorSetLayout m_plsTextureDescriptorSetLayout = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
 };
-
-// A VkPipelineLayout for each
-// interlockMode x [all DrawPipelineLayoutOptions permutations].
-constexpr static uint32_t DrawPipelineLayoutIdx(
-    gpu::InterlockMode interlockMode,
-    DrawPipelineLayoutVulkan::Options options)
-{
-    return (static_cast<int>(interlockMode)
-            << DrawPipelineLayoutVulkan::OPTION_COUNT) |
-           static_cast<int>(options);
-}
-
-RIVE_MAKE_ENUM_BITSET(DrawPipelineLayoutVulkan::Options);
-
 } // namespace rive::gpu

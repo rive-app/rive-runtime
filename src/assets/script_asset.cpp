@@ -1,7 +1,10 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "libhydrogen.h"
+#include "rive/importers/script_asset_importer.hpp"
 #endif
 #include "rive/assets/script_asset.hpp"
+#include "rive/bytecode_header.hpp"
 #include "rive/file.hpp"
 #include "rive/script_input_artboard.hpp"
 #include "rive/script_input_boolean.hpp"
@@ -40,7 +43,7 @@ ScriptInput* ScriptInput::from(Core* component)
 
 void ScriptInput::initScriptedValue() {}
 
-bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
+bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
                                                    LuaState* luaState)
 {
 #ifdef WITH_RIVE_SCRIPTING
@@ -60,7 +63,11 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
     }
     m_implementedMethods = 0;
 
-    if (scriptType == ScriptType::drawing || scriptType == ScriptType::layout)
+    auto scriptProtocol = object->scriptProtocol();
+    if (scriptProtocol == ScriptProtocol::node ||
+        scriptProtocol == ScriptProtocol::layout ||
+        scriptProtocol == ScriptProtocol::converter ||
+        scriptProtocol == ScriptProtocol::pathEffect)
     {
         if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
             LUA_TFUNCTION)
@@ -104,13 +111,34 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
             m_implementedMethods |= m_wantsPointerExitBit;
         }
         rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_initsBit;
+        }
+        rive_lua_pop(state, 1);
     }
-    if (scriptType == ScriptType::layout)
+    if (scriptProtocol == ScriptProtocol::layout)
     {
         if (static_cast<lua_Type>(lua_getfield(state, -1, "measure")) ==
             LUA_TFUNCTION)
         {
             m_implementedMethods |= m_measuresBit;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_drawsBit;
+        }
+        rive_lua_pop(state, 1);
+    }
+    else if (scriptProtocol == ScriptProtocol::node)
+    {
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_drawsBit;
         }
         rive_lua_pop(state, 1);
     }
@@ -120,6 +148,19 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptType scriptType,
     return false;
 #endif
 }
+
+#ifdef WITH_RIVE_SCRIPTING
+LuaState* ScriptAsset::vm()
+{
+    if (m_file == nullptr)
+    {
+        return nullptr;
+    }
+    // We get the scripting VM from File for now, however,
+    // this will need to change if/when we support multiple VMs
+    return m_file->scriptingVM();
+}
+#endif
 
 bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 {
@@ -134,26 +175,47 @@ bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 #endif
 }
 
+#if defined(WITH_RIVE_SCRIPTING)
+void ScriptAsset::registrationComplete(int ref)
+{
+    if (isModule())
+    {
+        m_scriptRegistered = true;
+    }
+    else
+    {
+        generatorFunctionRef(ref);
+    }
+}
+#endif
+
 bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 {
-#if defined(WITH_RIVE_SCRIPTING) && defined(WITH_RIVE_TOOLS)
-    if (vm() == nullptr || generatorFunctionRef() == 0)
+#if defined(WITH_RIVE_SCRIPTING)
+    if (vm() == nullptr)
     {
         return false;
     }
-    auto vmState = vm()->state;
-    auto pushedType = rive_lua_pushRef(vmState, generatorFunctionRef());
-    if (static_cast<lua_Type>(pushedType) != LUA_TFUNCTION)
+    if (generatorFunctionRef() == 0)
     {
         fprintf(stderr,
-                "ScriptAsset::initScriptedObjectWith: did not push a function "
-                "at generatorFunctionRef, instead it pushed a %d\n ",
-                pushedType);
+                "ScriptAsset doesn't have a generator function %s\n",
+                name().c_str());
+        return false;
     }
+    auto vmState = vm()->state;
+    rive_lua_pushRef(vmState, generatorFunctionRef());
+
     if (!m_initted)
     {
-        m_scriptType = object->scriptType();
-        verifyImplementation(m_scriptType, vm());
+        if (!verifyImplementation(object, vm()))
+        {
+            fprintf(stderr,
+                    "ScriptAsset failed to verify method implementation %s\n",
+                    name().c_str());
+            rive_lua_pop(vmState, 1);
+            return false;
+        }
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());
@@ -161,4 +223,61 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 #else
     return false;
 #endif
+}
+
+bool ScriptAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
+{
+#ifdef WITH_RIVE_SCRIPTING
+    m_verified = false;
+
+    // For in-band bytecode, isSigned should always be false (signature is
+    // stored separately for aggregate verification).
+    BytecodeHeader header(Span<const uint8_t>(data.data(), data.size()));
+    if (!header.isValid())
+    {
+        return false;
+    }
+
+    // Store just the bytecode (without header) for later verification and use.
+    auto bytecode = header.bytecode();
+    m_bytecode = SimpleArray<uint8_t>(bytecode.data(), bytecode.size());
+#endif
+    return true;
+}
+
+bool ScriptAsset::bytecode(Span<uint8_t> data)
+{
+#ifdef WITH_RIVE_SCRIPTING
+    BytecodeHeader header(Span<const uint8_t>(data.data(), data.size()));
+    if (!header.isValid())
+    {
+        m_verified = false;
+        return false;
+    }
+
+    auto bytecode = header.bytecode();
+
+    if (!header.isSigned())
+    {
+        // Unsigned bytecode - mark as unverified
+        m_verified = false;
+        m_bytecode = SimpleArray<uint8_t>(bytecode.data(), bytecode.size());
+        return true;
+    }
+
+    auto signature = header.signature();
+    if (hydro_sign_verify(signature.data(),
+                          bytecode.data(),
+                          bytecode.size(),
+                          "RiveCode",
+                          g_scriptVerificationPublicKey) != 0)
+    {
+        // Forged.
+        m_verified = false;
+        return false;
+    }
+    m_verified = true;
+    m_bytecode = SimpleArray<uint8_t>(bytecode.data(), bytecode.size());
+#endif
+    return true;
 }

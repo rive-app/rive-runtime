@@ -8,7 +8,11 @@ namespace rive
 {
 class ScriptInputBoolean : public ScriptInputBooleanBase, public ScriptInput
 {
+protected:
+    void propertyValueChanged() override;
+
 public:
+    ~ScriptInputBoolean();
     void initScriptedValue() override
     {
         ScriptInput::initScriptedValue();
@@ -20,6 +24,7 @@ public:
     }
     bool validateForScriptInit() override { return true; }
     StatusCode import(ImportStack& importStack) override;
+    StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

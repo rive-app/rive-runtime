@@ -93,3 +93,12 @@ ViewModelInstance* ViewModel::instance(const std::string& name)
 }
 
 size_t ViewModel::instanceCount() const { return m_Instances.size(); }
+
+rcp<ViewModelInstance> ViewModel::createInstance()
+{
+    if (m_file)
+    {
+        return m_file->createViewModelInstance(this);
+    }
+    return nullptr;
+}

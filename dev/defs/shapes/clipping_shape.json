@@ -29,10 +29,12 @@
     "isVisible": {
       "type": "bool",
       "initialValue": "true",
+      "animates": true,
       "key": {
         "int": 94,
         "string": "isvisible"
-      }
+      },
+      "bindable": true
     }
   }
 }

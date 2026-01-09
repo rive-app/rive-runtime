@@ -901,3 +901,57 @@ TEST_CASE("Component List Hit order", "[component_list]")
 
     CHECK(silver.matches("component_list_hit_order"));
 }
+
+TEST_CASE("Virtualized list with nested data bound artboards",
+          "[component_list]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/virtualized_artboard_databound_children.riv",
+                     &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    REQUIRE(vmi != nullptr);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    float yPos = 200.0f;
+
+    stateMachine->pointerMove(rive::Vec2D(60.0f, yPos));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    // Start drag
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(60.0f, yPos));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    while (yPos > -500.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(60.0f, yPos));
+        yPos -= 20;
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // End drag
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(60.0f, yPos));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("virtualized_artboard_databound_children"));
+}

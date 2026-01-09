@@ -6,8 +6,9 @@
 
 using namespace rive;
 
-StatusCode Constraint::onAddedClean(CoreContext* context)
+StatusCode Constraint::onAddedDirty(CoreContext* context)
 {
+    StatusCode result = Super::onAddedDirty(context);
     if (!parent()->is<TransformComponent>())
     {
         return StatusCode::InvalidObject;
@@ -15,7 +16,7 @@ StatusCode Constraint::onAddedClean(CoreContext* context)
 
     parent()->as<TransformComponent>()->addConstraint(this);
 
-    return StatusCode::Ok;
+    return result;
 }
 
 void Constraint::markConstraintDirty()

@@ -2,6 +2,7 @@
 #include "rive/container_component.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include "rive/artboard.hpp"
 
 using namespace rive;
 
@@ -37,6 +38,10 @@ void SolidColor::renderOpacityChanged()
     else if (opacity < 1.0f)
     {
         m_flags |= ShapePaintMutator::Flags::translucent;
+    }
+    if (artboard())
+    {
+        artboard()->changed();
     }
 }
 

@@ -23,11 +23,14 @@ class ScriptedObject : public FileAssetReferencer,
 {
 protected:
     int m_self = 0;
+    int m_context = 0;
+    virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
     LuaState* m_state = nullptr;
 #endif
 
 public:
+    virtual ~ScriptedObject() { scriptDispose(); }
     ScriptAsset* scriptAsset() const;
     void setArtboardInput(std::string name, Artboard* artboard);
     void setBooleanInput(std::string name, bool value);
@@ -39,15 +42,19 @@ public:
     bool scriptAdvance(float elapsedSeconds);
     void scriptUpdate();
     void reinit();
+    virtual void markNeedsUpdate();
     virtual DataContext* dataContext() { return nullptr; }
 #ifdef WITH_RIVE_SCRIPTING
     virtual bool scriptInit(LuaState* state);
+    LuaState* state() { return m_state; }
 #endif
     void scriptDispose();
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;
     void setAsset(rcp<FileAsset> asset) override;
     static ScriptedObject* from(Core* object);
-    virtual ScriptType scriptType() = 0;
+    virtual ScriptProtocol scriptProtocol() = 0;
+    int self() { return m_self; }
+    virtual Component* component() = 0;
 };
 } // namespace rive
 

@@ -19,6 +19,9 @@ enum class DataBindFlags : unsigned short
     /// Whether source to target runs before target to source
     SourceToTargetRunsFirst = 1 << 3,
 
+    /// Whether source to target runs before target to source
+    NameBased = 1 << 4,
+
     /// Flag if set to target
     ToTarget = 0,
 

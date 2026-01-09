@@ -13,7 +13,7 @@ public:
         float elapsedSeconds,
         AdvanceFlags flags = AdvanceFlags::Animate |
                              AdvanceFlags::NewFrame) = 0;
-    static AdvancingComponent* from(Component* component);
+    static AdvancingComponent* from(Core* component);
 };
 } // namespace rive
 

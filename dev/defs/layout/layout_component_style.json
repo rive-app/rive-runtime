@@ -411,7 +411,8 @@
         "int": 592,
         "string": "interpolationtime"
       },
-      "description": "The time over which the interpolator applies."
+      "description": "The time over which the interpolator applies.",
+      "bindable": true
     },
     "displayValue": {
       "type": "uint",

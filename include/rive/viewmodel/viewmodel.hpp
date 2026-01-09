@@ -8,11 +8,13 @@
 #include <stdio.h>
 namespace rive
 {
+class File;
 class ViewModel : public ViewModelBase, public RefCnt<ViewModel>
 {
 private:
     std::vector<ViewModelProperty*> m_Properties;
     std::vector<ViewModelInstance*> m_Instances;
+    File* m_file = nullptr;
 
 public:
     ~ViewModel();
@@ -23,6 +25,11 @@ public:
     void addInstance(ViewModelInstance* value);
     ViewModelInstance* instance(size_t index);
     ViewModelInstance* instance(const std::string& name);
+    rcp<ViewModelInstance> createInstance();
+    void file(File* value) { m_file = value; };
+#ifdef WITH_RIVE_TOOLS
+    File* file() { return m_file; };
+#endif
     ViewModelInstance* defaultInstance();
     size_t instanceCount() const;
     std::vector<ViewModelProperty*> properties() { return m_Properties; }

@@ -73,6 +73,9 @@ enum class ComponentDirt : unsigned short
     /// interface.
     ScriptUpdate = 1 << 14,
 
+    /// Clipping needs to be recalculated
+    Clipping = 1 << 15,
+
     /// All dirty. Every flag (apart from Collapsed) is set.
     Filthy = 0xFFFE
 };

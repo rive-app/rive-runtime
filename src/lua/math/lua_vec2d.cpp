@@ -5,7 +5,7 @@
 
 using namespace rive;
 
-static int vec2d_index(lua_State* L)
+static int vector_index(lua_State* L)
 {
     const float* vec = luaL_checkvector(L, 1);
 
@@ -29,32 +29,32 @@ static int vec2d_index(lua_State* L)
         }
     }
 
-    luaL_error(L, "'%s' is not a valid index of Vec2D", name);
+    luaL_error(L, "'%s' is not a valid index of Vector", name);
     return 0;
 }
 
-static int vec2d_length(lua_State* L)
+static int vector_length(lua_State* L)
 {
     auto vec = lua_checkvec2d(L, 1);
     lua_pushnumber(L, vec->length());
     return 1;
 }
 
-static int vec2d_normalized(lua_State* L)
+static int vector_normalized(lua_State* L)
 {
     auto vec = lua_checkvec2d(L, 1);
     lua_pushvec2d(L, vec->normalized());
     return 1;
 }
 
-static int vec2d_lengthSquared(lua_State* L)
+static int vector_lengthSquared(lua_State* L)
 {
     auto vec = lua_checkvec2d(L, 1);
     lua_pushnumber(L, vec->lengthSquared());
     return 1;
 }
 
-static int vec2d_distance(lua_State* L)
+static int vector_distance(lua_State* L)
 {
     auto lhs = lua_checkvec2d(L, 1);
     auto rhs = lua_checkvec2d(L, 2);
@@ -62,7 +62,7 @@ static int vec2d_distance(lua_State* L)
     return 1;
 }
 
-static int vec2d_distanceSquared(lua_State* L)
+static int vector_distanceSquared(lua_State* L)
 {
     auto lhs = lua_checkvec2d(L, 1);
     auto rhs = lua_checkvec2d(L, 2);
@@ -70,7 +70,7 @@ static int vec2d_distanceSquared(lua_State* L)
     return 1;
 }
 
-static int vec2d_dot(lua_State* L)
+static int vector_dot(lua_State* L)
 {
     auto lhs = lua_checkvec2d(L, 1);
     auto rhs = lua_checkvec2d(L, 2);
@@ -79,7 +79,7 @@ static int vec2d_dot(lua_State* L)
     return 1;
 }
 
-static int vec2d_lerp(lua_State* L)
+static int vector_lerp(lua_State* L)
 {
     auto lhs = lua_checkvec2d(L, 1);
     auto rhs = lua_checkvec2d(L, 2);
@@ -88,7 +88,7 @@ static int vec2d_lerp(lua_State* L)
     return 1;
 }
 
-static int vec2d_xy(lua_State* L)
+static int vector_xy(lua_State* L)
 {
     float x = (float)lua_tonumber(L, 1);
     float y = (float)lua_tonumber(L, 2);
@@ -97,13 +97,13 @@ static int vec2d_xy(lua_State* L)
     return 1;
 }
 
-static int vec2d_origin(lua_State* L)
+static int vector_origin(lua_State* L)
 {
     lua_pushvector2(L, 0.0f, 0.0f);
     return 1;
 }
 
-static int vec2d_namecall(lua_State* L)
+static int vector_namecall(lua_State* L)
 {
     int atom;
     const char* str = lua_namecallatom(L, &atom);
@@ -112,38 +112,38 @@ static int vec2d_namecall(lua_State* L)
         switch (atom)
         {
             case (int)LuaAtoms::length:
-                return vec2d_length(L);
+                return vector_length(L);
             case (int)LuaAtoms::lengthSquared:
-                return vec2d_lengthSquared(L);
+                return vector_lengthSquared(L);
             case (int)LuaAtoms::normalized:
-                return vec2d_normalized(L);
+                return vector_normalized(L);
             case (int)LuaAtoms::distance:
-                return vec2d_distance(L);
+                return vector_distance(L);
             case (int)LuaAtoms::distanceSquared:
-                return vec2d_distanceSquared(L);
+                return vector_distanceSquared(L);
             case (int)LuaAtoms::dot:
-                return vec2d_dot(L);
+                return vector_dot(L);
             case (int)LuaAtoms::lerp:
-                return vec2d_lerp(L);
+                return vector_lerp(L);
         }
     }
 
-    luaL_error(L, "%s is not a valid method of Vec2D", luaL_checkstring(L, 1));
+    luaL_error(L, "%s is not a valid method of Vector", luaL_checkstring(L, 1));
     return 0;
 }
 
-static const luaL_Reg vec2dStaticMethods[] = {
-    {"distance", vec2d_distance},
-    {"distanceSquared", vec2d_distanceSquared},
-    {"dot", vec2d_dot},
-    {"lerp", vec2d_lerp},
-    {"xy", vec2d_xy},
-    {"origin", vec2d_origin},
+static const luaL_Reg vectorStaticMethods[] = {
+    {"distance", vector_distance},
+    {"distanceSquared", vector_distanceSquared},
+    {"dot", vector_dot},
+    {"lerp", vector_lerp},
+    {"xy", vector_xy},
+    {"origin", vector_origin},
     {nullptr, nullptr}};
 
-int luaopen_rive_vec2d(lua_State* L)
+int luaopen_rive_vector(lua_State* L)
 {
-    luaL_register(L, "Vec2D", vec2dStaticMethods);
+    luaL_register(L, "Vector", vectorStaticMethods);
     // create metatable for T
     lua_createtable(L, 0, 1);
 
@@ -159,10 +159,10 @@ int luaopen_rive_vec2d(lua_State* L)
     // pop vector
     lua_pop(L, 1);
 
-    lua_pushcfunction(L, vec2d_index, nullptr);
+    lua_pushcfunction(L, vector_index, nullptr);
     lua_setfield(L, -2, "__index");
 
-    lua_pushcfunction(L, vec2d_namecall, nullptr);
+    lua_pushcfunction(L, vector_namecall, nullptr);
     lua_setfield(L, -2, "__namecall");
 
     lua_setreadonly(L, -1, true);

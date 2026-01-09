@@ -40,6 +40,7 @@ public:
     void clearSource();
     bool toSource();
     bool toTarget();
+    bool isNameBased();
     bool canSkip();
     bool isMainToSource();
     bool sourceToTargetRunsFirst();

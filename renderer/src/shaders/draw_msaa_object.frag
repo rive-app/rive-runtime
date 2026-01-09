@@ -51,26 +51,29 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     half4 color = find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 #endif
 
-#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+#ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
         // Do the color portion of the blend mode in the shader.
 #ifdef @DRAW_IMAGE_MESH
         color.rgb = unmultiply_rgb(color);
         ushort blendMode = cast_uint_to_ushort(imageDrawUniforms.blendMode);
-#else  // if !@DRAW_IMAGE_MESH
-       // NOTE: for non-image-meshes, "color" is already unmultiplied because
-       // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
-       // blend.
+#else
+        // NOTE: for non-image-meshes, "color" is already unmultiplied because
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
+        // blend.
         ushort blendMode = cast_half_to_ushort(v_blendMode);
-#endif // !@DRAW_IMAGE_MESH
+#endif
         half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
         color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode);
+#endif // @FIXED_FUNCTION_COLOR_OUTPUT
+
         // Src-over blending is enabled, so just premultiply and let the HW
         // finish the the the alpha portion of the blend mode.
         color.rgb *= color.a;
     }
-#endif // @ENABLE_ADVANCED_BLEND && !@FIXED_FUNCTION_COLOR_OUTPUT
+#endif // @ENABLE_ADVANCED_BLEND
 
     // Certain platforms give us less control of the format of what we are
     // rendering too. Specifically, we are auto converted from linear -> sRGB on

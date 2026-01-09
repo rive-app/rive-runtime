@@ -55,7 +55,8 @@ Mat2D rive::computeAlignment(Fit fit,
         }
         case Fit::layout:
         {
-            return Mat2D::fromScale(scaleFactor, scaleFactor);
+            scaleX = scaleY = scaleFactor;
+            break;
         }
         case Fit::none:
         {

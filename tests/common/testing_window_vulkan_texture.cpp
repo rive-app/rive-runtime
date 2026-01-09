@@ -36,7 +36,12 @@ public:
             .idealAPIVersion =
                 m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
 #ifndef NDEBUG
-            .wantValidationLayers = !m_backendParams.disableValidationLayers,
+            .desiredValidationType =
+                m_backendParams.disableValidationLayers
+                    ? VulkanValidationType::none
+                    : (m_backendParams.wantVulkanSynchronizationValidation
+                           ? VulkanValidationType::synchronization
+                           : VulkanValidationType::core),
             .wantDebugCallbacks = !m_backendParams.disableDebugCallbacks,
 #endif
         });
@@ -143,6 +148,8 @@ public:
             .msaaSampleCount = m_backendParams.msaa ? 4u : 0u,
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
+            .fillsDisabled = options.fillsDisabled,
+            .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride =
                 m_backendParams.clockwise || options.clockwiseFillOverride,
             .synthesizedFailureType = options.synthesizedFailureType,

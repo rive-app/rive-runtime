@@ -53,7 +53,7 @@ while :; do
         -a|-a32)
             TARGET="android"
             DEFAULT_BACKEND=gl
-            SERIAL="$(adb get-serialno)"
+            SERIAL="$(adb get-serialno | sed 's/[:.]/_/g')"
             if [[ "$1" == "-a32" ]]; then
                 ARGS="--android-arch arm"
             fi

@@ -8,7 +8,11 @@ namespace rive
 {
 class ScriptInputColor : public ScriptInputColorBase, public ScriptInput
 {
+protected:
+    void propertyValueChanged() override;
+
 public:
+    ~ScriptInputColor();
     void initScriptedValue() override
     {
         ScriptInput::initScriptedValue();
@@ -20,6 +24,7 @@ public:
     }
     bool validateForScriptInit() override { return true; }
     StatusCode import(ImportStack& importStack) override;
+    StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

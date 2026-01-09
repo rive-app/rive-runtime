@@ -11,25 +11,35 @@ namespace rive
 {
 class Artboard;
 class Component;
-class File;
+class DataBind;
 class ScriptedObject;
 
-enum ScriptType
+enum ScriptProtocol
 {
-    none,
-    drawing,
-    layout
+    utility,
+    node,
+    layout,
+    converter,
+    pathEffect
 };
+
+#ifdef WITH_RIVE_SCRIPTING
+class ScriptAssetImporter;
+#endif
 
 class ScriptInput
 {
 protected:
     ScriptedObject* m_scriptedObject = nullptr;
+    DataBind* m_dataBind = nullptr;
 
 public:
+    virtual ~ScriptInput() {};
     virtual void initScriptedValue();
     virtual bool validateForScriptInit() = 0;
     static ScriptInput* from(Core* component);
+    DataBind* dataBind() { return m_dataBind; }
+    void dataBind(DataBind* dataBind) { m_dataBind = dataBind; }
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
     void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
 };
@@ -45,11 +55,13 @@ private:
     static const int m_wantsPointerUpBit = 1 << 5;
     static const int m_wantsPointerExitBit = 1 << 6;
     static const int m_wantsPointerCancelBit = 1 << 7;
+    static const int m_drawsBit = 1 << 8;
+    static const int m_initsBit = 1 << 9;
 
     int m_implementedMethods = 0;
 
 protected:
-    bool verifyImplementation(ScriptType scriptType, LuaState* luaState);
+    bool verifyImplementation(ScriptedObject* object, LuaState* luaState);
 
 public:
     int implementedMethods() { return m_implementedMethods; }
@@ -87,39 +99,83 @@ public:
     {
         return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
     }
+    bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
+    bool inits() { return (m_implementedMethods & m_initsBit) != 0; }
 };
 
-class ScriptAsset : public ScriptAssetBase, public OptionalScriptedMethods
+class ModuleDetails
 {
+public:
+    virtual ~ModuleDetails() = default;
+    virtual std::string moduleName() = 0;
+    virtual void registrationComplete(int ref) {}
+    virtual Span<uint8_t> moduleBytecode() { return Span<uint8_t>(); }
+    virtual bool isProtocolScript() = 0;
+    virtual bool verified() const { return false; }
+    void addMissingDependency(std::string name) { m_dependencies.insert(name); }
+    void clearMissingDependency(std::string name)
+    {
+        auto it = m_dependencies.find(name);
+        if (it != m_dependencies.end())
+        {
+            m_dependencies.erase(it);
+        }
+    }
+    std::unordered_set<std::string> missingDependencies()
+    {
+        return m_dependencies;
+    }
+
 private:
-    File* m_file = nullptr;
-    // SimpleArray<uint8_t>& m_bytes;
-    bool initScriptedObjectWith(ScriptedObject* object);
-#ifdef WITH_RIVE_SCRIPTING
-    bool m_initted = false;
-    ScriptType m_scriptType = ScriptType::none;
-#endif
+    std::unordered_set<std::string> m_dependencies;
+};
+
+class ScriptAsset : public ScriptAssetBase,
+                    public OptionalScriptedMethods,
+                    public ModuleDetails
+{
 
 public:
+#ifdef WITH_RIVE_SCRIPTING
+    friend class ScriptAssetImporter;
+
+    bool verified() const override { return m_verified; }
+    Span<uint8_t> moduleBytecode() override { return m_bytecode; }
+#endif
+
     bool initScriptedObject(ScriptedObject* object);
-    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override
-    {
-        // m_bytes = data;
-        return true;
-    }
+
+    /// Sets the bytecode from data with header format:
+    ///   [flags:1] [signature:64 if signed] [luau_bytecode:N]
+    /// Flags byte: bits 0-6 = version, bit 7 = isSigned
+    /// Returns true if bytecode was set (verification is separate from return).
+    bool bytecode(Span<uint8_t> data);
+
+    /// Bytecode provided via decode should only happen with in-band bytecode.
+    /// The signature will later be verified once file loading completes, so it
+    /// is immediately marked as unverified.
+    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
+
     std::string fileExtension() const override { return "lua"; }
     void file(File* value) { m_file = value; }
     File* file() const { return m_file; }
 #ifdef WITH_RIVE_SCRIPTING
-    LuaState* vm()
-    {
-        if (m_file == nullptr)
-        {
-            return nullptr;
-        }
-        return m_file->scriptingVM();
-    }
+    LuaState* vm();
+    void registrationComplete(int ref) override;
 #endif
+    std::string moduleName() override { return name(); }
+    bool isProtocolScript() override { return !isModule(); }
+
+private:
+    File* m_file = nullptr;
+#ifdef WITH_RIVE_SCRIPTING
+    bool m_scriptRegistered = false;
+    bool m_verified = false;
+    SimpleArray<uint8_t> m_bytecode;
+    bool m_initted = false;
+#endif
+
+    bool initScriptedObjectWith(ScriptedObject* object);
 };
 } // namespace rive
 

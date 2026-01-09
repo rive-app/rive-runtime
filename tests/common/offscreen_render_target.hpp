@@ -15,6 +15,7 @@ namespace rive::gpu
 {
 class RenderTarget;
 class RenderContextGLImpl;
+class RenderContextWebGPUImpl;
 class VulkanContext;
 }; // namespace rive::gpu
 
@@ -40,5 +41,10 @@ public:
         uint32_t width,
         uint32_t height,
         bool riveRenderable);
+
+    static rive::rcp<OffscreenRenderTarget> MakeWebGPU(
+        rive::gpu::RenderContextWebGPUImpl*,
+        uint32_t width,
+        uint32_t height);
 };
 }; // namespace rive_tests

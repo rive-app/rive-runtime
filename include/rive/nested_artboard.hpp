@@ -3,6 +3,7 @@
 
 #include "rive/generated/nested_artboard_base.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/data_bind_path_referencer.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/hit_info.hpp"
@@ -38,8 +39,6 @@ protected:
     DataContext* m_dataContext = nullptr;
 
 protected:
-    std::vector<uint32_t> m_DataBindPathIdsBuffer;
-
 private:
     Artboard* findArtboard(
         ViewModelInstanceArtboard* viewModelInstanceArtboard);
@@ -51,6 +50,7 @@ public:
     ~NestedArtboard() override;
     StatusCode onAddedClean(CoreContext* context) override;
     void draw(Renderer* renderer) override;
+    bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void addNestedAnimation(NestedAnimation* nestedAnimation);
 
@@ -91,10 +91,6 @@ public:
     bool worldToLocal(Vec2D world, Vec2D* local);
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(const NestedArtboardBase& object) override;
-    std::vector<uint32_t> dataBindPathIds() override
-    {
-        return m_DataBindPathIdsBuffer;
-    };
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent) override;
     void internalDataContext(DataContext* dataContext) override;

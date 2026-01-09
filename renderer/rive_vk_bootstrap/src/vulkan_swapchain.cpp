@@ -117,6 +117,8 @@ VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
                           &viewCreateInfo,
                           nullptr,
                           &m_swapchainImages[i].view);
+
+        m_swapchainImages[i].frameSemaphore = createSemaphore();
     }
 }
 
@@ -127,6 +129,7 @@ VulkanSwapchain::~VulkanSwapchain()
 
     for (auto& data : m_swapchainImages)
     {
+        destroySemaphore(data.frameSemaphore);
         m_vkDestroyImageView(vkDevice(), data.view, nullptr);
     }
 
@@ -232,13 +235,13 @@ void VulkanSwapchain::endFrame(const rive::gpu::vkutil::ImageAccess& lastAccess)
 
     // Now that the memory barrier is in the command buffer, we can end the
     // frame sync frame.
-    VkSemaphore waitSemaphore = Super::endFrame();
+    Super::endFrame(swapImage.frameSemaphore);
 
     // Now queue the actual presentation of the swpchain image
     VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &waitSemaphore,
+        .pWaitSemaphores = &swapImage.frameSemaphore,
         .swapchainCount = 1,
         .pSwapchains = &m_swapchain,
         .pImageIndices = &m_currentImageIndex,

@@ -14,6 +14,7 @@
 #include "rive/nested_animation.hpp"
 #include "rive/scene.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
+#include "rive/input/focusable.hpp"
 
 namespace rive
 {
@@ -144,6 +145,13 @@ public:
                         bool disablePointer = true,
                         int pointerId = 0);
     HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
+
+    bool keyInput(Key value,
+                  KeyModifiers modifiers,
+                  bool isPressed,
+                  bool isRepeat);
+    bool textInput(const std::string& text);
+
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
 

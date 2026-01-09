@@ -18,6 +18,7 @@ public:
     TransitionViewModelConditionImporter(
         TransitionViewModelCondition* transitionViewModelCondition);
     void setComparator(TransitionComparator* comparator);
+    StatusCode resolve() override;
 };
 } // namespace rive
 #endif

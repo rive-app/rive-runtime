@@ -908,7 +908,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atlasBlit:
-            if (interlockMode != gpu::InterlockMode::atomics)
+            if (interlockMode != InterlockMode::atomics)
             {
                 mask = ShaderFeatures::ENABLE_CLIPPING |
                        ShaderFeatures::ENABLE_CLIP_RECT |
@@ -936,7 +936,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             mask = ShaderFeatures::NONE;
             break;
         case DrawType::renderPassInitialize:
-            if (interlockMode == gpu::InterlockMode::atomics)
+            if (interlockMode == InterlockMode::atomics)
             {
                 // Atomic mode initializes clipping and color (when advanced
                 // blend is active).
@@ -945,7 +945,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             }
             else
             {
-                assert(interlockMode == gpu::InterlockMode::msaa);
+                assert(interlockMode == InterlockMode::msaa);
                 // MSAA mode only needs to initialize color, and only when
                 // preserving the render target but using a transient MSAA
                 // attachment.
@@ -953,8 +953,16 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             }
             break;
         case DrawType::renderPassResolve:
-            assert(interlockMode == gpu::InterlockMode::atomics);
-            mask = kAllShaderFeatures;
+            if (interlockMode == InterlockMode::atomics)
+            {
+                mask = kAllShaderFeatures;
+            }
+            else
+            {
+                assert(interlockMode == InterlockMode::rasterOrdering ||
+                       interlockMode == InterlockMode::msaa);
+                mask = ShaderFeatures::NONE;
+            }
             break;
     }
     return mask & ShaderFeaturesMaskFor(interlockMode);
@@ -1055,9 +1063,14 @@ enum class BarrierFlags : uint8_t
     // even a full MSAA resolve & blit into a separate texture.)
     dstBlend = 1 << 4,
 
+    // Special barrier (e.g., subpass transition) issued prior to a manual
+    // render pass resolve. (Only applicable with
+    // FlushDescriptor::manuallyResolved.)
+    preManualResolve = 1 << 5,
+
     // Only prevent future DrawBatches from being combined with the current
     // drawList. (No GPU dependencies.)
-    drawBatchBreak = 1 << 5,
+    drawBatchBreak = 1 << 6,
 };
 RIVE_MAKE_ENUM_BITSET(BarrierFlags);
 
@@ -1162,13 +1175,6 @@ struct FlushDescriptor
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
     int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
-    // True if shaders will never read the color buffer, meaning, the render
-    // pass can use a more efficient setup that renders to a standard color
-    // attachment and handles all blending via built-in blend state.
-    // NOTE: This may be false even if all paints use srcOver because some
-    // rendering modes (e.g., rasterOrdering with evenOdd/nonZero) always read
-    // the color buffer, regardless of blend mode.
-    bool fixedFunctionColorOutput = false;
 
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
@@ -1178,6 +1184,18 @@ struct FlushDescriptor
 
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.
+
+    // True if the drawList ends with a "renderPassResolve" draw, in which case
+    // the backend may need to perform special setup for a custom resolve.
+    bool manuallyResolved = false;
+
+    // True if shaders will never read the color buffer, meaning, the render
+    // pass can use a more efficient setup that renders to a standard color
+    // attachment and handles all blending via built-in blend state.
+    // NOTE: This may be false even if all paints use srcOver because some
+    // rendering modes (e.g., rasterOrdering with evenOdd/nonZero) always read
+    // the color buffer, regardless of blend mode.
+    bool fixedFunctionColorOutput = false;
 
     // Physical size of the atlas texture.
     uint16_t atlasTextureWidth;
@@ -1248,6 +1266,7 @@ struct FlushDescriptor
     // List of draws in the main render pass. These are rendered directly to the
     // renderTarget.
     const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
+    const DrawBatch* firstDstBlendBarrier = nullptr;
 };
 
 // Returns the area of the (potentially non-rectangular) quadrilateral that

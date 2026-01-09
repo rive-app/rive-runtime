@@ -31,7 +31,7 @@ struct VulkanFeatures
     bool fragmentShaderPixelInterlock = false;
 
     // Indicates a nonconformant driver, like MoltenVK.
-    bool VK_KHR_portability_subset;
+    bool VK_KHR_portability_subset = false;
 };
 
 // Wraps a VkDevice, function dispatch table, and VMA library instance.
@@ -61,7 +61,8 @@ public:
 #define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
-    F(GetPhysicalDeviceProperties)
+    F(GetPhysicalDeviceProperties)                                             \
+    F(SetDebugUtilsObjectNameEXT)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateDescriptorSets)                                                  \
@@ -109,18 +110,26 @@ public:
 
     VmaAllocator allocator() const { return m_vmaAllocator; }
 
+    const VkPhysicalDeviceProperties& physicalDeviceProperties() const
+    {
+        return m_physicalDeviceProperties;
+    }
+
     bool isFormatSupportedWithFeatureFlags(VkFormat, VkFormatFeatureFlagBits);
     bool supportsD24S8() const { return m_supportsD24S8; }
 
     // Resource allocation.
     rcp<vkutil::Buffer> makeBuffer(const VkBufferCreateInfo&,
                                    vkutil::Mappability);
-    rcp<vkutil::Image> makeImage(const VkImageCreateInfo&);
-    rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>);
+    rcp<vkutil::Image> makeImage(const VkImageCreateInfo&, const char* name);
+    rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>, const char* name);
     rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>,
-                                         const VkImageViewCreateInfo&);
-    rcp<vkutil::ImageView> makeExternalImageView(const VkImageViewCreateInfo&);
-    rcp<vkutil::Texture2D> makeTexture2D(const VkImageCreateInfo&);
+                                         const VkImageViewCreateInfo&,
+                                         const char* name);
+    rcp<vkutil::ImageView> makeExternalImageView(const VkImageViewCreateInfo&,
+                                                 const char* name);
+    rcp<vkutil::Texture2D> makeTexture2D(const VkImageCreateInfo&,
+                                         const char* name);
     rcp<vkutil::Framebuffer> makeFramebuffer(const VkFramebufferCreateInfo&);
 
     // Helpers.
@@ -183,8 +192,14 @@ public:
                      VkImageLayout dstImageLayout,
                      const IAABB&);
 
+    void setDebugNameIfEnabled(uint64_t handle,
+                               VkObjectType objectType,
+                               const char* name);
+
 private:
     const VmaAllocator m_vmaAllocator;
+
+    VkPhysicalDeviceProperties m_physicalDeviceProperties;
 
     // Vulkan spec: must support one of D24S8 and D32S8.
     bool m_supportsD24S8 = false;

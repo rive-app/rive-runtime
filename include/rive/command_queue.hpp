@@ -327,6 +327,14 @@ public:
         return instantiateArtboardNamed(fileHandle, "", listener, requestId);
     }
 
+    void setArtboardSize(ArtboardHandle,
+                         float width,
+                         float height,
+                         float scale = 1,
+                         uint64_t requestId = 0);
+
+    void resetArtboardSize(ArtboardHandle, uint64_t requestId = 0);
+
     void deleteArtboard(ArtboardHandle, uint64_t requestId = 0);
 
     ViewModelInstanceHandle instantiateBlankViewModelInstance(
@@ -779,6 +787,8 @@ private:
         removeFontFileAsset,
         instantiateArtboard,
         deleteArtboard,
+        setArtboardSize,
+        resetArtboardSize,
         instantiateViewModel,
         refNestedViewModel,
         refListViewModel,

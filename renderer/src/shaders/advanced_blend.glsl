@@ -150,6 +150,15 @@ half3 advanced_blend_coeffs(half3 src, half4 dstPremul, ushort mode)
     half3 coeffs;
     switch (mode)
     {
+#if defined(@RENDER_MODE_MSAA) && defined(@SPEC_CONST_NONE)
+        // Normally MSAA filters out the "BLEND_SRC_OVER" draws via
+        // specialization constants or #ifdefs. But when specialization
+        // constants are disabled for WebGPU, we need to handle it here in the
+        // switch.
+        case BLEND_SRC_OVER:
+            coeffs = src;
+            break;
+#endif
         case BLEND_MODE_MULTIPLY:
             coeffs = src.rgb * dst.rgb;
             break;

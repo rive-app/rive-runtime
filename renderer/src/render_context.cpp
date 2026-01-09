@@ -229,7 +229,8 @@ void RenderContext::LogicalFlush::rewind()
     m_flushDesc = FlushDescriptor();
 
     m_drawList.reset();
-    m_nextDstBlendBarrier = nullptr;
+    m_firstDstBlendBarrier = nullptr;
+    m_dstBlendBarrierListTail = &m_firstDstBlendBarrier;
     m_combinedShaderFeatures = gpu::ShaderFeatures::NONE;
 
     m_currentPathID = 0;
@@ -958,9 +959,10 @@ static uint32_t pls_transient_backing_plane_count(
 }
 
 static bool wants_fixed_function_color_output(
-    gpu::PlatformFeatures platformFeatures,
+    const gpu::PlatformFeatures& platformFeatures,
     gpu::InterlockMode interlockMode,
-    gpu::DrawContents combinedDrawContents)
+    gpu::DrawContents combinedDrawContents,
+    bool manuallyResolved)
 {
     switch (interlockMode)
     {
@@ -970,7 +972,6 @@ static bool wants_fixed_function_color_output(
             return false;
 
         case gpu::InterlockMode::atomics:
-        case gpu::InterlockMode::msaa:
             return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::clockwise:
@@ -982,6 +983,12 @@ static bool wants_fixed_function_color_output(
         case gpu::InterlockMode::clockwiseAtomic:
             // clockwiseAtomic currently always sets fixedFunctionColorOutput.
             return true;
+
+        case gpu::InterlockMode::msaa:
+            // Manual MSAA resolves read the framebuffer, so they can't use
+            // fixedFunctionColorOutput.
+            return !manuallyResolved &&
+                   !(combinedDrawContents & gpu::DrawContents::advancedBlend);
     }
 
     RIVE_UNREACHABLE();
@@ -1084,15 +1091,6 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.renderTarget = flushResources.renderTarget;
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
     m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
-    m_flushDesc.fixedFunctionColorOutput =
-        wants_fixed_function_color_output(m_ctx->platformFeatures(),
-                                          m_ctx->frameInterlockMode(),
-                                          m_combinedDrawContents);
-    if (m_flushDesc.fixedFunctionColorOutput)
-    {
-        m_baselineShaderMiscFlags |=
-            gpu::ShaderMiscFlags::fixedFunctionColorOutput;
-    }
 
     // In atomic mode, we may be able to skip the explicit clear of the color
     // buffer and fold it into the atomic "resolve" operation instead.
@@ -1169,6 +1167,22 @@ void RenderContext::LogicalFlush::layoutResources(
         m_flushDesc.renderTargetUpdateBounds = {0, 0, 0, 0};
     }
 
+    m_flushDesc.manuallyResolved = m_ctx->m_impl->wantsManualRenderPassResolve(
+        m_flushDesc.interlockMode,
+        m_flushDesc.renderTarget,
+        m_flushDesc.renderTargetUpdateBounds,
+        m_combinedDrawContents);
+
+    m_flushDesc.fixedFunctionColorOutput =
+        wants_fixed_function_color_output(m_ctx->platformFeatures(),
+                                          m_ctx->frameInterlockMode(),
+                                          m_combinedDrawContents,
+                                          m_flushDesc.manuallyResolved);
+    if (m_flushDesc.fixedFunctionColorOutput)
+    {
+        m_baselineShaderMiscFlags |=
+            gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+    }
     m_flushDesc.atlasContentWidth = m_atlasMaxX;
     m_flushDesc.atlasContentHeight = m_atlasMaxY;
 
@@ -1577,22 +1591,30 @@ void RenderContext::LogicalFlush::writeResources()
             // draw the old renderTarget contents into the framebuffer at the
             // beginning of the render pass when
             // LoadAction::preserveRenderTarget is specified.
-            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    gpu::DrawType::renderPassInitialize,
-                                    m_baselineShaderMiscFlags,
-                                    gpu::DrawContents::opaquePaint,
-                                    1,
-                                    0,
-                                    BlendMode::srcOver,
-                                    ImageSampler::LinearClamp(),
-                                    // The MSAA init reads the framebuffer, so
-                                    // it needs the equivalent of a "dstBlend"
-                                    // barrier.
-                                    BarrierFlags::dstBlend);
+            m_drawList.emplace_back(
+                m_ctx->perFrameAllocator(),
+                gpu::DrawType::renderPassInitialize,
+                m_baselineShaderMiscFlags,
+                gpu::DrawContents::opaquePaint,
+                1,
+                0,
+                // A more realistic value here would be "BlendMode::none" (which
+                // is what actually happens), but since that isn't a Rive blend
+                // mode, we just need any value here. It will get ignored by the
+                // draw.
+                BlendMode::srcOver,
+                ImageSampler{.filter = ImageFilter::bilinear},
+                // The MSAA init reads the framebuffer, so it needs the
+                // equivalent of a "dstBlend" barrier.
+                BarrierFlags::dstBlend);
             m_combinedDrawContents |= m_drawList.tail()->drawContents;
             // The draw that follows the this init will need a special
             // "msaaPostInit" barrier.
             m_pendingBarriers |= BarrierFlags::msaaPostInit;
+            assert(m_dstBlendBarrierListTail == &m_firstDstBlendBarrier);
+            assert(m_firstDstBlendBarrier == nullptr);
+            m_firstDstBlendBarrier = m_drawList.tail();
+            m_dstBlendBarrierListTail = &m_drawList.tail()->nextDstBlendBarrier;
         }
 
         // Find a mask that tells us when to insert barriers, and which barriers
@@ -1676,22 +1698,27 @@ void RenderContext::LogicalFlush::writeResources()
             m_draws[drawIndex]->pushToRenderContext(this, subpassIndex);
             priorSignedKey = signedKey;
         }
+    }
 
-        // Atomic mode needs one more draw to resolve all the pixels.
-        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
-        {
-            m_drawList
-                .emplace_back(m_ctx->perFrameAllocator(),
-                              gpu::DrawType::renderPassResolve,
-                              m_baselineShaderMiscFlags,
-                              gpu::DrawContents::none,
-                              1,
-                              0,
-                              BlendMode::srcOver,
-                              ImageSampler::LinearClamp(),
-                              BarrierFlags::plsAtomicPreResolve)
-                ->shaderFeatures = m_combinedShaderFeatures;
-        }
+    // Some modes need one more draw to resolve all the pixels.
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics ||
+        m_flushDesc.manuallyResolved)
+    {
+        m_drawList.emplace_back(
+            m_ctx->perFrameAllocator(),
+            gpu::DrawType::renderPassResolve,
+            m_baselineShaderMiscFlags,
+            (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
+                ? gpu::DrawContents::none
+                : gpu::DrawContents::opaquePaint,
+            1,
+            0,
+            BlendMode::srcOver,
+            ImageSampler::LinearClamp(),
+            (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
+                ? BarrierFlags::plsAtomicPreResolve
+                : BarrierFlags::preManualResolve);
+        m_combinedDrawContents |= m_drawList.tail()->drawContents;
     }
 
     // Write out the draws to the feather atlas. Do this after the main draws
@@ -1831,6 +1858,7 @@ void RenderContext::LogicalFlush::writeResources()
         initialTriangleVertexDataSize;
 
     m_flushDesc.drawList = &m_drawList;
+    m_flushDesc.firstDstBlendBarrier = m_firstDstBlendBarrier;
 
     // Write out the uniforms for this flush now that the flushDescriptor is
     // complete.
@@ -3213,23 +3241,22 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             // that barrier for the first subpass is all we need.)
             if (draw->nextDstRead() == nullptr)
             {
-                batch->barriers |= BarrierFlags::dstBlend;
                 batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
-                if (m_nextDstBlendBarrier != nullptr)
+                assert(m_dstBlendBarrierListTail != nullptr);
+                if (!(batch->barriers & BarrierFlags::dstBlend))
                 {
-                    *m_nextDstBlendBarrier = batch;
+                    batch->barriers |= BarrierFlags::dstBlend;
+                    // Add ourselves to the "dstBlendBarrier" list.
+                    assert(*m_dstBlendBarrierListTail == nullptr);
+                    *m_dstBlendBarrierListTail = batch;
+                    assert(batch->nextDstBlendBarrier == nullptr);
+                    m_dstBlendBarrierListTail = &batch->nextDstBlendBarrier;
                 }
-                m_nextDstBlendBarrier = &batch->nextDstBlendBarrier;
+                // We either added ourselves to the dstBlendBarrier list or
+                // merged into a batch that was already part of it.
+                assert(m_dstBlendBarrierListTail ==
+                       &batch->nextDstBlendBarrier);
             }
-        }
-
-        // The first batch in a drawList is also the head of the
-        // "nextDstBlendBarrier" sub-list, regardless of whether it has a
-        // dstBlend barrier of its own. (But after this first batch, only
-        // batches with a dstBlend barrier will participate.)
-        if (m_nextDstBlendBarrier == nullptr)
-        {
-            m_nextDstBlendBarrier = &batch->nextDstBlendBarrier;
         }
     }
 

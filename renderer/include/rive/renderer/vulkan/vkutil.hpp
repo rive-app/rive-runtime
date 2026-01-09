@@ -150,7 +150,7 @@ public:
 private:
     friend class ::rive::gpu::VulkanContext;
 
-    Image(rcp<VulkanContext>, const VkImageCreateInfo&);
+    Image(rcp<VulkanContext>, const VkImageCreateInfo&, const char* name);
 
     VkImageCreateInfo m_info;
     VmaAllocation m_vmaAllocation;
@@ -172,7 +172,8 @@ private:
 
     ImageView(rcp<VulkanContext>,
               rcp<Image> textureRef,
-              const VkImageViewCreateInfo&);
+              const VkImageViewCreateInfo&,
+              const char* name);
 
     const rcp<Image> m_textureRefOrNull;
     VkImageViewCreateInfo m_info;
@@ -231,8 +232,27 @@ public:
     // point.
     void generateMipmaps(VkCommandBuffer, const ImageAccess& dstAccess);
 
-    // This method is inlined intentionally, in order to avoid function calls in
-    // the common usecase.
+    // These methods are inlined intentionally, in order to avoid function calls
+    // in the common usecase.
+    inline void prepareForVertexOrFragmentShaderRead(
+        VkCommandBuffer commandBuffer)
+    {
+        if (m_imageUploadBuffer != nullptr)
+        {
+            applyImageUploadBuffer(commandBuffer);
+        }
+        constexpr static ImageAccess READ_ACCESS = {
+            .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        if (m_lastAccess != READ_ACCESS)
+        {
+            barrier(commandBuffer, READ_ACCESS);
+        }
+    }
+
     inline void prepareForFragmentShaderRead(VkCommandBuffer commandBuffer)
     {
         if (m_imageUploadBuffer != nullptr)
@@ -275,7 +295,7 @@ protected:
 
     void applyImageUploadBuffer(VkCommandBuffer);
 
-    Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo);
+    Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo, const char* name);
 
     rcp<Image> m_image;
     rcp<ImageView> m_imageView;

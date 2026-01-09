@@ -1053,7 +1053,10 @@
 #define hb_unicode_general_category rive_hb_unicode_general_category
 #define hb_unicode_mirroring rive_hb_unicode_mirroring
 #define hb_unicode_script rive_hb_unicode_script
+#define hb_style_get_value rive_hb_style_get_value
+#define hb_style_tag_t rive_hb_style_tag_t
 // __hb_*
+#define _hb_shapers_get rive__hb_shapers_get
 #define _hb_CrapPool rive__hb_CrapPool
 #define _hb_NullPool rive__hb_NullPool
 #define _hb_Null_AAT_Lookup rive__hb_Null_AAT_Lookup

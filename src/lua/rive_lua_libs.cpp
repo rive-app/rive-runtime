@@ -1,8 +1,13 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "lualib.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
+#include <queue>
+#include <vector>
+#include <algorithm>
 
 using namespace rive;
 
@@ -13,6 +18,7 @@ int luaopen_rive_properties(lua_State* L);
 int luaopen_rive_artboards(lua_State* L);
 int luaopen_rive_data_values(lua_State* L);
 int luaopen_rive_input(lua_State* L);
+int luaopen_rive_contex(lua_State* L);
 
 std::unordered_map<std::string, int16_t> atoms = {
     {"length", (int16_t)LuaAtoms::length},
@@ -27,8 +33,11 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"quadTo", (int16_t)LuaAtoms::quadTo},
     {"cubicTo", (int16_t)LuaAtoms::cubicTo},
     {"close", (int16_t)LuaAtoms::close},
+    {"type", (int16_t)LuaAtoms::type},
     {"reset", (int16_t)LuaAtoms::reset},
     {"add", (int16_t)LuaAtoms::add},
+    {"contours", (int16_t)LuaAtoms::contours},
+    {"measure", (int16_t)LuaAtoms::measure},
     {"invert", (int16_t)LuaAtoms::invert},
     {"isIdentity", (int16_t)LuaAtoms::isIdentity},
     {"width", (int16_t)LuaAtoms::width},
@@ -90,11 +99,17 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"addListener", (int16_t)LuaAtoms::addListener},
     {"removeListener", (int16_t)LuaAtoms::removeListener},
     {"fire", (int16_t)LuaAtoms::fire},
+    {"push", (int16_t)LuaAtoms::push},
+    {"insert", (int16_t)LuaAtoms::insert},
+    {"pop", (int16_t)LuaAtoms::pop},
+    {"swap", (int16_t)LuaAtoms::swap},
+    {"shift", (int16_t)LuaAtoms::shift},
     {"draw", (int16_t)LuaAtoms::draw},
     {"advance", (int16_t)LuaAtoms::advance},
     {"frameOrigin", (int16_t)LuaAtoms::frameOrigin},
     {"data", (int16_t)LuaAtoms::data},
     {"instance", (int16_t)LuaAtoms::instance},
+    {"new", (int16_t)LuaAtoms::newAtom},
     {"bounds", (int16_t)LuaAtoms::bounds},
     {"pointerDown", (int16_t)LuaAtoms::pointerDown},
     {"pointerUp", (int16_t)LuaAtoms::pointerUp},
@@ -117,6 +132,13 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"parent", (int16_t)LuaAtoms::parent},
     {"node", (int16_t)LuaAtoms::node},
     {"addToPath", (int16_t)LuaAtoms::addToPath},
+    {"positionAndTangent", (int16_t)LuaAtoms::positionAndTangent},
+    {"warp", (int16_t)LuaAtoms::warp},
+    {"extract", (int16_t)LuaAtoms::extract},
+    {"next", (int16_t)LuaAtoms::next},
+    {"isClosed", (int16_t)LuaAtoms::isClosed},
+    {"markNeedsUpdate", (int16_t)LuaAtoms::markNeedsUpdate},
+    {"viewModel", (int16_t)LuaAtoms::viewModel},
 };
 
 static const luaL_Reg lualibs[] = {
@@ -127,12 +149,15 @@ static const luaL_Reg lualibs[] = {
     {LUA_OSLIBNAME, luaopen_os},
     {LUA_STRLIBNAME, luaopen_string},
     {LUA_UTF8LIBNAME, luaopen_utf8},
+    {LUA_BUFFERLIBNAME, luaopen_buffer},
+    {LUA_BITLIBNAME, luaopen_bit32},
     {"math", luaopen_rive_math},
     {"renderer", luaopen_rive_renderer_library},
     {"properties", luaopen_rive_properties},
     {"artboard", luaopen_rive_artboards},
     {"dataValue", luaopen_rive_data_values},
     {"input", luaopen_rive_input},
+    {"context", luaopen_rive_contex},
     {NULL, NULL},
 };
 
@@ -238,6 +263,17 @@ static int lua_requireinternal(lua_State* L, const char* requirerChunkname)
     if (checkRegisteredModules(L, path) == 1)
     {
         return 1;
+    }
+
+    // Record missing dependency if we're registering a module
+    if (requirerChunkname)
+    {
+        ScriptingContext* context =
+            static_cast<ScriptingContext*>(lua_getthreaddata(L));
+        if (context)
+        {
+            context->recordMissingDependency(requirerChunkname, path);
+        }
     }
 
     luaL_error(L, "require could not find a script named %s", path);
@@ -433,10 +469,187 @@ static void dump_stack(lua_State* state)
 
 void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
 
+void ScriptingContext::addModule(ModuleDetails* moduleDetails)
+{
+    m_modulesToRegister.push_back(moduleDetails);
+    m_moduleLookup[moduleDetails->moduleName()] = moduleDetails;
+}
+
+bool ScriptingContext::tryRegisterModule(lua_State* state,
+                                         ModuleDetails* moduleDetails)
+{
+    if (!moduleDetails->verified())
+    {
+        return false;
+    }
+    const std::string& name = moduleDetails->moduleName();
+    bool registerSuccess = false;
+    int functionRef = 0;
+    if (moduleDetails->isProtocolScript())
+    {
+        if (ScriptingVM::registerScript(state,
+                                        name.c_str(),
+                                        moduleDetails->moduleBytecode()))
+        {
+            // registerScript leaves the function on the stack
+            if (static_cast<lua_Type>(lua_type(state, -1)) == LUA_TFUNCTION)
+            {
+                functionRef = lua_ref(state, -1);
+            }
+            lua_pop(state, 1);
+            registerSuccess = true;
+        }
+    }
+    else
+    {
+        if (ScriptingVM::registerModule(state,
+                                        name.c_str(),
+                                        moduleDetails->moduleBytecode()))
+        {
+            registerSuccess = true;
+        }
+    }
+    if (registerSuccess)
+    {
+        moduleDetails->registrationComplete(functionRef);
+        onModuleRegistered(moduleDetails);
+        return true;
+    }
+
+    return false;
+}
+
+void ScriptingContext::performRegistration(lua_State* state)
+{
+    // Loop over all of the modules once. We need do a tryRegister
+    // pass on each module in order to determine if it has any
+    // required dependencies
+    for (ModuleDetails* moduleDetails : m_modulesToRegister)
+    {
+        // Skip if already registered
+        if (checkRegisteredModules(state,
+                                   moduleDetails->moduleName().c_str()) == 1)
+        {
+            continue;
+        }
+        tryRegisterModule(state, moduleDetails);
+    }
+
+    // If any modules had dependencies, resolve their registration order
+    // and try registering again
+    if (!m_pendingModules.empty())
+    {
+        std::vector<ModuleDetails*> pendingModules;
+        for (auto module : m_pendingModules)
+        {
+            pendingModules.push_back(module);
+        }
+        std::vector<ModuleDetails*> sortedModules;
+        std::unordered_set<ModuleDetails*> visitedModules;
+
+        ModuleDetails* module = pendingModules.back();
+        pendingModules.pop_back();
+        sortNextModule(module,
+                       &pendingModules,
+                       &sortedModules,
+                       &visitedModules);
+
+        // Register modules in sorted order
+        for (ModuleDetails* moduleDetails : sortedModules)
+        {
+            tryRegisterModule(state, moduleDetails);
+        }
+    }
+
+    m_modulesToRegister.clear();
+    m_pendingModules.clear();
+}
+
+void ScriptingContext::sortNextModule(
+    ModuleDetails* module,
+    std::vector<ModuleDetails*>* pendingModules,
+    std::vector<ModuleDetails*>* sortedModules,
+    std::unordered_set<ModuleDetails*>* visitedModules)
+{
+    // If already visited, skip
+    if (visitedModules->find(module) != visitedModules->end())
+    {
+        return;
+    }
+
+    auto dependencies = module->missingDependencies();
+    for (const auto& dependencyName : dependencies)
+    {
+        auto lookupIt = m_moduleLookup.find(dependencyName);
+        if (lookupIt != m_moduleLookup.end())
+        {
+            ModuleDetails* dependencyModule = lookupIt->second;
+            // Recursively process the dependency
+            sortNextModule(dependencyModule,
+                           pendingModules,
+                           sortedModules,
+                           visitedModules);
+        }
+    }
+
+    if (std::find(sortedModules->begin(), sortedModules->end(), module) ==
+        sortedModules->end())
+    {
+        sortedModules->push_back(module);
+    }
+    visitedModules->insert(module);
+    if (!pendingModules->empty())
+    {
+        ModuleDetails* nextModule = pendingModules->back();
+        pendingModules->pop_back();
+        sortNextModule(nextModule,
+                       pendingModules,
+                       sortedModules,
+                       visitedModules);
+    }
+}
+
+void ScriptingContext::recordMissingDependency(
+    const std::string& requiringModule,
+    const std::string& missingModule)
+{
+    if (!requiringModule.empty())
+    {
+        ModuleDetails* moduleDetails = m_moduleLookup[requiringModule];
+        if (moduleDetails != nullptr)
+        {
+            moduleDetails->addMissingDependency(missingModule);
+            m_pendingModules.insert(moduleDetails);
+        }
+    }
+}
+
+void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
+{
+    for (ModuleDetails* module : m_modulesToRegister)
+    {
+        if (!module->missingDependencies().empty())
+        {
+            moduleDetails->clearMissingDependency(moduleDetails->moduleName());
+        }
+    }
+    auto it = m_pendingModules.find(moduleDetails);
+    if (it != m_pendingModules.end())
+    {
+        m_pendingModules.erase(it);
+    }
+}
+
 bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
 {
+    // Check if already registered
+    if (checkRegisteredModules(state, name) == 1)
+    {
+        return true;
+    }
+
     if (!push_module(state, name, bytecode))
     {
         return false;
@@ -449,6 +662,12 @@ bool ScriptingVM::registerModule(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
 {
+    // Check if already registered
+    if (checkRegisteredModules(state, name) == 1)
+    {
+        return true;
+    }
+
     lua_pushcfunction(state, register_module, nullptr);
     lua_pushstring(state, name);
     if (!push_module(state, name, bytecode))

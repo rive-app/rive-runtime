@@ -2,6 +2,7 @@
 #define _RIVE_ARTBOARD_HOST_HPP_
 #include "rive/refcnt.hpp"
 #include "rive/file.hpp"
+#include "rive/data_bind_path_referencer.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -10,12 +11,11 @@ class DataBind;
 class DataContext;
 class ViewModelInstance;
 
-class ArtboardHost
+class ArtboardHost : public DataBindPathReferencer
 {
 public:
     virtual size_t artboardCount() = 0;
     virtual ArtboardInstance* artboardInstance(int index = 0) = 0;
-    virtual std::vector<uint32_t> dataBindPathIds() { return {}; }
     virtual void internalDataContext(DataContext* dataContext) = 0;
     virtual void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                        DataContext* parent) = 0;

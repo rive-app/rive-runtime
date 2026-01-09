@@ -273,8 +273,12 @@ public:
             .coreFeaturesOnly = backendParams.core,
             .srgb = m_backendParams.srgb,
             .allowHeadlessRendering = visibility == Visibility::headless,
-            .enableVulkanValidationLayers =
-                !backendParams.disableValidationLayers,
+            .enableVulkanCoreValidationLayers =
+                !backendParams.disableValidationLayers &&
+                !backendParams.wantVulkanSynchronizationValidation,
+            .enableVulkanSynchronizationValidationLayers =
+                !backendParams.disableValidationLayers &&
+                backendParams.wantVulkanSynchronizationValidation,
             .disableDebugCallbacks = backendParams.disableDebugCallbacks,
             .gpuNameFilter = backendParams.gpuNameFilter.c_str(),
         };
@@ -382,6 +386,16 @@ public:
                 riveRenderable);
         }
 #endif
+#if defined(RIVE_WEBGPU) || defined(RIVE_DAWN)
+        if (auto* renderContextWebGPU =
+                m_fiddleContext->renderContextWebGPUImpl())
+        {
+            return rive_tests::OffscreenRenderTarget::MakeWebGPU(
+                renderContextWebGPU,
+                width,
+                height);
+        }
+#endif
         return nullptr;
     }
 
@@ -399,6 +413,8 @@ public:
                 std::max(m_msaaSampleCount, options.forceMSAA ? 4u : 0u),
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
+            .fillsDisabled = options.fillsDisabled,
+            .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride =
                 m_backendParams.clockwise || options.clockwiseFillOverride,
 #ifdef WITH_RIVE_TOOLS

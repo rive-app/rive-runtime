@@ -8,14 +8,14 @@ namespace rive
 {
 class ScriptInputTrigger : public ScriptInputTriggerBase, public ScriptInput
 {
+protected:
+    void propertyValueChanged() override;
+
 public:
+    ~ScriptInputTrigger();
     bool validateForScriptInit() override { return true; }
-    void fire(const CallbackData& value) override
-    {
-        Super::fire(value);
-        scriptedObject()->trigger(name());
-    }
     StatusCode import(ImportStack& importStack) override;
+    StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

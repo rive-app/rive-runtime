@@ -2176,6 +2176,58 @@ TEST_CASE("CommandServer::getHandleForInstance", "[CommandQueue]")
     serverThread.join();
 }
 
+TEST_CASE("Set Artboard Size / Reset Artboard Size", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    rive::ArtboardHandle InvalidHandle =
+        reinterpret_cast<rive::ArtboardHandle>(0xFF);
+
+    commandQueue->setArtboardSize(artboardHandle, 1000, 1000);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->width() == 1000.f);
+            CHECK(artboard->height() == 1000.f);
+        });
+
+    // We should be deviding the width and height by scale since `align`
+    // multplies by scale.
+    commandQueue->setArtboardSize(artboardHandle, 1000, 1000, 2);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->width() == 500.f);
+            CHECK(artboard->height() == 500.f);
+        });
+
+    commandQueue->resetArtboardSize(artboardHandle);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->width() == artboard->originalWidth());
+            CHECK(artboard->height() == artboard->originalHeight());
+        });
+
+    commandQueue->setArtboardSize(InvalidHandle, 10, 10);
+    commandQueue->resetArtboardSize(InvalidHandle);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();

@@ -13,54 +13,52 @@ using namespace rive;
 
 void Image::draw(Renderer* renderer)
 {
+
     rive::ImageAsset* asset = this->imageAsset();
-    if (asset == nullptr || renderOpacity() == 0.0f)
-    {
-        return;
-    }
 
     rive::RenderImage* renderImage = asset->renderImage();
     if (renderImage == nullptr)
     {
         return;
     }
-
-    ClipResult clipResult = applyClip(renderer);
-
-    if (clipResult == ClipResult::noClip)
+    if (m_needsSaveOperation)
     {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
+
         renderer->save();
     }
 
-    if (clipResult != ClipResult::emptyClip)
+    float width = (float)renderImage->width();
+    float height = (float)renderImage->height();
+
+    // until image loading and saving is done, use default sampling for
+    // image assets
+    if (m_Mesh != nullptr)
     {
-        float width = (float)renderImage->width();
-        float height = (float)renderImage->height();
-
-        // until image loading and saving is done, use default sampling for
-        // image assets
-        if (m_Mesh != nullptr)
-        {
-            m_Mesh->draw(renderer,
-                         renderImage,
-                         rive::ImageSampler::LinearClamp(),
-                         blendMode(),
-                         renderOpacity());
-        }
-        else
-        {
-            renderer->transform(worldTransform());
-            renderer->translate(-width * originX(), -height * originY());
-            renderer->drawImage(renderImage,
-                                rive::ImageSampler::LinearClamp(),
-                                blendMode(),
-                                renderOpacity());
-        }
+        m_Mesh->draw(renderer,
+                     renderImage,
+                     rive::ImageSampler::LinearClamp(),
+                     blendMode(),
+                     renderOpacity());
     }
+    else
+    {
+        renderer->transform(worldTransform());
+        renderer->translate(-width * originX(), -height * originY());
+        renderer->drawImage(renderImage,
+                            rive::ImageSampler::LinearClamp(),
+                            blendMode(),
+                            renderOpacity());
+    }
+    if (m_needsSaveOperation)
+    {
+        renderer->restore();
+    }
+}
 
-    renderer->restore();
+bool Image::willDraw()
+{
+    return Super::willDraw() && renderOpacity() != 0.0f &&
+           this->imageAsset() != nullptr;
 }
 
 Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)

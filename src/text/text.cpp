@@ -504,30 +504,27 @@ const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
 
 void Text::draw(Renderer* renderer)
 {
-    ClipResult clipResult = applyClip(renderer);
-    if (clipResult == ClipResult::noClip)
+    if (m_needsSaveOperation)
     {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
         renderer->save();
     }
-    if (clipResult != ClipResult::emptyClip)
+    // For now we need to check both empty() and hasRenderPath() in
+    // ShapePaintPath because the raw path gets cleared when the render path
+    // is created.
+    if (overflow() == TextOverflow::clipped &&
+        (!m_clipPath.empty() || m_clipPath.hasRenderPath()))
     {
-        // For now we need to check both empty() and hasRenderPath() in
-        // ShapePaintPath because the raw path gets cleared when the render path
-        // is created.
-        if (overflow() == TextOverflow::clipped &&
-            (!m_clipPath.empty() || m_clipPath.hasRenderPath()))
-        {
-            renderer->clipPath(m_clipPath.renderPath(this));
-        }
-        auto worldTransform = shapeWorldTransform();
-        for (auto style : m_renderStyles)
-        {
-            style->draw(renderer, worldTransform);
-        }
+        renderer->clipPath(m_clipPath.renderPath(this));
     }
-    renderer->restore();
+    auto worldTransform = shapeWorldTransform();
+    for (auto style : m_renderStyles)
+    {
+        style->draw(renderer, worldTransform);
+    }
+    if (m_needsSaveOperation)
+    {
+        renderer->restore();
+    }
 }
 
 void Text::addRun(TextValueRun* run) { m_runs.push_back(run); }

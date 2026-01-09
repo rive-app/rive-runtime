@@ -129,22 +129,22 @@ void ScriptedLayout::controlSize(Vec2D size,
 }
 #endif
 
+void ScriptedLayout::addProperty(CustomProperty* prop)
+{
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
+    {
+        scriptInput->scriptedObject(this);
+    }
+    CustomPropertyContainer::addProperty(prop);
+}
+
 Core* ScriptedLayout::clone() const
 {
     ScriptedLayout* twin = ScriptedLayoutBase::clone()->as<ScriptedLayout>();
     if (m_fileAsset != nullptr)
     {
         twin->setAsset(m_fileAsset);
-    }
-    for (auto prop : m_customProperties)
-    {
-        auto clonedValue = prop->clone()->as<CustomProperty>();
-        twin->addProperty(clonedValue);
-        auto scriptInput = ScriptInput::from(clonedValue);
-        if (scriptInput != nullptr)
-        {
-            scriptInput->scriptedObject(twin);
-        }
     }
     return twin;
 }

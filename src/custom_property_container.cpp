@@ -25,3 +25,13 @@ void CustomPropertyContainer::addProperty(CustomProperty* prop)
         m_customProperties.push_back(prop);
     }
 }
+
+void CustomPropertyContainer::removeProperty(CustomProperty* prop)
+{
+    auto it =
+        std::find(m_customProperties.begin(), m_customProperties.end(), prop);
+    if (it != m_customProperties.end())
+    {
+        m_customProperties.erase(it);
+    }
+}

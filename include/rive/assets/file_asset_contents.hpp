@@ -10,12 +10,16 @@ class FileAssetContents : public FileAssetContentsBase
 {
 public:
     SimpleArray<uint8_t>& bytes();
+    SimpleArray<uint8_t>& signature();
     StatusCode import(ImportStack& importStack) override;
     void decodeBytes(Span<const uint8_t> value) override;
     void copyBytes(const FileAssetContentsBase& object) override;
+    void decodeSignature(Span<const uint8_t> value) override;
+    void copySignature(const FileAssetContentsBase& object) override;
 
 private:
     SimpleArray<uint8_t> m_bytes;
+    SimpleArray<uint8_t> m_signature;
 };
 } // namespace rive
 

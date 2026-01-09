@@ -27,9 +27,11 @@ private:
     Drawable* prev = nullptr;
     Drawable* next = nullptr;
 
+protected:
+    bool m_needsSaveOperation = true;
+
 public:
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
-    ClipResult applyClip(Renderer* renderer) const;
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
     bool hitTestPoint(const Vec2D& position,
@@ -55,12 +57,19 @@ public:
     }
 
     virtual bool isProxy() { return false; }
+    virtual bool isClipStart() { return false; }
+    virtual bool isClipEnd() { return false; }
+    virtual bool willClip() { return false; }
+    virtual bool willDraw();
+    void needsSaveOperation(bool value) { m_needsSaveOperation = value; }
 
     bool isChildOfLayout(LayoutComponent* layout);
 
     StatusCode onAddedDirty(CoreContext* context) override;
 
     virtual Drawable* hittableComponent() { return this; }
+
+    virtual int emptyClipCount() { return 0; }
 };
 
 class ProxyDrawing

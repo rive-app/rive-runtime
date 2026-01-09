@@ -14,6 +14,7 @@
 #include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/data_bind/context/context_value.hpp"
+#include "rive/data_bind/context/context_value_any.hpp"
 #include "rive/data_bind/context/context_value_asset_image.hpp"
 #include "rive/data_bind/context/context_value_artboard.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
@@ -60,7 +61,24 @@ StatusCode DataBind::import(ImportStack& importStack)
     if (target())
     {
         initialize();
-        if (target()->is<DataConverter>())
+        auto input = ScriptInput::from(target());
+        if (input != nullptr)
+        {
+            input->dataBind(this);
+            if (input->scriptedObject() != nullptr)
+            {
+                if (input->scriptedObject()->component() != nullptr)
+                {
+                    auto importer = importStack.latest<ArtboardImporter>(
+                        ArtboardBase::typeKey);
+                    if (importer != nullptr)
+                    {
+                        importer->addDataBind(this);
+                    }
+                }
+            }
+        }
+        else if (target()->is<DataConverter>())
         {
             target()->as<DataConverter>()->addDataBind(this);
         }
@@ -235,8 +253,15 @@ void DataBind::bind()
         case DataType::artboard:
             m_ContextValue = new DataBindContextValueArtboard(this);
             break;
+        case DataType::any:
+            m_ContextValue = new DataBindContextValueAny(this);
+            break;
         default:
             break;
+    }
+    if (m_dataConverter)
+    {
+        m_dataConverter->reset();
     }
     addDirt(ComponentDirt::Bindings, true);
 }
@@ -369,6 +394,12 @@ bool DataBind::toTarget()
     auto flagsValue = static_cast<DataBindFlags>(flags());
     return (flagsValue & DataBindFlags::TwoWay) != 0 ||
            (flagsValue & DataBindFlags::ToSource) == 0;
+}
+
+bool DataBind::isNameBased()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & DataBindFlags::NameBased) != 0;
 }
 
 bool DataBind::advance(float elapsedTime)

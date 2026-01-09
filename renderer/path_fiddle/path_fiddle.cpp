@@ -428,7 +428,7 @@ int main(int argc, const char** argv)
     setvbuf(stderr, NULL, _IONBF, 0);
 
 #ifdef DEBUG
-    options.enableVulkanValidationLayers = true;
+    options.enableVulkanCoreValidationLayers = true;
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -631,7 +631,7 @@ int main(int argc, const char** argv)
         }
         else if (!strcmp(argv[i], "--validation"))
         {
-            options.enableVulkanValidationLayers = true;
+            options.enableVulkanCoreValidationLayers = true;
         }
         else if (!strcmp(argv[i], "--gpu") || !strcmp(argv[i], "-g"))
         {

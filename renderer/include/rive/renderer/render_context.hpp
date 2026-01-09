@@ -794,7 +794,10 @@ private:
         gpu::FlushDescriptor m_flushDesc;
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
-        const DrawBatch** m_nextDstBlendBarrier = nullptr;
+        const DrawBatch* m_firstDstBlendBarrier;
+        // Final "next" pointer in the list of DrawBatches that have dstBlend
+        // barriers.
+        const DrawBatch** m_dstBlendBarrierListTail;
 
         gpu::ShaderFeatures m_combinedShaderFeatures;
 

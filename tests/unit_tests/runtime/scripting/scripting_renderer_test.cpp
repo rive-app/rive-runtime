@@ -54,20 +54,20 @@ TEST_CASE("renderer can draw an oval", "[scripting]")
     ScriptingTest vm(
         R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
 	local c: number = 0.5519150244935105707435627
-	local unit: { Vec2D } = {
-		Vec2D.xy(1, 0),
-		Vec2D.xy(1, c),
-		Vec2D.xy(c, 1), -- quadrant 1 ( 4:30)
-		Vec2D.xy(0, 1),
-		Vec2D.xy(-c, 1),
-		Vec2D.xy(-1, c), -- quadrant 2 ( 7:30)
-		Vec2D.xy(-1, 0),
-		Vec2D.xy(-1, -c),
-		Vec2D.xy(-c, -1), -- quadrant 3 (10:30)
-		Vec2D.xy(0, -1),
-		Vec2D.xy(c, -1),
-		Vec2D.xy(1, -c), -- quadrant 4 ( 1:30)
-		Vec2D.xy(1, 0),
+	local unit: { Vector } = {
+		Vector.xy(1, 0),
+		Vector.xy(1, c),
+		Vector.xy(c, 1), -- quadrant 1 ( 4:30)
+		Vector.xy(0, 1),
+		Vector.xy(-c, 1),
+		Vector.xy(-1, c), -- quadrant 2 ( 7:30)
+		Vector.xy(-1, 0),
+		Vector.xy(-1, -c),
+		Vector.xy(-c, -1), -- quadrant 3 (10:30)
+		Vector.xy(0, -1),
+		Vector.xy(c, -1),
+		Vector.xy(1, -c), -- quadrant 4 ( 1:30)
+		Vector.xy(1, 0),
 	}
 
 	local dx: number = x - width / 2
@@ -75,8 +75,8 @@ TEST_CASE("renderer can draw an oval", "[scripting]")
 	local sx: number = width * 0.5
 	local sy: number = height * 0.5
 
-	local map = function(p: Vec2D): Vec2D
-		return Vec2D.xy(p.x * sx + dx, p.y * sy + dy)
+	local map = function(p: Vector): Vector
+		return Vector.xy(p.x * sx + dx, p.y * sy + dy)
 	end
 	path:moveTo(map(unit[1]))
 	for i = 1, 12, 3 do
@@ -109,20 +109,20 @@ TEST_CASE("renderer can draw and animate oval", "[scripting]")
     ScriptingTest vm(
         R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
 	local c: number = 0.5519150244935105707435627
-	local unit: { Vec2D } = {
-		Vec2D.xy(1, 0),
-		Vec2D.xy(1, c),
-		Vec2D.xy(c, 1), -- quadrant 1 ( 4:30)
-		Vec2D.xy(0, 1),
-		Vec2D.xy(-c, 1),
-		Vec2D.xy(-1, c), -- quadrant 2 ( 7:30)
-		Vec2D.xy(-1, 0),
-		Vec2D.xy(-1, -c),
-		Vec2D.xy(-c, -1), -- quadrant 3 (10:30)
-		Vec2D.xy(0, -1),
-		Vec2D.xy(c, -1),
-		Vec2D.xy(1, -c), -- quadrant 4 ( 1:30)
-		Vec2D.xy(1, 0),
+	local unit: { Vector } = {
+		Vector.xy(1, 0),
+		Vector.xy(1, c),
+		Vector.xy(c, 1), -- quadrant 1 ( 4:30)
+		Vector.xy(0, 1),
+		Vector.xy(-c, 1),
+		Vector.xy(-1, c), -- quadrant 2 ( 7:30)
+		Vector.xy(-1, 0),
+		Vector.xy(-1, -c),
+		Vector.xy(-c, -1), -- quadrant 3 (10:30)
+		Vector.xy(0, -1),
+		Vector.xy(c, -1),
+		Vector.xy(1, -c), -- quadrant 4 ( 1:30)
+		Vector.xy(1, 0),
 	}
 
 	local dx: number = x - width / 2
@@ -130,8 +130,8 @@ TEST_CASE("renderer can draw and animate oval", "[scripting]")
 	local sx: number = width * 0.5
 	local sy: number = height * 0.5
 
-	local map = function(p: Vec2D): Vec2D
-		return Vec2D.xy(p.x * sx + dx, p.y * sy + dy)
+	local map = function(p: Vector): Vector
+		return Vector.xy(p.x * sx + dx, p.y * sy + dy)
 	end
 	path:moveTo(map(unit[1]))
 	for i = 1, 12, 3 do

@@ -27,6 +27,17 @@
       "description": "Byte data of the file.",
       "coop": false,
       "records": false
+    },
+    "signature": {
+      "type": "Bytes",
+      "encoded": true,
+      "key": {
+        "int": 911,
+        "string": "signature"
+      },
+      "description": "Signature data of the file.",
+      "coop": false,
+      "journal": false
     }
   }
 }

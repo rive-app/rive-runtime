@@ -29,6 +29,16 @@
       },
       "description": "Path to the selected property."
     },
+    "isDataBindPathRelative": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 916,
+        "string": "isdatabindpathrelative"
+      },
+      "description": "Whether the data bind path is relative",
+      "runtime": false
+    },
     "isPaused": {
       "type": "bool",
       "initialValue": "false",

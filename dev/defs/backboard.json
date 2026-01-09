@@ -5,6 +5,16 @@
     "string": "backboard"
   },
   "properties": {
+    "coreVersion": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 543,
+        "string": "coreversion"
+      },
+      "description": "Core version when file was last opened.",
+      "runtime": false
+    },
     "activeArtboardId": {
       "type": "Id",
       "initialValue": "Core.missingId",
@@ -69,6 +79,17 @@
       "runtime": false,
       "coop": false
     },
+    "treeFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 886,
+        "string": "treeflags"
+      },
+      "description": "Flags to save additional state of asset and data trees.",
+      "runtime": false,
+      "coop": false
+    },
     "animationPanelSize": {
       "type": "double",
       "initialValue": "300.0",
@@ -82,12 +103,56 @@
     },
     "hierarchyPanelSize": {
       "type": "double",
-      "initialValue": "300.0",
+      "initialValue": "318.0",
       "key": {
         "int": 259,
         "string": "hierarchypanelsize"
       },
       "description": "Size of the Hierarchy panel",
+      "runtime": false,
+      "coop": false
+    },
+    "leftFlyoutPanelSize": {
+      "type": "double",
+      "initialValue": "420.0",
+      "key": {
+        "int": 529,
+        "string": "leftflyoutpanelsize"
+      },
+      "description": "Size of the left-hand flyout panel",
+      "runtime": false,
+      "coop": false
+    },
+    "scriptEditorWidthRatio": {
+      "type": "double",
+      "initialValue": "0.5",
+      "key": {
+        "int": 841,
+        "string": "scripteditorwidthratio"
+      },
+      "description": "Width ratio of the script editor panel",
+      "runtime": false,
+      "coop": false
+    },
+    "scriptUtilityHeight": {
+      "type": "double",
+      "initialValue": "160.0",
+      "key": {
+        "int": 837,
+        "string": "scriptutilityheight"
+      },
+      "description": "Height of the utility panel beneath the sciprt editor",
+      "runtime": false,
+      "coop": false
+    },
+    "scriptPanelFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 838,
+        "string": "scriptpanelflags"
+      },
+      "description": "Bit flags to track script panel states, such as open/closed and utility panel tab",
       "runtime": false,
       "coop": false
     },
@@ -223,16 +288,6 @@
       "runtime": false,
       "coop": false
     },
-    "assetsPanelState": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 315,
-        "string": "assetspanelstate"
-      },
-      "runtime": false,
-      "coop": false
-    },
     "defaultFontFamily": {
       "type": "String",
       "initialValue": "'Inter'",
@@ -313,6 +368,153 @@
       "runtime": false,
       "coop": false
     },
+    "snapToPixelEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 409,
+        "string": "snaptopixelenabled"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "showRenderQueue": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 421,
+        "string": "showrenderqueue"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "openFlyout": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 534,
+        "string": "openflyout"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "dependencyGraphState": {
+      "type": "uint",
+      "initialValue": "255",
+      "key": {
+        "int": 540,
+        "string": "dependencygraphstate"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "showJoysticks": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 423,
+        "string": "showjoysticks"
+      },
+      "description": "If show joysticks is enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "showEvents": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 424,
+        "string": "showevents"
+      },
+      "description": "If show events is enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "showCollapsedElementsEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 422,
+        "string": "showcollapsedelementsenabled"
+      },
+      "description": "If show collapsed elemments is enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "showLayouts": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 694,
+        "string": "showlayouts"
+      },
+      "description": "If show layouts is enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "enableLayoutAnimation": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 701,
+        "string": "enablelayoutanimation"
+      },
+      "description": "If layout animation is enabled during edit time",
+      "runtime": false,
+      "coop": false
+    },
+    "gizmoEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 425,
+        "string": "gizmoenabled"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "showUserCursors": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 533,
+        "string": "showusercursors"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultInterpolationType": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 695,
+        "string": "defaultinterpolationtype"
+      },
+      "description": "Default interpolation type",
+      "runtime": false,
+      "coop": false
+    },
+    "defaultInterpolatorId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 696,
+        "string": "defaultinterpolatorid"
+      },
+      "description": "Identifier for default interpolator object",
+      "runtime": false,
+      "coop": false
+    },
+    "collapseTextStyles": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 702,
+        "string": "collapsetextstyles"
+      },
+      "description": "If true, multiple text styles will show collapsed",
+      "runtime": false
+    },
     "dataBindDesignActive": {
       "type": "bool",
       "initialValue": "false",
@@ -323,6 +525,103 @@
       "description": "If enabled, data bind will be applied.",
       "runtime": false,
       "coop": false
+    },
+    "artboardPresetExpanders": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 813,
+        "string": "artboardpresetexpanders"
+      },
+      "description": "Bit flags storing the inspector expander state for preset groups",
+      "runtime": false,
+      "coop": false
+    },
+    "assetPanelFilters": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 821,
+        "string": "assetpanelfilters"
+      },
+      "description": "Bit flags storing the filter status for asset types in the new combined asset panel",
+      "runtime": false,
+      "coop": false
+    },
+    "dataPanelFilters": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 827,
+        "string": "datapanelfilters"
+      },
+      "description": "Bit flags storing the filter status for data types in the new combined data panel",
+      "runtime": false,
+      "coop": false
+    },
+    "libraryPanelStateLibraryId": {
+      "type": "uint",
+      "initialValue": "-1",
+      "key": {
+        "int": 825,
+        "string": "librarypanelstatelibraryid"
+      },
+      "description": "Library id to restore the last state of the library panel",
+      "runtime": false,
+      "coop": false
+    },
+    "expandedAssets": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 828,
+        "string": "expandedassetcomponents"
+      },
+      "description": "List of expanded folders/parents within the asset panel",
+      "runtime": false,
+      "coop": false
+    },
+    "expandedDataComponents": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 829,
+        "string": "expandeddatacomponents"
+      },
+      "description": "List of expanded folders/parents within the data panel",
+      "runtime": false,
+      "coop": false
+    },
+    "expandComputedTransform": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 830,
+        "string": "expandcomputedtransform"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "hydrogenPanes": {
+      "type": "Bytes",
+      "encoded": true,
+      "key": {
+        "int": 890,
+        "string": "hydrogenpanes"
+      },
+      "description": "Byte data for the open script editor panels.",
+      "runtime": false,
+      "coop": false
+    },
+    "dataBindOptionsFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 915,
+        "string": "databindoptionsflags"
+      },
+      "description": "Bit flags for data bind global options",
+      "runtime": false
     }
   }
 }

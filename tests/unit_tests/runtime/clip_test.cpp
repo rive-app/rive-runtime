@@ -6,7 +6,11 @@
 #include <rive/shapes/shape.hpp>
 #include <utils/no_op_renderer.hpp>
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <catch.hpp>
+
+using namespace rive;
 
 TEST_CASE("clipping loads correctly", "[clipping]")
 {
@@ -100,65 +104,96 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
     }
 }
 
-TEST_CASE("Shape does not have any clipping paths visible", "[clipping]")
-{
-    ClippingFactory factory;
-    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
-
-    auto artboard = file->artboard("Empty-Shape");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    auto node = artboard->find("Ellipse-clipper");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
-    rive::Shape* shape = static_cast<rive::Shape*>(node);
-    REQUIRE(shape->isEmpty() == true);
-    auto clippedNode = artboard->find("Rectangle-clipped");
-    REQUIRE(clippedNode != nullptr);
-    REQUIRE(clippedNode->is<rive::Shape>());
-    rive::Shape* clippedShape = static_cast<rive::Shape*>(clippedNode);
-    rive::NoOpRenderer renderer;
-    auto clipResult = clippedShape->applyClip(&renderer);
-    REQUIRE(clipResult == rive::ClipResult::emptyClip);
-}
-
-TEST_CASE("Shape has at least a clipping path visible", "[clipping]")
-{
-    ClippingFactory factory;
-    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
-
-    auto artboard = file->artboard("Hidden-Path-Visible-Path");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    auto node = artboard->find("Ellipse-clipper");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
-    rive::Shape* shape = static_cast<rive::Shape*>(node);
-    REQUIRE(shape->isEmpty() == false);
-    auto clippedNode = artboard->find("Rectangle-clipped");
-    REQUIRE(clippedNode != nullptr);
-    REQUIRE(clippedNode->is<rive::Shape>());
-    rive::Shape* clippedShape = static_cast<rive::Shape*>(clippedNode);
-    rive::NoOpRenderer renderer;
-    auto clipResult = clippedShape->applyClip(&renderer);
-    REQUIRE(clipResult == rive::ClipResult::clip);
-}
-
-TEST_CASE("Shape returns an empty clip when one clipping shape is empty",
+TEST_CASE("Apply clipping to elements that are moved outside their hierarchy",
           "[clipping]")
 {
-    ClippingFactory factory;
-    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/clipping_and_draw_order.riv", &silver);
 
-    auto artboard = file->artboard("One-Clipping-Shape-Visible-One-Hidden");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    auto node = artboard->find("Rectangle-clipped");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->is<rive::Shape>());
-    rive::Shape* shape = static_cast<rive::Shape*>(node);
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
 
-    rive::NoOpRenderer renderer;
-    auto clipResult = shape->applyClip(&renderer);
-    REQUIRE(clipResult == rive::ClipResult::emptyClip);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.16f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("clipping_and_draw_order"));
+}
+
+TEST_CASE("Animated node clippings work", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/animated_clipping.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-nodes");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0 / 0.048f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.048f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("animated_clipping-nodes"));
+}
+
+TEST_CASE("Animated layout clippings work", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/animated_clipping.riv", &silver);
+
+    auto artboard = file->artboardNamed("main-layout");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0 / 0.048f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.048f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("animated_clipping-layout"));
 }

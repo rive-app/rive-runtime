@@ -8,7 +8,11 @@ namespace rive
 {
 class ScriptInputNumber : public ScriptInputNumberBase, public ScriptInput
 {
+protected:
+    void propertyValueChanged() override;
+
 public:
+    ~ScriptInputNumber();
     void initScriptedValue() override
     {
         ScriptInput::initScriptedValue();
@@ -18,6 +22,7 @@ public:
             obj->setNumberInput(name(), propertyValue());
         }
     }
+    StatusCode onAddedClean(CoreContext* context) override;
     bool validateForScriptInit() override { return true; }
     StatusCode import(ImportStack& importStack) override;
 };

@@ -274,5 +274,6 @@ private:
         std::chrono::steady_clock::now();
 
     bool m_isFirstFlushOfFrame = true;
+    bool m_usesCopyCommandList = false;
 };
 } // namespace rive::gpu

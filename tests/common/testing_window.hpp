@@ -82,6 +82,8 @@ public:
         bool clockwise = false;
         bool disableValidationLayers = false;
         bool disableDebugCallbacks = false;
+        bool wantVulkanSynchronizationValidation = false;
+
         ANGLERenderer angleRenderer =
 #ifdef __APPLE__
             ANGLERenderer::metal;
@@ -168,6 +170,9 @@ public:
         m_height = height;
     }
 
+    // This is called by the gm testing after each GM runs
+    virtual void onceAfterGM() {}
+
     struct FrameOptions
     {
         uint32_t clearColor;
@@ -175,6 +180,8 @@ public:
         bool forceMSAA = false;
         bool disableRasterOrdering = false;
         bool wireframe = false;
+        bool fillsDisabled = false;
+        bool strokesDisabled = false;
         bool clockwiseFillOverride = false;
 #ifdef WITH_RIVE_TOOLS
         rive::gpu::SynthesizedFailureType synthesizedFailureType =

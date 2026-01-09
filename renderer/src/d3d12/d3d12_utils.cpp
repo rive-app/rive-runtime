@@ -267,6 +267,11 @@ void D3D12DescriptorHeap::markRtvToIndex(ID3D12Device* device,
 
     D3D12_RENDER_TARGET_VIEW_DESC RTVDesc = {};
     RTVDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+    RTVDesc.Format = resource->desc().Format;
+    if (DXGI_FORMAT_R8G8B8A8_TYPELESS == RTVDesc.Format)
+    {
+        RTVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    }
     RTVDesc.Texture2D.MipSlice = 0;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(

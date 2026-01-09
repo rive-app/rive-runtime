@@ -4,9 +4,11 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "lua.h"
 #endif
+#include <vector>
 
 namespace rive
 {
+class ViewModel;
 class LuaState
 {
 public:
@@ -14,6 +16,7 @@ public:
 
     LuaState(lua_State* state) : state(state) {}
     ~LuaState() { state = nullptr; }
+    void initializeData(std::vector<ViewModel*>&);
 
     lua_State* state;
 #endif

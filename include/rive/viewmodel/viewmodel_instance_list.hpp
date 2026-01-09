@@ -5,6 +5,10 @@
 #include <stdio.h>
 namespace rive
 {
+#ifdef WITH_RIVE_TOOLS
+class ViewModelInstanceList;
+typedef void (*ViewModelListChanged)(ViewModelInstanceList* vmi);
+#endif
 class ViewModelInstanceList : public ViewModelInstanceListBase
 {
 public:
@@ -17,6 +21,8 @@ public:
     Span<rcp<ViewModelInstanceListItem>> listItems() { return m_ListItems; }
     rcp<ViewModelInstanceListItem> item(uint32_t index);
     void swap(uint32_t index1, uint32_t index2);
+    rcp<ViewModelInstanceListItem> pop();
+    rcp<ViewModelInstanceListItem> shift();
     Core* clone() const override;
     void advanced() override;
     void parentViewModelInstance(ViewModelInstance* parent)
@@ -27,6 +33,13 @@ public:
     {
         return m_parentViewModelInstance;
     }
+#ifdef WITH_RIVE_TOOLS
+    void onChanged(ViewModelListChanged callback)
+    {
+        m_changedCallback = callback;
+    }
+    ViewModelListChanged m_changedCallback = nullptr;
+#endif
 
 protected:
     std::vector<rcp<ViewModelInstanceListItem>> m_ListItems;

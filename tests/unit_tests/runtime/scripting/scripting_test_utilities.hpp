@@ -6,6 +6,7 @@
 #include "luacode.h"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "utils/serializing_factory.hpp"
+#include "rive/scripted/scripted_object.hpp"
 #include <unordered_map>
 
 namespace rive
@@ -113,6 +114,22 @@ public:
 private:
     SerializingFactory m_factory;
     std::unique_ptr<ScriptingVM> m_vm;
+};
+
+class ScriptedObjectTest : public ScriptedObject
+{
+    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override
+    {
+        return true;
+    }
+    bool m_markedToUpdate = false;
+    uint32_t assetId() override { return 0; }
+    ScriptProtocol scriptProtocol() override { return ScriptProtocol::utility; }
+    void markNeedsUpdate() override { m_markedToUpdate = true; }
+    Component* component() override { return nullptr; }
+
+public:
+    bool needsUpdate() { return m_markedToUpdate; }
 };
 } // namespace rive
 #endif

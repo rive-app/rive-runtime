@@ -1,136 +1,113 @@
 #include "rive/shapes/paint/dash_path.hpp"
 #include "rive/shapes/paint/dash.hpp"
 #include "rive/shapes/paint/stroke.hpp"
+#include "rive/math/path_measure.hpp"
 #include "rive/factory.hpp"
 
 using namespace rive;
 
-void PathDasher::invalidateSourcePath()
+void DashEffectPath::invalidateEffect() { m_path.rewind(); }
+
+void DashEffectPath::createPathMeasure(const RawPath* source)
 {
-    m_contours.clear();
-    invalidateDash();
+    m_pathMeasure = PathMeasure(source);
 }
 
-void PathDasher::invalidateDash() { m_path.rewind(); }
+void PathDasher::invalidateDash() {}
 
-ShapePaintPath* PathDasher::dash(const RawPath* source,
+ShapePaintPath* PathDasher::dash(ShapePaintPath* destination,
+                                 const RawPath* source,
+                                 PathMeasure* pathMeasure,
                                  Dash* offset,
                                  Span<Dash*> dashes)
 {
-    if (m_path.hasRenderPath())
+    if (destination->hasRenderPath())
     {
         // Previous result hasn't been invalidated, it's still good.
-        return &m_path;
+        return destination;
     }
 
-    m_path.rewind();
-    return applyDash(source, offset, dashes);
+    destination->rewind();
+    return applyDash(destination, source, pathMeasure, offset, dashes);
 }
-ShapePaintPath* PathDasher::applyDash(const RawPath* source,
+ShapePaintPath* PathDasher::applyDash(ShapePaintPath* destination,
+                                      const RawPath* source,
+                                      PathMeasure* pathMeasure,
                                       Dash* offset,
                                       Span<Dash*> dashes)
 {
-    if (m_contours.empty())
-    {
-        // 0.5f / 8.0f is a value that seems to look good on dashes with small
-        // gaps and scaled
-        ContourMeasureIter iter(source, 0.0625f);
-        while (auto meas = iter.next())
-        {
-            m_contours.push_back(meas);
-        }
-    }
-
     // Make sure dashes have some length.
     bool hasValidDash = false;
-    for (const rcp<ContourMeasure>& contour : m_contours)
+    for (auto dash : dashes)
     {
-        for (auto dash : dashes)
+        if (dash->normalizedLength(pathMeasure->length(), false) > 0.0f)
         {
-            if (dash->normalizedLength(contour->length()) > 0.0f)
-            {
-                hasValidDash = true;
-                break;
-            }
-        }
-        if (hasValidDash)
-        {
+            hasValidDash = true;
             break;
         }
     }
     if (hasValidDash)
     {
         int dashIndex = 0;
-        auto rawPath = m_path.mutableRawPath();
-        for (const rcp<ContourMeasure>& contour : m_contours)
+        auto rawPath = destination->mutableRawPath();
+        float dashed = 0.0f;
+        float distance = offset->normalizedLength(pathMeasure->length(), true);
+        bool draw = true;
+        while (dashed < pathMeasure->length())
         {
-            float dashed = 0.0f;
-            float distance = offset->normalizedLength(contour->length());
-            bool draw = true;
-            while (dashed < contour->length())
+            const Dash* dash = dashes[dashIndex++ % dashes.size()];
+            float dashLength =
+                dash->normalizedLength(pathMeasure->length(), false);
+            if (dashLength > pathMeasure->length())
             {
-                const Dash* dash = dashes[dashIndex++ % dashes.size()];
-                float dashLength = dash->normalizedLength(contour->length());
-                if (dashLength > contour->length())
+                dashLength = pathMeasure->length();
+            }
+            float endLength = distance + dashLength;
+            if (endLength > pathMeasure->length())
+            {
+                endLength -= pathMeasure->length();
+                if (draw)
                 {
-                    dashLength = contour->length();
-                }
-                float endLength = distance + dashLength;
-                if (endLength > contour->length())
-                {
-                    endLength -= contour->length();
-                    if (draw)
+                    if (distance < pathMeasure->length())
                     {
-                        if (distance < contour->length())
-                        {
-                            contour->getSegment(distance,
-                                                contour->length(),
+                        pathMeasure->getSegment(distance,
+                                                pathMeasure->length(),
                                                 rawPath,
                                                 true);
-                            contour->getSegment(0.0f,
+                        pathMeasure->getSegment(0.0f,
                                                 endLength,
                                                 rawPath,
-                                                !contour->isClosed());
-                        }
-                        else
-                        {
-                            contour->getSegment(0.0f, endLength, rawPath, true);
-                        }
+                                                !pathMeasure->isClosed());
                     }
+                    else
+                    {
+                        pathMeasure->getSegment(0.0f, endLength, rawPath, true);
+                    }
+                }
 
-                    // Setup next step.
-                    distance = endLength - dashLength;
-                }
-                else if (draw)
-                {
-                    contour->getSegment(distance, endLength, rawPath, true);
-                }
-                distance += dashLength;
-                dashed += dashLength;
-                draw = !draw;
+                // Setup next step.
+                distance = endLength - dashLength;
             }
+            else if (draw)
+            {
+                pathMeasure->getSegment(distance, endLength, rawPath, true);
+            }
+            distance += dashLength;
+            dashed += dashLength;
+            draw = !draw;
         }
     }
-    return &m_path;
-}
-
-float PathDasher::pathLength() const
-{
-    float totalLength = 0.0f;
-    for (auto contour : m_contours)
-    {
-        totalLength += contour->length();
-    }
-    return totalLength;
+    return destination;
 }
 
 StatusCode DashPath::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<Stroke>())
+    auto effectsContainer = EffectsContainer::from(parent());
+    if (!effectsContainer)
     {
         return StatusCode::InvalidObject;
     }
-    parent()->as<Stroke>()->addStrokeEffect(this);
+    effectsContainer->addStrokeEffect(this);
 
     m_dashes.clear();
     for (auto child : children())
@@ -143,33 +120,47 @@ StatusCode DashPath::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void DashPath::invalidateEffect() { invalidateSourcePath(); }
+void DashPath::offsetChanged() { invalidateEffectFromLocal(); }
+void DashPath::offsetIsPercentageChanged() { invalidateEffectFromLocal(); }
 
-void DashPath::offsetChanged() { invalidateDash(); }
-void DashPath::offsetIsPercentageChanged() { invalidateDash(); }
-
-void DashPath::updateEffect(const ShapePaintPath* source)
+void DashPath::updateEffect(PathProvider* pathProvider,
+                            const ShapePaintPath* source,
+                            ShapePaintType shapePaintType)
 {
-
-    if (m_path.hasRenderPath())
+    auto effectPathIt = m_effectPaths.find(pathProvider);
+    if (effectPathIt != m_effectPaths.end())
     {
-        return;
+        auto dashEffectPath =
+            static_cast<DashEffectPath*>(effectPathIt->second);
+        auto path = dashEffectPath->path();
+        if (path->hasRenderPath())
+        {
+            return;
+        }
+        path->rewind(source->isLocal());
+        // Dash is not supported on fills so it will use the source as output
+        if (shapePaintType == ShapePaintType::fill)
+        {
+            path->addPath(source);
+        }
+        else
+        {
+            Dash dashOffset(offset(), offsetIsPercentage());
+            dashEffectPath->createPathMeasure(source->rawPath());
+            applyDash(path,
+                      source->rawPath(),
+                      &dashEffectPath->pathMeasure(),
+                      &dashOffset,
+                      m_dashes);
+        }
     }
-    m_path.rewind(source->isLocal());
-
-    Dash dashOffset(offset(), offsetIsPercentage());
-    applyDash(source->rawPath(), &dashOffset, m_dashes);
 }
 
-ShapePaintPath* DashPath::effectPath() { return &m_path; }
+void DashPath::invalidateDash() { invalidateEffectFromLocal(); }
 
-void DashPath::invalidateDash()
+EffectsContainer* DashPath::parentPaint()
 {
-    PathDasher::invalidateDash();
-    if (parent() != nullptr)
-    {
-        auto stroke = parent()->as<Stroke>();
-        stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateRendering();
-    }
+    return EffectsContainer::from(parent());
 }
+
+EffectPath* DashPath::createEffectPath() { return new DashEffectPath(); }

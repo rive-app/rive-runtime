@@ -4,6 +4,7 @@
 
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "shaders/constants.glsl"
+#include "draw_pipeline_layout_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 
 namespace rive::gpu
@@ -50,7 +51,6 @@ static VkFilter vk_filter(rive::ImageFilter option)
 
 PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
                                              ShaderCompilationMode mode,
-                                             uint32_t vendorID,
                                              VkImageView nullTextureView) :
     Super(mode),
     m_vk(std::move(vk)),
@@ -58,8 +58,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
                       VK_FORMAT_R32_SFLOAT,
                       VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT)
                       ? VK_FORMAT_R32_SFLOAT
-                      : VK_FORMAT_R16_SFLOAT),
-    m_vendorID(vendorID)
+                      : VK_FORMAT_R16_SFLOAT)
 {
     // Create the immutable samplers.
     VkSamplerCreateInfo linearSamplerCreateInfo = {
@@ -361,18 +360,25 @@ PipelineManagerVulkan::~PipelineManagerVulkan()
 }
 
 DrawPipelineLayoutVulkan& PipelineManagerVulkan::
-    getDrawPipelineLayoutSynchronous(
-        InterlockMode interlockMode,
-        DrawPipelineLayoutVulkan::Options layoutOptions)
+    getDrawPipelineLayoutSynchronous(InterlockMode interlockMode,
+                                     RenderPassOptionsVulkan renderPassOptions)
 {
-    return getSharedObjectSynchronous(
-        DrawPipelineLayoutIdx(interlockMode, layoutOptions),
-        m_drawPipelineLayouts,
-        [&]() {
-            return std::make_unique<DrawPipelineLayoutVulkan>(this,
-                                                              interlockMode,
-                                                              layoutOptions);
-        });
+    // Mask off the options that don't affect layout.
+    renderPassOptions &= RENDER_PASS_OPTIONS_LAYOUT_MASK;
+
+    const uint32_t key =
+        (static_cast<uint32_t>(interlockMode) << RENDER_PASS_OPTION_COUNT) |
+        static_cast<uint32_t>(renderPassOptions);
+
+    // Make sure our key doesn't overflow 32 bits.
+    assert(key >> RENDER_PASS_OPTION_COUNT ==
+           static_cast<uint32_t>(interlockMode));
+
+    return getSharedObjectSynchronous(key, m_drawPipelineLayouts, [&]() {
+        return std::make_unique<DrawPipelineLayoutVulkan>(this,
+                                                          interlockMode,
+                                                          renderPassOptions);
+    });
 }
 
 std::unique_ptr<DrawShaderVulkan> PipelineManagerVulkan::createVertexShader(
@@ -404,19 +410,19 @@ std::unique_ptr<DrawShaderVulkan> PipelineManagerVulkan::createFragmentShader(
 
 RenderPassVulkan& PipelineManagerVulkan::getRenderPassSynchronous(
     InterlockMode interlockMode,
-    DrawPipelineLayoutVulkan::Options pipelineLayoutOptions,
+    RenderPassOptionsVulkan renderPassOptions,
     VkFormat renderTargetFormat,
     LoadAction colorLoadAction)
 {
     const uint32_t key = RenderPassVulkan::Key(interlockMode,
-                                               pipelineLayoutOptions,
+                                               renderPassOptions,
                                                renderTargetFormat,
                                                colorLoadAction);
 
     return getSharedObjectSynchronous(key, m_renderPasses, [&]() {
         return std::make_unique<RenderPassVulkan>(this,
                                                   interlockMode,
-                                                  pipelineLayoutOptions,
+                                                  renderPassOptions,
                                                   renderTargetFormat,
                                                   colorLoadAction);
     });
@@ -428,7 +434,7 @@ std::unique_ptr<DrawPipelineVulkan> PipelineManagerVulkan::createPipeline(
     const PipelineProps& props)
 {
     auto& renderPass = getRenderPassSynchronous(props.interlockMode,
-                                                props.pipelineLayoutOptions,
+                                                props.renderPassOptions,
                                                 props.renderTargetFormat,
                                                 props.colorLoadAction);
 

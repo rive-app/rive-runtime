@@ -7,6 +7,8 @@
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 
 #include <math.h>
 #include <stdio.h>
@@ -227,6 +229,22 @@ ScriptedViewModel::~ScriptedViewModel()
     }
 }
 
+int ScriptedViewModel::instance(lua_State* L)
+{
+    if (m_viewModel)
+    {
+#ifdef WITH_RIVE_TOOLS
+        m_viewModel->file()->triggerViewModelCreatedCallback(true);
+#endif
+        auto instance = m_viewModel->createInstance();
+#ifdef WITH_RIVE_TOOLS
+        m_viewModel->file()->triggerViewModelCreatedCallback(false);
+#endif
+        lua_newrive<ScriptedViewModel>(L, L, m_viewModel, instance);
+    }
+    return 1;
+}
+
 int ScriptedViewModel::pushValue(const char* name, int coreType)
 {
     auto itr = m_propertyRefs.find(name);
@@ -394,6 +412,76 @@ static int property_namecall_atom(lua_State* L,
                 return 0;
             }
         }
+        case (int)LuaAtoms::push:
+        {
+            auto scriptedViewModel = lua_torive<ScriptedViewModel>(L, 2);
+            auto vmi = scriptedViewModel->viewModelInstance();
+            auto copy = ref_rcp(vmi.get());
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto listItem = make_rcp<ViewModelInstanceListItem>();
+
+            listItem->viewModelInstance(copy);
+            list->addItem(listItem);
+            return 0;
+        }
+        case (int)LuaAtoms::pop:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto listItem = list->pop();
+            if (listItem)
+            {
+                auto vmi = listItem->viewModelInstance();
+                if (vmi)
+                {
+                    lua_newrive<ScriptedViewModel>(L,
+                                                   L,
+                                                   ref_rcp(vmi->viewModel()),
+                                                   vmi);
+                    return 1;
+                }
+            }
+            return 0;
+        }
+        case (int)LuaAtoms::swap:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto index1 = lua_tounsigned(L, 2);
+            auto index2 = lua_tounsigned(L, 3);
+            list->swap(index1 - 1, index2 - 1);
+            return 0;
+        }
+        case (int)LuaAtoms::shift:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto listItem = list->shift();
+            if (listItem)
+            {
+                auto vmi = listItem->viewModelInstance();
+                if (vmi)
+                {
+                    lua_newrive<ScriptedViewModel>(L,
+                                                   L,
+                                                   ref_rcp(vmi->viewModel()),
+                                                   vmi);
+                    return 1;
+                }
+            }
+            return 0;
+        }
+
+        case (int)LuaAtoms::insert:
+        {
+            auto scriptedViewModel = lua_torive<ScriptedViewModel>(L, 2);
+            auto index = lua_tounsigned(L, 3);
+            auto vmi = scriptedViewModel->viewModelInstance();
+            auto copy = ref_rcp(vmi.get());
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto listItem = make_rcp<ViewModelInstanceListItem>();
+
+            listItem->viewModelInstance(copy);
+            list->addItemAt(listItem, index);
+            return 0;
+        }
     }
     error = true;
     return 0;
@@ -453,6 +541,12 @@ static int vm_namecall(lua_State* L)
                 const char* name = luaL_checklstring(L, 2, &namelen);
                 assert(vm->state() == L);
                 return vm->pushValue(name, ViewModelInstanceListBase::typeKey);
+            }
+            case (int)LuaAtoms::instance:
+            case (int)LuaAtoms::newAtom:
+            {
+                assert(vm->state() == L);
+                return vm->instance(L);
             }
             default:
                 break;
@@ -516,6 +610,9 @@ static int property_namecall(lua_State* L)
                 break;
             case ScriptedPropertyEnum::luaTag:
                 name = ScriptedPropertyEnum::luaName;
+                break;
+            case ScriptedPropertyList::luaTag:
+                name = ScriptedPropertyList::luaName;
                 break;
             default:
                 luaL_typeerror(L, 1, name);
@@ -1027,6 +1124,14 @@ static int property_enum_newindex(lua_State* L)
     return 0;
 }
 
+static int vm_eq(lua_State* L)
+{
+    auto lhs = lua_torive<ScriptedViewModel>(L, 1);
+    auto rhs = lua_torive<ScriptedViewModel>(L, 2);
+    lua_pushboolean(L, lhs->viewModelInstance() == rhs->viewModelInstance());
+    return 1;
+}
+
 int luaopen_rive_properties(lua_State* L)
 {
     {
@@ -1037,6 +1142,9 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_pushcfunction(L, vm_namecall, nullptr);
         lua_setfield(L, -2, "__namecall");
+
+        lua_pushcfunction(L, vm_eq, nullptr);
+        lua_setfield(L, -2, "__eq");
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable

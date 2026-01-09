@@ -11,6 +11,8 @@ public:
     PathFlags pathFlags() const override;
     void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
     ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
+    ShapePaintType paintType() override { return ShapePaintType::fill; }
+    void buildDependencies() override;
 };
 } // namespace rive
 

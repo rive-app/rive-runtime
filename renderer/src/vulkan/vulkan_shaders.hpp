@@ -79,9 +79,11 @@ extern rive::Span<const uint32_t> draw_clockwise_atomic_path_frag;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_vert;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_frag;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_vert;
-extern rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_frag;
+extern rive::Span<const uint32_t>
+    draw_clockwise_atomic_atlas_blit_fixedcolor_frag;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_vert;
-extern rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_frag;
+extern rive::Span<const uint32_t>
+    draw_clockwise_atomic_image_mesh_fixedcolor_frag;
 
 // InterlockMode::msaa shaders.
 extern rive::Span<const uint32_t> draw_msaa_path_vert;
@@ -99,8 +101,10 @@ extern rive::Span<const uint32_t> draw_msaa_image_mesh_vert;
 extern rive::Span<const uint32_t> draw_msaa_image_mesh_noclipdistance_vert;
 extern rive::Span<const uint32_t> draw_msaa_image_mesh_frag;
 extern rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag;
-extern rive::Span<const uint32_t> copy_attachment_to_attachment_vert;
-extern rive::Span<const uint32_t> copy_attachment_to_attachment_frag;
+extern rive::Span<const uint32_t> draw_fullscreen_quad_vert;
+extern rive::Span<const uint32_t> draw_input_attachment_frag;
+extern rive::Span<const uint32_t> draw_msaa_color_seed_attachment_frag;
+extern rive::Span<const uint32_t> draw_msaa_resolve_frag;
 
 // Reload global SPIRV buffers from runtime data.
 void hotload_shaders(rive::Span<const uint32_t> spirvData);

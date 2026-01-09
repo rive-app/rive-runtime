@@ -228,7 +228,7 @@ bool ArtboardComponentList ::listsAreEqual(
 void ArtboardComponentList::updateList(
     std::vector<rcp<ViewModelInstanceListItem>>* list)
 {
-    if (listsAreEqual(&m_oldItems, list))
+    if (listsAreEqual(&m_listItems, list))
     {
         return;
     }
@@ -438,55 +438,29 @@ void ArtboardComponentList::markHostingLayoutDirty(
     markWorldTransformDirty();
 }
 
+bool ArtboardComponentList::willDraw()
+{
+    return Super::willDraw() && m_listItems.size() > 0;
+}
+
 void ArtboardComponentList::draw(Renderer* renderer)
 {
-    if (m_listItems.size() == 0)
+    if (m_needsSaveOperation)
     {
-        return;
-    }
-    ClipResult clipResult = applyClip(renderer);
-    if (clipResult == ClipResult::noClip)
-    {
-        // We didn't clip, so make sure to save as we'll be doing some
-        // transformations.
         renderer->save();
     }
-    if (clipResult != ClipResult::emptyClip)
+    if (virtualizationEnabled())
     {
-        if (virtualizationEnabled())
+        renderer->transform(
+            parent()->as<WorldTransformComponent>()->worldTransform());
+        if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
         {
-            renderer->transform(
-                parent()->as<WorldTransformComponent>()->worldTransform());
-            if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
-            {
-                // We need to render in the correct order so we get the correct
-                // z-index for items in cases where there is overlap
-                auto startIndex = m_visibleStartIndex % (int)m_listItems.size();
-                auto endIndex = m_visibleEndIndex % (int)m_listItems.size();
-                int i = startIndex;
-                while (true)
-                {
-                    auto artboard = artboardInstance(i);
-                    if (artboard != nullptr)
-                    {
-                        renderer->save();
-                        auto transform = m_artboardTransforms[artboard];
-                        renderer->transform(transform);
-                        artboard->draw(renderer);
-                        renderer->restore();
-                    }
-                    if (i == endIndex)
-                    {
-                        break;
-                    }
-                    i = (i + 1) % m_listItems.size();
-                }
-            }
-        }
-        else
-        {
-            renderer->transform(worldTransform());
-            for (int i = 0; i < artboardCount(); i++)
+            // We need to render in the correct order so we get the correct
+            // z-index for items in cases where there is overlap
+            auto startIndex = m_visibleStartIndex % (int)m_listItems.size();
+            auto endIndex = m_visibleEndIndex % (int)m_listItems.size();
+            int i = startIndex;
+            while (true)
             {
                 auto artboard = artboardInstance(i);
                 if (artboard != nullptr)
@@ -494,13 +468,37 @@ void ArtboardComponentList::draw(Renderer* renderer)
                     renderer->save();
                     auto transform = m_artboardTransforms[artboard];
                     renderer->transform(transform);
-                    artboard->draw(renderer);
+                    artboard->drawInternal(renderer);
                     renderer->restore();
                 }
+                if (i == endIndex)
+                {
+                    break;
+                }
+                i = (i + 1) % m_listItems.size();
             }
         }
     }
-    renderer->restore();
+    else
+    {
+        renderer->transform(worldTransform());
+        for (int i = 0; i < artboardCount(); i++)
+        {
+            auto artboard = artboardInstance(i);
+            if (artboard != nullptr)
+            {
+                renderer->save();
+                auto transform = m_artboardTransforms[artboard];
+                renderer->transform(transform);
+                artboard->drawInternal(renderer);
+                renderer->restore();
+            }
+        }
+    }
+    if (m_needsSaveOperation)
+    {
+        renderer->restore();
+    }
 }
 
 Core* ArtboardComponentList::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
@@ -806,7 +804,7 @@ void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
     m_stateMachinesMap.erase(item);
 }
 
-void ArtboardComponentList::createArtboardRecorders(Artboard* artboard)
+void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)
 {
     if (artboard == nullptr)
     {
@@ -827,25 +825,24 @@ void ArtboardComponentList::createArtboardRecorders(Artboard* artboard)
 }
 
 void ArtboardComponentList::applyRecorders(Artboard* artboard,
-                                           Artboard* sourceArtboard)
+                                           const Artboard* sourceArtboard)
 {
-    auto propertyRecorder = m_propertyRecordersMap[sourceArtboard].get();
-    propertyRecorder->apply(artboard);
-    auto artboards = m_file->artboards();
+    auto sourcedArtboardIt = m_propertyRecordersMap.find(sourceArtboard);
+    if (sourcedArtboardIt != m_propertyRecordersMap.end())
+    {
+        auto propertyRecorder = sourcedArtboardIt->second.get();
+        propertyRecorder->apply(artboard);
+    }
     for (auto& nestedArtboard : artboard->nestedArtboards())
     {
-        if (nestedArtboard->artboardId() < artboards.size())
-        {
-            auto sourceNestedArtboard = artboards[nestedArtboard->artboardId()];
-            applyRecorders(nestedArtboard->sourceArtboard(),
-                           sourceNestedArtboard);
-        }
+        applyRecorders(nestedArtboard->sourceArtboard(),
+                       nestedArtboard->sourceArtboard()->artboardSource());
     }
 }
 
 void ArtboardComponentList::applyRecorders(
     StateMachineInstance* stateMachineInstance,
-    Artboard* sourceArtboard)
+    const Artboard* sourceArtboard)
 {
     auto propertyRecorder = m_propertyRecordersMap[sourceArtboard].get();
     propertyRecorder->apply(stateMachineInstance);

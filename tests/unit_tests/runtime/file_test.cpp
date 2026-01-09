@@ -3,6 +3,7 @@
 #include "rive/shapes/rectangle.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/assets/script_asset.hpp"
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/mesh.hpp"
 #include "utils/no_op_renderer.hpp"
@@ -248,4 +249,19 @@ TEST_CASE("file with bad keyed property loads", "[file]")
     REQUIRE(file->artboard()->name() == "Artboard");
     auto artboard = file->artboardDefault();
     artboard->updateComponents();
+}
+
+TEST_CASE("file can be read with verified signed scripts", "[file]")
+{
+    auto file = ReadRiveFile("assets/joel_signed.riv");
+
+    for (auto asset : file->assets())
+    {
+        if (asset->is<rive::ScriptAsset>())
+        {
+            // All script assets should've been verified by the time the file is
+            // loaded.
+            CHECK(asset->as<rive::ScriptAsset>()->verified());
+        }
+    }
 }

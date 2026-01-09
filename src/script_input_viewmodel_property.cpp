@@ -4,25 +4,29 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
+#include "rive/custom_property_container.hpp"
 
 using namespace rive;
+
+ScriptInputViewModelProperty::~ScriptInputViewModelProperty()
+{
+    auto obj = scriptedObject();
+    if (obj != nullptr)
+    {
+        obj->removeProperty(this);
+    }
+}
 
 void ScriptInputViewModelProperty::decodeDataBindPathIds(
     Span<const uint8_t> value)
 {
-    BinaryReader reader(value);
-    while (!reader.reachedEnd())
-    {
-        auto val = reader.readVarUintAs<uint32_t>();
-        m_DataBindPathIdsBuffer.push_back(val);
-    }
+    decodeDataBindPath(value);
 }
 
 void ScriptInputViewModelProperty::copyDataBindPathIds(
     const ScriptInputViewModelPropertyBase& object)
 {
-    m_DataBindPathIdsBuffer =
-        object.as<ScriptInputViewModelProperty>()->m_DataBindPathIdsBuffer;
+    copyDataBindPath(object.as<ScriptInputViewModelProperty>()->dataBindPath());
 }
 
 void ScriptInputViewModelProperty::initScriptedValue()
@@ -52,7 +56,11 @@ bool ScriptInputViewModelProperty::validateForScriptInit()
     {
         return false;
     }
-    auto instanceValue = dataContext->getViewModelProperty(dataBindPathIds());
+    if (m_dataBindPath == nullptr)
+    {
+        return false;
+    }
+    auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
     if (instanceValue == nullptr)
     {
         return false;
@@ -68,6 +76,7 @@ bool ScriptInputViewModelProperty::validateForScriptInit()
 
 StatusCode ScriptInputViewModelProperty::import(ImportStack& importStack)
 {
+    importDataBindPath(importStack);
     auto importer =
         importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
     if (importer == nullptr)
@@ -76,5 +85,33 @@ StatusCode ScriptInputViewModelProperty::import(ImportStack& importStack)
     }
     importer->addInput(this);
 
-    return Super::import(importStack);
+    auto obj = scriptedObject();
+    if (obj && obj->component() != nullptr)
+    {
+        // If the ScriptedObject is a Component, we need the ArtboardImporter
+        // to add it as a Component, otherwise, return Ok
+        return Super::import(importStack);
+    }
+    return StatusCode::Ok;
+}
+
+StatusCode ScriptInputViewModelProperty::onAddedClean(CoreContext* context)
+{
+    StatusCode code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+
+    auto p = parent();
+    if (p != nullptr)
+    {
+        auto scriptedObj = ScriptedObject::from(p);
+        if (scriptedObj != nullptr)
+        {
+            scriptedObj->addProperty(this);
+        }
+    }
+
+    return StatusCode::Ok;
 }

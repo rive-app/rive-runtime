@@ -1,11 +1,13 @@
 #ifndef _RIVE_SHAPE_PAINT_HPP_
 #define _RIVE_SHAPE_PAINT_HPP_
 #include "rive/generated/shapes/paint/shape_paint_base.hpp"
+#include "rive/shapes/paint/effects_container.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include "rive/shapes/path_flags.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
+#include "rive/shapes/paint/stroke_effect.hpp"
 #include "rive/math/raw_path.hpp"
 
 namespace rive
@@ -14,19 +16,27 @@ class RenderPaint;
 class ShapePaintMutator;
 class Feather;
 class ShapePaintContainer;
-class ShapePaint : public ShapePaintBase
+class ShapePaint : public ShapePaintBase,
+                   public EffectsContainer,
+                   public PathProvider
 {
 protected:
     rcp<RenderPaint> m_RenderPaint;
     ShapePaintMutator* m_PaintMutator = nullptr;
+    virtual ShapePaintType paintType() = 0;
 
 public:
     StatusCode onAddedClean(CoreContext* context) override;
+    void invalidateEffects(StrokeEffect* effect) override;
+    void invalidateEffects() override;
+    virtual void invalidateRendering();
 
     float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
     void renderOpacity(float value) { m_PaintMutator->renderOpacity(value); }
 
     void blendMode(BlendMode value);
+
+    void addStrokeEffect(StrokeEffect* effect) override;
 
     /// Creates a RenderPaint object for the provided ShapePaintMutator*.
     /// This should be called only once as the ShapePaint manages the
@@ -43,7 +53,8 @@ public:
                       ShapePaintPath* shapePaintPath,
                       const Mat2D& transform,
                       bool usePathFillRule = false,
-                      RenderPaint* overridePaint = nullptr);
+                      RenderPaint* overridePaint = nullptr,
+                      bool needsSaveOperation = true);
 
     RenderPaint* renderPaint() { return m_RenderPaint.get(); }
 
@@ -70,6 +81,7 @@ public:
     Feather* feather() const;
 
     virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
+    void update(ComponentDirt value) override;
 
 private:
     Feather* m_feather = nullptr;

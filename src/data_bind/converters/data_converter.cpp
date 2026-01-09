@@ -33,9 +33,12 @@ void DataConverter::unbind() { unbindDataBinds(); }
 
 void DataConverter::markConverterDirty()
 {
-    m_parentDataBind->addDirt(ComponentDirt::Dependents |
-                                  ComponentDirt::Bindings,
-                              false);
+    if (m_parentDataBind != nullptr)
+    {
+        m_parentDataBind->addDirt(ComponentDirt::Dependents |
+                                      ComponentDirt::Bindings,
+                                  false);
+    }
 }
 
 void DataConverter::addDirtyDataBind(DataBind* dataBind)

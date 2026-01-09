@@ -15,13 +15,13 @@ namespace rive::gpu
 DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
     PipelineManagerVulkan* pipelineManager,
     gpu::InterlockMode interlockMode,
-    DrawPipelineLayoutVulkan::Options options) :
+    RenderPassOptionsVulkan renderPassOptions) :
     m_vk(ref_rcp(pipelineManager->vulkanContext())),
     m_interlockMode(interlockMode),
-    m_options(options)
+    m_renderPassOptions(renderPassOptions)
 {
     const bool fixedFunctionColorOutput =
-        m_options & Options::fixedFunctionColorOutput;
+        m_renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput;
 
     // PLS planes get bound per flush as input attachments or storage
     // textures.
@@ -136,26 +136,30 @@ DrawPipelineLayoutVulkan::~DrawPipelineLayoutVulkan()
     m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
 }
 
-uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(uint32_t subpassIndex,
-                                                        Options options) const
+uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
+    uint32_t subpassIndex,
+    RenderPassOptionsVulkan renderPassOptions) const
 {
     switch (m_interlockMode)
     {
         case gpu::InterlockMode::rasterOrdering:
-            assert(subpassIndex == 0);
-            return 4;
+            assert(subpassIndex == 0 || subpassIndex == 1);
+            return (subpassIndex == 0) ? 4u : 1u;
         case gpu::InterlockMode::atomics:
             assert(subpassIndex <= 1);
             return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
         case gpu::InterlockMode::clockwise:
             assert(subpassIndex == 0);
-            return (options & Options::fixedFunctionColorOutput) ? 1 : 0;
+            return (renderPassOptions &
+                    RenderPassOptionsVulkan::fixedFunctionColorOutput)
+                       ? 1u
+                       : 0u;
         case gpu::InterlockMode::clockwiseAtomic:
             assert(subpassIndex == 0);
-            return 1;
+            return 1u;
         case gpu::InterlockMode::msaa:
-            assert(subpassIndex == 0 || subpassIndex == 1);
-            return 1;
+            assert(0 <= subpassIndex && subpassIndex <= 2);
+            return 1u;
     }
     RIVE_UNREACHABLE();
 }

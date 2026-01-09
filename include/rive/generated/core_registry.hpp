@@ -97,6 +97,7 @@
 #include "rive/assets/folder.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/assets/manifest_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/backboard.hpp"
@@ -180,6 +181,7 @@
 #include "rive/data_bind/converters/formula/formula_token_value.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
+#include "rive/data_bind/data_bind_path.hpp"
 #include "rive/draw_rules.hpp"
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
@@ -211,6 +213,7 @@
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/contour_mesh_vertex.hpp"
 #include "rive/shapes/cubic_asymmetric_vertex.hpp"
@@ -227,11 +230,13 @@
 #include "rive/shapes/paint/feather.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
+#include "rive/shapes/paint/group_effect.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
 #include "rive/shapes/paint/radial_gradient.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/solid_color.hpp"
 #include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/target_effect.hpp"
 #include "rive/shapes/paint/trim_path.hpp"
 #include "rive/shapes/parametric_path.hpp"
 #include "rive/shapes/path.hpp"
@@ -436,6 +441,8 @@ public:
                 return new ScriptedDataConverter();
             case ScriptedLayoutBase::typeKey:
                 return new ScriptedLayout();
+            case ScriptedPathEffectBase::typeKey:
+                return new ScriptedPathEffect();
             case ScriptInputNumberBase::typeKey:
                 return new ScriptInputNumber();
             case NestedArtboardLayoutBase::typeKey:
@@ -580,6 +587,10 @@ public:
                 return new StateMachineBool();
             case BlendAnimation1DBase::typeKey:
                 return new BlendAnimation1D();
+            case GroupEffectBase::typeKey:
+                return new GroupEffect();
+            case TargetEffectBase::typeKey:
+                return new TargetEffect();
             case DashPathBase::typeKey:
                 return new DashPath();
             case LinearGradientBase::typeKey:
@@ -662,6 +673,8 @@ public:
                 return new ScriptInputString();
             case BindablePropertyArtboardBase::typeKey:
                 return new BindablePropertyArtboard();
+            case DataBindPathBase::typeKey:
+                return new DataBindPath();
             case BindablePropertyIntegerBase::typeKey:
                 return new BindablePropertyInteger();
             case BindablePropertyTriggerBase::typeKey:
@@ -792,6 +805,8 @@ public:
                 return new Folder();
             case ScriptAssetBase::typeKey:
                 return new ScriptAsset();
+            case ManifestAssetBase::typeKey:
+                return new ManifestAsset();
             case ImageAssetBase::typeKey:
                 return new ImageAsset();
             case FontAssetBase::typeKey:
@@ -936,6 +951,9 @@ public:
                 break;
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedDataConverterBase>()->scriptAssetId(value);
+                break;
+            case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
+                object->as<ScriptedPathEffectBase>()->scriptAssetId(value);
                 break;
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
                 object->as<NestedArtboardLayoutBase>()->instanceWidthUnitsValue(
@@ -1279,6 +1297,9 @@ public:
             case ShapePaintBase::blendModeValuePropertyKey:
                 object->as<ShapePaintBase>()->blendModeValue(value);
                 break;
+            case TargetEffectBase::targetIdPropertyKey:
+                object->as<TargetEffectBase>()->targetId(value);
+                break;
             case StrokeBase::capPropertyKey:
                 object->as<StrokeBase>()->cap(value);
                 break;
@@ -1502,11 +1523,9 @@ public:
             case FileAssetBase::assetIdPropertyKey:
                 object->as<FileAssetBase>()->assetId(value);
                 break;
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 object->as<ScriptAssetBase>()->generatorFunctionRef(value);
                 break;
-#endif
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
                 break;
@@ -1733,6 +1752,9 @@ public:
             case LayoutComponentBase::clipPropertyKey:
                 object->as<LayoutComponentBase>()->clip(value);
                 break;
+            case DataBindPathBase::isRelativePropertyKey:
+                object->as<DataBindPathBase>()->isRelative(value);
+                break;
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 object->as<BindablePropertyBooleanBase>()->propertyValue(value);
                 break;
@@ -1747,6 +1769,9 @@ public:
                 break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
+                break;
+            case ScriptAssetBase::isModulePropertyKey:
+                object->as<ScriptAssetBase>()->isModule(value);
                 break;
         }
     }
@@ -2528,6 +2553,8 @@ public:
                 return object->as<ScriptedDrawableBase>()->scriptAssetId();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedDataConverterBase>()->scriptAssetId();
+            case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
+                return object->as<ScriptedPathEffectBase>()->scriptAssetId();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
                 return object->as<NestedArtboardLayoutBase>()
                     ->instanceWidthUnitsValue();
@@ -2778,6 +2805,8 @@ public:
                     ->exitBlendAnimationId();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->as<ShapePaintBase>()->blendModeValue();
+            case TargetEffectBase::targetIdPropertyKey:
+                return object->as<TargetEffectBase>()->targetId();
             case StrokeBase::capPropertyKey:
                 return object->as<StrokeBase>()->cap();
             case StrokeBase::joinPropertyKey:
@@ -2932,10 +2961,8 @@ public:
                 return object->as<CustomPropertyEnumBase>()->enumId();
             case FileAssetBase::assetIdPropertyKey:
                 return object->as<FileAssetBase>()->assetId();
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->as<ScriptAssetBase>()->generatorFunctionRef();
-#endif
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
             case ScriptInputArtboardBase::artboardIdPropertyKey:
@@ -3104,6 +3131,8 @@ public:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
                 return object->as<LayoutComponentBase>()->clip();
+            case DataBindPathBase::isRelativePropertyKey:
+                return object->as<DataBindPathBase>()->isRelative();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyBooleanBase>()
                     ->propertyValue();
@@ -3115,6 +3144,8 @@ public:
                 return object->as<TextFollowPathModifierBase>()->orient();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
+            case ScriptAssetBase::isModulePropertyKey:
+                return object->as<ScriptAssetBase>()->isModule();
         }
         return false;
     }
@@ -3620,6 +3651,7 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
             case ScriptedDrawableBase::scriptAssetIdPropertyKey:
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
+            case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
             case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
             case NestedArtboardLayoutBase::instanceWidthScaleTypePropertyKey:
@@ -3722,6 +3754,7 @@ public:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
+            case TargetEffectBase::targetIdPropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
             case FeatherBase::spaceValuePropertyKey:
@@ -3795,9 +3828,7 @@ public:
             case CustomPropertyEnumBase::propertyValuePropertyKey:
             case CustomPropertyEnumBase::enumIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
-#endif
             case AudioEventBase::assetIdPropertyKey:
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 return CoreUintType::id;
@@ -3869,11 +3900,13 @@ public:
             case ClippingShapeBase::isVisiblePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
+            case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
             case TextFollowPathModifierBase::radialPropertyKey:
             case TextFollowPathModifierBase::orientPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
+            case ScriptAssetBase::isModulePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
             case CustomPropertyNumberBase::propertyValuePropertyKey:
@@ -4100,10 +4133,12 @@ public:
             case StateMachineFireTriggerBase::viewModelPathIdsPropertyKey:
             case StateMachineListenerBase::viewModelPathIdsPropertyKey:
             case MeshBase::triangleIndexBytesPropertyKey:
+            case DataBindPathBase::pathPropertyKey:
             case DataConverterOperationViewModelBase::sourcePathIdsPropertyKey:
             case DataBindContextBase::sourcePathIdsPropertyKey:
             case FileAssetBase::cdnUuidPropertyKey:
             case FileAssetContentsBase::bytesPropertyKey:
+            case FileAssetContentsBase::signaturePropertyKey:
                 return CoreBytesType::id;
             default:
                 return -1;
@@ -4202,6 +4237,8 @@ public:
                 return object->is<ScriptedDrawableBase>();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedDataConverterBase>();
+            case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
+                return object->is<ScriptedPathEffectBase>();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
                 return object->is<NestedArtboardLayoutBase>();
             case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
@@ -4401,6 +4438,8 @@ public:
                 return object->is<BlendStateTransitionBase>();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->is<ShapePaintBase>();
+            case TargetEffectBase::targetIdPropertyKey:
+                return object->is<TargetEffectBase>();
             case StrokeBase::capPropertyKey:
                 return object->is<StrokeBase>();
             case StrokeBase::joinPropertyKey:
@@ -4547,10 +4586,8 @@ public:
                 return object->is<CustomPropertyEnumBase>();
             case FileAssetBase::assetIdPropertyKey:
                 return object->is<FileAssetBase>();
-#ifdef WITH_RIVE_TOOLS
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->is<ScriptAssetBase>();
-#endif
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
             case ScriptInputArtboardBase::artboardIdPropertyKey:
@@ -4687,6 +4724,8 @@ public:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:
                 return object->is<LayoutComponentBase>();
+            case DataBindPathBase::isRelativePropertyKey:
+                return object->is<DataBindPathBase>();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyBooleanBase>();
             case TextModifierRangeBase::clampPropertyKey:
@@ -4697,6 +4736,8 @@ public:
                 return object->is<TextFollowPathModifierBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();
+            case ScriptAssetBase::isModulePropertyKey:
+                return object->is<ScriptAssetBase>();
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceNumberBase>();
             case CustomPropertyNumberBase::propertyValuePropertyKey:

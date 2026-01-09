@@ -4,8 +4,11 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/script_input_artboard.hpp"
+#include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_object.hpp"
 
 using namespace rive;
@@ -14,10 +17,14 @@ ScriptedObject* ScriptedObject::from(Core* object)
 {
     switch (object->coreType())
     {
+        case ScriptedDataConverter::typeKey:
+            return object->as<ScriptedDataConverter>();
         case ScriptedDrawable::typeKey:
             return object->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return object->as<ScriptedLayout>();
+        case ScriptedPathEffect::typeKey:
+            return object->as<ScriptedPathEffect>();
     }
     return nullptr;
 }
@@ -29,11 +36,15 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     {
         return;
     }
+
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
+    auto artboardInstance = artboard->instance();
+    artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(state,
+                                  state,
                                   ref_rcp(scriptAsset()->file()),
-                                  artboard->instance());
+                                  std::move(artboardInstance));
     lua_setfield(state, -2, name.c_str());
     rive_lua_pop(state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
@@ -161,12 +172,7 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds)
     }
     auto state = m_state->state;
     rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, "advance")) !=
-        LUA_TFUNCTION)
-    {
-        rive_lua_pop(state, 2);
-        return false;
-    }
+    lua_getfield(state, -1, "advance");
     lua_pushvalue(state, -2);
     lua_pushnumber(state, elapsedSeconds);
     if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 1)) != LUA_OK)
@@ -186,24 +192,37 @@ void ScriptedObject::scriptUpdate()
         return;
     }
     auto state = m_state->state;
+    // Stack: []
     rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) !=
-        LUA_TFUNCTION)
-    {
-        rive_lua_pop(state, 2);
-        return;
-    }
-    lua_pushvalue(state, -2);
+    // Stack: [self]
+    lua_getfield(state, -1, "update");
+    // Stack: [self, field] Swap self and field
+    lua_insert(state, -2);
+    // Stack: [field, self]
     if (static_cast<lua_Status>(rive_lua_pcall(state, 1, 0)) != LUA_OK)
     {
         rive_lua_pop(state, 1);
     }
-    rive_lua_pop(state, 1);
 }
 
 bool ScriptedObject::scriptInit(LuaState* luaState)
 {
     auto state = luaState->state;
+
+    // Clean up old references if reinitializing
+    if (m_state != nullptr && (m_self != 0 || m_context != 0))
+    {
+        if (m_self != 0)
+        {
+            lua_unref(m_state->state, m_self);
+            m_self = 0;
+        }
+        if (m_context != 0)
+        {
+            lua_unref(m_state->state, m_context);
+            m_context = 0;
+        }
+    }
     for (auto prop : m_customProperties)
     {
         auto scriptInput = ScriptInput::from(prop);
@@ -225,6 +244,12 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
     }
     else
     {
+        // Stack: [self]
+        lua_newrive<ScriptedContext>(state, this);
+        // Stack: [self, ScriptedContext]
+        m_context = lua_ref(state, -1);
+        rive_lua_pop(state, 1);
+        // Stack: [self]
         m_self = lua_ref(state, -1);
         m_state = luaState;
         for (auto prop : m_customProperties)
@@ -235,48 +260,85 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
                 scriptInput->initScriptedValue();
             }
         }
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) !=
-            LUA_TFUNCTION)
+        if (inits())
         {
-            lua_unref(state, m_self);
-            rive_lua_pop(state, 2);
-            m_state = nullptr;
-            m_self = 0;
-            return false;
-        }
-        lua_pushvalue(state, -2);
-        auto pCallResult = rive_lua_pcall(state, 1, 1);
-        if (static_cast<lua_Status>(pCallResult) != LUA_OK)
-        {
-            lua_unref(state, m_self);
-            rive_lua_pop(state, 2);
-            m_state = nullptr;
-            m_self = 0;
-            return false;
-        }
-        if (!lua_toboolean(state, -1))
-        {
-            lua_unref(state, m_self);
-            rive_lua_pop(state, 1);
-            m_state = nullptr;
-            m_self = 0;
-            return false;
+            // Stack: [self]
+            lua_getfield(state, -1, "init");
+            // Stack: [self, field]
+            lua_pushvalue(state, -2);
+            // Stack: [self, field, self]
+            rive_lua_pushRef(state, m_context);
+            // Stack: [self, field, self, ScriptedContext]
+            auto pCallResult = rive_lua_pcall(state, 2, 1);
+            if (static_cast<lua_Status>(pCallResult) != LUA_OK)
+            {
+                lua_unref(state, m_self);
+                lua_unref(state, m_context);
+                // Stack: [self, status]
+                rive_lua_pop(state, 2);
+                m_state = nullptr;
+                m_self = 0;
+                m_context = 0;
+                return false;
+            }
+            if (!lua_toboolean(state, -1))
+            {
+                lua_unref(state, m_self);
+                lua_unref(state, m_context);
+                // Pop boolean and self table
+                // Stack: [self, result]
+                rive_lua_pop(state, 2);
+                m_state = nullptr;
+                m_self = 0;
+                m_context = 0;
+                return false;
+            }
+            else
+            {
+                // Stack: [self, result]
+                rive_lua_pop(state, 1);
+                assert(static_cast<lua_Type>(lua_type(state, -1)) ==
+                       LUA_TTABLE);
+                // Stack: [self]
+                rive_lua_pop(state, 1);
+            }
         }
         else
         {
-            rive_lua_pop(state, 1);
-            assert(static_cast<lua_Type>(lua_type(state, -1)) == LUA_TTABLE);
+            // Init function doesn't exist, just pop the self table
+            // Stack: [self]
             rive_lua_pop(state, 1);
         }
     }
     return true;
 }
 
+void ScriptedObject::disposeScriptInputs()
+{
+    for (auto prop : m_customProperties)
+    {
+        auto scriptInput = ScriptInput::from(prop);
+        if (scriptInput != nullptr)
+        {
+            scriptInput->scriptedObject(nullptr);
+        }
+    }
+    m_customProperties.clear();
+}
+
 void ScriptedObject::scriptDispose()
 {
+    disposeScriptInputs();
+
     if (m_state != nullptr)
     {
         lua_unref(m_state->state, m_self);
+        lua_unref(m_state->state, m_context);
+#ifdef TESTING
+        // Force GC to collect any ScriptedArtboard instances created via
+        // instance()
+        lua_gc(m_state->state, LUA_GCCOLLECT, 0);
+#endif
     }
     m_state = nullptr;
     m_self = 0;
@@ -303,6 +365,8 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds) { return false; }
 void ScriptedObject::scriptUpdate() {}
 
 void ScriptedObject::scriptDispose() {}
+
+void ScriptedObject::disposeScriptInputs() {}
 #endif
 
 void ScriptedObject::reinit()
@@ -325,3 +389,5 @@ void ScriptedObject::setAsset(rcp<FileAsset> asset)
         FileAssetReferencer::setAsset(asset);
     }
 }
+
+void ScriptedObject::markNeedsUpdate() {}

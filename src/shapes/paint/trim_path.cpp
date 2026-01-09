@@ -1,33 +1,43 @@
 #include "rive/shapes/paint/trim_path.hpp"
-#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/profiler/profiler_macros.h"
 using namespace rive;
 
+void TrimEffectPath::invalidateEffect()
+{
+    m_path.rewind();
+    m_contours.clear();
+}
+
 StatusCode TrimPath::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<Stroke>())
+    auto effectsContainer = EffectsContainer::from(parent());
+    if (!effectsContainer)
     {
         return StatusCode::InvalidObject;
     }
-
-    parent()->as<Stroke>()->addStrokeEffect(this);
+    effectsContainer->addStrokeEffect(this);
 
     return StatusCode::Ok;
 }
 
-void TrimPath::trimPath(const RawPath* source)
+void TrimPath::trimPath(ShapePaintPath* destination,
+                        std::vector<rcp<ContourMeasure>>& contours,
+                        const RawPath* source,
+                        ShapePaintType shapePaintType)
 {
     RIVE_PROF_SCOPE()
-    auto rawPath = m_path.mutableRawPath();
+    auto rawPath = destination->mutableRawPath();
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
+    auto closeShape = shapePaintType == ShapePaintType::fill;
 
     // Build up contours if they're empty.
-    if (m_contours.empty())
+    if (contours.empty())
     {
         ContourMeasureIter iter(source);
         while (auto meas = iter.next())
         {
-            m_contours.push_back(meas);
+            contours.push_back(meas);
         }
     }
     switch (mode())
@@ -35,7 +45,7 @@ void TrimPath::trimPath(const RawPath* source)
         case TrimPathMode::sequential:
         {
             float totalLength = 0.0f;
-            for (auto contour : m_contours)
+            for (auto contour : contours)
             {
                 totalLength += contour->length();
             }
@@ -55,13 +65,13 @@ void TrimPath::trimPath(const RawPath* source)
                 endLength -= totalLength;
             }
 
-            int i = 0, subPathCount = (int)m_contours.size();
+            int i = 0, subPathCount = (int)contours.size();
             std::vector<int> indices;
             std::vector<float> lengths;
             while (endLength > 0)
             {
                 auto currentContourIndex = i % subPathCount;
-                auto contour = m_contours[currentContourIndex];
+                auto contour = contours[currentContourIndex];
                 auto contourLength = contour->length();
 
                 if (startLength < contourLength)
@@ -98,7 +108,7 @@ void TrimPath::trimPath(const RawPath* source)
                                                 : startingIndex) %
                              indices.size();
                 auto contourIndex = indices[index];
-                auto contour = m_contours[contourIndex];
+                auto contour = contours[contourIndex];
                 auto contourLength = contour->length();
                 auto lengthIndex = index * 2;
                 auto startLength = lengths[lengthIndex];
@@ -112,9 +122,10 @@ void TrimPath::trimPath(const RawPath* source)
                                         !contour->isClosed());
                 // Close contours that are fully used as
                 // segments
-                if (startLength == 0.0f &&
-                    endLength - startLength >= contourLength &&
-                    contour->isClosed())
+                if ((startLength == 0.0f &&
+                     endLength - startLength >= contourLength &&
+                     contour->isClosed()) ||
+                    closeShape)
                 {
                     rawPath->close();
                 }
@@ -127,7 +138,7 @@ void TrimPath::trimPath(const RawPath* source)
 
         case TrimPathMode::synchronized:
         {
-            for (auto contour : m_contours)
+            for (auto contour : contours)
             {
                 auto contourLength = contour->length();
                 auto startLength = contourLength * (start() + renderOffset);
@@ -155,7 +166,8 @@ void TrimPath::trimPath(const RawPath* source)
                                         !contour->isClosed());
                 }
 
-                if (start() == 0.0f && end() == 1.0f && contour->isClosed())
+                if ((start() == 0.0f && end() == 1.0f && contour->isClosed()) ||
+                    closeShape)
                 {
                     rawPath->close();
                 }
@@ -167,29 +179,10 @@ void TrimPath::trimPath(const RawPath* source)
     }
 }
 
-void TrimPath::invalidateEffect()
-{
-    invalidateTrim();
-    // This is usually sent when the path is changed so we need to also
-    // invalidate the contours, not just the trim effect.
-    m_contours.clear();
-}
-
-void TrimPath::invalidateTrim()
-{
-    m_path.rewind();
-    if (parent() != nullptr)
-    {
-        auto stroke = parent()->as<Stroke>();
-        stroke->parent()->addDirt(ComponentDirt::Paint);
-        stroke->invalidateRendering();
-    }
-}
-
-void TrimPath::startChanged() { invalidateTrim(); }
-void TrimPath::endChanged() { invalidateTrim(); }
-void TrimPath::offsetChanged() { invalidateTrim(); }
-void TrimPath::modeValueChanged() { invalidateTrim(); }
+void TrimPath::startChanged() { invalidateEffectFromLocal(); }
+void TrimPath::endChanged() { invalidateEffectFromLocal(); }
+void TrimPath::offsetChanged() { invalidateEffectFromLocal(); }
+void TrimPath::modeValueChanged() { invalidateEffectFromLocal(); }
 
 StatusCode TrimPath::onAddedDirty(CoreContext* context)
 {
@@ -202,20 +195,38 @@ StatusCode TrimPath::onAddedDirty(CoreContext* context)
     {
         case TrimPathMode::sequential:
         case TrimPathMode::synchronized:
+
             return StatusCode::Ok;
     }
     return StatusCode::InvalidObject;
 }
 
-void TrimPath::updateEffect(const ShapePaintPath* source)
+void TrimPath::updateEffect(PathProvider* pathProvider,
+                            const ShapePaintPath* source,
+                            ShapePaintType shapePaintType)
 {
-    if (m_path.hasRenderPath())
+    auto effectPathIt = m_effectPaths.find(pathProvider);
+    if (effectPathIt != m_effectPaths.end())
     {
-        // Previous result hasn't been invalidated, it's still good.
-        return;
+        auto trimEffectPath =
+            static_cast<TrimEffectPath*>(effectPathIt->second);
+        auto path = trimEffectPath->path();
+        if (path->hasRenderPath())
+        {
+            // Previous result hasn't been invalidated, it's still good.
+            return;
+        }
+        path->rewind(source->isLocal(), source->fillRule());
+        trimPath(path,
+                 trimEffectPath->contours(),
+                 source->rawPath(),
+                 shapePaintType);
     }
-    m_path.rewind(source->isLocal(), source->fillRule());
-    trimPath(source->rawPath());
 }
 
-ShapePaintPath* TrimPath::effectPath() { return &m_path; }
+EffectsContainer* TrimPath::parentPaint()
+{
+    return EffectsContainer::from(parent());
+}
+
+EffectPath* TrimPath::createEffectPath() { return new TrimEffectPath(); }

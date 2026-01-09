@@ -619,6 +619,13 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
             // Enable additional debug layers.
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
         }
+
+        // Query the newer interface for GPU-based validation
+        ComPtr<ID3D12Debug1> debugController1;
+        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController1))))
+        {
+            debugController1->SetEnableGPUBasedValidation(TRUE);
+        }
     }
 #endif
 

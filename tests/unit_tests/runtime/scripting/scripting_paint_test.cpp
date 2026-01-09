@@ -18,7 +18,7 @@ TEST_CASE("paint can be constructed", "[scripting]")
                         "color = 0xffff0000,\n"
                         "thickness = 3,\n"
                         "feather = 0,\n"
-                        "gradient = Gradient.radial(Vec2D.origin(), 20.0, {\n"
+                        "gradient = Gradient.radial(Vector.origin(), 20.0, {\n"
                             "{ position = 0.0, color = Color.rgba(255, 0, 0, 255) },\n"
                             "{ position = 1.0, color = Color.rgba(255, 0, 0, 0) },\n"
                         "}),\n"
@@ -142,7 +142,7 @@ TEST_CASE("paint can be constructed", "[scripting]")
               ScriptingTest(
                   // clang-format off
                     "local paint = Paint.new()\n"
-                    "paint.gradient = Gradient.radial(Vec2D.origin(), 20.0, {\n"
+                    "paint.gradient = Gradient.radial(Vector.origin(), 20.0, {\n"
                         "{ position = 0.0, color = Color.rgba(255, 0, 0, 255) },\n"
                         "{ position = 1.0, color = Color.rgba(255, 0, 0, 0) },\n"
                     "})\n"
@@ -156,7 +156,7 @@ TEST_CASE("paint can be constructed", "[scripting]")
               ScriptingTest(
                   // clang-format off
                     "local paint = Paint.new()\n"
-                    "paint.gradient = Gradient.radial(Vec2D.origin(), 20.0, {\n"
+                    "paint.gradient = Gradient.radial(Vector.origin(), 20.0, {\n"
                         "{ position = 0.0, color = Color.rgba(255, 0, 0, 255) },\n"
                         "{ position = 1.0, color = Color.rgba(255, 0, 0, 0) },\n"
                     "})\n"
@@ -173,7 +173,7 @@ TEST_CASE("paint gradients can be cleared", "[scripting]")
               ScriptingTest(
                   // clang-format off
                     "local paint = Paint.new()\n"
-                    "paint.gradient = Gradient.radial(Vec2D.origin(), 20.0, {\n"
+                    "paint.gradient = Gradient.radial(Vector.origin(), 20.0, {\n"
                         "{ position = 0.0, color = Color.rgba(255, 0, 0, 255) },\n"
                         "{ position = 1.0, color = Color.rgba(255, 0, 0, 0) },\n"
                     "})\n"
@@ -187,7 +187,7 @@ TEST_CASE("paint gradients can be cleared", "[scripting]")
               ScriptingTest(
                   // clang-format off
                     "local paint = Paint.new()\n"
-                    "paint.gradient = Gradient.radial(Vec2D.origin(), 20.0, {\n"
+                    "paint.gradient = Gradient.radial(Vector.origin(), 20.0, {\n"
                         "{ position = 0.0, color = Color.rgba(255, 0, 0, 255) },\n"
                         "{ position = 1.0, color = Color.rgba(255, 0, 0, 0) },\n"
                     "})\n"

@@ -32,3 +32,15 @@ ShapePaintPath* Fill::pickPath(ShapePaintContainer* shape) const
     }
     return shape->localPath();
 }
+
+void Fill::buildDependencies()
+{
+    if (effects()->size() > 0)
+    {
+        auto container = ShapePaintContainer::from(parent());
+        if (container != nullptr)
+        {
+            container->pathBuilder()->addDependent(this);
+        }
+    }
+}

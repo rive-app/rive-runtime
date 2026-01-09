@@ -8,11 +8,9 @@
 #include "rive/renderer/render_context.hpp"
 
 #include <condition_variable>
-#include <map>
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <type_traits>
 
 namespace rive::gpu
 {
@@ -125,8 +123,7 @@ public:
         // unit test won't see the clear color.)
         if (props.synthesizedFailureType ==
                 gpu::SynthesizedFailureType::ubershaderLoad &&
-            (props.interlockMode != gpu::InterlockMode::atomics ||
-             props.drawType != DrawType::renderPassResolve))
+            props.drawType != DrawType::renderPassResolve)
         {
             return nullptr;
         }

@@ -52,6 +52,7 @@ static int rotations90 = 0;
 static int zoomLevel = 0;
 static int spacing = 0;
 static int monitorIdx = 0;
+static int paintStyle = 0;
 static bool wireframe = false;
 static bool paused = false;
 static bool forceFixedDeltaTime = false;
@@ -121,10 +122,16 @@ static void key_pressed(char key)
         case 'm':
             monitorIdx += multiplier;
             break;
+        case 'p':
+            paintStyle = (paintStyle + multiplier) % 3;
+            break;
+        case 'P':
+            paintStyle = (paintStyle + 3 - (multiplier % 3)) % 3;
+            break;
         case 'w':
             wireframe = !wireframe;
             break;
-        case 'p':
+        case 'u':
             paused = !paused;
             break;
         case 'f':
@@ -272,6 +279,8 @@ public:
             .clearColor = 0xff303030,
             .doClear = true,
             .wireframe = wireframe,
+            .fillsDisabled = paintStyle == 2,
+            .strokesDisabled = paintStyle == 1,
         });
 
         if (hotloadShaders)

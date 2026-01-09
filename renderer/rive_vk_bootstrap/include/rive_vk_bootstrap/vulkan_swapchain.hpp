@@ -70,6 +70,7 @@ private:
         VkImage image;
         VkImageView view;
         rive::gpu::vkutil::ImageAccess lastAccess;
+        VkSemaphore frameSemaphore;
     };
 
     SwapchainImage& current()

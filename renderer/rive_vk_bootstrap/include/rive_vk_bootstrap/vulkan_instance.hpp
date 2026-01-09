@@ -5,10 +5,21 @@
 
 namespace rive_vkb
 {
+enum class VulkanValidationType
+{
+    none,
+    core,
+    synchronization,
+};
+
 #ifndef NDEBUG
 constexpr bool RIVE_DEFAULT_VULKAN_DEBUG_PREFERENCE = true;
+constexpr VulkanValidationType RIVE_DEFAULT_VULKAN_VALIDATION_TYPE =
+    VulkanValidationType::core;
 #else
 constexpr bool RIVE_DEFAULT_VULKAN_DEBUG_PREFERENCE = false;
+constexpr VulkanValidationType RIVE_DEFAULT_VULKAN_VALIDATION_TYPE =
+    VulkanValidationType::none;
 #endif
 
 class VulkanLibrary;
@@ -27,7 +38,8 @@ public:
         rive::Span<const char*> requiredExtensions;
         rive::Span<const char*> optionalExtensions;
 
-        bool wantValidationLayers = RIVE_DEFAULT_VULKAN_DEBUG_PREFERENCE;
+        VulkanValidationType desiredValidationType =
+            RIVE_DEFAULT_VULKAN_VALIDATION_TYPE;
         bool wantDebugCallbacks = RIVE_DEFAULT_VULKAN_DEBUG_PREFERENCE;
 
         bool logExtendedCreationInfo = false;

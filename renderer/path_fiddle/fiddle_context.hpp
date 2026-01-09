@@ -9,6 +9,7 @@ namespace rive::gpu
 {
 class RenderContextGLImpl;
 class RenderContextVulkanImpl;
+class RenderContextWebGPUImpl;
 } // namespace rive::gpu
 
 struct FiddleContextOptions
@@ -25,7 +26,8 @@ struct FiddleContextOptions
     // Allow rendering to a texture instead of an OS window. (Speeds up the
     // execution of goldens & gms significantly on Vulkan/Windows.)
     bool allowHeadlessRendering = false;
-    bool enableVulkanValidationLayers = false;
+    bool enableVulkanCoreValidationLayers = false;
+    bool enableVulkanSynchronizationValidationLayers = false;
     bool disableDebugCallbacks = false;
     const char* gpuNameFilter = nullptr; // Substring of GPU name to use.
 };
@@ -42,6 +44,10 @@ public:
         return nullptr;
     }
     virtual rive::gpu::RenderContextVulkanImpl* renderContextVulkanImpl() const
+    {
+        return nullptr;
+    }
+    virtual rive::gpu::RenderContextWebGPUImpl* renderContextWebGPUImpl() const
     {
         return nullptr;
     }

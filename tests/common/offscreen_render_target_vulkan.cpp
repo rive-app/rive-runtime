@@ -23,6 +23,7 @@ rive::rcp<OffscreenRenderTarget> OffscreenRenderTarget::MakeVulkan(
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
+#include "shaders/constants.glsl"
 
 namespace rive_tests
 {
@@ -58,15 +59,20 @@ private:
                       uint32_t height,
                       bool riveRenderable) :
             RenderTargetVulkan(
-                std::move(vk),
+                vk,
                 width,
                 height,
                 // BGRA is not riveRenderable when using storage textures for
                 // PLS (like in clockwise mode) because storage textures have to
                 // be RGBA8. Let's test both formats, but make sure to use RGBA
                 // for the riveRenderable case.
-                riveRenderable ? VK_FORMAT_R8G8B8A8_UNORM
-                               : VK_FORMAT_B8G8R8A8_UNORM,
+                // Also don't test BGRA on Qualcomm. Various Adreno 6 devices
+                // can get the RGB order wrong when resolving BGRA multisampled
+                // data.
+                (riveRenderable || vk->physicalDeviceProperties().vendorID ==
+                                       VULKAN_VENDOR_QUALCOMM)
+                    ? VK_FORMAT_R8G8B8A8_UNORM
+                    : VK_FORMAT_B8G8R8A8_UNORM,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                     VK_IMAGE_USAGE_SAMPLED_BIT |
                     // Rendering scenarios that use an offscreen color buffer
@@ -78,11 +84,13 @@ private:
                                           VK_IMAGE_USAGE_STORAGE_BIT
                                     : VK_IMAGE_USAGE_TRANSFER_DST_BIT)),
             m_renderImage(
-                rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D({
-                    .format = framebufferFormat(),
-                    .extent = {width, height},
-                    .usage = targetUsageFlags(),
-                })))
+                rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D(
+                    {
+                        .format = framebufferFormat(),
+                        .extent = {width, height},
+                        .usage = targetUsageFlags(),
+                    },
+                    "OffscreenRenderTargetVulkan::TextureTarget")))
         {}
 
         rive::RiveRenderImage* renderImage() const

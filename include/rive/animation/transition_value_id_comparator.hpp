@@ -5,9 +5,7 @@
 namespace rive
 {
 class TransitionValueIdComparator : public TransitionValueIdComparatorBase
-{
-public:
-};
+{};
 } // namespace rive
 
 #endif

@@ -3,6 +3,7 @@
  */
 
 #include <vulkan/vulkan.h>
+#include <optional>
 #include <vector>
 
 #include "rive/renderer/vulkan/vulkan_context.hpp"
@@ -55,8 +56,7 @@ protected:
     {
         VkFence fence = VK_NULL_HANDLE;
         VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-        VkSemaphore frameEndSemaphore = VK_NULL_HANDLE;
-        VkSemaphore externallySignaledSemaphore = VK_NULL_HANDLE;
+        VkSemaphore semaphore = VK_NULL_HANDLE;
         uint64_t safeFrameNumber = 0;
     };
 
@@ -68,7 +68,8 @@ protected:
     VkDevice vkDevice() const { return m_device; }
 
     VkSemaphore waitForFenceAndBeginFrame();
-    VkSemaphore endFrame();
+    void endFrame(
+        std::optional<VkSemaphore> externalSignalSemaphore = std::nullopt);
 
     const InFlightFrame& current() const
     {
@@ -87,6 +88,9 @@ protected:
     rive::gpu::VulkanContext* context() const { return m_vk.get(); }
 
     VkQueue graphicsQueue() const { return m_graphicsQueue; }
+
+    VkSemaphore createSemaphore();
+    void destroySemaphore(VkSemaphore);
 
 private:
     rive::rcp<rive::gpu::VulkanContext> m_vk;

@@ -1,0 +1,21 @@
+{
+  "name": "TargetEffect",
+  "key": {
+    "int": 644,
+    "string": "targeteffect"
+  },
+  "extends": "component.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 922,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the group effect used as the effect in the stack of effects."
+    }
+  }
+}

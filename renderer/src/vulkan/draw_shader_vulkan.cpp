@@ -53,6 +53,11 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     fragCode = spirv::draw_image_mesh_frag;
                     break;
 
+                case DrawType::renderPassResolve:
+                    vertCode = spirv::draw_fullscreen_quad_vert;
+                    fragCode = spirv::draw_input_attachment_frag;
+                    break;
+
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
@@ -62,7 +67,6 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
-                case DrawType::renderPassResolve:
                 case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
             }
@@ -235,12 +239,14 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
 
                 case DrawType::atlasBlit:
                     vertCode = spirv::draw_clockwise_atomic_atlas_blit_vert;
-                    fragCode = spirv::draw_clockwise_atomic_atlas_blit_frag;
+                    fragCode =
+                        spirv::draw_clockwise_atomic_atlas_blit_fixedcolor_frag;
                     break;
 
                 case DrawType::imageMesh:
                     vertCode = spirv::draw_clockwise_atomic_image_mesh_vert;
-                    fragCode = spirv::draw_clockwise_atomic_image_mesh_frag;
+                    fragCode =
+                        spirv::draw_clockwise_atomic_image_mesh_fixedcolor_frag;
                     break;
 
                 case DrawType::imageRect:
@@ -318,12 +324,16 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     // MSAA render passes get initialized by drawing the
                     // previous contents into the framebuffer.
                     // (LoadAction::preserveRenderTarget only.)
-                    vertCode = spirv::copy_attachment_to_attachment_vert;
-                    fragCode = spirv::copy_attachment_to_attachment_frag;
+                    vertCode = spirv::draw_fullscreen_quad_vert;
+                    fragCode = spirv::draw_msaa_color_seed_attachment_frag;
+                    break;
+
+                case DrawType::renderPassResolve:
+                    vertCode = spirv::draw_fullscreen_quad_vert;
+                    fragCode = spirv::draw_msaa_resolve_frag;
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
             }
             break;

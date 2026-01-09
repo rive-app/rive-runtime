@@ -37,10 +37,9 @@ public:
         return false;
     };
     void syncSourceValue();
-    template <typename T = DataValue>
-    DataValue* calculateDataValue(DataValue* input,
-                                  bool isMainDirection,
-                                  DataBind* dataBind)
+    DataValue* calculateUntypedDataValue(DataValue* input,
+                                         bool isMainDirection,
+                                         DataBind* dataBind)
     {
         auto converter = dataBind->converter();
         auto dataValue = converter != nullptr
@@ -48,6 +47,15 @@ public:
                                    ? converter->convert(input, dataBind)
                                    : converter->reverseConvert(input, dataBind)
                              : input;
+        return dataValue;
+    }
+    template <typename T = DataValue>
+    DataValue* calculateDataValue(DataValue* input,
+                                  bool isMainDirection,
+                                  DataBind* dataBind)
+    {
+        auto dataValue =
+            calculateUntypedDataValue(input, isMainDirection, dataBind);
         if (dataValue->is<T>())
         {
             return dataValue;

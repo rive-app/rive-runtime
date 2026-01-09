@@ -90,7 +90,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
         out.write('{\n')
         out.write('#include "draw_path.minified.vert"\n')
         if ATLAS_BLIT in feature_set:
-            out.write('#include "draw_raster_order_mesh.minified.frag"\n')
+            out.write('#include "draw_mesh.minified.frag"\n')
         else:
             out.write('#include "draw_raster_order_path.minified.frag"\n')
         out.write('}\n')
@@ -101,7 +101,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
         out.write('namespace m%s\n' % ''.join(namespace_id))
         out.write('{\n')
         out.write('#include "draw_image_mesh.minified.vert"\n')
-        out.write('#include "draw_raster_order_mesh.minified.frag"\n')
+        out.write('#include "draw_mesh.minified.frag"\n')
         out.write('}\n')
         out.write('#undef DRAW_IMAGE_MESH\n')
         out.write('#undef DRAW_IMAGE\n')

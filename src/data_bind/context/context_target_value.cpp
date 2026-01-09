@@ -104,6 +104,11 @@ bool DataBindContextTargetValue::syncTargetValue()
                     auto value = (float)target->getActiveChildIndex();
                     return updateValue<DataValueNumber, float>(value);
                 }
+                else if (m_dataBind->sourceOutputType() == DataType::integer)
+                {
+                    auto value = target->getActiveChildIndex();
+                    return updateValue<DataValueInteger, int>(value);
+                }
             }
             else if (m_dataBind->target()->coreType() ==
                      BindablePropertyAssetBase::typeKey)

@@ -16,6 +16,9 @@ private:
     std::vector<uint8_t> m_cdnUuid;
     std::vector<FileAssetReferencer*> m_fileAssetReferencers;
 
+protected:
+    virtual bool addsToBackboard() { return true; }
+
 public:
     Span<const uint8_t> cdnUuid() const;
     std::string cdnUuidStr() const;

@@ -194,7 +194,9 @@ rcp<vkutil::Buffer> BufferPool::acquire()
     return buffer;
 }
 
-Image::Image(rcp<VulkanContext> vulkanContext, const VkImageCreateInfo& info) :
+Image::Image(rcp<VulkanContext> vulkanContext,
+             const VkImageCreateInfo& info,
+             const char* name) :
     Resource(std::move(vulkanContext)), m_info(info)
 {
     m_info = info;
@@ -235,6 +237,9 @@ Image::Image(rcp<VulkanContext> vulkanContext, const VkImageCreateInfo& info) :
                            &m_vmaAllocation,
                            nullptr) == VK_SUCCESS)
         {
+            vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
+                                        VK_OBJECT_TYPE_IMAGE,
+                                        name);
             return;
         }
     }
@@ -249,6 +254,9 @@ Image::Image(rcp<VulkanContext> vulkanContext, const VkImageCreateInfo& info) :
                             &m_vkImage,
                             &m_vmaAllocation,
                             nullptr));
+    vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
+                                VK_OBJECT_TYPE_IMAGE,
+                                name);
 }
 
 Image::~Image()
@@ -261,7 +269,8 @@ Image::~Image()
 
 ImageView::ImageView(rcp<VulkanContext> vulkanContext,
                      rcp<Image> textureRef,
-                     const VkImageViewCreateInfo& info) :
+                     const VkImageViewCreateInfo& info,
+                     const char* name) :
     Resource(std::move(vulkanContext)),
     m_textureRefOrNull(std::move(textureRef)),
     m_info(info)
@@ -279,6 +288,9 @@ ImageView::ImageView(rcp<VulkanContext> vulkanContext,
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     VK_CHECK(
         vk()->CreateImageView(vk()->device, &m_info, nullptr, &m_vkImageView));
+    vk()->setDebugNameIfEnabled(uint64_t(m_vkImageView),
+                                VK_OBJECT_TYPE_IMAGE_VIEW,
+                                name);
 }
 
 ImageView::~ImageView()
@@ -286,7 +298,9 @@ ImageView::~ImageView()
     vk()->DestroyImageView(vk()->device, m_vkImageView, nullptr);
 }
 
-Texture2D::Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo info) :
+Texture2D::Texture2D(rcp<VulkanContext> vk,
+                     VkImageCreateInfo info,
+                     const char* name) :
     rive::gpu::Texture(info.extent.width, info.extent.height),
     m_lastAccess({
         .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -308,8 +322,8 @@ Texture2D::Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo info) :
         info.usage =
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
-    m_image = vk->makeImage(info);
-    m_imageView = vk->makeImageView(m_image);
+    m_image = vk->makeImage(info, name);
+    m_imageView = vk->makeImageView(m_image, name);
 }
 
 void Texture2D::scheduleUpload(const void* imageDataRGBAPremul,

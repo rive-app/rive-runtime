@@ -5,6 +5,7 @@
 #include "rive/backboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
+#include "rive/assets/manifest_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
@@ -15,6 +16,7 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/data_resolver.hpp"
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -24,6 +26,10 @@
 ///
 namespace rive
 {
+#ifdef WITH_RIVE_TOOLS
+class ViewModelInstance;
+typedef void (*ViewModelInstanceCreated)(ViewModelInstance* instance);
+#endif
 class BinaryReader;
 class DataBind;
 class RuntimeHeader;
@@ -31,6 +37,10 @@ class Factory;
 class ScrollPhysics;
 class ViewModelRuntime;
 class BindableArtboard;
+#ifdef WITH_RIVE_SCRIPTING
+class CPPRuntimeScriptingContext;
+class ScriptingVM;
+#endif
 
 ///
 /// Tracks the success/failure result when importing a Rive file.
@@ -162,8 +172,36 @@ public:
 
     std::vector<Artboard*> artboards() { return m_artboards; };
 
-    void scriptingVM(LuaState* vm) { m_luaState = vm; }
-    LuaState* scriptingVM() { return m_luaState; }
+    // When the runtime is hosted in the editor, we get a pointer
+    // to the VM that we can use. If this is nullptr, we can assume
+    // we are running in the runtime and should instance our own VMs
+    // and pass them down to the root
+#ifdef WITH_RIVE_SCRIPTING
+    void scriptingVM(LuaState* vm)
+    {
+        cleanupScriptingVM();
+        m_luaState = vm;
+    }
+    LuaState* scriptingVM()
+    {
+        // For now, if we don't have a vm, create one. In the future, we
+        // may need a way to create multiple vms in parallel
+        if (m_luaState == nullptr)
+        {
+            makeScriptingVM();
+        }
+        return m_luaState;
+    }
+#endif
+
+    DataResolver* dataResolver()
+    {
+        if (m_manifest)
+        {
+            return m_manifest.get()->as<ManifestAsset>();
+        }
+        return nullptr;
+    }
 
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
@@ -181,6 +219,16 @@ public:
     FileAssetLoader* testing_getAssetLoader() const
     {
         return m_assetLoader.get();
+    }
+#endif
+#ifdef WITH_RIVE_TOOLS
+    void onViewModelInstanceCreated(ViewModelInstanceCreated callback)
+    {
+        m_viewmodelInstanceCreatedCallback = callback;
+    }
+    void triggerViewModelCreatedCallback(bool value)
+    {
+        m_triggerViewModelCreatedCallback = value;
     }
 #endif
 
@@ -221,7 +269,14 @@ private:
     /// with the file.
     rcp<FileAssetLoader> m_assetLoader;
 
+#ifdef WITH_RIVE_SCRIPTING
     LuaState* m_luaState = nullptr;
+    std::unique_ptr<CPPRuntimeScriptingContext> m_scriptingContext;
+    std::unique_ptr<ScriptingVM> m_scriptingVM;
+    void makeScriptingVM();
+    void cleanupScriptingVM();
+    void registerScripts();
+#endif
 
     rcp<ViewModelInstance> copyViewModelInstance(
         ViewModelInstance* viewModelInstance,
@@ -231,6 +286,12 @@ private:
     rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
 
     uint32_t findViewModelId(ViewModel* search) const;
+#ifdef WITH_RIVE_TOOLS
+    ViewModelInstanceCreated m_viewmodelInstanceCreatedCallback = nullptr;
+    bool m_triggerViewModelCreatedCallback = false;
+#endif
+
+    rcp<FileAsset> m_manifest = nullptr;
 };
 } // namespace rive
 #endif

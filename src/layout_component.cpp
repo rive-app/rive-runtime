@@ -386,9 +386,9 @@ void LayoutComponent::updateRenderPath()
         {
             continue;
         }
-        if (shapePaint->is<Stroke>())
+        if (shapePaint->is<ShapePaint>())
         {
-            shapePaint->as<Stroke>()->invalidateEffects();
+            shapePaint->as<ShapePaint>()->invalidateEffects();
         }
     }
 }

@@ -70,10 +70,12 @@ class Artboard : public ArtboardBase,
 
 private:
     std::vector<Core*> m_Objects;
+    std::vector<Core*> m_invalidObjects;
     std::vector<LinearAnimation*> m_Animations;
     std::vector<StateMachine*> m_StateMachines;
     std::vector<Component*> m_DependencyOrder;
     std::vector<Drawable*> m_Drawables;
+    std::vector<ClippingShape*> m_clippingShapes;
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<ArtboardComponentList*> m_ComponentLists;
@@ -81,6 +83,7 @@ private:
     std::vector<Joystick*> m_Joysticks;
     std::vector<ResettingComponent*> m_Resettables;
     std::vector<ScriptedObject*> m_ScriptedObjects;
+    std::vector<AdvancingComponent*> m_advancingComponents;
     DataContext* m_DataContext = nullptr;
     bool m_ownsDataContext = false;
     bool m_JoysticksApplyBeforeUpdate = true;
@@ -96,12 +99,15 @@ private:
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
     bool m_hostTransformMarkedDirty = false;
+    bool m_didChange = true;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
+    static uint64_t sm_frameId;
     bool sharesLayoutWithHost() const;
     void cloneObjectDataBinds(const Core* object,
                               Core* clone,
                               Artboard* artboard) const;
+    void initScriptedObjects();
 
     // Variable that tracks whenever the draw order changes. It is used by the
     // state machine controllers to sort their hittable components when they are
@@ -118,10 +124,17 @@ private:
 
     void sortDependencies();
     void sortDrawOrder();
+    void clearRedundantOperations();
     void updateRenderPath() override;
     void update(ComponentDirt value) override;
 
 public:
+    static uint64_t frameId() { return sm_frameId; }
+#ifdef TESTING
+    static void incFrameId() { sm_frameId++; }
+#elif WITH_RIVE_TOOLS
+    static void incFrameId() { sm_frameId++; }
+#endif
     void updateDataBinds(bool applyTargetToSource = true) override;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
@@ -150,6 +163,7 @@ public:
     ~Artboard() override;
     bool validateObjects();
     StatusCode initialize();
+    bool didChange() { return m_didChange; }
 
     Core* resolve(uint32_t id) const override;
 #ifdef WITH_RIVE_TOOLS
@@ -222,17 +236,12 @@ public:
     Drawable* firstDrawable() { return m_FirstDrawable; };
     void addScriptedObject(ScriptedObject* object);
 
-    enum class DrawOption
-    {
-        kNormal,
-        kHideBG,
-        kHideFG,
-    };
-    void draw(Renderer* renderer, DrawOption option);
+    void drawInternal(Renderer* renderer);
     void draw(Renderer* renderer) override;
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);
 
+    void changed();
 #ifdef TESTING
     ShapePaintPath* clipPath() { return &m_worldPath; }
     ShapePaintPath* backgroundPath() { return &m_localPath; }
@@ -268,6 +277,12 @@ public:
     Vec2D origin() const;
     void xChanged() override;
     void yChanged() override;
+
+    void resetSize()
+    {
+        width(m_originalWidth);
+        height(m_originalHeight);
+    }
 
     // Can we hide these from the public? (they use playable)
     bool isTranslucent() const;

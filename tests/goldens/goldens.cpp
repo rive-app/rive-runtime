@@ -259,15 +259,10 @@ int main(int argc, const char* argv[])
                               : TestingWindow::Visibility::window;
         void* platformWindow = nullptr;
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
-        // Only render directly to the main window on GL. Vulkan is experiencing
-        // device losses on Pixel 6 when we render to the main window.
-        if (backend == TestingWindow::Backend::gl)
+        platformWindow = rive_android_app_wait_for_window();
+        if (platformWindow != nullptr)
         {
-            platformWindow = rive_android_app_wait_for_window();
-            if (platformWindow != nullptr)
-            {
-                visibility = TestingWindow::Visibility::fullscreen;
-            }
+            visibility = TestingWindow::Visibility::fullscreen;
         }
 #endif
         TestingWindow::Init(backend, backendParams, visibility, platformWindow);

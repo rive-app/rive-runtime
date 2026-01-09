@@ -12,7 +12,7 @@
 #include <windows.h>
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(RIVE_UNREAL)
 extern "C"
 {
     // https://stackoverflow.com/questions/68469954/how-to-choose-specific-gpu-when-create-opengl-context:
@@ -238,6 +238,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         params->clockwise = true;
         return Backend::wgpu;
     }
+    if (nameStr == "wgpumsaa")
+    {
+        params->msaa = true;
+        return Backend::wgpu;
+    }
     if (nameStr == "rhi")
     {
         return Backend::rhi;
@@ -284,7 +289,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
 {
     assert((backend == Backend::rhi) == (s_TestingWindow != nullptr));
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(RIVE_UNREAL)
     // Set our backdoor GPU selection variables in case the API doesn't
     // allow us to select explicitly.
     const char* nameFilter = backendParams.gpuNameFilter.c_str();

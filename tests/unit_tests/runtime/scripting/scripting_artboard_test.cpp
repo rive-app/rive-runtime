@@ -1,6 +1,8 @@
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive_file_reader.hpp"
 
@@ -26,7 +28,7 @@ TEST_CASE("can access artboard width/height", "[scripting]")
     auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "accessWidth");
     lua_pushvalue(L, -2);
@@ -75,7 +77,7 @@ TEST_CASE("can access artboard bounds", "[scripting]")
     auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "boundsMinX");
     lua_pushvalue(L, -2);
@@ -112,7 +114,7 @@ TEST_CASE("can render an artboard via the scripting engine", "[scripting]")
     auto file = ReadRiveFile("assets/coin.riv", vm.serializer());
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
     for (int i = 0; i < 10; i++)
     {
         if (i != 0)
@@ -184,7 +186,7 @@ TEST_CASE("can access nodes from artboards", "[scripting]")
     auto file = ReadRiveFile("assets/joel_v3.riv", vm.serializer());
     auto artboard = file->artboard("Character");
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "getNode");
     lua_pushvalue(L, -2);
@@ -277,9 +279,106 @@ TEST_CASE("can add artboard to path", "[scripting]")
     auto file = ReadRiveFile("assets/joel_v3.riv", vm.serializer());
     auto artboard = file->artboard("Character");
     REQUIRE(artboard != nullptr);
-    lua_newrive<ScriptedArtboard>(L, file, artboard->instance());
+    lua_newrive<ScriptedArtboard>(L, L, file, artboard->instance());
 
     lua_getglobal(L, "addToPath");
     lua_pushvalue(L, -2);
     CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+}
+
+TEST_CASE("script instances Artboard input", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_artboard_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("Artboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_artboards"));
+}
+TEST_CASE("script instances Artboard input with proper origin", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_artboard_origin_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("Artboard");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_artboards_origin"));
+}
+
+TEST_CASE("when script node is advanced it affects the didChange bool via dirt",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_affects_has_changed.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    auto boolProp =
+        vmi->propertyValue("toLeft")->as<ViewModelInstanceBoolean>();
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    REQUIRE(artboard->didChange() == true);
+
+    artboard->draw(renderer.get());
+
+    // After one second has elapsed, the script code will return false on
+    // advance
+    silver.addFrame();
+    stateMachine->advanceAndApply(1.0f);
+    REQUIRE(artboard->didChange() == false);
+    artboard->draw(renderer.get());
+
+    // When a property is updated, advance will be called again only once
+    boolProp->propertyValue(true);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    REQUIRE(artboard->didChange() == true);
+    artboard->draw(renderer.get());
+
+    // Advance goes back to inactive
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    REQUIRE(artboard->didChange() == false);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("script_affects_has_changed"));
 }

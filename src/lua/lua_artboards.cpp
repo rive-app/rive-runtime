@@ -1,5 +1,8 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/file.hpp"
+#include "rive/artboard.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/node.hpp"
@@ -31,6 +34,15 @@ ScriptReffedArtboard::~ScriptReffedArtboard()
     // Make sure artboard is deleted before file.
     m_artboard = nullptr;
     m_file = nullptr;
+}
+
+rive::rcp<rive::File> ScriptReffedArtboard::file() { return m_file; }
+
+Artboard* ScriptReffedArtboard::artboard() { return m_artboard.get(); }
+
+StateMachineInstance* ScriptReffedArtboard::stateMachine()
+{
+    return m_stateMachine.get();
 }
 
 static int artboard_draw(lua_State* L)
@@ -207,9 +219,12 @@ int ScriptedArtboard::pushData(lua_State* L)
 
 int ScriptedArtboard::instance(lua_State* L)
 {
+    auto artboardInstance = artboard()->instance();
+    artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(L,
+                                  L,
                                   m_scriptReffedArtboard->file(),
-                                  artboard()->instance());
+                                  std::move(artboardInstance));
     return 1;
 }
 
@@ -293,11 +308,19 @@ static int artboard_newindex(lua_State* L)
 }
 
 ScriptedArtboard::ScriptedArtboard(
+    lua_State* L,
     rcp<File> file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance) :
+    m_state(L),
     m_scriptReffedArtboard(
         make_rcp<ScriptReffedArtboard>(file, std::move(artboardInstance)))
 {}
+
+ScriptedArtboard::~ScriptedArtboard()
+{
+    lua_unref(m_state, m_dataRef);
+    m_scriptReffedArtboard = nullptr;
+}
 
 static int node_index(lua_State* L)
 {

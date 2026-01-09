@@ -48,6 +48,8 @@ public:
             .clearColor = options.clearColor,
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
+            .fillsDisabled = options.fillsDisabled,
+            .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride = options.clockwiseFillOverride,
             .synthesizedFailureType = options.synthesizedFailureType,
         };

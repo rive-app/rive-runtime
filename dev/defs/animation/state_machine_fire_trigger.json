@@ -16,6 +16,16 @@
         "string": "viewmodelpathids"
       },
       "description": "Path to the selected view model trigger property."
+    },
+    "isDataBindPathRelative": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 923,
+        "string": "isdatabindpathrelative"
+      },
+      "description": "Whether the data bind path is relative",
+      "runtime": false
     }
   }
 }

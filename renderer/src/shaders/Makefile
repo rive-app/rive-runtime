@@ -62,7 +62,7 @@ rive_renderer_appletvsimulator_metallib: $(OUT)/rive_renderer_appletvsimulator.m
 $(OUT)/macosx/rive_pls_macosx.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL) | $(OUT)/macosx/.
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk macosx metal -std=macos-metal2.3 \
-		-mmacosx-version-min=10.0 \
+		-mmacosx-version-min=11.0 \
 		-I$(OUT) -ffast-math -ffp-contract=fast -fpreserve-invariance -fvisibility=hidden \
 		-c $(FILE) \
 		-o $(patsubst metal/%.metal, $(OUT)/macosx/%.air, $(FILE));)
@@ -170,30 +170,18 @@ SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/draw_clockwise_interior_triangles_clip.main \
     spirv/draw_clockwise_atlas_blit.main \
     spirv/draw_clockwise_image_mesh.main \
+    spirv/draw_clockwise_atomic_atlas_blit.main \
+    spirv/draw_clockwise_atomic_image_mesh.main \
     spirv/draw_msaa_atlas_blit.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_path.main \
     spirv/draw_msaa_stencil.main \
 
-# Files that need separate vertex shaders that are built with DISABLE_CLIP_RECT_FOR_VULKAN_MSAA
-SPIRV_NOCLIPDISTANCE_VERT_INPUTS := \
+# MSAA vertex and fragment shaders are built multiple times with different flags.
+SPIRV_DRAW_MSAA_INPUTS := \
     spirv/draw_msaa_path.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_atlas_blit.main \
-
-# Files that need separate vertex shaders that are compatible with WebGPU
-SPIRV_WEBGPU_VERT_INPUTS := \
-    spirv/draw_path.main \
-    spirv/draw_interior_triangles.main \
-    spirv/draw_atlas_blit.main \
-
-# Files that need separate fragment shaders that are compatible with WebGPU
-SPIRV_WEBGPU_FRAG_INPUTS := \
-    spirv/draw_path.main \
-    spirv/draw_interior_triangles.main \
-    spirv/draw_atlas_blit.main \
-    spirv/draw_image_mesh.main \
-
 
 
 ## Helpers for use in SPIRV_LIST_RULE (using lower_snake_case to distinguish things that use inputs like $1, $2, etc)
@@ -202,8 +190,9 @@ spirv_out_filename_no_ext = $(OUT)/$(call spirv_typed_filename,$1,$2)
 spirv_type = $(lastword $(subst _, ,$2))
 spirv_is_vert = $(findstring vert,$(spirv_type))
 spirv_is_webgpu = $(findstring webgpu,$2)
-spirv_is_atomic = $(findstring atomic,$1)
-spirv_is_clockwise = $(findstring clockwise,$1)
+spirv_is_not_clockwise_atomic = $(ifeq $(findstring clockwise_atomic,$1),)
+spirv_is_atomic = $(and $(findstring atomic,$1),spirv_is_not_clockwise_atomic)
+spirv_is_clockwise = $(and $(findstring clockwise,$1),spirv_is_not_clockwise_atomic)
 
 ## SPIR-V Optimizer settings
 
@@ -350,9 +339,11 @@ $(eval $(call make_spirv_rules, $(SPIRV_STANDARD_INPUTS), vert frag))
 
 ## Each of the specialized SPIRV lists have their own associated rules
 $(eval $(call make_spirv_rules, $(SPIRV_FIXEDCOLOR_FRAG_INPUTS), fixedcolor_frag, -DFIXED_FUNCTION_COLOR_OUTPUT))
-$(eval $(call make_spirv_rules, $(SPIRV_NOCLIPDISTANCE_VERT_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_RECT_FOR_VULKAN_MSAA))
-$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_VERT_INPUTS), webgpu_vert, -DSPEC_CONST_NONE))
-$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_FRAG_INPUTS), webgpu_frag, -DSPEC_CONST_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_vert, -DSPEC_CONST_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_noclipdistance_vert, -DSPEC_CONST_NONE -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_frag, -DSPEC_CONST_NONE -DINPUT_ATTACHMENT_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_fixedcolor_frag, -DSPEC_CONST_NONE -DINPUT_ATTACHMENT_NONE -DFIXED_FUNCTION_COLOR_OUTPUT))
 
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)

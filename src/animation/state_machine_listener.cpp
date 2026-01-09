@@ -19,6 +19,7 @@ void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
 
 StatusCode StateMachineListener::import(ImportStack& importStack)
 {
+    importDataBindPath(importStack);
     auto stateMachineImporter =
         importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr)
@@ -53,17 +54,16 @@ void StateMachineListener::performChanges(
 
 void StateMachineListener::decodeViewModelPathIds(Span<const uint8_t> value)
 {
-    BinaryReader reader(value);
-    while (!reader.reachedEnd())
-    {
-        auto val = reader.readVarUintAs<uint32_t>();
-        m_viewModelPathIdsBuffer.push_back(val);
-    }
+    decodeDataBindPath(value);
 }
 
 void StateMachineListener::copyViewModelPathIds(
     const StateMachineListenerBase& object)
 {
-    m_viewModelPathIdsBuffer =
-        object.as<StateMachineListener>()->m_viewModelPathIdsBuffer;
+    copyDataBindPath(object.as<StateMachineListener>()->dataBindPath());
+}
+
+std::vector<uint32_t> StateMachineListener::viewModelPathIdsBuffer() const
+{
+    return dataBindPath()->path();
 }

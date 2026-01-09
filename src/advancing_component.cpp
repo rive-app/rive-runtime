@@ -6,12 +6,14 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
+#include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 
 using namespace rive;
 
-AdvancingComponent* AdvancingComponent::from(Component* component)
+AdvancingComponent* AdvancingComponent::from(Core* component)
 {
     switch (component->coreType())
     {
@@ -27,10 +29,14 @@ AdvancingComponent* AdvancingComponent::from(Component* component)
             return component->as<ArtboardComponentList>();
         case ScrollConstraint::typeKey:
             return component->as<ScrollConstraint>();
+        case ScriptedDataConverter::typeKey:
+            return component->as<ScriptedDataConverter>();
         case ScriptedDrawable::typeKey:
             return component->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return component->as<ScriptedLayout>();
+        case ScriptedPathEffect::typeKey:
+            return component->as<ScriptedPathEffect>();
     }
     return nullptr;
 }

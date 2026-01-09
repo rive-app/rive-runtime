@@ -15,7 +15,11 @@
 #include "rive/importers/data_converter_formula_importer.hpp"
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
+#include "rive/importers/script_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
+#ifdef WITH_RIVE_SCRIPTING
+#include "rive/lua/rive_lua_libs.hpp"
+#endif
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
@@ -30,6 +34,7 @@
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/importers/viewmodel_instance_list_importer.hpp"
+#include "rive/importers/data_bind_path_importer.hpp"
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/entry_state.hpp"
@@ -41,6 +46,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_bind_path.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
@@ -61,6 +67,7 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -218,6 +225,9 @@ File::~File()
         delete physics;
     }
     delete m_backboard;
+#ifdef WITH_RIVE_SCRIPTING
+    cleanupScriptingVM();
+#endif
 }
 
 rcp<File> File::import(Span<const uint8_t> bytes,
@@ -267,6 +277,9 @@ rcp<File> File::import(Span<const uint8_t> bytes,
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
     ImportStack importStack;
+#ifdef WITH_RIVE_SCRIPTING
+    std::vector<InBandByteCode> inBandBytecode;
+#endif
     // TODO: @hernan consider moving this to a special importer. It's not that
     // simple because Core doesn't have a typeKey, so it should be treated as
     // a special case. In any case, it's not that bad having it here for now.
@@ -441,18 +454,33 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     m_factory);
                 stackType = FileAsset::typeKey;
                 break;
+#ifdef WITH_RIVE_SCRIPTING
             case ScriptAsset::typeKey:
+            {
+                auto scriptAsset = object->as<ScriptAsset>();
+                stackObject =
+                    rivestd::make_unique<ScriptAssetImporter>(scriptAsset,
+                                                              m_assetLoader,
+                                                              m_factory,
+                                                              &inBandBytecode);
+                stackType = FileAsset::typeKey;
+                scriptAsset->file(this);
+                break;
+            }
+#endif
+            case ManifestAsset::typeKey:
                 stackObject = rivestd::make_unique<FileAssetImporter>(
                     object->as<FileAsset>(),
                     m_assetLoader,
                     m_factory);
                 stackType = FileAsset::typeKey;
-                object->as<ScriptAsset>()->file(this);
+                m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
                 break;
             case ViewModel::typeKey:
                 stackObject = rivestd::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());
                 stackType = ViewModel::typeKey;
+                object->as<ViewModel>()->file(this);
                 break;
             case ViewModelInstance::typeKey:
                 stackObject = rivestd::make_unique<ViewModelInstanceImporter>(
@@ -508,8 +536,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case NestedArtboardLeaf::typeKey:
                 object->as<NestedArtboard>()->file(this);
                 break;
+            case ScriptedDataConverter::typeKey:
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
+            case ScriptedPathEffect::typeKey:
+            {
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
                 {
@@ -517,6 +548,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         scriptedObject);
                     stackType = ScriptedDrawable::typeKey;
                 }
+                break;
+            }
+            case DataBindPathBase::typeKey:
+                stackObject = rivestd::make_unique<DataBindPathImporter>(
+                    object->as<DataBindPath>());
+                stackType = DataBindPathBase::typeKey;
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=
@@ -556,10 +593,64 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         }
     }
 
-    return !reader.hasError() && importStack.resolve() == StatusCode::Ok
+    auto resolved = importStack.resolve();
+#ifdef WITH_RIVE_SCRIPTING
+    registerScripts();
+#endif
+    return !reader.hasError() && resolved == StatusCode::Ok
                ? ImportResult::success
                : ImportResult::malformed;
 }
+
+#ifdef WITH_RIVE_SCRIPTING
+void File::registerScripts()
+{
+    if (m_scriptingVM == nullptr)
+    {
+        makeScriptingVM();
+    }
+
+    // Add all scripts to the VM for registration
+    for (auto asset : m_fileAssets)
+    {
+        if (asset->is<ScriptAsset>())
+        {
+            ScriptAsset* scriptAsset = asset->as<ScriptAsset>();
+            // At runtime, generatorFunctionRef should be 0, meaning
+            // it hasn't been registered yet with a VM.
+            if (scriptAsset->verified())
+            {
+                m_scriptingVM->addModule(scriptAsset);
+            }
+        }
+    }
+
+    // Perform registration - ScriptingContext will handle dependencies and
+    // retries
+    m_scriptingVM->performRegistration();
+}
+
+void File::makeScriptingVM()
+{
+    cleanupScriptingVM();
+    m_scriptingContext =
+        rivestd::make_unique<CPPRuntimeScriptingContext>(m_factory);
+    m_scriptingVM = rivestd::make_unique<ScriptingVM>(m_scriptingContext.get());
+    m_luaState = new LuaState(m_scriptingVM->state());
+    m_luaState->initializeData(m_ViewModels);
+}
+
+void File::cleanupScriptingVM()
+{
+    if (m_scriptingVM != nullptr)
+    {
+        delete m_luaState;
+        m_luaState = nullptr;
+        m_scriptingVM.reset();
+        m_scriptingContext.reset();
+    }
+}
+#endif
 
 Artboard* File::artboard(std::string name) const
 {
@@ -731,6 +822,14 @@ rcp<ViewModelInstance> File::copyViewModelInstance(
     auto copy = rcp<ViewModelInstance>(
         viewModelInstance->clone()->as<ViewModelInstance>());
     completeViewModelInstance(copy, instancesMap);
+#ifdef WITH_RIVE_TOOLS
+    if (copy && m_triggerViewModelCreatedCallback &&
+        m_viewmodelInstanceCreatedCallback)
+    {
+        // Serialize and send to Dart when instance is created
+        m_viewmodelInstanceCreatedCallback(copy.get());
+    }
+#endif
     return copy;
 }
 
@@ -884,6 +983,14 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
             viewModelInstance->addValue(viewModelInstanceValue);
             propertyId++;
         }
+#ifdef WITH_RIVE_TOOLS
+        if (viewModelInstance && m_triggerViewModelCreatedCallback &&
+            m_viewmodelInstanceCreatedCallback)
+        {
+            // Serialize and send to Dart when instance is created
+            m_viewmodelInstanceCreatedCallback(viewModelInstance);
+        }
+#endif
         return rcp<ViewModelInstance>(viewModelInstance);
     }
     return nullptr;
@@ -925,6 +1032,14 @@ rcp<ViewModelInstance> File::createDefaultViewModelInstance(
         auto copy = rcp<ViewModelInstance>(
             viewModelInstance->clone()->as<ViewModelInstance>());
         completeViewModelInstance(copy);
+#ifdef WITH_RIVE_TOOLS
+        if (copy && m_triggerViewModelCreatedCallback &&
+            m_viewmodelInstanceCreatedCallback)
+        {
+            // Serialize and send to Dart when instance is created
+            m_viewmodelInstanceCreatedCallback(copy.get());
+        }
+#endif
         return copy;
     }
     return createViewModelInstance(viewModel);
