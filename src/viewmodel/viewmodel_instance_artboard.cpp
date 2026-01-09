@@ -32,3 +32,8 @@ void ViewModelInstanceArtboard::applyValue(DataValueInteger* dataValue)
 {
     propertyValue(dataValue->value());
 }
+
+void ViewModelInstanceArtboard::viewModelInstance(rcp<ViewModelInstance> value)
+{
+    m_viewModelInstance = value;
+}

@@ -19,6 +19,7 @@ public:
         ViewModelInstanceValueRuntime(viewModelInstance)
     {}
     void value(rcp<BindableArtboard> bindableArtboard);
+    void viewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     const DataType dataType() override { return DataType::artboard; }
 
 #ifdef TESTING

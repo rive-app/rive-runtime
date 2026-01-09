@@ -18,11 +18,14 @@ protected:
 
 public:
     void asset(rcp<BindableArtboard> value);
+    void viewModelInstance(rcp<ViewModelInstance> value);
     rcp<BindableArtboard> asset() { return m_bindableArtboard; }
     void applyValue(DataValueInteger*);
+    rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
 
 private:
     rcp<BindableArtboard> m_bindableArtboard = nullptr;
+    rcp<ViewModelInstance> m_viewModelInstance = nullptr;
 #ifdef WITH_RIVE_TOOLS
 public:
     void onChanged(ViewModelArtboardChanged callback)

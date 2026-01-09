@@ -11,6 +11,13 @@ void ViewModelInstanceArtboardRuntime::value(
         bindableArtboard);
 }
 
+void ViewModelInstanceArtboardRuntime::viewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance)
+{
+    m_viewModelInstanceValue->as<ViewModelInstanceArtboard>()
+        ->viewModelInstance(viewModelInstance);
+}
+
 #ifdef TESTING
 rcp<BindableArtboard> ViewModelInstanceArtboardRuntime::testing_value()
 {
