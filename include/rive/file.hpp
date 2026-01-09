@@ -6,7 +6,6 @@
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
 #include "rive/assets/manifest_asset.hpp"
-#include "rive/lua/lua_state.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -40,6 +39,7 @@ class BindableArtboard;
 #ifdef WITH_RIVE_SCRIPTING
 class CPPRuntimeScriptingContext;
 class ScriptingVM;
+class LuaState;
 #endif
 
 ///

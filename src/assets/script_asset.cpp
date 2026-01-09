@@ -43,10 +43,10 @@ ScriptInput* ScriptInput::from(Core* component)
 
 void ScriptInput::initScriptedValue() {}
 
+#ifdef WITH_RIVE_SCRIPTING
 bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
                                                    LuaState* luaState)
 {
-#ifdef WITH_RIVE_SCRIPTING
     auto state = luaState->state;
     lua_pushvalue(state, -1);
     if (static_cast<lua_Status>(rive_lua_pcall(state, 0, 1)) != LUA_OK)
@@ -144,12 +144,8 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
     }
     rive_lua_pop(state, 1);
     return true;
-#else
-    return false;
-#endif
 }
 
-#ifdef WITH_RIVE_SCRIPTING
 LuaState* ScriptAsset::vm()
 {
     if (m_file == nullptr)

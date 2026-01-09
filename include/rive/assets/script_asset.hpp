@@ -24,6 +24,7 @@ enum ScriptProtocol
 };
 
 #ifdef WITH_RIVE_SCRIPTING
+class LuaState;
 class ScriptAssetImporter;
 #endif
 
@@ -61,7 +62,9 @@ private:
     int m_implementedMethods = 0;
 
 protected:
+#ifdef WITH_RIVE_SCRIPTING
     bool verifyImplementation(ScriptedObject* object, LuaState* luaState);
+#endif
 
 public:
     int implementedMethods() { return m_implementedMethods; }
