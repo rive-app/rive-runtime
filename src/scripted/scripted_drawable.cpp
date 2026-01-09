@@ -17,6 +17,10 @@ bool ScriptedDrawable::scriptInit(LuaState* state)
 
 void ScriptedDrawable::draw(Renderer* renderer)
 {
+    if (!draws())
+    {
+        return;
+    }
     auto state = m_state->state;
 
     if (m_needsSaveOperation)
@@ -24,23 +28,25 @@ void ScriptedDrawable::draw(Renderer* renderer)
         renderer->save();
     }
     renderer->transform(worldTransform());
-
+    // Stack: []
+    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(state, renderer);
+    // Stack: [scriptedRenderer]
     rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) != LUA_TFUNCTION)
+    // Stack: [scriptedRenderer, self]
+    lua_getfield(state, -1, "draw");
+    // Stack: [scriptedRenderer, self, "draw"]
+    lua_pushvalue(state, -2);
+    // Stack: [scriptedRenderer, self, "draw", self]
+    lua_pushvalue(state, -4);
+    // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
+    if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
     {
-        fprintf(stderr, "expected draw to be a function\n");
+        // Stack: [scriptedRenderer, self, status]
+        rive_lua_pop(state, 1);
     }
-    else
-    {
-        lua_pushvalue(state, -2);
-        auto scriptedRenderer = lua_newrive<ScriptedRenderer>(state, renderer);
-        if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
-        {
-            rive_lua_pop(state, 1);
-        }
-        scriptedRenderer->end();
-    }
-    rive_lua_pop(state, 1);
+    scriptedRenderer->end();
+    // Stack: [scriptedRenderer, self]
+    rive_lua_pop(state, 2);
     if (m_needsSaveOperation)
     {
         renderer->restore();
