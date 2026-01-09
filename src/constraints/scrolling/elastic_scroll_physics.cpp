@@ -39,9 +39,15 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                                Vec2D rangeMax,
                                Vec2D value,
                                std::vector<Vec2D> snappingPoints,
-                               float contentSize)
+                               float contentSize,
+                               float viewportSize)
 {
-    Super::run(rangeMin, rangeMax, value, snappingPoints, contentSize);
+    Super::run(rangeMin,
+               rangeMax,
+               value,
+               snappingPoints,
+               contentSize,
+               viewportSize);
     std::vector<float> xPoints;
     std::vector<float> yPoints;
     for (auto pt : snappingPoints)
@@ -56,7 +62,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                         rangeMax.x,
                         value.x,
                         xPoints,
-                        contentSize);
+                        contentSize,
+                        viewportSize);
     }
     if (m_physicsY != nullptr)
     {
@@ -65,7 +72,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                         rangeMax.y,
                         value.y,
                         yPoints,
-                        contentSize);
+                        contentSize,
+                        viewportSize);
     }
 }
 
@@ -163,7 +171,8 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
                                      float rangeMax,
                                      float value,
                                      std::vector<float> snappingPoints,
-                                     float contentSize)
+                                     float contentSize,
+                                     float viewportSize)
 {
     m_isRunning = true;
     m_runRangeMin = rangeMin;
@@ -194,12 +203,16 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     {
         float endTarget = -(m_current + m_speed / m_friction);
         float sectionSize = contentSize != 0 ? contentSize : 1;
+        float viewportSectionSize = viewportSize != 0 ? viewportSize : 1;
         int multiple = rangeMax == std::numeric_limits<float>::infinity()
                            ? std::floor(endTarget / sectionSize)
                            : 0;
         float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
                                  ? std::fmod(endTarget, sectionSize)
                                  : endTarget;
+        float maxTarget = rangeMax == std::numeric_limits<float>::infinity()
+                              ? std::numeric_limits<float>::infinity()
+                              : sectionSize - viewportSectionSize;
         float closest = std::numeric_limits<float>::max();
         float snapTarget = 0;
         for (auto snap : snappingPoints)
@@ -211,6 +224,7 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
                 snapTarget = snap + (multiple * sectionSize);
             }
         }
+        snapTarget = std::min(snapTarget, maxTarget);
         m_speed = -(snapTarget + m_current) * m_friction;
         m_snapTarget = -snapTarget;
     }

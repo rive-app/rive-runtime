@@ -54,7 +54,8 @@ public:
                      Vec2D rangeMax,
                      Vec2D value,
                      std::vector<Vec2D> snappingPoints,
-                     float contentSize)
+                     float contentSize,
+                     float viewportSize)
     {
         m_isRunning = true;
     }

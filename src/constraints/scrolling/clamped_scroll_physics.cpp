@@ -13,9 +13,15 @@ void ClampedScrollPhysics::run(Vec2D rangeMin,
                                Vec2D rangeMax,
                                Vec2D value,
                                std::vector<Vec2D> snappingPoints,
-                               float contentSize)
+                               float contentSize,
+                               float viewportSize)
 {
-    ScrollPhysics::run(rangeMin, rangeMax, value, snappingPoints, contentSize);
+    ScrollPhysics::run(rangeMin,
+                       rangeMax,
+                       value,
+                       snappingPoints,
+                       contentSize,
+                       viewportSize);
     m_value = clamp(rangeMin, rangeMax, value);
 }
 

@@ -280,7 +280,8 @@ void ScrollConstraint::runPhysics()
                        Vec2D(minOffsetX(), minOffsetY()),
                        Vec2D(offsetX(), offsetY()),
                        snap() ? snappingPoints : std::vector<Vec2D>(),
-                       mainAxisIsColumn() ? contentHeight() : contentWidth());
+                       mainAxisIsColumn() ? contentHeight() : contentWidth(),
+                       mainAxisIsColumn() ? viewportHeight() : viewportWidth());
     }
 }
 
