@@ -3,6 +3,7 @@
 #define _RIVE_LUA_LIBS_HPP_
 #include "lua.h"
 #include "lualib.h"
+#include "rive/animation/linear_animation_instance.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/math/raw_path.hpp"
@@ -163,6 +164,7 @@ enum class LuaAtoms : int16_t
     frameOrigin,
     data,
     instance,
+    animation,
     newAtom,
     bounds,
     pointerDown,
@@ -204,6 +206,12 @@ enum class LuaAtoms : int16_t
     // Scripted Context
     markNeedsUpdate,
     viewModel,
+
+    // Animation
+    duration,
+    setTime,
+    setTimeFrames,
+    setTimePercentage,
 };
 
 struct ScriptedMat2D
@@ -484,6 +492,7 @@ public:
 
     int pushData(lua_State* L);
     int instance(lua_State* L);
+    int animation(lua_State* L, const char* animationName);
 
     bool advance(float seconds);
 
@@ -493,6 +502,24 @@ private:
     lua_State* m_state;
     rcp<ScriptReffedArtboard> m_scriptReffedArtboard;
     int m_dataRef = 0;
+};
+
+class ScriptedAnimation
+{
+public:
+    ScriptedAnimation(lua_State* L,
+                      std::unique_ptr<LinearAnimationInstance> animation);
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 32;
+    static constexpr const char* luaName = "Animation";
+    static constexpr bool hasMetatable = true;
+    float duration();
+    int advance();
+    int setTime(std::string mode);
+
+private:
+    lua_State* m_state;
+    std::unique_ptr<LinearAnimationInstance> m_animation;
 };
 
 struct ScriptedListener

@@ -5,6 +5,7 @@
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive_file_reader.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 
 using namespace rive;
 
@@ -323,7 +324,6 @@ TEST_CASE("script instances Artboard input with proper origin", "[silver]")
     REQUIRE(artboard != nullptr);
     auto stateMachine = artboard->stateMachineAt(0);
     stateMachine->advanceAndApply(0.1f);
-
     auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
 
@@ -381,4 +381,109 @@ TEST_CASE("when script node is advanced it affects the didChange bool via dirt",
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("script_affects_has_changed"));
+}
+
+TEST_CASE("script instance Linear animations", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripting_linear_animation.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto time = vmi->propertyValue("time")->as<ViewModelInstanceNumber>();
+    auto mode = vmi->propertyValue("mode")->as<ViewModelInstanceString>();
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.064f);
+        artboard->draw(renderer.get());
+    }
+    // Need to double advance because the bound property is picked up by the
+    // script one frame later
+    {
+        time->propertyValue(0.55f);
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("frames");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("percentage");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+    }
+    {
+        time->propertyValue(-1.0f);
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("frames");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("percentage");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+    }
+    {
+        time->propertyValue(3.8f);
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("frames");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("percentage");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+    }
+    {
+        time->propertyValue(40.0f);
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("frames");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+        mode->propertyValue("percentage");
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        silver.addFrame();
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("scripting_linear_animation"));
 }

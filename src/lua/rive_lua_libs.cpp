@@ -109,6 +109,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"frameOrigin", (int16_t)LuaAtoms::frameOrigin},
     {"data", (int16_t)LuaAtoms::data},
     {"instance", (int16_t)LuaAtoms::instance},
+    {"animation", (int16_t)LuaAtoms::animation},
     {"new", (int16_t)LuaAtoms::newAtom},
     {"bounds", (int16_t)LuaAtoms::bounds},
     {"pointerDown", (int16_t)LuaAtoms::pointerDown},
@@ -139,6 +140,10 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"isClosed", (int16_t)LuaAtoms::isClosed},
     {"markNeedsUpdate", (int16_t)LuaAtoms::markNeedsUpdate},
     {"viewModel", (int16_t)LuaAtoms::viewModel},
+    {"duration", (int16_t)LuaAtoms::duration},
+    {"setTime", (int16_t)LuaAtoms::setTime},
+    {"setTimeFrames", (int16_t)LuaAtoms::setTimeFrames},
+    {"setTimePercentage", (int16_t)LuaAtoms::setTimePercentage},
 };
 
 static const luaL_Reg lualibs[] = {

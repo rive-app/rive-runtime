@@ -134,6 +134,12 @@ static int artboard_namecall(lua_State* L)
                 auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
                 return scriptedArtboard->instance(L);
             }
+            case (int)LuaAtoms::animation:
+            {
+                auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
+                const char* animationName = luaL_checkstring(L, 2);
+                return scriptedArtboard->animation(L, animationName);
+            }
             case (int)LuaAtoms::addToPath:
             {
                 int nargs = lua_gettop(L);
@@ -228,6 +234,22 @@ int ScriptedArtboard::instance(lua_State* L)
     return 1;
 }
 
+int ScriptedArtboard::animation(lua_State* L, const char* animationName)
+{
+    if (artboard()->isInstance())
+    {
+
+        auto animation = static_cast<ArtboardInstance*>(artboard())
+                             ->animationNamed(animationName);
+        if (animation)
+        {
+            lua_newrive<ScriptedAnimation>(L, L, std::move(animation));
+            return 1;
+        }
+    }
+    return 0;
+}
+
 ScriptedNode::ScriptedNode(rcp<ScriptReffedArtboard> artboard,
                            TransformComponent* component) :
     m_artboard(artboard), m_component(component)
@@ -320,6 +342,53 @@ ScriptedArtboard::~ScriptedArtboard()
 {
     lua_unref(m_state, m_dataRef);
     m_scriptReffedArtboard = nullptr;
+}
+
+ScriptedAnimation::ScriptedAnimation(
+    lua_State* L,
+    std::unique_ptr<LinearAnimationInstance> animation) :
+    m_state(L), m_animation(std::move(animation))
+{}
+
+float ScriptedAnimation::duration()
+{
+    auto durationFrames = (float)m_animation->duration();
+    auto fps = (float)m_animation->fps();
+    return durationFrames / fps;
+}
+
+int ScriptedAnimation::advance()
+{
+    auto seconds = float(luaL_checknumber(m_state, 2));
+
+    bool advanced = m_animation->advance(seconds);
+    m_animation->apply();
+    lua_pushboolean(m_state, advanced ? 1 : 0);
+    return 1;
+}
+
+int ScriptedAnimation::setTime(std::string mode)
+{
+    float seconds = 0;
+    if (mode == "seconds")
+    {
+        seconds = float(luaL_checknumber(m_state, 2));
+    }
+    else if (mode == "frames")
+    {
+        auto frames = float(luaL_checknumber(m_state, 2));
+
+        seconds = frames / m_animation->fps();
+    }
+    else if (mode == "percentage")
+    {
+        auto percentage = float(luaL_checknumber(m_state, 2));
+        seconds = percentage * duration();
+    }
+
+    m_animation->time(m_animation->animation()->globalToLocalSeconds(seconds));
+    m_animation->apply();
+    return 0;
 }
 
 static int node_index(lua_State* L)
@@ -562,6 +631,63 @@ static int node_namecall(lua_State* L)
     return 0;
 }
 
+static int animation_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto scriptedAnimation = lua_torive<ScriptedAnimation>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::duration:
+            lua_pushnumber(L, scriptedAnimation->duration());
+            return 1;
+    }
+
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               key,
+               ScriptedNode::luaName);
+    return 0;
+}
+
+static int animation_namecall(lua_State* L)
+{
+    int atom;
+    const char* str = lua_namecallatom(L, &atom);
+    if (str != nullptr)
+    {
+        auto scriptedAnimation = lua_torive<ScriptedAnimation>(L, 1);
+        switch (atom)
+        {
+            case (int)LuaAtoms::advance:
+            {
+                return scriptedAnimation->advance();
+            }
+            case (int)LuaAtoms::setTime:
+            {
+                return scriptedAnimation->setTime("seconds");
+            }
+            case (int)LuaAtoms::setTimeFrames:
+            {
+                return scriptedAnimation->setTime("frames");
+            }
+            case (int)LuaAtoms::setTimePercentage:
+            {
+                return scriptedAnimation->setTime("percentage");
+            }
+        }
+    }
+
+    luaL_error(L, "%s is not a valid method of %s", str, ScriptedNode::luaName);
+    return 0;
+}
+
 int luaopen_rive_artboards(lua_State* L)
 {
     lua_register_rive<ScriptedArtboard>(L);
@@ -590,6 +716,14 @@ int luaopen_rive_artboards(lua_State* L)
     lua_setfield(L, -2, "__namecall");
 
     lua_setreadonly(L, -1, true);
+    lua_pop(L, 1); // pop the metatable
+
+    lua_register_rive<ScriptedAnimation>(L);
+    lua_pushcfunction(L, animation_index, nullptr);
+    lua_setfield(L, -2, "__index");
+
+    lua_pushcfunction(L, animation_namecall, nullptr);
+    lua_setfield(L, -2, "__namecall");
     lua_pop(L, 1); // pop the metatable
 
     return 0;
