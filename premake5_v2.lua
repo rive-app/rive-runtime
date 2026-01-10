@@ -47,6 +47,11 @@ if _OPTIONS['with_rive_scripting'] then
     luau = scripting.luau
     libhydrogen = scripting.libhydrogen
 else
+    project('luau_vm')
+    do
+        kind('StaticLib')
+        files({ 'dummy.cpp' })
+    end
     luau = ''
     libhydrogen = ''
 end
