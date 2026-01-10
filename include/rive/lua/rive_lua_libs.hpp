@@ -1000,10 +1000,15 @@ static void interruptCPP(lua_State* L, int gc);
 class CPPRuntimeScriptingContext : public ScriptingContext
 {
 public:
-    CPPRuntimeScriptingContext(Factory* factory) : ScriptingContext(factory) {}
+    CPPRuntimeScriptingContext(Factory* factory, int timeoutMs = 200) :
+        ScriptingContext(factory), m_timeoutMs(timeoutMs)
+    {}
     virtual ~CPPRuntimeScriptingContext() = default;
 
     std::chrono::time_point<std::chrono::steady_clock> executionTime;
+
+    int timeoutMs() const { return m_timeoutMs; }
+    void setTimeoutMs(int ms) { m_timeoutMs = ms; }
 
     int pCall(lua_State* state, int nargs, int nresults) override;
 
@@ -1024,6 +1029,10 @@ public:
 
     void startTimedExecution(lua_State* state)
     {
+        if (m_timeoutMs == 0)
+        {
+            return;
+        }
         lua_Callbacks* cb = lua_callbacks(state);
         cb->interrupt = interruptCPP;
         executionTime = std::chrono::steady_clock::now();
@@ -1031,9 +1040,16 @@ public:
 
     void endTimedExecution(lua_State* state)
     {
+        if (m_timeoutMs == 0)
+        {
+            return;
+        }
         lua_Callbacks* cb = lua_callbacks(state);
         cb->interrupt = nullptr;
     }
+
+private:
+    int m_timeoutMs = 200;
 };
 
 static void interruptCPP(lua_State* L, int gc)
@@ -1050,13 +1066,34 @@ static void interruptCPP(lua_State* L, int gc)
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                   now - context->executionTime)
                   .count();
-    if (ms > 50)
+    if (ms > context->timeoutMs())
     {
         lua_Callbacks* cb = lua_callbacks(L);
         cb->interrupt = nullptr;
         // reserve space for error string
         lua_rawcheckstack(L, 1);
-        luaL_error(L, "execution took too long");
+
+        // Format human-readable error message
+        char errorMsg[128];
+        int timeoutMs = context->timeoutMs();
+        if (timeoutMs >= 1000)
+        {
+            double seconds = timeoutMs / 1000.0;
+            snprintf(errorMsg,
+                     sizeof(errorMsg),
+                     "execution exceeded %.1f second%s timeout",
+                     seconds,
+                     seconds == 1.0 ? "" : "s");
+        }
+        else
+        {
+            snprintf(errorMsg,
+                     sizeof(errorMsg),
+                     "execution exceeded %d millisecond%s timeout",
+                     timeoutMs,
+                     timeoutMs == 1 ? "" : "s");
+        }
+        luaL_error(L, "%s", errorMsg);
     }
 }
 } // namespace rive
