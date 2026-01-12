@@ -48,6 +48,25 @@
         "string": "ismodule"
       },
       "description": "Whether the script is a module (doesn't implement a protocol like Node, Layout, etc."
+    },
+    "folderPath": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 926,
+        "string": "folderpath"
+      },
+      "description": "Asset panel folder hierarchy that this ScriptAsset exists in. This is also used as the namespace for the Script when registering it"
+    },
+    "dependencyIds": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 927,
+        "string": "dependencyids"
+      },
+      "description": "Ids of any scripts this script requires",
+      "runtime": false
     }
   }
 }

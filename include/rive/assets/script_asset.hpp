@@ -176,7 +176,10 @@ public:
     LuaState* vm();
     void registrationComplete(int ref) override;
 #endif
-    std::string moduleName() override { return name(); }
+    std::string moduleName() override
+    {
+        return folderPath() == "" ? name() : folderPath() + "/" + name();
+    }
     bool isProtocolScript() override { return !isModule(); }
 
 private:

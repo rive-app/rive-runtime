@@ -183,3 +183,53 @@ TEST_CASE(
     CHECK(silver.matches(
         "script_converter_with_dependency_with_library_with_update"));
 }
+
+// This test file uses 4 scripts in the following hierarchy:
+// - rive
+//   - stringutil
+//     - StringReverse
+//     - StringPrefix
+//     - StringUpperCase
+//   - converter
+//     - StringConverter
+// These scripts must have their full qualified namespace included in the
+// require For example: require('rive/stringutil/StringReverse')
+TEST_CASE("scripted data converter string with namespaced requires", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_namespace_test.riv", &silver);
+    auto artboard = file->artboardNamed("Artboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    rive::ViewModelInstanceString* str =
+        vmi->propertyValue("InputString")->as<rive::ViewModelInstanceString>();
+    REQUIRE(str != nullptr);
+
+    std::vector<std::string> values = {"Hello world!",
+                                       "1,2,3",
+                                       "rive scripting",
+                                       "testing testing testing",
+                                       "Script Data Converter"};
+    for (int i = 0; i < values.size(); i++)
+    {
+        str->propertyValue(values[i]);
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("script_namespace_test"));
+}

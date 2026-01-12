@@ -1598,6 +1598,9 @@ public:
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 object->as<FileAssetBase>()->cdnBaseUrl(value);
                 break;
+            case ScriptAssetBase::folderPathPropertyKey:
+                object->as<ScriptAssetBase>()->folderPath(value);
+                break;
         }
     }
     static void setColor(Core* object, int propertyKey, int value)
@@ -3017,6 +3020,8 @@ public:
                 return object->as<AssetBase>()->name();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->as<FileAssetBase>()->cdnBaseUrl();
+            case ScriptAssetBase::folderPathPropertyKey:
+                return object->as<ScriptAssetBase>()->folderPath();
         }
         return "";
     }
@@ -3852,6 +3857,7 @@ public:
             case TextValueRunBase::textPropertyKey:
             case AssetBase::namePropertyKey:
             case FileAssetBase::cdnBaseUrlPropertyKey:
+            case ScriptAssetBase::folderPathPropertyKey:
                 return CoreStringType::id;
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
             case CustomPropertyColorBase::propertyValuePropertyKey:
@@ -4632,6 +4638,8 @@ public:
                 return object->is<AssetBase>();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->is<FileAssetBase>();
+            case ScriptAssetBase::folderPathPropertyKey:
+                return object->is<ScriptAssetBase>();
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceColorBase>();
             case CustomPropertyColorBase::propertyValuePropertyKey:
