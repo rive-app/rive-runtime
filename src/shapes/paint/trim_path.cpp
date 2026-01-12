@@ -203,7 +203,7 @@ StatusCode TrimPath::onAddedDirty(CoreContext* context)
 
 void TrimPath::updateEffect(PathProvider* pathProvider,
                             const ShapePaintPath* source,
-                            ShapePaintType shapePaintType)
+                            const ShapePaint* shapePaint)
 {
     auto effectPathIt = m_effectPaths.find(pathProvider);
     if (effectPathIt != m_effectPaths.end())
@@ -220,7 +220,7 @@ void TrimPath::updateEffect(PathProvider* pathProvider,
         trimPath(path,
                  trimEffectPath->contours(),
                  source->rawPath(),
-                 shapePaintType);
+                 shapePaint->paintType());
     }
 }
 

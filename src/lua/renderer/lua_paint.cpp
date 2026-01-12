@@ -3,6 +3,10 @@
 #include "rive/renderer.hpp"
 #include "rive/rive_types.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/fill.hpp"
+#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/solid_color.hpp"
+#include "rive/shapes/paint/feather.hpp"
 #include "lualib.h"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/factory.hpp"
@@ -151,6 +155,37 @@ static void readBlendMode(lua_State* L, ScriptedPaint* paint, int index)
     paint->blendMode(blendMode);
 }
 
+ScriptedPaintData::ScriptedPaintData() {}
+
+ScriptedPaintData::ScriptedPaintData(const ShapePaint* shapePaint)
+{
+    if (shapePaint->is<Fill>())
+    {
+        style(RenderPaintStyle::fill);
+    }
+    else if (shapePaint->is<Stroke>())
+    {
+        auto stroke = shapePaint->as<Stroke>();
+        style(RenderPaintStyle::stroke);
+        thickness(stroke->thickness());
+        cap((StrokeCap)stroke->cap());
+        join((StrokeJoin)stroke->join());
+    }
+    for (auto& child : shapePaint->children())
+    {
+        if (child->is<SolidColor>())
+        {
+            color(child->as<SolidColor>()->colorValue());
+            break;
+        }
+    }
+    if (shapePaint->feather())
+    {
+        feather(shapePaint->feather()->strength());
+    }
+    blendMode((BlendMode)shapePaint->blendModeValue());
+}
+
 ScriptedPaint::ScriptedPaint(Factory* factory) :
     renderPaint(factory->makeRenderPaint())
 {}
@@ -284,7 +319,7 @@ static int paint_newindex(lua_State* L)
     return 0;
 }
 
-void ScriptedPaint::pushStyle(lua_State* L)
+void ScriptedPaintData::pushStyle(lua_State* L)
 {
     switch (m_style)
     {
@@ -299,7 +334,7 @@ void ScriptedPaint::pushStyle(lua_State* L)
     }
 }
 
-void ScriptedPaint::pushJoin(lua_State* L)
+void ScriptedPaintData::pushJoin(lua_State* L)
 {
     switch (m_join)
     {
@@ -317,7 +352,7 @@ void ScriptedPaint::pushJoin(lua_State* L)
     }
 }
 
-void ScriptedPaint::pushCap(lua_State* L)
+void ScriptedPaintData::pushCap(lua_State* L)
 {
     switch (m_cap)
     {
@@ -335,12 +370,12 @@ void ScriptedPaint::pushCap(lua_State* L)
     }
 }
 
-void ScriptedPaint::pushThickness(lua_State* L)
+void ScriptedPaintData::pushThickness(lua_State* L)
 {
     lua_pushnumber(L, m_thickness);
 }
 
-void ScriptedPaint::pushBlendMode(lua_State* L)
+void ScriptedPaintData::pushBlendMode(lua_State* L)
 {
     switch (m_blendMode)
     {
@@ -397,8 +432,11 @@ void ScriptedPaint::pushBlendMode(lua_State* L)
     }
 }
 
-void ScriptedPaint::pushFeather(lua_State* L) { lua_pushnumber(L, m_feather); }
-void ScriptedPaint::pushGradient(lua_State* L)
+void ScriptedPaintData::pushFeather(lua_State* L)
+{
+    lua_pushnumber(L, m_feather);
+}
+void ScriptedPaintData::pushGradient(lua_State* L)
 {
     if (m_gradient)
     {
@@ -410,7 +448,10 @@ void ScriptedPaint::pushGradient(lua_State* L)
         lua_pushnil(L);
     }
 }
-void ScriptedPaint::pushColor(lua_State* L) { lua_pushunsigned(L, m_color); }
+void ScriptedPaintData::pushColor(lua_State* L)
+{
+    lua_pushunsigned(L, m_color);
+}
 
 static int paint_index(lua_State* L)
 {
@@ -422,7 +463,7 @@ static int paint_index(lua_State* L)
         return 0;
     }
 
-    auto scriptedPaint = lua_torive<ScriptedPaint>(L, 1);
+    auto scriptedPaint = (ScriptedPaintData*)lua_touserdata(L, 1);
     switch (atom)
     {
         case (int)LuaAtoms::style:
@@ -500,6 +541,13 @@ static const luaL_Reg paintStaticMethods[] = {
 
 int luaopen_rive_paint(lua_State* L)
 {
+    lua_register_rive<ScriptedPaintData>(L);
+
+    lua_pushcfunction(L, paint_index, nullptr);
+    lua_setfield(L, -2, "__index");
+    lua_setreadonly(L, -1, true);
+    lua_pop(L, 1); // pop the metatable
+
     luaL_register(L, ScriptedPaint::luaName, paintStaticMethods);
     lua_register_rive<ScriptedPaint>(L);
 
@@ -514,6 +562,7 @@ int luaopen_rive_paint(lua_State* L)
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
+
     return 1;
 }
 

@@ -56,7 +56,7 @@ public:
     void offsetIsPercentageChanged() override;
     void updateEffect(PathProvider* pathProvider,
                       const ShapePaintPath* source,
-                      ShapePaintType shapePaintType) override;
+                      const ShapePaint* shapePaint) override;
     void invalidateDash() override;
     EffectsContainer* parentPaint() override;
     virtual EffectPath* createEffectPath() override;

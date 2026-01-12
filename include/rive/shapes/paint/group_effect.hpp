@@ -18,7 +18,7 @@ public:
     void invalidateEffects() override;
     void updateEffect(PathProvider* pathProvider,
                       const ShapePaintPath* source,
-                      ShapePaintType shapePaintType) override;
+                      const ShapePaint* shapePaint) override;
     EffectsContainer* parentPaint() override;
     void addPathProvider(PathProvider* component) override;
     void addStrokeEffect(StrokeEffect* effect) override;

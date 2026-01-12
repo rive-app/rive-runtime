@@ -21,7 +21,7 @@ public:
 
     void updateEffect(PathProvider* pathProvider,
                       const ShapePaintPath* source,
-                      ShapePaintType shapePaintType) override;
+                      const ShapePaint* shapePaint) override;
     ShapePaintPath* effectPath(PathProvider* pathProvider) override;
     EffectsContainer* parentPaint() override;
     void addPathProvider(PathProvider* component) override;

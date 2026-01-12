@@ -23,7 +23,6 @@ class ShapePaint : public ShapePaintBase,
 protected:
     rcp<RenderPaint> m_RenderPaint;
     ShapePaintMutator* m_PaintMutator = nullptr;
-    virtual ShapePaintType paintType() = 0;
 
 public:
     StatusCode onAddedClean(CoreContext* context) override;
@@ -82,6 +81,7 @@ public:
 
     virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
     void update(ComponentDirt value) override;
+    virtual ShapePaintType paintType() const = 0;
 
 private:
     Feather* m_feather = nullptr;

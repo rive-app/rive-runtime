@@ -36,7 +36,7 @@ public:
 
     void updateEffect(PathProvider* pathProvider,
                       const ShapePaintPath* source,
-                      ShapePaintType shapePaintType) override;
+                      const ShapePaint* shapePaint) override;
     EffectsContainer* parentPaint() override;
 
     void startChanged() override;

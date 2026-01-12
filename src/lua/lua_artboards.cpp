@@ -476,6 +476,19 @@ static int node_index(lua_State* L)
             }
             return 1;
         }
+        case (int)LuaAtoms::paint:
+        {
+            auto shapePaint = scriptedNode->shapePaint();
+            if (shapePaint)
+            {
+                lua_newrive<ScriptedPaintData>(L, shapePaint);
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+            return 1;
+        }
 
         default:
             switch (key[0])

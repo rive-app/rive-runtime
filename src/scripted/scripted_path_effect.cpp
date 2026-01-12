@@ -20,7 +20,7 @@ bool ScriptedPathEffect::scriptInit(LuaState* state)
 
 void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
                                       const ShapePaintPath* source,
-                                      ShapePaintType shapePaintType)
+                                      const ShapePaint* shapePaint)
 {
     if (!updates())
     {
@@ -53,10 +53,13 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         // Stack: [self, "update", self]
         lua_newrive<ScriptedPathData>(state, source->rawPath());
         // Stack: [self, "update", self, pathData]
-        lua_pushstring(state,
-                       shapePaintType == ShapePaintType::stroke ? "stroke"
-                                                                : "fill");
-        // Stack: [self, "update", self, pathData, paintType]
+        lua_newrive<ScriptedNode>(
+            state,
+            nullptr,
+            shapePaint->parent()->as<TransformComponent>());
+        auto scriptedNode = lua_torive<ScriptedNode>(state, -1);
+        scriptedNode->shapePaint(shapePaint);
+        // Stack: [self, "update", self, pathData, node]
         if (static_cast<lua_Status>(rive_lua_pcall(state, 3, 1)) != LUA_OK)
         {
             fprintf(stderr, "update function failed\n");
@@ -75,7 +78,7 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
 #else
 void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
                                       const ShapePaintPath* source,
-                                      ShapePaintType shapePaintType)
+                                      const ShapePaint* shapePaint)
 {}
 #endif
 

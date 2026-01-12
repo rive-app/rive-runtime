@@ -125,7 +125,7 @@ void DashPath::offsetIsPercentageChanged() { invalidateEffectFromLocal(); }
 
 void DashPath::updateEffect(PathProvider* pathProvider,
                             const ShapePaintPath* source,
-                            ShapePaintType shapePaintType)
+                            const ShapePaint* shapePaint)
 {
     auto effectPathIt = m_effectPaths.find(pathProvider);
     if (effectPathIt != m_effectPaths.end())
@@ -139,7 +139,7 @@ void DashPath::updateEffect(PathProvider* pathProvider,
         }
         path->rewind(source->isLocal());
         // Dash is not supported on fills so it will use the source as output
-        if (shapePaintType == ShapePaintType::fill)
+        if (shapePaint->paintType() == ShapePaintType::fill)
         {
             path->addPath(source);
         }

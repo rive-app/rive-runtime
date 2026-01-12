@@ -36,7 +36,7 @@ void ShapePaint::update(ComponentDirt value)
         auto path = pickPath(container);
         for (auto& effect : *shapeEffects)
         {
-            effect->updateEffect(this, path, paintType());
+            effect->updateEffect(this, path, this);
             auto newPath = effect->effectPath(this);
             if (newPath)
             {

@@ -40,7 +40,7 @@ public:
     virtual ~StrokeEffect();
     virtual void updateEffect(PathProvider* pathProvider,
                               const ShapePaintPath* source,
-                              ShapePaintType shapePaintType) = 0;
+                              const ShapePaint* shapePaint) = 0;
     virtual void invalidateEffect(PathProvider* pathProvider);
     virtual EffectsContainer* parentPaint() = 0;
     virtual void addPathProvider(PathProvider* component)

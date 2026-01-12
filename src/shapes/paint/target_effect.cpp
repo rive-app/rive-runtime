@@ -33,7 +33,7 @@ StatusCode TargetEffect::onAddedClean(CoreContext* context)
 
 void TargetEffect::updateEffect(PathProvider* pathProvider,
                                 const ShapePaintPath* source,
-                                ShapePaintType shapePaintType)
+                                const ShapePaint* shapePaint)
 {
     if (!m_groupEffect)
     {
@@ -46,7 +46,7 @@ void TargetEffect::updateEffect(PathProvider* pathProvider,
             static_cast<TargetEffectPath*>(effectPathIt->second);
         m_groupEffect->updateEffect(targetEffectPath->pathProviderProxy(),
                                     source,
-                                    shapePaintType);
+                                    shapePaint);
     }
 }
 

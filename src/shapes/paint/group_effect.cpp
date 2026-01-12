@@ -5,12 +5,12 @@ using namespace rive;
 
 void GroupEffect::updateEffect(PathProvider* pathProvider,
                                const ShapePaintPath* source,
-                               ShapePaintType shapePaintType)
+                               const ShapePaint* shapePaint)
 {
     auto path = source;
     for (auto& effect : *effects())
     {
-        effect->updateEffect(pathProvider, path, shapePaintType);
+        effect->updateEffect(pathProvider, path, shapePaint);
         auto newPath = effect->effectPath(pathProvider);
         if (newPath)
         {

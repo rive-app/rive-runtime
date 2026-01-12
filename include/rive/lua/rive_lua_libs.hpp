@@ -12,6 +12,7 @@
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/path_measure.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
@@ -195,6 +196,7 @@ enum class LuaAtoms : int16_t
     children,
     parent,
     node,
+    paint,
 
     // PathMeasure/ContourMeasure
     positionAndTangent,
@@ -225,6 +227,8 @@ struct ScriptedMat2D
     {}
 
     ScriptedMat2D(const Mat2D& mat) : value(mat) {}
+
+    ScriptedMat2D() {}
 
     rive::Mat2D value;
 };
@@ -341,63 +345,31 @@ public:
     static constexpr bool hasMetatable = false;
 };
 
-class ScriptedPaint
+class ScriptedPaintData
 {
 public:
-    ScriptedPaint(Factory* factory);
-    ScriptedPaint(Factory* factory, const ScriptedPaint& source);
-    rcp<RenderPaint> renderPaint;
+    ScriptedPaintData();
+    ScriptedPaintData(const ShapePaint* shapePaint);
+    virtual ~ScriptedPaintData() = default;
 
-    static constexpr uint8_t luaTag = LUA_T_COUNT + 8;
-    static constexpr const char* luaName = "Paint";
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 33;
+    static constexpr const char* luaName = "PaintData";
     static constexpr bool hasMetatable = true;
 
-    void style(RenderPaintStyle style)
-    {
-        m_style = style;
-        renderPaint->style(style);
-    }
+    virtual void style(RenderPaintStyle style) { m_style = style; }
 
-    void color(ColorInt value)
-    {
-        m_color = value;
-        renderPaint->color(value);
-    }
-    void thickness(float value)
-    {
-        m_thickness = value;
-        renderPaint->thickness(value);
-    }
+    virtual void color(ColorInt value) { m_color = value; }
+    virtual void thickness(float value) { m_thickness = value; }
 
-    void join(StrokeJoin value)
-    {
-        m_join = value;
-        renderPaint->join(value);
-    }
+    virtual void join(StrokeJoin value) { m_join = value; }
 
-    void cap(StrokeCap value)
-    {
-        m_cap = value;
-        renderPaint->cap(value);
-    }
+    virtual void cap(StrokeCap value) { m_cap = value; }
 
-    void feather(float value)
-    {
-        m_feather = value;
-        renderPaint->feather(value);
-    }
+    virtual void feather(float value) { m_feather = value; }
 
-    void blendMode(BlendMode value)
-    {
-        m_blendMode = value;
-        renderPaint->blendMode(value);
-    }
+    virtual void blendMode(BlendMode value) { m_blendMode = value; }
 
-    void gradient(rcp<RenderShader> value)
-    {
-        m_gradient = value;
-        renderPaint->shader(value);
-    }
+    virtual void gradient(rcp<RenderShader> value) { m_gradient = value; }
 
     void pushStyle(lua_State* L);
     void pushJoin(lua_State* L);
@@ -408,7 +380,7 @@ public:
     void pushGradient(lua_State* L);
     void pushColor(lua_State* L);
 
-private:
+protected:
     RenderPaintStyle m_style = RenderPaintStyle::fill;
     rcp<RenderShader> m_gradient;
     float m_thickness = 1;
@@ -417,6 +389,66 @@ private:
     float m_feather = 0;
     BlendMode m_blendMode = BlendMode::srcOver;
     ColorInt m_color = 0xFF000000;
+};
+
+class ScriptedPaint : public ScriptedPaintData
+{
+public:
+    ScriptedPaint(Factory* factory);
+    ScriptedPaint(Factory* factory, const ScriptedPaint& source);
+    virtual ~ScriptedPaint() = default;
+    rcp<RenderPaint> renderPaint;
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 8;
+    static constexpr const char* luaName = "Paint";
+    static constexpr bool hasMetatable = true;
+
+    void style(RenderPaintStyle style) override
+    {
+        ScriptedPaintData::style(style);
+        renderPaint->style(style);
+    }
+
+    void color(ColorInt value) override
+    {
+        ScriptedPaintData::color(value);
+        renderPaint->color(value);
+    }
+    void thickness(float value) override
+    {
+        ScriptedPaintData::thickness(value);
+        renderPaint->thickness(value);
+    }
+
+    void join(StrokeJoin value) override
+    {
+        ScriptedPaintData::join(value);
+        renderPaint->join(value);
+    }
+
+    void cap(StrokeCap value) override
+    {
+        ScriptedPaintData::cap(value);
+        renderPaint->cap(value);
+    }
+
+    void feather(float value) override
+    {
+        ScriptedPaintData::feather(value);
+        renderPaint->feather(value);
+    }
+
+    void blendMode(BlendMode value) override
+    {
+        ScriptedPaintData::blendMode(value);
+        renderPaint->blendMode(value);
+    }
+
+    void gradient(rcp<RenderShader> value) override
+    {
+        ScriptedPaintData::gradient(value);
+        renderPaint->shader(value);
+    }
 };
 
 class ScriptedRenderer
@@ -942,9 +974,13 @@ public:
     TransformComponent* component() { return m_component; }
     rcp<ScriptReffedArtboard> artboard() { return m_artboard; }
 
+    const ShapePaint* shapePaint() { return m_shapePaint; }
+    void shapePaint(const ShapePaint* shapePaint) { m_shapePaint = shapePaint; }
+
 private:
     rcp<ScriptReffedArtboard> m_artboard;
     TransformComponent* m_component;
+    const ShapePaint* m_shapePaint;
 };
 
 class ScriptedContourMeasure

@@ -51,7 +51,7 @@ public:
     }
     void updateEffect(PathProvider* pathProvider,
                       const ShapePaintPath* source,
-                      ShapePaintType shapePaintType) override;
+                      const ShapePaint* shapePaint) override;
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
     void markNeedsUpdate() override;
