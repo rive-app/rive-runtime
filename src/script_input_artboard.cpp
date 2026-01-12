@@ -14,7 +14,7 @@ ScriptInputArtboard::~ScriptInputArtboard()
     {
         obj->removeProperty(this);
     }
-    m_artboard = nullptr;
+    m_referencedArtboard = nullptr;
 }
 
 StatusCode ScriptInputArtboard::import(ImportStack& importStack)
@@ -25,7 +25,7 @@ StatusCode ScriptInputArtboard::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    backboardImporter->addScriptInputArtboard(this);
+    backboardImporter->addArtboardReferencer(this);
 
     auto importer =
         importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
@@ -43,6 +43,26 @@ StatusCode ScriptInputArtboard::import(ImportStack& importStack)
         return Super::import(importStack);
     }
     return StatusCode::Ok;
+}
+
+void ScriptInputArtboard::initScriptedValue()
+{
+    ScriptInput::initScriptedValue();
+    syncReferencedArtboard();
+}
+
+void ScriptInputArtboard::syncReferencedArtboard()
+{
+
+    if (m_referencedArtboard == nullptr)
+    {
+        return;
+    }
+    auto obj = scriptedObject();
+    if (obj)
+    {
+        obj->setArtboardInput(name(), m_referencedArtboard);
+    }
 }
 
 StatusCode ScriptInputArtboard::onAddedClean(CoreContext* context)
@@ -70,9 +90,33 @@ Core* ScriptInputArtboard::clone() const
 {
     ScriptInputArtboard* twin =
         ScriptInputArtboardBase::clone()->as<ScriptInputArtboard>();
-    if (m_artboard != nullptr)
+    if (m_referencedArtboard != nullptr)
     {
-        twin->artboard(m_artboard);
+        twin->referencedArtboard(m_referencedArtboard);
+        twin->file(m_file);
     }
     return twin;
 }
+
+void ScriptInputArtboard::artboardIdChanged()
+{
+    if (m_file)
+    {
+        m_referencedArtboard = m_file->artboard(artboardId());
+        syncReferencedArtboard();
+    }
+}
+
+void ScriptInputArtboard::updateArtboard(
+    ViewModelInstanceArtboard* viewModelInstanceArtboard)
+{
+    auto referencedArtboard =
+        findArtboard(viewModelInstanceArtboard, artboard(), m_file);
+    if (referencedArtboard)
+    {
+        m_referencedArtboard = referencedArtboard;
+        syncReferencedArtboard();
+    }
+}
+
+int ScriptInputArtboard::referencedArtboardId() { return artboardId(); }

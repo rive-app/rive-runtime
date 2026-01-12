@@ -10,12 +10,12 @@ Core* NestedArtboardLayout::clone() const
     NestedArtboardLayout* nestedArtboard =
         static_cast<NestedArtboardLayout*>(NestedArtboardLayoutBase::clone());
     nestedArtboard->file(file());
-    if (m_Artboard == nullptr)
+    if (m_referencedArtboard == nullptr)
     {
         return nestedArtboard;
     }
-    auto ni = m_Artboard->instance();
-    nestedArtboard->nest(ni.release());
+    auto ni = m_referencedArtboard->instance();
+    nestedArtboard->referencedArtboard(ni.release());
     return nestedArtboard;
 }
 
@@ -171,11 +171,11 @@ void NestedArtboardLayout::instanceHeightScaleTypeChanged()
 
 bool NestedArtboardLayout::syncStyleChanges()
 {
-    if (m_Artboard == nullptr)
+    if (m_referencedArtboard == nullptr)
     {
         return false;
     }
-    return m_Artboard->syncStyleChanges();
+    return m_referencedArtboard->syncStyleChanges();
 }
 
 void NestedArtboardLayout::updateArtboard(

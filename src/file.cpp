@@ -555,6 +555,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     object->as<DataBindPath>());
                 stackType = DataBindPathBase::typeKey;
                 break;
+            case ScriptInputArtboard::typeKey:
+                object->as<ScriptInputArtboard>()->file(this);
+                break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=
             StatusCode::Ok)

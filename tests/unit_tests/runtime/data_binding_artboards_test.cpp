@@ -253,3 +253,66 @@ TEST_CASE("Test default data binding artboard from different source",
     artboard->draw(renderer.get());
     CHECK(silver.matches("data_binding_artboards_default_test"));
 }
+
+TEST_CASE(
+    "Test Scripted Artboard Input data bound to internal and external artboards",
+    "[data binding]")
+{
+    // Note: the data_binding_artboards_source_test has a view model created
+    // that matches the view model the original artboards have. This is a
+    // temporary "hack" to validate that the artboard gets correctly bound
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/data_bind_artboard_input.riv", &silver);
+    auto sourceFile =
+        ReadRiveFile("assets/data_binding_artboards_source_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto vmiArtboard =
+        vmi->propertyValue("artboardProperty")->as<ViewModelInstanceArtboard>();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Change source to local artboard named "child2"
+
+    auto ch1Source = file->bindableArtboardNamed("child2");
+    vmiArtboard->asset(ch1Source);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Change source to local artboard named "child1"
+
+    auto ch2Source = file->bindableArtboardNamed("child1");
+    vmiArtboard->asset(ch2Source);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Change source to default external bindable artboard
+    auto source1 = sourceFile->bindableArtboardDefault();
+    vmiArtboard->asset(source1);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Change source to local artboard by index
+    vmiArtboard->propertyValue(1);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Change source to invalid index
+    vmiArtboard->propertyValue(10);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    CHECK(silver.matches("data_bind_artboard_input"));
+}

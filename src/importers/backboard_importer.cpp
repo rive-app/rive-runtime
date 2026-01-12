@@ -23,9 +23,9 @@ using namespace rive;
 BackboardImporter::BackboardImporter(Backboard* backboard) :
     m_Backboard(backboard), m_NextArtboardId(0)
 {}
-void BackboardImporter::addNestedArtboard(NestedArtboard* artboard)
+void BackboardImporter::addArtboardReferencer(ArtboardReferencer* artboard)
 {
-    m_NestedArtboards.push_back(artboard);
+    m_ArtboardsReferencers.push_back(artboard);
 }
 
 void BackboardImporter::addFileAsset(rcp<FileAsset> asset)
@@ -75,15 +75,16 @@ void BackboardImporter::addMissingArtboard() { m_NextArtboardId++; }
 
 StatusCode BackboardImporter::resolve()
 {
-    for (auto nestedArtboard : m_NestedArtboards)
+    for (auto nestedArtboard : m_ArtboardsReferencers)
     {
-        auto itr = m_ArtboardLookup.find(nestedArtboard->artboardId());
+        auto itr =
+            m_ArtboardLookup.find(nestedArtboard->referencedArtboardId());
         if (itr != m_ArtboardLookup.end())
         {
             auto artboard = itr->second;
             if (artboard != nullptr)
             {
-                nestedArtboard->nest(artboard);
+                nestedArtboard->referencedArtboard(artboard);
             }
         }
     }
@@ -142,18 +143,6 @@ StatusCode BackboardImporter::resolve()
         referencer->converter(
             m_DataConverters[index]->clone()->as<DataConverter>());
     }
-    for (auto input : m_scriptInputArtboards)
-    {
-        auto itr = m_ArtboardLookup.find(input->artboardId());
-        if (itr != m_ArtboardLookup.end())
-        {
-            auto artboard = itr->second;
-            if (artboard != nullptr)
-            {
-                input->artboard(artboard);
-            }
-        }
-    }
 
     return StatusCode::Ok;
 }
@@ -185,11 +174,6 @@ void BackboardImporter::addInterpolator(KeyFrameInterpolator* interpolator)
 void BackboardImporter::addPhysics(ScrollPhysics* physics)
 {
     m_physics.push_back(physics);
-}
-
-void BackboardImporter::addScriptInputArtboard(ScriptInputArtboard* input)
-{
-    m_scriptInputArtboards.push_back(input);
 }
 
 void BackboardImporter::file(File* value) { m_file = value; }

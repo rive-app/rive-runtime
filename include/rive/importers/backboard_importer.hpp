@@ -20,12 +20,13 @@ class DataBind;
 class DataConverterGroupItem;
 class ScriptInputArtboard;
 class ScrollPhysics;
+class ArtboardReferencer;
 class BackboardImporter : public ImportStackObject
 {
 private:
     Backboard* m_Backboard;
     std::unordered_map<int, Artboard*> m_ArtboardLookup;
-    std::vector<NestedArtboard*> m_NestedArtboards;
+    std::vector<ArtboardReferencer*> m_ArtboardsReferencers;
     std::vector<rcp<FileAsset>> m_FileAssets;
     std::vector<FileAssetReferencer*> m_FileAssetReferencers;
     std::vector<DataConverter*> m_DataConverters;
@@ -33,7 +34,6 @@ private:
     std::vector<DataConverterGroupItem*> m_DataConverterGroupItemReferencers;
     std::vector<KeyFrameInterpolator*> m_interpolators;
     std::vector<ScrollPhysics*> m_physics;
-    std::vector<ScriptInputArtboard*> m_scriptInputArtboards;
     int m_NextArtboardId;
     File* m_file;
 
@@ -41,7 +41,7 @@ public:
     BackboardImporter(Backboard* backboard);
     void addArtboard(Artboard* artboard);
     void addMissingArtboard();
-    void addNestedArtboard(NestedArtboard* artboard);
+    void addArtboardReferencer(ArtboardReferencer* artboard);
     void addFileAsset(rcp<FileAsset> asset);
     void addFileAssetReferencer(FileAssetReferencer* referencer);
     void addDataConverterReferencer(DataBind* referencer);
@@ -50,7 +50,6 @@ public:
         DataConverterGroupItem* referencer);
     void addInterpolator(KeyFrameInterpolator* interpolator);
     void addPhysics(ScrollPhysics* physics);
-    void addScriptInputArtboard(ScriptInputArtboard* input);
     std::vector<ScrollPhysics*> physics() { return m_physics; }
     std::vector<rcp<FileAsset>>* assets() { return &m_FileAssets; }
     void file(File* value);

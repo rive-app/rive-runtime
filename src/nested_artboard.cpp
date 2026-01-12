@@ -21,30 +21,28 @@ Core* NestedArtboard::clone() const
     NestedArtboard* nestedArtboard =
         static_cast<NestedArtboard*>(NestedArtboardBase::clone());
     nestedArtboard->file(file());
-    if (m_Artboard == nullptr)
+    if (m_referencedArtboard == nullptr)
     {
         return nestedArtboard;
     }
-    auto ni = m_Artboard->instance();
-    nestedArtboard->nest(ni.release());
+    auto ni = m_referencedArtboard->instance();
+    nestedArtboard->referencedArtboard(ni.release());
     return nestedArtboard;
 }
 
 void NestedArtboard::nest(Artboard* artboard)
 {
-    assert(artboard != nullptr);
-
-    m_Artboard = artboard;
-    if (!m_Artboard->isInstance())
+    m_referencedArtboard = artboard;
+    if (!m_referencedArtboard->isInstance())
     {
         // We're just marking the source artboard so we can later instance from
         // it. No need to advance it or change any of its properties.
         // E.g. at import time, we return here.
         return;
     }
-    m_Artboard->frameOrigin(false);
-    m_Artboard->opacity(renderOpacity());
-    m_Artboard->volume(artboard->volume());
+    m_referencedArtboard->frameOrigin(false);
+    m_referencedArtboard->opacity(renderOpacity());
+    m_referencedArtboard->volume(artboard->volume());
     m_Instance = nullptr;
     if (artboard->isInstance())
     {
@@ -53,39 +51,7 @@ void NestedArtboard::nest(Artboard* artboard)
     }
     // This allows for swapping after initial load (after onAddedClean has
     // already been called).
-    m_Artboard->host(this);
-}
-
-Artboard* NestedArtboard::findArtboard(
-    ViewModelInstanceArtboard* viewModelInstanceArtboard)
-{
-    if (viewModelInstanceArtboard == nullptr)
-    {
-        return nullptr;
-    }
-    if (viewModelInstanceArtboard->asset() != nullptr)
-    {
-        if (!parentArtboard()->isAncestor(
-                viewModelInstanceArtboard->asset()->artboard()))
-        {
-            return viewModelInstanceArtboard->asset()->artboard();
-        }
-        return nullptr;
-    }
-    else if (m_file != nullptr)
-    {
-        auto asset =
-            m_file->artboard(viewModelInstanceArtboard->propertyValue());
-        if (asset != nullptr)
-        {
-            auto artboardAsset = asset->as<Artboard>();
-            if (!parentArtboard()->isAncestor(artboardAsset))
-            {
-                return artboardAsset;
-            }
-        }
-    }
-    return nullptr;
+    m_referencedArtboard->host(this);
 }
 
 void NestedArtboard::clearNestedAnimations()
@@ -112,16 +78,17 @@ void NestedArtboard::updateArtboard(
         viewModelInstanceArtboard->asset() == nullptr &&
         viewModelInstanceArtboard->propertyValue() == -1)
     {
-        if (m_Artboard)
+        if (m_referencedArtboard)
         {
-            m_Artboard->host(nullptr);
-            m_Artboard = nullptr;
+            m_referencedArtboard->host(nullptr);
+            m_referencedArtboard = nullptr;
         }
         m_Instance = nullptr;
         return;
     }
 
-    Artboard* artboard = findArtboard(viewModelInstanceArtboard);
+    Artboard* artboard =
+        findArtboard(viewModelInstanceArtboard, parentArtboard(), m_file);
     if (artboard != nullptr)
     {
         auto artboardInstance = artboard->instance();
@@ -136,7 +103,7 @@ void NestedArtboard::updateArtboard(
             m_boundNestedStateMachine.reset(static_cast<NestedStateMachine*>(
                 nestedStateMachine)); // take ownership
         }
-        nest(artboardInstance.release());
+        referencedArtboard(artboardInstance.release());
         if (viewModelInstanceArtboard->viewModelInstance())
         {
             bindViewModelInstance(
@@ -169,7 +136,7 @@ void NestedArtboard::draw(Renderer* renderer)
         renderer->save();
     }
     renderer->transform(worldTransform());
-    m_Artboard->drawInternal(renderer);
+    m_referencedArtboard->drawInternal(renderer);
     if (m_needsSaveOperation)
     {
         renderer->restore();
@@ -178,18 +145,18 @@ void NestedArtboard::draw(Renderer* renderer)
 
 bool NestedArtboard::willDraw()
 {
-    return Super::willDraw() && m_Artboard != nullptr;
+    return Super::willDraw() && m_referencedArtboard != nullptr;
 }
 
 Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
 {
-    if (m_Artboard == nullptr)
+    if (m_referencedArtboard == nullptr)
     {
         return nullptr;
     }
     hinfo->mounts.push_back(this);
-    auto mx = xform * worldTransform() * makeTranslate(m_Artboard);
-    if (auto c = m_Artboard->hitTest(hinfo, mx))
+    auto mx = xform * worldTransform() * makeTranslate(m_referencedArtboard);
+    if (auto c = m_referencedArtboard->hitTest(hinfo, mx))
     {
         return c;
     }
@@ -223,7 +190,7 @@ StatusCode NestedArtboard::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    backboardImporter->addNestedArtboard(this);
+    backboardImporter->addArtboardReferencer(this);
 
     return Super::import(importStack);
 }
@@ -241,7 +208,8 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
     // does require that we always use an artboard instance (not just the source
     // artboard) when working with nested artboards, but in general this is good
     // practice for any loaded Rive file.
-    assert(m_Artboard == nullptr || m_Artboard == m_Instance.get());
+    assert(m_referencedArtboard == nullptr ||
+           m_referencedArtboard == m_Instance.get());
 
     if (m_Instance)
     {
@@ -249,7 +217,7 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
         {
             animation->initializeAnimation(m_Instance.get());
         }
-        m_Artboard->host(this);
+        m_referencedArtboard->host(this);
     }
     return Super::onAddedClean(context);
 }
@@ -257,20 +225,20 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
 void NestedArtboard::update(ComponentDirt value)
 {
     Super::update(value);
-    if (m_Artboard == nullptr)
+    if (m_referencedArtboard == nullptr)
     {
         return;
     }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
-        m_Artboard->opacity(renderOpacity());
+        m_referencedArtboard->opacity(renderOpacity());
     }
     if (hasDirt(value, ComponentDirt::Components))
     {
         // We intentionally discard whether or not this updated because by the
         // end of the pass all the dirt is removed and only another advance of
         // animations/statemachines can re-add it.
-        m_Artboard->updatePass(false);
+        m_referencedArtboard->updatePass(false);
     }
 }
 
@@ -348,7 +316,7 @@ NestedInput* NestedArtboard::input(std::string name,
 bool NestedArtboard::worldToLocal(Vec2D world, Vec2D* local)
 {
     assert(local != nullptr);
-    if (m_Artboard == nullptr)
+    if (m_referencedArtboard == nullptr)
     {
         return false;
     }
@@ -486,7 +454,7 @@ float NestedArtboard::calculateLocalElapsedSeconds(float elapsedSeconds)
 
 bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    if (m_Artboard == nullptr || isCollapsed() || isPaused())
+    if (m_referencedArtboard == nullptr || isCollapsed() || isPaused())
     {
         return false;
     }
@@ -535,11 +503,12 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     }
 
     auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
-    if (m_Artboard->advanceInternal(localElapsedSeconds, advancingFlags))
+    if (m_referencedArtboard->advanceInternal(localElapsedSeconds,
+                                              advancingFlags))
     {
         keepGoing = true;
     }
-    if (m_Artboard->hasDirt(ComponentDirt::Components))
+    if (m_referencedArtboard->hasDirt(ComponentDirt::Components))
     {
         // The animation(s) caused the artboard to need an update.
         addDirt(ComponentDirt::Components);
@@ -550,12 +519,21 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 
 void NestedArtboard::reset()
 {
-    if (m_Artboard)
+    if (m_referencedArtboard)
     {
-        m_Artboard->reset();
+        m_referencedArtboard->reset();
     }
 }
 
 void NestedArtboard::file(File* value) { m_file = value; }
 
 File* NestedArtboard::file() const { return m_file; }
+
+int NestedArtboard::referencedArtboardId() { return artboardId(); }
+
+void NestedArtboard::referencedArtboard(Artboard* artboard)
+{
+    assert(artboard != nullptr);
+    ArtboardReferencer::referencedArtboard(artboard);
+    nest(artboard);
+}

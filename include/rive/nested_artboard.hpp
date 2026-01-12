@@ -3,6 +3,7 @@
 
 #include "rive/generated/nested_artboard_base.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/artboard_referencer.hpp"
 #include "rive/data_bind_path_referencer.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
@@ -26,10 +27,10 @@ class StateMachineInstance;
 class NestedArtboard : public NestedArtboardBase,
                        public AdvancingComponent,
                        public ResettingComponent,
-                       public ArtboardHost
+                       public ArtboardHost,
+                       public ArtboardReferencer
 {
 protected:
-    Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
     std::unique_ptr<ArtboardInstance> m_Instance; // may be null
     std::unique_ptr<NestedStateMachine>
         m_boundNestedStateMachine; // may be null
@@ -40,10 +41,9 @@ protected:
 
 protected:
 private:
-    Artboard* findArtboard(
-        ViewModelInstanceArtboard* viewModelInstanceArtboard);
     void clearNestedAnimations();
     float m_cumulatedSeconds = 0;
+    void nest(Artboard* artboard);
 
 public:
     NestedArtboard();
@@ -53,16 +53,16 @@ public:
     bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void addNestedAnimation(NestedAnimation* nestedAnimation);
-
-    void nest(Artboard* artboard);
-    virtual void updateArtboard(
-        ViewModelInstanceArtboard* viewModelInstanceArtboard);
+    void updateArtboard(
+        ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+    int referencedArtboardId() override;
+    void referencedArtboard(Artboard* artboard) override;
     size_t artboardCount() override { return 1; }
     ArtboardInstance* artboardInstance(int index = 0) override
     {
         return m_Instance.get();
     }
-    Artboard* sourceArtboard() { return m_Artboard; }
+    Artboard* sourceArtboard() { return m_referencedArtboard; }
 
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;

@@ -3,6 +3,7 @@
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/file.hpp"
+#include "rive/artboard_referencer.hpp"
 
 using namespace rive;
 
@@ -18,10 +19,11 @@ void DataBindContextValueArtboard::apply(Core* target,
     auto source = m_dataBind->source();
     if (source != nullptr && source->is<ViewModelInstanceArtboard>())
     {
-        if (target->is<NestedArtboard>())
+        auto artboardReferencer = ArtboardReferencer::from(target);
+        if (artboardReferencer)
         {
 
-            target->as<NestedArtboard>()->updateArtboard(
+            artboardReferencer->updateArtboard(
                 source->as<ViewModelInstanceArtboard>());
         }
         else
