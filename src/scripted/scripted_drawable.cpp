@@ -29,16 +29,15 @@ void ScriptedDrawable::draw(Renderer* renderer)
     }
 #endif
 
-    if (m_needsSaveOperation)
+    float opacity = renderOpacity();
+    bool needsOpacitySave = (opacity != 1.0f);
+    if (m_needsSaveOperation || needsOpacitySave)
     {
         renderer->save();
     }
 
-    float opacity = renderOpacity();
-    bool needsOpacitySave = (opacity != 1.0f);
     if (needsOpacitySave)
     {
-        renderer->save();
         renderer->modulateOpacity(opacity);
     }
 
@@ -63,12 +62,7 @@ void ScriptedDrawable::draw(Renderer* renderer)
     // Stack: [scriptedRenderer, self]
     rive_lua_pop(m_state, 2);
 
-    if (needsOpacitySave)
-    {
-        renderer->restore();
-    }
-
-    if (m_needsSaveOperation)
+    if (m_needsSaveOperation || needsOpacitySave)
     {
         renderer->restore();
     }
