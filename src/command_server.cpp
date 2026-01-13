@@ -4,12 +4,13 @@
 
 #include "rive/command_server.hpp"
 
-#include "rive/file.hpp"
-#include "rive/assets/image_asset.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/font_asset.hpp"
+#include "rive/assets/image_asset.hpp"
+#include "rive/assets/script_asset.hpp"
+#include "rive/file.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
-#include "rive/animation/state_machine_instance.hpp"
 
 namespace rive
 {
@@ -73,9 +74,20 @@ public:
             }
         }
 
+        else if (asset.is<ScriptAsset>())
+        {
+            // Script assets cannot currently be added externally.
+            // Let the file loader handle it.
+            return false;
+        }
+
         else
         {
-            RIVE_UNREACHABLE();
+            fprintf(stderr,
+                    "ERROR: CommandFileAssetLoader::loadContents - Unsupported"
+                    " asset type for asset: '%s'\n",
+                    asset.uniqueFilename().c_str());
+            return false;
         }
 
         return false;
