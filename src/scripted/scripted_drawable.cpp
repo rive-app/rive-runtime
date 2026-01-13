@@ -27,6 +27,15 @@ void ScriptedDrawable::draw(Renderer* renderer)
     {
         renderer->save();
     }
+
+    float opacity = renderOpacity();
+    bool needsOpacitySave = (opacity != 1.0f);
+    if (needsOpacitySave)
+    {
+        renderer->save();
+        renderer->modulateOpacity(opacity);
+    }
+
     renderer->transform(worldTransform());
     // Stack: []
     auto scriptedRenderer = lua_newrive<ScriptedRenderer>(state, renderer);
@@ -47,6 +56,12 @@ void ScriptedDrawable::draw(Renderer* renderer)
     scriptedRenderer->end();
     // Stack: [scriptedRenderer, self]
     rive_lua_pop(state, 2);
+
+    if (needsOpacitySave)
+    {
+        renderer->restore();
+    }
+
     if (m_needsSaveOperation)
     {
         renderer->restore();
