@@ -1,8 +1,5 @@
 #ifndef _RIVE_SCRIPTED_DRAWABLE_HPP_
 #define _RIVE_SCRIPTED_DRAWABLE_HPP_
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/generated/scripted/scripted_drawable_base.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/advancing_component.hpp"
@@ -24,7 +21,7 @@ class ScriptedDrawable : public ScriptedDrawableBase,
 {
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(LuaState* state) override;
+    bool scriptInit(lua_State* state) override;
 #endif
     void draw(Renderer* renderer) override;
     void update(ComponentDirt value) override;

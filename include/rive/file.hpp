@@ -20,6 +20,10 @@
 #include <set>
 #include <unordered_map>
 
+#ifdef WITH_RIVE_SCRIPTING
+struct lua_State;
+#endif
+
 ///
 /// Default namespace for Rive Cpp runtime code.
 ///
@@ -39,7 +43,6 @@ class BindableArtboard;
 #ifdef WITH_RIVE_SCRIPTING
 class CPPRuntimeScriptingContext;
 class ScriptingVM;
-class LuaState;
 #endif
 
 ///
@@ -177,12 +180,12 @@ public:
     // we are running in the runtime and should instance our own VMs
     // and pass them down to the root
 #ifdef WITH_RIVE_SCRIPTING
-    void scriptingVM(LuaState* vm)
+    void scriptingVM(lua_State* vm)
     {
         cleanupScriptingVM();
         m_luaState = vm;
     }
-    LuaState* scriptingVM()
+    lua_State* scriptingVM()
     {
         // For now, if we don't have a vm, create one. In the future, we
         // may need a way to create multiple vms in parallel
@@ -192,6 +195,10 @@ public:
         }
         return m_luaState;
     }
+#ifdef WITH_RIVE_TOOLS
+    void clearScriptingVM() { cleanupScriptingVM(); }
+    bool hasVM() { return m_luaState != nullptr; }
+#endif
 #endif
 
     DataResolver* dataResolver()
@@ -270,7 +277,7 @@ private:
     rcp<FileAssetLoader> m_assetLoader;
 
 #ifdef WITH_RIVE_SCRIPTING
-    LuaState* m_luaState = nullptr;
+    lua_State* m_luaState = nullptr;
     std::unique_ptr<CPPRuntimeScriptingContext> m_scriptingContext;
     std::unique_ptr<ScriptingVM> m_scriptingVM;
     void makeScriptingVM();

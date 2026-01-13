@@ -41,7 +41,7 @@ void ScriptedDataConverter::disposeScriptInputs()
 }
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDataConverter::scriptInit(LuaState* state)
+bool ScriptedDataConverter::scriptInit(lua_State* state)
 {
     ScriptedObject::scriptInit(state);
     addScriptedDirt(ComponentDirt::Bindings);
@@ -50,34 +50,33 @@ bool ScriptedDataConverter::scriptInit(LuaState* state)
 
 bool ScriptedDataConverter::pushDataValue(DataValue* value)
 {
-    auto state = m_state->state;
     // Stack: [self, field, self]
     if (value->is<DataValueNumber>())
     {
         lua_newrive<ScriptedDataValueNumber>(
-            state,
-            state,
+            m_state,
+            m_state,
             value->as<DataValueNumber>()->value());
     }
     else if (value->is<DataValueString>())
     {
         lua_newrive<ScriptedDataValueString>(
-            state,
-            state,
+            m_state,
+            m_state,
             value->as<DataValueString>()->value());
     }
     else if (value->is<DataValueBoolean>())
     {
         lua_newrive<ScriptedDataValueBoolean>(
-            state,
-            state,
+            m_state,
+            m_state,
             value->as<DataValueBoolean>()->value());
     }
     else if (value->is<DataValueColor>())
     {
         lua_newrive<ScriptedDataValueColor>(
-            state,
-            state,
+            m_state,
+            m_state,
             value->as<DataValueColor>()->value());
     }
     else
@@ -94,21 +93,27 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
     {
         return value;
     }
-    auto state = m_state->state;
+
+#ifdef WITH_RIVE_TOOLS
+    if (!hasValidVM())
+    {
+        return value;
+    }
+#endif
     // Stack: []
-    rive_lua_pushRef(state, m_self);
+    rive_lua_pushRef(m_state, m_self);
     // Stack: [self]
-    lua_getfield(state, -1, method.c_str());
+    lua_getfield(m_state, -1, method.c_str());
 
     // Stack: [self, field]
-    lua_pushvalue(state, -2);
+    lua_pushvalue(m_state, -2);
     // Stack: [self, field, self]
     if (pushDataValue(value))
     {
         // Stack: [self, field, self, ScriptedData]
-        if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 1)) == LUA_OK)
+        if (static_cast<lua_Status>(rive_lua_pcall(m_state, 2, 1)) == LUA_OK)
         {
-            auto result = (ScriptedDataValue*)lua_touserdata(state, -1);
+            auto result = (ScriptedDataValue*)lua_touserdata(m_state, -1);
             if (result->isNumber())
             {
                 storeData<DataValueNumber>(result->dataValue());
@@ -127,12 +132,12 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
             }
         }
         // Stack: [self, status] or [self, result]
-        rive_lua_pop(state, 2);
+        rive_lua_pop(m_state, 2);
     }
     else
     {
         // Stack: [self, field, self]
-        rive_lua_pop(state, 3);
+        rive_lua_pop(m_state, 3);
     }
     if (!m_dataValue)
     {

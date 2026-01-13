@@ -45,9 +45,8 @@ void ScriptInput::initScriptedValue() {}
 
 #ifdef WITH_RIVE_SCRIPTING
 bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
-                                                   LuaState* luaState)
+                                                   lua_State* state)
 {
-    auto state = luaState->state;
     lua_pushvalue(state, -1);
     if (static_cast<lua_Status>(rive_lua_pcall(state, 0, 1)) != LUA_OK)
     {
@@ -161,7 +160,7 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
     return true;
 }
 
-LuaState* ScriptAsset::vm()
+lua_State* ScriptAsset::vm()
 {
     if (m_file == nullptr)
     {
@@ -203,7 +202,8 @@ void ScriptAsset::registrationComplete(int ref)
 bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 {
 #if defined(WITH_RIVE_SCRIPTING)
-    if (vm() == nullptr)
+    auto state = vm();
+    if (state == nullptr)
     {
         return false;
     }
@@ -214,23 +214,22 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                 name().c_str());
         return false;
     }
-    auto vmState = vm()->state;
-    rive_lua_pushRef(vmState, generatorFunctionRef());
+    rive_lua_pushRef(state, generatorFunctionRef());
 
     if (!m_initted)
     {
-        if (!verifyImplementation(object, vm()))
+        if (!verifyImplementation(object, state))
         {
             fprintf(stderr,
                     "ScriptAsset failed to verify method implementation %s\n",
                     name().c_str());
-            rive_lua_pop(vmState, 1);
+            rive_lua_pop(state, 1);
             return false;
         }
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());
-    return object->scriptInit(vm());
+    return object->scriptInit(state);
 #else
     return false;
 #endif

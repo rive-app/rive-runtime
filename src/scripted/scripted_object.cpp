@@ -37,16 +37,15 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
         return;
     }
 
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
+    rive_lua_pushRef(m_state, m_self);
     auto artboardInstance = artboard->instance();
     artboardInstance->frameOrigin(false);
-    lua_newrive<ScriptedArtboard>(state,
-                                  state,
+    lua_newrive<ScriptedArtboard>(m_state,
+                                  m_state,
                                   ref_rcp(scriptAsset()->file()),
                                   std::move(artboardInstance));
-    lua_setfield(state, -2, name.c_str());
-    rive_lua_pop(state, 1);
+    lua_setfield(m_state, -2, name.c_str());
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -56,11 +55,10 @@ void ScriptedObject::setBooleanInput(std::string name, bool value)
     {
         return;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    lua_pushboolean(state, value);
-    lua_setfield(state, -2, name.c_str());
-    rive_lua_pop(state, 1);
+    rive_lua_pushRef(m_state, m_self);
+    lua_pushboolean(m_state, value);
+    lua_setfield(m_state, -2, name.c_str());
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -70,11 +68,10 @@ void ScriptedObject::setNumberInput(std::string name, float value)
     {
         return;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    lua_pushnumber(state, value);
-    lua_setfield(state, -2, name.c_str());
-    rive_lua_pop(state, 1);
+    rive_lua_pushRef(m_state, m_self);
+    lua_pushnumber(m_state, value);
+    lua_setfield(m_state, -2, name.c_str());
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -84,11 +81,10 @@ void ScriptedObject::setIntegerInput(std::string name, int value)
     {
         return;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    lua_pushunsigned(state, value);
-    lua_setfield(state, -2, name.c_str());
-    rive_lua_pop(state, 1);
+    rive_lua_pushRef(m_state, m_self);
+    lua_pushunsigned(m_state, value);
+    lua_setfield(m_state, -2, name.c_str());
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -98,11 +94,10 @@ void ScriptedObject::setStringInput(std::string name, std::string value)
     {
         return;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    lua_pushstring(state, value.c_str());
-    lua_setfield(state, -2, name.c_str());
-    rive_lua_pop(state, 1);
+    rive_lua_pushRef(m_state, m_self);
+    lua_pushstring(m_state, value.c_str());
+    lua_setfield(m_state, -2, name.c_str());
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -113,8 +108,7 @@ void ScriptedObject::setViewModelInput(std::string name,
     {
         return;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
+    rive_lua_pushRef(m_state, m_self);
     switch (value->coreType())
     {
         case ViewModelInstanceViewModelBase::typeKey:
@@ -130,8 +124,8 @@ void ScriptedObject::setViewModelInput(std::string name,
                 return;
             }
 
-            lua_newrive<ScriptedViewModel>(state,
-                                           state,
+            lua_newrive<ScriptedViewModel>(m_state,
+                                           m_state,
                                            ref_rcp(vmi->viewModel()),
                                            vmi);
             break;
@@ -139,8 +133,8 @@ void ScriptedObject::setViewModelInput(std::string name,
         default:
             break;
     }
-    lua_setfield(state, -2, name.c_str());
-    rive_lua_pop(state, 1);
+    lua_setfield(m_state, -2, name.c_str());
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
@@ -150,19 +144,40 @@ void ScriptedObject::trigger(std::string name)
     {
         return;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, name.c_str())) !=
+    rive_lua_pushRef(m_state, m_self);
+    if (static_cast<lua_Type>(lua_getfield(m_state, -1, name.c_str())) !=
         LUA_TFUNCTION)
     {
-        rive_lua_pop(state, 2);
+        rive_lua_pop(m_state, 2);
         return;
     }
-    lua_pushvalue(state, -2);
-    rive_lua_pcall(state, 1, 0);
-    rive_lua_pop(state, 1);
+    lua_pushvalue(m_state, -2);
+    rive_lua_pcall(m_state, 1, 0);
+    rive_lua_pop(m_state, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
+
+#ifdef WITH_RIVE_TOOLS
+bool ScriptedObject::hasValidVM()
+{
+#ifdef WITH_RIVE_SCRIPTING
+    if (!m_state)
+    {
+        return false;
+    }
+    if (asset())
+    {
+        auto scriptAsset = asset()->as<ScriptAsset>();
+        if (!scriptAsset->file() || !scriptAsset->file()->hasVM())
+        {
+            m_state = nullptr;
+            return false;
+        }
+    }
+#endif
+    return true;
+}
+#endif
 
 bool ScriptedObject::scriptAdvance(float elapsedSeconds)
 {
@@ -170,18 +185,23 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds)
     {
         return false;
     }
-    auto state = m_state->state;
-    rive_lua_pushRef(state, m_self);
-    lua_getfield(state, -1, "advance");
-    lua_pushvalue(state, -2);
-    lua_pushnumber(state, elapsedSeconds);
-    if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 1)) != LUA_OK)
+#ifdef WITH_RIVE_TOOLS
+    if (!hasValidVM())
     {
-        rive_lua_pop(state, 2);
         return false;
     }
-    bool result = lua_toboolean(state, -1);
-    rive_lua_pop(state, 2);
+#endif
+    rive_lua_pushRef(m_state, m_self);
+    lua_getfield(m_state, -1, "advance");
+    lua_pushvalue(m_state, -2);
+    lua_pushnumber(m_state, elapsedSeconds);
+    if (static_cast<lua_Status>(rive_lua_pcall(m_state, 2, 1)) != LUA_OK)
+    {
+        rive_lua_pop(m_state, 2);
+        return false;
+    }
+    bool result = lua_toboolean(m_state, -1);
+    rive_lua_pop(m_state, 2);
     return result;
 }
 
@@ -191,35 +211,39 @@ void ScriptedObject::scriptUpdate()
     {
         return;
     }
-    auto state = m_state->state;
-    // Stack: []
-    rive_lua_pushRef(state, m_self);
-    // Stack: [self]
-    lua_getfield(state, -1, "update");
-    // Stack: [self, field] Swap self and field
-    lua_insert(state, -2);
-    // Stack: [field, self]
-    if (static_cast<lua_Status>(rive_lua_pcall(state, 1, 0)) != LUA_OK)
+
+#ifdef WITH_RIVE_TOOLS
+    if (!hasValidVM())
     {
-        rive_lua_pop(state, 1);
+        return;
+    }
+#endif
+    // Stack: []
+    rive_lua_pushRef(m_state, m_self);
+    // Stack: [self]
+    lua_getfield(m_state, -1, "update");
+    // Stack: [self, field] Swap self and field
+    lua_insert(m_state, -2);
+    // Stack: [field, self]
+    if (static_cast<lua_Status>(rive_lua_pcall(m_state, 1, 0)) != LUA_OK)
+    {
+        rive_lua_pop(m_state, 1);
     }
 }
 
-bool ScriptedObject::scriptInit(LuaState* luaState)
+bool ScriptedObject::scriptInit(lua_State* state)
 {
-    auto state = luaState->state;
-
     // Clean up old references if reinitializing
     if (m_state != nullptr && (m_self != 0 || m_context != 0))
     {
         if (m_self != 0)
         {
-            lua_unref(m_state->state, m_self);
+            lua_unref(m_state, m_self);
             m_self = 0;
         }
         if (m_context != 0)
         {
-            lua_unref(m_state->state, m_context);
+            lua_unref(m_state, m_context);
             m_context = 0;
         }
     }
@@ -251,7 +275,7 @@ bool ScriptedObject::scriptInit(LuaState* luaState)
         rive_lua_pop(state, 1);
         // Stack: [self]
         m_self = lua_ref(state, -1);
-        m_state = luaState;
+        m_state = state;
         for (auto prop : m_customProperties)
         {
             auto scriptInput = ScriptInput::from(prop);
@@ -332,12 +356,12 @@ void ScriptedObject::scriptDispose()
 
     if (m_state != nullptr)
     {
-        lua_unref(m_state->state, m_self);
-        lua_unref(m_state->state, m_context);
+        lua_unref(m_state, m_self);
+        lua_unref(m_state, m_context);
 #ifdef TESTING
         // Force GC to collect any ScriptedArtboard instances created via
         // instance()
-        lua_gc(m_state->state, LUA_GCCOLLECT, 0);
+        lua_gc(m_state, LUA_GCCOLLECT, 0);
 #endif
     }
     m_state = nullptr;

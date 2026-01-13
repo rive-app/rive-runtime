@@ -1,8 +1,5 @@
 #ifndef _RIVE_SCRIPTED_LAYOUT_HPP_
 #define _RIVE_SCRIPTED_LAYOUT_HPP_
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/layout/layout_enums.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
 #include "rive/generated/scripted/scripted_layout_base.hpp"
@@ -19,7 +16,7 @@ private:
 
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(LuaState* luaState) override;
+    bool scriptInit(lua_State* state) override;
 #endif
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,

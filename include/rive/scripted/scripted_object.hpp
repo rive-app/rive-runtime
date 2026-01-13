@@ -1,8 +1,5 @@
 #ifndef _RIVE_SCRIPTED_OBJECT_HPP_
 #define _RIVE_SCRIPTED_OBJECT_HPP_
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/custom_property.hpp"
@@ -10,6 +7,11 @@
 #include "rive/refcnt.hpp"
 #include "rive/generated/assets/script_asset_base.hpp"
 #include <stdio.h>
+
+#ifdef WITH_RIVE_SCRIPTING
+struct lua_State;
+#endif
+
 namespace rive
 {
 class Artboard;
@@ -26,7 +28,10 @@ protected:
     int m_context = 0;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
-    LuaState* m_state = nullptr;
+    lua_State* m_state = nullptr;
+#endif
+#ifdef WITH_RIVE_TOOLS
+    bool hasValidVM();
 #endif
 
 public:
@@ -45,8 +50,8 @@ public:
     virtual void markNeedsUpdate();
     virtual DataContext* dataContext() { return nullptr; }
 #ifdef WITH_RIVE_SCRIPTING
-    virtual bool scriptInit(LuaState* state);
-    LuaState* state() { return m_state; }
+    virtual bool scriptInit(lua_State* state);
+    lua_State* state() { return m_state; }
 #endif
     void scriptDispose();
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;

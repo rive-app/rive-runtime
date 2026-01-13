@@ -8,7 +8,7 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDrawable::scriptInit(LuaState* state)
+bool ScriptedDrawable::scriptInit(lua_State* state)
 {
     ScriptedObject::scriptInit(state);
     addDirt(ComponentDirt::Paint);
@@ -17,11 +17,17 @@ bool ScriptedDrawable::scriptInit(LuaState* state)
 
 void ScriptedDrawable::draw(Renderer* renderer)
 {
-    if (!draws())
+    if (!draws() || !m_state)
     {
         return;
     }
-    auto state = m_state->state;
+
+#ifdef WITH_RIVE_TOOLS
+    if (!hasValidVM())
+    {
+        return;
+    }
+#endif
 
     if (m_needsSaveOperation)
     {
@@ -38,24 +44,24 @@ void ScriptedDrawable::draw(Renderer* renderer)
 
     renderer->transform(worldTransform());
     // Stack: []
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(state, renderer);
+    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(m_state, renderer);
     // Stack: [scriptedRenderer]
-    rive_lua_pushRef(state, m_self);
+    rive_lua_pushRef(m_state, m_self);
     // Stack: [scriptedRenderer, self]
-    lua_getfield(state, -1, "draw");
+    lua_getfield(m_state, -1, "draw");
     // Stack: [scriptedRenderer, self, "draw"]
-    lua_pushvalue(state, -2);
+    lua_pushvalue(m_state, -2);
     // Stack: [scriptedRenderer, self, "draw", self]
-    lua_pushvalue(state, -4);
+    lua_pushvalue(m_state, -4);
     // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
-    if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall(m_state, 2, 0)) != LUA_OK)
     {
         // Stack: [scriptedRenderer, self, status]
-        rive_lua_pop(state, 1);
+        rive_lua_pop(m_state, 1);
     }
     scriptedRenderer->end();
     // Stack: [scriptedRenderer, self]
-    rive_lua_pop(state, 2);
+    rive_lua_pop(m_state, 2);
 
     if (needsOpacitySave)
     {
@@ -87,8 +93,8 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
 {
     HitResult hitResult = HitResult::none;
     auto scriptAsset = m_drawable->scriptAsset();
-    auto vm = m_drawable->state();
-    if (vm == nullptr || scriptAsset == nullptr ||
+    auto state = m_drawable->state();
+    if (state == nullptr || scriptAsset == nullptr ||
         !handlesEvent(canHit, hitType))
     {
         return HitResult::none;
@@ -99,7 +105,6 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     {
         return hitResult;
     }
-    auto state = vm->state;
     rive_lua_pushRef(state, m_drawable->self());
     auto mName = methodName(canHit, hitType);
     if (static_cast<lua_Type>(lua_getfield(state, -1, mName.c_str())) !=

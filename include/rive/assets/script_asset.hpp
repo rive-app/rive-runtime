@@ -7,6 +7,11 @@
 #include "rive/generated/assets/script_asset_base.hpp"
 #include "rive/simple_array.hpp"
 #include <stdio.h>
+
+#ifdef WITH_RIVE_SCRIPTING
+struct lua_State;
+#endif
+
 namespace rive
 {
 class Artboard;
@@ -24,7 +29,6 @@ enum ScriptProtocol
 };
 
 #ifdef WITH_RIVE_SCRIPTING
-class LuaState;
 class ScriptAssetImporter;
 #endif
 
@@ -65,7 +69,7 @@ private:
 
 protected:
 #ifdef WITH_RIVE_SCRIPTING
-    bool verifyImplementation(ScriptedObject* object, LuaState* luaState);
+    bool verifyImplementation(ScriptedObject* object, lua_State* state);
 #endif
 
 public:
@@ -173,7 +177,7 @@ public:
     void file(File* value) { m_file = value; }
     File* file() const { return m_file; }
 #ifdef WITH_RIVE_SCRIPTING
-    LuaState* vm();
+    lua_State* vm();
     void registrationComplete(int ref) override;
 #endif
     std::string moduleName() override

@@ -9,18 +9,10 @@
 namespace rive
 {
 class ViewModel;
-class LuaState
-{
-public:
+
 #ifdef WITH_RIVE_SCRIPTING
-
-    LuaState(lua_State* state) : state(state) {}
-    ~LuaState() { state = nullptr; }
-    void initializeData(std::vector<ViewModel*>&);
-
-    lua_State* state;
+void initializeLuaData(lua_State* state, std::vector<ViewModel*>& viewModels);
 #endif
-};
 
 } // namespace rive
 #endif

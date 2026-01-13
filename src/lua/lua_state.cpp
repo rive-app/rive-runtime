@@ -22,7 +22,8 @@ static int viewmodel_new(lua_State* L)
     return 1;
 }
 
-void LuaState::initializeData(std::vector<ViewModel*>& viewModels)
+void rive::initializeLuaData(lua_State* state,
+                             std::vector<ViewModel*>& viewModels)
 {
     if (state)
     {

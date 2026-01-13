@@ -25,7 +25,7 @@ class ScriptedPathEffect : public ScriptedPathEffectBase,
 {
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(LuaState* state) override;
+    bool scriptInit(lua_State* state) override;
 #endif
     void addProperty(CustomProperty* prop) override;
     StatusCode onAddedClean(CoreContext* context) override;

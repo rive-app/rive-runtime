@@ -19,6 +19,7 @@
 #include "rive/importers/import_stack.hpp"
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/lua/lua_state.hpp"
 #endif
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
@@ -639,16 +640,15 @@ void File::makeScriptingVM()
     m_scriptingContext =
         rivestd::make_unique<CPPRuntimeScriptingContext>(m_factory);
     m_scriptingVM = rivestd::make_unique<ScriptingVM>(m_scriptingContext.get());
-    m_luaState = new LuaState(m_scriptingVM->state());
-    m_luaState->initializeData(m_ViewModels);
+    m_luaState = m_scriptingVM->state();
+    initializeLuaData(m_luaState, m_ViewModels);
 }
 
 void File::cleanupScriptingVM()
 {
+    m_luaState = nullptr;
     if (m_scriptingVM != nullptr)
     {
-        delete m_luaState;
-        m_luaState = nullptr;
         m_scriptingVM.reset();
         m_scriptingContext.reset();
     }

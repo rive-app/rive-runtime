@@ -1,8 +1,5 @@
 #ifndef _RIVE_SCRIPTED_DATA_CONVERTER_HPP_
 #define _RIVE_SCRIPTED_DATA_CONVERTER_HPP_
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/generated/scripted/scripted_data_converter_base.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/scripted/scripted_object.hpp"
@@ -41,7 +38,7 @@ private:
 public:
     ~ScriptedDataConverter();
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(LuaState* state) override;
+    bool scriptInit(lua_State* state) override;
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 #endif
