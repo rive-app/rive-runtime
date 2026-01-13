@@ -1260,6 +1260,9 @@ bool Artboard::updatePass(bool isRoot)
 
 bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
+#ifdef WITH_RECORDER
+    fprintf(stderr, "")
+#endif
     bool didUpdate = false;
 
     for (auto adv : m_advancingComponents)

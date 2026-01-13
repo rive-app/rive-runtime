@@ -30,6 +30,10 @@ filter({ 'options:with_rive_layout' })
 do
     defines({ 'WITH_RIVE_LAYOUT' })
 end
+filter({ 'options:with_recorder' })
+do
+    defines({ 'WITH_RECORDER' })
+end
 filter({})
 
 dependencies = path.getabsolute('dependencies/')
@@ -183,4 +187,9 @@ newoption({
 newoption({
     trigger = 'with_rive_docs',
     description = 'Indicates building for use with the docs generator.',
+})
+
+newoption({
+    trigger = 'with_recorder',
+    description = 'Enables recorder features.',
 })
