@@ -7,7 +7,9 @@
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
+#include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 
 #include <math.h>
@@ -16,6 +18,7 @@
 using namespace rive;
 
 static void pushViewModelInstanceValue(lua_State* L,
+                                       rcp<ViewModel> viewModel,
                                        ViewModelInstanceValue* propValue)
 {
     switch (propValue->coreType())
@@ -61,6 +64,13 @@ static void pushViewModelInstanceValue(lua_State* L,
                 L,
                 L,
                 ref_rcp(propValue->as<ViewModelInstanceEnum>()));
+            break;
+        case ViewModelInstanceViewModelBase::typeKey:
+            lua_newrive<ScriptedPropertyViewModel>(
+                L,
+                L,
+                viewModel,
+                ref_rcp(propValue->as<ViewModelInstanceViewModel>()));
             break;
         default:
             lua_pushnil(L);
@@ -309,6 +319,12 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                                                       m_state,
                                                       nullptr);
                     break;
+                case ViewModelPropertyViewModelBase::typeKey:
+                    lua_newrive<ScriptedPropertyViewModel>(m_state,
+                                                           m_state,
+                                                           nullptr,
+                                                           nullptr);
+                    break;
             }
         }
     }
@@ -322,7 +338,7 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
         }
         else
         {
-            pushViewModelInstanceValue(m_state, propValue);
+            pushViewModelInstanceValue(m_state, m_viewModel, propValue);
         }
     }
     m_propertyRefs[name] = lua_ref(m_state, -1);
@@ -482,6 +498,23 @@ static int property_namecall_atom(lua_State* L,
             list->addItemAt(listItem, index);
             return 0;
         }
+
+        case (int)LuaAtoms::values:
+        {
+            auto viewModelInstanceEnum =
+                property->instanceValue()->as<ViewModelInstanceValue>();
+            DataEnum* dataEnum = nullptr;
+            auto viewModelPropertyEnum =
+                viewModelInstanceEnum->viewModelProperty()
+                    ->as<ViewModelPropertyEnum>();
+            if (viewModelPropertyEnum)
+            {
+                dataEnum = viewModelPropertyEnum->dataEnum();
+            }
+            lua_newrive<ScriptedEnumValues>(L, L, dataEnum);
+
+            return 1;
+        }
     }
     error = true;
     return 0;
@@ -541,6 +574,21 @@ static int vm_namecall(lua_State* L)
                 const char* name = luaL_checklstring(L, 2, &namelen);
                 assert(vm->state() == L);
                 return vm->pushValue(name, ViewModelInstanceListBase::typeKey);
+            }
+            case (int)LuaAtoms::getViewModel:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name,
+                                     ViewModelInstanceViewModelBase::typeKey);
+            }
+            case (int)LuaAtoms::getEnum:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name, ViewModelInstanceEnumBase::typeKey);
             }
             case (int)LuaAtoms::instance:
             case (int)LuaAtoms::newAtom:
@@ -885,6 +933,36 @@ int ScriptedPropertyList::pushValue(int index)
     return 1;
 }
 
+int ScriptedEnumValues::pushValue(int index)
+{
+    if (m_dataEnum && m_state)
+    {
+        auto values = m_dataEnum->values();
+        if (index >= 0 && index < values.size())
+        {
+            auto value = values[index];
+            lua_pushstring(m_state, value->key().c_str());
+            return 1;
+        }
+    }
+    lua_pushnil(m_state);
+    return 1;
+}
+
+int ScriptedEnumValues::pushLength()
+{
+
+    if (m_dataEnum)
+    {
+        lua_pushinteger(m_state, (int)m_dataEnum->values().size());
+    }
+    else
+    {
+        lua_pushinteger(m_state, 0);
+    }
+    return 1;
+}
+
 static int property_list_index(lua_State* L)
 {
     int atom;
@@ -905,6 +983,27 @@ static int property_list_index(lua_State* L)
         default:
             return 0;
     }
+}
+
+static int enum_value_length(lua_State* L)
+{
+    auto enumValues = lua_torive<ScriptedEnumValues>(L, 1);
+    assert(enumValues->state() == L);
+    return enumValues->pushLength();
+}
+
+static int enum_value_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    auto enumValues = lua_torive<ScriptedEnumValues>(L, 1);
+    // if it's not an atom it should be an index into the array
+    if (!key)
+    {
+        int index = luaL_checkinteger(L, 2);
+        return enumValues->pushValue(index - 1);
+    }
+    return 0;
 }
 
 static int property_number_index(lua_State* L)
@@ -1261,6 +1360,19 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_pushcfunction(L, property_list_index, nullptr);
         lua_setfield(L, -2, "__index");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    {
+        lua_register_rive<ScriptedEnumValues>(L);
+
+        lua_pushcfunction(L, enum_value_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, enum_value_length, nullptr);
+        lua_setfield(L, -2, "__len");
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable

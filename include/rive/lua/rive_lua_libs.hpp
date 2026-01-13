@@ -13,6 +13,7 @@
 #include "rive/math/path_measure.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
@@ -150,6 +151,9 @@ enum class LuaAtoms : int16_t
     getBoolean,
     getColor,
     getList,
+    getViewModel,
+    getEnum,
+    values,
     addListener,
     removeListener,
     fire,
@@ -700,6 +704,26 @@ public:
 
     int pushValue();
     void setValue(bool value);
+};
+
+class ScriptedEnumValues
+{
+public:
+    ScriptedEnumValues(lua_State* L, DataEnum* value) :
+        m_state(L), m_dataEnum(value)
+    {}
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 34;
+    static constexpr const char* luaName = "EnumValues";
+    static constexpr bool hasMetatable = true;
+    void dataEnum(DataEnum* value) { m_dataEnum = value; }
+    int pushValue(int index);
+    int pushLength();
+
+    const lua_State* state() const { return m_state; }
+
+private:
+    lua_State* m_state = nullptr;
+    DataEnum* m_dataEnum = nullptr;
 };
 
 class ScriptedPropertyEnum : public ScriptedProperty

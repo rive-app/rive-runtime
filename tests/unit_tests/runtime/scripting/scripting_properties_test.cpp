@@ -552,3 +552,26 @@ end
           std::string("enum changed to ") + std::string("red"));
     CHECK(vm.console[6] == std::string("enum is ") + std::string("red"));
 }
+
+TEST_CASE("Access view model properties and enum properties", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/viewmodel_access.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("viewmodel_access"));
+}
