@@ -45,6 +45,7 @@ public:
     bool getIsStroked() const { return m_stroked; }
     ColorInt getColor() const { return m_simpleValue.color; }
     const gpu::Gradient* getGradient() const { return m_gradient.get(); }
+    rcp<gpu::Gradient> getGradientWithOpacity(float opacity) const;
     gpu::Texture* getImageTexture() const { return m_imageTexture.get(); }
     ImageSampler getImageSampler() const { return m_imageSampler; }
     float getImageOpacity() const { return m_simpleValue.imageOpacity; }

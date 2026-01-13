@@ -195,6 +195,7 @@ public:
                               rcp<const RiveRenderPath>,
                               FillRule,
                               const RiveRenderPaint*,
+                              float modulatedOpacity,
                               RawPath* scratchPath);
 
     // Determines how coverage is calculated for antialiasing and feathers.
@@ -216,6 +217,7 @@ public:
              rcp<const RiveRenderPath>,
              FillRule,
              const RiveRenderPaint*,
+             float modulatedOpacity,
              CoverageType,
              const RenderContext::FrameDescriptor&);
 
@@ -356,7 +358,7 @@ protected:
 
     const RiveRenderPath* const m_pathRef;
     const FillRule m_pathFillRule; // Fill rule can mutate on RenderPath.
-    const Gradient* m_gradientRef;
+    const Gradient* m_gradientRef; // Already modulated if opacity != 1.0
     const gpu::PaintType m_paintType;
     const CoverageType m_coverageType;
     float m_strokeRadius = 0;

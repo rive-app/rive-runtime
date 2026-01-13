@@ -47,6 +47,7 @@ public:
                        uint32_t indexCount,
                        BlendMode,
                        float opacity) override;
+    void modulateOpacity(float opacity) override;
 
     // Determines if a path is an axis-aligned rectangle that can be represented
     // by rive::AABB.
@@ -61,6 +62,10 @@ public:
     const Mat2D& getClipRectMatrix() const
     {
         return m_stack.back().clipRectMatrix;
+    }
+    float currentModulatedOpacity() const
+    {
+        return m_stack.back().modulatedOpacity;
     }
 #endif
 
@@ -93,6 +98,7 @@ private:
         Mat2D clipRectMatrix;
         const gpu::ClipRectInverseMatrix* clipRectInverseMatrix = nullptr;
         bool clipIsEmpty = false;
+        float modulatedOpacity = 1.0f;
     };
     std::vector<RenderState> m_stack{1};
 

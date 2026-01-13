@@ -64,6 +64,7 @@ public:
     void save() override {}
     void restore() override {}
     void transform(const Mat2D& matrix) override {}
+    void modulateOpacity(float) override {}
     void drawPath(RenderPath* path, RenderPaint* paint) override
     {
         auto renderPath = static_cast<RiveRenderPath*>(path);

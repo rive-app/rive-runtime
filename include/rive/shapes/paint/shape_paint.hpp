@@ -16,6 +16,7 @@ class RenderPaint;
 class ShapePaintMutator;
 class Feather;
 class ShapePaintContainer;
+class TransformComponent;
 class ShapePaint : public ShapePaintBase,
                    public EffectsContainer,
                    public PathProvider
@@ -82,6 +83,8 @@ public:
     virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
     void update(ComponentDirt value) override;
     virtual ShapePaintType paintType() const = 0;
+
+    TransformComponent* parentTransformComponent() const;
 
 private:
     Feather* m_feather = nullptr;

@@ -15,6 +15,7 @@
 #include "include/core/SkVertices.h"
 #include "include/effects/SkGradientShader.h"
 #include "include/effects/SkImageFilters.h"
+#include "include/core/SkColorFilter.h"
 
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
@@ -218,11 +219,26 @@ void SkiaRenderPaint::shader(rcp<RenderShader> rsh)
     m_Paint.setShader(sksh ? sksh->shader : nullptr);
 }
 
-void SkiaRenderer::save() { m_Canvas->save(); }
-void SkiaRenderer::restore() { m_Canvas->restore(); }
+void SkiaRenderer::save()
+{
+    m_Canvas->save();
+    m_opacityStack.push_back(m_opacityStack.back());
+}
+void SkiaRenderer::restore()
+{
+    m_Canvas->restore();
+    if (m_opacityStack.size() > 1)
+    {
+        m_opacityStack.pop_back();
+    }
+}
 void SkiaRenderer::transform(const Mat2D& transform)
 {
     m_Canvas->concat(ToSkia::convert(transform));
+}
+void SkiaRenderer::modulateOpacity(float opacity)
+{
+    m_opacityStack.back() = std::max(0.0f, m_opacityStack.back() * opacity);
 }
 void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
@@ -230,7 +246,43 @@ void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
     LITE_RTTI_CAST_OR_RETURN(skiaRenderPaint, SkiaRenderPaint*, paint);
 
     SkiaRenderPaint::OverrideStrokeParamsForFeather ospff(skiaRenderPaint);
-    m_Canvas->drawPath(skiaRenderPath->path(), skiaRenderPaint->paint());
+
+    float modulatedOpacity = m_opacityStack.back();
+    if (modulatedOpacity != 1.0f)
+    {
+        // Apply modulated opacity using a color filter on the paint.
+        // This is more efficient than saveLayer as it doesn't allocate
+        // an offscreen buffer.
+        // We scale all color components (RGBA) by opacity since Skia uses
+        // pre-multiplied alpha.
+        SkPaint modulatedPaint(skiaRenderPaint->paint());
+
+        float matrix[20] = {
+            // clang-format off
+            modulatedOpacity, 0, 0, 0, 0,  // R
+            0, modulatedOpacity, 0, 0, 0,  // G
+            0, 0, modulatedOpacity, 0, 0,  // B
+            0, 0, 0, modulatedOpacity, 0,  // A
+            // clang-format on
+        };
+
+        auto opacityFilter = SkColorFilters::Matrix(matrix);
+        auto existingFilter = modulatedPaint.refColorFilter();
+        if (existingFilter)
+        {
+            modulatedPaint.setColorFilter(
+                opacityFilter->makeComposed(existingFilter));
+        }
+        else
+        {
+            modulatedPaint.setColorFilter(opacityFilter);
+        }
+        m_Canvas->drawPath(skiaRenderPath->path(), modulatedPaint);
+    }
+    else
+    {
+        m_Canvas->drawPath(skiaRenderPath->path(), skiaRenderPaint->paint());
+    }
 }
 
 void SkiaRenderer::clipPath(RenderPath* path)
@@ -245,8 +297,9 @@ void SkiaRenderer::drawImage(const RenderImage* image,
                              float opacity)
 {
     LITE_RTTI_CAST_OR_RETURN(skiaImage, const SkiaRenderImage*, image);
+    float finalOpacity = std::max(0.0f, opacity * m_opacityStack.back());
     SkPaint paint;
-    paint.setAlphaf(opacity);
+    paint.setAlphaf(finalOpacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
     m_Canvas->drawImage(skiaImage->skImage(), 0.0f, 0.0f, gSampling, &paint);
 }
@@ -301,8 +354,9 @@ void SkiaRenderer::drawImageMesh(const RenderImage* image,
                                         gSampling,
                                         &scaleM);
 
+    float finalOpacity = std::max(0.0f, opacity * m_opacityStack.back());
     SkPaint paint;
-    paint.setAlphaf(opacity);
+    paint.setAlphaf(finalOpacity);
     paint.setBlendMode(ToSkia::convert(blendMode));
     paint.setShader(shader);
 

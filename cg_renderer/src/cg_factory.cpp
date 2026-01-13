@@ -379,13 +379,29 @@ CGRenderer::CGRenderer(CGContextRef ctx, int width, int height) : m_ctx(ctx)
 
 CGRenderer::~CGRenderer() { CGContextRestoreGState(m_ctx); }
 
-void CGRenderer::save() { CGContextSaveGState(m_ctx); }
+void CGRenderer::save()
+{
+    CGContextSaveGState(m_ctx);
+    m_opacityStack.push_back(m_opacityStack.back());
+}
 
-void CGRenderer::restore() { CGContextRestoreGState(m_ctx); }
+void CGRenderer::restore()
+{
+    CGContextRestoreGState(m_ctx);
+    if (m_opacityStack.size() > 1)
+    {
+        m_opacityStack.pop_back();
+    }
+}
 
 void CGRenderer::transform(const Mat2D& m)
 {
     CGContextConcatCTM(m_ctx, convert(m));
+}
+
+void CGRenderer::modulateOpacity(float opacity)
+{
+    m_opacityStack.back() = std::max(0.0f, m_opacityStack.back() * opacity);
 }
 
 void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
@@ -394,6 +410,7 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
     LITE_RTTI_CAST_OR_RETURN(cgpath, CGRenderPath*, path);
 
     cgpaint->apply(m_ctx);
+    CGContextSetAlpha(m_ctx, m_opacityStack.back());
 
     CGContextBeginPath(m_ctx);
     CGContextAddPath(m_ctx, cgpath->path());
@@ -407,8 +424,9 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
         CGContextSaveGState(m_ctx);
         CGContextClip(m_ctx);
 
-        // so the gradient modulates with the color's alpha
-        CGContextSetAlpha(m_ctx, cgpaint->opacity());
+        // so the gradient modulates with the color's alpha and the modulated
+        // opacity
+        CGContextSetAlpha(m_ctx, cgpaint->opacity() * m_opacityStack.back());
 
         sh->draw(m_ctx);
         CGContextRestoreGState(m_ctx);
@@ -438,9 +456,10 @@ void CGRenderer::drawImage(const RenderImage* image,
     LITE_RTTI_CAST_OR_RETURN(cgimg, const CGRenderImage*, image);
 
     auto bounds = CGRectMake(0, 0, image->width(), image->height());
+    float finalOpacity = std::max(0.0f, opacity * m_opacityStack.back());
 
     CGContextSaveGState(m_ctx);
-    CGContextSetAlpha(m_ctx, opacity);
+    CGContextSetAlpha(m_ctx, finalOpacity);
     CGContextSetBlendMode(m_ctx, convert(blendMode));
     cgimg->applyLocalMatrix(m_ctx);
     CGContextDrawImage(m_ctx, bounds, cgimg->m_image);
@@ -482,13 +501,15 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
     auto pts = cgvertices->vecs();
     auto uvs = cguvcoords->vecs();
 
+    float finalOpacity = std::max(0.0f, opacity * m_opacityStack.back());
+
     // We use the path to set the clip for each triangle. Since calling
     // CGContextClip() resets the path, we only need to this once at
     // the beginning.
     CGContextBeginPath(m_ctx);
 
     CGContextSaveGState(m_ctx);
-    CGContextSetAlpha(m_ctx, opacity);
+    CGContextSetAlpha(m_ctx, finalOpacity);
     CGContextSetBlendMode(m_ctx, convert(blendMode));
     CGContextSetShouldAntialias(m_ctx, false);
 

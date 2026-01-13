@@ -7,6 +7,7 @@
 
 #include "rive/renderer.hpp"
 #include "utils/auto_cf.hpp"
+#include <vector>
 
 #if defined(RIVE_BUILD_FOR_OSX)
 #include <ApplicationServices/ApplicationServices.h>
@@ -21,6 +22,7 @@ class CGRenderer : public Renderer
 {
 protected:
     CGContextRef m_ctx;
+    std::vector<float> m_opacityStack{1.0f};
 
 public:
     CGRenderer(CGContextRef ctx, int width, int height);
@@ -29,6 +31,7 @@ public:
     void save() override;
     void restore() override;
     void transform(const Mat2D& transform) override;
+    void modulateOpacity(float opacity) override;
     void clipPath(RenderPath* path) override;
     void drawPath(RenderPath* path, RenderPaint* paint) override;
     void drawImage(const RenderImage*,

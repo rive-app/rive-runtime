@@ -220,6 +220,12 @@ public:
                                BlendMode,
                                float opacity) = 0;
 
+    // Modulate the opacity of subsequent draw calls. The opacity is stacked
+    // multiplicatively (e.g., modulateOpacity(0.5) followed by
+    // modulateOpacity(0.2) = 0.1 effective opacity). The modulated opacity is
+    // captured by save() and restored by restore().
+    virtual void modulateOpacity(float opacity) = 0;
+
     // helpers
 
     void translate(float x, float y);

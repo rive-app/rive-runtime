@@ -422,6 +422,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                              rcp<const RiveRenderPath> path,
                              FillRule fillRule,
                              const RiveRenderPaint* paint,
+                             float modulatedOpacity,
                              RawPath* scratchPath)
 {
     RIVE_PROF_SCOPE();
@@ -512,6 +513,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                                         std::move(path),
                                         fillRule,
                                         paint,
+                                        modulatedOpacity,
                                         coverageType,
                                         context->frameDescriptor());
     if (doTriangulation)
@@ -536,6 +538,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
                    rcp<const RiveRenderPath> path,
                    FillRule initialFillRule,
                    const RiveRenderPaint* paint,
+                   float modulatedOpacity,
                    CoverageType coverageType,
                    const RenderContext::FrameDescriptor& frameDesc) :
     Draw(pixelBounds,
@@ -547,7 +550,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
     m_pathRef(path.release()),
     m_pathFillRule(frameDesc.clockwiseFillOverride ? FillRule::clockwise
                                                    : initialFillRule),
-    m_gradientRef(safe_ref(paint->getGradient())),
+    m_gradientRef(paint->getGradientWithOpacity(modulatedOpacity).release()),
     m_paintType(paint->getType()),
     m_coverageType(coverageType)
 {
@@ -684,6 +687,27 @@ PathDraw::PathDraw(IAABB pixelBounds,
     }
 
     m_simplePaintValue = paint->getSimpleValue();
+
+    // Apply modulated opacity to the paint value.
+    // Gradient modulation is handled upfront in the gradient initialization.
+    if (modulatedOpacity != 1.0f)
+    {
+        switch (m_paintType)
+        {
+            case gpu::PaintType::solidColor:
+                m_simplePaintValue.color =
+                    colorModulateOpacity(m_simplePaintValue.color,
+                                         modulatedOpacity);
+                break;
+            case gpu::PaintType::image:
+                m_simplePaintValue.imageOpacity *= modulatedOpacity;
+                break;
+            case gpu::PaintType::linearGradient:
+            case gpu::PaintType::radialGradient:
+            case gpu::PaintType::clipUpdate:
+                break;
+        }
+    }
 
     if (m_coverageType == CoverageType::atlas)
     {
@@ -1364,11 +1388,13 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
 
     // Allocate a gradient if needed. Do this first since it's more expensive to
     // fail after setting up an atlas draw than a gradient draw.
-    if (m_gradientRef != nullptr &&
-        !flush->allocateGradient(m_gradientRef,
-                                 &m_simplePaintValue.colorRampLocation))
+    if (m_gradientRef != nullptr)
     {
-        return false;
+        if (!flush->allocateGradient(m_gradientRef,
+                                     &m_simplePaintValue.colorRampLocation))
+        {
+            return false;
+        }
     }
 
     // Allocate a coverage buffer range or atlas region if needed.

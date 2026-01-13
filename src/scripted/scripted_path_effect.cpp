@@ -53,10 +53,9 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         // Stack: [self, "update", self]
         lua_newrive<ScriptedPathData>(state, source->rawPath());
         // Stack: [self, "update", self, pathData]
-        lua_newrive<ScriptedNode>(
-            state,
-            nullptr,
-            shapePaint->parent()->as<TransformComponent>());
+        lua_newrive<ScriptedNode>(state,
+                                  nullptr,
+                                  shapePaint->parentTransformComponent());
         auto scriptedNode = lua_torive<ScriptedNode>(state, -1);
         scriptedNode->shapePaint(shapePaint);
         // Stack: [self, "update", self, pathData, node]

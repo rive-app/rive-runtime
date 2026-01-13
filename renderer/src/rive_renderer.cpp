@@ -108,6 +108,12 @@ void RiveRenderer::transform(const Mat2D& matrix)
     m_stack.back().matrix = m_stack.back().matrix * matrix;
 }
 
+void RiveRenderer::modulateOpacity(float opacity)
+{
+    m_stack.back().modulatedOpacity =
+        std::max(0.0f, m_stack.back().modulatedOpacity * opacity);
+}
+
 void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 {
     RIVE_PROF_SCOPE()
@@ -161,6 +167,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                                     matrixMaxScale),
                 path->getFillRule(),
                 paint,
+                m_stack.back().modulatedOpacity,
                 &m_scratchPath));
             return;
         }
@@ -171,6 +178,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                         ref_rcp(path),
                                         path->getFillRule(),
                                         paint,
+                                        m_stack.back().modulatedOpacity,
                                         &m_scratchPath));
 }
 
@@ -343,6 +351,10 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
         return;
     }
 
+    // Apply modulated opacity (clamp to prevent negative values)
+    float finalOpacity =
+        std::max(0.0f, opacity * m_stack.back().modulatedOpacity);
+
     // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
     save();
     scale(image->width(), image->height());
@@ -362,7 +374,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                     blendMode,
                     std::move(imageTexture),
                     imageSampler,
-                    opacity)));
+                    finalOpacity)));
         }
     }
     else
@@ -378,7 +390,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
         }
 
         RiveRenderPaint paint;
-        paint.image(std::move(imageTexture), opacity);
+        paint.image(std::move(imageTexture), finalOpacity);
         paint.blendMode(blendMode);
         paint.imageSampler(imageSampler);
         drawPath(m_unitRectPath.get(), &paint);
@@ -418,6 +430,10 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
         return;
     }
 
+    // Apply modulated opacity (clamp to prevent negative values)
+    float finalOpacity =
+        std::max(0.0f, opacity * m_stack.back().modulatedOpacity);
+
     clipAndPushDraw(gpu::DrawUniquePtr(
         m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
                                             m_stack.back().matrix,
@@ -428,7 +444,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                             std::move(uvCoords_f32),
                                             std::move(indices_u16),
                                             indexCount,
-                                            opacity)));
+                                            finalOpacity)));
 }
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
@@ -573,12 +589,14 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         RiveRenderPaint clipUpdatePaint;
         clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
 
-        gpu::DrawUniquePtr clipDraw = gpu::PathDraw::Make(m_context,
-                                                          clip.matrix,
-                                                          clip.path,
-                                                          clip.fillRule,
-                                                          &clipUpdatePaint,
-                                                          &m_scratchPath);
+        gpu::DrawUniquePtr clipDraw =
+            gpu::PathDraw::Make(m_context,
+                                clip.matrix,
+                                clip.path,
+                                clip.fillRule,
+                                &clipUpdatePaint,
+                                1.0f, // no opacity modulation for clips
+                                &m_scratchPath);
 
         if (clipDraw == nullptr)
         {

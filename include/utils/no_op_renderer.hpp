@@ -30,6 +30,7 @@ public:
                        BlendMode,
                        float) override
     {}
+    void modulateOpacity(float) override {}
 };
 
 } // namespace rive

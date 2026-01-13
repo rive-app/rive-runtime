@@ -31,6 +31,15 @@ void RiveRenderPaint::shader(rcp<RenderShader> shader)
     m_imageTexture.reset();
 }
 
+rcp<gpu::Gradient> RiveRenderPaint::getGradientWithOpacity(float opacity) const
+{
+    if (m_gradient)
+    {
+        return m_gradient->getModulated(opacity);
+    }
+    return nullptr;
+}
+
 void RiveRenderPaint::image(rcp<gpu::Texture> imageTexture, float opacity)
 {
     m_paintType = gpu::PaintType::image;

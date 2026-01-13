@@ -6,6 +6,7 @@
 #define _RIVE_SKIA_RENDERER_HPP_
 
 #include "rive/renderer.hpp"
+#include <vector>
 
 class SkCanvas;
 
@@ -15,12 +16,14 @@ class SkiaRenderer : public Renderer
 {
 protected:
     SkCanvas* m_Canvas;
+    std::vector<float> m_opacityStack{1.0f};
 
 public:
     SkiaRenderer(SkCanvas* canvas) : m_Canvas(canvas) {}
     void save() override;
     void restore() override;
     void transform(const Mat2D& transform) override;
+    void modulateOpacity(float opacity) override;
     void clipPath(RenderPath* path) override;
     void drawPath(RenderPath* path, RenderPaint* paint) override;
     void drawImage(const RenderImage*,

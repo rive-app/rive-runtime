@@ -28,6 +28,12 @@ void TessRenderer::transform(const Mat2D& transform)
     stackMat = stackMat * transform;
 }
 
+void TessRenderer::modulateOpacity(float opacity)
+{
+    m_Stack.back().modulatedOpacity =
+        std::max(0.0f, m_Stack.back().modulatedOpacity * opacity);
+}
+
 void TessRenderer::clipPath(RenderPath* path)
 {
 

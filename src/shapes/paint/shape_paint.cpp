@@ -2,6 +2,7 @@
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/shapes/paint/feather.hpp"
 #include "rive/artboard.hpp"
+#include "rive/transform_component.hpp"
 #include "rive/factory.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/profiler/profiler_macros.h"
@@ -186,4 +187,18 @@ void ShapePaint::addStrokeEffect(StrokeEffect* effect)
 {
     effect->addPathProvider(this);
     EffectsContainer::addStrokeEffect(effect);
+}
+
+TransformComponent* ShapePaint::parentTransformComponent() const
+{
+    auto _parent = parent();
+    while (_parent)
+    {
+        if (_parent->is<TransformComponent>())
+        {
+            return _parent->as<TransformComponent>();
+        }
+        _parent = _parent->parent();
+    }
+    return nullptr;
 }

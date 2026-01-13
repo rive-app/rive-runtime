@@ -9,6 +9,7 @@
 #include "rive/tess/sub_path.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/mat4.hpp"
+#include <algorithm>
 #include <vector>
 #include <list>
 
@@ -19,6 +20,7 @@ struct RenderState
 {
     Mat2D transform;
     std::vector<SubPath> clipPaths;
+    float modulatedOpacity = 1.0f;
 };
 
 class TessRenderer : public Renderer
@@ -42,7 +44,9 @@ public:
     void save() override;
     void restore() override;
     void transform(const Mat2D& transform) override;
+    void modulateOpacity(float opacity) override;
     const Mat2D& transform() { return m_Stack.back().transform; }
+    float modulatedOpacity() const { return m_Stack.back().modulatedOpacity; }
     void clipPath(RenderPath* path) override;
     void drawImage(const RenderImage*,
                    ImageSampler,

@@ -50,6 +50,7 @@ enum class SerializeOp : unsigned char
 
     frame = 28,
     frameSize = 29,
+    modulateOpacity = 30,
 
 };
 
@@ -120,6 +121,8 @@ static const char* opToName(SerializeOp op)
             return "frame";
         case SerializeOp::frameSize:
             return "frameSize";
+        case SerializeOp::modulateOpacity:
+            return "modulateOpacity";
     }
     return "???";
 }
@@ -556,6 +559,12 @@ public:
         {
             m_writer->writeFloat(mat[i]);
         }
+    }
+
+    void modulateOpacity(float opacity) override
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::modulateOpacity);
+        m_writer->writeFloat(opacity);
     }
 
     void drawPath(RenderPath* path, RenderPaint* paint) override
@@ -1312,6 +1321,16 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 {
                     return false;
                 }
+                break;
+            case SerializeOp::modulateOpacity:
+                if (!floatMatches(opA,
+                                  "modulateopacity_value",
+                                  readerA,
+                                  readerB))
+                {
+                    return false;
+                }
+                break;
         }
     }
     if (!readerB.reachedEnd())
