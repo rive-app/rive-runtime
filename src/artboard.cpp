@@ -1260,9 +1260,9 @@ bool Artboard::updatePass(bool isRoot)
 
 bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
-    fprintf(stderr, "[RECORDER_LOG] Artboard::advanceInternal:out\n");
+    printf("[RECORDER_LOG] Artboard::advanceInternal:out\n");
 #ifdef WITH_RECORDER
-    fprintf(stderr, "[RECORDER_LOG] Artboard::advanceInternal:in\n");
+    printf("[RECORDER_LOG] Artboard::advanceInternal:in\n");
 #endif
     bool didUpdate = false;
 
