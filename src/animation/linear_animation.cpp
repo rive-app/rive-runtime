@@ -55,6 +55,11 @@ void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object)
 
 void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
 {
+    #ifdef WITH_RECORDER
+    if(Artboard::isDebug) {
+        printf("[RECORDER_LOG] LinearAnimation::apply: %f\n", time);
+    }
+    #endif
     if (quantize())
     {
         float ffps = (float)fps();

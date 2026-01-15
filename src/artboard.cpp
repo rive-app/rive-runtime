@@ -44,6 +44,9 @@
 using namespace rive;
 
 uint64_t Artboard::sm_frameId = 0;
+#ifdef WITH_RECORDER
+uint64_t Artboard::isDebug = false;
+#endif
 
 Artboard::Artboard()
 {
@@ -1260,9 +1263,10 @@ bool Artboard::updatePass(bool isRoot)
 
 bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
-    printf("[RECORDER_LOG] Artboard::advanceInternal:out\n");
 #ifdef WITH_RECORDER
-    printf("[RECORDER_LOG] Artboard::advanceInternal:in\n");
+    if(Artboard::isDebug) {
+        printf("[RECORDER_LOG] Artboard::advanceInternal: %f\n", elapsedSeconds);
+    }
 #endif
     bool didUpdate = false;
 

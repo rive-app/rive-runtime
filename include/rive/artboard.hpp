@@ -102,6 +102,10 @@ private:
     bool m_didChange = true;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
+
+#ifdef WITH_RECORDER
+static bool isDebug;
+#endif
     static uint64_t sm_frameId;
     bool sharesLayoutWithHost() const;
     void cloneObjectDataBinds(const Core* object,
