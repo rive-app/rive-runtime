@@ -102,10 +102,6 @@ private:
     bool m_didChange = true;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
-
-#ifdef WITH_RECORDER
-static bool isDebug;
-#endif
     static uint64_t sm_frameId;
     bool sharesLayoutWithHost() const;
     void cloneObjectDataBinds(const Core* object,
@@ -134,6 +130,9 @@ static bool isDebug;
 
 public:
     static uint64_t frameId() { return sm_frameId; }
+#ifdef WITH_RECORDER
+    static bool isDebug;
+#endif
 #ifdef TESTING
     static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
