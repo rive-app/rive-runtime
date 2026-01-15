@@ -234,7 +234,8 @@ File::~File()
 rcp<File> File::import(Span<const uint8_t> bytes,
                        Factory* factory,
                        ImportResult* result,
-                       rcp<FileAssetLoader> assetLoader)
+                       rcp<FileAssetLoader> assetLoader,
+                       void* vm)
 {
     BinaryReader reader(bytes);
     RuntimeHeader header;
@@ -262,6 +263,12 @@ rcp<File> File::import(Span<const uint8_t> bytes,
         return nullptr;
     }
     auto file = make_rcp<File>(factory, std::move(assetLoader));
+#ifdef WITH_RIVE_SCRIPTING
+    if (vm != nullptr)
+    {
+        file->scriptingState(static_cast<lua_State*>(vm));
+    }
+#endif
 
     auto readResult = file->read(reader, header);
     if (result)
@@ -609,39 +616,54 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 #ifdef WITH_RIVE_SCRIPTING
 void File::registerScripts()
 {
-    if (m_scriptingVM == nullptr)
-    {
-        makeScriptingVM();
-    }
-
-    // Add all scripts to the VM for registration
+    // Check if we have any script assets in the file
+    std::vector<ScriptAsset*> scripts;
     for (auto asset : m_fileAssets)
     {
         if (asset->is<ScriptAsset>())
         {
-            ScriptAsset* scriptAsset = asset->as<ScriptAsset>();
-            // At runtime, generatorFunctionRef should be 0, meaning
-            // it hasn't been registered yet with a VM.
+            scripts.push_back(asset->as<ScriptAsset>());
+        }
+    }
+    // Only make the ScriptingVM if we have any script assets
+    if (!scripts.empty())
+    {
+        makeScriptingVM(scriptingState());
+        for (auto scriptAsset : scripts)
+        {
+            // At runtime, if the script is verified, add it to be
+            // registered with the VM. At edit time, the script will
+            // have already been registered, so this won't run
             if (scriptAsset->verified())
             {
                 m_scriptingVM->addModule(scriptAsset);
             }
         }
+        // Perform registration - ScriptingContext will handle dependencies and
+        // retries
+        m_scriptingVM->performRegistration();
     }
-
-    // Perform registration - ScriptingContext will handle dependencies and
-    // retries
-    m_scriptingVM->performRegistration();
 }
 
-void File::makeScriptingVM()
+void File::makeScriptingVM(lua_State* existingState)
 {
     cleanupScriptingVM();
     m_scriptingContext =
         rivestd::make_unique<CPPRuntimeScriptingContext>(m_factory);
-    m_scriptingVM = rivestd::make_unique<ScriptingVM>(m_scriptingContext.get());
-    m_luaState = m_scriptingVM->state();
-    initializeLuaData(m_luaState, m_ViewModels);
+    if (existingState != nullptr)
+    {
+        m_scriptingVM =
+            rivestd::make_unique<ScriptingVM>(m_scriptingContext.get(),
+                                              existingState);
+        m_luaState = existingState;
+    }
+    else
+    {
+        m_scriptingVM =
+            rivestd::make_unique<ScriptingVM>(m_scriptingContext.get());
+        m_luaState = m_scriptingVM->state();
+        initializeLuaData(m_luaState, m_ViewModels);
+    }
 }
 
 void File::cleanupScriptingVM()

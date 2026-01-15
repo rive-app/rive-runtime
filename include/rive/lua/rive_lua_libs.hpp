@@ -860,6 +860,7 @@ class ScriptingVM
 {
 public:
     ScriptingVM(ScriptingContext* context);
+    ScriptingVM(ScriptingContext* context, lua_State* existingState);
     ~ScriptingVM();
 
     // ScriptingContext& context() { return m_context; }
@@ -895,6 +896,7 @@ public:
 private:
     lua_State* m_state;
     ScriptingContext* m_context;
+    bool m_ownsState;
 };
 
 class ScriptedDataValue

@@ -169,7 +169,7 @@ lua_State* ScriptAsset::vm()
     }
     // We get the scripting VM from File for now, however,
     // this will need to change if/when we support multiple VMs
-    return m_file->scriptingVM();
+    return m_file->scriptingState();
 }
 #endif
 

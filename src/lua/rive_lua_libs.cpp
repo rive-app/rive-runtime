@@ -342,13 +342,24 @@ void ScriptingVM::init(lua_State* state, ScriptingContext* context)
     luaL_sandboxthread(state);
 }
 
-ScriptingVM::ScriptingVM(ScriptingContext* context) : m_context(context)
+ScriptingVM::ScriptingVM(ScriptingContext* context) :
+    m_context(context), m_ownsState(true)
 {
     m_state = lua_newstate(l_alloc, nullptr);
     init(m_state, m_context);
 }
 
-ScriptingVM::~ScriptingVM() { lua_close(m_state); }
+ScriptingVM::ScriptingVM(ScriptingContext* context, lua_State* existingState) :
+    m_state(existingState), m_context(context), m_ownsState(false)
+{}
+
+ScriptingVM::~ScriptingVM()
+{
+    if (m_ownsState)
+    {
+        lua_close(m_state);
+    }
+}
 
 static int register_module(lua_State* L)
 {

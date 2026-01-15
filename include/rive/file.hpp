@@ -86,15 +86,17 @@ public:
     static rcp<File> import(Span<const uint8_t> data,
                             Factory* factory,
                             ImportResult* result = nullptr,
-                            FileAssetLoader* assetLoader = nullptr)
+                            FileAssetLoader* assetLoader = nullptr,
+                            void* vm = nullptr)
     {
-        return import(data, factory, result, ref_rcp(assetLoader));
+        return import(data, factory, result, ref_rcp(assetLoader), vm);
     }
 
     static rcp<File> import(Span<const uint8_t> data,
                             Factory*,
                             ImportResult* result,
-                            rcp<FileAssetLoader> assetLoader);
+                            rcp<FileAssetLoader> assetLoader,
+                            void* vm = nullptr);
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }
@@ -180,21 +182,8 @@ public:
     // we are running in the runtime and should instance our own VMs
     // and pass them down to the root
 #ifdef WITH_RIVE_SCRIPTING
-    void scriptingVM(lua_State* vm)
-    {
-        cleanupScriptingVM();
-        m_luaState = vm;
-    }
-    lua_State* scriptingVM()
-    {
-        // For now, if we don't have a vm, create one. In the future, we
-        // may need a way to create multiple vms in parallel
-        if (m_luaState == nullptr)
-        {
-            makeScriptingVM();
-        }
-        return m_luaState;
-    }
+    void scriptingState(lua_State* vm) { m_luaState = vm; }
+    lua_State* scriptingState() { return m_luaState; }
 #ifdef WITH_RIVE_TOOLS
     void clearScriptingVM() { cleanupScriptingVM(); }
     bool hasVM() { return m_luaState != nullptr; }
@@ -280,7 +269,7 @@ private:
     lua_State* m_luaState = nullptr;
     std::unique_ptr<CPPRuntimeScriptingContext> m_scriptingContext;
     std::unique_ptr<ScriptingVM> m_scriptingVM;
-    void makeScriptingVM();
+    void makeScriptingVM(lua_State* existingState = nullptr);
     void cleanupScriptingVM();
     void registerScripts();
 #endif
