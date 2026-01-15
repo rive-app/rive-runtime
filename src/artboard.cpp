@@ -45,7 +45,7 @@ using namespace rive;
 
 uint64_t Artboard::sm_frameId = 0;
 #ifdef WITH_RECORDER
-uint64_t Artboard::isDebug = false;
+bool Artboard::isDebug = false;
 #endif
 
 Artboard::Artboard()
