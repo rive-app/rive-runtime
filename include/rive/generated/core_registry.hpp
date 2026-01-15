@@ -50,6 +50,7 @@
 #include "rive/animation/nested_simple_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/nested_trigger.hpp"
+#include "rive/animation/scripted_listener_action.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_component.hpp"
@@ -477,6 +478,8 @@ public:
                 return new AnimationState();
             case NestedTriggerBase::typeKey:
                 return new NestedTrigger();
+            case ScriptedListenerActionBase::typeKey:
+                return new ScriptedListenerAction();
             case KeyedObjectBase::typeKey:
                 return new KeyedObject();
             case AnimationBase::typeKey:
@@ -1193,6 +1196,9 @@ public:
                 break;
             case NestedInputBase::inputIdPropertyKey:
                 object->as<NestedInputBase>()->inputId(value);
+                break;
+            case ScriptedListenerActionBase::scriptAssetIdPropertyKey:
+                object->as<ScriptedListenerActionBase>()->scriptAssetId(value);
                 break;
             case KeyedObjectBase::objectIdPropertyKey:
                 object->as<KeyedObjectBase>()->objectId(value);
@@ -2737,6 +2743,9 @@ public:
                 return object->as<AnimationStateBase>()->animationId();
             case NestedInputBase::inputIdPropertyKey:
                 return object->as<NestedInputBase>()->inputId();
+            case ScriptedListenerActionBase::scriptAssetIdPropertyKey:
+                return object->as<ScriptedListenerActionBase>()
+                    ->scriptAssetId();
             case KeyedObjectBase::objectIdPropertyKey:
                 return object->as<KeyedObjectBase>()->objectId();
             case BlendAnimationBase::animationIdPropertyKey:
@@ -3725,6 +3734,7 @@ public:
             case ListenerInputChangeBase::nestedInputIdPropertyKey:
             case AnimationStateBase::animationIdPropertyKey:
             case NestedInputBase::inputIdPropertyKey:
+            case ScriptedListenerActionBase::scriptAssetIdPropertyKey:
             case KeyedObjectBase::objectIdPropertyKey:
             case BlendAnimationBase::animationIdPropertyKey:
             case BlendAnimationDirectBase::inputIdPropertyKey:
@@ -4377,6 +4387,8 @@ public:
                 return object->is<AnimationStateBase>();
             case NestedInputBase::inputIdPropertyKey:
                 return object->is<NestedInputBase>();
+            case ScriptedListenerActionBase::scriptAssetIdPropertyKey:
+                return object->is<ScriptedListenerActionBase>();
             case KeyedObjectBase::objectIdPropertyKey:
                 return object->is<KeyedObjectBase>();
             case BlendAnimationBase::animationIdPropertyKey:

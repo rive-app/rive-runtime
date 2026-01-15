@@ -9,7 +9,8 @@ class ListenerFireEvent : public ListenerFireEventBase
 public:
     void perform(StateMachineInstance* stateMachineInstance,
                  Vec2D position,
-                 Vec2D previousPosition) const override;
+                 Vec2D previousPosition,
+                 int pointerId) const override;
 };
 } // namespace rive
 

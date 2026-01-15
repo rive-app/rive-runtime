@@ -1,0 +1,20 @@
+{
+  "name": "ScriptedListenerAction",
+  "key": {
+    "int": 646,
+    "string": "scriptedlisteneraction"
+  },
+  "extends": "animation/listener_action.json",
+  "properties": {
+    "scriptAssetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 930,
+        "string": "scriptassetid"
+      }
+    }
+  }
+}

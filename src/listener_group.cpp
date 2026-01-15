@@ -191,7 +191,8 @@ ProcessEventResult ListenerGroup::processEvent(
         _listener->performChanges(
             stateMachineInstance,
             position,
-            Vec2D(previousPosition->x, previousPosition->y));
+            Vec2D(previousPosition->x, previousPosition->y),
+            pointerId);
         stateMachineInstance->markNeedsAdvance();
         consume();
     }
@@ -206,7 +207,8 @@ ProcessEventResult ListenerGroup::processEvent(
         _listener->performChanges(
             stateMachineInstance,
             position,
-            Vec2D(previousPosition->x, previousPosition->y));
+            Vec2D(previousPosition->x, previousPosition->y),
+            pointerId);
         stateMachineInstance->markNeedsAdvance();
         consume();
     }
@@ -221,7 +223,8 @@ ProcessEventResult ListenerGroup::processEvent(
         _listener->performChanges(
             stateMachineInstance,
             position,
-            Vec2D(previousPosition->x, previousPosition->y));
+            Vec2D(previousPosition->x, previousPosition->y),
+            pointerId);
         stateMachineInstance->markNeedsAdvance();
         if (!m_hasDragged)
         {

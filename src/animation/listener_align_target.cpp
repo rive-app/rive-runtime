@@ -7,7 +7,8 @@ using namespace rive;
 
 void ListenerAlignTarget::perform(StateMachineInstance* stateMachineInstance,
                                   Vec2D position,
-                                  Vec2D previousPosition) const
+                                  Vec2D previousPosition,
+                                  int pointerId) const
 {
     auto coreTarget = stateMachineInstance->artboard()->resolve(targetId());
     if (coreTarget == nullptr || !coreTarget->is<Node>())

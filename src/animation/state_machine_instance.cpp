@@ -19,6 +19,8 @@
 #include "rive/animation/state_machine_trigger.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_transition.hpp"
+#include "rive/animation/listener_action.hpp"
+#include "rive/animation/scripted_listener_action.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_comparator.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
@@ -1480,7 +1482,39 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             this);
         m_hitComponents.push_back(std::move(hc));
     }
+    // Initialize local instances of ScriptedListenerActions
+    for (std::size_t i = 0; i < machine->listenerCount(); i++)
+    {
+        auto listener = machine->listener(i);
+
+        for (std::size_t j = 0; j < listener->actionCount(); j++)
+        {
+            auto action = listener->action(j);
+            if (action->is<ScriptedListenerAction>())
+            {
+                auto scriptedListenerAction =
+                    action->as<ScriptedListenerAction>();
+                auto scriptedListenerActionClone =
+                    static_cast<ScriptedListenerAction*>(
+                        scriptedListenerAction->clone());
+                scriptedListenerActionClone->reinit();
+                m_scriptedListenerActionsMap[scriptedListenerAction] =
+                    scriptedListenerActionClone;
+            }
+        }
+    }
     sortHitComponents();
+}
+
+ScriptedObject* StateMachineInstance::scriptedObject(
+    const ScriptedObject* source)
+{
+    auto itr = m_scriptedListenerActionsMap.find(source);
+    if (itr != m_scriptedListenerActionsMap.end())
+    {
+        return itr->second;
+    }
+    return nullptr;
 }
 
 StateMachineInstance::~StateMachineInstance()
@@ -1506,6 +1540,12 @@ StateMachineInstance::~StateMachineInstance()
         delete listenerViewModel;
     }
     m_bindablePropertyInstances.clear();
+    for (auto& pair : m_scriptedListenerActionsMap)
+    {
+        delete pair.second;
+        pair.second = nullptr;
+    }
+    m_scriptedListenerActionsMap.clear();
 }
 
 void StateMachineInstance::removeEventListeners()
@@ -1816,6 +1856,10 @@ void StateMachineInstance::internalDataContext(DataContext* dataContext)
     {
         listenerViewModel->bindFromContext(dataContext);
     }
+    for (auto& scriptedObjectItr : m_scriptedListenerActionsMap)
+    {
+        scriptedObjectItr.second->dataContext(dataContext);
+    }
 }
 
 void StateMachineInstance::rebind()
@@ -1955,7 +1999,8 @@ void StateMachineInstance::notifyListenerViewModels(
         {
             listenerViewModel->listener()->performChanges(this,
                                                           Vec2D(),
-                                                          Vec2D());
+                                                          Vec2D(),
+                                                          0);
         }
     }
 }
@@ -2011,7 +2056,7 @@ void StateMachineInstance::notifyEventListeners(
                         sourceArtboard->resolve(listener->eventId());
                     if (listenerEvent == event.event())
                     {
-                        listener->performChanges(this, Vec2D(), Vec2D());
+                        listener->performChanges(this, Vec2D(), Vec2D(), 0);
                         break;
                     }
                 }

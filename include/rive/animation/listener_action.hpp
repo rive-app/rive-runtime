@@ -12,7 +12,8 @@ public:
     StatusCode import(ImportStack& importStack) override;
     virtual void perform(StateMachineInstance* stateMachineInstance,
                          Vec2D position,
-                         Vec2D previousPosition) const = 0;
+                         Vec2D previousPosition,
+                         int pointerId) const = 0;
 };
 } // namespace rive
 

@@ -33,6 +33,8 @@ protected:
 #ifdef WITH_RIVE_TOOLS
     bool hasValidVM();
 #endif
+private:
+    DataContext* m_dataContext = nullptr;
 
 public:
     virtual ~ScriptedObject() { scriptDispose(); }
@@ -48,7 +50,8 @@ public:
     void scriptUpdate();
     void reinit();
     virtual void markNeedsUpdate();
-    virtual DataContext* dataContext() { return nullptr; }
+    virtual DataContext* dataContext() { return m_dataContext; }
+    void dataContext(DataContext* value) { m_dataContext = value; }
 #ifdef WITH_RIVE_SCRIPTING
     virtual bool scriptInit(lua_State* state);
     lua_State* state() { return m_state; }

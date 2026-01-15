@@ -44,11 +44,15 @@ const ListenerAction* StateMachineListener::action(size_t index) const
 void StateMachineListener::performChanges(
     StateMachineInstance* stateMachineInstance,
     Vec2D position,
-    Vec2D previousPosition) const
+    Vec2D previousPosition,
+    int pointerId) const
 {
     for (auto& action : m_actions)
     {
-        action->perform(stateMachineInstance, position, previousPosition);
+        action->perform(stateMachineInstance,
+                        position,
+                        previousPosition,
+                        pointerId);
     }
 }
 

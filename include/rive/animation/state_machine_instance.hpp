@@ -40,6 +40,7 @@ class DataBind;
 class BindableProperty;
 class HitDrawable;
 class ListenerViewModel;
+class ScriptedListenerAction;
 typedef void (*DataBindChanged)();
 
 #ifdef WITH_RIVE_TOOLS
@@ -205,6 +206,7 @@ public:
     bool hasListeners() { return m_hitComponents.size() > 0; }
     void clearDataContext();
     void internalDataContext(DataContext* dataContext);
+    ScriptedObject* scriptedObject(const ScriptedObject*);
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)
@@ -238,6 +240,8 @@ private:
     std::vector<ListenerViewModel*> m_reportingListenerViewModels;
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
+    std::unordered_map<const ScriptedObject*, ScriptedObject*>
+        m_scriptedListenerActionsMap;
     std::unordered_map<BindableProperty*, DataBind*>
         m_bindableDataBindsToTarget;
     std::unordered_map<BindableProperty*, DataBind*>

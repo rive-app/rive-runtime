@@ -37,7 +37,8 @@ StatusCode ListenerViewModelChange::import(ImportStack& importStack)
 void ListenerViewModelChange::perform(
     StateMachineInstance* stateMachineInstance,
     Vec2D position,
-    Vec2D previousPosition) const
+    Vec2D previousPosition,
+    int pointerId) const
 {
     // Get the bindable property instance from the state machine instance
     // context

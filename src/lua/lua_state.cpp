@@ -14,7 +14,14 @@ static int viewmodel_new(lua_State* L)
     ViewModel* viewModel = (ViewModel*)lua_touserdata(L, lua_upvalueindex(1));
     if (viewModel)
     {
+
+#ifdef WITH_RIVE_TOOLS
+        viewModel->file()->triggerViewModelCreatedCallback(true);
+#endif
         auto instance = viewModel->createInstance();
+#ifdef WITH_RIVE_TOOLS
+        viewModel->file()->triggerViewModelCreatedCallback(false);
+#endif
         lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
         return 1;
     }
