@@ -98,10 +98,10 @@ void Joystick::apply(Artboard* artboard) const
     if (m_xAnimation != nullptr)
     {
 #ifdef WITH_RECORDER
-    if(Artboard::isDebug) {
-        printf("[RECORDER_LOG] Joys::X for m_x: %s\n",
-               m_xAnimation->name().c_str());
-    }
+    // if(Artboard::isDebug) {
+    //     printf("[RECORDER_LOG] Joys::X for m_x: %s\n",
+    //            m_xAnimation->name().c_str());
+    // }
 #endif
         m_xAnimation->apply(
             artboard,
@@ -112,10 +112,10 @@ void Joystick::apply(Artboard* artboard) const
     {
 
 #ifdef WITH_RECORDER
-    if(Artboard::isDebug) {
-        printf("[RECORDER_LOG] Joys::Y for m_y: %s\n",
-               m_yAnimation->name().c_str());
-    }
+    // if(Artboard::isDebug) {
+    //     printf("[RECORDER_LOG] Joys::Y for m_y: %s\n",
+    //            m_yAnimation->name().c_str());
+    // }
 #endif
         m_yAnimation->apply(
             artboard,

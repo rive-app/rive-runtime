@@ -43,9 +43,9 @@ LinearAnimationInstance::~LinearAnimationInstance() {}
 bool LinearAnimationInstance::advanceAndApply(float seconds)
 {
     #ifdef WITH_RECORDER
-  if (Artboard::isDebug) {
-    printf("[RECORDER_LOG] ==> LinearAnimationInstance::advanceAndApply\n");
-  }
+//   if (Artboard::isDebug) {
+//     printf("[RECORDER_LOG] ==> LinearAnimationInstance::advanceAndApply\n");
+//   }
 #endif
     RIVE_PROF_SCOPE()
     bool more = this->advance(seconds, this);
