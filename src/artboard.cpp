@@ -1651,8 +1651,8 @@ LinearAnimation* Artboard::animation(const std::string& name) const
 LinearAnimation* Artboard::animation(size_t index) const
 {
 #ifdef WITH_RECORDER
-    if(!hasPrinted) {
-        hasPrinted = true;
+    if(!m_hasPrinted) {
+        m_hasPrinted = true;
         printf("[RECORDER_LOG] anims of: %s\n", name().c_str());
         int cnt = 0;
         for(auto& anim : m_Animations) {

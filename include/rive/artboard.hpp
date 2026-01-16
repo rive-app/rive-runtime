@@ -132,8 +132,8 @@ public:
     static uint64_t frameId() { return sm_frameId; }
 #ifdef WITH_RECORDER
     static bool isDebug;
-    bool hasPrinted = false;
-#endif
+    mutable bool m_hasPrinted = false;
+    #endif
 #ifdef TESTING
     static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
