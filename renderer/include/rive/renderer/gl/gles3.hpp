@@ -161,11 +161,12 @@ struct GLCapabilities
     uint32_t contextVersionMinor;
     uint32_t vendorDriverVersionMajor;
     uint32_t vendorDriverVersionMinor;
+    uint32_t adrenoSeries;
 
     // Workarounds.
-    // Some Mali and PowerVR devices crash when issuing draw commands with a
-    // large instancecount.
-    uint32_t maxSupportedInstancesPerDrawCommand;
+    // Many devices crash on draw commands with a large instancecount, or when
+    // drawing many instances without a glFlush to break them up.
+    uint32_t maxSupportedInstancesPerFlush;
     // Chrome 136 crashes when trying to run Rive because it attempts to enable
     // blending on the tessellation texture, which is invalid for an integer
     // render target. The workaround is to use a floating-point tessellation

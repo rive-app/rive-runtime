@@ -75,10 +75,20 @@ public:
     virtual void allocateWebGLPLSBacking(const GLCapabilities&) = 0;
 #endif
 
+    // Returns a texture that may be used in the absence of
+    // KHR_blend_equation_advanced to make a copy of the render target for
+    // blending.
+    GLuint dstColorTexture();
+    void bindDstColorFramebuffer(GLenum target);
+
 protected:
     RenderTargetGL(uint32_t width, uint32_t height) :
         RenderTarget(width, height)
     {}
+
+private:
+    glutils::Texture m_dstColorTexture = glutils::Texture::Zero();
+    glutils::Framebuffer m_dstColorFramebuffer = glutils::Framebuffer::Zero();
 };
 
 // GL render target that draws to an external texture provided by the client.

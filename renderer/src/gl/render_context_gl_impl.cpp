@@ -1710,6 +1710,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             desc.firstContour * sizeof(gpu::ContourData));
     }
 
+    GLFlushInjector flushInjector(m_capabilities);
+
     // Render the complex color ramps into the gradient texture.
     if (desc.gradSpanCount > 0)
     {
@@ -1739,10 +1741,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindVAO(m_colorRampVAO);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        for (auto [instanceCount, baseInstance] : InstanceChunker(
+        for (auto [chunkInstanceCount, chunkBaseInstance] : InstanceChunker(
                  desc.gradSpanCount,
                  math::lossless_numeric_cast<uint32_t>(desc.firstGradSpan),
-                 m_capabilities.maxSupportedInstancesPerDrawCommand))
+                 m_capabilities.maxSupportedInstancesPerFlush))
 
         {
             glVertexAttribIPointer(
@@ -1750,12 +1752,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 4,
                 GL_UNSIGNED_INT,
                 0,
-                reinterpret_cast<const void*>(baseInstance *
+                reinterpret_cast<const void*>(chunkBaseInstance *
                                               sizeof(gpu::GradientSpan)));
+            flushInjector.flushBeforeInstancedDrawIfNeeded(chunkInstanceCount);
             glDrawArraysInstanced(GL_TRIANGLE_STRIP,
                                   0,
                                   gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
-                                  instanceCount);
+                                  chunkInstanceCount);
         }
     }
 
@@ -1771,15 +1774,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindVAO(m_tessellateVAO);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        for (auto [instanceCount, baseInstance] : InstanceChunker(
-                 desc.tessVertexSpanCount,
-                 math::lossless_numeric_cast<uint32_t>(
-                     desc.firstTessVertexSpan),
-                 m_capabilities.maxSupportedInstancesPerDrawCommand))
+        for (auto [chunkInstanceCount, chunkBaseInstance] :
+             InstanceChunker(desc.tessVertexSpanCount,
+                             math::lossless_numeric_cast<uint32_t>(
+                                 desc.firstTessVertexSpan),
+                             m_capabilities.maxSupportedInstancesPerFlush))
 
         {
             size_t tessSpanOffsetInBytes =
-                baseInstance * sizeof(gpu::TessVertexSpan);
+                chunkBaseInstance * sizeof(gpu::TessVertexSpan);
             for (GLuint i = 0; i < 3; ++i)
             {
                 glVertexAttribPointer(i,
@@ -1797,11 +1800,12 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 sizeof(TessVertexSpan),
                 reinterpret_cast<const void*>(tessSpanOffsetInBytes +
                                               offsetof(TessVertexSpan, x0x1)));
+            flushInjector.flushBeforeInstancedDrawIfNeeded(chunkInstanceCount);
             glDrawElementsInstanced(GL_TRIANGLES,
                                     std::size(gpu::kTessSpanIndices),
                                     GL_UNSIGNED_SHORT,
                                     0,
-                                    instanceCount);
+                                    chunkInstanceCount);
         }
     }
 
@@ -1897,7 +1901,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     gpu::kMidpointFanCenterAAPatchBaseIndex,
                     fillBatch.patchCount,
                     fillBatch.basePatch,
-                    m_atlasFillProgram.baseInstanceUniformLocation());
+                    m_atlasFillProgram.baseInstanceUniformLocation(),
+                    &flushInjector);
             }
         }
 
@@ -1920,7 +1925,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     gpu::kMidpointFanPatchBaseIndex,
                     strokeBatch.patchCount,
                     strokeBatch.basePatch,
-                    m_atlasFillProgram.baseInstanceUniformLocation());
+                    m_atlasFillProgram.baseInstanceUniformLocation(),
+                    &flushInjector);
             }
         }
 
@@ -2044,14 +2050,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else
             {
-                // Bind the renderTexture where it can be read for in-shader
+                // Bind the dstColorTexture where it can be read for in-shader
                 // blending. We will resolve MSAA into this texture before
                 // issuing draws that use advanced blend.
-                // NOTE: The renderTexture() function may lazily allocate the
+                // NOTE: The dstColorTexture() function may lazily allocate the
                 // texture, so don't call glActiveTexture() until it returns.
-                GLuint renderTexture = renderTarget->renderTexture();
+                GLuint dstColorTexture = renderTarget->dstColorTexture();
                 glActiveTexture(GL_TEXTURE0 + DST_COLOR_TEXTURE_IDX);
-                glBindTexture(GL_TEXTURE_2D, renderTexture);
+                glBindTexture(GL_TEXTURE_2D, dstColorTexture);
             }
         }
     }
@@ -2150,7 +2156,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 // blending.
                 assert(desc.interlockMode == gpu::InterlockMode::msaa);
                 assert(batch.dstReadList != nullptr);
-                renderTarget->bindTextureFramebuffer(GL_DRAW_FRAMEBUFFER);
+                renderTarget->bindDstColorFramebuffer(GL_DRAW_FRAMEBUFFER);
                 for (const Draw* draw = batch.dstReadList; draw != nullptr;
                      draw = draw->nextDstRead())
                 {
@@ -2188,7 +2194,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     gpu::PatchBaseIndex(drawType),
                     batch.elementCount,
                     batch.baseElement,
-                    drawProgram->baseInstanceUniformLocation());
+                    drawProgram->baseInstanceUniformLocation(),
+                    &flushInjector);
                 break;
             }
 
@@ -2373,7 +2380,8 @@ void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
     uint32_t baseIndex,
     uint32_t instanceCount,
     uint32_t baseInstance,
-    GLint baseInstanceUniformLocation)
+    GLint baseInstanceUniformLocation,
+    GLFlushInjector* flushInjector)
 {
     assert(m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin ==
            (baseInstanceUniformLocation < 0));
@@ -2382,8 +2390,9 @@ void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
     for (auto [chunkInstanceCount, chunkBaseInstance] :
          InstanceChunker(instanceCount,
                          baseInstance,
-                         m_capabilities.maxSupportedInstancesPerDrawCommand))
+                         m_capabilities.maxSupportedInstancesPerFlush))
     {
+        flushInjector->flushBeforeInstancedDrawIfNeeded(chunkInstanceCount);
 #ifndef RIVE_WEBGL
         if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
         {
@@ -2521,6 +2530,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
                "%u.%u",
                &capabilities.contextVersionMajor,
                &capabilities.contextVersionMinor);
+        capabilities.vendorDriverVersionMajor = 0;
+        capabilities.vendorDriverVersionMinor = 0;
     }
     else if (capabilities.isPowerVR)
     {
@@ -2537,12 +2548,20 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
                "OpenGL ES %u.%u",
                &capabilities.contextVersionMajor,
                &capabilities.contextVersionMinor);
+        capabilities.vendorDriverVersionMajor = 0;
+        capabilities.vendorDriverVersionMinor = 0;
     }
 #ifdef RIVE_DESKTOP_GL
     assert(capabilities.contextVersionMajor == GLAD_GL_version_major);
     assert(capabilities.contextVersionMinor == GLAD_GL_version_minor);
     assert(capabilities.isGLES == static_cast<bool>(GLAD_GL_version_es));
 #endif
+
+    if (!capabilities.isAdreno ||
+        !sscanf(rendererString, "Adreno (TM) %d", &capabilities.adrenoSeries))
+    {
+        capabilities.adrenoSeries = 0;
+    }
 
     if (capabilities.isGLES)
     {
@@ -2569,7 +2588,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
     }
 
-    if (capabilities.isMali || capabilities.isPowerVR)
+    if (capabilities.isMali || capabilities.isPowerVR ||
+        (capabilities.isAdreno && capabilities.adrenoSeries < 600))
     {
         // We have observed crashes on Mali-G71 when issuing instanced draws
         // with somewhere between 2^15 and 2^16 instances.
@@ -2577,13 +2597,17 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         // Skia also reports crashes on PowerVR when drawing somewhere between
         // 2^14 and 2^15 instances.
         //
-        // Limit the maximum number of instances we issue per-draw-call on these
-        // devices to a safe value, far below the observed crash thresholds.
-        capabilities.maxSupportedInstancesPerDrawCommand = 999;
+        // We have observed Adreno 308 crash when drawing too many instances
+        // spread across any number of draw calls. Breaking them up with glFlush
+        // appears to fix the crashes.
+        //
+        // Limit the maximum number of instances we issue per flush on these
+        // devices, splitting up draw calls if needed.
+        capabilities.maxSupportedInstancesPerFlush = (1u << 13) - 1u;
     }
     else
     {
-        capabilities.maxSupportedInstancesPerDrawCommand = ~0u;
+        capabilities.maxSupportedInstancesPerFlush = ~0u;
     }
 
     // Our baseline feature set is GLES 3.0. Capabilities from newer context

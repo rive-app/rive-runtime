@@ -10,6 +10,36 @@
 
 namespace rive::gpu
 {
+GLuint RenderTargetGL::dstColorTexture()
+{
+    if (m_dstColorTexture == 0)
+    {
+        m_dstColorTexture = glutils::Texture();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_dstColorTexture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width(), height());
+    }
+    return m_dstColorTexture;
+}
+
+void RenderTargetGL::bindDstColorFramebuffer(GLenum target)
+{
+    if (m_dstColorFramebuffer == 0)
+    {
+        m_dstColorFramebuffer = glutils::Framebuffer();
+        glBindFramebuffer(target, m_dstColorFramebuffer);
+        glFramebufferTexture2D(target,
+                               GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D,
+                               dstColorTexture(),
+                               0);
+    }
+    else
+    {
+        glBindFramebuffer(target, m_dstColorFramebuffer);
+    }
+}
+
 TextureRenderTargetGL::~TextureRenderTargetGL() {}
 
 void TextureRenderTargetGL::bindTextureFramebuffer(GLenum target)

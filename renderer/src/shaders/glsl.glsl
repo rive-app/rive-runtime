@@ -653,9 +653,13 @@ precision highp int;
 
 #if @GLSL_VERSION < 310
 // Polyfill ES 3.1+ methods.
-INLINE half4 unpackUnorm4x8(uint u)
+INLINE half4 polyfill_unpackUnorm4x8(uint u)
 {
     uint4 vals = uint4(u & 0xffu, (u >> 8) & 0xffu, (u >> 16) & 0xffu, u >> 24);
     return float4(vals) * (1. / 255.);
 }
+// Use #define for unpackUnorm4x8 because some drivers (e.g., Adreno 308)
+// incorrectly declare this builtin on ES 3.0, leading to compiler errors if we
+// just declare it as a normal function.
+#define unpackUnorm4x8 polyfill_unpackUnorm4x8
 #endif

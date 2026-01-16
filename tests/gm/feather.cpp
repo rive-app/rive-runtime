@@ -15,7 +15,7 @@ namespace rive::gpu
 class FeatherGM : public GM
 {
 public:
-    FeatherGM() : GM(1800, 2100)
+    FeatherGM() : GM(1756, 2048)
     {
         m_paint = TestingWindow::Get()->factory()->makeRenderPaint();
         m_paint->color(0xffffffff);
@@ -25,7 +25,7 @@ public:
 
     void onDraw(Renderer* renderer) override
     {
-        renderer->scale(1.5f, 1.5f);
+        renderer->scale(1.463f, 1.463f);
         for (int y = 0; y < 7; ++y)
         {
             renderer->save();
