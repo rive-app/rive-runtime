@@ -143,6 +143,13 @@ if _OPTIONS['with_optick'] then
     defines({ 'RIVE_OPTICK' })
     RIVE_OPTICK_URL = 'bombomby/optick'
     RIVE_OPTICK_VERSION = '1.4.0.0'
+end
+
+newoption({ trigger = 'with_microprofile', description = 'use microprofile profiler' })
+if _OPTIONS['with_microprofile'] then
+    defines({ 'RIVE_MICROPROFILE' })
+    RIVE_MICROPROFILE_URL = 'aliasbinman/microprofile'
+    RIVE_MICROPROFILE_VERSION = 'rivebuild'
 end 
 
 location(RIVE_BUILD_OUT)

@@ -193,6 +193,8 @@ public:
         if (!m_isHeadless)
             m_swapchain->Present(0, 0);
 
+        RIVE_PROF_ENDFRAME()
+
         m_renderTarget->setTargetTexture(nullptr);
     }
 

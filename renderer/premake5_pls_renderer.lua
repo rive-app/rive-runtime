@@ -183,6 +183,10 @@ if _OPTIONS['with_optick'] then
     optick = dependency.github(RIVE_OPTICK_URL, RIVE_OPTICK_VERSION)
 end
 
+if _OPTIONS['with_microprofile'] then
+    microprofile = dependency.github(RIVE_MICROPROFILE_URL, RIVE_MICROPROFILE_VERSION)
+end
+
 project('rive_pls_renderer')
 do
     kind('StaticLib')
@@ -202,6 +206,10 @@ do
 
     if _OPTIONS['with_optick'] then
         includedirs({optick .. '/src'})
+    end
+
+    if _OPTIONS['with_microprofile'] then
+        includedirs({ microprofile })
     end
 
     if _OPTIONS['with_vulkan'] then

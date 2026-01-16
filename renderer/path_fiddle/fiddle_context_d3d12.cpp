@@ -1,4 +1,5 @@
 #include "fiddle_context.hpp"
+#include "rive/profiler/profiler_macros.h"
 
 #if !defined(_WIN32) || defined(RIVE_UNREAL)
 
@@ -159,6 +160,10 @@ public:
             m_device->CreateCommandQueue(&queueDesc,
                                          IID_PPV_ARGS(&m_copyCommandQueue)));
         NAME_RAW_D3D12_OBJECT(m_copyCommandQueue);
+
+#if defined(RIVE_MICROPROFILE)
+        MicroProfileGpuInitD3D12(m_device.Get(), m_commandQueue.Get());
+#endif
 
         for (auto i = 0; i < FrameCount; ++i)
         {
@@ -431,6 +436,9 @@ public:
 
         VERIFY_OK(m_commandQueue->Signal(m_fence.Get(),
                                          m_previousFrames[m_frameIndex]));
+
+        RIVE_PROF_GPUSUBMIT(0);
+        RIVE_PROF_ENDFRAME()
     }
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
@@ -447,7 +455,9 @@ public:
 
         VERIFY_OK(m_copyCommandList->Reset(m_copyAllocators[m_frameIndex].Get(),
                                            NULL));
-
+#if defined(RIVE_MICROPROFILE)
+        MicroProfileGpuSetContext(m_commandList.Get());
+#endif
         RenderContextD3D12Impl::CommandLists cmdLists = {
             m_copyCommandList.Get(),
             m_commandList.Get()};
@@ -575,6 +585,8 @@ public:
 
         if (!m_isHeadless)
             m_swapChain->Present(0, 0);
+
+        RIVE_PROF_GPUFLIP();
     }
 
 private:

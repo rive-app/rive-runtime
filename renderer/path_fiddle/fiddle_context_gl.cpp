@@ -13,6 +13,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions)
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
+#include "rive/profiler/profiler_macros.h"
 
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
@@ -169,6 +170,7 @@ public:
                               GL_NEAREST);
             glDisable(GL_SCISSOR_TEST);
         }
+        RIVE_PROF_ENDFRAME()
     }
 
 protected:

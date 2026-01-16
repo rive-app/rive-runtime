@@ -42,6 +42,11 @@ if _OPTIONS['with_optick'] then
     dofile(path.join(dependencies, 'premake5_optick.lua'))
 end
 
+if _OPTIONS['with_microprofile'] then
+    dofile(path.join(dependencies, 'premake5_microprofile.lua'))
+end
+
+
 if _OPTIONS['with_rive_scripting'] then
     local scripting = require(path.join(path.getabsolute('scripting/'), 'premake5'))
     luau = scripting.luau
@@ -123,6 +128,10 @@ do
 
     if _OPTIONS['with_optick'] then
         includedirs({ optick .. '/src' })
+    end
+
+    if _OPTIONS['with_microprofile'] then
+      includedirs({microprofile})
     end
 
     filter('system:macosx or system:ios')

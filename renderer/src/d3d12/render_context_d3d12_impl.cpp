@@ -4,6 +4,8 @@
 
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include "rive/renderer/d3d/d3d_constants.hpp"
+#include "rive/profiler/profiler_macros.h"
+
 // needed for root sig and heap constants
 #include "shaders/d3d/root.sig"
 
@@ -1108,6 +1110,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     if (desc.tessVertexSpanCount)
     {
+        RIVE_PROF_GPUNAME("Tessellate Curves");
+
         m_resourceManager->transition(cmdList,
                                       m_tesselationTexture.get(),
                                       D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -1190,6 +1194,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
+        RIVE_PROF_GPUNAME("atlasRender");
         m_resourceManager->transition(cmdList,
                                       m_atlasTexture.get(),
                                       D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -1278,88 +1283,95 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     cmdList->RSSetScissorRects(1, &scissorRect);
 
     // Setup and clear the PLS textures.
-
-    if (desc.fixedFunctionColorOutput)
     {
-        m_resourceManager->transition(cmdList,
-                                      targetTexture,
-                                      D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-        auto rtvHandle = m_rtvHeap->cpuHandleForIndex(TARGET_RTV_HEAP_OFFSET);
-        cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-
-        if (desc.colorLoadAction == gpu::LoadAction::clear)
+        RIVE_PROF_GPUNAME("clearPLSTextures");
+        if (desc.fixedFunctionColorOutput)
         {
-            float clearColor4f[4];
-            UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f);
-            cmdList->ClearRenderTargetView(rtvHandle, clearColor4f, 0, nullptr);
-        }
-    }
-    else // !desc.fixedFunctionColorOutput
-    {
-        if (renderTarget->targetTextureSupportsUAV())
-        {
-            m_resourceManager->transition(
-                cmdList,
-                targetTexture,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        }
+            m_resourceManager->transition(cmdList,
+                                          targetTexture,
+                                          D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-        if (desc.colorLoadAction == gpu::LoadAction::clear)
-        {
-            auto tex = renderTarget->targetTextureSupportsUAV()
-                           ? renderTarget->targetTexture()->resource()
-                           : renderTarget->offscreenTexture()->resource();
+            auto rtvHandle =
+                m_rtvHeap->cpuHandleForIndex(TARGET_RTV_HEAP_OFFSET);
+            cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-            if (m_capabilities.supportsTypedUAVLoadStore)
+            if (desc.colorLoadAction == gpu::LoadAction::clear)
             {
                 float clearColor4f[4];
                 UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f);
-
-                auto gpuHandle = m_srvUavCbvHeap->gpuHandleForIndex(
-                    ATOMIC_COLOR_HEAP_OFFSET);
-                auto cpuHandle = m_cpuSrvUavCbvHeap->cpuHandleForIndex(
-                    ATOMIC_COLOR_HEAP_OFFSET);
-                m_resourceManager->clearUAV(cmdList,
-                                            tex,
-                                            gpuHandle,
-                                            cpuHandle,
-                                            clearColor4f,
-                                            desc.interlockMode ==
-                                                InterlockMode::atomics);
-            }
-            else
-            {
-                UINT clearColorui[4] = {
-                    gpu::SwizzleRiveColorToRGBAPremul(desc.colorClearValue)};
-
-                auto gpuHandle = m_srvUavCbvHeap->gpuHandleForIndex(
-                    ATOMIC_COLOR_HEAP_OFFSET);
-                auto cpuHandle = m_cpuSrvUavCbvHeap->cpuHandleForIndex(
-                    ATOMIC_COLOR_HEAP_OFFSET);
-
-                m_resourceManager->clearUAV(cmdList,
-                                            tex,
-                                            gpuHandle,
-                                            cpuHandle,
-                                            clearColorui,
-                                            desc.interlockMode ==
-                                                InterlockMode::atomics);
+                cmdList->ClearRenderTargetView(rtvHandle,
+                                               clearColor4f,
+                                               0,
+                                               nullptr);
             }
         }
-        if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget &&
-            !renderTarget->targetTextureSupportsUAV())
+        else // !desc.fixedFunctionColorOutput
         {
-            auto offscreenTex = renderTarget->offscreenTexture();
-            blitSubRect(cmdList,
-                        offscreenTex,
-                        renderTarget->targetTexture(),
-                        desc.renderTargetUpdateBounds);
+            if (renderTarget->targetTextureSupportsUAV())
+            {
+                m_resourceManager->transition(
+                    cmdList,
+                    targetTexture,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            }
 
-            m_resourceManager->transition(
-                cmdList,
-                offscreenTex,
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            if (desc.colorLoadAction == gpu::LoadAction::clear)
+            {
+                auto tex = renderTarget->targetTextureSupportsUAV()
+                               ? renderTarget->targetTexture()->resource()
+                               : renderTarget->offscreenTexture()->resource();
+
+                if (m_capabilities.supportsTypedUAVLoadStore)
+                {
+                    float clearColor4f[4];
+                    UnpackColorToRGBA32FPremul(desc.colorClearValue,
+                                               clearColor4f);
+
+                    auto gpuHandle = m_srvUavCbvHeap->gpuHandleForIndex(
+                        ATOMIC_COLOR_HEAP_OFFSET);
+                    auto cpuHandle = m_cpuSrvUavCbvHeap->cpuHandleForIndex(
+                        ATOMIC_COLOR_HEAP_OFFSET);
+                    m_resourceManager->clearUAV(cmdList,
+                                                tex,
+                                                gpuHandle,
+                                                cpuHandle,
+                                                clearColor4f,
+                                                desc.interlockMode ==
+                                                    InterlockMode::atomics);
+                }
+                else
+                {
+                    UINT clearColorui[4] = {gpu::SwizzleRiveColorToRGBAPremul(
+                        desc.colorClearValue)};
+
+                    auto gpuHandle = m_srvUavCbvHeap->gpuHandleForIndex(
+                        ATOMIC_COLOR_HEAP_OFFSET);
+                    auto cpuHandle = m_cpuSrvUavCbvHeap->cpuHandleForIndex(
+                        ATOMIC_COLOR_HEAP_OFFSET);
+
+                    m_resourceManager->clearUAV(cmdList,
+                                                tex,
+                                                gpuHandle,
+                                                cpuHandle,
+                                                clearColorui,
+                                                desc.interlockMode ==
+                                                    InterlockMode::atomics);
+                }
+            }
+            if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget &&
+                !renderTarget->targetTextureSupportsUAV())
+            {
+                auto offscreenTex = renderTarget->offscreenTexture();
+                blitSubRect(cmdList,
+                            offscreenTex,
+                            renderTarget->targetTexture(),
+                            desc.renderTargetUpdateBounds);
+
+                m_resourceManager->transition(
+                    cmdList,
+                    offscreenTex,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            }
         }
     }
 
@@ -1412,6 +1424,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     m_heapDescriptorOffset += imageDescriptorOffset;
 
+    RIVE_PROF_GPUNAME("DrawList");
     for (const DrawBatch& batch : *desc.drawList)
     {
         assert(batch.elementCount != 0);
@@ -1544,6 +1557,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
+                RIVE_PROF_GPUNAME("Patches");
                 cmdList->IASetPrimitiveTopology(
                     D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 auto IBV = m_pathPatchIndexBuffer->indexBufferView();
@@ -1562,6 +1576,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::interiorTriangulation:
             case DrawType::atlasBlit:
             {
+                RIVE_PROF_GPUNAME("interiorTriangulation||atlasBlit");
                 cmdList->IASetPrimitiveTopology(
                     D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 cmdList->DrawInstanced(batch.elementCount,
@@ -1572,6 +1587,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             }
             case DrawType::imageRect:
             {
+                RIVE_PROF_GPUNAME("imageRect");
+
                 cmdList->IASetPrimitiveTopology(
                     D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 auto IBV = m_imageRectIndexBuffer->indexBufferView();
@@ -1592,6 +1609,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             }
             case DrawType::imageMesh:
             {
+                RIVE_PROF_GPUNAME("imageMesh");
+
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         RenderBufferD3D12Impl*,
                                         batch.vertexBuffer);
@@ -1633,11 +1652,16 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::renderPassResolve:
+            {
+                RIVE_PROF_GPUNAME("renderPassResolve");
+
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 cmdList->IASetPrimitiveTopology(
                     D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
                 cmdList->DrawInstanced(4, 1, 0, 0);
                 break;
+            }
+
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaMidpointFans:
@@ -1654,6 +1678,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
         !renderTarget->targetTextureSupportsUAV())
     {
+        RIVE_PROF_GPUNAME("blit_sub_rect");
+
         // We rendered to an offscreen UAV and did not resolve to the
         // renderTarget. Copy back to the main target.
         assert(!desc.fixedFunctionColorOutput);

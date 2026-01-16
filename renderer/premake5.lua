@@ -94,6 +94,11 @@ if not _OPTIONS['with-webgpu'] then
             externalincludedirs({ optick .. '/src'})
         end
 
+        if _OPTIONS['with_microprofile'] then
+            links({'microprofile'})
+            externalincludedirs({ microprofile})
+        end
+
         if rive_target_os == 'windows' then
             externalincludedirs({
                 dx12_headers .. '/include/directx',
