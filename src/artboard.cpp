@@ -760,6 +760,11 @@ void Artboard::addObject(Core* object) { m_Objects.push_back(object); }
 
 void Artboard::addAnimation(LinearAnimation* object)
 {
+    #ifdef WITH_RECORDER
+    if(Artboard::isDebug) {
+        printf("[RECORDER_LOG]Artboard::addAnimation: %s to %s at index: %zu\n", object->name().c_str(), name().c_str(), m_Animations.size());
+    }
+#endif
     m_Animations.push_back(object);
 }
 
@@ -1264,9 +1269,9 @@ bool Artboard::updatePass(bool isRoot)
 bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
 #ifdef WITH_RECORDER
-    if(Artboard::isDebug) {
-        printf("[RECORDER_LOG] Artboard::advanceInternal: %f for %s\n", elapsedSeconds, name().c_str());
-    }
+    // if(Artboard::isDebug) {
+    //     printf("[RECORDER_LOG] Artboard::advanceInternal: %f for %s\n", elapsedSeconds, name().c_str());
+    // }
 #endif
     bool didUpdate = false;
 

@@ -27,14 +27,22 @@ StatusCode Joystick::onAddedDirty(CoreContext* context)
 
 StatusCode Joystick::onAddedClean(CoreContext* context)
 {
+    m_xAnimation = artboard()->animation(xId());
+    m_yAnimation = artboard()->animation(yId());
 #ifdef WITH_RECORDER
     if(Artboard::isDebug) {
         printf("[RECORDER_LOG] Joys::added x: %u y: %u\n",
                xId(), yId());
+        if(m_xAnimation) {
+            printf("[RECORDER_LOG] Joys::added x name: %s\n",
+                m_xAnimation->name().c_str());
+        }
+        if(m_yAnimation) {
+            printf("[RECORDER_LOG] Joys::added y name: %s\n",
+                m_yAnimation->name().c_str());
+        }
     }
 #endif
-    m_xAnimation = artboard()->animation(xId());
-    m_yAnimation = artboard()->animation(yId());
 
     return StatusCode::Ok;
 }
