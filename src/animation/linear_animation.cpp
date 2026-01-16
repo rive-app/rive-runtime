@@ -48,12 +48,10 @@ void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object) {
 void LinearAnimation::apply(Artboard *artboard, float time, float mix) const {
 #ifdef WITH_RECORDER
   if (Artboard::isDebug) {
-    printf("[RECORDER_LOG] LinearAnimation::apply: %f to %s\n",
-           time, name().c_str());
+    printf("[RECORDER_LOG] LinearAnimation::apply: %f to %s for artboard: %s\n",
+           time, name().c_str(), artboard->name().c_str());
   }
 #endif
-    printf("[RECORDER_LOG] LinearAnimation::apply: %f to %s\n",
-           time, name().c_str());
   if (quantize()) {
     float ffps = (float)fps();
     time = std::floor(time * ffps) / ffps;
