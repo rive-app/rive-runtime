@@ -1645,6 +1645,12 @@ LinearAnimation* Artboard::animation(const std::string& name) const
 
 LinearAnimation* Artboard::animation(size_t index) const
 {
+#ifdef WITH_RECORDER
+    if(Artboard::isDebug) {
+        printf("[RECORDER_LOG] anim: %zu and size: %zu\n",
+               index, m_Animations.size());
+    }
+#endif
     if (index >= m_Animations.size())
     {
         return nullptr;
