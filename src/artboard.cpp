@@ -1265,7 +1265,7 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
 #ifdef WITH_RECORDER
     if(Artboard::isDebug) {
-        printf("[RECORDER_LOG] Artboard::advanceInternal: %f\n", elapsedSeconds);
+        printf("[RECORDER_LOG] Artboard::advanceInternal: %f for %s\n", elapsedSeconds, name().c_str());
     }
 #endif
     bool didUpdate = false;
