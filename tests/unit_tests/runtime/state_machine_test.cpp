@@ -528,3 +528,66 @@ TEST_CASE("Transition with list index can be compared to a number", "[silver]")
 
     CHECK(silver.matches("transition_index_condition"));
 }
+
+TEST_CASE("Listeners are sorted in the right order", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/sorted_listeners.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Down (Move + Down happen on the same frame, but down happens after move)
+    silver.addFrame();
+    stateMachine->pointerDown(Vec2D(250.0f, 250.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click (Up + Click on same frame, but click happens after up)
+    silver.addFrame();
+    stateMachine->pointerUp(Vec2D(250.0f, 250.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Exit
+    silver.addFrame();
+    stateMachine->pointerMove(Vec2D(0.0f, 0.0f), 0, 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Drag gesture
+    silver.addFrame();
+    stateMachine->pointerDown(Vec2D(250.0f, 250.0f), 0);
+    stateMachine->pointerMove(Vec2D(251.0f, 251.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Up
+    silver.addFrame();
+    stateMachine->pointerUp(Vec2D(251.0f, 251.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Exit
+    silver.addFrame();
+    stateMachine->pointerMove(Vec2D(0.0f, 0.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // (Move): Enter + Move, but move happens after enter
+    silver.addFrame();
+    stateMachine->pointerMove(Vec2D(251.0f, 251.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("sorted_listeners"));
+}
