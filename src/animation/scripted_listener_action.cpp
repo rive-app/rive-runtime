@@ -1,5 +1,6 @@
 #include "rive/animation/scripted_listener_action.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/importers/state_machine_importer.hpp"
 
 using namespace rive;
 
@@ -66,6 +67,14 @@ StatusCode ScriptedListenerAction::import(ImportStack& importStack)
     {
         return result;
     }
+
+    auto stateMachineImporter =
+        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
+    if (stateMachineImporter == nullptr)
+    {
+        return StatusCode::MissingObject;
+    }
+    stateMachineImporter->addScriptedObject(this);
     return Super::import(importStack);
 }
 
@@ -83,4 +92,11 @@ Core* ScriptedListenerAction::clone() const
         twin->addProperty(clonedValue);
     }
     return twin;
+}
+
+ScriptedObject* ScriptedListenerAction::cloneScriptedObject() const
+{
+    auto clonedScriptedObject = clone()->as<ScriptedListenerAction>();
+    clonedScriptedObject->reinit();
+    return clonedScriptedObject;
 }

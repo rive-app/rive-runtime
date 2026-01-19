@@ -39,4 +39,9 @@ bool StateMachineImporter::readNullObject()
     return true;
 }
 
+void StateMachineImporter::addScriptedObject(ScriptedObject* object)
+{
+    m_StateMachine->addScriptedObject(object);
+}
+
 StatusCode StateMachineImporter::resolve() { return StatusCode::Ok; }

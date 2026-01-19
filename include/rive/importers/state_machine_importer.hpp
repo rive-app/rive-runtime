@@ -10,6 +10,7 @@ class StateMachineLayer;
 class StateMachineListener;
 class StateMachine;
 class DataBind;
+class ScriptedObject;
 class StateMachineImporter : public ImportStackObject
 {
 private:
@@ -23,6 +24,7 @@ public:
     void addInput(std::unique_ptr<StateMachineInput>);
     void addListener(std::unique_ptr<StateMachineListener>);
     void addDataBind(std::unique_ptr<DataBind>);
+    void addScriptedObject(ScriptedObject* object);
 
     StatusCode resolve() override;
     bool readNullObject() override;

@@ -63,6 +63,7 @@ public:
     virtual ScriptProtocol scriptProtocol() = 0;
     int self() { return m_self; }
     virtual Component* component() = 0;
+    virtual ScriptedObject* cloneScriptedObject() const { return nullptr; }
 };
 } // namespace rive
 

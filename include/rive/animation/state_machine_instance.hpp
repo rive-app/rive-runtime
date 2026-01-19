@@ -206,7 +206,7 @@ public:
     bool hasListeners() { return m_hitComponents.size() > 0; }
     void clearDataContext();
     void internalDataContext(DataContext* dataContext);
-    ScriptedObject* scriptedObject(const ScriptedObject*);
+    ScriptedObject* scriptedObject(const ScriptedObject*) const;
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)

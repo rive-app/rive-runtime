@@ -4,6 +4,7 @@
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_listener.hpp"
+#include "rive/scripted/scripted_object.hpp"
 #include "rive/data_bind/data_bind.hpp"
 
 using namespace rive;
@@ -156,4 +157,9 @@ const DataBind* StateMachine::dataBind(size_t index) const
         return m_dataBinds[index].get();
     }
     return nullptr;
+}
+
+void StateMachine::addScriptedObject(ScriptedObject* object)
+{
+    m_scriptedObjects.push_back(object);
 }

@@ -8,6 +8,7 @@
 #include "rive/animation/layer_state_flags.hpp"
 #include "rive/animation/nested_linear_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/animation/scripted_transition_condition.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
@@ -1482,32 +1483,18 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             this);
         m_hitComponents.push_back(std::move(hc));
     }
-    // Initialize local instances of ScriptedListenerActions
-    for (std::size_t i = 0; i < machine->listenerCount(); i++)
-    {
-        auto listener = machine->listener(i);
 
-        for (std::size_t j = 0; j < listener->actionCount(); j++)
-        {
-            auto action = listener->action(j);
-            if (action->is<ScriptedListenerAction>())
-            {
-                auto scriptedListenerAction =
-                    action->as<ScriptedListenerAction>();
-                auto scriptedListenerActionClone =
-                    static_cast<ScriptedListenerAction*>(
-                        scriptedListenerAction->clone());
-                scriptedListenerActionClone->reinit();
-                m_scriptedListenerActionsMap[scriptedListenerAction] =
-                    scriptedListenerActionClone;
-            }
-        }
+    // Initialize local instances of ScriptedObjects
+    for (auto& scriptedOb : machine->scriptedObjects())
+    {
+        m_scriptedListenerActionsMap[scriptedOb] =
+            scriptedOb->cloneScriptedObject();
     }
     sortHitComponents();
 }
 
 ScriptedObject* StateMachineInstance::scriptedObject(
-    const ScriptedObject* source)
+    const ScriptedObject* source) const
 {
     auto itr = m_scriptedListenerActionsMap.find(source);
     if (itr != m_scriptedListenerActionsMap.end())

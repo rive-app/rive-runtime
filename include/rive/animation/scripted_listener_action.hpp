@@ -30,6 +30,7 @@ public:
     Component* component() override { return nullptr; }
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
+    ScriptedObject* cloneScriptedObject() const override;
 };
 } // namespace rive
 
