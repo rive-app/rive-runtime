@@ -39,14 +39,19 @@ class ScriptInput
 protected:
     ScriptedObject* m_scriptedObject = nullptr;
     DataBind* m_dataBind = nullptr;
+    bool m_ownsDataBind = false;
 
 public:
-    virtual ~ScriptInput() {};
+    virtual ~ScriptInput();
     virtual void initScriptedValue();
     virtual bool validateForScriptInit() = 0;
     static ScriptInput* from(Core* component);
     DataBind* dataBind() { return m_dataBind; }
-    void dataBind(DataBind* dataBind) { m_dataBind = dataBind; }
+    void dataBind(DataBind* dataBind, bool ownsDataBind = false)
+    {
+        m_dataBind = dataBind;
+        m_ownsDataBind = ownsDataBind;
+    }
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
     void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
 };

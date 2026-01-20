@@ -241,7 +241,7 @@ private:
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
     std::unordered_map<const ScriptedObject*, ScriptedObject*>
-        m_scriptedListenerActionsMap;
+        m_scriptedObjectsMap;
     std::unordered_map<BindableProperty*, DataBind*>
         m_bindableDataBindsToTarget;
     std::unordered_map<BindableProperty*, DataBind*>

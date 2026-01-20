@@ -548,6 +548,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
             case ScriptedPathEffect::typeKey:
+            case ScriptedListenerAction::typeKey:
+            case ScriptedTransitionCondition::typeKey:
             {
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)

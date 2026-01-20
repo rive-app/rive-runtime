@@ -9,6 +9,8 @@ class ScriptedListenerAction : public ScriptedListenerActionBase,
                                public ScriptedObject
 {
 public:
+    ~ScriptedListenerAction();
+    virtual void disposeScriptInputs() override;
     void perform(StateMachineInstance* stateMachineInstance,
                  Vec2D position,
                  Vec2D previousPosition,
@@ -30,7 +32,8 @@ public:
     Component* component() override { return nullptr; }
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
-    ScriptedObject* cloneScriptedObject() const override;
+    ScriptedObject* cloneScriptedObject(DataBindContainer*) const override;
+    void addProperty(CustomProperty* prop) override;
 };
 } // namespace rive
 

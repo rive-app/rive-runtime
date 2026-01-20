@@ -16,8 +16,17 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/data_bind/data_bind.hpp"
 
 using namespace rive;
+
+ScriptInput::~ScriptInput()
+{
+    if (m_ownsDataBind && m_dataBind)
+    {
+        delete m_dataBind;
+    }
+}
 
 ScriptInput* ScriptInput::from(Core* component)
 {

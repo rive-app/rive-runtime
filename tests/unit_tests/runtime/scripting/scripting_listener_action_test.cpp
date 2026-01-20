@@ -44,3 +44,35 @@ TEST_CASE("scripted listener action", "[silver]")
 
     CHECK(silver.matches("scripted_listener_action"));
 }
+
+TEST_CASE("Listener action inputs", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/listener_action_inputs.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    stateMachine->pointerDown(
+        rive::Vec2D(artboard->width() / 2.0f, artboard->height() / 2.0f),
+        3);
+    stateMachine->pointerUp(
+        rive::Vec2D(artboard->width() / 2.0f, artboard->height() / 2.0f),
+        3);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("listener_action_inputs"));
+}

@@ -5,11 +5,14 @@
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/script_input_artboard.hpp"
+#include "rive/animation/scripted_listener_action.hpp"
+#include "rive/animation/scripted_transition_condition.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/data_bind/data_bind.hpp"
 
 using namespace rive;
 
@@ -25,6 +28,10 @@ ScriptedObject* ScriptedObject::from(Core* object)
             return object->as<ScriptedLayout>();
         case ScriptedPathEffect::typeKey:
             return object->as<ScriptedPathEffect>();
+        case ScriptedListenerAction::typeKey:
+            return object->as<ScriptedListenerAction>();
+        case ScriptedTransitionCondition::typeKey:
+            return object->as<ScriptedTransitionCondition>();
     }
     return nullptr;
 }
@@ -415,3 +422,31 @@ void ScriptedObject::setAsset(rcp<FileAsset> asset)
 }
 
 void ScriptedObject::markNeedsUpdate() {}
+
+void ScriptedObject::cloneProperties(CustomPropertyContainer* twin,
+                                     DataBindContainer* dataBindContainer) const
+{
+
+    for (auto prop : m_customProperties)
+    {
+        auto clonedValue = prop->clone()->as<CustomProperty>();
+        twin->addProperty(clonedValue);
+        auto input = ScriptInput::from(prop);
+        if (input != nullptr)
+        {
+            auto dataBind = input->dataBind();
+            if (dataBind)
+            {
+                auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
+                dataBindClone->file(dataBind->file());
+                if (dataBind->converter() != nullptr)
+                {
+                    dataBindClone->converter(
+                        dataBind->converter()->clone()->as<DataConverter>());
+                }
+                dataBindClone->target(clonedValue);
+                dataBindContainer->addDataBind(dataBindClone);
+            }
+        }
+    }
+}

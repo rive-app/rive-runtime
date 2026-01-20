@@ -18,6 +18,7 @@ class Artboard;
 class Component;
 class DataContext;
 class ViewModelInstanceValue;
+class DataBindContainer;
 
 class ScriptedObject : public FileAssetReferencer,
                        public CustomPropertyContainer,
@@ -63,7 +64,11 @@ public:
     virtual ScriptProtocol scriptProtocol() = 0;
     int self() { return m_self; }
     virtual Component* component() = 0;
-    virtual ScriptedObject* cloneScriptedObject() const { return nullptr; }
+    virtual ScriptedObject* cloneScriptedObject(DataBindContainer*) const
+    {
+        return nullptr;
+    }
+    void cloneProperties(CustomPropertyContainer*, DataBindContainer*) const;
 };
 } // namespace rive
 

@@ -9,6 +9,8 @@ class ScriptedTransitionCondition : public ScriptedTransitionConditionBase,
                                     public ScriptedObject
 {
 public:
+    ~ScriptedTransitionCondition();
+    virtual void disposeScriptInputs() override;
     bool evaluate(const StateMachineInstance* stateMachineInstance,
                   StateMachineLayerInstance* layerInstance) const override;
     bool evaluateStateful(const StateMachineInstance* stateMachineInstance,
@@ -25,7 +27,8 @@ public:
     Component* component() override { return nullptr; }
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
-    ScriptedObject* cloneScriptedObject() const override;
+    ScriptedObject* cloneScriptedObject(DataBindContainer*) const override;
+    void addProperty(CustomProperty* prop) override;
 };
 } // namespace rive
 

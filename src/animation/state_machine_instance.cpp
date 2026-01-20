@@ -1487,8 +1487,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     // Initialize local instances of ScriptedObjects
     for (auto& scriptedOb : machine->scriptedObjects())
     {
-        m_scriptedListenerActionsMap[scriptedOb] =
-            scriptedOb->cloneScriptedObject();
+        m_scriptedObjectsMap[scriptedOb] =
+            scriptedOb->cloneScriptedObject(this);
     }
     sortHitComponents();
 }
@@ -1496,8 +1496,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 ScriptedObject* StateMachineInstance::scriptedObject(
     const ScriptedObject* source) const
 {
-    auto itr = m_scriptedListenerActionsMap.find(source);
-    if (itr != m_scriptedListenerActionsMap.end())
+    auto itr = m_scriptedObjectsMap.find(source);
+    if (itr != m_scriptedObjectsMap.end())
     {
         return itr->second;
     }
@@ -1527,12 +1527,12 @@ StateMachineInstance::~StateMachineInstance()
         delete listenerViewModel;
     }
     m_bindablePropertyInstances.clear();
-    for (auto& pair : m_scriptedListenerActionsMap)
+    for (auto& pair : m_scriptedObjectsMap)
     {
         delete pair.second;
         pair.second = nullptr;
     }
-    m_scriptedListenerActionsMap.clear();
+    m_scriptedObjectsMap.clear();
 }
 
 void StateMachineInstance::removeEventListeners()
@@ -1843,7 +1843,7 @@ void StateMachineInstance::internalDataContext(DataContext* dataContext)
     {
         listenerViewModel->bindFromContext(dataContext);
     }
-    for (auto& scriptedObjectItr : m_scriptedListenerActionsMap)
+    for (auto& scriptedObjectItr : m_scriptedObjectsMap)
     {
         scriptedObjectItr.second->dataContext(dataContext);
     }
