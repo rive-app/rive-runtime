@@ -12,7 +12,8 @@
       "key": {
         "int": 281,
         "string": "alignvalue"
-      }
+      },
+      "bindable": true
     },
     "sizingValue": {
       "type": "uint",
@@ -20,7 +21,8 @@
       "key": {
         "int": 284,
         "string": "sizingvalue"
-      }
+      },
+      "bindable": true
     },
     "overflowValue": {
       "type": "uint",
@@ -29,7 +31,8 @@
         "int": 287,
         "string": "overflowvalue"
       },
-      "description": "One of visible, hidden, clipped, ellipsis, fit."
+      "description": "One of visible, hidden, clipped, ellipsis, fit.",
+      "bindable": true
     },
     "width": {
       "type": "double",
@@ -92,9 +95,9 @@
       "animates": true,
       "key": {
         "int": 371,
-        "string": "paragraphspacing",
-        "bindable": true
-      }
+        "string": "paragraphspacing"
+      },
+      "bindable": true
     },
     "originValue": {
       "type": "uint",
@@ -112,7 +115,8 @@
         "int": 683,
         "string": "wrapvalue"
       },
-      "description": "One of wrap, noWrap"
+      "description": "One of wrap, noWrap",
+      "bindable": true
     },
     "verticalAlignValue": {
       "type": "uint",
@@ -120,7 +124,8 @@
       "key": {
         "int": 685,
         "string": "verticalalignvalue"
-      }
+      },
+      "bindable": true
     },
     "fitFromBaseline": {
       "type": "bool",
@@ -129,6 +134,18 @@
         "int": 703,
         "string": "fitfrombaseline"
       }
+    },
+    "textRunListSource": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 932,
+        "string": "textrunlistsource"
+      },
+      "description": "Path to the list providing the text runs",
+      "bindable": true
     }
   }
 }

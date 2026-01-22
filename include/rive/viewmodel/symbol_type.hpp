@@ -17,6 +17,8 @@ enum class SymbolType : unsigned char
     distance = 10,
     inDistance = 11,
     outDistance = 12,
+    textStyle = 13,
+    textContent = 14,
 };
 }
 #endif

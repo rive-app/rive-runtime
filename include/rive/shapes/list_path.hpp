@@ -4,6 +4,7 @@
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/viewmodel/property_symbol_dependent.hpp"
 #include "rive/shapes/vertex.hpp"
 #include <stdio.h>
 namespace rive
@@ -11,69 +12,40 @@ namespace rive
 
 class VertexListener;
 
-class VertexPropertyListenerBase : public Dirtyable
+class VertexPropertyListenerSingle : public PropertySymbolDependentSingle
 {
 public:
-    VertexPropertyListenerBase(Vertex* vertex, VertexListener* vertexListener);
-    virtual ~VertexPropertyListenerBase() = default;
-
-    void addDirt(ComponentDirt value, bool recurse) override;
-    virtual void writeValue() = 0;
-
-protected:
-    Vertex* m_vertex = nullptr;
-    VertexListener* m_vertexListener = nullptr;
-};
-
-class VertexPropertyListener : public VertexPropertyListenerBase
-{
-public:
-    VertexPropertyListener(Vertex* vertex,
-                           VertexListener* vertexListener,
-                           ViewModelInstanceValue* instanceValue,
-                           float multiplier);
-    virtual ~VertexPropertyListener();
-
-protected:
-    ViewModelInstanceValue* m_instanceValue = nullptr;
-    float m_multiplier = 1;
-};
-
-class VertexPropertyListenerSingle : public VertexPropertyListener
-{
-public:
-    VertexPropertyListenerSingle(Vertex* vertex,
+    VertexPropertyListenerSingle(Core* vertex,
                                  VertexListener* vertexListener,
                                  ViewModelInstanceValue* instanceValue,
-                                 float multiplier,
-                                 uint16_t propertyKey);
-    ~VertexPropertyListenerSingle();
+                                 uint16_t propertyKey,
+                                 float multiplier);
     void writeValue() override;
 
 protected:
-    uint16_t m_propertyKey = 0;
+    float m_multiplier = 1;
 };
 
-class VertexPropertyListenerMulti : public VertexPropertyListener
+class VertexPropertyListenerMulti : public PropertySymbolDependentMulti
 {
 public:
-    VertexPropertyListenerMulti(Vertex* vertex,
+    VertexPropertyListenerMulti(Core* vertex,
                                 VertexListener* vertexListener,
                                 ViewModelInstanceValue* instanceValue,
-                                float multiplier,
-                                std::vector<uint16_t> propertyKeys);
+                                std::vector<uint16_t> propertyKeys,
+                                float multiplier);
 
     void writeValue() override;
 
 private:
-    std::vector<uint16_t> m_propertyKeys;
+    float m_multiplier = 1;
 };
 
-class VertexPropertyListenerPoint : public VertexPropertyListenerBase
+class VertexPropertyListenerPoint : public PropertySymbolDependent
 {
 public:
     ~VertexPropertyListenerPoint();
-    VertexPropertyListenerPoint(Vertex* vertex,
+    VertexPropertyListenerPoint(Core* vertex,
                                 VertexListener* vertexListener,
                                 ViewModelInstanceValue* xValue,
                                 ViewModelInstanceValue* yValue,
@@ -82,36 +54,31 @@ public:
     void writeValue() override;
 
 private:
-    ViewModelInstanceValue* m_xValue;
     ViewModelInstanceValue* m_yValue;
     uint16_t m_distKey;
     uint16_t m_rotKey;
 };
 
-class VertexListener
+class VertexListener : public CoreObjectListener
 {
 public:
     VertexListener(Vertex* vertex, rcp<ViewModelInstance> instance, Path* path);
-    ~VertexListener();
 
-    Vertex* vertex() { return m_vertex; }
-    void markDirty() { m_path->markPathDirty(); }
-    void remap(rcp<ViewModelInstance> instance);
+    Vertex* vertex() { return m_core->as<Vertex>(); }
+    void markDirty() override { m_path->markPathDirty(); }
 
 private:
-    Vertex* m_vertex = nullptr;
-    rcp<ViewModelInstance> m_instance = nullptr;
     Path* m_path = nullptr;
-    std::vector<VertexPropertyListenerBase*> m_properties;
     void createPropertyListener(SymbolType symbolType);
     void createInPointPropertyListener();
     void createOutPointPropertyListener();
-    VertexPropertyListenerBase* createSinglePropertyListener(
+    PropertySymbolDependent* createSinglePropertyListener(
         SymbolType symbolType);
-    VertexPropertyListenerBase* createDistancePropertyListener();
-    VertexPropertyListenerBase* createRotationPropertyListener();
-    void createProperties();
-    void deleteProperties();
+    PropertySymbolDependent* createDistancePropertyListener();
+    PropertySymbolDependent* createRotationPropertyListener();
+
+protected:
+    void createProperties() override;
 };
 
 class ListPath : public ListPathBase, public DataBindListItemConsumer

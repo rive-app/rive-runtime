@@ -9,10 +9,135 @@ using namespace rive;
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/clip_result.hpp"
+#include "rive/generated/core_registry.hpp"
 #include <limits>
+
+TextValueRunProperty::TextValueRunProperty(
+    Core* textValueRun,
+    TextValueRunListener* textValueRunListener,
+    ViewModelInstanceValue* instanceValue,
+    uint16_t propertyKey,
+    SymbolType symbolType) :
+    PropertySymbolDependentSingle(textValueRun,
+                                  textValueRunListener,
+                                  instanceValue,
+                                  propertyKey),
+    m_symbolType(symbolType)
+{}
+
+void TextValueRunProperty::writeValue()
+{
+    switch (m_symbolType)
+    {
+        case SymbolType::textContent:
+            CoreRegistry::setString(
+                m_coreObject,
+                m_propertyKey,
+                m_instanceValue->as<ViewModelInstanceString>()
+                    ->propertyValue());
+            break;
+        case SymbolType::textStyle:
+        {
+            auto stylePaints =
+                static_cast<TextValueRunListener*>(m_coreObjectListener)
+                    ->text()
+                    ->textStylePaints();
+            auto styleValue =
+                m_instanceValue->as<ViewModelInstanceString>()->propertyValue();
+            for (size_t i = 0; i < stylePaints.size(); i++)
+            {
+                auto stylePaint = stylePaints[i];
+                if (stylePaint->name() == styleValue)
+                {
+                    m_coreObject->as<TextValueRun>()->style(stylePaint);
+                    break;
+                }
+                else if (i == 0)
+                {
+                    m_coreObject->as<TextValueRun>()->style(stylePaint);
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+TextValueRunListener::TextValueRunListener(TextValueRun* textValueRun,
+                                           rcp<ViewModelInstance> instance,
+                                           Text* text) :
+    CoreObjectListener(textValueRun, instance), m_text(text)
+{
+    createProperties();
+}
+
+void TextValueRunListener::markDirty() { m_text->markShapeDirty(); }
+
+void TextValueRunListener::createProperties()
+{
+    createPropertyListener(SymbolType::textStyle);
+    createPropertyListener(SymbolType::textContent);
+}
+
+TextValueRunProperty* TextValueRunListener::createSinglePropertyListener(
+    SymbolType symbolType)
+{
+    uint16_t propertyKey = 0;
+    switch (symbolType)
+    {
+        case SymbolType::textStyle:
+            propertyKey = TextValueRunBase::styleIdPropertyKey;
+            break;
+        case SymbolType::textContent:
+            propertyKey = TextValueRunBase::textPropertyKey;
+            break;
+        default:
+            break;
+    }
+    auto prop = m_instance->propertyValue(symbolType);
+    if (prop != nullptr && prop->is<ViewModelInstanceValue>())
+    {
+        auto vpl = new TextValueRunProperty(m_core,
+                                            this,
+                                            prop,
+                                            propertyKey,
+                                            symbolType);
+        return vpl;
+    }
+    return nullptr;
+}
+
+void TextValueRunListener::createPropertyListener(SymbolType symbolType)
+{
+    TextValueRunProperty* listener = nullptr;
+    switch (symbolType)
+    {
+        case SymbolType::textStyle:
+        case SymbolType::textContent:
+            listener = createSinglePropertyListener(symbolType);
+            break;
+        default:
+            break;
+    }
+    if (listener != nullptr)
+    {
+        listener->writeValue();
+        m_properties.push_back(listener);
+    }
+}
+
+Text::~Text()
+{
+    for (auto& textValueRun : m_valueRunListeners)
+    {
+        delete textValueRun;
+    }
+}
 
 Vec2D Text::measureLayout(float width,
                           LayoutMeasureMode widthMode,
@@ -65,7 +190,7 @@ void Text::clearRenderStyles()
     }
     m_renderStyles.clear();
 
-    for (TextValueRun* textValueRun : m_runs)
+    for (TextValueRun* textValueRun : m_allRuns)
     {
         textValueRun->resetHitTest();
     }
@@ -388,8 +513,8 @@ void Text::buildRenderStyles()
 
                 path.transformInPlace(pathTransform);
 
-                assert(run->styleId < m_runs.size());
-                TextValueRun* textValueRun = m_runs[run->styleId];
+                assert(run->styleId < m_allRuns.size());
+                TextValueRun* textValueRun = m_allRuns[run->styleId];
                 TextStylePaint* style = textValueRun->style();
                 // TextValueRun::onAddedDirty botches loading if it cannot
                 // resolve a style, so we're confident we have a style here.
@@ -487,7 +612,7 @@ skipLines:
 #endif
 
     // Step 8: cleanup
-    for (TextValueRun* textValueRun : m_runs)
+    for (TextValueRun* textValueRun : m_allRuns)
     {
         if (textValueRun->isHitTarget())
         {
@@ -527,7 +652,11 @@ void Text::draw(Renderer* renderer)
     }
 }
 
-void Text::addRun(TextValueRun* run) { m_runs.push_back(run); }
+void Text::addRun(TextValueRun* run)
+{
+    m_runs.push_back(run);
+    m_allRuns.push_back(run);
+}
 
 void Text::addModifierGroup(TextModifierGroup* group)
 {
@@ -616,7 +745,7 @@ bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
 {
     styledText.clear();
     uint16_t runIndex = 0;
-    for (auto valueRun : m_runs)
+    for (auto valueRun : m_allRuns)
     {
         auto style = valueRun->style();
         const std::string& text = valueRun->text();
@@ -944,6 +1073,7 @@ void Text::originYChanged()
 
 #else
 // Text disabled.
+Text::~Text() {}
 void Text::draw(Renderer* renderer) {}
 Core* Text::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 void Text::addRun(TextValueRun* run) {}
@@ -994,3 +1124,64 @@ TextAlign Text::align() const
     return m_layoutDirection == LayoutDirection::ltr ? TextAlign::left
                                                      : TextAlign::right;
 }
+
+void Text::updateList(std::vector<rcp<ViewModelInstanceListItem>>* list)
+{
+#ifdef WITH_RIVE_TEXT
+    buildTextStylePaints();
+    m_allRuns.clear();
+    m_allRuns.assign(m_runs.begin(), m_runs.end());
+    auto currentSize = m_valueRunListeners.size();
+    size_t index = 0;
+    for (auto& listItem : *list)
+    {
+        auto instance = listItem->viewModelInstance();
+        if (instance)
+        {
+            TextValueRun* textRun;
+            if (index < currentSize)
+            {
+                auto textRunListener = m_valueRunListeners[index];
+                textRunListener->remap(instance);
+                textRun = textRunListener->textValueRun();
+            }
+            else
+            {
+                textRun = new TextValueRun();
+                textRun->textComponent(this);
+                auto textRunListener =
+                    new TextValueRunListener(textRun, instance, this);
+                m_valueRunListeners.push_back(textRunListener);
+            }
+            if (textRun)
+            {
+                m_allRuns.push_back(textRun);
+            }
+            index++;
+        }
+    }
+    while (m_valueRunListeners.size() > index)
+    {
+        auto valueRun = m_valueRunListeners.back();
+        m_valueRunListeners.pop_back();
+        delete valueRun;
+    }
+    markShapeDirty();
+#endif
+}
+
+#ifdef WITH_RIVE_TEXT
+void Text::buildTextStylePaints()
+{
+    if (m_textStylePaints.size() == 0)
+    {
+        for (auto& child : children())
+        {
+            if (child->coreType() == TextStylePaint::typeKey)
+            {
+                m_textStylePaints.push_back(child->as<TextStylePaint>());
+            }
+        }
+    }
+}
+#endif

@@ -11,10 +11,17 @@ using namespace rive;
 void TextValueRun::textChanged()
 {
     m_length = -1;
-    parent()->as<Text>()->markShapeDirty();
+    textComponent()->markShapeDirty();
 }
 
-Text* TextValueRun::textComponent() const { return parent()->as<Text>(); }
+Text* TextValueRun::textComponent() const
+{
+    if (m_textComponent)
+    {
+        return m_textComponent;
+    }
+    return parent()->as<Text>();
+}
 
 StatusCode TextValueRun::onAddedClean(CoreContext* context)
 {
@@ -57,14 +64,14 @@ void TextValueRun::styleIdChanged()
     if (coreObject != nullptr && coreObject->is<TextStylePaint>())
     {
         m_style = static_cast<TextStylePaint*>(coreObject);
-        parent()->as<Text>()->markShapeDirty();
+        textComponent()->markShapeDirty();
     }
 }
 
 uint32_t TextValueRun::offset() const
 {
 #ifdef WITH_RIVE_TEXT
-    Text* text = parent()->as<Text>();
+    Text* text = textComponent();
     uint32_t offset = 0;
 
     for (TextValueRun* run : text->runs())

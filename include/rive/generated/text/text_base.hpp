@@ -47,6 +47,7 @@ public:
     static const uint16_t wrapValuePropertyKey = 683;
     static const uint16_t verticalAlignValuePropertyKey = 685;
     static const uint16_t fitFromBaselinePropertyKey = 703;
+    static const uint16_t textRunListSourcePropertyKey = 932;
 
 protected:
     uint32_t m_AlignValue = 0;
@@ -61,6 +62,7 @@ protected:
     uint32_t m_WrapValue = 0;
     uint32_t m_VerticalAlignValue = 0;
     bool m_FitFromBaseline = true;
+    uint32_t m_TextRunListSource = -1;
 
 public:
     inline uint32_t alignValue() const { return m_AlignValue; }
@@ -195,6 +197,17 @@ public:
         fitFromBaselineChanged();
     }
 
+    inline uint32_t textRunListSource() const { return m_TextRunListSource; }
+    void textRunListSource(uint32_t value)
+    {
+        if (m_TextRunListSource == value)
+        {
+            return;
+        }
+        m_TextRunListSource = value;
+        textRunListSourceChanged();
+    }
+
     Core* clone() const override;
     void copy(const TextBase& object)
     {
@@ -210,6 +223,7 @@ public:
         m_WrapValue = object.m_WrapValue;
         m_VerticalAlignValue = object.m_VerticalAlignValue;
         m_FitFromBaseline = object.m_FitFromBaseline;
+        m_TextRunListSource = object.m_TextRunListSource;
         Drawable::copy(object);
     }
 
@@ -253,6 +267,9 @@ public:
             case fitFromBaselinePropertyKey:
                 m_FitFromBaseline = CoreBoolType::deserialize(reader);
                 return true;
+            case textRunListSourcePropertyKey:
+                m_TextRunListSource = CoreUintType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -270,6 +287,7 @@ protected:
     virtual void wrapValueChanged() {}
     virtual void verticalAlignValueChanged() {}
     virtual void fitFromBaselineChanged() {}
+    virtual void textRunListSourceChanged() {}
 };
 } // namespace rive
 

@@ -14,6 +14,8 @@ DataBindListItemConsumer* DataBindListItemConsumer::from(Core* component)
             return component->as<ArtboardComponentList>();
         case ListPath::typeKey:
             return component->as<ListPath>();
+        case Text::typeKey:
+            return component->as<Text>();
     }
     return nullptr;
 }

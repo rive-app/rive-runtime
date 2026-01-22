@@ -1524,6 +1524,9 @@ public:
             case TextBase::verticalAlignValuePropertyKey:
                 object->as<TextBase>()->verticalAlignValue(value);
                 break;
+            case TextBase::textRunListSourcePropertyKey:
+                object->as<TextBase>()->textRunListSource(value);
+                break;
             case TextValueRunBase::styleIdPropertyKey:
                 object->as<TextValueRunBase>()->styleId(value);
                 break;
@@ -2975,6 +2978,8 @@ public:
                 return object->as<TextBase>()->wrapValue();
             case TextBase::verticalAlignValuePropertyKey:
                 return object->as<TextBase>()->verticalAlignValue();
+            case TextBase::textRunListSourcePropertyKey:
+                return object->as<TextBase>()->textRunListSource();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->as<TextValueRunBase>()->styleId();
             case CustomPropertyEnumBase::propertyValuePropertyKey:
@@ -3850,6 +3855,7 @@ public:
             case TextBase::originValuePropertyKey:
             case TextBase::wrapValuePropertyKey:
             case TextBase::verticalAlignValuePropertyKey:
+            case TextBase::textRunListSourcePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
             case CustomPropertyEnumBase::propertyValuePropertyKey:
             case CustomPropertyEnumBase::enumIdPropertyKey:
@@ -4608,6 +4614,8 @@ public:
             case TextBase::wrapValuePropertyKey:
                 return object->is<TextBase>();
             case TextBase::verticalAlignValuePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::textRunListSourcePropertyKey:
                 return object->is<TextBase>();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->is<TextValueRunBase>();

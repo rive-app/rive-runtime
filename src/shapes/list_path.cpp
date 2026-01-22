@@ -12,33 +12,17 @@
 
 using namespace rive;
 
-VertexListener::~VertexListener()
-{
-    delete m_vertex;
-    deleteProperties();
-}
-
-void VertexListener::deleteProperties()
-{
-
-    for (auto& property : m_properties)
-    {
-        delete property;
-    }
-    m_properties.clear();
-}
-
 VertexListener::VertexListener(Vertex* vertex,
                                rcp<ViewModelInstance> instance,
                                Path* path) :
-    m_vertex(vertex), m_instance(instance), m_path(path)
+    CoreObjectListener(vertex, instance), m_path(path)
 {
     createProperties();
 }
 
 void VertexListener::createProperties()
 {
-
+    CoreObjectListener::createProperties();
     createPropertyListener(SymbolType::vertexX);
     createPropertyListener(SymbolType::vertexY);
     createPropertyListener(SymbolType::rotation);
@@ -51,17 +35,7 @@ void VertexListener::createProperties()
     createOutPointPropertyListener();
 }
 
-void VertexListener::remap(rcp<ViewModelInstance> instance)
-{
-    if (instance != m_instance)
-    {
-        m_instance = instance;
-        deleteProperties();
-        createProperties();
-    }
-}
-
-VertexPropertyListenerBase* VertexListener::createSinglePropertyListener(
+PropertySymbolDependent* VertexListener::createSinglePropertyListener(
     SymbolType symbolType)
 {
     uint16_t propertyKey = 0;
@@ -95,17 +69,17 @@ VertexPropertyListenerBase* VertexListener::createSinglePropertyListener(
     auto prop = m_instance->propertyValue(symbolType);
     if (prop != nullptr && prop->is<ViewModelInstanceNumber>())
     {
-        auto vpl = new VertexPropertyListenerSingle(m_vertex,
+        auto vpl = new VertexPropertyListenerSingle(m_core,
                                                     this,
                                                     prop,
-                                                    multiplier,
-                                                    propertyKey);
+                                                    propertyKey,
+                                                    multiplier);
         return vpl;
     }
     return nullptr;
 }
 
-VertexPropertyListenerBase* VertexListener::createDistancePropertyListener()
+PropertySymbolDependent* VertexListener::createDistancePropertyListener()
 {
 
     auto prop = m_instance->propertyValue(SymbolType::distance);
@@ -117,13 +91,13 @@ VertexPropertyListenerBase* VertexListener::createDistancePropertyListener()
         auto outPropKey = CubicDetachedVertexBase::outDistancePropertyKey;
         keys.push_back(outPropKey);
         auto vpl =
-            new VertexPropertyListenerMulti(m_vertex, this, prop, 1.0f, keys);
+            new VertexPropertyListenerMulti(m_core, this, prop, keys, 1.0f);
         return vpl;
     }
     return nullptr;
 }
 
-VertexPropertyListenerBase* VertexListener::createRotationPropertyListener()
+PropertySymbolDependent* VertexListener::createRotationPropertyListener()
 {
 
     auto prop = m_instance->propertyValue(SymbolType::rotation);
@@ -134,11 +108,11 @@ VertexPropertyListenerBase* VertexListener::createRotationPropertyListener()
         keys.push_back(inPropKey);
         auto outPropKey = CubicDetachedVertexBase::outRotationPropertyKey;
         keys.push_back(outPropKey);
-        auto vpl = new VertexPropertyListenerMulti(m_vertex,
+        auto vpl = new VertexPropertyListenerMulti(m_core,
                                                    this,
                                                    prop,
-                                                   math::PI / 180.0f,
-                                                   keys);
+                                                   keys,
+                                                   math::PI / 180.0f);
         return vpl;
     }
     return nullptr;
@@ -152,7 +126,7 @@ void VertexListener::createInPointPropertyListener()
         (yProp != nullptr && yProp->is<ViewModelInstanceNumber>()))
     {
         auto vpl = new VertexPropertyListenerPoint(
-            m_vertex,
+            m_core,
             this,
             xProp,
             yProp,
@@ -172,7 +146,7 @@ void VertexListener::createOutPointPropertyListener()
         (yProp != nullptr && yProp->is<ViewModelInstanceNumber>()))
     {
         auto vpl = new VertexPropertyListenerPoint(
-            m_vertex,
+            m_core,
             this,
             xProp,
             yProp,
@@ -186,7 +160,7 @@ void VertexListener::createOutPointPropertyListener()
 
 void VertexListener::createPropertyListener(SymbolType symbolType)
 {
-    VertexPropertyListenerBase* listener = nullptr;
+    PropertySymbolDependent* listener = nullptr;
     switch (symbolType)
     {
         case SymbolType::vertexX:
@@ -213,81 +187,47 @@ void VertexListener::createPropertyListener(SymbolType symbolType)
     }
 }
 
-VertexPropertyListenerBase::VertexPropertyListenerBase(
-    Vertex* vertex,
-    VertexListener* vertexListener) :
-    m_vertex(vertex), m_vertexListener(vertexListener)
-{}
-
-void VertexPropertyListenerBase::addDirt(ComponentDirt value, bool recurse)
-{
-    writeValue();
-    m_vertexListener->markDirty();
-}
-
-VertexPropertyListener::VertexPropertyListener(
-    Vertex* vertex,
-    VertexListener* vertexListener,
-    ViewModelInstanceValue* instanceValue,
-    float multiplier) :
-    VertexPropertyListenerBase(vertex, vertexListener),
-    m_instanceValue(instanceValue),
-    m_multiplier(multiplier)
-{
-
-    if (m_instanceValue != nullptr)
-    {
-        m_instanceValue->addDependent(this);
-    }
-}
-
-VertexPropertyListener::~VertexPropertyListener()
-{
-
-    if (m_instanceValue != nullptr)
-    {
-        m_instanceValue->removeDependent(this);
-    }
-}
-
 VertexPropertyListenerSingle::VertexPropertyListenerSingle(
-    Vertex* vertex,
+    Core* vertex,
     VertexListener* vertexListener,
     ViewModelInstanceValue* instanceValue,
-    float multiplier,
-    uint16_t propertyKey) :
-    VertexPropertyListener(vertex, vertexListener, instanceValue, multiplier),
-    m_propertyKey(propertyKey)
+    uint16_t propertyKey,
+    float multiplier) :
+    PropertySymbolDependentSingle(vertex,
+                                  vertexListener,
+                                  instanceValue,
+                                  propertyKey),
+    m_multiplier(multiplier)
 {}
-
-VertexPropertyListenerSingle::~VertexPropertyListenerSingle() {}
 
 void VertexPropertyListenerSingle::writeValue()
 {
     CoreRegistry::setDouble(
-        m_vertex,
+        m_coreObject,
         m_propertyKey,
         m_instanceValue->as<ViewModelInstanceNumber>()->propertyValue() *
             m_multiplier);
 }
 
 VertexPropertyListenerMulti::VertexPropertyListenerMulti(
-    Vertex* vertex,
+    Core* vertex,
     VertexListener* vertexListener,
     ViewModelInstanceValue* instanceValue,
-    float multiplier,
-    std::vector<uint16_t> propertyKeys) :
-    VertexPropertyListener(vertex, vertexListener, instanceValue, multiplier),
-    m_propertyKeys(propertyKeys)
+    std::vector<uint16_t> propertyKeys,
+    float multiplier) :
+    PropertySymbolDependentMulti(vertex,
+                                 vertexListener,
+                                 instanceValue,
+                                 propertyKeys),
+    m_multiplier(multiplier)
 {}
 
 void VertexPropertyListenerMulti::writeValue()
 {
     for (auto& key : m_propertyKeys)
     {
-
         CoreRegistry::setDouble(
-            m_vertex,
+            m_coreObject,
             key,
             m_instanceValue->as<ViewModelInstanceNumber>()->propertyValue() *
                 m_multiplier);
@@ -295,22 +235,17 @@ void VertexPropertyListenerMulti::writeValue()
 }
 
 VertexPropertyListenerPoint::VertexPropertyListenerPoint(
-    Vertex* vertex,
+    Core* vertex,
     VertexListener* vertexListener,
     ViewModelInstanceValue* xValue,
     ViewModelInstanceValue* yValue,
     uint16_t distKey,
     uint16_t rotKey) :
-    VertexPropertyListenerBase(vertex, vertexListener),
-    m_xValue(xValue),
+    PropertySymbolDependent(vertex, vertexListener, xValue),
     m_yValue(yValue),
     m_distKey(distKey),
     m_rotKey(rotKey)
 {
-    if (m_xValue)
-    {
-        m_xValue->addDependent(this);
-    }
     if (m_yValue)
     {
         m_yValue->addDependent(this);
@@ -319,11 +254,6 @@ VertexPropertyListenerPoint::VertexPropertyListenerPoint(
 
 VertexPropertyListenerPoint::~VertexPropertyListenerPoint()
 {
-
-    if (m_xValue)
-    {
-        m_xValue->removeDependent(this);
-    }
     if (m_yValue)
     {
         m_yValue->removeDependent(this);
@@ -333,14 +263,16 @@ VertexPropertyListenerPoint::~VertexPropertyListenerPoint()
 void VertexPropertyListenerPoint::writeValue()
 {
     auto x =
-        m_xValue ? m_xValue->as<ViewModelInstanceNumber>()->propertyValue() : 0;
+        m_instanceValue
+            ? m_instanceValue->as<ViewModelInstanceNumber>()->propertyValue()
+            : 0;
     auto y =
         m_yValue ? m_yValue->as<ViewModelInstanceNumber>()->propertyValue() : 0;
     auto vec = Vec2D(x, y);
     auto length = vec.length();
     auto rotation = std::atan2(vec.y, vec.x);
-    CoreRegistry::setDouble(m_vertex, m_distKey, length);
-    CoreRegistry::setDouble(m_vertex, m_rotKey, rotation);
+    CoreRegistry::setDouble(m_coreObject, m_distKey, length);
+    CoreRegistry::setDouble(m_coreObject, m_rotKey, rotation);
 }
 
 ListPath::~ListPath()

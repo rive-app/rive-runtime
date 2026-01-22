@@ -16,7 +16,9 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     TextStylePaint* style() { return m_style; }
+    void style(TextStylePaint* value) { m_style = value; }
     Text* textComponent() const;
+    void textComponent(Text* value) { m_textComponent = value; };
     uint32_t length()
     {
         if (m_length == -1)
@@ -67,6 +69,7 @@ private:
     TextStylePaint* m_style = nullptr;
     uint32_t m_length = -1;
     bool canHitTest() const;
+    Text* m_textComponent = nullptr;
 };
 } // namespace rive
 
