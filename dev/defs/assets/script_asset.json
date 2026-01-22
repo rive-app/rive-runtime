@@ -71,7 +71,7 @@
     "codeFileText": {
       "type": "String",
       "key": {
-        "int": 932,
+        "int": 933,
         "string": "codefiletext"
       },
       "description": "Used to store the text of the CodeFile. Used when copy/pasting.",
