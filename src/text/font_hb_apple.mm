@@ -307,46 +307,8 @@ void CoreTextHBFont::shapeFallbackRun(
         if (CFIndex count = CTRunGetGlyphCount(run))
         {
             rive::GlyphRun gr(count);
-
-            // Because CoreText will automatically do its own font fallbacks
-            // we need to detect that it's trying to use a different font.
-            CFDictionaryRef attributes = CTRunGetAttributes(run);
-            CTFontRef runCtFont = static_cast<CTFontRef>(
-                CFDictionaryGetValue(attributes, kCTFontAttributeName));
-            const float scale = textRun.size / (float)CTFontGetSize(runCtFont);
-            if (!CFEqual(runCtFont, ctFont))
-            {
-                // Get the original font's traits and create a fallback font
-                // with the same traits. In some cases, CoreText will use a
-                // different font for the fallback, but the fallback font will
-                // not have the same traits (e.g weight) as the original font.
-                CTFontSymbolicTraits originalTraits =
-                    CTFontGetSymbolicTraits(ctFont);
-                CTFontRef fallbackFont =
-                    CTFontCreateCopyWithSymbolicTraits(runCtFont,
-                                                       CTFontGetSize(runCtFont),
-                                                       nullptr,
-                                                       originalTraits,
-                                                       originalTraits);
-                if (!fallbackFont)
-                {
-                    fallbackFont = runCtFont;
-                }
-
-                gr.font = HBFont::FromSystem(
-                    (void*)fallbackFont, true, m_weight, m_width);
-
-                // If the fallback font is not the same as the original run
-                // font, we need to release it since we made a copy of it
-                if ((void*)fallbackFont != (void*)runCtFont)
-                {
-                    CFRelease(fallbackFont);
-                }
-            }
-            else
-            {
-                gr.font = textRun.font;
-            }
+            const float scale = textRun.size / (float)CTFontGetSize(ctFont);
+            gr.font = textRun.font;
             gr.size = textRun.size;
             gr.lineHeight = textRun.lineHeight;
             gr.letterSpacing = textRun.letterSpacing;
