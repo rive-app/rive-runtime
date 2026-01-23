@@ -8,6 +8,7 @@
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/world_transform_component.hpp"
 #include "rive/layout/layout_data.hpp"
+#include "rive/artboard_list_map_rule.hpp"
 
 using namespace rive;
 
@@ -137,17 +138,34 @@ Artboard* ArtboardComponentList::findArtboard(
     {
         return nullptr;
     }
-    auto artboard = m_artboardsMap.find(viewModelInstance->viewModelId());
+    auto viewModelId = viewModelInstance->viewModelId();
+    // Find artboard in the cached mappings
+    auto artboard = m_artboardsMap.find(viewModelId);
     if (artboard != m_artboardsMap.end())
     {
         return artboard->second;
     }
     auto artboards = m_file->artboards();
+    // Check if there is a special rule that maps the view model to a specific
+    // artboard
+    auto listRule = m_artboardMapRules.find(viewModelId);
+    if (listRule != m_artboardMapRules.end())
+    {
+        auto artboardIndex = listRule->second;
+        if (artboardIndex < artboards.size())
+        {
+            auto artboard = artboards[artboardIndex];
+            m_artboardsMap[viewModelId] = artboard;
+            return artboard;
+        }
+    }
+
+    // Search for the first artboard that is bound to this view model
     for (auto& artboard : artboards)
     {
-        if (artboard->viewModelId() == viewModelInstance->viewModelId())
+        if (artboard->viewModelId() == viewModelId)
         {
-            m_artboardsMap[viewModelInstance->viewModelId()] = artboard;
+            m_artboardsMap[viewModelId] = artboard;
             return artboard;
         }
     }
@@ -1081,4 +1099,9 @@ void ArtboardComponentList::listItemTransforms(std::vector<Mat2D*>& transforms)
             transforms.push_back(&m_artboardTransforms[artboard]);
         }
     }
+}
+
+void ArtboardComponentList::addMapRule(ArtboardListMapRule* rule)
+{
+    m_artboardMapRules[rule->viewModelId()] = rule->artboardId();
 }

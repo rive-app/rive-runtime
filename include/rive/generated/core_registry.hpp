@@ -90,6 +90,7 @@
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/artboard.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/artboard_list_map_rule.hpp"
 #include "rive/assets/asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/drawable_asset.hpp"
@@ -805,6 +806,8 @@ public:
                 return new Text();
             case TextValueRunBase::typeKey:
                 return new TextValueRun();
+            case ArtboardListMapRuleBase::typeKey:
+                return new ArtboardListMapRule();
             case CustomPropertyEnumBase::typeKey:
                 return new CustomPropertyEnum();
             case FolderBase::typeKey:
@@ -1529,6 +1532,12 @@ public:
                 break;
             case TextValueRunBase::styleIdPropertyKey:
                 object->as<TextValueRunBase>()->styleId(value);
+                break;
+            case ArtboardListMapRuleBase::artboardIdPropertyKey:
+                object->as<ArtboardListMapRuleBase>()->artboardId(value);
+                break;
+            case ArtboardListMapRuleBase::viewModelIdPropertyKey:
+                object->as<ArtboardListMapRuleBase>()->viewModelId(value);
                 break;
             case CustomPropertyEnumBase::propertyValuePropertyKey:
                 object->as<CustomPropertyEnumBase>()->propertyValue(value);
@@ -2982,6 +2991,10 @@ public:
                 return object->as<TextBase>()->textRunListSource();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->as<TextValueRunBase>()->styleId();
+            case ArtboardListMapRuleBase::artboardIdPropertyKey:
+                return object->as<ArtboardListMapRuleBase>()->artboardId();
+            case ArtboardListMapRuleBase::viewModelIdPropertyKey:
+                return object->as<ArtboardListMapRuleBase>()->viewModelId();
             case CustomPropertyEnumBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyEnumBase>()->propertyValue();
             case CustomPropertyEnumBase::enumIdPropertyKey:
@@ -3857,6 +3870,8 @@ public:
             case TextBase::verticalAlignValuePropertyKey:
             case TextBase::textRunListSourcePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
+            case ArtboardListMapRuleBase::artboardIdPropertyKey:
+            case ArtboardListMapRuleBase::viewModelIdPropertyKey:
             case CustomPropertyEnumBase::propertyValuePropertyKey:
             case CustomPropertyEnumBase::enumIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
@@ -4619,6 +4634,10 @@ public:
                 return object->is<TextBase>();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->is<TextValueRunBase>();
+            case ArtboardListMapRuleBase::artboardIdPropertyKey:
+                return object->is<ArtboardListMapRuleBase>();
+            case ArtboardListMapRuleBase::viewModelIdPropertyKey:
+                return object->is<ArtboardListMapRuleBase>();
             case CustomPropertyEnumBase::propertyValuePropertyKey:
                 return object->is<CustomPropertyEnumBase>();
             case CustomPropertyEnumBase::enumIdPropertyKey:

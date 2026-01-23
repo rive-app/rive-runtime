@@ -955,3 +955,26 @@ TEST_CASE("Virtualized list with nested data bound artboards",
 
     CHECK(silver.matches("virtualized_artboard_databound_children"));
 }
+
+TEST_CASE("Artboard list map rules", "[component_list]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/artboard_list_map_rules.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("artboard_list_map_rules"));
+}

@@ -1,0 +1,32 @@
+{
+  "name": "ArtboardListMapRule",
+  "key": {
+    "int": 648,
+    "string": "artboardlistmaprule"
+  },
+  "extends": "component.json",
+  "properties": {
+    "artboardId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 934,
+        "string": "artboardid"
+      },
+      "description": "Artboard id to map"
+    },
+    "viewModelId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 935,
+        "string": "viewmodelid"
+      },
+      "description": "iew model id to map"
+    }
+  }
+}

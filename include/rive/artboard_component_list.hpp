@@ -20,6 +20,7 @@ namespace rive
 {
 class LayoutComponent;
 class ScrollConstraint;
+class ArtboardListMapRule;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
@@ -115,6 +116,7 @@ public:
     LayoutComponent* layoutParent();
     const Mat2D& listTransform() override;
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;
+    void addMapRule(ArtboardListMapRule*);
 
 private:
     void updateArtboardsWorldTransform();
@@ -159,6 +161,7 @@ private:
     int m_visibleEndIndex = -1;
     std::unordered_map<ArtboardInstance*, ArtboardComponentListOverride*>
         m_artboardOverridesMap;
+    std::unordered_map<int, int> m_artboardMapRules;
     void attachArtboardOverride(ArtboardInstance*,
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);
