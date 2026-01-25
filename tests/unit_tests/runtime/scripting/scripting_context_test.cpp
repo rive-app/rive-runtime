@@ -205,3 +205,26 @@ TEST_CASE("script has access to the data bound view model", "[silver]")
 
     CHECK(silver.matches("viewmodel_from_context"));
 }
+
+TEST_CASE("script has access to the data root view model", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripting_root_viewmodel.riv", &silver);
+    auto artboard = file->artboardNamed("parent");
+
+    silver.frameSize(artboard->width(), artboard->height());
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scripting_root_viewmodel"));
+}

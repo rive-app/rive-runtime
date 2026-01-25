@@ -212,6 +212,7 @@ enum class LuaAtoms : int16_t
     // Scripted Context
     markNeedsUpdate,
     viewModel,
+    rootViewModel,
 
     // Animation
     duration,

@@ -144,6 +144,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"isClosed", (int16_t)LuaAtoms::isClosed},
     {"markNeedsUpdate", (int16_t)LuaAtoms::markNeedsUpdate},
     {"viewModel", (int16_t)LuaAtoms::viewModel},
+    {"rootViewModel", (int16_t)LuaAtoms::rootViewModel},
     {"duration", (int16_t)LuaAtoms::duration},
     {"setTime", (int16_t)LuaAtoms::setTime},
     {"setTimeFrames", (int16_t)LuaAtoms::setTimeFrames},

@@ -34,6 +34,14 @@ public:
     void viewModelInstance(rcp<ViewModelInstance> value);
     void advanced();
     rcp<ViewModelInstance> viewModelInstance() { return m_ViewModelInstance; };
+    rcp<ViewModelInstance> rootViewModelInstance()
+    {
+        if (m_Parent)
+        {
+            return m_Parent->rootViewModelInstance();
+        }
+        return m_ViewModelInstance;
+    };
 
     ViewModelInstanceValue* viewModelValue()
     {

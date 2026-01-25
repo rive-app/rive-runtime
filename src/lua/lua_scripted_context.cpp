@@ -42,6 +42,26 @@ static int context_namecall(lua_State* L)
                 }
                 return 0;
             }
+            case (int)LuaAtoms::rootViewModel:
+            {
+                auto scriptedObject = scriptedContext->scriptedObject();
+                auto dataContext = scriptedObject->dataContext();
+                if (dataContext)
+                {
+                    auto viewModelInstance =
+                        dataContext->rootViewModelInstance();
+                    if (viewModelInstance)
+                    {
+                        lua_newrive<ScriptedViewModel>(
+                            L,
+                            L,
+                            ref_rcp(viewModelInstance->viewModel()),
+                            viewModelInstance);
+                        return 1;
+                    }
+                }
+                return 0;
+            }
             default:
                 break;
         }
