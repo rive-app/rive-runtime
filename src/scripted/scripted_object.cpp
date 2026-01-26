@@ -361,6 +361,12 @@ void ScriptedObject::scriptDispose()
 {
     disposeScriptInputs();
 
+#ifdef WITH_RIVE_TOOLS
+    if (!hasValidVM())
+    {
+        return;
+    }
+#endif
     if (m_state != nullptr)
     {
         lua_unref(m_state, m_self);
