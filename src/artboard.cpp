@@ -869,6 +869,7 @@ void Artboard::cloneObjectDataBinds(const Core* object,
 }
 void Artboard::host(ArtboardHost* artboardHost)
 {
+    addedToHost();
     m_host = artboardHost;
 #ifdef WITH_RIVE_LAYOUT
     if (!sharesLayoutWithHost())

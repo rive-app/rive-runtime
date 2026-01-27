@@ -1027,6 +1027,30 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     Layout newLayout = layoutFromYoga(yogaLayout);
     m_layoutPadding = layoutPaddingFromYoga(yogaLayout);
 
+    if (m_justAddedToHost)
+    {
+        m_justAddedToHost = false;
+        // In cases were we have a host (ie, Component List, etc), we
+        // don't want to animate the x/y/width/height because the initial
+        // x/y/width/height will have been 0,0,0,0 within the parent host.
+        //
+        // Instead, we want to the position/size to start at whatever this
+        // layout's computed position is within its host.
+        //
+        // We'll keep this as an entirely seperate code path because
+        // this may be useful in adding support for animate in/out of
+        // items in an ArtboardHost.
+        m_layout = newLayout;
+        auto animationData = currentAnimationData();
+        animationData->from = newLayout;
+        animationData->to = newLayout;
+        animationData->elapsedSeconds = 0.0f;
+        propagateSize();
+        markWorldTransformDirty();
+        m_forceUpdateLayoutBounds = false;
+        return;
+    }
+
     if (animate && animates())
     {
         auto animationData = currentAnimationData();

@@ -138,6 +138,7 @@ public:
     void updateDataBinds(bool applyTargetToSource = true) override;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
+    void addedToHost() { m_justAddedToHost = true; }
 
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override
