@@ -213,6 +213,7 @@ enum class LuaAtoms : int16_t
     markNeedsUpdate,
     viewModel,
     rootViewModel,
+    image,
 
     // Animation
     duration,
@@ -853,7 +854,6 @@ private:
     Factory* m_factory;
     std::vector<ModuleDetails*> m_modulesToRegister;
     std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
-
     std::unordered_set<ModuleDetails*> m_pendingModules;
 };
 

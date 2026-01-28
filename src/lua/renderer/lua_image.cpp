@@ -19,10 +19,10 @@ static int image_index(lua_State* L)
     {
         case (int)LuaAtoms::width:
             lua_pushnumber(L, image->image ? image->image->width() : 0);
-            break;
+            return 1;
         case (int)LuaAtoms::height:
             lua_pushnumber(L, image->image ? image->image->height() : 0);
-            break;
+            return 1;
     }
     luaL_error(L,
                "'%s' is not a valid index of %s",

@@ -91,6 +91,14 @@ static int renderer_drawImageMesh(lua_State* L)
     auto blendMode = lua_toblendmode(L, 7);
     auto opacity = float(luaL_checknumber(L, 8));
 
+    // Ensure the buffers are created before drawing
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    Factory* factory = context->factory();
+    scriptedVertexBuffer->update(factory);
+    scriptedUVBuffer->update(factory);
+    scriptedTriangleBuffer->update(factory);
+
     auto renderer = scriptedRenderer->validate(L);
     renderer->drawImageMesh(scriptedImage->image.get(),
                             scriptedSampler->sampler,
