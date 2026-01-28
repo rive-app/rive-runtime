@@ -1095,6 +1095,11 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
+    if ((flags & AdvanceFlags::NewFrame) != AdvanceFlags::NewFrame)
+    {
+        return false;
+    }
+
     return applyInterpolation(elapsedSeconds,
                               (flags & AdvanceFlags::Animate) ==
                                       AdvanceFlags::Animate ||
