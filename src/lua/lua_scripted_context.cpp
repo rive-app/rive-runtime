@@ -2,10 +2,12 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/assets/blob_asset.hpp"
 #include "rive/file.hpp"
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 using namespace rive;
 
@@ -107,6 +109,43 @@ static int context_namecall(lua_State* L)
 
                 return 0; // return nil if not found
             }
+            case (int)LuaAtoms::blob:
+            {
+                const char* blobName = luaL_checkstring(L, 2);
+
+                auto scriptedObject = scriptedContext->scriptedObject();
+                auto scriptAsset = scriptedObject->scriptAsset();
+                if (scriptAsset != nullptr)
+                {
+                    File* file = scriptAsset->file();
+                    if (file != nullptr)
+                    {
+                        auto assets = file->assets();
+                        for (const auto& asset : assets)
+                        {
+                            if (asset->is<BlobAsset>())
+                            {
+                                BlobAsset* blobAsset = asset->as<BlobAsset>();
+                                if (blobAsset->name() == blobName)
+                                {
+                                    auto bytes = blobAsset->bytes();
+                                    if (!bytes.empty())
+                                    {
+                                        auto scriptedBlob =
+                                            lua_newrive<ScriptedBlob>(L);
+                                        scriptedBlob->asset = ref_rcp(
+                                            static_cast<FileAsset*>(blobAsset));
+                                        return 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return 0; // return nil if not found
+            }
+
             default:
                 break;
         }

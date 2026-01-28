@@ -146,6 +146,8 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"viewModel", (int16_t)LuaAtoms::viewModel},
     {"rootViewModel", (int16_t)LuaAtoms::rootViewModel},
     {"image", (int16_t)LuaAtoms::image},
+    {"blob", (int16_t)LuaAtoms::blob},
+    {"size", (int16_t)LuaAtoms::size},
     {"duration", (int16_t)LuaAtoms::duration},
     {"setTime", (int16_t)LuaAtoms::setTime},
     {"setTimeFrames", (int16_t)LuaAtoms::setTimeFrames},

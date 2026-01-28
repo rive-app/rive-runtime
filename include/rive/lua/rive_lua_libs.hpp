@@ -4,6 +4,7 @@
 #include "lua.h"
 #include "lualib.h"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/assets/file_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/math/raw_path.hpp"
@@ -214,6 +215,8 @@ enum class LuaAtoms : int16_t
     viewModel,
     rootViewModel,
     image,
+    blob,
+    size,
 
     // Animation
     duration,
@@ -331,6 +334,16 @@ public:
     rcp<RenderImage> image;
     static constexpr uint8_t luaTag = LUA_T_COUNT + 6;
     static constexpr const char* luaName = "Image";
+    static constexpr bool hasMetatable = true;
+};
+
+class ScriptedBlob
+{
+public:
+    rcp<FileAsset> asset; // Holds ref to keep BlobAsset alive
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 35;
+    static constexpr const char* luaName = "Blob";
     static constexpr bool hasMetatable = true;
 };
 
