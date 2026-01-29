@@ -183,6 +183,10 @@ public:
         return make_rcp<RenderTargetD3D>(this, width, height);
     }
 
+    rcp<Texture> adoptImageTexture(ComPtr<ID3D11Texture2D> image,
+                                   uint32_t width,
+                                   uint32_t height);
+
     const D3DCapabilities& d3dCapabilities() const { return m_d3dCapabilities; }
     ID3D11Device* gpu() const { return m_gpu.Get(); }
     ID3D11DeviceContext* gpuContext() const { return m_gpuContext.Get(); }

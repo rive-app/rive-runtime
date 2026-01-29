@@ -15,6 +15,8 @@ namespace rive::gpu
 {
 class RenderTarget;
 class RenderContextGLImpl;
+class RenderContextD3DImpl;
+class RenderContextD3D12Impl;
 class RenderContextWebGPUImpl;
 class VulkanContext;
 }; // namespace rive::gpu
@@ -30,6 +32,18 @@ public:
     virtual rive::RenderImage* asRenderImage() = 0;
     virtual rive::gpu::RenderTarget* asRenderTarget() = 0;
     virtual ~OffscreenRenderTarget() {}
+
+    static rive::rcp<OffscreenRenderTarget> MakeD3D(
+        rive::gpu::RenderContextD3DImpl*,
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable);
+
+    static rive::rcp<OffscreenRenderTarget> MakeD3D12(
+        rive::gpu::RenderContextD3D12Impl*,
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable);
 
     static rive::rcp<OffscreenRenderTarget> MakeGL(
         rive::gpu::RenderContextGLImpl*,

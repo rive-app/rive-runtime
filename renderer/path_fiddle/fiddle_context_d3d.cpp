@@ -50,6 +50,11 @@ public:
         return m_renderContext.get();
     }
 
+    rive::gpu::RenderContextD3DImpl* renderContextD3DImpl() const override final
+    {
+        return m_renderContext->static_impl_cast<RenderContextD3DImpl>();
+    }
+
     rive::gpu::RenderTarget* renderTargetOrNull() override
     {
         return m_renderTarget.get();

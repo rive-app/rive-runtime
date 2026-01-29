@@ -10,6 +10,8 @@ namespace rive::gpu
 class RenderContextGLImpl;
 class RenderContextVulkanImpl;
 class RenderContextWebGPUImpl;
+class RenderContextD3DImpl;
+class RenderContextD3D12Impl;
 } // namespace rive::gpu
 
 struct FiddleContextOptions
@@ -39,6 +41,14 @@ public:
     virtual float dpiScale(GLFWwindow*) const = 0;
     virtual rive::Factory* factory() = 0;
     virtual rive::gpu::RenderContext* renderContextOrNull() = 0;
+    virtual rive::gpu::RenderContextD3DImpl* renderContextD3DImpl() const
+    {
+        return nullptr;
+    }
+    virtual rive::gpu::RenderContextD3D12Impl* renderContextD3D12Impl() const
+    {
+        return nullptr;
+    }
     virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const
     {
         return nullptr;

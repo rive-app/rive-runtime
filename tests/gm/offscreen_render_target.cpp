@@ -25,8 +25,13 @@ using namespace rive::gpu;
 class OffscreenRenderTarget : public GM
 {
 public:
-    OffscreenRenderTarget(BlendMode blendMode, bool riveRenderable) :
-        GM(256, 256), m_blendMode(blendMode), m_riveRenderable(riveRenderable)
+    OffscreenRenderTarget(BlendMode blendMode,
+                          bool riveRenderable,
+                          ColorInt clearColor = 0xffff00ff) :
+        GM(256, 256),
+        m_blendMode(blendMode),
+        m_riveRenderable(riveRenderable),
+        m_clearColor(clearColor)
     {}
 
     ColorInt clearColor() const override { return 0xffff0000; }
@@ -44,7 +49,7 @@ public:
 
             // Draw to the offscreen texture.
             auto textureFrameDescriptor = originalFrameDescriptor;
-            textureFrameDescriptor.clearColor = 0xffff00ff;
+            textureFrameDescriptor.clearColor = m_clearColor;
             renderContext->beginFrame(std::move(textureFrameDescriptor));
             RiveRenderer renderer(renderContext);
             drawInternal(&renderer, renderImageTarget->asRenderTarget());
@@ -124,6 +129,7 @@ public:
 protected:
     const BlendMode m_blendMode;
     const bool m_riveRenderable;
+    const ColorInt m_clearColor;
 };
 
 GMREGISTER(offscreen_render_target,
@@ -134,6 +140,23 @@ GMREGISTER(offscreen_render_target_lum,
            return new OffscreenRenderTarget(BlendMode::luminosity, true))
 GMREGISTER(offscreen_render_target_lum_nonrenderable,
            return new OffscreenRenderTarget(BlendMode::luminosity, false))
+
+GMREGISTER(offscreen_render_target_transparent_clear,
+           return new OffscreenRenderTarget(BlendMode::srcOver,
+                                            true,
+                                            0x7fff00ff))
+GMREGISTER(offscreen_render_target_nonrenderable_transparent_clear,
+           return new OffscreenRenderTarget(BlendMode::srcOver,
+                                            false,
+                                            0x7fff00ff))
+GMREGISTER(offscreen_render_target_lum_transparent_clear,
+           return new OffscreenRenderTarget(BlendMode::luminosity,
+                                            true,
+                                            0x7fff00ff))
+GMREGISTER(offscreen_render_target_lum_nonrenderable_transparent_clear,
+           return new OffscreenRenderTarget(BlendMode::luminosity,
+                                            false,
+                                            0x7fff00ff))
 
 // This GM checks that texture targets (including MSAA targets) work with
 // LoadAction::preserveRenderTarget.

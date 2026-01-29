@@ -92,6 +92,12 @@ void RenderContextD3D12Impl::blitSubRect(ID3D12GraphicsCommandList* cmdList,
 class TextureD3D12Impl : public Texture
 {
 public:
+    TextureD3D12Impl(rcp<D3D12Texture> externalTexture) :
+        Texture(static_cast<uint32_t>(externalTexture->width()),
+                static_cast<uint32_t>(externalTexture->height())),
+        m_gpuTexture(std::move(externalTexture))
+    {}
+
     TextureD3D12Impl(D3D12ResourceManager* manager,
                      UINT width,
                      UINT height,
@@ -679,6 +685,12 @@ rcp<Texture> RenderContextD3D12Impl::makeImageTexture(
                                       mipLevelCount,
                                       imageDataRGBAPremul,
                                       m_usesCopyCommandList);
+}
+
+rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(
+    rcp<D3D12Texture> imageTexture)
+{
+    return make_rcp<TextureD3D12Impl>(std::move(imageTexture));
 }
 
 void rive::gpu::RenderContextD3D12Impl::resizeGradientTexture(uint32_t width,

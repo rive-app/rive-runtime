@@ -876,6 +876,19 @@ class TextureD3DImpl : public Texture
 {
 public:
     TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
+                   ComPtr<ID3D11Texture2D> image,
+                   UINT width,
+                   UINT height) :
+        Texture(width, height), m_texture(image)
+    {
+        // Create a view.
+        VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
+            m_texture.Get(),
+            NULL,
+            m_srv.ReleaseAndGetAddressOf()));
+    }
+
+    TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
                    UINT width,
                    UINT height,
                    UINT mipLevelCount,
@@ -935,6 +948,14 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
                                     height,
                                     mipLevelCount,
                                     imageDataRGBAPremul);
+}
+
+rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
+    ComPtr<ID3D11Texture2D> image,
+    uint32_t width,
+    uint32_t height)
+{
+    return make_rcp<TextureD3DImpl>(this, image, width, height);
 }
 
 class BufferRingD3D : public BufferRing

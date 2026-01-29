@@ -367,6 +367,24 @@ public:
         uint32_t height,
         bool riveRenderable) const override
     {
+#ifdef _WIN32
+        if (auto* renderContextD3D12 =
+                m_fiddleContext->renderContextD3D12Impl())
+        {
+            return rive_tests::OffscreenRenderTarget::MakeD3D12(
+                renderContextD3D12,
+                width,
+                height,
+                riveRenderable);
+        }
+        if (auto* renderContextD3D = m_fiddleContext->renderContextD3DImpl())
+        {
+            return rive_tests::OffscreenRenderTarget::MakeD3D(renderContextD3D,
+                                                              width,
+                                                              height,
+                                                              riveRenderable);
+        }
+#endif
 #ifndef RIVE_TOOLS_NO_GL
         if (auto* renderContextGL = m_fiddleContext->renderContextGLImpl())
         {

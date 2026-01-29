@@ -253,6 +253,12 @@ public:
         return m_renderContext.get();
     }
 
+    rive::gpu::RenderContextD3D12Impl* renderContextD3D12Impl()
+        const override final
+    {
+        return m_renderContext->static_impl_cast<RenderContextD3D12Impl>();
+    }
+
     rive::gpu::RenderTarget* renderTargetOrNull() override
     {
         return m_renderTargets[m_frameIndex].get();
