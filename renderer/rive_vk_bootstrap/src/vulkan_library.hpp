@@ -2,11 +2,12 @@
  * Copyright 2025 Rive
  */
 
-#ifdef _WIN32 // !!! in the VulkanInstance cpp
+#ifdef _WIN32
 #include <Windows.h>
 #endif
 
 #include <assert.h>
+#include <memory>
 #include <vulkan/vulkan.h>
 
 // Helper macro to use a given object with a load_instance_func function to load
@@ -22,20 +23,18 @@
 // Helper macro to load a given instance func into an existing member
 // (eliminating the name needing to be typed 3 times and reduce the chance of
 // typos in the string)
-#define LOAD_MEMBER_INSTANCE_FUNC(name, obj)                                   \
-    m_##name = LOAD_INSTANCE_FUNC(name, obj)
+#define LOAD_MEMBER_INSTANCE_FUNC(pInstance, name, obj)                        \
+    pInstance->m_##name = LOAD_INSTANCE_FUNC(name, obj)
 
-// Same as LOAD_MEMBER_INSTANCE_FUNC but asserts non-null
-#define LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(name, obj)                          \
-    LOAD_MEMBER_INSTANCE_FUNC(name, obj);                                      \
-    assert(m_##name != nullptr && "Could not load " #name)
 namespace rive_vkb
 {
 class VulkanLibrary
 {
 public:
-    VulkanLibrary();
     ~VulkanLibrary();
+
+    // Create a VulkanLibrary object. Returns nullptr logs on failure.
+    static std::unique_ptr<VulkanLibrary> Create();
 
     PFN_vkVoidFunction getInstanceProcAddr(VkInstance instance,
                                            const char* name) const;
@@ -66,10 +65,12 @@ public:
     }
 
 private:
+    VulkanLibrary(bool* successOut);
+
 #ifdef _WIN32
-    HMODULE m_library;
+    HMODULE m_library = nullptr;
 #else
-    void* m_library;
+    void* m_library = nullptr;
 #endif
 
     PFN_vkGetInstanceProcAddr m_vkGetInstanceProcAddr = nullptr;

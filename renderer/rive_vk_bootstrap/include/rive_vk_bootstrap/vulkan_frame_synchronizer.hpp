@@ -36,7 +36,8 @@ public:
 
     // This gets the pixels from the last image copy requested. Must be called
     // after the endFrame of the frame the request occurred during.
-    void getPixelsFromLastImageCopy(std::vector<uint8_t>* outPixels);
+    [[nodiscard]] VkResult getPixelsFromLastImageCopy(
+        std::vector<uint8_t>* outPixels);
 
 protected:
     struct Options
@@ -62,13 +63,14 @@ protected:
 
     VulkanFrameSynchronizer(VulkanInstance&,
                             VulkanDevice&,
-                            rive::rcp<rive::gpu::VulkanContext>,
-                            const Options&);
+                            rive::rcp<rive::gpu::VulkanContext>&&,
+                            const Options&,
+                            bool* successOut);
 
     VkDevice vkDevice() const { return m_device; }
 
-    VkSemaphore waitForFenceAndBeginFrame();
-    void endFrame(
+    [[nodiscard]] VkResult waitForFenceAndBeginFrame(VkSemaphore* = nullptr);
+    [[nodiscard]] VkResult endFrame(
         std::optional<VkSemaphore> externalSignalSemaphore = std::nullopt);
 
     const InFlightFrame& current() const
@@ -89,7 +91,7 @@ protected:
 
     VkQueue graphicsQueue() const { return m_graphicsQueue; }
 
-    VkSemaphore createSemaphore();
+    VkResult createSemaphore(VkSemaphore*);
     void destroySemaphore(VkSemaphore);
 
 private:
@@ -104,13 +106,13 @@ private:
     };
 
     rive::rcp<rive::gpu::vkutil::Buffer> m_pixelReadBuffer;
-    uint32_t m_pixelReadWidth;
-    uint32_t m_pixelReadHeight;
-    VkFormat m_pixelReadFormat;
+    uint32_t m_pixelReadWidth = 0;
+    uint32_t m_pixelReadHeight = 0;
+    VkFormat m_pixelReadFormat = VK_FORMAT_UNDEFINED;
     PixelReadState m_pixelReadState = PixelReadState::None;
 
-    VkQueue m_graphicsQueue;
-    VkCommandPool m_commandPool;
+    VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+    VkCommandPool m_commandPool = VK_NULL_HANDLE;
 
     uint64_t m_monotonicFrameNumber = 0;
     uint32_t m_renderFrameIndex = 0;

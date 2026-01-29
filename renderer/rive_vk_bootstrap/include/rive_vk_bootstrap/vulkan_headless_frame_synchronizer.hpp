@@ -28,10 +28,11 @@ public:
         uint64_t initialFrameNumber = 0;
     };
 
-    VulkanHeadlessFrameSynchronizer(VulkanInstance&,
-                                    VulkanDevice&,
-                                    rive::rcp<rive::gpu::VulkanContext>,
-                                    const Options&);
+    static std::unique_ptr<VulkanHeadlessFrameSynchronizer> Create(
+        VulkanInstance&,
+        VulkanDevice&,
+        rive::rcp<rive::gpu::VulkanContext>,
+        const Options&);
     ~VulkanHeadlessFrameSynchronizer();
 
     VulkanHeadlessFrameSynchronizer(const VulkanHeadlessFrameSynchronizer&) =
@@ -53,25 +54,30 @@ public:
     VkImageUsageFlags imageUsageFlags() const { return m_imageUsageFlags; }
 
     bool isFrameStarted() const;
-    void beginFrame();
+    [[nodiscard]] VkResult beginFrame();
 
     void queueImageCopy(rive::gpu::vkutil::ImageAccess* inOutLastAccess,
                         rive::IAABB optPixelReadBounds = {});
 
-    void endFrame(const rive::gpu::vkutil::ImageAccess&);
+    [[nodiscard]] VkResult endFrame(const rive::gpu::vkutil::ImageAccess&);
 
 private:
-    bool m_isInFrame = false;
+    VulkanHeadlessFrameSynchronizer(VulkanInstance&,
+                                    VulkanDevice&,
+                                    rive::rcp<rive::gpu::VulkanContext>&&,
+                                    const Options&,
+                                    bool* successOut);
 
-    VkFormat m_imageFormat;
-    VkImageUsageFlags m_imageUsageFlags;
-    uint32_t m_width;
-    uint32_t m_height;
-
-    rive::gpu::vkutil::ImageAccess m_lastImageAccess;
+    const VkFormat m_imageFormat;
+    const VkImageUsageFlags m_imageUsageFlags;
+    const uint32_t m_width = 0;
+    const uint32_t m_height = 0;
 
     const rive::rcp<rive::gpu::vkutil::Image> m_image;
     const rive::rcp<rive::gpu::vkutil::ImageView> m_imageView;
+
+    rive::gpu::vkutil::ImageAccess m_lastImageAccess;
+    bool m_isInFrame = false;
 
     // These are all the commands the swapchain needs to do its work - this
     // macro is also used to load them in the .cpp

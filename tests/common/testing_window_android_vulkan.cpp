@@ -57,7 +57,7 @@ public:
         extensionNames.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
         extensionNames.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 
-        m_instance = std::make_unique<VulkanInstance>(VulkanInstance::Options{
+        m_instance = VulkanInstance::Create(VulkanInstance::Options{
             .appName = "Rive Android Test",
             .idealAPIVersion =
                 m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
@@ -73,6 +73,7 @@ public:
             .wantDebugCallbacks = !m_backendParams.disableValidationLayers,
 #endif
         });
+        assert(m_instance != nullptr);
 
         m_vkDestroySurfaceKHR =
             m_instance->loadInstanceFunc<PFN_vkDestroySurfaceKHR>(
@@ -214,7 +215,7 @@ public:
     {
         if (!m_swapchain->isFrameStarted())
         {
-            m_swapchain->beginFrame();
+            VK_CHECK(m_swapchain->beginFrame());
 
             if (m_overflowTexture != nullptr)
             {
@@ -314,10 +315,10 @@ public:
             }
         }
 
-        m_swapchain->endFrame(swapchainLastAccess);
+        VK_CHECK(m_swapchain->endFrame(swapchainLastAccess));
         if (pixelData != nullptr)
         {
-            m_swapchain->getPixelsFromLastImageCopy(pixelData);
+            VK_CHECK(m_swapchain->getPixelsFromLastImageCopy(pixelData));
         }
     }
 
@@ -344,13 +345,14 @@ private:
     {
         using namespace rive_vkb;
 
-        m_device = std::make_unique<VulkanDevice>(
-            *m_instance,
-            VulkanDevice::Options{
-                .coreFeaturesOnly = m_backendParams.core,
-                .printInitializationMessage =
-                    m_printDeviceInitializationMessage,
-            });
+        m_device =
+            VulkanDevice::Create(*m_instance,
+                                 VulkanDevice::Options{
+                                     .coreFeaturesOnly = m_backendParams.core,
+                                     .printInitializationMessage =
+                                         m_printDeviceInitializationMessage,
+                                 });
+        assert(m_device != nullptr);
 
         // Only want to print the device initialization message the first time
         m_printDeviceInitializationMessage = false;
@@ -363,8 +365,9 @@ private:
             m_instance->getVkGetInstanceProcAddrPtr(),
             {.forceAtomicMode = m_backendParams.atomic});
 
-        auto windowCapabilities =
-            m_device->getSurfaceCapabilities(m_windowSurface);
+        VkSurfaceCapabilitiesKHR windowCapabilities;
+        VK_CHECK(m_device->getSurfaceCapabilities(m_windowSurface,
+                                                  &windowCapabilities));
 
         auto swapOpts = VulkanSwapchain::Options{
             .formatPreferences =
@@ -401,12 +404,12 @@ private:
             swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
         }
 
-        m_swapchain =
-            std::make_unique<rive_vkb::VulkanSwapchain>(*m_instance,
+        m_swapchain = rive_vkb::VulkanSwapchain::Create(*m_instance,
                                                         *m_device,
                                                         ref_rcp(vk()),
                                                         m_windowSurface,
                                                         swapOpts);
+        assert(m_swapchain != nullptr);
 
         m_androidWindowWidth = m_swapchain->width();
         m_androidWindowHeight = m_swapchain->height();

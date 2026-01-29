@@ -32,12 +32,13 @@ public:
 
     struct DriverVersion
     {
-        uint32_t major;
-        uint32_t minor;
-        uint32_t patch;
+        uint32_t major = 0;
+        uint32_t minor = 0;
+        uint32_t patch = 0;
     };
 
-    VulkanDevice(VulkanInstance&, const Options&);
+    static std::unique_ptr<VulkanDevice> Create(VulkanInstance&,
+                                                const Options&);
     ~VulkanDevice();
 
     VulkanDevice(const VulkanDevice&) = delete;
@@ -52,10 +53,16 @@ public:
 
     VkPhysicalDevice vkPhysicalDevice() const { return m_physicalDevice; }
 
+    // Get the surface formats for a given surface. Returns an empty vector on
+    // failure.
     std::vector<VkSurfaceFormatKHR> getSurfaceFormats(VkSurfaceKHR surface);
+
+    // Get the surface presentation modes for a given surface, or an empty
+    // vector on failure.
     std::vector<VkPresentModeKHR> getSurfacePresentModes(VkSurfaceKHR surface);
 
-    VkSurfaceCapabilitiesKHR getSurfaceCapabilities(VkSurfaceKHR) const;
+    VkResult getSurfaceCapabilities(VkSurfaceKHR,
+                                    VkSurfaceCapabilitiesKHR*) const;
 
     rive::gpu::VulkanFeatures vulkanFeatures() const
     {
@@ -77,6 +84,8 @@ public:
     const DriverVersion& driverVersion() const { return m_driverVersion; }
 
 private:
+    VulkanDevice(VulkanInstance&, const Options&, bool* successOut);
+
     struct FindDeviceResult
     {
         VkPhysicalDevice physicalDevice;
@@ -86,7 +95,7 @@ private:
         DriverVersion driverVersion;
     };
 
-    static FindDeviceResult findCompatiblePhysicalDevice(
+    static std::optional<FindDeviceResult> tryFindCompatiblePhysicalDevice(
         VulkanInstance&,
         const char* nameFilter,
         VkSurfaceKHR optionalSurfaceForValidation,
@@ -113,20 +122,20 @@ private:
     std::string m_name;
     DriverVersion m_driverVersion;
 
-    VkPhysicalDevice m_physicalDevice;
-    VkDevice m_device;
-    PFN_vkGetDeviceProcAddr m_vkGetDeviceProcAddr;
-    PFN_vkGetDeviceQueue m_vkGetDeviceQueue;
-    PFN_vkDestroyDevice m_vkDestroyDevice;
+    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+    VkDevice m_device = VK_NULL_HANDLE;
+    PFN_vkGetDeviceProcAddr m_vkGetDeviceProcAddr = nullptr;
+    PFN_vkGetDeviceQueue m_vkGetDeviceQueue = nullptr;
+    PFN_vkDestroyDevice m_vkDestroyDevice = nullptr;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR
-        m_vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+        m_vkGetPhysicalDeviceSurfaceCapabilitiesKHR = nullptr;
     PFN_vkGetPhysicalDeviceSurfaceFormatsKHR
-        m_vkGetPhysicalDeviceSurfaceFormatsKHR;
+        m_vkGetPhysicalDeviceSurfaceFormatsKHR = nullptr;
     PFN_vkGetPhysicalDeviceSurfacePresentModesKHR
-        m_vkGetPhysicalDeviceSurfacePresentModesKHR;
-    PFN_vkDeviceWaitIdle m_vkDeviceWaitIdle;
+        m_vkGetPhysicalDeviceSurfacePresentModesKHR = nullptr;
+    PFN_vkDeviceWaitIdle m_vkDeviceWaitIdle = nullptr;
 
     rive::gpu::VulkanFeatures m_riveVulkanFeatures;
-    uint32_t m_graphicsQueueFamilyIndex;
+    uint32_t m_graphicsQueueFamilyIndex = 0;
 };
 } // namespace rive_vkb

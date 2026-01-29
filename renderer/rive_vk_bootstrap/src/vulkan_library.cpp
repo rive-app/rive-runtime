@@ -2,7 +2,11 @@
  * Copyright 2025 Rive
  */
 
+#include "logging.hpp"
+#include "vulkan_error_handling.hpp"
 #include "vulkan_library.hpp"
+
+#include <stdio.h>
 
 #ifndef _WIN32
 #include <dlfcn.h>
@@ -10,8 +14,20 @@
 
 namespace rive_vkb
 {
-VulkanLibrary::VulkanLibrary()
+std::unique_ptr<VulkanLibrary> VulkanLibrary::Create()
 {
+    // Private constructor, can't use make_unique
+    bool success = true;
+    auto outLibrary =
+        std::unique_ptr<VulkanLibrary>{new VulkanLibrary(&success)};
+    CONFIRM_OR_RETURN_VALUE(success, nullptr);
+    return outLibrary;
+}
+
+VulkanLibrary::VulkanLibrary(bool* successOut)
+{
+    *successOut = false;
+
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(__linux__)
     static_assert(false, "Unsupported platform");
 #endif
@@ -46,7 +62,8 @@ VulkanLibrary::VulkanLibrary()
         }
     }
 
-    assert(m_library != nullptr && "Failed to find Vulkan library");
+    CONFIRM_OR_RETURN_MSG(m_library != nullptr,
+                          "Failed to find Vulkan library");
 
 #ifdef _WIN32
     m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
@@ -55,23 +72,36 @@ VulkanLibrary::VulkanLibrary()
     m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
         dlsym(m_library, "vkGetInstanceProcAddr"));
 #endif
-    assert(m_vkGetInstanceProcAddr != nullptr);
+    CONFIRM_OR_RETURN_MSG(
+        m_vkGetInstanceProcAddr != nullptr,
+        "Failed to load Vulkan function 'vkGetInstanceProcAddr'");
 
-    LOAD_MEMBER_INSTANCE_FUNC(vkEnumerateInstanceVersion, *this);
-    LOAD_MEMBER_INSTANCE_FUNC(vkCreateInstance, *this);
-    assert(m_vkCreateInstance != nullptr);
-    LOAD_MEMBER_INSTANCE_FUNC(vkEnumerateInstanceLayerProperties, *this);
-    assert(m_vkEnumerateInstanceLayerProperties != nullptr);
-    LOAD_MEMBER_INSTANCE_FUNC(vkEnumerateInstanceExtensionProperties, *this);
-    assert(m_vkEnumerateInstanceExtensionProperties != nullptr);
+    // This function is allowed to be null
+    LOAD_MEMBER_INSTANCE_FUNC(this, vkEnumerateInstanceVersion, *this);
+
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkCreateInstance, *this);
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
+                                        vkEnumerateInstanceLayerProperties,
+                                        *this);
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
+                                        vkEnumerateInstanceExtensionProperties,
+                                        *this);
+
+    *successOut = true;
 }
 
 VulkanLibrary::~VulkanLibrary()
 {
 #ifdef _WIN32
-    FreeLibrary(m_library);
+    if (m_library != nullptr)
+    {
+        FreeLibrary(m_library);
+    }
 #else
-    dlclose(m_library);
+    if (m_library != nullptr)
+    {
+        dlclose(m_library);
+    }
 #endif
 }
 

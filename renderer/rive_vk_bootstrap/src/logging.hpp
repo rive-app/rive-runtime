@@ -52,3 +52,12 @@
     }(__VA_ARGS__)
 
 #endif
+
+#define LOG_VULKAN_ERROR_LINE(vkResult, message, ...)                          \
+    /* Do a little lambda-based shenanigan to allow this to work even when     \
+       there are no variadic arguments */                                      \
+    [&](auto&&... args) {                                                      \
+        LOG_ERROR_LINE(message "  Error code: %s",                             \
+                       args...,                                                \
+                       rive::gpu::vkutil::string_from_vk_result(vkResult));    \
+    }(__VA_ARGS__)

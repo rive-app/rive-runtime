@@ -31,7 +31,7 @@ public:
     {
         using namespace rive_vkb;
 
-        m_instance = std::make_unique<VulkanInstance>(VulkanInstance::Options{
+        m_instance = VulkanInstance::Create(VulkanInstance::Options{
             .appName = "Rive Unit Tests",
             .idealAPIVersion =
                 m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
@@ -45,14 +45,16 @@ public:
             .wantDebugCallbacks = !m_backendParams.disableDebugCallbacks,
 #endif
         });
+        assert(m_instance != nullptr);
 
-        m_device = std::make_unique<VulkanDevice>(
+        m_device = VulkanDevice::Create(
             *m_instance,
             VulkanDevice::Options{
                 .coreFeaturesOnly = m_backendParams.core,
                 .gpuNameFilter = m_backendParams.gpuNameFilter.c_str(),
                 .headless = true,
             });
+        assert(m_device != nullptr);
 
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance->vkInstance(),
@@ -120,7 +122,7 @@ public:
                     : 0;
 
             m_frameSynchronizer =
-                std::make_unique<rive_vkb::VulkanHeadlessFrameSynchronizer>(
+                rive_vkb::VulkanHeadlessFrameSynchronizer::Create(
                     *m_instance,
                     *m_device,
                     ref_rcp(vk()),
@@ -131,6 +133,8 @@ public:
                         .imageUsageFlags = usageFlags,
                         .initialFrameNumber = currentFrameNumber,
                     });
+            assert(m_frameSynchronizer != nullptr);
+
             m_renderTarget = impl()->makeRenderTarget(
                 m_width,
                 m_height,
@@ -162,7 +166,7 @@ public:
     {
         if (!m_frameSynchronizer->isFrameStarted())
         {
-            m_frameSynchronizer->beginFrame();
+            VK_CHECK(m_frameSynchronizer->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_frameSynchronizer->vkImageView(),
@@ -190,11 +194,12 @@ public:
             m_frameSynchronizer->queueImageCopy(&lastAccess);
         }
 
-        m_frameSynchronizer->endFrame(lastAccess);
+        VK_CHECK(m_frameSynchronizer->endFrame(lastAccess));
 
         if (pixelData != nullptr)
         {
-            m_frameSynchronizer->getPixelsFromLastImageCopy(pixelData);
+            VK_CHECK(
+                m_frameSynchronizer->getPixelsFromLastImageCopy(pixelData));
         }
     }
 

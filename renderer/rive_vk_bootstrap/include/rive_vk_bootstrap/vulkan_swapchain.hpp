@@ -29,11 +29,12 @@ public:
         uint32_t preferredImageCount = 2;
     };
 
-    VulkanSwapchain(VulkanInstance&,
-                    VulkanDevice&,
-                    rive::rcp<rive::gpu::VulkanContext>,
-                    VkSurfaceKHR,
-                    const Options&);
+    static std::unique_ptr<VulkanSwapchain> Create(
+        VulkanInstance&,
+        VulkanDevice&,
+        rive::rcp<rive::gpu::VulkanContext>,
+        VkSurfaceKHR,
+        const Options&);
     ~VulkanSwapchain();
 
     VulkanSwapchain(const VulkanSwapchain&) = delete;
@@ -50,7 +51,7 @@ public:
     VkImageUsageFlags imageUsageFlags() const { return m_imageUsageFlags; }
 
     bool isFrameStarted() const;
-    void beginFrame();
+    [[nodiscard]] VkResult beginFrame();
 
     // Queue a copy of the swapchain image for this frame with optional bounds.
     // Must be done before endFrame.
@@ -59,12 +60,19 @@ public:
 
     using Super::queueImageCopy;
 
-    void endFrame(const rive::gpu::vkutil::ImageAccess&);
+    [[nodiscard]] VkResult endFrame(const rive::gpu::vkutil::ImageAccess&);
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
 
 private:
+    VulkanSwapchain(VulkanInstance&,
+                    VulkanDevice&,
+                    rive::rcp<rive::gpu::VulkanContext>&&,
+                    VkSurfaceKHR,
+                    const Options&,
+                    bool* successOut);
+
     struct SwapchainImage
     {
         VkImage image;
@@ -83,22 +91,22 @@ private:
         return m_swapchainImages.at(m_currentImageIndex);
     }
 
-    VkSurfaceFormatKHR findBestFormat(
+    std::optional<VkSurfaceFormatKHR> tryFindBestFormat(
         VulkanDevice& device,
         VkSurfaceKHR surface,
         const std::vector<VkSurfaceFormatKHR>& preferences);
 
-    VkPresentModeKHR findBestPresentMode(
+    std::optional<VkPresentModeKHR> tryFindBestPresentMode(
         VulkanDevice& device,
         VkSurfaceKHR surface,
         const std::vector<VkPresentModeKHR>& presentModePreferences);
 
-    VkSwapchainKHR m_swapchain;
+    VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 
-    VkFormat m_imageFormat;
-    VkImageUsageFlags m_imageUsageFlags;
-    uint32_t m_width;
-    uint32_t m_height;
+    VkFormat m_imageFormat = VK_FORMAT_UNDEFINED;
+    VkImageUsageFlags m_imageUsageFlags = 0;
+    uint32_t m_width = 0;
+    uint32_t m_height = 0;
 
     uint32_t m_currentImageIndex = std::numeric_limits<uint32_t>::max();
 

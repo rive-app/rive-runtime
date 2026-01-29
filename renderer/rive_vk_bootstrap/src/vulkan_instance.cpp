@@ -6,13 +6,26 @@
 #include "rive_vk_bootstrap/vulkan_instance.hpp"
 #include "logging.hpp"
 #include "vulkan_debug_callbacks.hpp"
+#include "vulkan_error_handling.hpp"
 #include "vulkan_library.hpp"
 
 namespace rive_vkb
 {
-VulkanInstance::VulkanInstance(const Options& opts)
+std::unique_ptr<VulkanInstance> VulkanInstance::Create(const Options& opts)
 {
-    m_library = std::make_unique<VulkanLibrary>();
+    bool success = true;
+    auto outInstance =
+        std::unique_ptr<VulkanInstance>{new VulkanInstance(opts, &success)};
+    CONFIRM_OR_RETURN_VALUE(success, nullptr);
+    return outInstance;
+}
+
+VulkanInstance::VulkanInstance(const Options& opts, bool* successOut) :
+    m_library(VulkanLibrary::Create())
+{
+    *successOut = false;
+
+    CONFIRM_OR_RETURN(m_library != nullptr);
 
     // Figure out which version to use
     m_instanceVersion = opts.idealAPIVersion;
@@ -42,19 +55,16 @@ VulkanInstance::VulkanInstance(const Options& opts)
         m_apiVersion = VK_API_VERSION_1_0;
     }
 
-    if (m_instanceVersion < opts.minimumSupportedInstanceVersion)
-    {
-        LOG_ERROR_LINE(
-            "Instance version %d.%d.%d is less than the minimum supported "
-            "version of %d.%d.%d",
-            VK_VERSION_MAJOR(m_instanceVersion),
-            VK_VERSION_MINOR(m_instanceVersion),
-            VK_VERSION_PATCH(m_instanceVersion),
-            VK_VERSION_MAJOR(opts.minimumSupportedInstanceVersion),
-            VK_VERSION_MINOR(opts.minimumSupportedInstanceVersion),
-            VK_VERSION_PATCH(opts.minimumSupportedInstanceVersion));
-        abort();
-    }
+    CONFIRM_OR_RETURN_MSG(
+        m_instanceVersion >= opts.minimumSupportedInstanceVersion,
+        "Instance version %d.%d.%d is less than the minimum supported "
+        "version of %d.%d.%d",
+        VK_VERSION_MAJOR(m_instanceVersion),
+        VK_VERSION_MINOR(m_instanceVersion),
+        VK_VERSION_PATCH(m_instanceVersion),
+        VK_VERSION_MAJOR(opts.minimumSupportedInstanceVersion),
+        VK_VERSION_MINOR(opts.minimumSupportedInstanceVersion),
+        VK_VERSION_PATCH(opts.minimumSupportedInstanceVersion));
 
     VkApplicationInfo appInfo = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -147,12 +157,9 @@ VulkanInstance::VulkanInstance(const Options& opts)
 
     for (auto* extName : opts.requiredExtensions)
     {
-        if (!add_extension_if_supported(extName))
-        {
-            LOG_ERROR_LINE("Required extension '%s' was not supported",
-                           extName);
-            abort();
-        }
+        CONFIRM_OR_RETURN_MSG(add_extension_if_supported(extName),
+                              "Required extension '%s' was not supported",
+                              extName);
     }
 
     add_extensions_if_supported(opts.optionalExtensions);
@@ -173,7 +180,7 @@ VulkanInstance::VulkanInstance(const Options& opts)
         if (!add_layer_if_supported("VK_LAYER_KHRONOS_validation"))
         {
             LOG_ERROR_LINE("WARNING: Validation layers are not supported. "
-                           "Creating context without validation layers.\n");
+                           "Creating context without validation layers.");
             validationType = VulkanValidationType::none;
         }
         else if (validationType != VulkanValidationType::core)
@@ -205,7 +212,7 @@ VulkanInstance::VulkanInstance(const Options& opts)
             else
             {
                 LOG_ERROR_LINE("WARNING: Debug callbacks are not supported. "
-                               "Creating context without debug callbacks.\n");
+                               "Creating context without debug callbacks.");
                 enableDebugCallbacks = false;
             }
         }
@@ -267,22 +274,32 @@ VulkanInstance::VulkanInstance(const Options& opts)
         createInfo.pNext = &validationLayerSettingsForSyncValidation;
     }
 
-    VK_CHECK(
-        m_library->createInstance(&createInfo, VK_NULL_HANDLE, &m_instance));
+    VK_CONFIRM_OR_RETURN_MSG(
+        m_library->createInstance(&createInfo, VK_NULL_HANDLE, &m_instance),
+        "Failed to create Vulkan instance");
+
+    // Unfortunately this function cannot be loaded before there is an instance,
+    // so a failure here is unrecoverable (as there would be no way to clean up
+    // the created VkInstance)
+    LOAD_MEMBER_INSTANCE_FUNC(this, vkDestroyInstance, *this);
+    if (m_vkDestroyInstance == nullptr)
+    {
+        LOG_ERROR_LINE(
+            "Could not load Vulkan function 'vkDestroyInstance'. This is an unrecoverable failure, becasue there is no way to properly dispose of the already-created Vulkan instance.");
+        abort();
+    }
 
     m_enabledExtensions = std::move(extensions);
     m_enabledLayers = std::move(layers);
 
-    LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(vkDestroyInstance, *this);
-
     // This should always exist on Vulkan 1.1 but there are some devices where
     // the reported instance version is > 1.0 that actually only
     // have 1.0-enabled devices.
-    LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures2, *this);
+    LOAD_MEMBER_INSTANCE_FUNC(this, vkGetPhysicalDeviceFeatures2, *this);
     if (m_vkGetPhysicalDeviceFeatures2 == nullptr &&
         enabledKHRDeviceProperties2)
     {
-        LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures2KHR, *this);
+        LOAD_MEMBER_INSTANCE_FUNC(this, vkGetPhysicalDeviceFeatures2KHR, *this);
     }
 
     if (enableDebugCallbacks)
@@ -310,8 +327,9 @@ VulkanInstance::VulkanInstance(const Options& opts)
         }
         else
         {
-            DEFINE_AND_LOAD_INSTANCE_FUNC(vkCreateDebugUtilsMessengerEXT,
-                                          *this);
+            DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(
+                vkCreateDebugUtilsMessengerEXT,
+                *this);
 
             VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo = {
                 .sType =
@@ -333,11 +351,13 @@ VulkanInstance::VulkanInstance(const Options& opts)
                 result != VK_SUCCESS)
             {
                 LOG_ERROR_LINE(
-                    "Failed to create debug messenger. Error code: %d",
-                    uint32_t(result));
+                    "Failed to create debug messenger. Error code: %s",
+                    rive::gpu::vkutil::string_from_vk_result(result));
             }
         }
     }
+
+    *successOut = true;
 }
 
 VulkanInstance::~VulkanInstance()
@@ -345,6 +365,7 @@ VulkanInstance::~VulkanInstance()
     if (m_debugUtilsMessenger != VK_NULL_HANDLE)
     {
         DEFINE_AND_LOAD_INSTANCE_FUNC(vkDestroyDebugUtilsMessengerEXT, *this);
+        assert(vkDestroyDebugUtilsMessengerEXT != nullptr);
         vkDestroyDebugUtilsMessengerEXT(m_instance,
                                         m_debugUtilsMessenger,
                                         nullptr);
@@ -353,12 +374,16 @@ VulkanInstance::~VulkanInstance()
     if (m_debugReportCallback != VK_NULL_HANDLE)
     {
         DEFINE_AND_LOAD_INSTANCE_FUNC(vkDestroyDebugReportCallbackEXT, *this);
+        assert(vkDestroyDebugReportCallbackEXT != nullptr);
         vkDestroyDebugReportCallbackEXT(m_instance,
                                         m_debugReportCallback,
                                         nullptr);
     }
 
-    m_vkDestroyInstance(m_instance, nullptr);
+    if (m_instance != VK_NULL_HANDLE)
+    {
+        m_vkDestroyInstance(m_instance, nullptr);
+    }
 }
 
 PFN_vkVoidFunction VulkanInstance::loadInstanceFunc(const char* name) const

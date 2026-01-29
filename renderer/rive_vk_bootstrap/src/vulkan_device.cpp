@@ -9,6 +9,7 @@
 #include "rive_vk_bootstrap/vulkan_instance.hpp"
 #include "shaders/constants.glsl"
 #include "logging.hpp"
+#include "vulkan_error_handling.hpp"
 #include "vulkan_library.hpp"
 
 namespace rive_vkb
@@ -66,12 +67,29 @@ VulkanDevice::DriverVersion unpackDriverVersion(
     }
 }
 
-VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
+std::unique_ptr<VulkanDevice> VulkanDevice::Create(VulkanInstance& instance,
+                                                   const Options& opts)
 {
+    bool success = true;
+
+    // Private constructor, can't use make_unique
+    auto outDevice = std::unique_ptr<VulkanDevice>{
+        new VulkanDevice(instance, opts, &success)};
+    CONFIRM_OR_RETURN_VALUE(success, nullptr);
+    return outDevice;
+}
+
+VulkanDevice::VulkanDevice(VulkanInstance& instance,
+                           const Options& opts,
+                           bool* successOut)
+{
+    *successOut = false;
+
     assert(!opts.headless ||
            opts.presentationSurfaceForDeviceSelection == VK_NULL_HANDLE &&
                "It doesn't make sense to specify a presentation surface for a "
                "headless device");
+
     const char* nameFilter = opts.gpuNameFilter;
     if (const char* gpuFromEnv = getenv("RIVE_GPU"); gpuFromEnv != nullptr)
     {
@@ -80,17 +98,19 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         nameFilter = gpuFromEnv;
     }
 
-    auto findResult =
-        findCompatiblePhysicalDevice(instance,
-                                     nameFilter,
-                                     opts.presentationSurfaceForDeviceSelection,
-                                     opts.minimumSupportedAPIVersion);
-    m_physicalDevice = findResult.physicalDevice;
-    m_name = findResult.deviceName;
-    m_driverVersion = findResult.driverVersion;
+    auto findResult = tryFindCompatiblePhysicalDevice(
+        instance,
+        nameFilter,
+        opts.presentationSurfaceForDeviceSelection,
+        opts.minimumSupportedAPIVersion);
+    CONFIRM_OR_RETURN(findResult.has_value());
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceFeatures, instance);
-    assert(vkGetPhysicalDeviceFeatures != nullptr);
+    m_physicalDevice = findResult->physicalDevice;
+    m_name = findResult->deviceName;
+    m_driverVersion = findResult->driverVersion;
+
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkGetPhysicalDeviceFeatures,
+                                            instance);
 
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(m_physicalDevice, &supportedFeatures);
@@ -109,7 +129,7 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
     };
 
     m_riveVulkanFeatures = {
-        .apiVersion = findResult.deviceAPIVersion,
+        .apiVersion = findResult->deviceAPIVersion,
         .independentBlend = bool(requestedFeatures.independentBlend),
         .fillModeNonSolid = bool(requestedFeatures.fillModeNonSolid),
         .fragmentStoresAndAtomics =
@@ -117,9 +137,9 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         .shaderClipDistance = bool(requestedFeatures.shaderClipDistance),
     };
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkEnumerateDeviceExtensionProperties,
-                                  instance);
-    assert(vkEnumerateDeviceExtensionProperties != nullptr);
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(
+        vkEnumerateDeviceExtensionProperties,
+        instance);
 
     std::vector<VkExtensionProperties> supportedExtensions;
     {
@@ -148,14 +168,12 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
 
     if (!opts.headless)
     {
-        if (!addExtensionIfSupported(VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-                                     supportedExtensions,
-                                     addedExtensions))
-        {
-            LOG_ERROR_LINE("Cannot create device: %s is not supported.",
-                           VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-            abort();
-        }
+        CONFIRM_OR_RETURN_MSG(
+            addExtensionIfSupported(VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+                                    supportedExtensions,
+                                    addedExtensions),
+            "Cannot create device: %s is not supported.",
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     }
 
     // If these have values we'll use them in the VkDeviceCreateInfo chain
@@ -176,8 +194,9 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
 
     // Get our list of queue family properties.
     {
-        DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceQueueFamilyProperties,
-                                      instance);
+        DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(
+            vkGetPhysicalDeviceQueueFamilyProperties,
+            instance);
         uint32_t count;
         vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice,
                                                  &count,
@@ -201,8 +220,9 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         }
     }
 
-    assert(m_graphicsQueueFamilyIndex != std::numeric_limits<uint32_t>::max() &&
-           "Could not find graphics queue index");
+    CONFIRM_OR_RETURN_MSG(m_graphicsQueueFamilyIndex !=
+                              std::numeric_limits<uint32_t>::max(),
+                          "Could not find graphics queue index");
 
     // We're going to create a single queue (the graphics queue) with a priority
     // of 1.
@@ -237,25 +257,56 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
         deviceCreateInfo.pNext = &interlockFeatures.value();
     }
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkCreateDevice, instance);
-    VK_CHECK(vkCreateDevice(m_physicalDevice,
-                            &deviceCreateInfo,
-                            nullptr,
-                            &m_device));
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateDevice, instance);
+    VK_CONFIRM_OR_RETURN_MSG(
+        vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device),
+        "Failed to create Vulkan device.");
 
-    LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(vkGetDeviceProcAddr, instance);
-    LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(vkDeviceWaitIdle, instance);
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkGetDeviceProcAddr, instance);
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkDeviceWaitIdle, instance);
+
+    // Unfortunately, this function cannot be loaded until the device already
+    // exists, so if this fails for some reason (it shouldn't, in practice),
+    // it's unrecoverable as we would be unable to destroy the device.
+    m_vkDestroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
+        m_vkGetDeviceProcAddr(m_device, "vkDestroyDevice"));
+    if (m_vkDestroyDevice == nullptr)
+    {
+        LOG_ERROR_LINE(
+            "Could not load Vulkan function 'vkDestroyDevice'. This is an unrecoverable failure, becasue there is no way to properly dispose of the already-created Vulkan device.");
+        abort();
+    }
 
     m_vkGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
         m_vkGetDeviceProcAddr(m_device, "vkGetDeviceQueue"));
-    m_vkDestroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
-        m_vkGetDeviceProcAddr(m_device, "vkDestroyDevice"));
+    CONFIRM_OR_RETURN_MSG(m_vkGetDeviceQueue != nullptr,
+                          "Could not load Vulkan function 'vkGetDeviceQueue'");
 
-    LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR, instance);
-    LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceSurfacePresentModesKHR,
+    // These functions are only required for presentation-based code - they can
+    //  be missing (null) in headless mode
+    LOAD_MEMBER_INSTANCE_FUNC(this,
+                              vkGetPhysicalDeviceSurfaceFormatsKHR,
                               instance);
-    LOAD_MEMBER_INSTANCE_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
+    LOAD_MEMBER_INSTANCE_FUNC(this,
+                              vkGetPhysicalDeviceSurfacePresentModesKHR,
                               instance);
+    LOAD_MEMBER_INSTANCE_FUNC(this,
+                              vkGetPhysicalDeviceSurfaceCapabilitiesKHR,
+                              instance);
+    if (!opts.headless)
+    {
+        CONFIRM_OR_RETURN_MSG(
+            m_vkGetPhysicalDeviceSurfaceFormatsKHR != nullptr,
+            "Failed to load Vulkan function 'vkGetPhysicalDeviceSurfaceFormatsKHR'");
+
+        CONFIRM_OR_RETURN_MSG(
+            m_vkGetPhysicalDeviceSurfacePresentModesKHR != nullptr,
+            "Failed to load Vulkan function 'vkGetPhysicalDeviceSurfacePresentModesKHR'");
+
+        CONFIRM_OR_RETURN_MSG(
+            m_vkGetPhysicalDeviceSurfaceCapabilitiesKHR != nullptr,
+            "Failed to load Vulkan function 'vkGetPhysicalDeviceSurfaceCapabilitiesKHR'");
+    }
 
     if (opts.printInitializationMessage)
     {
@@ -263,11 +314,11 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
                VK_API_VERSION_MAJOR(m_riveVulkanFeatures.apiVersion),
                VK_API_VERSION_MINOR(m_riveVulkanFeatures.apiVersion),
                VK_API_VERSION_PATCH(m_riveVulkanFeatures.apiVersion),
-               physicalDeviceTypeName(findResult.deviceType),
-               findResult.deviceName.c_str(),
-               findResult.driverVersion.major,
-               findResult.driverVersion.minor,
-               findResult.driverVersion.patch);
+               physicalDeviceTypeName(findResult->deviceType),
+               findResult->deviceName.c_str(),
+               findResult->driverVersion.major,
+               findResult->driverVersion.minor,
+               findResult->driverVersion.patch);
         struct CommaSeparator
         {
             const char* m_separator = "";
@@ -290,39 +341,62 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance, const Options& opts)
             printf("%sVK_KHR_portability_subset", *commaSeparator);
         printf(" ] ====\n");
     }
+
+    *successOut = true;
 }
 
-VulkanDevice::~VulkanDevice() { m_vkDestroyDevice(m_device, nullptr); }
-
-VkSurfaceCapabilitiesKHR VulkanDevice::getSurfaceCapabilities(
-    VkSurfaceKHR surface) const
+VulkanDevice::~VulkanDevice()
 {
-    VkSurfaceCapabilitiesKHR caps;
-    VK_CHECK(m_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice,
-                                                         surface,
-                                                         &caps));
-    return caps;
+    if (m_device != VK_NULL_HANDLE)
+    {
+        m_vkDestroyDevice(m_device, nullptr);
+    }
+}
+
+VkResult VulkanDevice::getSurfaceCapabilities(
+    VkSurfaceKHR surface,
+    VkSurfaceCapabilitiesKHR* outCaps) const
+{
+    if (m_vkGetPhysicalDeviceSurfaceCapabilitiesKHR == nullptr)
+    {
+        LOG_ERROR_LINE(
+            "Could not load Vulkan function 'vkGetPhysicalDeviceSurfaceCapabilitiesKHR', cannot get surface capabilities.");
+        return {};
+    }
+
+    assert(outCaps != nullptr);
+    return m_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice,
+                                                       surface,
+                                                       outCaps);
 }
 
 bool VulkanDevice::hasSupportedDevice(VulkanInstance& instance,
                                       uint32_t minimumSupportedAPIVersion)
 {
     std::vector<VkPhysicalDevice> physicalDevices;
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN_VALUE(vkEnumeratePhysicalDevices,
+                                                  instance,
+                                                  false);
+
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN_VALUE(vkGetPhysicalDeviceProperties,
+                                                  instance,
+                                                  false);
+
     {
-        DEFINE_AND_LOAD_INSTANCE_FUNC(vkEnumeratePhysicalDevices, instance);
-        assert(vkEnumeratePhysicalDevices != nullptr);
-
         uint32_t count;
-        VK_CHECK(
-            vkEnumeratePhysicalDevices(instance.vkInstance(), &count, nullptr));
-        physicalDevices.resize(count);
-        VK_CHECK(vkEnumeratePhysicalDevices(instance.vkInstance(),
-                                            &count,
-                                            physicalDevices.data()));
-    }
+        VK_CONFIRM_OR_RETURN_VALUE_MSG(
+            vkEnumeratePhysicalDevices(instance.vkInstance(), &count, nullptr),
+            false,
+            "Failed to query Vulkan physical device count.");
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceProperties, instance);
-    assert(vkGetPhysicalDeviceProperties != nullptr);
+        physicalDevices.resize(count);
+        VK_CONFIRM_OR_RETURN_VALUE_MSG(
+            vkEnumeratePhysicalDevices(instance.vkInstance(),
+                                       &count,
+                                       physicalDevices.data()),
+            false,
+            "Failed to enumerate Vulkan physical devices.");
+    }
 
     for (auto& device : physicalDevices)
     {
@@ -337,11 +411,11 @@ bool VulkanDevice::hasSupportedDevice(VulkanInstance& instance,
     return false;
 }
 
-VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
-    VulkanInstance& instance,
-    const char* nameFilter,
-    VkSurfaceKHR optionalSurfaceForValidation,
-    uint32_t minimumSupportedAPIVersion)
+std::optional<VulkanDevice::FindDeviceResult> VulkanDevice::
+    tryFindCompatiblePhysicalDevice(VulkanInstance& instance,
+                                    const char* nameFilter,
+                                    VkSurfaceKHR optionalSurfaceForValidation,
+                                    uint32_t minimumSupportedAPIVersion)
 {
     if (nameFilter != nullptr && nameFilter[0] == '\0')
     {
@@ -361,28 +435,55 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
 
     std::vector<VkPhysicalDevice> physicalDevices;
     {
-        DEFINE_AND_LOAD_INSTANCE_FUNC(vkEnumeratePhysicalDevices, instance);
-        assert(vkEnumeratePhysicalDevices != nullptr);
+        DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN_VALUE(
+            vkEnumeratePhysicalDevices,
+            instance,
+            std::nullopt);
 
         uint32_t count;
-        VK_CHECK(
-            vkEnumeratePhysicalDevices(instance.vkInstance(), &count, nullptr));
+        VK_CONFIRM_OR_RETURN_VALUE_MSG(
+            vkEnumeratePhysicalDevices(instance.vkInstance(), &count, nullptr),
+            std::nullopt,
+            "Failed to query Vulkan physical device count.");
         physicalDevices.resize(count);
-        VK_CHECK(vkEnumeratePhysicalDevices(instance.vkInstance(),
-                                            &count,
-                                            physicalDevices.data()));
+        VK_CONFIRM_OR_RETURN_VALUE_MSG(
+            vkEnumeratePhysicalDevices(instance.vkInstance(),
+                                       &count,
+                                       physicalDevices.data()),
+            std::nullopt,
+            "Failed to enumerate Vulkan physical devices.");
     }
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceProperties, instance);
-    assert(vkGetPhysicalDeviceProperties != nullptr);
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN_VALUE(vkGetPhysicalDeviceProperties,
+                                                  instance,
+                                                  std::nullopt);
 
     DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceSurfaceFormatsKHR,
                                   instance);
     DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetPhysicalDeviceSurfacePresentModesKHR,
                                   instance);
 
+    if (optionalSurfaceForValidation != VK_NULL_HANDLE)
+    {
+        CONFIRM_OR_RETURN_VALUE_MSG(
+            vkGetPhysicalDeviceSurfaceFormatsKHR != nullptr,
+            std::nullopt,
+            "Failed to load Vulkan function 'vkGetPhysicalDeviceSurfaceFormatsKHR'");
+
+        CONFIRM_OR_RETURN_VALUE_MSG(
+            vkGetPhysicalDeviceSurfacePresentModesKHR != nullptr,
+            std::nullopt,
+            "Failed to load Vulkan function 'vkGetPhysicalDeviceSurfacePresentModesKHR'");
+    }
+
     auto IsSurfaceSupported = [&](VkPhysicalDevice device) {
         uint32_t surfaceFormatCount = 0;
+
+        // This lambda should only be called with an optional surface.
+        assert(optionalSurfaceForValidation != VK_NULL_HANDLE);
+        assert(vkGetPhysicalDeviceSurfaceFormatsKHR != nullptr);
+        assert(vkGetPhysicalDeviceSurfacePresentModesKHR != nullptr);
+
         vkGetPhysicalDeviceSurfaceFormatsKHR(device,
                                              optionalSurfaceForValidation,
                                              &surfaceFormatCount,
@@ -447,7 +548,7 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
                 LOG_ERROR_LINE("    '%s'", matchName.c_str());
             }
             LOG_ERROR_LINE("Please update the RIVE_GPU environment variable.");
-            abort();
+            return std::nullopt;
         }
 
         if (matchResult.physicalDevice != VK_NULL_HANDLE)
@@ -459,7 +560,7 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
             "Cannot create device: No GPU matches for filter '%s'.\nPlease "
             "update the RIVE_GPU environment variable.",
             nameFilter);
-        abort();
+        return std::nullopt;
     }
     else
     {
@@ -489,7 +590,7 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
                 if (!onlyAcceptDesiredType ||
                     props.deviceType == desiredDeviceType)
                 {
-                    return {
+                    return FindDeviceResult{
                         .physicalDevice = device,
                         .deviceName = props.deviceName,
                         .deviceType = props.deviceType,
@@ -502,7 +603,7 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
 
         LOG_ERROR_LINE(
             "Cannot create device: no supported GPU devices detected.");
-        abort();
+        return std::nullopt;
     }
 }
 
@@ -612,34 +713,60 @@ bool VulkanDevice::addExtensionIfSupported(
 std::vector<VkSurfaceFormatKHR> VulkanDevice::getSurfaceFormats(
     VkSurfaceKHR surface)
 {
+    if (m_vkGetPhysicalDeviceSurfaceFormatsKHR == nullptr)
+    {
+        LOG_ERROR_LINE(
+            "Could not load Vulkan function 'vkGetPhysicalDeviceSurfaceFormatsKHR', cannot test surface formats.");
+        return {};
+    }
+
     std::vector<VkSurfaceFormatKHR> formats;
     uint32_t count;
-    m_vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
-                                           surface,
-                                           &count,
-                                           nullptr);
+    VK_CONFIRM_OR_RETURN_VALUE_MSG(
+        m_vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
+                                               surface,
+                                               &count,
+                                               nullptr),
+        std::vector<VkSurfaceFormatKHR>{},
+        "Could not query Vulkan physical device surface format count");
     formats.resize(count);
-    m_vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
-                                           surface,
-                                           &count,
-                                           formats.data());
+    VK_CONFIRM_OR_RETURN_VALUE_MSG(
+        m_vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
+                                               surface,
+                                               &count,
+                                               formats.data()),
+        std::vector<VkSurfaceFormatKHR>{},
+        "Could not get Vulkan physical device surface formats");
     return formats;
 }
 
 std::vector<VkPresentModeKHR> VulkanDevice::getSurfacePresentModes(
     VkSurfaceKHR surface)
 {
+    if (m_vkGetPhysicalDeviceSurfacePresentModesKHR == nullptr)
+    {
+        LOG_ERROR_LINE(
+            "Could not load Vulkan function 'vkGetPhysicalDeviceSurfacePresentModesKHR', cannot get surface present modes.");
+        return {};
+    }
+
     std::vector<VkPresentModeKHR> modes;
     uint32_t count;
-    m_vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
-                                                surface,
-                                                &count,
-                                                nullptr);
+    VK_CONFIRM_OR_RETURN_VALUE_MSG(
+        m_vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
+                                                    surface,
+                                                    &count,
+                                                    nullptr),
+        std::vector<VkPresentModeKHR>{},
+        "Could not query Vulkan physical device present mode count");
     modes.resize(count);
-    m_vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
-                                                surface,
-                                                &count,
-                                                modes.data());
+    VK_CONFIRM_OR_RETURN_VALUE_MSG(
+        m_vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
+                                                    surface,
+                                                    &count,
+                                                    modes.data()),
+        std::vector<VkPresentModeKHR>{},
+        "Could not get Vulkan physical device presentation modes");
     return modes;
 }
 

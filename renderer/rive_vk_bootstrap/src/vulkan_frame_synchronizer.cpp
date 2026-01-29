@@ -6,6 +6,7 @@
 #include "rive_vk_bootstrap/vulkan_instance.hpp"
 #include "rive_vk_bootstrap/vulkan_frame_synchronizer.hpp"
 #include "logging.hpp"
+#include "vulkan_error_handling.hpp"
 #include "vulkan_library.hpp"
 
 namespace rive_vkb
@@ -13,15 +14,23 @@ namespace rive_vkb
 VulkanFrameSynchronizer::VulkanFrameSynchronizer(
     VulkanInstance& instance,
     VulkanDevice& device,
-    rive::rcp<rive::gpu::VulkanContext> vk,
-    const Options& opts) :
+    rive::rcp<rive::gpu::VulkanContext>&& vk,
+    const Options& opts,
+    bool* successOut) :
 
     m_vk(std::move(vk)),
     m_device(device.vkDevice()),
     m_monotonicFrameNumber(opts.initialFrameNumber)
+
 {
+    *successOut = false;
+
+    // In-flight frame count must be at least two (need multiple to flip
+    // between)
+    assert(opts.inFlightFrameCount > 1);
+
     // Load all of the functions we care about
-#define LOAD(name) LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(name, instance);
+#define LOAD(name) LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, name, instance);
     RIVE_VK_FRAME_SYNC_INSTANCE_COMMANDS(LOAD);
 #undef LOAD
 
@@ -37,13 +46,13 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
         .queueFamilyIndex = device.graphicsQueueFamilyIndex(),
     };
 
-    VK_CHECK(m_vkCreateCommandPool(m_device,
-                                   &commandPoolCreateInfo,
-                                   nullptr,
-                                   &m_commandPool));
+    VK_CONFIRM_OR_RETURN_MSG(m_vkCreateCommandPool(m_device,
+                                                   &commandPoolCreateInfo,
+                                                   nullptr,
+                                                   &m_commandPool),
+                             "Failed to create Vulkan command pool");
 
     // Create the alternating-frame sync objects
-    assert(opts.inFlightFrameCount > 1);
     m_inFlightFrames.resize(opts.inFlightFrameCount);
     for (auto& sync : m_inFlightFrames)
     {
@@ -52,8 +61,9 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
             .flags = VK_FENCE_CREATE_SIGNALED_BIT,
         };
 
-        VK_CHECK(
-            m_vkCreateFence(m_device, &fenceCreateInfo, nullptr, &sync.fence));
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_vkCreateFence(m_device, &fenceCreateInfo, nullptr, &sync.fence),
+            "Failed to create Vulkan fance");
 
         VkCommandBufferAllocateInfo cbufferAllocateInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -62,10 +72,12 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
             .commandBufferCount = 1,
         };
 
-        VK_CHECK(m_vkAllocateCommandBuffers(m_device,
-                                            &cbufferAllocateInfo,
-                                            &sync.commandBuffer));
-        sync.semaphore = createSemaphore();
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_vkAllocateCommandBuffers(m_device,
+                                       &cbufferAllocateInfo,
+                                       &sync.commandBuffer),
+            "Failed to allocate Vulkan command buffers");
+        VK_CONFIRM_OR_RETURN(createSemaphore(&sync.semaphore));
 
         sync.safeFrameNumber = m_monotonicFrameNumber;
     }
@@ -82,8 +94,12 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
             .pSignalSemaphores = &prev().semaphore,
         };
 
-        m_vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE),
+            "Failed to submit Vulkan queues");
     }
+
+    *successOut = true;
 }
 
 VulkanFrameSynchronizer::~VulkanFrameSynchronizer()
@@ -100,41 +116,57 @@ VulkanFrameSynchronizer::~VulkanFrameSynchronizer()
         m_vkDestroyFence(m_device, frame.fence, nullptr);
     }
 
-    m_vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+    if (m_commandPool != VK_NULL_HANDLE)
+    {
+        m_vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+    }
 }
 
-VkSemaphore VulkanFrameSynchronizer::waitForFenceAndBeginFrame()
+VkResult VulkanFrameSynchronizer::waitForFenceAndBeginFrame(
+    VkSemaphore* optionalOutSemaphore)
 {
     // Before we can use the command buffers/semaphores for the current frame,
     // we need to wait on its fence to stall the CPU until it's ready.
     static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
-    VK_CHECK(
-        m_vkWaitForFences(m_device, 1, &current().fence, true, NO_TIMEOUT));
+    VK_RETURN_RESULT_ON_ERROR_MSG(
+        m_vkWaitForFences(m_device, 1, &current().fence, true, NO_TIMEOUT),
+        "Failed to wait for Vulkan fence for next frame");
 
     // Now we need to reset the command buffer
     VkCommandBufferBeginInfo beginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
     };
 
-    VK_CHECK(m_vkResetCommandBuffer(current().commandBuffer, 0));
-    VK_CHECK(m_vkBeginCommandBuffer(current().commandBuffer, &beginInfo));
+    VK_RETURN_RESULT_ON_ERROR_MSG(
+        m_vkResetCommandBuffer(current().commandBuffer, 0),
+        "Failed to reset Vulkan command buffer");
+    VK_RETURN_RESULT_ON_ERROR_MSG(
+        m_vkBeginCommandBuffer(current().commandBuffer, &beginInfo),
+        "Failed to begin Vulkan command buffer");
     m_monotonicFrameNumber++;
 
     // Return the semaphore that external GPU synchronization (i.e. a swapchain)
     // will signal.
-    return current().semaphore;
+    if (optionalOutSemaphore != nullptr)
+    {
+        *optionalOutSemaphore = current().semaphore;
+    }
+
+    return VK_SUCCESS;
 }
 
-void VulkanFrameSynchronizer::endFrame(
+VkResult VulkanFrameSynchronizer::endFrame(
     std::optional<VkSemaphore> externalSignalSemaphore)
 {
     auto& frame = current();
 
     // This frame is done - reset the fence so that the submit can signal it.
-    VK_CHECK(m_vkResetFences(m_device, 1, &frame.fence));
+    VK_RETURN_RESULT_ON_ERROR_MSG(m_vkResetFences(m_device, 1, &frame.fence),
+                                  "Failed to reset Vulkan fences");
 
     // Next, the command buffer needs to be ended (so it can be submitted)
-    m_vkEndCommandBuffer(frame.commandBuffer);
+    VK_RETURN_RESULT_ON_ERROR_MSG(m_vkEndCommandBuffer(frame.commandBuffer),
+                                  "Failed to end Vulkan command buffer");
 
     VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
 
@@ -159,7 +191,9 @@ void VulkanFrameSynchronizer::endFrame(
         .pSignalSemaphores = &signalSemaphore,
     };
 
-    VK_CHECK(m_vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, frame.fence));
+    VK_RETURN_RESULT_ON_ERROR_MSG(
+        m_vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, frame.fence),
+        "Failed to submit Vulkan queue");
 
     // It will be safe to destroy assets in use in the current in-flight frame
     // when the current frame number finishes.
@@ -172,6 +206,8 @@ void VulkanFrameSynchronizer::endFrame(
     {
         m_pixelReadState = PixelReadState::Ready;
     }
+
+    return VK_SUCCESS;
 }
 
 void VulkanFrameSynchronizer::queueImageCopy(
@@ -251,7 +287,7 @@ void VulkanFrameSynchronizer::queueImageCopy(
     m_pixelReadState = PixelReadState::Queued;
 }
 
-void VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
+VkResult VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
     std::vector<uint8_t>* outPixels)
 {
     assert(m_pixelReadState != PixelReadState::None &&
@@ -263,7 +299,8 @@ void VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
     // frame to finish.
     auto& sync = prev();
     static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
-    VK_CHECK(m_vkWaitForFences(m_device, 1, &sync.fence, true, NO_TIMEOUT));
+    VK_RETURN_RESULT_ON_ERROR(
+        m_vkWaitForFences(m_device, 1, &sync.fence, true, NO_TIMEOUT));
 
     // Make the texture data available to the CPU
     m_pixelReadBuffer->invalidateContents();
@@ -291,18 +328,21 @@ void VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
     }
 
     m_pixelReadState = PixelReadState::None;
+    return VK_SUCCESS;
 }
 
-VkSemaphore VulkanFrameSynchronizer::createSemaphore()
+VkResult VulkanFrameSynchronizer::createSemaphore(VkSemaphore* outSemaphore)
 {
+    assert(outSemaphore != nullptr);
+
     static constexpr VkSemaphoreCreateInfo semaCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
 
-    VkSemaphore semaphore;
-    VK_CHECK(
-        m_vkCreateSemaphore(m_device, &semaCreateInfo, nullptr, &semaphore));
-    return semaphore;
+    return m_vkCreateSemaphore(m_device,
+                               &semaCreateInfo,
+                               nullptr,
+                               outSemaphore);
 }
 
 void VulkanFrameSynchronizer::destroySemaphore(VkSemaphore semaphore)

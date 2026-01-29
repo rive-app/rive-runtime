@@ -6,38 +6,75 @@
 #include "rive_vk_bootstrap/vulkan_instance.hpp"
 #include "rive_vk_bootstrap/vulkan_swapchain.hpp"
 #include "logging.hpp"
+#include "vulkan_error_handling.hpp"
 #include "vulkan_library.hpp"
 
 namespace rive_vkb
 {
+std::unique_ptr<VulkanSwapchain> VulkanSwapchain::Create(
+    VulkanInstance& instance,
+    VulkanDevice& device,
+    rive::rcp<rive::gpu::VulkanContext> vk,
+    VkSurfaceKHR surface,
+    const Options& opts)
+{
+    bool success = true;
+
+    // Private constructor, can't use make_unique
+    auto outSwapchain =
+        std::unique_ptr<VulkanSwapchain>{new VulkanSwapchain(instance,
+                                                             device,
+                                                             std::move(vk),
+                                                             surface,
+                                                             opts,
+                                                             &success)};
+    CONFIRM_OR_RETURN_VALUE(success, nullptr);
+    return outSwapchain;
+}
+
 VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
                                  VulkanDevice& device,
-                                 rive::rcp<rive::gpu::VulkanContext> vk,
+                                 rive::rcp<rive::gpu::VulkanContext>&& vk,
                                  VkSurfaceKHR surface,
-                                 const Options& opts) :
+                                 const Options& opts,
+                                 bool* successOut) :
     Super(instance,
           device,
           std::move(vk),
           {
               .initialFrameNumber = opts.initialFrameNumber,
               .externalGPUSynchronization = true,
-          })
+          },
+          successOut)
 {
+    // Validate parameters before handling the success value from the super
+    // class so that programmer errors get caught sooner
     assert(opts.formatPreferences.size() > 0 &&
            "Must request at least one surface format");
     assert(opts.presentModePreferences.size() > 0 &&
            "Must request at least one present mode");
 
+    // The super class sets this when it constructs, so check it before
+    // re-setting it to false.
+    if (!*successOut)
+    {
+        return;
+    }
+
+    *successOut = false;
+
     // Load all of the functions we care about
-#define LOAD(name) LOAD_REQUIRED_MEMBER_INSTANCE_FUNC(name, instance);
+#define LOAD(name) LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, name, instance);
     RIVE_VK_SWAPCHAIN_INSTANCE_COMMANDS(LOAD);
 #undef LOAD
 
     // Check the device to see what our best-match image format is
     auto surfaceFormat =
-        findBestFormat(device, surface, opts.formatPreferences);
+        tryFindBestFormat(device, surface, opts.formatPreferences);
+    CONFIRM_OR_RETURN(surfaceFormat.has_value());
     auto presentMode =
-        findBestPresentMode(device, surface, opts.presentModePreferences);
+        tryFindBestPresentMode(device, surface, opts.presentModePreferences);
+    CONFIRM_OR_RETURN(presentMode.has_value());
 
     VkCompositeAlphaFlagBitsKHR compositeAlphaFlags =
 #if defined(__ANDROID__)
@@ -46,56 +83,66 @@ VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 #endif
 
-    auto surfaceCaps = device.getSurfaceCapabilities(surface);
+    VkSurfaceCapabilitiesKHR surfaceCaps;
+    VK_CONFIRM_OR_RETURN_MSG(
+        device.getSurfaceCapabilities(surface, &surfaceCaps),
+        "Failed to get Vulkan device surface capabilities");
 
     VkSwapchainCreateInfoKHR swapchainCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface = surface,
         .minImageCount =
             std::max(opts.preferredImageCount, surfaceCaps.minImageCount),
-        .imageFormat = surfaceFormat.format,
-        .imageColorSpace = surfaceFormat.colorSpace,
+        .imageFormat = surfaceFormat->format,
+        .imageColorSpace = surfaceFormat->colorSpace,
         .imageExtent = surfaceCaps.currentExtent,
         .imageArrayLayers = 1,
         .imageUsage = opts.imageUsageFlags,
         .preTransform = surfaceCaps.currentTransform,
         .compositeAlpha = compositeAlphaFlags,
-        .presentMode = presentMode,
+        .presentMode = presentMode.value(),
         .clipped = true,
     };
 
     m_width = surfaceCaps.currentExtent.width;
     m_height = surfaceCaps.currentExtent.height;
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkCreateSwapchainKHR, instance);
-    VK_CHECK(vkCreateSwapchainKHR(device.vkDevice(),
-                                  &swapchainCreateInfo,
-                                  nullptr,
-                                  &m_swapchain));
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateSwapchainKHR, instance);
 
-    m_imageFormat = surfaceFormat.format;
+    VK_CONFIRM_OR_RETURN_MSG(vkCreateSwapchainKHR(device.vkDevice(),
+                                                  &swapchainCreateInfo,
+                                                  nullptr,
+                                                  &m_swapchain),
+                             "Failed to create Vulkan swapchain");
+
+    m_imageFormat = surfaceFormat->format;
     m_imageUsageFlags = opts.imageUsageFlags;
 
     // Get the swapchain images and then build out our internal image data
     std::vector<VkImage> vkImages;
     {
-        DEFINE_AND_LOAD_INSTANCE_FUNC(vkGetSwapchainImagesKHR, instance);
+        DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkGetSwapchainImagesKHR,
+                                                instance);
 
         uint32_t count;
-        vkGetSwapchainImagesKHR(device.vkDevice(),
-                                m_swapchain,
-                                &count,
-                                nullptr);
+        VK_CONFIRM_OR_RETURN_MSG(
+            vkGetSwapchainImagesKHR(device.vkDevice(),
+                                    m_swapchain,
+                                    &count,
+                                    nullptr),
+            "Failed to query Vulkan swapchain image count");
         vkImages.resize(count);
-        vkGetSwapchainImagesKHR(device.vkDevice(),
-                                m_swapchain,
-                                &count,
-                                vkImages.data());
+        VK_CONFIRM_OR_RETURN_MSG(vkGetSwapchainImagesKHR(device.vkDevice(),
+                                                         m_swapchain,
+                                                         &count,
+                                                         vkImages.data()),
+                                 "Failed to get Vulkan swapchain images");
     }
 
     m_swapchainImages.resize(vkImages.size());
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC(vkCreateImageView, instance);
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateImageView, instance);
+
     for (uint32_t i = 0; i < vkImages.size(); i++)
     {
         m_swapchainImages[i].image = vkImages[i];
@@ -113,30 +160,44 @@ VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
                 },
         };
 
-        vkCreateImageView(device.vkDevice(),
-                          &viewCreateInfo,
-                          nullptr,
-                          &m_swapchainImages[i].view);
+        VK_CONFIRM_OR_RETURN_MSG(vkCreateImageView(device.vkDevice(),
+                                                   &viewCreateInfo,
+                                                   nullptr,
+                                                   &m_swapchainImages[i].view),
+                                 "Failed to create Vulkan image view");
 
-        m_swapchainImages[i].frameSemaphore = createSemaphore();
+        VK_CONFIRM_OR_RETURN_MSG(
+            createSemaphore(&m_swapchainImages[i].frameSemaphore),
+            "Failed to create Vulkan frame semaphore");
     }
+
+    *successOut = true;
 }
 
 VulkanSwapchain::~VulkanSwapchain()
 {
     // Don't do anything until everything is flushed through.
-    m_vkDeviceWaitIdle(vkDevice());
+    if (m_vkDeviceWaitIdle != nullptr)
+    {
+        std::ignore = m_vkDeviceWaitIdle(vkDevice());
+    }
 
     for (auto& data : m_swapchainImages)
     {
+        assert(
+            m_vkDestroyImageView != nullptr &&
+            "should not have created swapchain images until m_vkDestroyImageView was loaded");
         destroySemaphore(data.frameSemaphore);
         m_vkDestroyImageView(vkDevice(), data.view, nullptr);
     }
 
-    m_vkDestroySwapchainKHR(vkDevice(), m_swapchain, nullptr);
+    if (m_vkDestroySwapchainKHR != nullptr)
+    {
+        m_vkDestroySwapchainKHR(vkDevice(), m_swapchain, nullptr);
+    }
 }
 
-VkSurfaceFormatKHR VulkanSwapchain::findBestFormat(
+std::optional<VkSurfaceFormatKHR> VulkanSwapchain::tryFindBestFormat(
     VulkanDevice& device,
     VkSurfaceKHR surface,
     const std::vector<VkSurfaceFormatKHR>& preferences)
@@ -154,11 +215,11 @@ VkSurfaceFormatKHR VulkanSwapchain::findBestFormat(
         }
     }
 
-    LOG_ERROR_LINE("Could not find any preferred surface format");
-    abort();
+    LOG_ERROR_LINE("Could not find any preferred Vulkan surface format");
+    return std::nullopt;
 }
 
-VkPresentModeKHR VulkanSwapchain::findBestPresentMode(
+std::optional<VkPresentModeKHR> VulkanSwapchain::tryFindBestPresentMode(
     VulkanDevice& device,
     VkSurfaceKHR surface,
     const std::vector<VkPresentModeKHR>& presentModePreferences)
@@ -175,8 +236,8 @@ VkPresentModeKHR VulkanSwapchain::findBestPresentMode(
         }
     }
 
-    LOG_ERROR_LINE("Could not find any preferred present mode");
-    abort();
+    LOG_ERROR_LINE("Could not find any preferred Vulkan present mode");
+    return std::nullopt;
 }
 
 bool VulkanSwapchain::isFrameStarted() const
@@ -184,21 +245,27 @@ bool VulkanSwapchain::isFrameStarted() const
     return m_currentImageIndex < m_swapchainImages.size();
 }
 
-void VulkanSwapchain::beginFrame()
+VkResult VulkanSwapchain::beginFrame()
 {
     assert(!isFrameStarted());
 
     // Do the work for the frame synchronization to begin
-    auto semaphoreToSignal = Super::waitForFenceAndBeginFrame();
+    VkSemaphore semaphoreToSignal;
+
+    VK_RETURN_RESULT_ON_ERROR(
+        Super::waitForFenceAndBeginFrame(&semaphoreToSignal));
 
     // Next, acquire the next image from the swap chain, and signal the
     static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
-    VK_CHECK(m_vkAcquireNextImageKHR(vkDevice(),
-                                     m_swapchain,
-                                     NO_TIMEOUT,
-                                     semaphoreToSignal,
-                                     VK_NULL_HANDLE,
-                                     &m_currentImageIndex));
+    VK_RETURN_RESULT_ON_ERROR_MSG(
+        m_vkAcquireNextImageKHR(vkDevice(),
+                                m_swapchain,
+                                NO_TIMEOUT,
+                                semaphoreToSignal,
+                                VK_NULL_HANDLE,
+                                &m_currentImageIndex),
+        "Failed to acquire next Vulkan swapchain image");
+    return VK_SUCCESS;
 }
 
 void VulkanSwapchain::queueImageCopy(
@@ -215,7 +282,8 @@ void VulkanSwapchain::queueImageCopy(
                    optPixelReadBounds);
 }
 
-void VulkanSwapchain::endFrame(const rive::gpu::vkutil::ImageAccess& lastAccess)
+VkResult VulkanSwapchain::endFrame(
+    const rive::gpu::vkutil::ImageAccess& lastAccess)
 {
     assert(isFrameStarted());
 
@@ -235,7 +303,7 @@ void VulkanSwapchain::endFrame(const rive::gpu::vkutil::ImageAccess& lastAccess)
 
     // Now that the memory barrier is in the command buffer, we can end the
     // frame sync frame.
-    Super::endFrame(swapImage.frameSemaphore);
+    VK_RETURN_RESULT_ON_ERROR(Super::endFrame(swapImage.frameSemaphore));
 
     // Now queue the actual presentation of the swpchain image
     VkPresentInfoKHR presentInfo = {
@@ -247,10 +315,13 @@ void VulkanSwapchain::endFrame(const rive::gpu::vkutil::ImageAccess& lastAccess)
         .pImageIndices = &m_currentImageIndex,
     };
 
-    m_vkQueuePresentKHR(graphicsQueue(), &presentInfo);
+    VK_RETURN_RESULT_ON_ERROR_MSG(
+        m_vkQueuePresentKHR(graphicsQueue(), &presentInfo),
+        "Failed to queue Vulkan presentation");
 
     // This puts us in the !IsFrameStarted() state
     m_currentImageIndex = std::numeric_limits<uint32_t>::max();
+    return VK_SUCCESS;
 }
 
 } // namespace rive_vkb

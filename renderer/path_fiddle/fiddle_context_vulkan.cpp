@@ -39,7 +39,7 @@ public:
         const char** glfwExtensions;
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-        m_instance = std::make_unique<VulkanInstance>(VulkanInstance::Options{
+        m_instance = VulkanInstance::Create(VulkanInstance::Options{
             .appName = "path_fiddle",
             .idealAPIVersion = options.coreFeaturesOnly ? VK_API_VERSION_1_0
                                                         : VK_API_VERSION_1_3,
@@ -54,18 +54,20 @@ public:
             .wantDebugCallbacks = !options.disableDebugCallbacks,
 #endif
         });
+        assert(m_instance != nullptr);
 
         m_vkDestroySurfaceKHR =
             m_instance->loadInstanceFunc<PFN_vkDestroySurfaceKHR>(
                 "vkDestroySurfaceKHR");
         assert(m_vkDestroySurfaceKHR != nullptr);
 
-        m_device = std::make_unique<VulkanDevice>(
+        m_device = VulkanDevice::Create(
             *m_instance,
             VulkanDevice::Options{
                 .coreFeaturesOnly = options.coreFeaturesOnly,
                 .gpuNameFilter = options.gpuNameFilter,
             });
+        assert(m_device != nullptr);
 
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance->vkInstance(),
@@ -204,12 +206,12 @@ public:
             swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
         }
 
-        m_swapchain =
-            std::make_unique<rive_vkb::VulkanSwapchain>(*m_instance,
+        m_swapchain = rive_vkb::VulkanSwapchain::Create(*m_instance,
                                                         *m_device,
                                                         ref_rcp(vk()),
                                                         m_windowSurface,
                                                         swapOpts);
+        assert(m_swapchain != nullptr);
 
         m_renderTarget = renderContextVulkanImpl()->makeRenderTarget(
             width,
@@ -245,7 +247,7 @@ public:
     {
         if (!m_swapchain->isFrameStarted())
         {
-            m_swapchain->beginFrame();
+            VK_CHECK(m_swapchain->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_swapchain->currentVkImageView(),
@@ -275,11 +277,11 @@ public:
                 rive::IAABB::MakeWH(m_renderTarget->width(),
                                     m_renderTarget->height()));
         }
-        m_swapchain->endFrame(lastAccess);
+        VK_CHECK(m_swapchain->endFrame(lastAccess));
 
         if (pixelData != nullptr)
         {
-            m_swapchain->getPixelsFromLastImageCopy(pixelData);
+            VK_CHECK(m_swapchain->getPixelsFromLastImageCopy(pixelData));
         }
     }
 
