@@ -40,7 +40,7 @@ public:
     NestedInput* input(size_t index);
     NestedInput* input(std::string name);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
-    void dataContext(DataContext* dataContext);
+    void dataContext(rcp<DataContext> dataContext);
     void releaseDependencies() override
     {
         m_StateMachineInstance.reset(nullptr);

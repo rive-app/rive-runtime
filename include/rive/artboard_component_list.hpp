@@ -64,9 +64,9 @@ public:
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void update(ComponentDirt value) override;
     void updateConstraints() override;
-    void internalDataContext(DataContext* dataContext) override;
+    void internalDataContext(rcp<DataContext> dataContext) override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               DataContext* parent) override;
+                               rcp<DataContext> parent) override;
     void clearDataContext() override;
     void unbind() override;
     void updateDataBinds() override;

@@ -37,7 +37,7 @@ protected:
     std::vector<NestedAnimation*> m_NestedAnimations;
     File* m_file = nullptr;
     rcp<ViewModelInstance> m_viewModelInstance = nullptr;
-    DataContext* m_dataContext = nullptr;
+    rcp<DataContext> m_dataContext = nullptr;
 
 protected:
 private:
@@ -92,8 +92,8 @@ public:
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(const NestedArtboardBase& object) override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               DataContext* parent) override;
-    void internalDataContext(DataContext* dataContext) override;
+                               rcp<DataContext> parent) override;
+    void internalDataContext(rcp<DataContext> dataContext) override;
     void clearDataContext() override;
     void unbind() override;
     void updateDataBinds() override;

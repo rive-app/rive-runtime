@@ -37,7 +37,7 @@ public:
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
     void buildDependencies() override;
     void update(ComponentDirt value) override;
-    DataContext* dataContext() override
+    rcp<DataContext> dataContext() override
     {
         if (artboard() != nullptr)
         {

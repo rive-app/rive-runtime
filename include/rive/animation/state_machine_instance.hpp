@@ -79,8 +79,7 @@ private:
         StateInstance* stateFromInstance,
         StateMachineLayerInstance* layerInstance);
 
-    bool m_ownsDataContext = false;
-    DataContext* m_DataContext = nullptr;
+    rcp<DataContext> m_DataContext = nullptr;
     void addToHitLookup(Component* target,
                         bool isLayoutComponent,
                         std::unordered_map<Component*, HitDrawable*>& hitLookup,
@@ -115,8 +114,8 @@ public:
     SMITrigger* getTrigger(const std::string& name) const override;
     void bindViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) override;
-    void dataContext(DataContext* dataContext);
-    DataContext* dataContext() const { return m_DataContext; }
+    void dataContext(rcp<DataContext> dataContext);
+    rcp<DataContext> dataContext() const { return m_DataContext; }
     void rebind() override;
 
     size_t currentAnimationCount() const;
@@ -205,7 +204,7 @@ public:
         BindableProperty* bindableProperty) const;
     bool hasListeners() { return m_hitComponents.size() > 0; }
     void clearDataContext();
-    void internalDataContext(DataContext* dataContext);
+    void internalDataContext(rcp<DataContext> dataContext);
     ScriptedObject* scriptedObject(const ScriptedObject*) const;
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };

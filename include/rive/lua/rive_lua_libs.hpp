@@ -217,6 +217,7 @@ enum class LuaAtoms : int16_t
     image,
     blob,
     size,
+    dataContext,
 
     // Animation
     duration,
@@ -1126,6 +1127,23 @@ public:
 
 private:
     int m_timeoutMs = 200;
+};
+
+class ScriptedDataContext
+{
+public:
+    ScriptedDataContext(lua_State* L, rcp<DataContext> dataContext);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 36;
+    static constexpr const char* luaName = "DataContext";
+    static constexpr bool hasMetatable = true;
+    int pushViewModel();
+    int pushParent();
+
+    const lua_State* state() const { return m_state; }
+
+private:
+    lua_State* m_state;
+    rcp<DataContext> m_dataContext;
 };
 
 static void interruptCPP(lua_State* L, int gc)

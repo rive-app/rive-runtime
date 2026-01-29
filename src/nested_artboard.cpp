@@ -362,7 +362,7 @@ void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
     copyDataBindPath(object.as<NestedArtboard>()->dataBindPath());
 }
 
-void NestedArtboard::internalDataContext(DataContext* value)
+void NestedArtboard::internalDataContext(rcp<DataContext> value)
 {
     m_dataContext = value;
     m_viewModelInstance = nullptr;
@@ -412,7 +412,7 @@ void NestedArtboard::updateDataBinds()
 
 void NestedArtboard::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
-    DataContext* parent)
+    rcp<DataContext> parent)
 {
     m_dataContext = parent;
     m_viewModelInstance = viewModelInstance;

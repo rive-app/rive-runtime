@@ -50,6 +50,7 @@
 #include "rive/dirtyable.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/text/text_input.hpp"
+#include "rive/refcnt.hpp"
 #include <unordered_map>
 #include <chrono>
 
@@ -1014,7 +1015,7 @@ public:
             m_viewModelInstanceValue = nullptr;
         }
     }
-    void bindFromContext(DataContext* dataContext)
+    void bindFromContext(rcp<DataContext> dataContext)
     {
         clearDataContext();
         auto vmProp =
@@ -1821,24 +1822,23 @@ void StateMachineInstance::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance)
 {
     clearDataContext();
-    m_ownsDataContext = true;
-    auto dataContext = new DataContext(viewModelInstance);
+    auto dataContext = make_rcp<DataContext>(viewModelInstance);
     viewModelInstance->addDependent(this);
     m_artboardInstance->clearDataContext();
     m_artboardInstance->internalDataContext(dataContext);
     internalDataContext(dataContext);
 }
 
-void StateMachineInstance::dataContext(DataContext* dataContext)
+void StateMachineInstance::dataContext(rcp<DataContext> dataContext)
 {
     clearDataContext();
     internalDataContext(dataContext);
 }
 
-void StateMachineInstance::internalDataContext(DataContext* dataContext)
+void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 {
     m_DataContext = dataContext;
-    bindDataBindsFromContext(dataContext);
+    bindDataBindsFromContext(dataContext.get());
     for (auto listenerViewModel : m_listenerViewModels)
     {
         listenerViewModel->bindFromContext(dataContext);
@@ -1860,13 +1860,9 @@ void StateMachineInstance::clearDataContext()
 {
     if (m_DataContext)
     {
-        if (m_ownsDataContext)
+        if (m_DataContext->viewModelInstance())
         {
-            if (m_DataContext->viewModelInstance())
-            {
-                m_DataContext->viewModelInstance()->removeDependent(this);
-            }
-            delete m_DataContext;
+            m_DataContext->viewModelInstance()->removeDependent(this);
         }
         m_DataContext = nullptr;
     }
@@ -1874,8 +1870,6 @@ void StateMachineInstance::clearDataContext()
     {
         listenerViewModel->clearDataContext();
     }
-
-    m_ownsDataContext = false;
 }
 
 void StateMachineInstance::unbind()

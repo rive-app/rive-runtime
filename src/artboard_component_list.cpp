@@ -641,7 +641,7 @@ void ArtboardComponentList::updateConstraints()
     }
 }
 
-void ArtboardComponentList::internalDataContext(DataContext* value)
+void ArtboardComponentList::internalDataContext(rcp<DataContext> value)
 {
     // Reconcile the existing data contexts with the new parent
     for (auto& artboard : m_artboardInstancesMap)
@@ -666,7 +666,7 @@ void ArtboardComponentList::internalDataContext(DataContext* value)
 
 void ArtboardComponentList::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
-    DataContext* parent)
+    rcp<DataContext> parent)
 {
     // At the time this is called, artboards will not yet have been instanced
     // so its essentially a no-op and the call to bindViewModelInstance on

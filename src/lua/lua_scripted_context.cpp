@@ -145,6 +145,17 @@ static int context_namecall(lua_State* L)
 
                 return 0; // return nil if not found
             }
+            case (int)LuaAtoms::dataContext:
+            {
+                auto scriptedObject = scriptedContext->scriptedObject();
+                auto dataContext = scriptedObject->dataContext();
+                if (dataContext)
+                {
+                    lua_newrive<ScriptedDataContext>(L, L, dataContext);
+                    return 1;
+                }
+                return 0;
+            }
 
             default:
                 break;

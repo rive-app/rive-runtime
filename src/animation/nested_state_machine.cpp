@@ -148,7 +148,7 @@ void NestedStateMachine::bindViewModelInstance(
     }
 }
 
-void NestedStateMachine::dataContext(DataContext* dataContext)
+void NestedStateMachine::dataContext(rcp<DataContext> dataContext)
 {
     if (m_StateMachineInstance != nullptr)
     {

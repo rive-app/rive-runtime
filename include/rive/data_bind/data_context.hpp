@@ -8,17 +8,17 @@
 namespace rive
 {
 class DataBindPath;
-class DataContext
+class DataContext : public RefCnt<DataContext>
 {
 private:
-    DataContext* m_Parent = nullptr;
+    rcp<DataContext> m_Parent = nullptr;
     rcp<ViewModelInstance> m_ViewModelInstance;
 
 public:
     DataContext(rcp<ViewModelInstance> viewModelInstance);
 
-    DataContext* parent() { return m_Parent; }
-    void parent(DataContext* value) { m_Parent = value; }
+    rcp<DataContext> parent() { return m_Parent; }
+    void parent(rcp<DataContext> value) { m_Parent = value; }
     ViewModelInstanceValue* getViewModelProperty(
         const std::vector<uint32_t> path) const;
     ViewModelInstanceValue* getRelativeViewModelProperty(

@@ -16,9 +16,9 @@ class ArtboardHost : public DataBindPathReferencer
 public:
     virtual size_t artboardCount() = 0;
     virtual ArtboardInstance* artboardInstance(int index = 0) = 0;
-    virtual void internalDataContext(DataContext* dataContext) = 0;
+    virtual void internalDataContext(rcp<DataContext> dataContext) = 0;
     virtual void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                                       DataContext* parent) = 0;
+                                       rcp<DataContext> parent) = 0;
     virtual void clearDataContext() = 0;
     virtual void unbind() = 0;
     virtual void updateDataBinds() = 0;

@@ -84,8 +84,7 @@ private:
     std::vector<ResettingComponent*> m_Resettables;
     std::vector<ScriptedObject*> m_ScriptedObjects;
     std::vector<AdvancingComponent*> m_advancingComponents;
-    DataContext* m_DataContext = nullptr;
-    bool m_ownsDataContext = false;
+    rcp<DataContext> m_DataContext = nullptr;
     bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
@@ -263,7 +262,7 @@ public:
     {
         return m_ComponentLists;
     }
-    DataContext* dataContext() { return m_DataContext; }
+    rcp<DataContext> dataContext() { return m_DataContext; }
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 
@@ -289,13 +288,13 @@ public:
     bool isTranslucent() const;
     bool isTranslucent(const LinearAnimation*) const;
     bool isTranslucent(const LinearAnimationInstance*) const;
-    void dataContext(DataContext* dataContext);
-    void internalDataContext(DataContext* dataContext);
+    void dataContext(rcp<DataContext> dataContext);
+    void internalDataContext(rcp<DataContext> dataContext);
     void clearDataContext();
     void unbind();
     void rebind() override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               DataContext* parent);
+                               rcp<DataContext> parent);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
 
     bool hasAudio() const;

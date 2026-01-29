@@ -17,6 +17,7 @@ int luaopen_rive_renderer_library(lua_State* L);
 int luaopen_rive_properties(lua_State* L);
 int luaopen_rive_artboards(lua_State* L);
 int luaopen_rive_data_values(lua_State* L);
+int luaopen_rive_data_context(lua_State* L);
 int luaopen_rive_input(lua_State* L);
 int luaopen_rive_contex(lua_State* L);
 
@@ -145,6 +146,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"markNeedsUpdate", (int16_t)LuaAtoms::markNeedsUpdate},
     {"viewModel", (int16_t)LuaAtoms::viewModel},
     {"rootViewModel", (int16_t)LuaAtoms::rootViewModel},
+    {"dataContext", (int16_t)LuaAtoms::dataContext},
     {"image", (int16_t)LuaAtoms::image},
     {"blob", (int16_t)LuaAtoms::blob},
     {"size", (int16_t)LuaAtoms::size},
@@ -171,6 +173,7 @@ static const luaL_Reg lualibs[] = {
     {"dataValue", luaopen_rive_data_values},
     {"input", luaopen_rive_input},
     {"context", luaopen_rive_contex},
+    {"dataContext", luaopen_rive_data_context},
     {NULL, NULL},
 };
 

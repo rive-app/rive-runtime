@@ -471,3 +471,22 @@ end
         CHECK(top == lua_gettop(L));
     }
 }
+
+TEST_CASE("expose data context to scripts through context", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripted_data_context.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scripted_data_context"));
+}

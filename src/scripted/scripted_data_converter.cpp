@@ -169,7 +169,7 @@ DataValue* ScriptedDataConverter::reverseConvert(DataValue* value,
 void ScriptedDataConverter::bindFromContext(DataContext* dataContext,
                                             DataBind* dataBind)
 {
-    m_dataContext = dataContext;
+    m_dataContext = rcp<DataContext>(safe_ref(dataContext));
     Super::bindFromContext(dataContext, dataBind);
     reinit();
     for (auto prop : m_customProperties)
