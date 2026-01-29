@@ -93,6 +93,10 @@ EffectPath* TargetEffect::createEffectPath() { return new TargetEffectPath(); }
 
 void TargetEffect::invalidateEffect(PathProvider* pathProvider)
 {
+    if (!m_groupEffect)
+    {
+        return;
+    }
     if (pathProvider)
     {
         auto effectPathIt = m_effectPaths.find(pathProvider);
