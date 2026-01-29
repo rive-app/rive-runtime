@@ -59,25 +59,28 @@ public:
                        int height,
                        uint32_t sampleCount) override
     {
-        NSWindow* nsWindow = glfwGetCocoaWindow(window);
-        NSView* view = [nsWindow contentView];
-        view.wantsLayer = YES;
+        @autoreleasepool
+        {
+            NSWindow* nsWindow = glfwGetCocoaWindow(window);
+            NSView* view = [nsWindow contentView];
+            view.wantsLayer = YES;
 
-        m_swapchain = [CAMetalLayer layer];
-        m_swapchain.device = m_gpu;
-        m_swapchain.opaque = YES;
-        m_swapchain.framebufferOnly = !m_fiddleOptions.enableReadPixels;
-        m_swapchain.pixelFormat = MTLPixelFormatBGRA8Unorm;
-        m_swapchain.contentsScale = dpiScale(window);
-        m_swapchain.displaySyncEnabled = NO;
-        view.layer = m_swapchain;
-        m_swapchain.drawableSize = CGSizeMake(width, height);
+            m_swapchain = [CAMetalLayer layer];
+            m_swapchain.device = m_gpu;
+            m_swapchain.opaque = YES;
+            m_swapchain.framebufferOnly = !m_fiddleOptions.enableReadPixels;
+            m_swapchain.pixelFormat = MTLPixelFormatBGRA8Unorm;
+            m_swapchain.contentsScale = dpiScale(window);
+            m_swapchain.displaySyncEnabled = NO;
+            view.layer = m_swapchain;
+            m_swapchain.drawableSize = CGSizeMake(width, height);
 
-        auto renderContextImpl =
-            m_renderContext->static_impl_cast<RenderContextMetalImpl>();
-        m_renderTarget = renderContextImpl->makeRenderTarget(
-            MTLPixelFormatBGRA8Unorm, width, height);
-        m_pixelReadBuff = nil;
+            auto renderContextImpl =
+                m_renderContext->static_impl_cast<RenderContextMetalImpl>();
+            m_renderTarget = renderContextImpl->makeRenderTarget(
+                MTLPixelFormatBGRA8Unorm, width, height);
+            m_pixelReadBuff = nil;
+        }
     }
 
     void toggleZoomWindow() override {}
@@ -94,91 +97,97 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
-        if (m_currentFrameSurface == nil)
+        @autoreleasepool
         {
-            m_currentFrameSurface = [m_swapchain nextDrawable];
-            assert(m_currentFrameSurface.texture.width ==
-                   m_renderTarget->width());
-            assert(m_currentFrameSurface.texture.height ==
-                   m_renderTarget->height());
-            m_renderTarget->setTargetTexture(m_currentFrameSurface.texture);
-        }
+            if (m_currentFrameSurface == nil)
+            {
+                m_currentFrameSurface = [m_swapchain nextDrawable];
+                assert(m_currentFrameSurface.texture.width ==
+                       m_renderTarget->width());
+                assert(m_currentFrameSurface.texture.height ==
+                       m_renderTarget->height());
+                m_renderTarget->setTargetTexture(m_currentFrameSurface.texture);
+            }
 
-        id<MTLCommandBuffer> flushCommandBuffer = [m_queue commandBuffer];
-        m_renderContext->flush({
-            .renderTarget = offscreenRenderTarget != nullptr
-                                ? offscreenRenderTarget
-                                : m_renderTarget.get(),
-            .externalCommandBuffer = (__bridge void*)flushCommandBuffer,
-        });
-        [flushCommandBuffer commit];
+            id<MTLCommandBuffer> flushCommandBuffer = [m_queue commandBuffer];
+            m_renderContext->flush({
+                .renderTarget = offscreenRenderTarget != nullptr
+                                    ? offscreenRenderTarget
+                                    : m_renderTarget.get(),
+                .externalCommandBuffer = (__bridge void*)flushCommandBuffer,
+            });
+            [flushCommandBuffer commit];
+        }
     }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        flushPLSContext(nullptr);
-
-        if (pixelData != nil)
+        @autoreleasepool
         {
-            // Read back pixels from the framebuffer!
-            size_t w = m_renderTarget->width();
-            size_t h = m_renderTarget->height();
+            flushPLSContext(nullptr);
 
-            // Create a buffer to receive the pixels.
-            if (m_pixelReadBuff == nil)
+            if (pixelData != nil)
             {
-                m_pixelReadBuff =
-                    [m_gpu newBufferWithLength:h * w * 4
-                                       options:MTLResourceStorageModeShared];
-            }
-            assert(m_pixelReadBuff.length == h * w * 4);
+                // Read back pixels from the framebuffer!
+                size_t w = m_renderTarget->width();
+                size_t h = m_renderTarget->height();
 
-            id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
-            id<MTLBlitCommandEncoder> blitEncoder =
-                [commandBuffer blitCommandEncoder];
-
-            // Blit the framebuffer into m_pixelReadBuff.
-            [blitEncoder copyFromTexture:m_renderTarget->targetTexture()
-                             sourceSlice:0
-                             sourceLevel:0
-                            sourceOrigin:MTLOriginMake(0, 0, 0)
-                              sourceSize:MTLSizeMake(w, h, 1)
-                                toBuffer:m_pixelReadBuff
-                       destinationOffset:0
-                  destinationBytesPerRow:w * 4
-                destinationBytesPerImage:h * w * 4];
-
-            [blitEncoder endEncoding];
-            [commandBuffer commit];
-            [commandBuffer waitUntilCompleted];
-
-            // Copy the image data from m_pixelReadBuff to pixelData.
-            pixelData->resize(h * w * 4);
-            const uint8_t* contents =
-                reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
-            const size_t rowBytes = w * 4;
-            for (size_t y = 0; y < h; ++y)
-            {
-                // Flip Y.
-                const uint8_t* src = &contents[(h - y - 1) * w * 4];
-                uint8_t* dst = &(*pixelData)[y * w * 4];
-                for (size_t x = 0; x < rowBytes; x += 4)
+                // Create a buffer to receive the pixels.
+                if (m_pixelReadBuff == nil)
                 {
-                    // BGBRA -> RGBA.
-                    dst[x + 0] = src[x + 2];
-                    dst[x + 1] = src[x + 1];
-                    dst[x + 2] = src[x + 0];
-                    dst[x + 3] = src[x + 3];
+                    m_pixelReadBuff = [m_gpu
+                        newBufferWithLength:h * w * 4
+                                    options:MTLResourceStorageModeShared];
+                }
+                assert(m_pixelReadBuff.length == h * w * 4);
+
+                id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
+                id<MTLBlitCommandEncoder> blitEncoder =
+                    [commandBuffer blitCommandEncoder];
+
+                // Blit the framebuffer into m_pixelReadBuff.
+                [blitEncoder copyFromTexture:m_renderTarget->targetTexture()
+                                 sourceSlice:0
+                                 sourceLevel:0
+                                sourceOrigin:MTLOriginMake(0, 0, 0)
+                                  sourceSize:MTLSizeMake(w, h, 1)
+                                    toBuffer:m_pixelReadBuff
+                           destinationOffset:0
+                      destinationBytesPerRow:w * 4
+                    destinationBytesPerImage:h * w * 4];
+
+                [blitEncoder endEncoding];
+                [commandBuffer commit];
+                [commandBuffer waitUntilCompleted];
+
+                // Copy the image data from m_pixelReadBuff to pixelData.
+                pixelData->resize(h * w * 4);
+                const uint8_t* contents =
+                    reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
+                const size_t rowBytes = w * 4;
+                for (size_t y = 0; y < h; ++y)
+                {
+                    // Flip Y.
+                    const uint8_t* src = &contents[(h - y - 1) * w * 4];
+                    uint8_t* dst = &(*pixelData)[y * w * 4];
+                    for (size_t x = 0; x < rowBytes; x += 4)
+                    {
+                        // BGBRA -> RGBA.
+                        dst[x + 0] = src[x + 2];
+                        dst[x + 1] = src[x + 1];
+                        dst[x + 2] = src[x + 0];
+                        dst[x + 3] = src[x + 3];
+                    }
                 }
             }
+
+            id<MTLCommandBuffer> presentCommandBuffer = [m_queue commandBuffer];
+            [presentCommandBuffer presentDrawable:m_currentFrameSurface];
+            [presentCommandBuffer commit];
+
+            m_currentFrameSurface = nil;
+            m_renderTarget->setTargetTexture(nil);
         }
-
-        id<MTLCommandBuffer> presentCommandBuffer = [m_queue commandBuffer];
-        [presentCommandBuffer presentDrawable:m_currentFrameSurface];
-        [presentCommandBuffer commit];
-
-        m_currentFrameSurface = nil;
-        m_renderTarget->setTargetTexture(nil);
     }
 
 private:
