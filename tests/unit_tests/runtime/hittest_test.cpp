@@ -1151,3 +1151,38 @@ TEST_CASE("Multitouch with multi scroll", "[silver]")
 
     CHECK(silver.matches("multitouch_enter-MultiScroll"));
 }
+
+TEST_CASE("Hit test leaves in collapsed layouts", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hittest_collapsed_layouts.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click hides the text successfully
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250.0f, 50.0f));
+    stateMachine->pointerUp(rive::Vec2D(250.0f, 50.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Clicking again does not show the text back because hit test doesn't
+    // succeed
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250.0f, 50.0f));
+    stateMachine->pointerUp(rive::Vec2D(250.0f, 50.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("hittest_collapsed_layouts"));
+}

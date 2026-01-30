@@ -63,6 +63,10 @@ bool Drawable::hitTestPoint(const Vec2D& position,
                             bool skipOnUnclipped,
                             bool isPrimaryHit)
 {
+    if (isHidden())
+    {
+        return false;
+    }
     auto hComponent = hittableComponent();
     if (hComponent != this && hComponent != nullptr)
     {
