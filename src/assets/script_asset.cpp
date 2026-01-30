@@ -136,6 +136,12 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
             m_implementedMethods |= m_measuresBit;
         }
         rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "resize")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_resizesBit;
+        }
+        rive_lua_pop(state, 1);
         if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
             LUA_TFUNCTION)
         {
