@@ -65,7 +65,7 @@
         "int": 927,
         "string": "dependencyids"
       },
-      "description": "Ids of any scripts this script requires",
+      "description": "Ids of any scripts this script DIRECTLY requires (not dependencies of dependencies) in its core",
       "runtime": false
     },
     "codeFileText": {
