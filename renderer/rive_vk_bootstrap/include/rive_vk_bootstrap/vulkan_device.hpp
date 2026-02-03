@@ -23,7 +23,7 @@ public:
         bool headless = false;
         bool printInitializationMessage = true;
 
-        uint32_t minimumSupportedAPIVersion = VK_API_VERSION_1_0;
+        uint32_t minimumSupportedAPIVersion = VK_API_VERSION_1_1;
 
         // If this is set to a valid surface (and not a headless device), device
         // discovery will test for present compatibility to this surface

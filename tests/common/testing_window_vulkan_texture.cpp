@@ -34,7 +34,7 @@ public:
         m_instance = VulkanInstance::Create(VulkanInstance::Options{
             .appName = "Rive Unit Tests",
             .idealAPIVersion =
-                m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
+                m_backendParams.core ? VK_API_VERSION_1_1 : VK_API_VERSION_1_3,
 #ifndef NDEBUG
             .desiredValidationType =
                 m_backendParams.disableValidationLayers

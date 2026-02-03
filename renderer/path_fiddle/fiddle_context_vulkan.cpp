@@ -41,7 +41,7 @@ public:
 
         m_instance = VulkanInstance::Create(VulkanInstance::Options{
             .appName = "path_fiddle",
-            .idealAPIVersion = options.coreFeaturesOnly ? VK_API_VERSION_1_0
+            .idealAPIVersion = options.coreFeaturesOnly ? VK_API_VERSION_1_1
                                                         : VK_API_VERSION_1_3,
             .requiredExtensions = make_span(glfwExtensions, glfwExtensionCount),
 #ifndef NDEBUG

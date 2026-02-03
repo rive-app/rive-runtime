@@ -50,9 +50,6 @@ public:
     {
         using namespace rive_vkb;
 
-        // Request Vulkan 1.3, except if we're in core mode where we want 1.0.
-        int minorVersionRequested = m_backendParams.core ? 0 : 3;
-
         std::vector<const char*> extensionNames;
         extensionNames.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
         extensionNames.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
@@ -60,7 +57,7 @@ public:
         m_instance = VulkanInstance::Create(VulkanInstance::Options{
             .appName = "Rive Android Test",
             .idealAPIVersion =
-                m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
+                m_backendParams.core ? VK_API_VERSION_1_1 : VK_API_VERSION_1_3,
             .requiredExtensions =
                 make_span(extensionNames.data(), extensionNames.size()),
 #ifndef NDEBUG

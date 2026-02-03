@@ -16,7 +16,7 @@ namespace rive::gpu
 // supported.
 struct VulkanFeatures
 {
-    uint32_t apiVersion = VK_API_VERSION_1_0;
+    uint32_t apiVersion = VK_API_VERSION_1_1;
 
     // VkPhysicalDeviceFeatures.
     bool independentBlend = false;

@@ -33,7 +33,7 @@ public:
         const char* engineName = "Rive Renderer";
 
         uint32_t idealAPIVersion = VK_API_VERSION_1_3;
-        uint32_t minimumSupportedInstanceVersion = VK_API_VERSION_1_0;
+        uint32_t minimumSupportedInstanceVersion = VK_API_VERSION_1_1;
 
         rive::Span<const char*> requiredExtensions;
         rive::Span<const char*> optionalExtensions;
