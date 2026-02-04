@@ -37,9 +37,6 @@ void rive::initializeLuaData(lua_State* state,
         // create metatable for global Data
         luaL_newmetatable(state, "Data");
 
-        // push it again as lua_setuserdatametatable pops it
-        lua_pushvalue(state, -1);
-        lua_setuserdatametatable(state, LUA_T_COUNT + 31);
         lua_pop(state, 1);
         lua_getfield(state, luaRegistryIndex, "Data");
         lua_setglobal(state, "Data");
