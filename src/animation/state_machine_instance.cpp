@@ -71,6 +71,19 @@ public:
               const StateMachineLayer* layer,
               ArtboardInstance* instance)
     {
+
+        if (File::deterministicMode)
+        {
+            srand((unsigned int)1);
+        }
+        else
+        {
+            auto now = std::chrono::high_resolution_clock::now();
+            auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             now.time_since_epoch())
+                             .count();
+            srand((unsigned int)nanos);
+        }
         m_stateMachineInstance = stateMachineInstance;
         m_artboardInstance = instance;
         assert(m_layer == nullptr);
@@ -78,16 +91,6 @@ public:
             layer->anyState()->makeInstance(instance).release();
         m_layer = layer;
         changeState(m_layer->entryState());
-
-#ifdef TESTING
-        srand((unsigned int)1);
-#else
-        auto now = std::chrono::high_resolution_clock::now();
-        auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                         now.time_since_epoch())
-                         .count();
-        srand((unsigned int)nanos);
-#endif
     }
 
     void resetState()

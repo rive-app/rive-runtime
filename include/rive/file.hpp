@@ -68,6 +68,9 @@ public:
     static const int majorVersion = 7;
     /// Minor version number supported by the runtime.
     static const int minorVersion = 0;
+    /// deterministicMode sets a static seed for randomization and uses
+    /// timestamps for scrolling.
+    static bool deterministicMode;
 
     File(Factory*, rcp<FileAssetLoader>);
 

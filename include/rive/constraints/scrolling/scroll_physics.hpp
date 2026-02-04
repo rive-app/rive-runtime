@@ -60,11 +60,7 @@ public:
         m_isRunning = true;
     }
     virtual void stop() { m_isRunning = false; }
-    virtual void reset()
-    {
-        m_acceleration = Vec2D();
-        stop();
-    }
+    virtual void reset();
     StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive

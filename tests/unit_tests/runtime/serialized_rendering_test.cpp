@@ -186,6 +186,7 @@ TEST_CASE("validate text with modifiers and dashes render correctly",
 TEST_CASE("superbowl data binding", "[silver]")
 {
     SerializingFactory silver;
+    File::deterministicMode = true;
     auto file = ReadRiveFile("assets/superbowl.riv", &silver);
 
     auto artboard = file->artboardDefault();
@@ -215,6 +216,7 @@ TEST_CASE("superbowl data binding", "[silver]")
     }
 
     CHECK(silver.matches("superbowl"));
+    File::deterministicMode = false;
 }
 
 TEST_CASE("data viz demo data binding", "[silver]")
@@ -795,6 +797,7 @@ TEST_CASE("Collapsed data bound layout styles still update", "[silver]")
 
 TEST_CASE("Reset randomization on value change", "[silver]")
 {
+    File::deterministicMode = true;
     RandomProvider::clearRandoms();
     REQUIRE(RandomProvider::totalCalls() == 0);
     SerializingFactory silver;
@@ -841,10 +844,12 @@ TEST_CASE("Reset randomization on value change", "[silver]")
     REQUIRE(RandomProvider::totalCalls() == 2);
     RandomProvider::clearRandoms();
     CHECK(silver.matches("formula_random-source_change"));
+    File::deterministicMode = false;
 }
 
 TEST_CASE("Reset randomization only once", "[silver]")
 {
+    File::deterministicMode = true;
     RandomProvider::clearRandoms();
     REQUIRE(RandomProvider::totalCalls() == 0);
     SerializingFactory silver;
@@ -891,10 +896,12 @@ TEST_CASE("Reset randomization only once", "[silver]")
     REQUIRE(RandomProvider::totalCalls() == 1);
     RandomProvider::clearRandoms();
     CHECK(silver.matches("formula_random-once"));
+    File::deterministicMode = false;
 }
 
 TEST_CASE("Reset randomization on every change", "[silver]")
 {
+    File::deterministicMode = true;
     RandomProvider::clearRandoms();
     REQUIRE(RandomProvider::totalCalls() == 0);
     SerializingFactory silver;
@@ -940,6 +947,7 @@ TEST_CASE("Reset randomization on every change", "[silver]")
     REQUIRE(RandomProvider::totalCalls() == 64);
     RandomProvider::clearRandoms();
     CHECK(silver.matches("formula_random-always"));
+    File::deterministicMode = false;
 }
 
 TEST_CASE("Target to source with different data types on source and target",

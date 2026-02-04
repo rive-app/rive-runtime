@@ -8,6 +8,8 @@
 #include "rive/shapes/mesh.hpp"
 #include "utils/no_op_renderer.hpp"
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <catch.hpp>
 #include <cstdio>
 #include <cstring>
@@ -264,4 +266,57 @@ TEST_CASE("file can be read with verified signed scripts", "[file]")
             CHECK(asset->as<rive::ScriptAsset>()->verified());
         }
     }
+}
+
+TEST_CASE(
+    "Test deterministic mode for randomization and elastic scroll physics",
+    "[file]")
+{
+    rive::SerializingFactory silver;
+    rive::File::deterministicMode = true;
+    auto file = ReadRiveFile("assets/deterministic_mode.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, 400.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(0.25f / 0.016f);
+    float yPos = 400.0f;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, yPos),
+                                  0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        yPos -= 40.0f;
+    }
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, yPos),
+                              0.016f);
+    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, yPos));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("deterministic_mode"));
+    rive::File::deterministicMode = false;
 }

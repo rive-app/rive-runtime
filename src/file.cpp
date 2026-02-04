@@ -183,6 +183,8 @@ static Core* readRuntimeObject(BinaryReader& reader,
     return object;
 }
 
+bool File::deterministicMode = false;
+
 File::File(Factory* factory, rcp<FileAssetLoader> assetLoader) :
     m_factory(factory), m_assetLoader(std::move(assetLoader))
 {
