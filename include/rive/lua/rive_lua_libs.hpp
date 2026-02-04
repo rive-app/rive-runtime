@@ -202,6 +202,8 @@ enum class LuaAtoms : int16_t
     parent,
     node,
     paint,
+    asPaint,
+    asPath,
 
     // PathMeasure/ContourMeasure
     positionAndTangent,
@@ -1015,13 +1017,13 @@ public:
     TransformComponent* component() { return m_component; }
     rcp<ScriptReffedArtboard> artboard() { return m_artboard; }
 
-    const ShapePaint* shapePaint() { return m_shapePaint; }
+    const ShapePaint* shapePaint();
     void shapePaint(const ShapePaint* shapePaint) { m_shapePaint = shapePaint; }
 
 private:
     rcp<ScriptReffedArtboard> m_artboard;
-    TransformComponent* m_component;
-    const ShapePaint* m_shapePaint;
+    TransformComponent* m_component = nullptr;
+    const ShapePaint* m_shapePaint = nullptr;
 };
 
 class ScriptedContourMeasure

@@ -137,6 +137,8 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"parent", (int16_t)LuaAtoms::parent},
     {"node", (int16_t)LuaAtoms::node},
     {"paint", (int16_t)LuaAtoms::paint},
+    {"asPath", (int16_t)LuaAtoms::asPath},
+    {"asPaint", (int16_t)LuaAtoms::asPaint},
     {"addToPath", (int16_t)LuaAtoms::addToPath},
     {"positionAndTangent", (int16_t)LuaAtoms::positionAndTangent},
     {"warp", (int16_t)LuaAtoms::warp},

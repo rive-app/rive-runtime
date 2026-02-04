@@ -451,3 +451,23 @@ TEST_CASE("paths with opacity applied", "[silver]")
 
     CHECK(silver.matches("script_path_opacity"));
 }
+
+TEST_CASE("Access paint and path data", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripted_as_path.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scripted_as_path"));
+}

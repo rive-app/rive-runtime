@@ -255,6 +255,19 @@ ScriptedNode::ScriptedNode(rcp<ScriptReffedArtboard> artboard,
     m_artboard(artboard), m_component(component)
 {}
 
+const ShapePaint* ScriptedNode::shapePaint()
+{
+    if (m_shapePaint)
+    {
+        return m_shapePaint;
+    }
+    if (m_component->is<ShapePaint>())
+    {
+        return m_component->as<ShapePaint>();
+    }
+    return nullptr;
+}
+
 static int artboard_index(lua_State* L)
 {
     int atom;
@@ -636,6 +649,39 @@ static int node_namecall(lua_State* L)
                 component->scaleY(components.scaleY());
                 component->rotation(components.rotation());
                 return 0;
+            }
+
+            case (int)LuaAtoms::asPath:
+            {
+
+                auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+                auto component = scriptedNode->component();
+                if (component->is<Path>())
+                {
+                    lua_newrive<ScriptedPathData>(
+                        L,
+                        &component->as<Path>()->rawPath());
+                }
+                else
+                {
+                    lua_pushnil(L);
+                }
+                return 1;
+            }
+
+            case (int)LuaAtoms::asPaint:
+            {
+                auto scriptedNode = lua_torive<ScriptedNode>(L, 1);
+                auto shapePaint = scriptedNode->shapePaint();
+                if (shapePaint)
+                {
+                    lua_newrive<ScriptedPaintData>(L, shapePaint);
+                }
+                else
+                {
+                    lua_pushnil(L);
+                }
+                return 1;
             }
         }
     }
