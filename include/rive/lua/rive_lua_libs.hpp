@@ -502,7 +502,9 @@ class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
 {
 public:
     ScriptReffedArtboard(rcp<File> file,
-                         std::unique_ptr<ArtboardInstance>&& artboardInstance);
+                         std::unique_ptr<ArtboardInstance>&& artboardInstance,
+                         rcp<ViewModelInstance> viewModelInstance,
+                         rcp<DataContext> parentDataContext);
 
     ~ScriptReffedArtboard();
     rive::rcp<rive::File> file();
@@ -522,7 +524,9 @@ class ScriptedArtboard
 public:
     ScriptedArtboard(lua_State* L,
                      rcp<File> file,
-                     std::unique_ptr<ArtboardInstance>&& artboardInstance);
+                     std::unique_ptr<ArtboardInstance>&& artboardInstance,
+                     rcp<ViewModelInstance> viewModelInstance,
+                     rcp<DataContext> dataContext);
     ~ScriptedArtboard();
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
@@ -545,7 +549,7 @@ public:
     }
 
     int pushData(lua_State* L);
-    int instance(lua_State* L);
+    int instance(lua_State* L, rcp<ViewModelInstance> viewModelInstance);
     int animation(lua_State* L, const char* animationName);
 
     bool advance(float seconds);
@@ -553,8 +557,9 @@ public:
     void cleanupDataRef(lua_State* L);
 
 private:
-    lua_State* m_state;
-    rcp<ScriptReffedArtboard> m_scriptReffedArtboard;
+    lua_State* m_state = nullptr;
+    rcp<ScriptReffedArtboard> m_scriptReffedArtboard = nullptr;
+    rcp<DataContext> m_dataContext = nullptr;
     int m_dataRef = 0;
 };
 
@@ -1144,8 +1149,8 @@ public:
     const lua_State* state() const { return m_state; }
 
 private:
-    lua_State* m_state;
-    rcp<DataContext> m_dataContext;
+    lua_State* m_state = nullptr;
+    rcp<DataContext> m_dataContext = nullptr;
 };
 
 static void interruptCPP(lua_State* L, int gc)

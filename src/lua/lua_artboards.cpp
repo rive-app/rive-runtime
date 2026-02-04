@@ -17,15 +17,33 @@ using namespace rive;
 
 ScriptReffedArtboard::ScriptReffedArtboard(
     rcp<File> file,
-    std::unique_ptr<ArtboardInstance>&& artboardInstance) :
+    std::unique_ptr<ArtboardInstance>&& artboardInstance,
+    rcp<ViewModelInstance> viewModelInstance,
+    rcp<DataContext> parentDataContext) :
     m_file(file),
     m_artboard(std::move(artboardInstance)),
     m_stateMachine(m_artboard->defaultStateMachine())
 {
-    m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
+    if (viewModelInstance)
+    {
+        m_viewModelInstance = viewModelInstance;
+    }
+    else
+    {
+        m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
+    }
     if (m_stateMachine && m_viewModelInstance)
     {
-        m_stateMachine->bindViewModelInstance(m_viewModelInstance);
+        if (parentDataContext)
+        {
+            auto dataContext = make_rcp<DataContext>(m_viewModelInstance);
+            dataContext->parent(parentDataContext);
+            m_stateMachine->bindDataContext(dataContext);
+        }
+        else
+        {
+            m_stateMachine->bindViewModelInstance(m_viewModelInstance);
+        }
     }
 }
 
@@ -131,8 +149,18 @@ static int artboard_namecall(lua_State* L)
                 return artboard_advance(L);
             case (int)LuaAtoms::instance:
             {
+                int nargs = lua_gettop(L);
                 auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
-                return scriptedArtboard->instance(L);
+                if (nargs == 2)
+                {
+
+                    auto scriptedViewModel =
+                        lua_torive<ScriptedViewModel>(L, 2);
+                    return scriptedArtboard->instance(
+                        L,
+                        scriptedViewModel->viewModelInstance());
+                }
+                return scriptedArtboard->instance(L, nullptr);
             }
             case (int)LuaAtoms::animation:
             {
@@ -223,14 +251,17 @@ int ScriptedArtboard::pushData(lua_State* L)
     return 1;
 }
 
-int ScriptedArtboard::instance(lua_State* L)
+int ScriptedArtboard::instance(lua_State* L,
+                               rcp<ViewModelInstance> viewModelInstance)
 {
     auto artboardInstance = artboard()->instance();
     artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
                                   m_scriptReffedArtboard->file(),
-                                  std::move(artboardInstance));
+                                  std::move(artboardInstance),
+                                  viewModelInstance,
+                                  m_dataContext);
     return 1;
 }
 
@@ -345,10 +376,16 @@ static int artboard_newindex(lua_State* L)
 ScriptedArtboard::ScriptedArtboard(
     lua_State* L,
     rcp<File> file,
-    std::unique_ptr<ArtboardInstance>&& artboardInstance) :
+    std::unique_ptr<ArtboardInstance>&& artboardInstance,
+    rcp<ViewModelInstance> viewModelInstance,
+    rcp<DataContext> dataContext) :
     m_state(L),
     m_scriptReffedArtboard(
-        make_rcp<ScriptReffedArtboard>(file, std::move(artboardInstance)))
+        make_rcp<ScriptReffedArtboard>(file,
+                                       std::move(artboardInstance),
+                                       viewModelInstance,
+                                       dataContext)),
+    m_dataContext(dataContext)
 {}
 
 ScriptedArtboard::~ScriptedArtboard()

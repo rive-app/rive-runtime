@@ -490,3 +490,33 @@ TEST_CASE("expose data context to scripts through context", "[silver]")
 
     CHECK(silver.matches("scripted_data_context"));
 }
+
+TEST_CASE("Provide data context and view model instance to artboard",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/viewmodel_instance_to_artboard.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("viewmodel_instance_to_artboard"));
+}

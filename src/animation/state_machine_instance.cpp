@@ -1832,6 +1832,18 @@ void StateMachineInstance::bindViewModelInstance(
     internalDataContext(dataContext);
 }
 
+void StateMachineInstance::bindDataContext(rcp<DataContext> dataContext)
+{
+    clearDataContext();
+    if (dataContext->viewModelInstance())
+    {
+        dataContext->viewModelInstance()->addDependent(this);
+    }
+    m_artboardInstance->clearDataContext();
+    m_artboardInstance->internalDataContext(dataContext);
+    internalDataContext(dataContext);
+}
+
 void StateMachineInstance::dataContext(rcp<DataContext> dataContext)
 {
     clearDataContext();

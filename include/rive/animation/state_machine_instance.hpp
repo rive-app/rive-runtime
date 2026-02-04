@@ -114,6 +114,7 @@ public:
     SMITrigger* getTrigger(const std::string& name) const override;
     void bindViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) override;
+    void bindDataContext(rcp<DataContext> dataContext);
     void dataContext(rcp<DataContext> dataContext);
     rcp<DataContext> dataContext() const { return m_DataContext; }
     void rebind() override;
