@@ -34,6 +34,11 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/refcnt.hpp"
+#ifdef WITH_RIVE_AUDIO
+#include "rive/audio/audio_engine.hpp"
+#include "rive/audio/audio_source.hpp"
+#include "rive/audio/audio_sound.hpp"
+#endif
 
 #include <chrono>
 #include <unordered_map>
@@ -220,6 +225,16 @@ enum class LuaAtoms : int16_t
     blob,
     size,
     dataContext,
+    audio,
+    audioEngine,
+    play,
+    stop,
+    seek,
+    seekFrame,
+    volume,
+    completed,
+    time,
+    timeFrame,
 
     // Animation
     duration,
@@ -349,6 +364,52 @@ public:
     static constexpr const char* luaName = "Blob";
     static constexpr bool hasMetatable = true;
 };
+
+#ifdef WITH_RIVE_AUDIO
+class ScriptedAudioEngine
+{
+public:
+    ScriptedAudioEngine(rcp<AudioEngine> engine, Artboard* artboard) :
+        m_engine(std::move(engine)), m_artboard(artboard)
+    {}
+    rcp<AudioEngine> engine() const { return m_engine; }
+    Artboard* artboard() const { return m_artboard; }
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 37;
+    static constexpr const char* luaName = "AudioEngine";
+    static constexpr bool hasMetatable = true;
+
+private:
+    rcp<AudioEngine> m_engine;
+    Artboard* m_artboard = nullptr;
+};
+
+class ScriptedAudioSource
+{
+public:
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 38;
+    static constexpr const char* luaName = "AudioSource";
+    static constexpr bool hasMetatable = true;
+    void source(rcp<AudioSource>);
+    rcp<AudioSource> source() { return m_source; }
+
+private:
+    rcp<AudioSource> m_source;
+};
+
+class ScriptedAudioSound
+{
+public:
+    ScriptedAudioSound(Artboard* artboard) : m_artboard(artboard) {}
+    rcp<AudioSound> sound;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 39;
+    static constexpr const char* luaName = "AudioSound";
+    static constexpr bool hasMetatable = true;
+    Artboard* artboard() { return m_artboard; }
+
+private:
+    Artboard* m_artboard = nullptr;
+};
+#endif
 
 class ScriptedImageSampler
 {

@@ -4,6 +4,10 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/file.hpp"
+#ifdef WITH_RIVE_AUDIO
+#include "rive/audio/audio_engine.hpp"
+#include "rive/assets/audio_asset.hpp"
+#endif
 
 #include <math.h>
 #include <stdio.h>
@@ -156,6 +160,81 @@ static int context_namecall(lua_State* L)
                 }
                 return 0;
             }
+#ifdef WITH_RIVE_AUDIO
+            case (int)LuaAtoms::audioEngine:
+            {
+                auto scriptedObject = scriptedContext->scriptedObject();
+                auto* component = scriptedObject->component();
+                if (component == nullptr)
+                {
+                    return 0;
+                }
+                auto* artboard = component->artboard();
+                if (artboard == nullptr)
+                {
+                    return 0;
+                }
+                rcp<AudioEngine> engine =
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+                    artboard->audioEngine() != nullptr
+                        ? artboard->audioEngine()
+                        :
+#endif
+                        AudioEngine::RuntimeEngine();
+                if (engine == nullptr)
+                {
+                    return 0;
+                }
+                auto* scriptedAudioEngine =
+                    lua_newrive<ScriptedAudioEngine>(L, engine, artboard);
+                (void)scriptedAudioEngine;
+                return 1;
+            }
+            case (int)LuaAtoms::audio:
+            {
+                const char* audioName = luaL_checkstring(L, 2);
+
+                auto scriptedObject = scriptedContext->scriptedObject();
+                auto scriptAsset = scriptedObject->scriptAsset();
+                if (scriptAsset != nullptr)
+                {
+                    File* file = scriptAsset->file();
+                    if (file != nullptr)
+                    {
+                        auto assets = file->assets();
+                        for (const auto& asset : assets)
+                        {
+                            if (asset->is<AudioAsset>())
+                            {
+                                AudioAsset* audioAsset =
+                                    asset->as<AudioAsset>();
+                                if (audioAsset->name() == audioName)
+                                {
+                                    auto audioSource =
+                                        audioAsset->audioSource();
+                                    if (audioSource != nullptr)
+                                    {
+                                        auto scriptedAudioSource =
+                                            lua_newrive<ScriptedAudioSource>(L);
+                                        scriptedAudioSource->source(
+                                            audioSource);
+                                        return 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return 0; // return nil if not found
+            }
+#else
+            case (int)LuaAtoms::audioEngine:
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+#endif
 
             default:
                 break;
@@ -180,7 +259,6 @@ int luaopen_rive_contex(lua_State* L)
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
     }
-
     return 0;
 }
 

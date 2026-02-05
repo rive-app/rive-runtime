@@ -331,6 +331,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 {
                     auto fa = object->as<FileAsset>();
                     m_fileAssets.push_back(rcp<FileAsset>(fa));
+                    if (object->coreType() == AudioAsset::typeKey)
+                    {
+                        m_hasAudio = true;
+                    }
                 }
                 break;
                 case ViewModel::typeKey:

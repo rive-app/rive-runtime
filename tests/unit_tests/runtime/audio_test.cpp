@@ -6,6 +6,7 @@
 #include "rive/assets/audio_asset.hpp"
 #include "rive_file_reader.hpp"
 #include "catch.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <string>
 
 using namespace rive;
@@ -228,6 +229,42 @@ TEST_CASE("Artboard does not have audio", "[audio]")
     auto audioEvents = artboard->find<AudioEvent>();
     REQUIRE(audioEvents.size() == 0);
     REQUIRE(artboard->hasAudio() == false);
+}
+
+TEST_CASE("Scripted audio plays", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("assets/audio_script.riv");
+    auto artboard = file->artboardDefault();
+    artboard->audioEngine(engine);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+
+    stateMachine->advanceAndApply(0.016f);
+
+    REQUIRE(engine->playingSoundCount() == 0);
+
+    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+
+    stateMachine->advanceAndApply(0.016f);
+
+    REQUIRE(artboard != nullptr);
+
+    REQUIRE(engine->playingSoundCount() == 1);
+
+    auto sound = engine->playingSoundsHead();
+    REQUIRE(sound->volume() == 1.0f);
+
+    stateMachine->pointerDown(rive::Vec2D(200.0f, 200.0f));
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 200.0f));
+    stateMachine->advanceAndApply(0.016f);
+
+    REQUIRE(sound->volume() == 0.1f);
 }
 
 // TODO check if sound->stop calls completed callback!!!

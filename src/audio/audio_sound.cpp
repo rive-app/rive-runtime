@@ -70,4 +70,31 @@ bool AudioSound::seek(uint64_t timeInFrames)
            MA_SUCCESS;
 }
 
+bool AudioSound::seekSeconds(float timeInSeconds)
+{
+    if (m_isDisposed)
+    {
+        return false;
+    }
+    return ma_sound_seek_to_second(&m_sound, timeInSeconds) == MA_SUCCESS;
+}
+
+uint64_t AudioSound::timeInFrames()
+{
+    if (m_isDisposed)
+    {
+        return 0;
+    }
+    return ma_sound_get_time_in_pcm_frames(&m_sound);
+}
+
+float AudioSound::timeInSeconds()
+{
+    if (m_isDisposed)
+    {
+        return 0.0f;
+    }
+    return ma_sound_get_time_in_milliseconds(&m_sound) / 1000.0f;
+}
+
 #endif

@@ -68,6 +68,7 @@ public:
 
 #ifdef TESTING
     size_t playingSoundCount();
+    rcp<AudioSound> playingSoundsHead();
 #endif
 private:
     AudioEngine(ma_engine* engine, ma_context* context);

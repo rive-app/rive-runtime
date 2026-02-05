@@ -109,6 +109,9 @@ class AudioSound : public RefCnt<AudioSound>
 
 public:
     bool seek(uint64_t timeInFrames);
+    bool seekSeconds(float timeInSeconds);
+    uint64_t timeInFrames();
+    float timeInSeconds();
     ~AudioSound();
     void stop(uint64_t fadeTimeInFrames = 0);
     float volume();

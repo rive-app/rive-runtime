@@ -20,6 +20,7 @@ int luaopen_rive_data_values(lua_State* L);
 int luaopen_rive_data_context(lua_State* L);
 int luaopen_rive_input(lua_State* L);
 int luaopen_rive_contex(lua_State* L);
+int luaopen_rive_audio(lua_State* L);
 
 std::unordered_map<std::string, int16_t> atoms = {
     {"length", (int16_t)LuaAtoms::length},
@@ -156,6 +157,16 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"setTime", (int16_t)LuaAtoms::setTime},
     {"setTimeFrames", (int16_t)LuaAtoms::setTimeFrames},
     {"setTimePercentage", (int16_t)LuaAtoms::setTimePercentage},
+    {"audioEngine", (int16_t)LuaAtoms::audioEngine},
+    {"audio", (int16_t)LuaAtoms::audio},
+    {"play", (int16_t)LuaAtoms::play},
+    {"stop", (int16_t)LuaAtoms::stop},
+    {"seek", (int16_t)LuaAtoms::seek},
+    {"seekFrame", (int16_t)LuaAtoms::seekFrame},
+    {"volume", (int16_t)LuaAtoms::volume},
+    {"completed", (int16_t)LuaAtoms::completed},
+    {"time", (int16_t)LuaAtoms::time},
+    {"timeFrame", (int16_t)LuaAtoms::timeFrame},
 };
 
 static const luaL_Reg lualibs[] = {
@@ -176,6 +187,7 @@ static const luaL_Reg lualibs[] = {
     {"input", luaopen_rive_input},
     {"context", luaopen_rive_contex},
     {"dataContext", luaopen_rive_data_context},
+    {"audio", luaopen_rive_audio},
     {NULL, NULL},
 };
 

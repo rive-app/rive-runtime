@@ -388,6 +388,9 @@ size_t AudioEngine::playingSoundCount()
 
     return count;
 }
+
+rcp<AudioSound> AudioEngine::playingSoundsHead() { return m_playingSoundsHead; }
+
 #endif
 
 void AudioEngine::stop(Artboard* artboard)
