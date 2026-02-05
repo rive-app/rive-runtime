@@ -79,6 +79,32 @@ static int vector_dot(lua_State* L)
     return 1;
 }
 
+static int vector_cross(lua_State* L)
+{
+    auto lhs = lua_checkvec2d(L, 1);
+    auto rhs = lua_checkvec2d(L, 2);
+    lua_pushnumber(L, Vec2D::cross(*lhs, *rhs));
+    return 1;
+}
+
+static int vector_scaleAndAdd(lua_State* L)
+{
+    auto a = lua_checkvec2d(L, 1);
+    auto b = lua_checkvec2d(L, 2);
+    float scale = float(luaL_checknumber(L, 3));
+    lua_pushvec2d(L, Vec2D::scaleAndAdd(*a, *b, scale));
+    return 1;
+}
+
+static int vector_scaleAndSub(lua_State* L)
+{
+    auto a = lua_checkvec2d(L, 1);
+    auto b = lua_checkvec2d(L, 2);
+    float scale = float(luaL_checknumber(L, 3));
+    lua_pushvec2d(L, *a - *b * scale);
+    return 1;
+}
+
 static int vector_lerp(lua_State* L)
 {
     auto lhs = lua_checkvec2d(L, 1);
@@ -136,9 +162,15 @@ static const luaL_Reg vectorStaticMethods[] = {
     {"distance", vector_distance},
     {"distanceSquared", vector_distanceSquared},
     {"dot", vector_dot},
+    {"cross", vector_cross},
+    {"scaleAndAdd", vector_scaleAndAdd},
+    {"scaleAndSub", vector_scaleAndSub},
     {"lerp", vector_lerp},
     {"xy", vector_xy},
     {"origin", vector_origin},
+    {"length", vector_length},
+    {"lengthSquared", vector_lengthSquared},
+    {"normalized", vector_normalized},
     {nullptr, nullptr}};
 
 int luaopen_rive_vector(lua_State* L)
