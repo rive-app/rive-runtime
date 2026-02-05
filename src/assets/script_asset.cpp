@@ -224,14 +224,37 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
     {
         return false;
     }
-    if (generatorFunctionRef() == 0)
+
+    int ref = 0;
+#ifdef WITH_RIVE_TOOLS
+    // Edit-time mode: generatorFunctionRef() is a key to look up the actual
+    // ref. Runtime mode: generatorFunctionRef() is the actual ref directly.
+
+    // Note that the editor can actually host both edit-time scripting contexts
+    // (where the editor owns the VM) and runtime ones (for artboards it's just
+    // displaying as part of the UI). This path works for both cases as in the
+    // latter hasGeneratorRef will return false.
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(state));
+    if (context != nullptr && context->hasGeneratorRef(generatorFunctionRef()))
+    {
+        ref = context->getGeneratorRef(generatorFunctionRef());
+    }
+    else
+#endif
+    {
+        // Runtime mode: generatorFunctionRef is the actual ref
+        ref = generatorFunctionRef();
+    }
+
+    if (ref == 0)
     {
         fprintf(stderr,
                 "ScriptAsset doesn't have a generator function %s\n",
                 name().c_str());
         return false;
     }
-    rive_lua_pushRef(state, generatorFunctionRef());
+    rive_lua_pushRef(state, ref);
 
     if (!m_initted)
     {

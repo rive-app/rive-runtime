@@ -382,30 +382,12 @@ ScriptingVM::~ScriptingVM()
     }
 }
 
-static int register_module(lua_State* L)
-{
-    // This is only called internally where we ensure we're pushing the right
-    // elements on the stack so we can assert these at debug time only.
-    assert(lua_gettop(L) == 2 &&
-           "expected 2 arguments: require script name and desired result");
-    assert(luaL_checkstring(L, 1) &&
-           "first argument must be the name of the script");
-
-    luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
-    // (1) path, (2) result, (3) cache table
-
-    lua_insert(L, 1);
-    // (1) cache table, (2) path, (3) result
-
-    lua_settable(L, 1);
-    // (1) cache table
-
-    lua_pop(L, 1);
-
-    return 0;
-}
-
-static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
+// Loads bytecode into a sandboxed thread without executing it.
+// On success, pushes the module thread (with loaded closure) onto L's stack.
+// Returns true on success.
+bool ScriptingVM::loadModule(lua_State* L,
+                             const char* name,
+                             Span<uint8_t> bytecode)
 {
     if (bytecode.empty())
     {
@@ -424,32 +406,55 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
     int status =
         luau_load(ML, name, (const char*)bytecode.data(), bytecode.size(), 0);
 
+    if (status != 0)
+    {
+        // luau_load failed — error string is on ML stack
+        lua_xmove(ML, L, 1);
+        ScriptingContext* context =
+            static_cast<ScriptingContext*>(lua_getthreaddata(L));
+        context->printError(L);
+        lua_pop(L, 2); // pop error + thread
+        return false;
+    }
+
+    // Thread with loaded closure is on top of L's stack.
+    return true;
+}
+
+// Executes a previously loaded module thread (on top of L's stack from
+// loadModule). On success, replaces the thread with the module result.
+// If isUtility, also registers the result in the require cache.
+// Returns true on success.
+bool ScriptingVM::executeModule(lua_State* L, const char* name, bool isUtility)
+{
+    // The module thread should be on top of the stack.
+    lua_State* ML = lua_tothread(L, -1);
+    if (ML == nullptr)
+    {
+        return false;
+    }
+
+    int status = lua_resume(ML, L, 0);
     if (status == 0)
     {
-        int status = lua_resume(ML, L, 0);
-        if (status == 0)
+        if (lua_gettop(ML) == 0)
         {
-            if (lua_gettop(ML) == 0)
-            {
-                lua_pushfstring(ML, "%s:1: module must return a value", name);
-            }
-            else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
-            {
-                lua_pushfstring(ML,
-                                "%s:1: module must return a table or function",
-                                name);
-            }
+            lua_pushfstring(ML, "%s:1: module must return a value", name);
         }
-        else if (status == LUA_YIELD)
-        {
-            lua_pushfstring(ML, "%s:1: module can not yield", name);
-        }
-        else if (!lua_isstring(ML, -1))
+        else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
         {
             lua_pushfstring(ML,
-                            "%s:1: unknown error while running module",
+                            "%s:1: module must return a table or function",
                             name);
         }
+    }
+    else if (status == LUA_YIELD)
+    {
+        lua_pushfstring(ML, "%s:1: module can not yield", name);
+    }
+    else if (!lua_isstring(ML, -1))
+    {
+        lua_pushfstring(ML, "%s:1: unknown error while running module", name);
     }
 
     // add ML result to L stack
@@ -460,12 +465,23 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
         ScriptingContext* context =
             static_cast<ScriptingContext*>(lua_getthreaddata(L));
         context->printError(L);
-        lua_pop(L, 2);
+        lua_pop(L, 2); // pop error + thread
         return false;
     }
     // remove ML thread from L stack
     lua_remove(L, -2);
     // added one value to L stack: module result
+
+    if (isUtility)
+    {
+        // Register into the require cache directly.
+        luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+        lua_pushstring(L, name);
+        lua_pushvalue(L, -3); // copy module result (below cache table + name)
+        lua_settable(L, -3);  // cache[name] = result
+        lua_pop(L, 1);        // pop cache table
+    }
+
     return true;
 }
 
@@ -681,6 +697,26 @@ void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
     }
 }
 
+#ifdef WITH_RIVE_TOOLS
+void ScriptingContext::setGeneratorRef(uint32_t assetId, int ref)
+{
+    m_assetGeneratorRefs[assetId] = ref;
+}
+
+int ScriptingContext::getGeneratorRef(uint32_t assetId) const
+{
+    auto it = m_assetGeneratorRefs.find(assetId);
+    return it != m_assetGeneratorRefs.end() ? it->second : 0;
+}
+
+void ScriptingContext::clearGeneratorRefs() { m_assetGeneratorRefs.clear(); }
+
+bool ScriptingContext::hasGeneratorRef(uint32_t assetId) const
+{
+    return m_assetGeneratorRefs.find(assetId) != m_assetGeneratorRefs.end();
+}
+#endif
+
 bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
@@ -691,7 +727,12 @@ bool ScriptingVM::registerScript(lua_State* state,
         return true;
     }
 
-    if (!push_module(state, name, bytecode))
+    if (!loadModule(state, name, bytecode))
+    {
+        return false;
+    }
+
+    if (!executeModule(state, name, false))
     {
         return false;
     }
@@ -709,15 +750,19 @@ bool ScriptingVM::registerModule(lua_State* state,
         return true;
     }
 
-    lua_pushcfunction(state, register_module, nullptr);
-    lua_pushstring(state, name);
-    if (!push_module(state, name, bytecode))
+    if (!loadModule(state, name, bytecode))
     {
-        lua_pop(state, 2);
         return false;
     }
 
-    lua_call(state, 2, 0);
+    if (!executeModule(state, name, true))
+    {
+        return false;
+    }
+
+    // executeModule with isUtility=true registers into the require cache
+    // and leaves the module result on the stack. Pop it.
+    lua_pop(state, 1);
     return true;
 }
 

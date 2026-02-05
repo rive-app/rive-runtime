@@ -39,6 +39,10 @@
 #include "rive/audio/audio_source.hpp"
 #include "rive/audio/audio_sound.hpp"
 #endif
+#ifdef WITH_RIVE_TOOLS
+#include "rive/core/binary_writer.hpp"
+#include "rive/core/vector_binary_stream.hpp"
+#endif
 
 #include <chrono>
 #include <unordered_map>
@@ -906,6 +910,9 @@ class ScriptingContext
 {
 public:
     ScriptingContext(Factory* factory) : m_factory(factory) {}
+#ifdef WITH_RIVE_TOOLS
+    virtual ~ScriptingContext() = default;
+#endif
     Factory* factory() const { return m_factory; }
 
     virtual void printError(lua_State* state) = 0;
@@ -937,6 +944,19 @@ private:
     std::vector<ModuleDetails*> m_modulesToRegister;
     std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
     std::unordered_set<ModuleDetails*> m_pendingModules;
+
+#ifdef WITH_RIVE_TOOLS
+    // Editor-only: Map from asset ID to generator function ref.
+    // Allows direct ScriptedObject reinitialization without regenerating
+    // the runtime file.
+    std::unordered_map<uint32_t, int> m_assetGeneratorRefs;
+
+public:
+    void setGeneratorRef(uint32_t assetId, int ref);
+    int getGeneratorRef(uint32_t assetId) const;
+    void clearGeneratorRefs();
+    bool hasGeneratorRef(uint32_t assetId) const;
+#endif
 };
 
 class ScriptingVM
@@ -973,6 +993,22 @@ public:
                                Span<uint8_t> bytecode);
 
     bool registerScript(const char* name, Span<uint8_t> bytecode);
+
+    // Loads bytecode into the VM, creating a sandboxed thread and
+    // deserializing the bytecode into an unexecuted closure. Pushes the
+    // module thread onto the stack. Returns true on success.
+    static bool loadModule(lua_State* state,
+                           const char* name,
+                           Span<uint8_t> bytecode);
+
+    // Executes a previously loaded module thread (on top of stack from
+    // loadModule). Runs lua_resume, validates the result, and for utility
+    // modules registers into the require cache. On success, the module
+    // result (table/function) replaces the thread on the stack.
+    // Returns true on success.
+    static bool executeModule(lua_State* state,
+                              const char* name,
+                              bool isUtility);
 
     static void dumpStack(lua_State* state);
 
@@ -1142,12 +1178,28 @@ private:
 
 static void interruptCPP(lua_State* L, int gc);
 
+#ifdef WITH_RIVE_TOOLS
+// Callback type for notifying when console data is available.
+// If null, console output goes to stdout.
+using ConsoleCallback = void (*)();
+#endif
+
 class CPPRuntimeScriptingContext : public ScriptingContext
 {
 public:
+#ifdef WITH_RIVE_TOOLS
+    CPPRuntimeScriptingContext(Factory* factory,
+                               int timeoutMs = 200,
+                               ConsoleCallback consoleCallback = nullptr) :
+        ScriptingContext(factory),
+        m_timeoutMs(timeoutMs),
+        m_consoleCallback(consoleCallback)
+    {}
+#else
     CPPRuntimeScriptingContext(Factory* factory, int timeoutMs = 200) :
         ScriptingContext(factory), m_timeoutMs(timeoutMs)
     {}
+#endif
     virtual ~CPPRuntimeScriptingContext() = default;
 
     std::chrono::time_point<std::chrono::steady_clock> executionTime;
@@ -1157,14 +1209,57 @@ public:
 
     int pCall(lua_State* state, int nargs, int nresults) override;
 
-    void printBeginLine(lua_State* state) override {}
-    void print(Span<const char> data) override
+    void printBeginLine(lua_State* state) override
     {
-        auto message = std::string(data.data(), data.size());
-        puts(message.c_str());
+#ifdef WITH_RIVE_TOOLS
+        BinaryWriter writer(&m_consoleBuffer);
+        lua_Debug ar;
+        lua_getinfo(state, 1, "sl", &ar);
+        writer.write((uint8_t)0);
+        writer.write(ar.source);
+        writer.writeVarUint((uint32_t)ar.currentline);
+#endif
     }
 
-    void printEndLine() override { puts("\n"); }
+    void print(Span<const char> data) override
+    {
+#ifdef WITH_RIVE_TOOLS
+        if (data.size() == 0)
+        {
+            return;
+        }
+        BinaryWriter writer(&m_consoleBuffer);
+        writer.writeVarUint((uint64_t)data.size());
+        writer.write((const uint8_t*)data.data(), (size_t)data.size());
+
+        if (m_consoleCallback == nullptr)
+#endif
+        {
+            auto message = std::string(data.data(), data.size());
+            printf("%s", message.c_str());
+        }
+    }
+
+    void printEndLine() override
+    {
+#ifdef WITH_RIVE_TOOLS
+        BinaryWriter writer(&m_consoleBuffer);
+        writer.writeVarUint((uint32_t)0);
+
+        if (m_consoleCallback != nullptr)
+        {
+            if (!m_calledConsoleCallback)
+            {
+                m_calledConsoleCallback = true;
+                m_consoleCallback();
+            }
+        }
+        else
+#endif
+        {
+            printf("\n");
+        }
+    }
 
     void printError(lua_State* state) override
     {
@@ -1193,8 +1288,26 @@ public:
         cb->interrupt = nullptr;
     }
 
+#ifdef WITH_RIVE_TOOLS
+    // Console buffer access for editor
+    Span<uint8_t> consoleMemory() { return m_consoleBuffer.memory(); }
+
+    void clearConsole()
+    {
+        m_consoleBuffer.clear();
+        m_calledConsoleCallback = false;
+    }
+
+    bool hasConsoleCallback() const { return m_consoleCallback != nullptr; }
+#endif
+
 private:
     int m_timeoutMs = 200;
+#ifdef WITH_RIVE_TOOLS
+    ConsoleCallback m_consoleCallback = nullptr;
+    VectorBinaryStream m_consoleBuffer;
+    bool m_calledConsoleCallback = false;
+#endif
 };
 
 class ScriptedDataContext

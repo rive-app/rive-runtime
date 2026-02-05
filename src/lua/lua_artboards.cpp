@@ -292,7 +292,7 @@ const ShapePaint* ScriptedNode::shapePaint()
     {
         return m_shapePaint;
     }
-    if (m_component->is<ShapePaint>())
+    if (m_component != nullptr && m_component->is<ShapePaint>())
     {
         return m_component->as<ShapePaint>();
     }
