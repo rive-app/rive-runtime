@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <cassert>
 
-namespace skgpu
+namespace rive
 {
 
 bool RectanizerSkyline::addRect(int width, int height, int16_t* x, int16_t* y)
@@ -152,4 +152,4 @@ void RectanizerSkyline::addSkylineLevel(int skylineIndex,
     }
 }
 
-} // End of namespace skgpu
+} // End of namespace rive
