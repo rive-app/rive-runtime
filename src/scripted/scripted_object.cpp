@@ -176,7 +176,8 @@ bool ScriptedObject::hasValidVM()
     if (asset())
     {
         auto scriptAsset = asset()->as<ScriptAsset>();
-        if (!scriptAsset->file() || !scriptAsset->file()->hasVM())
+        if (!scriptAsset->file() ||
+            scriptAsset->file()->scriptingState() != m_state)
         {
             m_state = nullptr;
             return false;
