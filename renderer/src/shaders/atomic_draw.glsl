@@ -368,6 +368,18 @@ INLINE half from_fixed(uint x)
         (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_PRECISION));
 }
 
+ushort apply_driver_workaround_for_path_id(ushort pathID)
+{
+#ifdef @NEEDS_PATH_ID_CLAMP_WORKAROUND
+    // We have observed that on some hardware, inactive threads or helper lanes
+    // appear to issue calls that access storage textures, even though they
+    // should be NO-OP. clamping the path ID prevents crashes in these
+    // scenarios.
+    pathID = min(pathID, uniforms.maxPathId);
+#endif
+    return pathID;
+}
+
 #ifdef @ENABLE_CLIPPING
 INLINE void apply_clip(uint clipID,
                        CLIP_VALUE_TYPE clipData,
@@ -598,6 +610,9 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
         PLS_ATOMIC_MAX(coverageAtomicBuffer, minCoverageData);
     ushort lastPathID =
         cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
+
+    lastPathID = apply_driver_workaround_for_path_id(lastPathID);
+
     if (lastPathID == v_pathID)
     {
         // This is not the first fragment of the current path to touch this
@@ -656,7 +671,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
     ushort lastPathID =
         cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
-
+    lastPathID = apply_driver_workaround_for_path_id(lastPathID);
     // Update coverageAtomicBuffer with the coverage weight of the current
     // triangle. This does not need to be atomic since interior triangles don't
     // overlap.
@@ -759,6 +774,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
     ushort lastPathID =
         cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
+    lastPathID = apply_driver_workaround_for_path_id(lastPathID);
     half lastCoverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
     half4 fragColorOut;
 #ifdef @ENABLE_CLIPPING
@@ -875,6 +891,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     half coverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
     ushort lastPathID =
         cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
+    lastPathID = apply_driver_workaround_for_path_id(lastPathID);
     half4 fragColorOut;
     resolve_paint(lastPathID,
                   coverageCount,

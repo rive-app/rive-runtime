@@ -349,7 +349,7 @@ def remove_leading_annotation(name):
     if name[0] == '@':
         # A leading '@' indicates identifier names that should be exported. Rename '@my_var' to
         # '_EXPORTED_my_var' to enforce that '@my_var' and 'my_var' are not interchangeable.
-        return '_EXPORTED_' + name[1:]
+        return 'EXPORTED_' + name[1:]
     if name[0] == '$':
         # A leading '$' indicates identifier names that should not be renamed.
         return name[1:]

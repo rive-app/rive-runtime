@@ -358,9 +358,13 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d12.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
-        RIVE_PLS_DIR .. '/shader_hotload/**.cpp',
     })
 
+    filter({ 'options:not no_tools_shader_hotloading' })
+    do
+     files({ RIVE_PLS_DIR .. '/shader_hotload/**.cpp'} )
+    end
+    
     if rive_target_os == 'windows' then
         externalincludedirs({
             dx12_headers .. '/include/directx',

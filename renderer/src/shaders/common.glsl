@@ -266,6 +266,7 @@ float vertexDiscardValue;
 float mipMapLODBias;
 // Debugging.
 uint wireframeEnabled;
+uint maxPathId;
 UNIFORM_BLOCK_END(uniforms)
 #endif
 

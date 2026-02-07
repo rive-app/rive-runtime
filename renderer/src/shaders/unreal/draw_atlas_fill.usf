@@ -4,7 +4,7 @@
 #define ATLAS_FEATHERED_FILL
 
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
-#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+#include "/Engine/Private/Common.ush"
 #endif
 
 #include "Generated/rhi.minified.ush"

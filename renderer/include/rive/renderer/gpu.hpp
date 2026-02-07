@@ -1348,8 +1348,9 @@ private:
     WRITEONLY float m_vertexDiscardValue;
     WRITEONLY float m_mipMapLODBias;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
+    WRITEONLY uint32_t m_maxPathId;
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 84];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 88];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 

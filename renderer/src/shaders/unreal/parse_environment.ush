@@ -28,8 +28,6 @@
 #undef ENABLE_EVEN_ODD
 #endif
 
-#define ENABLE_TYPED_UAV_LOAD_STORE 1
-
 #if !ENABLE_FEATHER
 #undef ENABLE_FEATHER
 #endif

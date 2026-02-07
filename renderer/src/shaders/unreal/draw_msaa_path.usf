@@ -5,7 +5,7 @@
 
 #include "/Engine/Public/Platform.ush"
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
-#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+#include "/Engine/Private/Common.ush"
 #endif
 
 #if ENABLE_CLIP_RECT

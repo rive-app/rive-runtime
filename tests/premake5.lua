@@ -1,5 +1,10 @@
 dofile('rive_tools_project.lua')
 
+newoption({
+    trigger = 'no_tools_shader_hotloading',
+    description = 'do not compile in support for shader hotloading',
+})
+
 if not _OPTIONS['for_unreal'] then
     rive_tools_project('bench', _OPTIONS['os'] == 'ios' and 'StaticLib' or 'ConsoleApp')
     do
@@ -9,7 +14,11 @@ end
 
 rive_tools_project('gms', 'RiveTool')
 do
-    files({ 'gm/*.cpp' })
+    files({ 'gm/*.cpp'})
+    filter({ 'options:not no_tools_shader_hotloading' })
+    do
+        files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
+    end
     filter({ 'options:for_unreal' })
     do
         defines({ 'RIVE_UNREAL' })
@@ -23,7 +32,11 @@ end
 rive_tools_project('goldens', 'RiveTool')
 do
     exceptionhandling('On')
-    files({ 'goldens/goldens.cpp' })
+    files({ 'goldens/goldens.cpp'})
+    filter({ 'options:not no_tools_shader_hotloading' })
+    do
+        files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
+    end
     filter({ 'options:for_unreal' })
     do
         defines({ 'RIVE_UNREAL' })
@@ -36,16 +49,14 @@ end
 
 rive_tools_project('player', 'RiveTool')
 do
-    files({ 'player/player.cpp' })
+    files({ 'player/player.cpp'})
     filter('system:emscripten')
     do
         files({ 'player/player.html' })
     end
-end
 
-rive_tools_project('command_buffer_example', 'RiveTool')
-do
-    files({
-        'command_buffer_example/command_buffer_example.cpp',
-    })
+    filter({ 'options:not no_tools_shader_hotloading' })
+    do
+        files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
+    end
 end

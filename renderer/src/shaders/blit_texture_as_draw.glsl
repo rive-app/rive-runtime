@@ -38,7 +38,11 @@ VERTEX_MAIN(@blitVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
+#ifdef @SOURCE_TEXTURE_MSAA
+TEXTURE_RGBA8_MS(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @sourceTexture);
+#else
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @sourceTexture);
+#endif
 FRAG_TEXTURE_BLOCK_END
 
 #ifdef @USE_FILTERING
@@ -53,6 +57,12 @@ FRAG_DATA_MAIN(half4, @blitFragmentMain)
 #ifdef @USE_FILTERING
     VARYING_UNPACK(v_texCoord, float2);
     srcColor = TEXTURE_SAMPLE_LOD(@sourceTexture, blitSampler, v_texCoord, .0);
+#elif @SOURCE_TEXTURE_MSAA
+    srcColor = (TEXEL_FETCH_MS(@sourceTexture, 0, int2(floor(_fragCoord.xy))) +
+                TEXEL_FETCH_MS(@sourceTexture, 1, int2(floor(_fragCoord.xy))) +
+                TEXEL_FETCH_MS(@sourceTexture, 2, int2(floor(_fragCoord.xy))) +
+                TEXEL_FETCH_MS(@sourceTexture, 3, int2(floor(_fragCoord.xy)))) *
+               0.25;
 #else
     srcColor = TEXEL_FETCH(@sourceTexture, int2(floor(_fragCoord.xy)));
 #endif

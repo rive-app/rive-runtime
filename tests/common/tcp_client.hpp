@@ -7,7 +7,7 @@
 #include <memory>
 #include <string>
 #include <stdint.h>
-
+#ifndef EXTERNAL_TCP_CLIENT_DEFINITION
 #ifdef __EMSCRIPTEN__
 #include <emscripten/websocket.h>
 #include <arpa/inet.h>
@@ -19,6 +19,10 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#endif
+#endif
+
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
 #define SOCKET int
 #endif
 
@@ -63,7 +67,7 @@ private:
 
 #ifdef _WIN32
     static int GetLastError() { return WSAGetLastError(); }
-#else
+#elif !defined(NO_RIVE_GET_LAST_ERROR)
     static int GetLastError() { return errno; }
 #endif
 

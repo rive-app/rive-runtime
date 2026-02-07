@@ -310,6 +310,7 @@ int main(int argc, const char* argv[])
         }
         else
         {
+#ifndef RIVE_REMOTE_ONLY
             const std::filesystem::path& srcPath =
                 std::filesystem::path(s_args.src().c_str());
             if (is_riv_file(srcPath))
@@ -345,6 +346,9 @@ int main(int argc, const char* argv[])
                     throw "Bad src path";
                 }
             }
+#else
+            throw "Remote only goldens require a connection.";
+#endif
         }
     }
     catch (const args::Completion&)

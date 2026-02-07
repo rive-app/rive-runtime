@@ -494,7 +494,8 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
     m_mipMapLODBias(MIP_MAP_LOD_BIAS),
-    m_wireframeEnabled(flushDesc.wireframe)
+    m_wireframeEnabled(flushDesc.wireframe),
+    m_maxPathId(flushDesc.pathCount)
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)

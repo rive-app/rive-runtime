@@ -137,6 +137,9 @@ $typedef $uint ushort;
 
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME
+#ifdef @SOURCE_TEXTURE_MSAA
+#define TEXTURE_RGBA8_MS(SET, IDX, NAME) uniform $Texture2DMS<half4> NAME
+#endif
 #define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<half4> NAME
 #define TEXTURE_R16F(SET, IDX, NAME) uniform $Texture2D<half> NAME
 #define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) uniform $Texture2DArray<half> NAME
@@ -151,6 +154,9 @@ $typedef $uint ushort;
 #define SAMPLER_MIPMAP SAMPLER
 #define SAMPLER_DYNAMIC(SET, IDX, NAME) SAMPLER(IDX, NAME)
 
+#ifdef SOURCE_TEXTURE_MSAA
+#define TEXEL_FETCH_MS(NAME, LEVEL, COORD) NAME.Load(COORD, LEVEL)
+#endif
 #define TEXEL_FETCH(NAME, COORD) NAME[COORD]
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
     NAME.$Sample(SAMPLER_NAME, COORD)
@@ -220,7 +226,7 @@ $typedef $uint ushort;
 #define PLS_LOADUI_ATOMIC PLS_LOADUI
 #define PLS_STOREUI_ATOMIC PLS_STOREUI
 
-#if $COMPILER_METAL
+#if $COMPILER_METAL || $FORCE_ATOMIC_BUFFER
 #define PLS_DECLUI_ATOMIC(IDX, NAME) uniform $RWBuffer<uint> NAME
 #define PLS_LOADUI_ATOMIC(PLANE) PLANE[_plsIdx]
 #define PLS_STOREUI_ATOMIC(PLANE, VALUE) PLANE[_plsIdx] = VALUE
@@ -243,7 +249,7 @@ $typedef $uint ushort;
 #endif
 #define PLS_STOREUI(PLANE, VALUE) PLANE[_plsCoord] = (VALUE)
 
-#if $COMPILER_METAL
+#if $COMPILER_METAL || $FORCE_ATOMIC_BUFFER
 INLINE uint pls_atomic_max($RWBuffer<uint> plane, uint _plsIdx, uint x)
 {
     uint originalValue;
