@@ -56,6 +56,7 @@ dev/analysis_report
 build/bin
 dev/test/build/bin
 rivinfo/build/macosx
+renderer/out
 
 # Skia dependencies
 skia/dependencies/skia_recorder
