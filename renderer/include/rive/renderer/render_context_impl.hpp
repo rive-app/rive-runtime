@@ -78,6 +78,8 @@ public:
         gpu::InterlockMode,
         const RenderTarget*,
         const IAABB& renderTargetUpdateBounds,
+        uint32_t virtualTileWidth,
+        uint32_t virtualTileHeight,
         gpu::DrawContents combinedDrawContents) const
     {
         return false;

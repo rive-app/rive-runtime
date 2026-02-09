@@ -1188,6 +1188,19 @@ struct FlushDescriptor
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.
 
+    // If nonzero, frames are split up into virtual tiles of this size.
+    //
+    // As of now, each tile gets drawn in a separate render pass. The purpose of
+    // these virtual tiles, for now, is to break the frame up into smaller
+    // chunks so that Rive can be pre-empted by other rendering processes. This
+    // is only supported on Vulkan/non-msaa.
+    //
+    // TODO: We could also explore a different type of virtual tiling that
+    // reduces barriers in atomic mode, but that is not how this feature works
+    // currently.
+    uint32_t virtualTileWidth = 0;
+    uint32_t virtualTileHeight = 0;
+
     // True if the drawList ends with a "renderPassResolve" draw, in which case
     // the backend may need to perform special setup for a custom resolve.
     bool manuallyResolved = false;

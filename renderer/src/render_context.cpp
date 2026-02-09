@@ -1173,10 +1173,15 @@ void RenderContext::LogicalFlush::layoutResources(
         m_flushDesc.renderTargetUpdateBounds = {0, 0, 0, 0};
     }
 
+    m_flushDesc.virtualTileWidth = frameDescriptor.virtualTileWidth;
+    m_flushDesc.virtualTileHeight = frameDescriptor.virtualTileHeight;
+
     m_flushDesc.manuallyResolved = m_ctx->m_impl->wantsManualRenderPassResolve(
         m_flushDesc.interlockMode,
         m_flushDesc.renderTarget,
         m_flushDesc.renderTargetUpdateBounds,
+        m_flushDesc.virtualTileWidth,
+        m_flushDesc.virtualTileHeight,
         m_combinedDrawContents);
 
     m_flushDesc.fixedFunctionColorOutput =

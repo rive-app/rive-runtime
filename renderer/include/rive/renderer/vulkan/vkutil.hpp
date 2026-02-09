@@ -414,4 +414,13 @@ inline VkFormat get_preferred_depth_stencil_format(bool isD24S8Supported)
     return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
                             : VK_FORMAT_D32_SFLOAT_S8_UINT;
 }
+
+inline VkRect2D rect2d(const IAABB& iaabb)
+{
+    return {
+        .offset = {iaabb.left, iaabb.top},
+        .extent = {static_cast<uint32_t>(iaabb.width()),
+                   static_cast<uint32_t>(iaabb.height())},
+    };
+}
 } // namespace rive::gpu::vkutil

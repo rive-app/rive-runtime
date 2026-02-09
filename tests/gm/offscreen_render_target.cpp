@@ -16,6 +16,8 @@ using GLuint = uint32_t;
 #include "rive/renderer/gl/render_target_gl.hpp"
 #endif
 
+#include "assets/nomoon.png.hpp"
+
 using namespace rivegm;
 using namespace rive;
 using namespace rive::gpu;
@@ -92,7 +94,9 @@ public:
         drawStar13(renderer, paint13);
     }
 
-    void drawStar5(Renderer* renderer, RenderPaint* paint)
+    void drawStar5(Renderer* renderer,
+                   RenderPaint* paint,
+                   FillRule fillRule = FillRule::nonZero)
     {
         PathBuilder builder;
         float theta = -math::PI / 7;
@@ -102,6 +106,7 @@ public:
             theta += 2 * math::PI * 2 / 7;
             builder.lineTo(cosf(theta), sinf(theta));
         }
+        builder.fillRule(fillRule);
         renderer->save();
         renderer->translate(100, 100);
         renderer->scale(80, 80);
@@ -109,7 +114,9 @@ public:
         renderer->restore();
     }
 
-    void drawStar13(Renderer* renderer, RenderPaint* paint)
+    void drawStar13(Renderer* renderer,
+                    RenderPaint* paint,
+                    FillRule fillRule = FillRule::evenOdd)
     {
         PathBuilder builder;
         float theta = 0;
@@ -118,7 +125,7 @@ public:
             theta += 2 * math::PI * 3 / 13;
             builder.lineTo(cosf(theta), sinf(theta));
         }
-        builder.fillRule(FillRule::evenOdd);
+        builder.fillRule(fillRule);
         renderer->save();
         renderer->translate(256 - 100, 256 - 100);
         renderer->scale(80, 80);
@@ -293,3 +300,152 @@ GMREGISTER(offscreen_render_target_preserve_lum,
            return new OffscreenRenderTargetPreserveLum(true))
 GMREGISTER(offscreen_render_target_preserve_lum_nonrenderable,
            return new OffscreenRenderTargetPreserveLum(false))
+
+// This GM checks that virtual tiles work with various types of render targets.
+class OffscreenVirtualTiles : public OffscreenRenderTarget
+{
+public:
+    OffscreenVirtualTiles(gpu::LoadAction loadAction, BlendMode blendMode) :
+        OffscreenRenderTarget(blendMode, /*riveRenderable=*/false),
+        m_loadAction(loadAction)
+    {}
+
+    virtual void drawInternal(Renderer* renderer, RenderTarget* renderTarget)
+    {
+        ColorInt colors[2];
+        float stops[2];
+        colors[0] = 0xff000000;
+        stops[0] = 0;
+        colors[1] = 0xffff00ff;
+        stops[1] = 1;
+        Paint paint;
+        paint->shader(TestingWindow::Get()
+                          ->factory()
+                          ->makeLinearGradient(0, 0, 250, 0, colors, stops, 2));
+        renderer->drawPath(PathBuilder::Rect({0, 0, 256, 256}), paint);
+
+        colors[0] = 0x80000000;
+        stops[0] = 0;
+        colors[1] = 0x8000ffff;
+        stops[1] = 1;
+        Paint paint2;
+        paint2->shader(
+            TestingWindow::Get()
+                ->factory()
+                ->makeLinearGradient(0, 0, 0, 250, colors, stops, 2));
+        renderer->drawPath(PathBuilder::Rect({0, 0, 256, 256}), paint2);
+
+        if (auto renderContext = TestingWindow::Get()->renderContext())
+        {
+            auto frameDescriptor = renderContext->frameDescriptor();
+            TestingWindow::Get()->flushPLSContext(renderTarget);
+            frameDescriptor.loadAction = m_loadAction;
+            frameDescriptor.virtualTileWidth = 37;
+            frameDescriptor.virtualTileHeight = 23;
+            renderContext->beginFrame(std::move(frameDescriptor));
+        }
+
+        Path largePathThatUsesInteriorTriangles;
+        Paint transWhite;
+        transWhite->color(0x80ffffff);
+        transWhite->blendMode(m_blendMode);
+        largePathThatUsesInteriorTriangles->addRect(0, 0, 1000, 1000);
+        renderer->drawPath(largePathThatUsesInteriorTriangles.get(),
+                           transWhite.get());
+
+        Paint paint5(0x8000ffff);
+        paint5->blendMode(m_blendMode);
+        drawStar5(renderer, paint5, FillRule::clockwise);
+
+        auto img = LoadImage(assets::nomoon_png());
+
+        {
+            AutoRestore ar(renderer, true);
+            renderer->translate(100, 30);
+            renderer->scale(.4f, .4f);
+            renderer->drawImage(img.get(),
+                                ImageSampler::LinearClamp(),
+                                m_blendMode,
+                                .5f);
+        }
+
+        {
+            Factory* factory = TestingWindow::Get()->factory();
+            auto pts = factory->makeRenderBuffer(
+                RenderBufferType::vertex,
+                RenderBufferFlags::mappedOnceAtInitialization,
+                4 * sizeof(Vec2D));
+            memcpy(pts->map(),
+                   std::array<Vec2D, 4>{Vec2D{110, 110},
+                                        Vec2D{200, 110},
+                                        Vec2D{10, 200},
+                                        Vec2D{270, 270}}
+                       .data(),
+                   pts->sizeInBytes());
+            pts->unmap();
+            auto uvs = factory->makeRenderBuffer(
+                RenderBufferType::vertex,
+                RenderBufferFlags::mappedOnceAtInitialization,
+                4 * sizeof(Vec2D));
+            memcpy(uvs->map(),
+                   std::array<Vec2D, 4>{Vec2D{0, 0},
+                                        Vec2D{1, 0},
+                                        Vec2D{0, 1},
+                                        Vec2D{1, 1}}
+                       .data(),
+                   uvs->sizeInBytes());
+            uvs->unmap();
+            auto indices = factory->makeRenderBuffer(
+                RenderBufferType::index,
+                RenderBufferFlags::mappedOnceAtInitialization,
+                6 * sizeof(uint16_t));
+            memcpy(indices->map(),
+                   std::array<uint16_t, 6>{0, 1, 2, 1, 2, 3}.data(),
+                   indices->sizeInBytes());
+            indices->unmap();
+            renderer->drawImageMesh(img.get(),
+                                    ImageSampler::LinearClamp(),
+                                    pts,
+                                    uvs,
+                                    indices,
+                                    4,
+                                    6,
+                                    m_blendMode,
+                                    .7f);
+        }
+
+        Paint paint13(0x80ffff00);
+        paint13->blendMode(m_blendMode);
+        paint13->feather(1);
+        drawStar13(renderer, paint13, FillRule::clockwise);
+
+        Paint white(0xffffffff);
+        paint13->blendMode(m_blendMode);
+        uint64_t lcg = 12789;
+        for (size_t i = 0; i < 2000; ++i)
+        {
+            AutoRestore ar(renderer, true);
+            renderer->translate(lcg & 0xff, (lcg >> 8) & 0xff);
+            renderer->scale(.01f, .01f);
+            drawStar5(renderer, white, FillRule::clockwise);
+            lcg = lcg * 6364136223846793005ULL + 1;
+        }
+    }
+
+private:
+    const gpu::LoadAction m_loadAction;
+};
+GMREGISTER(offscreen_virtual_tiles_nonrenderable,
+           return new OffscreenVirtualTiles(gpu::LoadAction::clear,
+                                            BlendMode::srcOver))
+GMREGISTER(
+    offscreen_virtual_tiles_preserve_nonrenderable,
+    return new OffscreenVirtualTiles(gpu::LoadAction::preserveRenderTarget,
+                                     BlendMode::srcOver))
+GMREGISTER(offscreen_virtual_tiles_lum_nonrenderable,
+           return new OffscreenVirtualTiles(gpu::LoadAction::clear,
+                                            BlendMode::luminosity))
+GMREGISTER(
+    offscreen_virtual_tiles_preserve_lum_nonrenderable,
+    return new OffscreenVirtualTiles(gpu::LoadAction::preserveRenderTarget,
+                                     BlendMode::luminosity))
