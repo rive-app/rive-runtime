@@ -11,7 +11,26 @@
 
 namespace rive
 {
-class ScriptingTest : public ScriptingContext
+class ScriptingTest;
+
+// A ScriptingContext that delegates callbacks to ScriptingTest
+class TestScriptingContext : public ScriptingContext
+{
+public:
+    ScriptingTest* test;
+
+    TestScriptingContext(Factory* factory, ScriptingTest* t) :
+        ScriptingContext(factory), test(t)
+    {}
+
+    void printBeginLine(lua_State* state) override;
+    void print(Span<const char> data) override;
+    void printEndLine() override;
+    void printError(lua_State* state) override;
+    int pCall(lua_State* state, int nargs, int nresults) override;
+};
+
+class ScriptingTest
 {
 private:
     int m_numResults;
@@ -22,12 +41,13 @@ public:
                   int numResults = 1,
                   bool errorOk = false,
                   std::unordered_map<std::string, std::string> modules = {},
-                  bool executeImmediately = true) :
-        ScriptingContext(&m_factory)
+                  bool executeImmediately = true)
     {
         m_numResults = numResults;
         m_errorOk = errorOk;
-        m_vm = rivestd::make_unique<ScriptingVM>(this);
+        auto context =
+            rivestd::make_unique<TestScriptingContext>(&m_factory, this);
+        m_vm = make_rcp<ScriptingVM>(std::move(context));
 
         for (const auto& pair : modules)
         {
@@ -43,12 +63,12 @@ public:
             free(bytecode);
         }
 
-        auto state = m_vm->state();
+        auto luaState = m_vm->state();
         size_t bytecodeSize = 0;
         char* bytecode =
             luau_compile(source, strlen(source), nullptr, &bytecodeSize);
         REQUIRE(bytecode != nullptr);
-        CHECK(luau_load(state, "test_source", bytecode, bytecodeSize, 0) ==
+        CHECK(luau_load(luaState, "test_source", bytecode, bytecodeSize, 0) ==
               LUA_OK);
         free(bytecode);
 
@@ -60,7 +80,8 @@ public:
 
     void execute()
     {
-        auto result = pCall(m_vm->state(), 0, m_numResults);
+        auto context = static_cast<TestScriptingContext*>(m_vm->context());
+        auto result = context->pCall(m_vm->state(), 0, m_numResults);
         if (!m_errorOk)
         {
             CHECK(result == LUA_OK);
@@ -79,6 +100,7 @@ public:
     void unregisterModule(const char* name) { m_vm->unregisterModule(name); }
 
     lua_State* state() { return m_vm->state(); }
+    ScriptingVM* vm() { return m_vm.get(); }
 
 public:
     SerializingFactory* serializer() { return &m_factory; }
@@ -87,34 +109,46 @@ public:
 
     std::string currentLine = "";
 
-    void printBeginLine(lua_State* state) override {}
-
-    void print(Span<const char> data) override
+    void print(Span<const char> data)
     {
         currentLine += std::string(data.data(), data.size());
     }
 
-    void printEndLine() override
+    void printEndLine()
     {
         console.push_back(currentLine);
         currentLine = "";
     }
 
-    void printError(lua_State* state) override
-    {
-        const char* error = lua_tostring(state, -1);
-        errors.push_back(error);
-    }
-
-    int pCall(lua_State* state, int nargs, int nresults) override
-    {
-        return lua_pcall(state, nargs, nresults, 0);
-    }
+    void printError(const char* error) { errors.push_back(error); }
 
 private:
     SerializingFactory m_factory;
-    std::unique_ptr<ScriptingVM> m_vm;
+    rcp<ScriptingVM> m_vm;
 };
+
+// Inline implementations for TestScriptingContext
+inline void TestScriptingContext::printBeginLine(lua_State* state)
+{
+    // Tests don't need debug info, just start a new line
+}
+inline void TestScriptingContext::print(Span<const char> data)
+{
+    test->print(data);
+}
+inline void TestScriptingContext::printEndLine() { test->printEndLine(); }
+inline void TestScriptingContext::printError(lua_State* state)
+{
+    const char* error = lua_tostring(state, -1);
+    test->printError(error);
+}
+inline int TestScriptingContext::pCall(lua_State* state,
+                                       int nargs,
+                                       int nresults)
+{
+    // Simple pCall without timeout for tests
+    return lua_pcall(state, nargs, nresults, 0);
+}
 
 class ScriptedObjectTest : public ScriptedObject
 {

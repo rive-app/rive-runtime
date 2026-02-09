@@ -40,10 +40,7 @@ class Factory;
 class ScrollPhysics;
 class ViewModelRuntime;
 class BindableArtboard;
-#ifdef WITH_RIVE_SCRIPTING
-class CPPRuntimeScriptingContext;
 class ScriptingVM;
-#endif
 
 ///
 /// Tracks the success/failure result when importing a Rive file.
@@ -90,7 +87,7 @@ public:
                             Factory* factory,
                             ImportResult* result = nullptr,
                             FileAssetLoader* assetLoader = nullptr,
-                            void* vm = nullptr)
+                            ScriptingVM* vm = nullptr)
     {
         return import(data, factory, result, ref_rcp(assetLoader), vm);
     }
@@ -99,7 +96,7 @@ public:
                             Factory*,
                             ImportResult* result,
                             rcp<FileAssetLoader> assetLoader,
-                            void* vm = nullptr);
+                            ScriptingVM* vm = nullptr);
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }
@@ -187,11 +184,19 @@ public:
     // we are running in the runtime and should instance our own VMs
     // and pass them down to the root
 #ifdef WITH_RIVE_SCRIPTING
-    void scriptingState(lua_State* vm) { m_luaState = vm; }
-    lua_State* scriptingState() { return m_luaState; }
+    /// Sets or replaces the ScriptingVM. Takes shared ownership via rcp.
+    void setScriptingVM(rcp<ScriptingVM> vm);
+
+    /// Returns the ScriptingVM, or nullptr if no VM is set.
+    ScriptingVM* scriptingVM() { return m_scriptingVM.get(); }
+
+    /// Returns the lua_State from the current VM, or nullptr if no VM is set.
+    /// Do not hold a reference to this as the lifecycle is owned by the
+    /// ScriptingVM owning it.
+    lua_State* scriptingState();
 #ifdef WITH_RIVE_TOOLS
     void clearScriptingVM() { cleanupScriptingVM(); }
-    bool hasVM() { return m_luaState != nullptr; }
+    bool hasVM() { return m_scriptingVM != nullptr; }
 #endif
 #endif
 
@@ -271,10 +276,8 @@ private:
     rcp<FileAssetLoader> m_assetLoader;
 
 #ifdef WITH_RIVE_SCRIPTING
-    lua_State* m_luaState = nullptr;
-    std::unique_ptr<CPPRuntimeScriptingContext> m_scriptingContext;
-    std::unique_ptr<ScriptingVM> m_scriptingVM;
-    void makeScriptingVM(lua_State* existingState = nullptr);
+    rcp<ScriptingVM> m_scriptingVM;
+    void makeScriptingVM();
     void cleanupScriptingVM();
     void registerScripts();
 #endif

@@ -38,7 +38,7 @@ private:
 public:
     ~ScriptedDataConverter();
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(lua_State* state) override;
+    bool scriptInit(ScriptingVM* vm) override;
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 #endif

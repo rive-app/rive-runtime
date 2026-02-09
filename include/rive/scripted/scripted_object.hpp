@@ -6,11 +6,10 @@
 #include "rive/custom_property_container.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/generated/assets/script_asset_base.hpp"
-#include <stdio.h>
-
 #ifdef WITH_RIVE_SCRIPTING
-struct lua_State;
+#include "rive/lua/scripting_vm.hpp"
 #endif
+#include <stdio.h>
 
 namespace rive
 {
@@ -29,10 +28,11 @@ protected:
     int m_context = 0;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
-    lua_State* m_state = nullptr;
-#endif
 #ifdef WITH_RIVE_TOOLS
-    bool hasValidVM();
+    rcp<ScriptingVM> m_vm; // Ref-counted for editor
+#else
+    ScriptingVM* m_vm = nullptr; // Non-owning for runtime
+#endif
 #endif
 private:
     rcp<DataContext> m_dataContext = nullptr;
@@ -54,8 +54,8 @@ public:
     virtual rcp<DataContext> dataContext() { return m_dataContext; }
     void dataContext(rcp<DataContext> value) { m_dataContext = value; }
 #ifdef WITH_RIVE_SCRIPTING
-    virtual bool scriptInit(lua_State* state);
-    lua_State* state() { return m_state; }
+    virtual bool scriptInit(ScriptingVM* vm);
+    lua_State* state() const { return m_vm ? m_vm->state() : nullptr; }
 #endif
     void scriptDispose();
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;

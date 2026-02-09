@@ -1,12 +1,12 @@
 #ifndef _RIVE_SCRIPT_ASSET_HPP_
 #define _RIVE_SCRIPT_ASSET_HPP_
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/file.hpp"
 #include "rive/generated/assets/script_asset_base.hpp"
 #include "rive/simple_array.hpp"
 #include <stdio.h>
+#ifdef WITH_RIVE_SCRIPTING
+#include <unordered_set>
+#endif
 
 #ifdef WITH_RIVE_SCRIPTING
 struct lua_State;
@@ -18,6 +18,7 @@ class Artboard;
 class Component;
 class DataBind;
 class ScriptedObject;
+class ScriptingVM;
 
 enum ScriptProtocol
 {
@@ -186,6 +187,7 @@ public:
     void file(File* value) { m_file = value; }
     File* file() const { return m_file; }
 #ifdef WITH_RIVE_SCRIPTING
+    ScriptingVM* scriptingVM();
     lua_State* vm();
     void registrationComplete(int ref) override;
 #endif

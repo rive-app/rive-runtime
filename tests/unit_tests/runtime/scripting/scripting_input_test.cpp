@@ -512,9 +512,6 @@ end
     // Create ScriptedDrawable instance
     ScriptedDrawable drawable;
 
-    // Create LuaState from ScriptingTest's VM state
-    lua_State* luaState = L;
-
     // Manually set the inits flag since we're not using ScriptAsset
     // The inits flag indicates that the script has an init function
     drawable.implementedMethods(drawable.implementedMethods() |
@@ -524,7 +521,7 @@ end
     // ScriptingTest already left it there, so we can call scriptInit directly
     // Call ScriptedObject::scriptInit directly to avoid addDirt which requires
     // an artboard
-    CHECK(drawable.ScriptedObject::scriptInit(luaState));
+    CHECK(drawable.ScriptedObject::scriptInit(vm.vm()));
 
     // Manually set implemented methods flags since we're not using ScriptAsset
     // Check if advance function exists and set the flag
@@ -596,9 +593,6 @@ end
     // Create ScriptedLayout instance
     ScriptedLayout layout;
 
-    // Create LuaState from ScriptingTest's VM state
-    lua_State* luaState = L;
-
     // Manually set the inits flag since we're not using ScriptAsset
     layout.implementedMethods(layout.implementedMethods() |
                               (1 << 9)); // m_initsBit
@@ -606,7 +600,7 @@ end
     // scriptInit expects the factory function on the stack
     // Call ScriptedObject::scriptInit directly to avoid addDirt which requires
     // an artboard
-    CHECK(layout.ScriptedObject::scriptInit(luaState));
+    CHECK(layout.ScriptedObject::scriptInit(vm.vm()));
 
     // Manually set implemented methods flags
     // After scriptInit, the self table is stored in m_self
@@ -705,25 +699,16 @@ end
     // which might cause memory layout issues when tests run together
     auto converter = std::make_unique<ScriptedDataConverter>();
 
-    // Create LuaState from ScriptingTest's VM state
-    // Keep it in scope for the entire test since converter stores a pointer to
-    // it
-    lua_State* luaState = L;
-
     // Manually set the inits flag since we're not using ScriptAsset
     converter->implementedMethods(converter->implementedMethods() |
                                   (1 << 9)); // m_initsBit
-
-    // Verify LuaState is valid before using it
-    REQUIRE(luaState != nullptr);
-    REQUIRE(luaState == L);
 
     // scriptInit expects the factory function on the stack
     // Verify stack state before calling scriptInit
     REQUIRE(lua_gettop(L) == stackTop);
     REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    REQUIRE(converter->ScriptedObject::scriptInit(luaState));
+    REQUIRE(converter->ScriptedObject::scriptInit(vm.vm()));
     converter->addScriptedDirt(ComponentDirt::Bindings);
 
     // Verify self() is valid before using it

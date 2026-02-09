@@ -363,23 +363,29 @@ void ScriptingVM::init(lua_State* state, ScriptingContext* context)
     luaL_sandboxthread(state);
 }
 
-ScriptingVM::ScriptingVM(ScriptingContext* context) :
-    m_context(context), m_ownsState(true)
+ScriptingVM::ScriptingVM(std::unique_ptr<ScriptingContext> context) :
+    m_ownedContext(std::move(context))
 {
     m_state = lua_newstate(l_alloc, nullptr);
-    init(m_state, m_context);
+    init(m_state, m_ownedContext.get());
 }
 
-ScriptingVM::ScriptingVM(ScriptingContext* context, lua_State* existingState) :
-    m_state(existingState), m_context(context), m_ownsState(false)
-{}
+ScriptingVM::~ScriptingVM() { lua_close(m_state); }
 
-ScriptingVM::~ScriptingVM()
+void ScriptingVM::replaceContext(std::unique_ptr<ScriptingContext> newContext)
 {
-    if (m_ownsState)
-    {
-        lua_close(m_state);
-    }
+    m_ownedContext = std::move(newContext);
+    lua_setthreaddata(m_state, m_ownedContext.get());
+}
+
+void ScriptingVM::addModule(ModuleDetails* moduleDetails)
+{
+    context()->addModule(moduleDetails);
+}
+
+void ScriptingVM::performRegistration()
+{
+    context()->performRegistration(m_state);
 }
 
 // Loads bytecode into a sandboxed thread without executing it.

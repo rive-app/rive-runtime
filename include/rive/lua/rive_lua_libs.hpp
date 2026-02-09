@@ -33,6 +33,7 @@
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/hit_result.hpp"
+#include "rive/lua/scripting_vm.hpp"
 #include "rive/refcnt.hpp"
 #ifdef WITH_RIVE_AUDIO
 #include "rive/audio/audio_engine.hpp"
@@ -45,6 +46,7 @@
 #endif
 
 #include <chrono>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
@@ -910,9 +912,7 @@ class ScriptingContext
 {
 public:
     ScriptingContext(Factory* factory) : m_factory(factory) {}
-#ifdef WITH_RIVE_TOOLS
     virtual ~ScriptingContext() = default;
-#endif
     Factory* factory() const { return m_factory; }
 
     virtual void printError(lua_State* state) = 0;
@@ -957,65 +957,6 @@ public:
     void clearGeneratorRefs();
     bool hasGeneratorRef(uint32_t assetId) const;
 #endif
-};
-
-class ScriptingVM
-{
-public:
-    ScriptingVM(ScriptingContext* context);
-    ScriptingVM(ScriptingContext* context, lua_State* existingState);
-    ~ScriptingVM();
-
-    // ScriptingContext& context() { return m_context; }
-    lua_State* state() { return m_state; }
-
-    static void init(lua_State* state, ScriptingContext* context);
-
-    // Add a module to be registered later via performRegistration()
-    void addModule(ModuleDetails* moduleDetails)
-    {
-        m_context->addModule(moduleDetails);
-    }
-
-    // Perform registration of all added modules, handling dependencies and
-    // retries
-    void performRegistration() { m_context->performRegistration(m_state); }
-
-    static bool registerModule(lua_State* state,
-                               const char* name,
-                               Span<uint8_t> bytecode);
-    static void unregisterModule(lua_State* state, const char* name);
-    bool registerModule(const char* name, Span<uint8_t> bytecode);
-    void unregisterModule(const char* name);
-
-    static bool registerScript(lua_State* state,
-                               const char* name,
-                               Span<uint8_t> bytecode);
-
-    bool registerScript(const char* name, Span<uint8_t> bytecode);
-
-    // Loads bytecode into the VM, creating a sandboxed thread and
-    // deserializing the bytecode into an unexecuted closure. Pushes the
-    // module thread onto the stack. Returns true on success.
-    static bool loadModule(lua_State* state,
-                           const char* name,
-                           Span<uint8_t> bytecode);
-
-    // Executes a previously loaded module thread (on top of stack from
-    // loadModule). Runs lua_resume, validates the result, and for utility
-    // modules registers into the require cache. On success, the module
-    // result (table/function) replaces the thread on the stack.
-    // Returns true on success.
-    static bool executeModule(lua_State* state,
-                              const char* name,
-                              bool isUtility);
-
-    static void dumpStack(lua_State* state);
-
-private:
-    lua_State* m_state;
-    ScriptingContext* m_context;
-    bool m_ownsState;
 };
 
 class ScriptedDataValue

@@ -11,9 +11,9 @@ using namespace rive;
 void ScriptedEffectPath::invalidateEffect() { m_path.rewind(); }
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedPathEffect::scriptInit(lua_State* state)
+bool ScriptedPathEffect::scriptInit(ScriptingVM* vm)
 {
-    ScriptedObject::scriptInit(state);
+    ScriptedObject::scriptInit(vm);
     addScriptedDirt(ComponentDirt::Paint, true);
     return true;
 }
@@ -27,12 +27,6 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         return;
     }
 
-#ifdef WITH_RIVE_TOOLS
-    if (!hasValidVM())
-    {
-        return;
-    }
-#endif
     auto effectPathIt = m_effectPaths.find(pathProvider);
     if (effectPathIt != m_effectPaths.end())
     {
@@ -46,38 +40,39 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         }
 
         path->rewind(source->isLocal(), source->fillRule());
-        if (m_state == nullptr)
+        lua_State* L = state();
+        if (L == nullptr)
         {
             return;
         }
         // Stack: []
-        rive_lua_pushRef(m_state, m_self);
+        rive_lua_pushRef(L, m_self);
         // Stack: [self]
-        lua_getfield(m_state, -1, "update");
+        lua_getfield(L, -1, "update");
         // Stack: [self, "update"]
-        lua_pushvalue(m_state, -2);
+        lua_pushvalue(L, -2);
         // Stack: [self, "update", self]
-        lua_newrive<ScriptedPathData>(m_state, source->rawPath());
+        lua_newrive<ScriptedPathData>(L, source->rawPath());
         // Stack: [self, "update", self, pathData]
-        lua_newrive<ScriptedNode>(m_state,
+        lua_newrive<ScriptedNode>(L,
                                   nullptr,
                                   shapePaint->parentTransformComponent());
-        auto scriptedNode = lua_torive<ScriptedNode>(m_state, -1);
+        auto scriptedNode = lua_torive<ScriptedNode>(L, -1);
         scriptedNode->shapePaint(shapePaint);
         // Stack: [self, "update", self, pathData, node]
-        if (static_cast<lua_Status>(rive_lua_pcall(m_state, 3, 1)) != LUA_OK)
+        if (static_cast<lua_Status>(rive_lua_pcall(L, 3, 1)) != LUA_OK)
         {
             fprintf(stderr, "update function failed\n");
         }
         else
         {
             // Stack: [self, outputPathData]
-            auto scriptedPath = (ScriptedPathData*)lua_touserdata(m_state, -1);
+            auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, -1);
             auto rawPath = path->mutableRawPath();
             rawPath->addPath(scriptedPath->rawPath);
         }
         // Stack: [self, status] or [self, outputPathData]
-        rive_lua_pop(m_state, 2);
+        rive_lua_pop(L, 2);
     }
 }
 #else

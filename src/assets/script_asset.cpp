@@ -177,22 +177,26 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
     return true;
 }
 
-lua_State* ScriptAsset::vm()
+ScriptingVM* ScriptAsset::scriptingVM()
 {
     if (m_file == nullptr)
     {
         return nullptr;
     }
-    // We get the scripting VM from File for now, however,
-    // this will need to change if/when we support multiple VMs
-    return m_file->scriptingState();
+    return m_file->scriptingVM();
+}
+
+lua_State* ScriptAsset::vm()
+{
+    auto scriptingVM = this->scriptingVM();
+    return scriptingVM ? scriptingVM->state() : nullptr;
 }
 #endif
 
 bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 {
 #ifdef WITH_RIVE_SCRIPTING
-    if (vm() == nullptr)
+    if (scriptingVM() == nullptr)
     {
         return false;
     }
@@ -219,11 +223,12 @@ void ScriptAsset::registrationComplete(int ref)
 bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 {
 #if defined(WITH_RIVE_SCRIPTING)
-    auto state = vm();
-    if (state == nullptr)
+    auto scriptVM = scriptingVM();
+    if (scriptVM == nullptr)
     {
         return false;
     }
+    lua_State* state = scriptVM->state();
 
     int ref = 0;
 #ifdef WITH_RIVE_TOOLS
@@ -269,7 +274,7 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());
-    return object->scriptInit(state);
+    return object->scriptInit(scriptVM);
 #else
     return false;
 #endif

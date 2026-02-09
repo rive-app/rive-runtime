@@ -8,27 +8,21 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDrawable::scriptInit(lua_State* state)
+bool ScriptedDrawable::scriptInit(ScriptingVM* vm)
 {
-    ScriptedObject::scriptInit(state);
+    ScriptedObject::scriptInit(vm);
     addDirt(ComponentDirt::Paint);
     return true;
 }
 
 void ScriptedDrawable::draw(Renderer* renderer)
 {
-    if (!draws() || !m_state)
+    if (!draws() || m_vm == nullptr)
     {
         return;
     }
 
-#ifdef WITH_RIVE_TOOLS
-    if (!hasValidVM())
-    {
-        return;
-    }
-#endif
-
+    lua_State* L = state();
     float opacity = renderOpacity();
     bool needsOpacitySave = (opacity != 1.0f);
     if (m_needsSaveOperation || needsOpacitySave)
@@ -43,24 +37,24 @@ void ScriptedDrawable::draw(Renderer* renderer)
 
     renderer->transform(worldTransform());
     // Stack: []
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(m_state, renderer);
+    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer);
     // Stack: [scriptedRenderer]
-    rive_lua_pushRef(m_state, m_self);
+    rive_lua_pushRef(L, m_self);
     // Stack: [scriptedRenderer, self]
-    lua_getfield(m_state, -1, "draw");
+    lua_getfield(L, -1, "draw");
     // Stack: [scriptedRenderer, self, "draw"]
-    lua_pushvalue(m_state, -2);
+    lua_pushvalue(L, -2);
     // Stack: [scriptedRenderer, self, "draw", self]
-    lua_pushvalue(m_state, -4);
+    lua_pushvalue(L, -4);
     // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
-    if (static_cast<lua_Status>(rive_lua_pcall(m_state, 2, 0)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 0)) != LUA_OK)
     {
         // Stack: [scriptedRenderer, self, status]
-        rive_lua_pop(m_state, 1);
+        rive_lua_pop(L, 1);
     }
     scriptedRenderer->end();
     // Stack: [scriptedRenderer, self]
-    rive_lua_pop(m_state, 2);
+    rive_lua_pop(L, 2);
 
     if (m_needsSaveOperation || needsOpacitySave)
     {
@@ -125,7 +119,7 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
 
 bool ScriptedDrawable::willDraw()
 {
-    return Super::willDraw() && m_state != nullptr && draws();
+    return Super::willDraw() && m_vm != nullptr && draws();
 }
 
 #else
