@@ -40,13 +40,8 @@ TEST_CASE("gaussian_integral_table", "[gpu]")
         simd::store(gaussianTable + i, f32s);
     };
 
-    CHECK(gaussianTable[0] >= 0);
-    CHECK(gaussianTable[0] <= expf(-.5f * FEATHER_TEXTURE_STDDEVS));
-    CHECK(gaussianTable[0] == MIN_FEATHER);
-    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] <= 1);
-    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] >=
-          1 - expf(-.5f * FEATHER_TEXTURE_STDDEVS));
-    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == MAX_FEATHER);
+    CHECK(gaussianTable[0] == 0.0f);
+    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == 1.0f);
     if (gpu::GAUSSIAN_TABLE_SIZE & 1)
     {
         CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);
@@ -147,7 +142,7 @@ TEST_CASE("inverse_gaussian_integral_table", "[gpu]")
         float margin = x > .125f && x < .875f ? 1.f / 512
                        : x > .04f && x < .96f ? 1.f / 256
                        : x > .02f && x < .98f ? 1.f / 128
-                                              : 1.f / 95;
+                                              : 1.f / 90;
         CHECK(inverseGaussianIntegral(y) == Approx(x).margin(margin));
     }
 

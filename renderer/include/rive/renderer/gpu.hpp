@@ -14,6 +14,9 @@
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 
+// Use the define to run the feather LUT code
+// #define RIVE_GENERATE_FEATHER_LUT
+
 namespace rive
 {
 class GrInnerFanTriangulator;
@@ -1873,7 +1876,7 @@ extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 // Code to generate g_gaussianIntegralTableF16 and
 // g_inverseGaussianIntegralTableF32. This is left in the codebase but #ifdef'd
 // out in case we ever want to change any parameters of the built-in tables.
-#if 0
+#ifdef RIVE_GENERATE_FEATHER_LUT
 void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif

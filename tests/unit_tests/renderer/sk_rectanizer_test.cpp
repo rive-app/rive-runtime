@@ -18,8 +18,6 @@
 
 struct GrContextOptions;
 
-using namespace skgpu;
-
 static const int kWidth = 1024;
 static const int kHeight = 1024;
 
@@ -30,7 +28,7 @@ struct SkISize
 };
 
 // Basic test of a Rectanizer-derived class' functionality
-static void test_rectanizer_basic(RectanizerSkyline* rectanizer)
+static void test_rectanizer_basic(rive::RectanizerSkyline* rectanizer)
 {
     CHECK(kWidth == rectanizer->width());
     CHECK(kHeight == rectanizer->height());
@@ -43,7 +41,7 @@ static void test_rectanizer_basic(RectanizerSkyline* rectanizer)
     CHECK(rectanizer->percentFull() == 0.0f);
 }
 
-static void test_rectanizer_inserts(RectanizerSkyline* rectanizer,
+static void test_rectanizer_inserts(rive::RectanizerSkyline* rectanizer,
                                     const std::vector<SkISize>& rects)
 {
     std::vector<rive::IAABB> boxes;
@@ -80,7 +78,7 @@ static void test_rectanizer_inserts(RectanizerSkyline* rectanizer,
 
 static void test_skyline(const std::vector<SkISize>& rects)
 {
-    RectanizerSkyline skylineRectanizer(kWidth, kHeight);
+    rive::RectanizerSkyline skylineRectanizer(kWidth, kHeight);
 
     test_rectanizer_basic(&skylineRectanizer);
     test_rectanizer_inserts(&skylineRectanizer, rects);

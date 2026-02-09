@@ -32,10 +32,8 @@
 // need at least one segment, thus a minimum of 2 (plus helper vertices).
 #define FEATHER_JOIN_MIN_SEGMENT_COUNT (2u + FEATHER_JOIN_HELPER_SEGMENT_COUNT)
 
-// The feather texture doesn't begin and end on 0 and 1. These are the actual
-// values that get returned by FEATHER(0) and FEATHER(1) respectively.
-#define MIN_FEATHER float(0.00137615203857421875)
-#define MAX_FEATHER float(0.99853515625)
+#define MIN_FEATHER float(0.0)
+#define MAX_FEATHER float(1.0)
 
 // Width to use for a texture that emulates a storage buffer.
 //

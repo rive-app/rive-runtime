@@ -111,6 +111,12 @@ RenderContext::RenderContext(std::unique_ptr<RenderContextImpl> impl) :
     // directly by pathID.
     m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity) - 1)
 {
+#ifdef RIVE_GENERATE_FEATHER_LUT
+    float table[GAUSSIAN_TABLE_SIZE];
+    generate_gausian_integral_table(table);
+    generate_inverse_gausian_integral_table(table);
+#endif
+
     setResourceSizes(ResourceAllocationCounts(), /*forceRealloc =*/true);
     releaseResources();
 }
@@ -592,7 +598,7 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(
         uint16_t atlasMaxSize = m_ctx->atlasMaxSize();
         // Use an atlas larger than atlasMaxSize if it's too small for the
         // request (meaning the render target is larger than atlasMaxSize).
-        m_atlasRectanizer = std::make_unique<skgpu::RectanizerSkyline>(
+        m_atlasRectanizer = std::make_unique<rive::RectanizerSkyline>(
             std::max(atlasMaxSize, drawWidth),
             std::max(atlasMaxSize, drawHeight));
     }

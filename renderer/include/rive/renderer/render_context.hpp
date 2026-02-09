@@ -806,7 +806,7 @@ private:
         uint32_t m_currentContourID;
 
         // Atlas for offscreen feathering.
-        std::unique_ptr<skgpu::RectanizerSkyline> m_atlasRectanizer;
+        std::unique_ptr<rive::RectanizerSkyline> m_atlasRectanizer;
         uint32_t m_atlasMaxX = 0;
         uint32_t m_atlasMaxY = 0;
         std::vector<PathDraw*> m_pendingAtlasDraws;

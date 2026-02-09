@@ -1368,7 +1368,7 @@ uint16x4 cast_f32_to_f16(float4 x)
 }
 
 // Code to generate g_gaussianIntegralTableF16.
-#if 0
+#ifdef RIVE_GENERATE_FEATHER_LUT
 static float eval_normal_distribution(float x, float mu, float inverseSigma)
 {
     constexpr static float ONE_OVER_SQRT_2_PI = 0.398942280401433f;
@@ -1409,6 +1409,29 @@ void generate_gausian_integral_table(float (&table)[GAUSSIAN_TABLE_SIZE])
     {
         table[i] = fminf(fmaxf(table[i - 1], table[i] + shift), 1);
     }
+
+    //  How many entries to ease in and out, so the table has a soft landing at
+    //  0 and 1 on the edges.
+    constexpr size_t EASE_IN_OUT_DIST = 8;
+    for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)
+    {
+        if (i < EASE_IN_OUT_DIST)
+        {
+            float fi =
+                static_cast<float>(i) / static_cast<float>(EASE_IN_OUT_DIST);
+            table[i] *= fi;
+        }
+
+        if (i > (GAUSSIAN_TABLE_SIZE - EASE_IN_OUT_DIST) - 1)
+        {
+            float diffToOne = 1.0 - table[i];
+            float fi = static_cast<float>(
+                           i - (GAUSSIAN_TABLE_SIZE - EASE_IN_OUT_DIST) + 1) /
+                       static_cast<float>(EASE_IN_OUT_DIST);
+            table[i] = table[i] + (diffToOne * fi);
+        }
+    }
+
     printf("\nconst float g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = "
            "{\n");
     for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)
@@ -1427,7 +1450,7 @@ void generate_gausian_integral_table(float (&table)[GAUSSIAN_TABLE_SIZE])
 #endif
 
 const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = {
-    0x15a3, 0x15db, 0x1616, 0x1652, 0x1691, 0x16d1, 0x1715, 0x175a, 0x17a2,
+    0x0,    0x9db,  0xe16,  0x10be, 0x1291, 0x1443, 0x154f, 0x166f, 0x17a2,
     0x17ec, 0x181c, 0x1844, 0x186d, 0x1898, 0x18c4, 0x18f1, 0x1920, 0x1951,
     0x1983, 0x19b7, 0x19ec, 0x1a23, 0x1a5d, 0x1a98, 0x1ad4, 0x1b13, 0x1b54,
     0x1b97, 0x1bdc, 0x1c12, 0x1c36, 0x1c5c, 0x1c83, 0x1cac, 0x1cd5, 0x1d00,
@@ -1483,11 +1506,11 @@ const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = {
     0x3bf6, 0x3bf7, 0x3bf7, 0x3bf7, 0x3bf8, 0x3bf8, 0x3bf8, 0x3bf8, 0x3bf9,
     0x3bf9, 0x3bf9, 0x3bf9, 0x3bfa, 0x3bfa, 0x3bfa, 0x3bfa, 0x3bfa, 0x3bfb,
     0x3bfb, 0x3bfb, 0x3bfb, 0x3bfb, 0x3bfc, 0x3bfc, 0x3bfc, 0x3bfc, 0x3bfc,
-    0x3bfc, 0x3bfc, 0x3bfd, 0x3bfd, 0x3bfd, 0x3bfd, 0x3bfd, 0x3bfd,
+    0x3bfd, 0x3bfd, 0x3bfe, 0x3bfe, 0x3bff, 0x3bff, 0x3c00, 0x3c00,
 };
 
 // Code to generate g_inverseGaussianIntegralTableF32.
-#if 0
+#ifdef RIVE_GENERATE_FEATHER_LUT
 void generate_inverse_gausian_integral_table(
     float (&table)[GAUSSIAN_TABLE_SIZE])
 {
