@@ -147,7 +147,6 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_atlasType(select_atlas_type(m_capabilities)),
     m_pipelineManager(shaderCompilationMode, this),
     m_state(make_rcp<GLState>(m_capabilities))
-
 {
     if (m_capabilities.isANGLESystemDriver &&
         capabilities.KHR_blend_equation_advanced)

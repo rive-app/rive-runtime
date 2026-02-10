@@ -211,6 +211,11 @@ PLS_MAIN(@drawFragmentMain)
 
         color += dstColorPremul * (1. - color.a);
 
+        color.rgb = add_dither(color.rgb,
+                               _fragCoord.xy,
+                               uniforms.ditherScale,
+                               uniforms.ditherBias);
+
         PLS_STORE4F(colorBuffer, color);
         PLS_PRESERVE_UI(clipBuffer);
     }

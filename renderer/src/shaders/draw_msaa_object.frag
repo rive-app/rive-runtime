@@ -86,6 +86,10 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
 #endif
 
+    color.rgb = add_dither(color.rgb,
+                           _fragCoord.xy,
+                           uniforms.ditherScale,
+                           uniforms.ditherBias);
     EMIT_FRAG_DATA(color);
 }
 

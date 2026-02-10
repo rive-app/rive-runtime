@@ -111,6 +111,8 @@ const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
             return GLSL_ENABLE_NESTED_CLIPPING;
         case ShaderFeatures::ENABLE_HSL_BLEND_MODES:
             return GLSL_ENABLE_HSL_BLEND_MODES;
+        case ShaderFeatures::ENABLE_DITHER:
+            return GLSL_ENABLE_DITHER;
     }
     RIVE_UNREACHABLE();
 }
@@ -494,8 +496,11 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
     m_mipMapLODBias(MIP_MAP_LOD_BIAS),
-    m_wireframeEnabled(flushDesc.wireframe),
-    m_maxPathId(flushDesc.pathCount)
+    m_maxPathId(flushDesc.pathCount),
+    m_ditherScale((flushDesc.ditherMode == DitherMode::none ? 0.0f : 1.0) /
+                  256.0f),
+    m_ditherBias(m_ditherScale * -0.5f),
+    m_wireframeEnabled(flushDesc.wireframe)
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)

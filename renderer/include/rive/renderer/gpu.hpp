@@ -41,6 +41,7 @@ class Gradient;
 class RenderContextImpl;
 class RenderTarget;
 class Texture;
+enum class DitherMode;
 
 // Global MipMap LOD Bias to apply to samplers. Going lower leads to sharper
 // filtering at the expense of potential shimmering.
@@ -817,9 +818,10 @@ enum class ShaderFeatures
     ENABLE_EVEN_ODD = 1 << 4,
     ENABLE_NESTED_CLIPPING = 1 << 5,
     ENABLE_HSL_BLEND_MODES = 1 << 6,
+    ENABLE_DITHER = 1 << 7,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
-constexpr static size_t kShaderFeatureCount = 7;
+constexpr static size_t kShaderFeatureCount = 8;
 constexpr static ShaderFeatures kAllShaderFeatures =
     static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
 constexpr static ShaderFeatures kVertexShaderFeaturesMask =
@@ -845,11 +847,13 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case InterlockMode::clockwiseAtomic:
             // TODO: shader features aren't fully implemented yet in
             // clockwiseAtomic mode.
-            return ShaderFeatures::ENABLE_FEATHER;
+            return ShaderFeatures::ENABLE_FEATHER |
+                   ShaderFeatures::ENABLE_DITHER;
         case InterlockMode::msaa:
             return ShaderFeatures::ENABLE_CLIP_RECT |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                   ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+                   ShaderFeatures::ENABLE_HSL_BLEND_MODES |
+                   ShaderFeatures::ENABLE_DITHER;
     }
     RIVE_UNREACHABLE();
 }
@@ -916,7 +920,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                 mask = ShaderFeatures::ENABLE_CLIPPING |
                        ShaderFeatures::ENABLE_CLIP_RECT |
                        ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                       ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+                       ShaderFeatures::ENABLE_HSL_BLEND_MODES |
+                       ShaderFeatures::ENABLE_DITHER;
                 break;
             }
             // Since atomic mode has to resolve previous draws, images need to
@@ -936,7 +941,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             mask = kAllShaderFeatures;
             break;
         case DrawType::msaaStencilClipReset:
-            mask = ShaderFeatures::NONE;
+            mask = ShaderFeatures::ENABLE_DITHER;
             break;
         case DrawType::renderPassInitialize:
             if (interlockMode == InterlockMode::atomics)
@@ -944,7 +949,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                 // Atomic mode initializes clipping and color (when advanced
                 // blend is active).
                 mask = ShaderFeatures::ENABLE_CLIPPING |
-                       ShaderFeatures::ENABLE_ADVANCED_BLEND;
+                       ShaderFeatures::ENABLE_ADVANCED_BLEND |
+                       ShaderFeatures::ENABLE_DITHER;
             }
             else
             {
@@ -952,7 +958,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                 // MSAA mode only needs to initialize color, and only when
                 // preserving the render target but using a transient MSAA
                 // attachment.
-                mask = ShaderFeatures::NONE;
+                mask = ShaderFeatures::ENABLE_DITHER;
             }
             break;
         case DrawType::renderPassResolve:
@@ -964,7 +970,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             {
                 assert(interlockMode == InterlockMode::rasterOrdering ||
                        interlockMode == InterlockMode::msaa);
-                mask = ShaderFeatures::NONE;
+                mask = ShaderFeatures::ENABLE_DITHER;
             }
             break;
     }
@@ -1254,6 +1260,7 @@ struct FlushDescriptor
     bool clockwiseFillOverride = false;
     bool hasTriangleVertices = false;
     bool wireframe = false;
+    DitherMode ditherMode;
 #ifdef WITH_RIVE_TOOLS
     // Synthesize compilation failures to make sure the device handles them
     // gracefully. (e.g., by falling back on an uber shader or at least not
@@ -1363,10 +1370,12 @@ private:
     WRITEONLY uint32_t m_pathIDGranularity;
     WRITEONLY float m_vertexDiscardValue;
     WRITEONLY float m_mipMapLODBias;
-    WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     WRITEONLY uint32_t m_maxPathId;
+    WRITEONLY float m_ditherScale;
+    WRITEONLY float m_ditherBias;
+    WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 88];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 96];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 

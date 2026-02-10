@@ -236,6 +236,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         props.shaderFeatures & gpu::ShaderFeatures::ENABLE_EVEN_ODD,
         props.shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
         props.shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_DITHER,
         props.shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
         props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass,
         pipelineManager->vendorID(),
@@ -247,10 +248,11 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(EVEN_ODD_SPECIALIZATION_IDX == 4);
     static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
-    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 7);
-    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 8);
-    static_assert(VULKAN_VENDOR_ID_SPECIALIZATION_IDX == 9);
-    static_assert(SPECIALIZATION_COUNT == 10);
+    static_assert(DITHER_SPECIALIZATION_IDX == 7);
+    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 9);
+    static_assert(VULKAN_VENDOR_ID_SPECIALIZATION_IDX == 10);
+    static_assert(SPECIALIZATION_COUNT == 11);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
     for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)

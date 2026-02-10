@@ -1870,7 +1870,7 @@ void RenderContext::LogicalFlush::writeResources()
 
     m_flushDesc.drawList = &m_drawList;
     m_flushDesc.firstDstBlendBarrier = m_firstDstBlendBarrier;
-
+    m_flushDesc.ditherMode = m_ctx->frameDescriptor().ditherMode;
     // Write out the uniforms for this flush now that the flushDescriptor is
     // complete.
     m_ctx->m_flushUniformData.emplace_back(m_flushDesc, platformFeatures);
@@ -3180,6 +3180,13 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     {
         shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
     }
+
+    if (frameDescriptor().ditherMode ==
+        gpu::DitherMode::interleavedGradientNoise)
+    {
+        shaderFeatures |= ShaderFeatures::ENABLE_DITHER;
+    }
+
     if (paintType != PaintType::clipUpdate &&
         !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass))
     {

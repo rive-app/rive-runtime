@@ -264,10 +264,71 @@ uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
                         // compliant).
 float vertexDiscardValue;
 float mipMapLODBias;
+uint maxPathId;
+float ditherScale;
+float ditherBias;
 // Debugging.
 uint wireframeEnabled;
-uint maxPathId;
 UNIFORM_BLOCK_END(uniforms)
+#endif
+
+INLINE half interleaved_gradient_noise(float2 fragCoord, half scale, half bias)
+{
+    half v1 = fract(0.06711056 * fragCoord.x + 0.00583715 * fragCoord.y);
+    half v2 = fract(52.9829189 * v1);
+    return (v2 * scale) + bias;
+}
+
+#if 0
+// Bayer 4x4 and Bayer 2x2 variants included for reference, 
+// but not currently used.
+INLINE half bayer4x4f(float2 fragCoord, float scale, float bias)
+{
+    int x = int(fragCoord.x);
+    int y = int(fragCoord.y);
+
+    int xxory = (x ^ y);
+    int b = (y >> 1) & 1;
+    b |= (xxory & 2);
+    b |= (y & 1) << 2;
+    b |= (xxory & 1) << 3;
+    float fb = float(b);
+    half hb = cast_float_to_half(fb) / 16.0;
+    return (hb * scale) + bias;
+}
+
+INLINE half bayer2x2f(float2 fragCoord, float scale, float bias)
+{
+    fragCoord.y *= 0.5;
+    fragCoord.x = fract(fragCoord.x * 0.5 + fragCoord.y);
+    fragCoord.y = fract(fragCoord.y);
+    float n = (fragCoord.y * 0.5 + fragCoord.x);
+    return (n * scale) + bias;
+}
+#endif
+
+#ifdef @ENABLE_DITHER
+INLINE half get_dither(float2 fragCoord, half scale, half bias)
+{
+    return @ENABLE_DITHER ? interleaved_gradient_noise(fragCoord, scale, bias)
+                          : .0;
+}
+
+INLINE half3 add_dither(half3 color, float2 fragCoord, half scale, half bias)
+{
+    return @ENABLE_DITHER
+               ? (interleaved_gradient_noise(fragCoord, scale, bias) + color)
+               : color;
+}
+
+#else
+
+INLINE half get_dither(float2 fragCoord, float scale, float bias) { return 0.; }
+
+INLINE half3 add_dither(half3 color, float2 fragCoord, half scale, half bias)
+{
+    return color;
+}
 #endif
 
 #ifdef @VERTEX

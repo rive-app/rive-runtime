@@ -183,7 +183,7 @@ public:
     {
         // Each feature corresponds to a specific index in the namespaceID.
         // These must stay in sync with generate_draw_combinations.py.
-        char namespaceID[] = "000000000";
+        char namespaceID[] = "0000000000";
         static_assert(sizeof(namespaceID) ==
                       gpu::kShaderFeatureCount + 1 /*DRAW_INTERIOR_TRIANGLES*/ +
                           1 /*ATLAS_BLIT*/ + 1 /*null terminator*/);
@@ -203,6 +203,7 @@ public:
                           1 << 5);
             static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES ==
                           1 << 6);
+            static_assert((int)ShaderFeatures::ENABLE_DITHER == 1 << 7);
         }
         if (drawType == DrawType::interiorTriangulation)
         {

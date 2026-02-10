@@ -170,6 +170,11 @@ PLS_MAIN(@drawFragmentMain)
     }
 #endif
 
+    color.rgb = add_dither(color.rgb,
+                           _fragCoord.xy,
+                           uniforms.ditherScale,
+                           uniforms.ditherBias);
+
     PLS_STORE4F(colorBuffer, dstColorPremul * (1. - color.a) + color);
 #endif // !@FIXED_FUNCTION_COLOR_OUTPUT && !@RENDER_MODE_CLOCKWISE_ATOMIC
 
@@ -182,7 +187,12 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
-    _fragColor = color * coverage;
+    color = (color * coverage);
+    color.rgb = add_dither(color.rgb,
+                           _fragCoord.xy,
+                           uniforms.ditherScale,
+                           uniforms.ditherBias);
+    _fragColor = color;
 #endif
 
     EMIT_PLS;

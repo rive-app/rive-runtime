@@ -46,6 +46,15 @@ enum class ShaderCompilationMode
     standard = allowAsynchronous,
 };
 
+// Various types of ordered dithering we can add to reduce banding
+// https://en.wikipedia.org/wiki/Ordered_dithering
+// https://blog.demofox.org/2022/01/01/interleaved-gradient-noise-a-different-kind-of-low-discrepancy-sequence/
+enum class DitherMode
+{
+    none,
+    interleavedGradientNoise,
+};
+
 // Used as a key for complex gradients.
 class GradientContentKey
 {
@@ -104,6 +113,7 @@ public:
         uint32_t msaaSampleCount = 0;
         // Use atomic mode (preferred) or msaa instead of rasterOrdering.
         bool disableRasterOrdering = false;
+        DitherMode ditherMode = DitherMode::interleavedGradientNoise;
 
         // If nonzero, frames are split up into virtual tiles of this size.
         //
