@@ -33,12 +33,16 @@ public:
 
     static rcp<AudioEngine> Make(uint32_t numChannels, uint32_t sampleRate);
 
+    static rcp<AudioEngine> MakeAndStore(uint32_t numChannels,
+                                         uint32_t sampleRate);
+
     ma_device* device() { return m_device; }
     ma_engine* engine() { return m_engine; }
 
     uint32_t channels() const;
     uint32_t sampleRate() const;
     uint64_t timeInFrames();
+    float timeInSeconds();
 
     ~AudioEngine();
     rcp<AudioSound> play(rcp<AudioSource> source,
@@ -46,6 +50,11 @@ public:
                          uint64_t endTime,
                          uint64_t soundStartTime,
                          Artboard* artboard = nullptr);
+    rcp<AudioSound> playSeconds(rcp<AudioSource> source,
+                                float startTime,
+                                uint64_t endTime,
+                                uint64_t soundStartTime,
+                                Artboard* artboard = nullptr);
 
     static rcp<AudioEngine> RuntimeEngine(bool makeWhenNecessary = true);
 
@@ -76,9 +85,15 @@ private:
     ma_engine* m_engine;
     ma_context* m_context;
     std::mutex m_mutex;
+    rcp<AudioSound> internalPlaySound(rcp<AudioSource> source,
+                                      uint64_t duration,
+                                      uint64_t endTime,
+                                      uint64_t soundStartTime,
+                                      Artboard* artboard = nullptr);
 
     void soundCompleted(rcp<AudioSound> sound);
     void unlinkSound(rcp<AudioSound> sound);
+    rcp<AudioSound> initializeAudioSound(rcp<AudioSound>);
 
     std::vector<rcp<AudioSound>> m_completedSounds;
     rcp<AudioSound> m_playingSoundsHead;

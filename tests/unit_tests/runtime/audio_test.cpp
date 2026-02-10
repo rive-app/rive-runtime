@@ -233,7 +233,7 @@ TEST_CASE("Artboard does not have audio", "[audio]")
 
 TEST_CASE("Scripted audio plays", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+    rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
 
     auto file = ReadRiveFile("assets/audio_script.riv");
     auto artboard = file->artboardDefault();

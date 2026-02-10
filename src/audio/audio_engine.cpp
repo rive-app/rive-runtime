@@ -238,18 +238,12 @@ AudioEngine::AudioEngine(ma_engine* engine, ma_context* context) :
     m_device(ma_engine_get_device(engine)), m_engine(engine), m_context(context)
 {}
 
-rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
-                                  uint64_t startTime,
-                                  uint64_t endTime,
-                                  uint64_t soundStartTime,
-                                  Artboard* artboard)
+rcp<AudioSound> AudioEngine::internalPlaySound(rcp<AudioSource> source,
+                                               uint64_t duration,
+                                               uint64_t endTime,
+                                               uint64_t soundStartTime,
+                                               Artboard* artboard)
 {
-    if (endTime != 0 && startTime >= endTime)
-    {
-        // Requested to stop sound before start.
-        return nullptr;
-    }
-
     std::unique_lock<std::mutex> lock(m_mutex);
     // We have to dispose completed sounds out of the completed callback. So we
     // do it on next play or at destruct.
@@ -267,8 +261,7 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
         ma_uint64 sizeInFrames = samples.size() / source->channels();
         if (endTime != 0)
         {
-            float durationSeconds =
-                (soundStartTime + endTime - startTime) / (float)sampleRate();
+            float durationSeconds = duration / (float)sampleRate();
             ma_uint64 clippedFrames =
                 (ma_uint64)std::round(durationSeconds * source->sampleRate());
             if (clippedFrames < sizeInFrames)
@@ -319,8 +312,8 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
             return nullptr;
         }
         clip->frameCursor = 0;
-        clip->endFrame = endTime == 0 ? std::numeric_limits<uint64_t>::max()
-                                      : soundStartTime + endTime - startTime;
+        clip->endFrame =
+            endTime == 0 ? std::numeric_limits<uint64_t>::max() : duration;
         ma_data_source_config baseConfig = ma_data_source_config_init();
         baseConfig.vtable = &g_ma_end_clipped_decoder_vtable;
         if (ma_data_source_init(&baseConfig, &clip->base) != MA_SUCCESS)
@@ -347,11 +340,11 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
     ma_sound_set_end_callback(audioSound->sound(),
                               SoundCompleted,
                               audioSound.get());
+    return audioSound;
+}
 
-    if (startTime != 0)
-    {
-        ma_sound_set_start_time_in_pcm_frames(audioSound->sound(), startTime);
-    }
+rcp<AudioSound> AudioEngine::initializeAudioSound(rcp<AudioSound> audioSound)
+{
 #ifdef WITH_RIVE_AUDIO_TOOLS
     if (m_levelMonitor != nullptr)
     {
@@ -360,7 +353,6 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
 #endif
     if (ma_sound_start(audioSound->sound()) != MA_SUCCESS)
     {
-        fprintf(stderr, "AudioSource::play - failed to start sound\n");
         return nullptr;
     }
 
@@ -370,8 +362,65 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
     }
     audioSound->m_nextPlaying = m_playingSoundsHead;
     m_playingSoundsHead = audioSound;
-
     return audioSound;
+}
+
+rcp<AudioSound> AudioEngine::playSeconds(rcp<AudioSource> source,
+                                         float startTime,
+                                         uint64_t endTime,
+                                         uint64_t soundStartTime,
+                                         Artboard* artboard)
+{
+
+    if (endTime != 0 && startTime >= (float)endTime)
+    {
+        // Requested to stop sound before start.
+        return nullptr;
+    }
+    auto audioSound =
+        internalPlaySound(source,
+                          (int)(soundStartTime + endTime - startTime),
+                          endTime,
+                          soundStartTime,
+                          artboard);
+    if (audioSound == nullptr)
+    {
+        return nullptr;
+    }
+    if (startTime != 0)
+    {
+        ma_sound_set_start_time_in_milliseconds(audioSound->sound(),
+                                                startTime * 1000.0f);
+    }
+    return initializeAudioSound(audioSound);
+}
+
+rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
+                                  uint64_t startTime,
+                                  uint64_t endTime,
+                                  uint64_t soundStartTime,
+                                  Artboard* artboard)
+{
+    if (endTime != 0 && startTime >= endTime)
+    {
+        // Requested to stop sound before start.
+        return nullptr;
+    }
+    auto audioSound = internalPlaySound(source,
+                                        soundStartTime + endTime - startTime,
+                                        endTime,
+                                        soundStartTime,
+                                        artboard);
+
+    if (audioSound == nullptr)
+    {
+        return nullptr;
+    }
+    if (startTime != 0)
+    {
+        ma_sound_set_start_time_in_pcm_frames(audioSound->sound(), startTime);
+    }
+    return initializeAudioSound(audioSound);
 }
 
 #ifdef TESTING
@@ -458,7 +507,21 @@ uint64_t AudioEngine::timeInFrames()
     return (uint64_t)ma_engine_get_time_in_pcm_frames(m_engine);
 }
 
+float AudioEngine::timeInSeconds()
+{
+    return ma_engine_get_time_in_milliseconds(m_engine) / 1000.0f;
+}
+
 static rcp<AudioEngine> m_runtimeAudioEngine;
+
+rcp<AudioEngine> AudioEngine::MakeAndStore(uint32_t numChannels,
+                                           uint32_t sampleRate)
+{
+    auto audioEngine = Make(numChannels, sampleRate);
+    m_runtimeAudioEngine = audioEngine;
+    return m_runtimeAudioEngine;
+}
+
 rcp<AudioEngine> AudioEngine::RuntimeEngine(bool makeWhenNecessary)
 {
     if (!makeWhenNecessary)

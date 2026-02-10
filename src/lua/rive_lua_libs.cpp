@@ -157,9 +157,12 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"setTime", (int16_t)LuaAtoms::setTime},
     {"setTimeFrames", (int16_t)LuaAtoms::setTimeFrames},
     {"setTimePercentage", (int16_t)LuaAtoms::setTimePercentage},
-    {"audioEngine", (int16_t)LuaAtoms::audioEngine},
     {"audio", (int16_t)LuaAtoms::audio},
     {"play", (int16_t)LuaAtoms::play},
+    {"playAtTime", (int16_t)LuaAtoms::playAtTime},
+    {"playInTime", (int16_t)LuaAtoms::playInTime},
+    {"playAtFrame", (int16_t)LuaAtoms::playAtFrame},
+    {"playInFrame", (int16_t)LuaAtoms::playInFrame},
     {"stop", (int16_t)LuaAtoms::stop},
     {"seek", (int16_t)LuaAtoms::seek},
     {"seekFrame", (int16_t)LuaAtoms::seekFrame},
@@ -167,6 +170,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"completed", (int16_t)LuaAtoms::completed},
     {"time", (int16_t)LuaAtoms::time},
     {"timeFrame", (int16_t)LuaAtoms::timeFrame},
+    {"sampleRate", (int16_t)LuaAtoms::sampleRate},
 };
 
 static const luaL_Reg lualibs[] = {
