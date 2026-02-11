@@ -649,11 +649,16 @@ void File::registerScripts()
             {
                 // At runtime, if the script is verified, add it to be
                 // registered with the VM. At edit time, the script will
-                // have already been registered, so this won't run
+                // have already been registered, so this won't run.
+                // WITH_RIVE_TOOLS allows unverified scripts for testing.
+#ifdef WITH_RIVE_TOOLS
+                vm->addModule(scriptAsset);
+#else
                 if (scriptAsset->verified())
                 {
                     vm->addModule(scriptAsset);
                 }
+#endif
             }
             // Perform registration - ScriptingContext will handle dependencies
             // and retries

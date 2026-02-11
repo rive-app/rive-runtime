@@ -545,10 +545,13 @@ void ScriptingContext::addModule(ModuleDetails* moduleDetails)
 bool ScriptingContext::tryRegisterModule(lua_State* state,
                                          ModuleDetails* moduleDetails)
 {
+#ifndef WITH_RIVE_TOOLS
+    // In production builds, only allow verified (signed) scripts
     if (!moduleDetails->verified())
     {
         return false;
     }
+#endif
     const std::string& name = moduleDetails->moduleName();
     bool registerSuccess = false;
     int functionRef = 0;
