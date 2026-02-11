@@ -36,6 +36,7 @@ protected:
 #endif
 private:
     rcp<DataContext> m_dataContext = nullptr;
+    void disposeScriptedContext();
 
 public:
     virtual ~ScriptedObject() { scriptDispose(); }

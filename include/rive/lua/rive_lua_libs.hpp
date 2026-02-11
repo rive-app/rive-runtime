@@ -1113,9 +1113,12 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 28;
     static constexpr const char* luaName = "Context";
     static constexpr bool hasMetatable = true;
+    void dispose() { m_disposed = true; }
+    bool disposed() { return m_disposed; }
 
 private:
     ScriptedObject* m_scriptedObject = nullptr;
+    bool m_disposed = false;
 };
 
 static void interruptCPP(lua_State* L, int gc);

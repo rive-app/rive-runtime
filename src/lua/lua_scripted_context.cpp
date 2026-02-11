@@ -26,6 +26,10 @@ static int context_namecall(lua_State* L)
     if (str != nullptr)
     {
         auto scriptedContext = lua_torive<ScriptedContext>(L, 1);
+        if (scriptedContext->disposed())
+        {
+            return 0;
+        }
         switch (atom)
         {
             case (int)LuaAtoms::markNeedsUpdate:

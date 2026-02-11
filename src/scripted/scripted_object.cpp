@@ -225,11 +225,7 @@ bool ScriptedObject::scriptInit(ScriptingVM* vm)
             lua_unref(oldState, m_self);
             m_self = 0;
         }
-        if (m_context != 0)
-        {
-            lua_unref(oldState, m_context);
-            m_context = 0;
-        }
+        disposeScriptedContext();
     }
     for (auto prop : m_customProperties)
     {
@@ -285,24 +281,22 @@ bool ScriptedObject::scriptInit(ScriptingVM* vm)
             if (static_cast<lua_Status>(pCallResult) != LUA_OK)
             {
                 lua_unref(L, m_self);
-                lua_unref(L, m_context);
+                disposeScriptedContext();
                 // Stack: [self, status]
                 rive_lua_pop(L, 2);
                 m_vm = nullptr;
                 m_self = 0;
-                m_context = 0;
                 return false;
             }
             if (!lua_toboolean(L, -1))
             {
                 lua_unref(L, m_self);
-                lua_unref(L, m_context);
+                disposeScriptedContext();
                 // Pop boolean and self table
                 // Stack: [self, result]
                 rive_lua_pop(L, 2);
                 m_vm = nullptr;
                 m_self = 0;
-                m_context = 0;
                 return false;
             }
             else
@@ -337,6 +331,20 @@ void ScriptedObject::disposeScriptInputs()
     m_customProperties.clear();
 }
 
+void ScriptedObject::disposeScriptedContext()
+{
+    if (m_context != 0)
+    {
+        lua_State* L = state();
+        rive_lua_pushRef(L, m_context);
+        auto scriptedContext = lua_torive<ScriptedContext>(L, -1);
+        scriptedContext->dispose();
+        rive_lua_pop(L, 1);
+        lua_unref(L, m_context);
+        m_context = 0;
+    }
+}
+
 void ScriptedObject::scriptDispose()
 {
     disposeScriptInputs();
@@ -345,7 +353,7 @@ void ScriptedObject::scriptDispose()
     if (L != nullptr)
     {
         lua_unref(L, m_self);
-        lua_unref(L, m_context);
+        disposeScriptedContext();
 #ifdef TESTING
         // Force GC to collect any ScriptedArtboard instances created via
         // instance()
