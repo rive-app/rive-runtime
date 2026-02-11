@@ -72,6 +72,10 @@ do
         yoga,
     })
 
+    if _OPTIONS['with_microprofile'] then
+      includedirs({microprofile})
+    end
+
     filter('action:xcode4')
     do
         -- xcode doesnt like angle brackets except for -isystem
@@ -130,9 +134,7 @@ do
         includedirs({ optick .. '/src' })
     end
 
-    if _OPTIONS['with_microprofile'] then
-      includedirs({microprofile})
-    end
+
 
     filter('system:macosx or system:ios')
     do

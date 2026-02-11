@@ -4,6 +4,8 @@
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/metal/render_context_metal_impl.h"
+#include "rive/profiler/profiler_macros.h"
+
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -187,6 +189,7 @@ public:
 
             m_currentFrameSurface = nil;
             m_renderTarget->setTargetTexture(nil);
+            RIVE_PROF_ENDFRAME()
         }
     }
 

@@ -23,6 +23,12 @@ if not _OPTIONS['with-webgpu'] then
             RIVE_RUNTIME_DIR .. '/renderer/src',
             RIVE_RUNTIME_DIR .. '/renderer/shader_hotload',
         })
+        
+        if _OPTIONS['with_microprofile'] then
+            links({'microprofile'})
+            includedirs({ microprofile})
+        end
+
         externalincludedirs({
             'glad',
             'glad/include',
@@ -92,11 +98,6 @@ if not _OPTIONS['with-webgpu'] then
         if _OPTIONS['with_optick'] then
             links({'optick'})
             externalincludedirs({ optick .. '/src'})
-        end
-
-        if _OPTIONS['with_microprofile'] then
-            links({'microprofile'})
-            externalincludedirs({ microprofile})
         end
 
         if rive_target_os == 'windows' then

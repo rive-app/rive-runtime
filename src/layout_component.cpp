@@ -838,6 +838,8 @@ void LayoutComponent::syncStyle()
     ygStyle.flexDirection() = m_style->flexDirection();
     ygStyle.flexWrap() = m_style->flexWrap();
     ygStyle.direction() = m_style->direction();
+    ygStyle.aspectRatio() = YGFloatOptional(
+        m_style->aspectRatio() > 0 ? m_style->aspectRatio() : NAN);
 
     ygNode.setStyle(ygStyle);
 }
