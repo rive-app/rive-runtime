@@ -1871,7 +1871,7 @@ constexpr static PipelineState ATLAS_FILL_PIPELINE_STATE = {
     .depthWriteEnabled = false,
     .stencilTestEnabled = false,
     .stencilWriteMask = 0,
-    .cullFace = CullFace::counterclockwise,
+    .cullFace = CullFace::none,
     .blendEquation = BlendEquation::plus,
     .colorWriteEnabled = true,
 };

@@ -253,6 +253,13 @@
         FragmentTextures _textures)                                            \
     {
 
+#define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
+    DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(         \
+        Varyings _varyings [[$stage_in]],                                      \
+        FragmentTextures _textures,                                            \
+        bool _clockwise [[$front_facing]])                                     \
+    {
+
 #define EMIT_FRAG_DATA(VALUE)                                                  \
     return VALUE;                                                              \
     }

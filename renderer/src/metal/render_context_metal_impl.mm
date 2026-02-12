@@ -1390,10 +1390,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [atlasEncoder setVertexBuffer:m_pathPatchVertexBuffer
                                offset:0
                               atIndex:0];
-        [atlasEncoder setCullMode:MTLCullModeBack];
 
         if (desc.atlasFillBatchCount != 0)
         {
+            [atlasEncoder setCullMode:MTLCullModeNone];
             [atlasEncoder setRenderPipelineState:atlasFillpipelineState];
             for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
             {
@@ -1419,6 +1419,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasStrokeBatchCount != 0)
         {
+            [atlasEncoder setCullMode:MTLCullModeBack];
             [atlasEncoder setRenderPipelineState:atlasStrokepipelineState];
             for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
             {

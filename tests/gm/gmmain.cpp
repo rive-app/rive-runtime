@@ -44,6 +44,8 @@ extern "C" void gms_build_registry()
     MAKE_GM(lots_of_images_sampled)
     MAKE_GM(feathertext_roboto)
     MAKE_GM(feathertext_montserrat)
+    MAKE_GM(feathertext_roboto_mirrored)
+    MAKE_GM(feathertext_montserrat_mirrored)
 
     // Add the normal (not slow) gms last.
     MAKE_GM(atlastypes)

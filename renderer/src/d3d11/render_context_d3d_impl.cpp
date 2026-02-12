@@ -532,11 +532,18 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         &rasterDesc,
         m_backCulledRasterState[0].ReleaseAndGetAddressOf()));
 
-    // ...And with scissor for the atlas.
+    // ...And with scissor and no culling for the atlas fill.
+    rasterDesc.CullMode = D3D11_CULL_NONE;
     rasterDesc.ScissorEnable = TRUE;
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
-        m_atlasRasterState.ReleaseAndGetAddressOf()));
+        m_atlasFillRasterState.ReleaseAndGetAddressOf()));
+
+    // ...And with culling back on for the atlas stroke.
+    rasterDesc.CullMode = D3D11_CULL_BACK;
+    VERIFY_OK(m_gpu->CreateRasterizerState(
+        &rasterDesc,
+        m_atlasStrokeRasterState.ReleaseAndGetAddressOf()));
 
     // ...And with wireframe for debugging.
     rasterDesc.ScissorEnable = FALSE;
@@ -1664,7 +1671,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
                                        DXGI_FORMAT_R16_UINT,
                                        0);
-        m_gpuContext->RSSetState(m_atlasRasterState.Get());
 
         D3D11_VIEWPORT viewport = {0,
                                    0,
@@ -1680,6 +1686,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasFillBatchCount != 0)
         {
+            m_gpuContext->RSSetState(m_atlasFillRasterState.Get());
             m_pipelineManager.setAtlasFillState();
             m_gpuContext->OMSetBlendState(m_plusBlendState.Get(),
                                           NULL,
@@ -1707,6 +1714,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasStrokeBatchCount != 0)
         {
+            m_gpuContext->RSSetState(m_atlasStrokeRasterState.Get());
             m_pipelineManager.setAtlasStrokeState();
             m_gpuContext->OMSetBlendState(m_maxBlendState.Get(),
                                           NULL,

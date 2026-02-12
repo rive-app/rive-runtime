@@ -271,6 +271,11 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     DATA_TYPE main(Varyings _varyings) : $SV_Target                            \
     {
 
+#define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
+    DATA_TYPE main(Varyings _varyings, bool _clockwise : $SV_IsFrontFace) :    \
+        $SV_Target                                                             \
+    {
+
 #define EMIT_FRAG_DATA(VALUE)                                                  \
     return VALUE;                                                              \
     }

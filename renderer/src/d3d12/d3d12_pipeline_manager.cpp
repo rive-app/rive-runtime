@@ -444,6 +444,7 @@ void D3D12PipelineManager::compileAtlasPipeline()
 
     psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
     psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
     psoDesc.PS = {shader::atlas::fill::g_main,
                   std::size(shader::atlas::fill::g_main)};

@@ -26,8 +26,10 @@ constexpr static char LOREM_IPSUM[] =
 class FeatherTextGM : public GM
 {
 public:
-    FeatherTextGM(rive::Span<uint8_t> fontBytes) :
-        GM(1600, 1840), m_text(TestingWindow::Get()->factory())
+    FeatherTextGM(rive::Span<uint8_t> fontBytes, bool mirrored) :
+        GM(1600, 1840),
+        m_text(TestingWindow::Get()->factory()),
+        m_mirrored(mirrored)
     {
         m_paint->color(0xff000000);
         m_text.maxWidth(720);
@@ -46,6 +48,14 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
+        if (m_mirrored)
+        {
+            // Draw with a negative determinant to ensure the atlas accounts for
+            // this in its signed coverage calculations.
+            renderer->translate(width(), 0);
+            renderer->scale(-1, 1);
+        }
+
         renderer->translate(40, 40);
 
         for (int i = 0; i < 3; ++i)
@@ -63,11 +73,16 @@ public:
 private:
     rive::RawText m_text;
     Paint m_paint;
+    const bool m_mirrored;
 };
 
 GMREGISTER(feathertext_roboto,
-           return new FeatherTextGM(assets::roboto_flex_ttf()))
+           return new FeatherTextGM(assets::roboto_flex_ttf(), false))
 GMREGISTER(feathertext_montserrat,
-           return new FeatherTextGM(assets::montserrat_ttf()))
+           return new FeatherTextGM(assets::montserrat_ttf(), false))
+GMREGISTER(feathertext_roboto_mirrored,
+           return new FeatherTextGM(assets::roboto_flex_ttf(), true))
+GMREGISTER(feathertext_montserrat_mirrored,
+           return new FeatherTextGM(assets::montserrat_ttf(), true))
 
 #endif

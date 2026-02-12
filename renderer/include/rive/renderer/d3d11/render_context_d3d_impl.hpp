@@ -284,7 +284,8 @@ private:
     ComPtr<ID3D11SamplerState>
         m_samplerStates[rive::ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
-    ComPtr<ID3D11RasterizerState> m_atlasRasterState;
+    ComPtr<ID3D11RasterizerState> m_atlasFillRasterState;
+    ComPtr<ID3D11RasterizerState> m_atlasStrokeRasterState;
     ComPtr<ID3D11RasterizerState> m_backCulledRasterState[2];
     ComPtr<ID3D11RasterizerState> m_doubleSidedRasterState[2];
 

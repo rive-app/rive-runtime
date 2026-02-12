@@ -550,6 +550,10 @@
     layout(location = 0) out DATA_TYPE _fd;                                    \
     void main()
 
+#define FRAG_DATA_MAIN_WITH_CLOCKWISE FRAG_DATA_MAIN
+
+#define _clockwise gl_FrontFacing
+
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
 
 #define _fragCoord gl_FragCoord.xy

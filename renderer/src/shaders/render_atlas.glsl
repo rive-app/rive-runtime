@@ -59,6 +59,17 @@ VERTEX_MAIN(@atlasVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
 #ifdef @FRAGMENT
 
+#ifdef @ATLAS_FEATHERED_FILL
+INLINE half signed_fill_coverage(float4 coverages,
+                                 bool clockwise TEXTURE_CONTEXT_DECL)
+{
+    half coverage = eval_feathered_fill(coverages TEXTURE_CONTEXT_FORWARD);
+    if (!clockwise)
+        coverage = -coverage;
+    return coverage;
+}
+#endif
+
 #ifdef @ATLAS_RENDER_TARGET_R32UI_FRAMEBUFFER_FETCH
 
 // Store coverage as fp32 data bits in an r32ui color buffer, and use
@@ -69,7 +80,8 @@ layout(location = 0) inout highp uvec4 _fragCoverage;
 void main()
 {
     float coverage = uintBitsToFloat(_fragCoverage.r);
-    coverage += eval_feathered_fill(v_coverages);
+    coverage += signed_fill_coverage(v_coverages,
+                                     gl_FrontFacing TEXTURE_CONTEXT_FORWARD);
     _fragCoverage.r = floatBitsToUint(coverage);
 }
 #endif
@@ -90,7 +102,12 @@ void main()
 __pixel_localEXT PLS { layout(r32f) highp float _plsCoverage; };
 
 #ifdef @ATLAS_FEATHERED_FILL
-void main() { _plsCoverage += eval_feathered_fill(v_coverages); }
+void main()
+{
+    _plsCoverage +=
+        signed_fill_coverage(v_coverages,
+                             gl_FrontFacing TEXTURE_CONTEXT_FORWARD);
+}
 #endif
 
 #ifdef @ATLAS_FEATHERED_STROKE
@@ -110,7 +127,8 @@ layout(binding = 0, r32ui) uniform highp upixelLocalANGLE _plsCoverage;
 void main()
 {
     float coverage = uintBitsToFloat(pixelLocalLoadANGLE(_plsCoverage).r);
-    coverage += eval_feathered_fill(v_coverages);
+    coverage += signed_fill_coverage(v_coverages,
+                                     gl_FrontFacing TEXTURE_CONTEXT_FORWARD);
     pixelLocalStoreANGLE(_plsCoverage, uint4(floatBitsToUint(coverage)));
 }
 #endif
@@ -138,7 +156,9 @@ int fixedpoint_coverage(float coverage)
 #ifdef @ATLAS_FEATHERED_FILL
 void main()
 {
-    int coverage = fixedpoint_coverage(eval_feathered_fill(v_coverages));
+    int coverage = fixedpoint_coverage(
+        signed_fill_coverage(v_coverages,
+                             gl_FrontFacing TEXTURE_CONTEXT_FORWARD));
     imageAtomicAdd(_atlasImage, image_coord(), coverage);
 }
 #endif
@@ -157,10 +177,11 @@ void main()
 // rare.). Just split up coverage across rgba8 components and hope for the best.
 
 #ifdef @ATLAS_FEATHERED_FILL
-FRAG_DATA_MAIN(half4, @atlasFillFragmentMain)
+FRAG_DATA_MAIN_WITH_CLOCKWISE(half4, @atlasFillFragmentMain)
 {
     VARYING_UNPACK(v_coverages, float4);
-    half coverage = eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
+    half coverage =
+        signed_fill_coverage(v_coverages, _clockwise TEXTURE_CONTEXT_FORWARD);
     // i.e., is abs(coverage) ~= FEATHER(1), allowing for some sub-8-bit slop in
     // the texture unit performing a clamp to edge.
     if (abs(coverage) > MAX_FEATHER - 1e-3)
@@ -207,10 +228,11 @@ FRAG_DATA_MAIN(half4, @atlasStrokeFragmentMain)
 // hardware count the coverage.
 
 #ifdef @ATLAS_FEATHERED_FILL
-FRAG_DATA_MAIN(float, @atlasFillFragmentMain)
+FRAG_DATA_MAIN_WITH_CLOCKWISE(float, @atlasFillFragmentMain)
 {
     VARYING_UNPACK(v_coverages, float4);
-    EMIT_FRAG_DATA(eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD));
+    EMIT_FRAG_DATA(
+        signed_fill_coverage(v_coverages, _clockwise TEXTURE_CONTEXT_FORWARD));
 }
 #endif
 

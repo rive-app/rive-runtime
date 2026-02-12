@@ -156,6 +156,14 @@ constexpr VkPipelineRasterizationStateCreateInfo RASTER_STATE_CULL_BACK_CW = {
     .lineWidth = 1.f,
 };
 
+constexpr VkPipelineRasterizationStateCreateInfo RASTER_STATE_CULL_NONE_CW = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+    .polygonMode = VK_POLYGON_MODE_FILL,
+    .cullMode = VK_CULL_MODE_NONE,
+    .frontFace = VK_FRONT_FACE_CLOCKWISE,
+    .lineWidth = 1.f,
+};
+
 constexpr VkPipelineMultisampleStateCreateInfo MSAA_DISABLED = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
     .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,

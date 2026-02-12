@@ -674,7 +674,7 @@ public:
             .pVertexInputState = &layout::PATH_VERTEX_INPUT_STATE,
             .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST,
             .pViewportState = &layout::SINGLE_VIEWPORT,
-            .pRasterizationState = &layout::RASTER_STATE_CULL_BACK_CW,
+            .pRasterizationState = &layout::RASTER_STATE_CULL_NONE_CW,
             .pMultisampleState = &layout::MSAA_DISABLED,
             .pColorBlendState = &blendStateCreateInfo,
             .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,

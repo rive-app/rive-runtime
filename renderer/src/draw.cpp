@@ -635,7 +635,8 @@ PathDraw::PathDraw(IAABB pixelBounds,
         if (det < 0)
         {
             m_contourDirections =
-                m_coverageType == CoverageType::msaa
+                (m_coverageType == CoverageType::msaa ||
+                 m_coverageType == CoverageType::atlas)
                     ? gpu::ContourDirections::reverse
                     : gpu::ContourDirections::forwardThenReverse;
             m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG; // ignored by msaa
@@ -643,7 +644,8 @@ PathDraw::PathDraw(IAABB pixelBounds,
         else
         {
             m_contourDirections =
-                m_coverageType == CoverageType::msaa
+                (m_coverageType == CoverageType::msaa ||
+                 m_coverageType == CoverageType::atlas)
                     ? gpu::ContourDirections::forward
                     : gpu::ContourDirections::reverseThenForward;
         }
@@ -657,12 +659,18 @@ PathDraw::PathDraw(IAABB pixelBounds,
             // For clockwiseFill, this is also our opportunity to logically
             // reverse the winding of the path, if it is predominantly
             // counterclockwise.
-            m_contourDirections = gpu::ContourDirections::forwardThenReverse;
+            m_contourDirections =
+                (m_coverageType == CoverageType::atlas)
+                    ? gpu::ContourDirections::reverse
+                    : gpu::ContourDirections::forwardThenReverse;
             m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG;
         }
         else
         {
-            m_contourDirections = gpu::ContourDirections::reverseThenForward;
+            m_contourDirections =
+                (m_coverageType == CoverageType::atlas)
+                    ? gpu::ContourDirections::forward
+                    : gpu::ContourDirections::reverseThenForward;
         }
     }
     else

@@ -864,7 +864,7 @@ public:
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleList,
                     .frontFace = RIVE_FRONT_FACE,
-                    .cullMode = wgpu::CullMode::Back,
+                    .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
         };
