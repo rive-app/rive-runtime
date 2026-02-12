@@ -32,7 +32,7 @@ public:
     BindableProperty* bindableProperty() { return m_bindableProperty; }
 
 protected:
-    BindableProperty* m_bindableProperty;
+    BindableProperty* m_bindableProperty = nullptr;
 };
 } // namespace rive
 
