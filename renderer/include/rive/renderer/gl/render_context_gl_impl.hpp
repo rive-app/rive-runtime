@@ -81,8 +81,8 @@ public:
     // These are sorted with the most preferred types higher up in the list.
     enum class AtlasType
     {
-        r32f, // Most preferred. Uses HW blending to count coverage.
-        r16f, // Uses HW blending but loses precision on complex feathers.
+        r16f, // Most preferred. Balances performances with precision.
+        r32f, // Uses HW blending to count coverage.
 
         r32uiFramebufferFetch, // Stores coverage as fp32 bits in a uint.
         r32uiPixelLocalStorage,

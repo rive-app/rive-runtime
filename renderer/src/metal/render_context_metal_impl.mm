@@ -149,7 +149,7 @@ public:
         desc.vertexFunction =
             [plsLibrary newFunctionWithName:@GLSL_atlasVertexMain];
         desc.fragmentFunction = [plsLibrary newFunctionWithName:fragmentMain];
-        desc.colorAttachments[0].pixelFormat = MTLPixelFormatR32Float;
+        desc.colorAttachments[0].pixelFormat = MTLPixelFormatR16Float;
         desc.colorAttachments[0].blendingEnabled = TRUE;
         desc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorOne;
         desc.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOne;
@@ -924,7 +924,7 @@ void RenderContextMetalImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     }
 
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-    desc.pixelFormat = MTLPixelFormatR32Float;
+    desc.pixelFormat = MTLPixelFormatR16Float;
     desc.width = width;
     desc.height = height;
     desc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;

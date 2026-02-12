@@ -83,11 +83,17 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
 static RenderContextGLImpl::AtlasType select_atlas_type(
     const GLCapabilities& capabilities,
     RenderContextGLImpl::AtlasType atlasDesiredType =
-        RenderContextGLImpl::AtlasType::r32f)
+        RenderContextGLImpl::AtlasType::r16f)
 {
     switch (atlasDesiredType)
     {
         using AtlasType = RenderContextGLImpl::AtlasType;
+        case AtlasType::r16f:
+            if (capabilities.EXT_color_buffer_half_float)
+            {
+                return AtlasType::r16f;
+            }
+            [[fallthrough]];
         case AtlasType::r32f:
             if (capabilities.EXT_color_buffer_float &&
                 capabilities.EXT_float_blend)
@@ -95,12 +101,6 @@ static RenderContextGLImpl::AtlasType select_atlas_type(
                 // fp32 is ideal for the atlas. When there's a lot of overlap,
                 // fp16 can run out of precision.
                 return AtlasType::r32f;
-            }
-            [[fallthrough]];
-        case AtlasType::r16f:
-            if (capabilities.EXT_color_buffer_half_float)
-            {
-                return AtlasType::r16f;
             }
             [[fallthrough]];
         case AtlasType::r32uiFramebufferFetch:

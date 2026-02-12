@@ -751,13 +751,13 @@ void rive::gpu::RenderContextD3D12Impl::resizeAtlasTexture(uint32_t width,
     else
     {
 
-        D3D12_CLEAR_VALUE clear{DXGI_FORMAT_R32_FLOAT, {}};
+        D3D12_CLEAR_VALUE clear{DXGI_FORMAT_R16_FLOAT, {}};
 
         m_atlasTexture = m_resourceManager->make2DTexture(
             width,
             height,
             1,
-            DXGI_FORMAT_R32_FLOAT,
+            DXGI_FORMAT_R16_FLOAT,
             D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
             D3D12_RESOURCE_STATE_COMMON,
             D3D12_HEAP_FLAG_NONE,

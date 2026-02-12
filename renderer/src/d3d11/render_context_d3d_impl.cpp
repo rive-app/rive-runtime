@@ -1354,7 +1354,7 @@ void RenderContextD3DImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     }
     else
     {
-        m_atlasTexture = makeSimple2DTexture(DXGI_FORMAT_R32_FLOAT,
+        m_atlasTexture = makeSimple2DTexture(DXGI_FORMAT_R16_FLOAT,
                                              width,
                                              height,
                                              1,
