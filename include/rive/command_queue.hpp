@@ -668,6 +668,11 @@ public:
         m_globalFontListener = listener;
     }
 
+    void setMessageAvailableCallback(std::function<void()> callback)
+    {
+        m_messageAvailableCallback = std::move(callback);
+    }
+
 private:
     void registerListener(FileHandle handle, FileListener* listener)
     {
@@ -912,6 +917,8 @@ private:
         m_viewModelListeners;
     std::unordered_map<StateMachineHandle, StateMachineListener*>
         m_stateMachineListeners;
+
+    std::function<void()> m_messageAvailableCallback;
 };
 
 }; // namespace rive

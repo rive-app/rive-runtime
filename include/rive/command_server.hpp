@@ -126,6 +126,7 @@ private:
     };
 
     void checkPropertySubscriptions();
+    void notifyMessageAvailable();
 
     Vec2D cursorPosForPointerEvent(StateMachineInstance*,
                                    const CommandQueue::PointerEvent&);

@@ -2829,6 +2829,7 @@ bool CommandServer::processCommands()
             {
                 lock.unlock();
                 m_wasDisconnectReceived = true;
+                notifyMessageAvailable();
                 return false;
             }
         }
@@ -2850,7 +2851,16 @@ bool CommandServer::processCommands()
     m_uniqueDraws.clear();
 
     checkPropertySubscriptions();
+    notifyMessageAvailable();
 
     return !m_wasDisconnectReceived;
+}
+
+void CommandServer::notifyMessageAvailable()
+{
+    if (m_commandQueue->m_messageAvailableCallback)
+    {
+        m_commandQueue->m_messageAvailableCallback();
+    }
 }
 }; // namespace rive
