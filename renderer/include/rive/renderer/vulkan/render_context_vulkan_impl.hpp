@@ -161,6 +161,7 @@ private:
     vkutil::ImageView* plsTransientCoverageView();
     vkutil::ImageView* plsTransientClipView();
     vkutil::Texture2D* plsTransientScratchColorTexture();
+    vkutil::ImageView* plsTransientScratchColorView_RGB10_A2();
 
     // The offscreen color texture is not transient and supports PLS. It is used
     // in place of the renderTarget (via copying in and out) when the
@@ -397,6 +398,7 @@ private:
     rcp<vkutil::ImageView> m_plsTransientCoverageView;
     rcp<vkutil::ImageView> m_plsTransientClipView;
     rcp<vkutil::Texture2D> m_plsTransientScratchColorTexture;
+    rcp<vkutil::ImageView> m_plsTransientScratchColorView_RGB10_A2;
     rcp<vkutil::Texture2D> m_plsOffscreenColorTexture;
     rcp<vkutil::Texture2D> m_plsAtomicCoverageTexture;
 

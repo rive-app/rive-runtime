@@ -267,6 +267,9 @@ float mipMapLODBias;
 uint maxPathId;
 float ditherScale;
 float ditherBias;
+float ditherConversionToRGB10; // Amount by which to multiply a computed dither
+                               // value when storing as RGB10 (as opposed to
+                               // writing it out to the framebuffer).
 // Debugging.
 uint wireframeEnabled;
 UNIFORM_BLOCK_END(uniforms)

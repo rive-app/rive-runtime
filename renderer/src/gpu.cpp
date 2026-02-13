@@ -497,9 +497,13 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
     m_mipMapLODBias(MIP_MAP_LOD_BIAS),
     m_maxPathId(flushDesc.pathCount),
-    m_ditherScale((flushDesc.ditherMode == DitherMode::none ? 0.0f : 1.0) /
-                  256.0f),
+    m_ditherScale((flushDesc.ditherMode == DitherMode::none) ? 0.0f
+                                                             : (1.0f / 256.0f)),
     m_ditherBias(m_ditherScale * -0.5f),
+    // Negate dither when storing to RGB10, in order to get some more variation.
+    m_ditherConversionToRGB10((flushDesc.ditherMode == DitherMode::none)
+                                  ? 0.0f
+                                  : (-1.0f / 1024.0f) / m_ditherScale),
     m_wireframeEnabled(flushDesc.wireframe)
 {}
 

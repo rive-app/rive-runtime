@@ -10,7 +10,7 @@ PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 #endif
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
+PLS_DECL4F_RGB10_A2(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
 #endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageBuffer);
 PLS_BLOCK_END
@@ -113,6 +113,16 @@ PLS_MAIN(@drawFragmentMain)
         half c0 = safe_clamp_for_mali(initialCoverage, .0, maxCoverage);
         half c1 = safe_clamp_for_mali(finalCoverage, .0, maxCoverage);
 
+#ifdef @ENABLE_DITHER
+        half dither;
+        if (@ENABLE_DITHER)
+        {
+            dither = get_dither(_fragCoord.xy,
+                                uniforms.ditherScale,
+                                uniforms.ditherBias);
+        }
+#endif
+
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -152,7 +162,16 @@ PLS_MAIN(@drawFragmentMain)
 #ifndef @DRAW_INTERIOR_TRIANGLES
                     if (c1 < maxCoverage)
                     {
-                        PLS_STORE4F(scratchColorBuffer, paintColor);
+                        half3 scratchRGBToSave = paintColor.rgb;
+#ifdef @ENABLE_DITHER
+                        if (@ENABLE_DITHER)
+                        {
+                            scratchRGBToSave +=
+                                dither * uniforms.ditherConversionToRGB10;
+                        }
+#endif
+                        PLS_STORE4F(scratchColorBuffer,
+                                    make_half4(scratchRGBToSave, 0.0));
                     }
 #endif
                 }
@@ -165,7 +184,7 @@ PLS_MAIN(@drawFragmentMain)
                     // its result of advanced_color_blend() to the scratch
                     // buffer, which we can pull back up and use to apply our
                     // fragment's coverage contribution.
-                    paintColor = PLS_LOAD4F(scratchColorBuffer);
+                    paintColor.rgb = PLS_LOAD4F(scratchColorBuffer).rgb;
                     PLS_PRESERVE_4F(scratchColorBuffer);
                 }
             }
@@ -186,6 +205,12 @@ PLS_MAIN(@drawFragmentMain)
         // which is the result we want in this case.
         paintColor *=
             (c1 - c0) / max(1. - c0 * paintColor.a, EPSILON_FP16_NON_DENORM);
+#ifdef @ENABLE_DITHER
+        if (@ENABLE_DITHER)
+        {
+            paintColor.rgb += dither;
+        }
+#endif
 #ifndef @DRAW_INTERIOR_TRIANGLES
         // Update the coverage buffer with our final value if we aren't an
         // interior triangle, because another fragment from this same path might

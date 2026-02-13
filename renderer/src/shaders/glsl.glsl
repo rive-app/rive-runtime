@@ -362,6 +362,7 @@
     __pixel_localEXT PLS                                                       \
     {
 #define PLS_DECL4F(IDX, NAME) layout(rgba8) lowp vec4 NAME
+#define PLS_DECL4F_RGB10_A2(IDX, NAME) layout(rgb10_a2) mediump vec4 NAME
 #define PLS_DECLUI(IDX, NAME) layout(r32ui) highp uint NAME
 #define PLS_BLOCK_END                                                          \
     }                                                                          \
@@ -414,12 +415,17 @@
 #define PLS_DECL4F(IDX, NAME)                                                  \
     layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8)               \
         uniform lowp coherent image2D NAME
+#define PLS_DECL4F_RGB10_A2(IDX, NAME)                                         \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgb10_a2)            \
+        uniform mediump coherent image2D NAME
 #define PLS_DECLUI(IDX, NAME)                                                  \
     layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
         uniform highp coherent uimage2D NAME
 #else
 #define PLS_DECL4F(IDX, NAME)                                                  \
     layout(binding = IDX, rgba8) uniform lowp coherent image2D NAME
+#define PLS_DECL4F_RGB10_A2(IDX, NAME)                                         \
+    layout(binding = IDX, rgb10_a2) uniform mediump coherent image2D NAME
 #define PLS_DECLUI(IDX, NAME)                                                  \
     layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
 #endif

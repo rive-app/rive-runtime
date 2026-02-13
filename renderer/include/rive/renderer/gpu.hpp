@@ -1373,9 +1373,12 @@ private:
     WRITEONLY uint32_t m_maxPathId;
     WRITEONLY float m_ditherScale;
     WRITEONLY float m_ditherBias;
+    // Amount by which to multiply a computed dither value when storing as
+    // RGB10 (as opposed to writing it out to the framebuffer).
+    WRITEONLY float m_ditherConversionToRGB10;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 96];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 100];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 

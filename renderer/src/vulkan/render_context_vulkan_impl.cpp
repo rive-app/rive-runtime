@@ -1105,6 +1105,7 @@ void RenderContextVulkanImpl::resizeTransientPLSBacking(uint32_t width,
     m_plsTransientCoverageView.reset();
     m_plsTransientClipView.reset();
     m_plsTransientScratchColorTexture.reset();
+    m_plsTransientScratchColorView_RGB10_A2.reset();
     m_plsOffscreenColorTexture.reset();
 }
 
@@ -1237,6 +1238,7 @@ vkutil::Texture2D* RenderContextVulkanImpl::plsTransientScratchColorTexture()
     {
         m_plsTransientScratchColorTexture = m_vk->makeTexture2D(
             {
+                .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT,
                 .format = VK_FORMAT_R8G8B8A8_UNORM,
                 .extent = m_plsExtent,
                 .usage = m_plsTransientUsageFlags,
@@ -1245,6 +1247,30 @@ vkutil::Texture2D* RenderContextVulkanImpl::plsTransientScratchColorTexture()
     }
 
     return m_plsTransientScratchColorTexture.get();
+}
+
+vkutil::ImageView* RenderContextVulkanImpl::
+    plsTransientScratchColorView_RGB10_A2()
+{
+    if (m_plsTransientScratchColorView_RGB10_A2 == nullptr)
+    {
+        m_plsTransientScratchColorView_RGB10_A2 = m_vk->makeExternalImageView(
+            {
+                .image = plsTransientScratchColorTexture()->vkImage(),
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+                .subresourceRange =
+                    {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .levelCount = 1,
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                    },
+            },
+            "plsTransientScratchColorView_RGB10_A2");
+    }
+
+    return m_plsTransientScratchColorView_RGB10_A2.get();
 }
 
 vkutil::Texture2D* RenderContextVulkanImpl::accessPLSOffscreenColorTexture(
@@ -2894,7 +2920,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     },
                     {{
                         .imageView =
-                            plsTransientScratchColorTexture()->vkImageView(),
+                            (desc.interlockMode ==
+                             gpu::InterlockMode::clockwise)
+                                ? *plsTransientScratchColorView_RGB10_A2()
+                                : plsTransientScratchColorTexture()
+                                      ->vkImageView(),
                         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                     }});
             }

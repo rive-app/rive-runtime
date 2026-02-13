@@ -320,7 +320,7 @@ glsl_reserved = {
     "blend_support_lighten", "blend_support_colordodge",
     "blend_support_colorburn", "blend_support_hardlight",
     "blend_support_softlight", "blend_support_difference",
-    "blend_support_exclusion",
+    "blend_support_exclusion", "rgb10_a2",
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep

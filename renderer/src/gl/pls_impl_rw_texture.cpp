@@ -237,13 +237,16 @@ class RenderContextGLImpl::PLSImplRWTexture
              (desc.combinedShaderFeatures &
               gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)))
         {
-            glBindImageTexture(SCRATCH_COLOR_PLANE_IDX,
-                               m_plsTransientBackingTexture,
-                               0,
-                               GL_FALSE,
-                               nextTransientLayer,
-                               GL_READ_WRITE,
-                               GL_RGBA8);
+            glBindImageTexture(
+                SCRATCH_COLOR_PLANE_IDX,
+                m_plsTransientBackingTexture,
+                0,
+                GL_FALSE,
+                nextTransientLayer,
+                GL_READ_WRITE,
+                (desc.interlockMode == gpu::InterlockMode::clockwise)
+                    ? GL_RGB10_A2
+                    : GL_RGBA8);
             ++nextTransientLayer;
         }
         assert(nextTransientLayer <= m_plsTransientBackingPlaneCount);
