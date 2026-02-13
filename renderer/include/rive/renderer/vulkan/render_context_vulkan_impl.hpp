@@ -25,6 +25,14 @@ public:
     struct ContextOptions
     {
         bool forceAtomicMode = false;
+
+        // Dithering does better when we evaluate our blend equations in medium
+        // precision from the fragment shader, vs letting it happen in the blend
+        // unit (which, presumably, must be lower precision). For this reason,
+        // an app may wish to disable "fixed function" rendering for clockwise
+        // mode.
+        bool disableClockwiseFixedFunctionMode = false;
+
         ShaderCompilationMode shaderCompilationMode =
             ShaderCompilationMode::standard;
     };

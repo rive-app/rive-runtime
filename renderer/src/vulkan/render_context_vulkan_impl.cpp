@@ -780,16 +780,18 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.supportsAtomicMode =
         m_vk->features.fragmentStoresAndAtomics;
     m_platformFeatures.supportsClockwiseMode =
-        m_platformFeatures.supportsClockwiseFixedFunctionMode =
-            m_vk->features.fragmentShaderPixelInterlock &&
-            !contextOptions.forceAtomicMode &&
-            // TODO: Before we can support rasterOrdering and clockwise at the
-            // same time, we need to figure out barriers between transient PLS
-            // attachments being bound as both input attachments and storage
-            // textures. (Probably by using
-            // VK_EXT_rasterization_order_attachment_access whenever possible in
-            // clockwise mode.)
-            !m_platformFeatures.supportsRasterOrderingMode;
+        m_vk->features.fragmentShaderPixelInterlock &&
+        !contextOptions.forceAtomicMode &&
+        // TODO: Before we can support rasterOrdering and clockwise at the same
+        // time, we need to figure out barriers between transient PLS
+        // attachments being bound as both input attachments and storage
+        // textures. (Probably by using
+        // VK_EXT_rasterization_order_attachment_access whenever possible in
+        // clockwise mode.)
+        !m_platformFeatures.supportsRasterOrderingMode;
+    m_platformFeatures.supportsClockwiseFixedFunctionMode =
+        m_platformFeatures.supportsClockwiseMode &&
+        !contextOptions.disableClockwiseFixedFunctionMode;
 #endif
     m_platformFeatures.supportsClockwiseAtomicMode =
         m_platformFeatures.supportsAtomicMode;
