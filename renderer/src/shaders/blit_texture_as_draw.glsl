@@ -57,7 +57,7 @@ FRAG_DATA_MAIN(half4, @blitFragmentMain)
 #ifdef @USE_FILTERING
     VARYING_UNPACK(v_texCoord, float2);
     srcColor = TEXTURE_SAMPLE_LOD(@sourceTexture, blitSampler, v_texCoord, .0);
-#elif @SOURCE_TEXTURE_MSAA
+#elif defined(@SOURCE_TEXTURE_MSAA)
     srcColor = (TEXEL_FETCH_MS(@sourceTexture, 0, int2(floor(_fragCoord.xy))) +
                 TEXEL_FETCH_MS(@sourceTexture, 1, int2(floor(_fragCoord.xy))) +
                 TEXEL_FETCH_MS(@sourceTexture, 2, int2(floor(_fragCoord.xy))) +
