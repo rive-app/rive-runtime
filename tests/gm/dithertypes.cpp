@@ -17,7 +17,7 @@ using namespace rive;
 using namespace rivegm;
 
 // Validate all our dither types by rendering feathered strokes and fills
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(dithertypes, 0x80000000, 1600, 800, renderer)
+DEF_SIMPLE_GM_WITH_CLEAR_COLOR(dithertypes, 0xff000000, 1600, 800, renderer)
 {
     gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
     gpu::RenderContext::FrameDescriptor frameDescriptor;
@@ -28,8 +28,8 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(dithertypes, 0x80000000, 1600, 800, renderer)
     }
 
     Paint textPaint;
-    textPaint->color((0xff << 24) | (211 << 16) | (251 << 8) | 229);
-    textPaint->feather(1800);
+    textPaint->color(0xffffffff);
+    textPaint->feather(1400);
 
     rive::RawText text(TestingWindow::Get()->factory());
     text.maxWidth(500);
@@ -37,7 +37,7 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(dithertypes, 0x80000000, 1600, 800, renderer)
     text.append("@",
                 ref_rcp(textPaint.get()),
                 HBFont::Decode(assets::roboto_flex_ttf()),
-                2600.0f);
+                1600.0f);
 
     for (int i = 0; i < 2; ++i)
     {
