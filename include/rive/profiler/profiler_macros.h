@@ -32,17 +32,16 @@
 #define RIVE_PROF_ENDFRAME()
 
 #elif defined(RIVE_MICROPROFILE) // Microprofile integration
+#include "rive/profiler/microprofile_emscripten.h"
 #include "microprofile.h"
 #include "microprofiledraw.h"
 #include "microprofileui.h"
 
-#define MICROPROFILE_WEBSERVER 1
 #define MICROPROFILE_GPU_TIMERS 1
 
 #define RIVE_PROF_INIT()                                                       \
     MicroProfileSetEnableAllGroups(true);                                      \
     MicroProfileSetForceEnable(true);                                          \
-    MicroProfileWebServerStart();                                              \
     MicroProfileOnThreadCreate("MainThread");                                  \
     MicroProfileInit();
 
