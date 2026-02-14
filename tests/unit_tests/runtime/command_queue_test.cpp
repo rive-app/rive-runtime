@@ -8,6 +8,7 @@
 #include "rive/command_server.hpp"
 #include "rive/file.hpp"
 #include "common/render_context_null.hpp"
+#include <atomic>
 #include <fstream>
 
 namespace rive
@@ -4538,6 +4539,63 @@ TEST_CASE("dependency lifetime management", "[CommandQueue]")
         CHECK(server->getStateMachineInstance(stateMachine3) != nullptr);
         CHECK(server->getStateMachineInstance(stateMachine3_2) != nullptr);
     });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("messageAvailableCallback fires on messages", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::atomic<int> callbackCount{0};
+    commandQueue->setMessageAvailableCallback(
+        [&callbackCount]() { callbackCount++; });
+
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        nullptr,
+        1);
+
+    wait_for_server(commandQueue.get());
+    CHECK(callbackCount > 0);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("messageAvailableCallback fires on disconnect", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::atomic<int> callbackCount{0};
+    commandQueue->setMessageAvailableCallback(
+        [&callbackCount]() { callbackCount++; });
+
+    std::thread serverThread(server_thread, commandQueue);
+
+    wait_for_server(commandQueue.get());
+    int countBeforeDisconnect = callbackCount.load();
+
+    commandQueue->disconnect();
+    serverThread.join();
+
+    CHECK(callbackCount > countBeforeDisconnect);
+}
+
+TEST_CASE("no crash when messageAvailableCallback not set", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        nullptr,
+        1);
+
+    wait_for_server(commandQueue.get());
 
     commandQueue->disconnect();
     serverThread.join();
