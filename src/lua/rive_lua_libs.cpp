@@ -596,10 +596,16 @@ void ScriptingContext::performRegistration(lua_State* state)
     // required dependencies
     for (ModuleDetails* moduleDetails : m_modulesToRegister)
     {
-        // Skip if already registered
-        if (checkRegisteredModules(state,
-                                   moduleDetails->moduleName().c_str()) == 1)
+        if (moduleDetails == nullptr)
         {
+            continue;
+        }
+        std::string moduleName = moduleDetails->moduleName();
+
+        // Skip if already registered
+        if (checkRegisteredModules(state, moduleName.c_str()) == 1)
+        {
+            lua_pop(state, 1);
             continue;
         }
         tryRegisterModule(state, moduleDetails);
@@ -734,7 +740,7 @@ bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
 {
-    // Check if already registered
+    // Check if already registered - leave module on stack for caller to use
     if (checkRegisteredModules(state, name) == 1)
     {
         return true;
@@ -760,6 +766,7 @@ bool ScriptingVM::registerModule(lua_State* state,
     // Check if already registered
     if (checkRegisteredModules(state, name) == 1)
     {
+        lua_pop(state, 1);
         return true;
     }
 
