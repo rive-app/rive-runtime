@@ -31,7 +31,6 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstance;
-typedef void (*ViewModelInstanceCreated)(ViewModelInstance* instance);
 #endif
 class BinaryReader;
 class DataBind;
@@ -54,6 +53,23 @@ enum class ImportResult
     /// Indicates that the there is a formatting problem in the file itself.
     malformed
 };
+
+#ifdef WITH_RIVE_TOOLS
+///
+/// Callback interface for registering view model instances (used by the
+/// editor). Implemented in rive_binding to store instances in a map keyed by
+/// File.
+///
+class ViewModelInstanceRegistrar
+{
+public:
+    virtual ~ViewModelInstanceRegistrar() = default;
+    virtual void registerInstance(ViewModelInstance* ptr,
+                                  rcp<ViewModelInstance> ref) = 0;
+    virtual bool contains(ViewModelInstance* ptr) const = 0;
+    virtual void clear() = 0;
+};
+#endif
 
 ///
 /// A Rive file.
@@ -228,14 +244,11 @@ public:
     }
 #endif
 #ifdef WITH_RIVE_TOOLS
-    void onViewModelInstanceCreated(ViewModelInstanceCreated callback)
-    {
-        m_viewmodelInstanceCreatedCallback = callback;
-    }
-    void triggerViewModelCreatedCallback(bool value)
-    {
-        m_triggerViewModelCreatedCallback = value;
-    }
+    void setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar);
+    void registerViewModelInstance(ViewModelInstance* ptr,
+                                   rcp<ViewModelInstance> ref) const;
+    bool containsViewModelInstance(ViewModelInstance* ptr) const;
+    void clearRuntimeViewModelInstances();
 #endif
 
 private:
@@ -291,8 +304,7 @@ private:
 
     uint32_t findViewModelId(ViewModel* search) const;
 #ifdef WITH_RIVE_TOOLS
-    ViewModelInstanceCreated m_viewmodelInstanceCreatedCallback = nullptr;
-    bool m_triggerViewModelCreatedCallback = false;
+    mutable ViewModelInstanceRegistrar* m_viewModelInstanceRegistrar = nullptr;
 #endif
 
     rcp<FileAsset> m_manifest = nullptr;

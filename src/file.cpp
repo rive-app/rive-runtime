@@ -211,6 +211,9 @@ File::~File()
     {
         viewModelInstance->unref();
     }
+#ifdef WITH_RIVE_TOOLS
+    m_viewModelInstanceRegistrar = nullptr;
+#endif
     for (auto& enumData : m_Enums)
     {
         enumData->unref();
@@ -859,11 +862,9 @@ rcp<ViewModelInstance> File::copyViewModelInstance(
         viewModelInstance->clone()->as<ViewModelInstance>());
     completeViewModelInstance(copy, instancesMap);
 #ifdef WITH_RIVE_TOOLS
-    if (copy && m_triggerViewModelCreatedCallback &&
-        m_viewmodelInstanceCreatedCallback)
+    if (copy)
     {
-        // Serialize and send to Dart when instance is created
-        m_viewmodelInstanceCreatedCallback(copy.get());
+        registerViewModelInstance(copy.get(), copy);
     }
 #endif
     return copy;
@@ -934,6 +935,36 @@ uint32_t File::findViewModelId(ViewModel* search) const
     }
     return viewModelId;
 }
+
+#ifdef WITH_RIVE_TOOLS
+void File::setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar)
+{
+    m_viewModelInstanceRegistrar = registrar;
+}
+
+void File::registerViewModelInstance(ViewModelInstance* ptr,
+                                     rcp<ViewModelInstance> ref) const
+{
+    if (ptr != nullptr && m_viewModelInstanceRegistrar != nullptr)
+    {
+        m_viewModelInstanceRegistrar->registerInstance(ptr, std::move(ref));
+    }
+}
+
+bool File::containsViewModelInstance(ViewModelInstance* ptr) const
+{
+    return m_viewModelInstanceRegistrar != nullptr &&
+           m_viewModelInstanceRegistrar->contains(ptr);
+}
+
+void File::clearRuntimeViewModelInstances()
+{
+    if (m_viewModelInstanceRegistrar != nullptr)
+    {
+        m_viewModelInstanceRegistrar->clear();
+    }
+}
+#endif
 
 rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
 {
@@ -1020,11 +1051,11 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
             propertyId++;
         }
 #ifdef WITH_RIVE_TOOLS
-        if (viewModelInstance && m_triggerViewModelCreatedCallback &&
-            m_viewmodelInstanceCreatedCallback)
+        if (viewModelInstance)
         {
-            // Serialize and send to Dart when instance is created
-            m_viewmodelInstanceCreatedCallback(viewModelInstance);
+            auto result = rcp<ViewModelInstance>(viewModelInstance);
+            registerViewModelInstance(viewModelInstance, result);
+            return result;
         }
 #endif
         return rcp<ViewModelInstance>(viewModelInstance);
@@ -1069,11 +1100,9 @@ rcp<ViewModelInstance> File::createDefaultViewModelInstance(
             viewModelInstance->clone()->as<ViewModelInstance>());
         completeViewModelInstance(copy);
 #ifdef WITH_RIVE_TOOLS
-        if (copy && m_triggerViewModelCreatedCallback &&
-            m_viewmodelInstanceCreatedCallback)
+        if (copy)
         {
-            // Serialize and send to Dart when instance is created
-            m_viewmodelInstanceCreatedCallback(copy.get());
+            registerViewModelInstance(copy.get(), copy);
         }
 #endif
         return copy;

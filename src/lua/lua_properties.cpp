@@ -243,13 +243,7 @@ int ScriptedViewModel::instance(lua_State* L)
 {
     if (m_viewModel)
     {
-#ifdef WITH_RIVE_TOOLS
-        m_viewModel->file()->triggerViewModelCreatedCallback(true);
-#endif
         auto instance = m_viewModel->createInstance();
-#ifdef WITH_RIVE_TOOLS
-        m_viewModel->file()->triggerViewModelCreatedCallback(false);
-#endif
         lua_newrive<ScriptedViewModel>(L, L, m_viewModel, instance);
     }
     return 1;
