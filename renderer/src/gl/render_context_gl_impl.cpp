@@ -1461,9 +1461,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     {
         glutils::Uniform1iByName(m_id, GLSL_gradTexture, GRAD_TEXTURE_IDX);
     }
-    if ((isTessellationDraw &&
-         (shaderFeatures & ShaderFeatures::ENABLE_FEATHER)) ||
-        drawType == gpu::DrawType::atlasBlit)
+    if (isTessellationDraw && (shaderFeatures & ShaderFeatures::ENABLE_FEATHER))
     {
         assert(isPaintDraw || interlockMode == gpu::InterlockMode::atomics);
         glutils::Uniform1iByName(m_id,
