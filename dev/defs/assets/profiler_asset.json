@@ -1,0 +1,61 @@
+{
+  "name": "ProfilerAsset",
+  "key": {
+    "int": 651,
+    "string": "profilerasset"
+  },
+  "extends": "assets/file_asset.json",
+  "runtime": false,
+  "properties": {
+    "deviceName": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 939,
+        "string": "devicename"
+      },
+      "description": "Device name.",
+      "runtime": false
+    },
+    "deviceModel": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 940,
+        "string": "devicemodel"
+      },
+      "description": "Device model.",
+      "runtime": false
+    },
+    "deviceOS": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 941,
+        "string": "deviceos"
+      },
+      "description": "Device OS.",
+      "runtime": false
+    },
+    "deviceId": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 942,
+        "string": "deviceid"
+      },
+      "description": "Device Id.",
+      "runtime": false
+    },
+    "timestamp": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 943,
+        "string": "timestamp"
+      },
+      "description": "Saving timestamp.",
+      "runtime": false
+    }
+  }
+}
