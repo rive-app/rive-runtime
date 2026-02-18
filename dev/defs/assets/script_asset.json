@@ -66,7 +66,8 @@
         "string": "dependencyids"
       },
       "description": "Ids of any scripts this script DIRECTLY requires (not dependencies of dependencies) in its core",
-      "runtime": false
+      "runtime": false,
+      "journal": false
     },
     "codeFileText": {
       "type": "String",
