@@ -380,7 +380,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
             }
             break;
         case Backend::metal:
-#if defined(__APPLE__)
+#if defined(__APPLE__) && !defined(RIVE_UNREAL)
             if (visibility == Visibility::headless)
             {
                 s_TestingWindow =

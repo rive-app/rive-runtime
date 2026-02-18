@@ -386,7 +386,7 @@ do
         files({ 'common/*.mm' })
     end
 
-    filter('system:macosx')
+    filter({'system:macosx', 'options:not for_unreal'})
     do
         files({
             RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_metal.mm',

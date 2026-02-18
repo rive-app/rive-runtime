@@ -356,6 +356,14 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     $EARLYDEPTHSTENCIL DATA_TYPE NAME(float4 _pos : $SV_Position) : $SV_Target \
     {                                                                          \
         float2 _fragCoord = _pos.xy;
+
+#define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
+    EARLYDEPTHSTENCIL DATA_TYPE NAME(float4 _pos : $SV_Position,               \
+                                     uint _sampleMask : $SV_Coverage,          \
+                                     bool _clockwise : $SV_IsFrontFace) :      \
+        $SV_Target                                                             \
+    {                                                                          \
+        float2 _fragCoord = _pos.xy;
 #else
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
     $EARLYDEPTHSTENCIL DATA_TYPE NAME(Varyings _varyings,                      \
@@ -365,6 +373,17 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \
         uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+
+#define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
+    DATA_TYPE NAME(Varyings _varyings,                                         \
+                   uint _sampleMask : $SV_Coverage,                            \
+                   bool _clockwise : $SV_IsFrontFace) :                        \
+        $SV_Target                                                             \
+    {                                                                          \
+        float2 _fragCoord = _varyings._pos.xy;                                 \
+        int2 _plsCoord = int2(floor(_fragCoord));                              \
+        uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+
 #endif
 
 #define EMIT_FRAG_DATA(VALUE)                                                  \
