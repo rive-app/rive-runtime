@@ -998,6 +998,16 @@ void CommandQueue::requestViewModelInstanceListSize(
     m_names << path;
 }
 
+void CommandQueue::requestViewModelInstanceName(
+    ViewModelInstanceHandle handle,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getViewModelInstanceName;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
                                             uint64_t requestId)
 {
@@ -1016,6 +1026,32 @@ void CommandQueue::requestDefaultViewModelInfo(ArtboardHandle artboardHandle,
     m_commandStream << fileHandle;
     m_commandStream << artboardHandle;
     m_commandStream << requestId;
+}
+
+std::shared_ptr<NumberReader> CommandQueue::createNumberReader(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
+{
+    auto reader = std::make_shared<NumberReader>();
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::createNumberReader;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << std::move(path);
+    m_numberReaderPtrs << reader;
+    return reader;
+}
+
+void CommandQueue::releaseNumberReader(ViewModelInstanceHandle handle,
+                                       std::string path,
+                                       uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::releaseNumberReader;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << std::move(path);
 }
 
 void CommandQueue::processMessages()
@@ -1375,6 +1411,33 @@ void CommandQueue::processMessages()
                                                              requestId,
                                                              std::move(path),
                                                              size);
+                }
+                break;
+            }
+
+            case Message::viewModelInstanceNameReceived:
+            {
+                ViewModelInstanceHandle handle;
+                std::string name;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageNames >> name;
+                lock.unlock();
+                if (m_globalViewModelListener)
+                {
+                    m_globalViewModelListener
+                        ->onViewModelInstanceNameReceived(handle,
+                                                         requestId,
+                                                         name);
+                }
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelInstanceNameReceived(
+                        handle,
+                        requestId,
+                        std::move(name));
                 }
                 break;
             }

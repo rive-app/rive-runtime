@@ -153,6 +153,9 @@ class Definition {
           property.type.snakeRuntimeCoreName +
           '.hpp');
     }
+    if (properties.any((p) => p.isAtomic)) {
+      includes.add('<atomic>');
+    }
 
     var sortedIncludes = includes.toList()..sort();
     for (final include in sortedIncludes) {
@@ -229,12 +232,24 @@ class Definition {
         var initialize = property.initialValueRuntime ??
             property.initialValue ??
             property.type.defaultValue;
-        String fieldLine =
-            '${property.type.cppName} m_${property.capitalizedName}';
-        if (initialize != null) {
-          var converted = property.type.convertCpp(initialize);
-          if (converted != null) {
-            fieldLine += ' = $converted';
+        String fieldLine;
+        if (property.isAtomic) {
+          fieldLine =
+              'std::atomic<${property.type.cppName}> m_${property.capitalizedName}';
+          if (initialize != null) {
+            var converted = property.type.convertCpp(initialize);
+            if (converted != null) {
+              fieldLine += '{$converted}';
+            }
+          }
+        } else {
+          fieldLine =
+              '${property.type.cppName} m_${property.capitalizedName}';
+          if (initialize != null) {
+            var converted = property.type.convertCpp(initialize);
+            if (converted != null) {
+              fieldLine += ' = $converted';
+            }
           }
         }
         code.writeln('$fieldLine;');
@@ -287,6 +302,27 @@ class Definition {
                       'set${property.capitalizedName}(value);'
                       '${property.name}Changed();'
                       '}');
+        } else if (property.isAtomic) {
+          code.writeln('inline'
+              ' ${property.type.cppGetterName} ${property.name}() const ' +
+              (property.isGetOverride ? 'override' : '') +
+              '{ return m_${property.capitalizedName}'
+              '.load(std::memory_order_relaxed); }');
+          code.writeln(
+              'void ${property.name}(${property.type.cppName} value) ' +
+                  (property.isSetOverride ? 'override' : '') +
+                  '{'
+                      'if(m_${property.capitalizedName}'
+                      '.load(std::memory_order_relaxed) == value)'
+                      '{return;}'
+                      'm_${property.capitalizedName}'
+                      '.store(value, std::memory_order_relaxed);'
+                      '${property.name}Changed();'
+                      '}');
+          code.writeln(
+              'std::atomic<${property.type.cppName}>* '
+              'atomic${property.capitalizedName}() '
+              '{ return &m_${property.capitalizedName}; }');
         } else {
           code.writeln(((property.isVirtual || property.isPureVirtual)
                   ? 'virtual'
@@ -329,6 +365,11 @@ class Definition {
         }
         if (property.isEncoded) {
           code.writeln('copy${property.capitalizedName}(object);');
+        } else if (property.isAtomic) {
+          code.writeln('m_${property.capitalizedName}.store('
+              'object.m_${property.capitalizedName}'
+              '.load(std::memory_order_relaxed), '
+              'std::memory_order_relaxed);');
         } else {
           code.writeln('m_${property.capitalizedName} = '
               'object.m_${property.capitalizedName};');
@@ -357,6 +398,10 @@ class Definition {
           if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'
                 '(${property.type.runtimeCoreType}::deserialize(reader));');
+          } else if (property.isAtomic) {
+            code.writeln('m_${property.capitalizedName}.store('
+                '${property.type.runtimeCoreType}::deserialize(reader), '
+                'std::memory_order_relaxed);');
           } else {
             code.writeln('m_${property.capitalizedName} = '
                 '${property.type.runtimeCoreType}::deserialize(reader);');

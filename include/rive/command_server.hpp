@@ -6,6 +6,7 @@
 
 #include "rive/command_queue.hpp"
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <thread>
 #include <unordered_map>
@@ -174,6 +175,15 @@ private:
     // Vector to iterate on for subscriptions. This is a vector instead of a map
     // because we iterate through the entire vector every frame anyway.
     std::vector<Subscription> m_propertySubscriptions;
+
+    struct NumberReaderEntry
+    {
+        std::shared_ptr<NumberReader> reader;
+        ViewModelInstanceHandle viewModelHandle;
+        std::string propertyPath;
+        rcp<ViewModelInstanceValue> valueRef;
+    };
+    std::vector<NumberReaderEntry> m_numberReaders;
 
     // Dependencies
     // When a file gets deleted artboards and statemachine become invalid. Here

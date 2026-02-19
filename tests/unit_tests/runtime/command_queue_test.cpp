@@ -4600,3 +4600,182 @@ TEST_CASE("no crash when messageAvailableCallback not set", "[CommandQueue]")
     commandQueue->disconnect();
     serverThread.join();
 }
+
+TEST_CASE("NumberReader reads value set by server", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    auto reader = commandQueue->createNumberReader(vmHandle, "Test Num");
+
+    server.processCommands();
+
+    CHECK(reader->isReady());
+    float initial = reader->value();
+
+    commandQueue->setViewModelInstanceNumber(vmHandle, "Test Num", 42.0f);
+    server.processCommands();
+
+    CHECK(reader->value() == 42.0f);
+
+    commandQueue->setViewModelInstanceNumber(vmHandle, "Test Num", -1.5f);
+    server.processCommands();
+
+    CHECK(reader->value() == -1.5f);
+
+    commandQueue->disconnect();
+    server.processCommands();
+}
+
+TEST_CASE("NumberReader release invalidates pointer", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    auto reader = commandQueue->createNumberReader(vmHandle, "Test Num");
+    server.processCommands();
+    CHECK(reader->isReady());
+
+    commandQueue->releaseNumberReader(vmHandle, "Test Num");
+    server.processCommands();
+    CHECK_FALSE(reader->isReady());
+    CHECK(reader->value() == 0.0f);
+
+    commandQueue->disconnect();
+    server.processCommands();
+}
+
+TEST_CASE("NumberReader invalid path stays not ready", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    auto reader =
+        commandQueue->createNumberReader(vmHandle, "Nonexistent Property");
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK_FALSE(reader->isReady());
+    CHECK(reader->value() == 0.0f);
+
+    commandQueue->disconnect();
+    server.processCommands();
+}
+
+TEST_CASE("NumberReader disconnect cleans up", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    auto reader = commandQueue->createNumberReader(vmHandle, "Test Num");
+    wait_for_server(commandQueue.get());
+    CHECK(reader->isReady());
+
+    commandQueue->disconnect();
+    serverThread.join();
+
+    CHECK_FALSE(reader->isReady());
+}
+
+TEST_CASE("NumberReader nested property path", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    auto reader = commandQueue->createNumberReader(vmHandle,
+                                                    "Test Nested/Nested Number");
+    server.processCommands();
+    CHECK(reader->isReady());
+
+    commandQueue->setViewModelInstanceNumber(vmHandle,
+                                              "Test Nested/Nested Number",
+                                              99.0f);
+    server.processCommands();
+    CHECK(reader->value() == 99.0f);
+
+    commandQueue->disconnect();
+    server.processCommands();
+}
+
+TEST_CASE("NumberReader async thread", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    auto reader = commandQueue->createNumberReader(vmHandle, "Test Num");
+    wait_for_server(commandQueue.get());
+    CHECK(reader->isReady());
+
+    commandQueue->setViewModelInstanceNumber(vmHandle, "Test Num", 123.0f);
+    wait_for_server(commandQueue.get());
+    CHECK(reader->value() == 123.0f);
+
+    commandQueue->releaseNumberReader(vmHandle, "Test Num");
+    wait_for_server(commandQueue.get());
+    CHECK_FALSE(reader->isReady());
+
+    commandQueue->disconnect();
+    serverThread.join();
+}

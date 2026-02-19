@@ -24,6 +24,7 @@ class Property {
   bool isBindable = false;
   bool isPassthrough = false;
   bool isPureVirtual = false;
+  bool isAtomic = false;
   FieldType? typeRuntime;
 
   static Property? make(
@@ -112,6 +113,10 @@ class Property {
     dynamic pv = data['pureVirtual'];
     if (pv is bool) {
       isPureVirtual = pv;
+    }
+    dynamic at = data['atomic'];
+    if (at is bool) {
+      isAtomic = at;
     }
     key = Key.fromJSON(data['key']) ?? Key.forProperty(this);
   }

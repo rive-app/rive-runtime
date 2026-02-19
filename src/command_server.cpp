@@ -10,6 +10,7 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 
 namespace rive
@@ -2624,6 +2625,40 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::getViewModelInstanceName:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto viewModel = getViewModelInstance(handle))
+                {
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::
+                               viewModelInstanceNameReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    m_commandQueue->m_messageNames << viewModel->name();
+                }
+                else
+                {
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to get view model instance "
+                        << handle
+                        << " when getting instance name";
+                }
+
+                break;
+            }
+
             case CommandQueue::Command::pointerMove:
             {
                 StateMachineHandle handle;
@@ -2825,9 +2860,96 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::createNumberReader:
+            {
+                ViewModelInstanceHandle rootHandle;
+                uint64_t requestId;
+                std::string path;
+                std::shared_ptr<NumberReader> reader;
+                commandStream >> rootHandle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> path;
+                m_commandQueue->m_numberReaderPtrs >> reader;
+                lock.unlock();
+
+                if (auto view = getViewModelInstance(rootHandle))
+                {
+                    if (auto prop = view->propertyNumber(path))
+                    {
+                        auto* instVal = prop->viewModelInstanceValue();
+                        auto* numInst =
+                            instVal->as<ViewModelInstanceNumber>();
+                        auto* atomicPtr = numInst->atomicPropertyValue();
+                        reader->ptr.store(atomicPtr,
+                                          std::memory_order_release);
+                        m_numberReaders.push_back(
+                            {std::move(reader),
+                             rootHandle,
+                             std::move(path),
+                             ref_rcp(instVal)});
+                    }
+                    else
+                    {
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            rootHandle,
+                            requestId,
+                            CommandQueue::Message::viewModelError)
+                            << "Property not found when creating "
+                               "number reader: "
+                            << path;
+                    }
+                }
+                else
+                {
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        rootHandle,
+                        requestId,
+                        CommandQueue::Message::viewModelError)
+                        << "View model not found when creating "
+                           "number reader";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::releaseNumberReader:
+            {
+                ViewModelInstanceHandle rootHandle;
+                uint64_t requestId;
+                std::string path;
+                commandStream >> rootHandle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> path;
+                lock.unlock();
+
+                auto it = std::remove_if(
+                    m_numberReaders.begin(),
+                    m_numberReaders.end(),
+                    [&](NumberReaderEntry& entry) {
+                        if (entry.viewModelHandle == rootHandle &&
+                            entry.propertyPath == path)
+                        {
+                            entry.reader->ptr.store(
+                                nullptr,
+                                std::memory_order_release);
+                            return true;
+                        }
+                        return false;
+                    });
+                m_numberReaders.erase(it, m_numberReaders.end());
+                break;
+            }
+
             case CommandQueue::Command::disconnect:
             {
                 lock.unlock();
+                for (auto& entry : m_numberReaders)
+                {
+                    entry.reader->ptr.store(nullptr,
+                                            std::memory_order_release);
+                }
+                m_numberReaders.clear();
                 m_wasDisconnectReceived = true;
                 notifyMessageAvailable();
                 return false;

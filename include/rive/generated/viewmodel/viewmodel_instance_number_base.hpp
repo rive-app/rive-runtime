@@ -1,5 +1,6 @@
 #ifndef _RIVE_VIEW_MODEL_INSTANCE_NUMBER_BASE_HPP_
 #define _RIVE_VIEW_MODEL_INSTANCE_NUMBER_BASE_HPP_
+#include <atomic>
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 namespace rive
@@ -31,24 +32,30 @@ public:
     static const uint16_t propertyValuePropertyKey = 575;
 
 protected:
-    float m_PropertyValue = 0.0f;
+    std::atomic<float> m_PropertyValue{0.0f};
 
 public:
-    inline float propertyValue() const { return m_PropertyValue; }
+    inline float propertyValue() const
+    {
+        return m_PropertyValue.load(std::memory_order_relaxed);
+    }
     void propertyValue(float value)
     {
-        if (m_PropertyValue == value)
+        if (m_PropertyValue.load(std::memory_order_relaxed) == value)
         {
             return;
         }
-        m_PropertyValue = value;
+        m_PropertyValue.store(value, std::memory_order_relaxed);
         propertyValueChanged();
     }
+    std::atomic<float>* atomicPropertyValue() { return &m_PropertyValue; }
 
     Core* clone() const override;
     void copy(const ViewModelInstanceNumberBase& object)
     {
-        m_PropertyValue = object.m_PropertyValue;
+        m_PropertyValue.store(
+            object.m_PropertyValue.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
         ViewModelInstanceValue::copy(object);
     }
 
@@ -57,7 +64,8 @@ public:
         switch (propertyKey)
         {
             case propertyValuePropertyKey:
-                m_PropertyValue = CoreDoubleType::deserialize(reader);
+                m_PropertyValue.store(CoreDoubleType::deserialize(reader),
+                                      std::memory_order_relaxed);
                 return true;
         }
         return ViewModelInstanceValue::deserialize(propertyKey, reader);

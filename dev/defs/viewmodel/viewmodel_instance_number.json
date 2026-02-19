@@ -13,7 +13,8 @@
         "int": 575,
         "string": "propertyvalue"
       },
-      "description": "The number value."
+      "description": "The number value.",
+      "atomic": true
     },
     "playbackValue": {
       "type": "double",

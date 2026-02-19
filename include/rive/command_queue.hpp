@@ -9,9 +9,11 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -57,6 +59,21 @@ struct ViewModelEnum
 {
     std::string name;
     std::vector<std::string> enumerants;
+};
+
+struct NumberReader
+{
+    std::atomic<std::atomic<float>*> ptr{nullptr};
+
+    float value() const
+    {
+        auto p = ptr.load(std::memory_order_acquire);
+        return p ? p->load(std::memory_order_relaxed) : 0.0f;
+    }
+    bool isReady() const
+    {
+        return ptr.load(std::memory_order_acquire) != nullptr;
+    }
 };
 
 // Client-side recorder for commands that will be executed by a
@@ -268,6 +285,12 @@ public:
                                                  uint64_t requestId,
                                                  std::string path,
                                                  size_t size)
+        {}
+
+        virtual void onViewModelInstanceNameReceived(
+            const ViewModelInstanceHandle,
+            uint64_t requestId,
+            std::string name)
         {}
     };
 
@@ -631,10 +654,22 @@ public:
                                           std::string path,
                                           uint64_t requestId = 0);
 
+    void requestViewModelInstanceName(ViewModelInstanceHandle,
+                                      uint64_t requestId = 0);
+
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
     void requestDefaultViewModelInfo(ArtboardHandle,
                                      FileHandle,
                                      uint64_t requestId = 0);
+
+    std::shared_ptr<NumberReader> createNumberReader(
+        ViewModelInstanceHandle,
+        std::string path,
+        uint64_t requestId = 0);
+
+    void releaseNumberReader(ViewModelInstanceHandle,
+                             std::string path,
+                             uint64_t requestId = 0);
 
     // Consume all messages received from the server.
     void processMessages();
@@ -831,7 +866,10 @@ private:
         listViewModelInstanceNames,
         listViewModelProperties,
         listViewModelPropertyValue,
-        getViewModelListSize
+        getViewModelListSize,
+        getViewModelInstanceName,
+        createNumberReader,
+        releaseNumberReader
     };
 
     enum class Message
@@ -847,6 +885,7 @@ private:
         viewModelPropertiesListed,
         viewModelPropertyValueReceived,
         viewModelListSizeReceived,
+        viewModelInstanceNameReceived,
         fileLoaded,
         fileDeleted,
         imageDecoded,
@@ -891,6 +930,7 @@ private:
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
     ObjectStream<CommandServerDrawCallback> m_drawCallbacks;
+    ObjectStream<std::shared_ptr<NumberReader>> m_numberReaderPtrs;
 
     // Messages streams
     std::mutex m_messageMutex;
