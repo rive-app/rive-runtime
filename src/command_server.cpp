@@ -2624,6 +2624,37 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::getViewModelInstanceName:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto viewModel = getViewModelInstance(handle))
+                {
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::viewModelInstanceNameReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    m_commandQueue->m_messageNames << viewModel->name();
+                }
+                else
+                {
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to get view model instance " << handle
+                        << " when getting instance name";
+                }
+                break;
+            }
+
             case CommandQueue::Command::pointerMove:
             {
                 StateMachineHandle handle;
