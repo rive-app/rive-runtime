@@ -510,18 +510,12 @@ INLINE void resolve_paint(uint pathID,
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
 
-// When PLS_BLEND_SRC_OVER is defined, the caller and/or blend state
-// multiply alpha into fragColorOut for us. Otherwise, we have to
-// premultiply it.
-#ifndef @PLS_BLEND_SRC_OVER
     fragColorOut.rgb *= fragColorOut.a;
-#endif
 }
 
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) &&                                  \
     !defined(@COALESCED_PLS_RESOLVE_AND_TRANSFER)
-INLINE void blend_pls_color_src_over(half4 fragColorOut,
-                                     half dither PLS_CONTEXT_DECL)
+INLINE void blend_pls_color_src_over(half4 fragColorOut PLS_CONTEXT_DECL)
 {
 #ifndef @PLS_BLEND_SRC_OVER
     if (fragColorOut.a == .0)
@@ -530,7 +524,6 @@ INLINE void blend_pls_color_src_over(half4 fragColorOut,
     if (oneMinusSrcAlpha != .0)
         fragColorOut += PLS_LOAD4F(colorBuffer) * oneMinusSrcAlpha;
 #endif
-    fragColorOut += dither;
     PLS_STORE4F(colorBuffer, fragColorOut);
 }
 #endif // !@FIXED_FUNCTION_COLOR_OUTPUT &&
@@ -649,16 +642,14 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                           FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
     }
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     fragColorOut.rgb = add_dither(fragColorOut.rgb,
                                   _fragCoord.xy,
                                   uniforms.ditherScale,
                                   uniforms.ditherBias);
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
-    half dither =
-        get_dither(_fragCoord.xy, uniforms.ditherScale, uniforms.ditherBias);
-    blend_pls_color_src_over(fragColorOut, dither PLS_CONTEXT_UNPACK);
+    blend_pls_color_src_over(fragColorOut PLS_CONTEXT_UNPACK);
 #endif
 #ifdef @ENABLE_CLIPPING
     emit_pls_clip(fragClipOut PLS_CONTEXT_UNPACK);
@@ -737,16 +728,14 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                           FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
     }
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     fragColorOut.rgb = add_dither(fragColorOut.rgb,
                                   _fragCoord.xy,
                                   uniforms.ditherScale,
                                   uniforms.ditherBias);
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
-    half dither =
-        get_dither(_fragCoord.xy, uniforms.ditherScale, uniforms.ditherBias);
-    blend_pls_color_src_over(fragColorOut, dither PLS_CONTEXT_UNPACK);
+    blend_pls_color_src_over(fragColorOut PLS_CONTEXT_UNPACK);
 #endif
 #ifdef @ENABLE_CLIPPING
     emit_pls_clip(fragClipOut PLS_CONTEXT_UNPACK);
@@ -810,12 +799,6 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif
                       FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
 
-#ifdef @PLS_BLEND_SRC_OVER
-    // Image draws use a premultiplied blend state, but resolve_paint() did not
-    // premultiply fragColorOut. Multiply fragColorOut by alpha now.
-    fragColorOut.rgb *= fragColorOut.a;
-#endif
-
 // Clip the image after resolving the previous path, since that can affect
 // the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to
@@ -852,16 +835,14 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     // blending pipeline.
     fragColorOut = fragColorOut * (1. - imageColor.a) + imageColor;
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     fragColorOut.rgb = add_dither(fragColorOut.rgb,
                                   _fragCoord.xy,
                                   uniforms.ditherScale,
                                   uniforms.ditherBias);
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
-    half dither =
-        get_dither(_fragCoord.xy, uniforms.ditherScale, uniforms.ditherBias);
-    blend_pls_color_src_over(fragColorOut, dither PLS_CONTEXT_UNPACK);
+    blend_pls_color_src_over(fragColorOut PLS_CONTEXT_UNPACK);
 #endif
 #ifdef @ENABLE_CLIPPING
     emit_pls_clip(fragClipOut PLS_CONTEXT_UNPACK);
@@ -926,12 +907,6 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     fragColorOut = gamma_to_linear(fragColorOut);
 #endif
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
-#ifdef @PLS_BLEND_SRC_OVER
-    // When PLS_BLEND_SRC_OVER is defined, the blend state usually multiplies
-    // alpha into fragColorOut for us. But since the coalesced resolve does not
-    // use blend, premultiply it now.
-    fragColorOut.rgb *= fragColorOut.a;
-#endif
     float oneMinusSrcAlpha = 1. - fragColorOut.a;
     if (oneMinusSrcAlpha != .0)
         fragColorOut += PLS_LOAD4F(colorBuffer) * oneMinusSrcAlpha;
@@ -939,16 +914,14 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     EMIT_PLS_AND_FRAG_COLOR
 #else
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     fragColorOut.rgb = add_dither(fragColorOut.rgb,
                                   _fragCoord.xy,
                                   uniforms.ditherScale,
                                   uniforms.ditherBias);
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
-    half dither =
-        get_dither(_fragCoord.xy, uniforms.ditherScale, uniforms.ditherBias);
-    blend_pls_color_src_over(fragColorOut, dither PLS_CONTEXT_UNPACK);
+    blend_pls_color_src_over(fragColorOut PLS_CONTEXT_UNPACK);
 #endif
 
     EMIT_ATOMIC_PLS

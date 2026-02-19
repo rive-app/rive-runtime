@@ -245,6 +245,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     {
         apply_fill_coverage(paintColor.a, fragCoverage, coverageIndex);
     }
+    paintColor.rgb *= paintColor.a;
 
     EMIT_FRAG_DATA(paintColor);
 }

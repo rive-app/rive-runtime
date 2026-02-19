@@ -300,7 +300,6 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         };
 
     gpu::BlendEquation blendEquation = pipelineState.blendEquation;
-    bool blendEquationPremultiplied = true;
     // The pipeline state gets generated under the assumption that pixel local
     // storage can still be written when colorWriteEnabled is false. So when
     // Vulkan implements PLS via color attachments, we need to override the
@@ -327,13 +326,6 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         // re-emitting the current value) when a PLS plane needs to remain
         // unchanged during a fragment invocation.
         blendEquation = gpu::BlendEquation::srcOver;
-        // Image draws use premultiplied src-over so they can blend the image
-        // with the previous paint together, out of order. (Premultiplied
-        // src-over is associative.)
-        //
-        // Otherwise we save 3 flops and let the ROP multiply alpha into the
-        // color when it does the blending.
-        blendEquationPremultiplied = gpu::DrawTypeIsImageDraw(props.drawType);
     }
 #ifndef NDEBUG
     else if (props.shaderMiscFlags &
@@ -358,12 +350,6 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         {
             // Forward coverage clockwise draws are all unmultiplied src-over.
             blendEquation = gpu::BlendEquation::srcOver;
-            // FIXME: clockwiseAtomic paths should be updated to use
-            // premultiplied alpha.
-            const bool isClockwiseAtomicPathDraw =
-                !gpu::DrawTypeIsImageDraw(props.drawType) &&
-                props.drawType != gpu::DrawType::atlasBlit;
-            blendEquationPremultiplied = !isClockwiseAtomicPathDraw;
         }
     }
 
@@ -374,9 +360,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                                             pipelineLayout.renderPassOptions()),
         {
             .blendEnable = blendEquation != gpu::BlendEquation::none,
-            .srcColorBlendFactor = blendEquationPremultiplied
-                                       ? VK_BLEND_FACTOR_ONE
-                                       : VK_BLEND_FACTOR_SRC_ALPHA,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
             .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .colorBlendOp = vk_blend_op(pipelineState.blendEquation),
             .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
