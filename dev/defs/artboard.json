@@ -5,7 +5,9 @@
     "string": "artboard"
   },
   "extends": "layout_component.json",
-  "mixin": "publishable.json",
+  "mixins": [
+    "publishable.json"
+  ],
   "properties": {
     "originX": {
       "type": "double",
@@ -120,6 +122,26 @@
       },
       "description": "If artboard should be exported",
       "runtime": false
+    },
+    "openAnimations": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 949,
+        "string": "openanimations"
+      },
+      "description": "List of timelines and state machines currenty open.",
+      "runtime": false,
+      "coop": false
+    },
+    "isStateful": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 951,
+        "string": "isstateful"
+      },
+      "description": "If true, the Artboard will have a Viewmodel instance created at runtime seperate from the VM tree."
     }
   }
 }

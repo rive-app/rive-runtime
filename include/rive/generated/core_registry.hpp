@@ -1783,6 +1783,9 @@ public:
             case LayoutComponentBase::clipPropertyKey:
                 object->as<LayoutComponentBase>()->clip(value);
                 break;
+            case ArtboardBase::isStatefulPropertyKey:
+                object->as<ArtboardBase>()->isStateful(value);
+                break;
             case DataBindPathBase::isRelativePropertyKey:
                 object->as<DataBindPathBase>()->isRelative(value);
                 break;
@@ -3176,6 +3179,8 @@ public:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
                 return object->as<LayoutComponentBase>()->clip();
+            case ArtboardBase::isStatefulPropertyKey:
+                return object->as<ArtboardBase>()->isStateful();
             case DataBindPathBase::isRelativePropertyKey:
                 return object->as<DataBindPathBase>()->isRelative();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
@@ -3951,6 +3956,7 @@ public:
             case ClippingShapeBase::isVisiblePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
+            case ArtboardBase::isStatefulPropertyKey:
             case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
@@ -4787,6 +4793,8 @@ public:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:
                 return object->is<LayoutComponentBase>();
+            case ArtboardBase::isStatefulPropertyKey:
+                return object->is<ArtboardBase>();
             case DataBindPathBase::isRelativePropertyKey:
                 return object->is<DataBindPathBase>();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:

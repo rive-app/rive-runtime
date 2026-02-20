@@ -796,11 +796,40 @@ void ArtboardComponentList::bindArtboard(
     {
         auto mainArtboard = this->artboard();
         auto dataContext = mainArtboard->dataContext();
+        rcp<ViewModelInstance> viewModelInstance = nullptr;
+
+        // Check if the source artboard is stateful - if so, create a new
+        // instance for it (takes priority over any existing list item
+        // instance).
+        if (m_file != nullptr)
+        {
+            auto source = artboardInstance->artboardSource();
+            if (source != nullptr && source->isStateful())
+            {
+                auto viewModel = m_file->viewModel(source->viewModelId());
+                if (viewModel != nullptr)
+                {
+                    viewModelInstance =
+                        m_file->createDefaultViewModelInstance(viewModel);
+                }
+                // Store the auto-created instance on the list item.
+                if (viewModelInstance != nullptr)
+                {
+                    listItem->viewModelInstance(viewModelInstance);
+                }
+            }
+        }
+
+        // Fall back to the list item's VM instance if not stateful.
+        if (viewModelInstance == nullptr)
+        {
+            viewModelInstance = listItem->viewModelInstance();
+        }
+
         // TODO: @hernan added this to make sure data binds are procesed in the
         // current frame instead of waiting for the next run. But might not be
         // necessary. Needs more testing.
-        artboardInstance->bindViewModelInstance(listItem->viewModelInstance(),
-                                                dataContext);
+        artboardInstance->bindViewModelInstance(viewModelInstance, dataContext);
         artboardInstance->updateDataBinds();
     }
 }
