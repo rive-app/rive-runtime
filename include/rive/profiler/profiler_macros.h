@@ -42,6 +42,7 @@
 #define RIVE_PROF_INIT()                                                       \
     MicroProfileSetEnableAllGroups(true);                                      \
     MicroProfileSetForceEnable(true);                                          \
+    MicroProfileWebServerStart();                                              \
     MicroProfileOnThreadCreate("MainThread");                                  \
     MicroProfileInit();
 
