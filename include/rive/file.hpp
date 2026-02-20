@@ -89,7 +89,7 @@ public:
 
 public:
     ~File();
-#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+#if defined(DEBUG)
     static size_t debugTotalFileCount;
 #endif
     ///

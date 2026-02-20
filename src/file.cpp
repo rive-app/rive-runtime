@@ -90,7 +90,7 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
-#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+#if defined(DEBUG)
 size_t File::debugTotalFileCount = 0;
 #endif
 
@@ -188,7 +188,7 @@ bool File::deterministicMode = false;
 File::File(Factory* factory, rcp<FileAssetLoader> assetLoader) :
     m_factory(factory), m_assetLoader(std::move(assetLoader))
 {
-#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+#if defined(DEBUG)
     debugTotalFileCount++;
 #endif
     assert(factory);
@@ -196,7 +196,7 @@ File::File(Factory* factory, rcp<FileAssetLoader> assetLoader) :
 
 File::~File()
 {
-#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+#if defined(DEBUG)
     debugTotalFileCount--;
 #endif
     for (auto artboard : m_artboards)
