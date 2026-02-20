@@ -847,7 +847,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case InterlockMode::clockwiseAtomic:
             // TODO: shader features aren't fully implemented yet in
             // clockwiseAtomic mode.
-            return ShaderFeatures::ENABLE_FEATHER |
+            return ShaderFeatures::ENABLE_CLIP_RECT |
+                   ShaderFeatures::ENABLE_FEATHER |
                    ShaderFeatures::ENABLE_DITHER;
         case InterlockMode::msaa:
             return ShaderFeatures::ENABLE_CLIP_RECT |

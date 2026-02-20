@@ -234,6 +234,14 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
 #endif // BORROWED_COVERAGE_PASS
 
+#ifdef @ENABLE_CLIP_RECT
+    if (@ENABLE_CLIP_RECT)
+    {
+        half clipRectMin = min_value(cast_float4_to_half4(v_clipRect));
+        fragCoverage = min(fragCoverage, clipRectMin);
+    }
+#endif
+
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))
     {
@@ -246,6 +254,16 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         apply_fill_coverage(paintColor.a, fragCoverage, coverageIndex);
     }
     paintColor.rgb *= paintColor.a;
+
+#ifdef @ENABLE_DITHER
+    if (@ENABLE_DITHER)
+    {
+        half dither = get_dither(_fragCoord.xy,
+                                 uniforms.ditherScale,
+                                 uniforms.ditherBias);
+        paintColor.rgb += dither;
+    }
+#endif
 
     EMIT_FRAG_DATA(paintColor);
 }

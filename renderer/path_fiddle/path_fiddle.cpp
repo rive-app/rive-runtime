@@ -555,6 +555,12 @@ int main(int argc, const char** argv)
             api = API::vulkan;
             clockwiseFill = true;
         }
+        else if (!strcmp(argv[i], "--vkcwa"))
+        {
+            api = API::vulkan;
+            clockwiseFill = true;
+            forceAtomicMode = true;
+        }
         else if (!strcmp(argv[i], "--vulkanatomic") ||
                  !strcmp(argv[i], "--vkatomic"))
         {

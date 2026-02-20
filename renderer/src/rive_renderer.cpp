@@ -187,13 +187,6 @@ void RiveRenderer::clipPath(RenderPath* renderPath)
     RIVE_PROF_SCOPE()
     LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
 
-    if (m_context->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
-    {
-        // Just discard clips in clockwiseAtomic mode for now.
-        // TODO: Implement clipping in clockwiseAtomic mode.
-        return;
-    }
-
     if (m_stack.back().clipIsEmpty)
     {
         return;
@@ -306,6 +299,13 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 
 void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 {
+    if (m_context->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // Just discard clip paths in clockwiseAtomic mode for now.
+        // TODO: Implement path clipping in clockwiseAtomic mode.
+        return;
+    }
+
     RIVE_PROF_SCOPE()
     if (path->getBounds().isEmptyOrNaN())
     {
