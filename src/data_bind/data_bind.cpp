@@ -406,7 +406,7 @@ bool DataBind::isNameBased()
 
 bool DataBind::advance(float elapsedTime)
 {
-    if (converter())
+    if (converter() && m_Source && !m_isCollapsed)
     {
         return converter()->advance(elapsedTime);
     }

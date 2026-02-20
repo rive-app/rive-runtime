@@ -460,11 +460,14 @@ StatusCode Artboard::initialize()
     DependencySorter sorter;
     std::vector<Component*> drawTargetOrder;
     sorter.sort(&root, drawTargetOrder);
-    auto itr = drawTargetOrder.begin();
-    itr++;
-    while (itr != drawTargetOrder.end())
+    if (drawTargetOrder.size() > 0)
     {
-        m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
+        auto itr = drawTargetOrder.begin();
+        itr++;
+        while (itr != drawTargetOrder.end())
+        {
+            m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
+        }
     }
     initScriptedObjects();
     return StatusCode::Ok;
