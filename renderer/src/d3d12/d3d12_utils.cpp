@@ -415,7 +415,7 @@ void D3D12VolatileBuffer::resizeBuffers(UINT newSize)
 {
     m_uploadBuffer = d3d()->makeUploadBuffer(newSize,
                                              D3D12_RESOURCE_FLAG_NONE,
-                                             D3D12_RESOURCE_STATE_COPY_SOURCE);
+                                             D3D12_RESOURCE_STATE_GENERIC_READ);
     m_gpuBuffer = d3d()->makeBuffer(newSize,
                                     m_bindFlags,
                                     D3D12_RESOURCE_STATE_COMMON,
