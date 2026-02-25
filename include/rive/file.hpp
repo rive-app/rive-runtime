@@ -164,8 +164,8 @@ public:
     /// @returns a view model instance of the viewModel by name and instance
     /// name.
     rcp<ViewModelInstance> createViewModelInstance(
-        std::string name,
-        std::string instanceName) const;
+        const std::string& name,
+        const std::string& instanceName) const;
 
     /// @returns a view model instance of the viewModel by their indexes.
     rcp<ViewModelInstance> createViewModelInstance(size_t index,

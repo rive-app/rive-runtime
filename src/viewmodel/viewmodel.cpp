@@ -102,3 +102,13 @@ rcp<ViewModelInstance> ViewModel::createInstance()
     }
     return nullptr;
 }
+
+rcp<ViewModelInstance> ViewModel::createFromInstance(
+    const std::string& instanceName)
+{
+    if (m_file)
+    {
+        return m_file->createViewModelInstance(this->name(), instanceName);
+    }
+    return nullptr;
+}

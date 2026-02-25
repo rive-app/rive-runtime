@@ -26,6 +26,7 @@ public:
     ViewModelInstance* instance(size_t index);
     ViewModelInstance* instance(const std::string& name);
     rcp<ViewModelInstance> createInstance();
+    rcp<ViewModelInstance> createFromInstance(const std::string& instanceName);
     void file(File* value) { m_file = value; };
 #ifdef WITH_RIVE_TOOLS
     File* file() { return m_file; };

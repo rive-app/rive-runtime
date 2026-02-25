@@ -886,8 +886,8 @@ rcp<ViewModelInstance> File::createViewModelInstance(std::string name) const
 }
 
 rcp<ViewModelInstance> File::createViewModelInstance(
-    std::string name,
-    std::string instanceName) const
+    const std::string& name,
+    const std::string& instanceName) const
 {
     for (auto& viewModel : m_ViewModels)
     {

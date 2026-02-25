@@ -14,8 +14,49 @@ static int viewmodel_new(lua_State* L)
     ViewModel* viewModel = (ViewModel*)lua_touserdata(L, lua_upvalueindex(1));
     if (viewModel)
     {
-        auto instance = viewModel->createInstance();
-        lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
+        int nargs = lua_gettop(L);
+        if (nargs == 1)
+        {
+            // If the argument is nil, treat it as "no template instance"
+            if (lua_isnil(L, -1))
+            {
+                auto instance = viewModel->createInstance();
+                lua_newrive<ScriptedViewModel>(L,
+                                               L,
+                                               ref_rcp(viewModel),
+                                               instance);
+            }
+            // If the argument is a string, use it as the template instance name
+            else if (lua_isstring(L, -1))
+            {
+                const char* instanceName = lua_tostring(L, -1);
+                auto instance = viewModel->createFromInstance(instanceName);
+                if (instance)
+                {
+                    lua_newrive<ScriptedViewModel>(L,
+                                                   L,
+                                                   ref_rcp(viewModel),
+                                                   instance);
+                }
+                else
+                {
+                    auto instance = viewModel->createInstance();
+                    lua_newrive<ScriptedViewModel>(L,
+                                                   L,
+                                                   ref_rcp(viewModel),
+                                                   instance);
+                }
+            }
+            else
+            {
+                lua_pushnil(L);
+            }
+        }
+        else
+        {
+            auto instance = viewModel->createInstance();
+            lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
+        }
         return 1;
     }
     lua_pushnil(L);
