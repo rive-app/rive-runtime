@@ -382,7 +382,7 @@ private:
     // size would not change.
     void setResourceSizes(ResourceAllocationCounts, bool forceRealloc = false);
 
-    void mapResourceBuffers(const ResourceAllocationCounts&);
+    [[nodiscard]] bool mapResourceBuffers(const ResourceAllocationCounts&);
     void unmapResourceBuffers(const ResourceAllocationCounts&);
 
     // Returns the next coverage buffer prefix to use in a logical flush.

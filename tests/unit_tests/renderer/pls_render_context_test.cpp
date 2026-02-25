@@ -10,11 +10,68 @@
 //  we can just disable it for the whole file.
 DISABLE_CLANG_SIMD_ABI_WARNING()
 
-class RenderContextNULLTest : public RenderContextNULL
+class RenderContextNULLTestImpl : public RenderContextNULL
 {
 public:
     double m_secondsOverride = 7; // Arbitrary baseline of 7 seconds.
     double secondsNow() const override { return m_secondsOverride; }
+};
+
+class RenderContextNULLTestImplForMapFail : public RenderContextNULL
+{
+    using Super = RenderContextNULL;
+
+public:
+    static constexpr auto MAP_COUNT = 9u;
+
+    RenderContextNULLTestImplForMapFail(uint32_t failingMapIndex) :
+        Super(), m_failingMapIndex(failingMapIndex)
+    {}
+
+    size_t totalMapCount() const { return m_totalMapCount; }
+
+#define MAKE_MAP_UNMAP(index, Name)                                            \
+    void* map##Name(size_t mapSizeInBytes) override                            \
+    {                                                                          \
+        static_assert(index < MAP_COUNT);                                      \
+        assert(m_mapCounts[index] == 0u);                                      \
+        if (index == m_failingMapIndex)                                        \
+        {                                                                      \
+            return nullptr;                                                    \
+        }                                                                      \
+                                                                               \
+        m_mapCounts[index] = mapSizeInBytes;                                   \
+        m_totalMapCount += mapSizeInBytes;                                     \
+        return Super::map##Name(mapSizeInBytes);                               \
+    }                                                                          \
+                                                                               \
+    void unmap##Name(size_t mapSizeInBytes) override                           \
+    {                                                                          \
+        if (m_mapCounts[index] != 0u)                                          \
+        {                                                                      \
+            assert(m_mapCounts[index] == mapSizeInBytes);                      \
+            Super::unmap##Name(mapSizeInBytes);                                \
+            m_mapCounts[index] = 0u;                                           \
+            m_totalMapCount -= mapSizeInBytes;                                 \
+        }                                                                      \
+    }
+
+    MAKE_MAP_UNMAP(0, FlushUniformBuffer)
+    MAKE_MAP_UNMAP(1, ImageDrawUniformBuffer)
+    MAKE_MAP_UNMAP(2, PathBuffer)
+    MAKE_MAP_UNMAP(3, PaintBuffer)
+    MAKE_MAP_UNMAP(4, PaintAuxBuffer)
+    MAKE_MAP_UNMAP(5, ContourBuffer)
+    MAKE_MAP_UNMAP(6, GradSpanBuffer)
+    MAKE_MAP_UNMAP(7, TessVertexSpanBuffer)
+    MAKE_MAP_UNMAP(8, TriangleVertexBuffer)
+
+#undef MAKE_MAP_UNMAP
+
+private:
+    size_t m_mapCounts[MAP_COUNT]{};
+    uint32_t m_failingMapIndex = 0;
+    size_t m_totalMapCount = 0;
 };
 
 class RenderContextTest : public rive::gpu::RenderContext
@@ -22,11 +79,11 @@ class RenderContextTest : public rive::gpu::RenderContext
 public:
     using RenderContext::ResourceAllocationCounts;
     RenderContextTest() :
-        RenderContext(std::make_unique<RenderContextNULLTest>())
+        RenderContext(std::make_unique<RenderContextNULLTestImpl>())
     {}
-    RenderContextNULLTest* testingImpl()
+    RenderContextNULLTestImpl* testingImpl()
     {
-        return static_impl_cast<RenderContextNULLTest>();
+        return static_impl_cast<RenderContextNULLTestImpl>();
     }
 
     ResourceAllocationCounts currentResourceAllocations() const
@@ -36,6 +93,19 @@ public:
     double lastResourceTrimTimeInSeconds() const
     {
         return m_lastResourceTrimTimeInSeconds;
+    }
+};
+
+class RenderContextTestForMapFail : public rive::gpu::RenderContext
+{
+public:
+    RenderContextTestForMapFail(uint32_t failingMapIndex) :
+        RenderContext(std::make_unique<RenderContextNULLTestImplForMapFail>(
+            failingMapIndex))
+    {}
+    RenderContextNULLTestImplForMapFail* testingImpl()
+    {
+        return static_impl_cast<RenderContextNULLTestImplForMapFail>();
     }
 };
 
@@ -416,5 +486,38 @@ TEST_CASE("PLSResourceAllocation", "RenderContext")
     CHECK(ctx.currentResourceAllocations().plsTransientBackingPlaneCount == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingWidth == 0);
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
+}
+
+TEST_CASE("MapFailureUnwind", "RenderContext")
+{
+    for (auto failIndex = 0u;
+         failIndex < RenderContextNULLTestImplForMapFail::MAP_COUNT;
+         failIndex++)
+    {
+        RenderContextTestForMapFail ctx{failIndex};
+        rive::RiveRenderer renderer(&ctx);
+
+        auto twoContourPath = ctx.makeEmptyRenderPath();
+        twoContourPath->addRect(0, 0, 100, 100);
+        twoContourPath->addRect(20, 20, 80, 80);
+
+        auto paint = ctx.makeRenderPaint();
+
+        auto makeSimpleFrameDescriptor = []() {
+            RenderContext::FrameDescriptor desc = {
+                .renderTargetWidth = 200,
+                .renderTargetHeight = 200,
+            };
+            return desc;
+        };
+
+        auto renderTarget = ctx.testingImpl()->makeRenderTarget(200, 200);
+
+        ctx.beginFrame(makeSimpleFrameDescriptor());
+        renderer.drawPath(twoContourPath.get(), paint.get());
+        ctx.flush({.renderTarget = renderTarget.get()});
+
+        CHECK(ctx.testingImpl()->totalMapCount() == 0);
+    }
 }
 } // namespace rive::gpu
