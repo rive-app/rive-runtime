@@ -99,8 +99,10 @@ public:
     }
     void shouldResetInstances(bool value) { m_shouldResetInstances = value; }
     void setVirtualizablePosition(int index, Vec2D position) override;
-    void createArtboardAt(int index);
-    void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard, int index);
+    void createArtboardAt(int index, bool forceLayoutSync = true);
+    void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard,
+                       int index,
+                       bool forceLayoutSync = true);
     void removeArtboardAt(int index);
     void removeArtboard(rcp<ViewModelInstanceListItem> item);
     bool virtualizationEnabled() override;
@@ -153,6 +155,10 @@ private:
         m_propertyRecordersMap;
     std::unordered_map<ArtboardInstance*, Mat2D> m_artboardTransforms;
     Vec2D artboardPosition(ArtboardInstance* artboard);
+
+    // Vectors used for access in non-virtualized mode
+    std::vector<ArtboardInstance*> m_artboardInstancesByIndex;
+    std::vector<StateMachineInstance*> m_stateMachinesByIndex;
 
     File* m_file = nullptr;
     std::vector<Vec2D> m_artboardSizes;

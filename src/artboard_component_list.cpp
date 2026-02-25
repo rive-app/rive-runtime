@@ -27,6 +27,8 @@ void ArtboardComponentList::clear()
     }
     m_artboardInstancesMap.clear();
     m_stateMachinesMap.clear();
+    m_artboardInstancesByIndex.clear();
+    m_stateMachinesByIndex.clear();
     m_listItems.clear();
     m_artboardsMap.clear();
     m_resourcePool.clear();
@@ -44,26 +46,42 @@ rcp<ViewModelInstanceListItem> ArtboardComponentList::listItem(int index)
 }
 ArtboardInstance* ArtboardComponentList::artboardInstance(int index)
 {
-    if (index < m_listItems.size())
+    if (!virtualizationEnabled())
+    {
+        if (index >= 0 && index < m_artboardInstancesByIndex.size())
+        {
+            return m_artboardInstancesByIndex[index];
+        }
+        return nullptr;
+    }
+    if (index >= 0 && index < m_listItems.size())
     {
         auto item = listItem(index);
         auto itr = m_artboardInstancesMap.find(item);
         if (itr != m_artboardInstancesMap.end())
         {
-            return m_artboardInstancesMap[item].get();
+            return itr->second.get();
         }
     }
     return nullptr;
 }
 StateMachineInstance* ArtboardComponentList::stateMachineInstance(int index)
 {
-    if (index < m_listItems.size())
+    if (!virtualizationEnabled())
+    {
+        if (index >= 0 && index < m_stateMachinesByIndex.size())
+        {
+            return m_stateMachinesByIndex[index];
+        }
+        return nullptr;
+    }
+    if (index >= 0 && index < m_listItems.size())
     {
         auto item = listItem(index);
         auto itr = m_stateMachinesMap.find(item);
         if (itr != m_stateMachinesMap.end())
         {
-            return m_stateMachinesMap[item].get();
+            return itr->second.get();
         }
     }
     return nullptr;
@@ -256,6 +274,15 @@ void ArtboardComponentList::updateList(
     m_listItems.assign(list->begin(), list->end());
     m_artboardSizes.clear();
 
+    // Clear the index vectors - they'll be rebuilt as artboards are created
+    m_artboardInstancesByIndex.clear();
+    m_stateMachinesByIndex.clear();
+    if (!virtualizationEnabled())
+    {
+        m_artboardInstancesByIndex.resize(m_listItems.size(), nullptr);
+        m_stateMachinesByIndex.resize(m_listItems.size(), nullptr);
+    }
+
     auto p = layoutParent();
     if (p != nullptr)
     {
@@ -295,9 +322,22 @@ void ArtboardComponentList::updateList(
                 Vec2D(artboard->width(), artboard->height()));
         }
         auto itr = m_artboardInstancesMap.find(item);
-        if (!virtualizationEnabled() && itr == m_artboardInstancesMap.end())
+        if (!virtualizationEnabled())
         {
-            createArtboardAt(index);
+            if (itr == m_artboardInstancesMap.end())
+            {
+                createArtboardAt(index, false);
+            }
+            else
+            {
+                // Existing artboard - update index vectors
+                m_artboardInstancesByIndex[index] = itr->second.get();
+                auto smItr = m_stateMachinesMap.find(item);
+                if (smItr != m_stateMachinesMap.end())
+                {
+                    m_stateMachinesByIndex[index] = smItr->second.get();
+                }
+            }
         }
         index++;
     }
@@ -395,7 +435,7 @@ void ArtboardComponentList::reset()
         auto itr = m_artboardInstancesMap.find(item);
         if (itr != m_artboardInstancesMap.end())
         {
-            m_artboardInstancesMap[item]->reset();
+            itr->second->reset();
         }
     }
 }
@@ -734,7 +774,7 @@ Core* ArtboardComponentList::clone() const
     return clone;
 }
 
-void ArtboardComponentList::createArtboardAt(int index)
+void ArtboardComponentList::createArtboardAt(int index, bool forceLayoutSync)
 {
     auto item = listItem(index);
     if (item != nullptr)
@@ -743,14 +783,15 @@ void ArtboardComponentList::createArtboardAt(int index)
         if (artboardCopy != nullptr)
         {
             attachArtboardOverride(artboardCopy.get(), item);
-            addArtboardAt(std::move(artboardCopy), index);
+            addArtboardAt(std::move(artboardCopy), index, forceLayoutSync);
         }
     }
 }
 
 void ArtboardComponentList::addArtboardAt(
     std::unique_ptr<ArtboardInstance> artboard,
-    int index)
+    int index,
+    bool forceLayoutSync)
 {
     auto item = listItem(index);
     if (item != nullptr)
@@ -764,7 +805,12 @@ void ArtboardComponentList::addArtboardAt(
             artboardInstance->frameOrigin(false);
             artboardInstance->parentIsRow(mainAxisIsRow());
         }
-        syncLayoutChildren();
+        if (forceLayoutSync)
+        {
+            syncLayoutChildren();
+        }
+
+        StateMachineInstance* stateMachineInstance = nullptr;
         auto artboard = findArtboard(item);
         if (artboard != nullptr)
         {
@@ -778,13 +824,28 @@ void ArtboardComponentList::addArtboardAt(
                 applyRecorders(sm, artboard);
                 m_stateMachinesMap[item] = std::move(smPool.back());
                 linkStateMachineToArtboard(sm, artboardInstance);
+                stateMachineInstance = sm;
                 smPool.pop_back();
-                return;
             }
         }
-        auto stateMachineCopy =
-            createStateMachineInstance(this, artboardInstance);
-        m_stateMachinesMap[item] = std::move(stateMachineCopy);
+        if (stateMachineInstance == nullptr)
+        {
+            auto stateMachineCopy =
+                createStateMachineInstance(this, artboardInstance);
+            stateMachineInstance = stateMachineCopy.get();
+            m_stateMachinesMap[item] = std::move(stateMachineCopy);
+        }
+
+        if (!virtualizationEnabled())
+        {
+            if (index >= m_artboardInstancesByIndex.size())
+            {
+                m_artboardInstancesByIndex.resize(index + 1, nullptr);
+                m_stateMachinesByIndex.resize(index + 1, nullptr);
+            }
+            m_artboardInstancesByIndex[index] = artboardInstance;
+            m_stateMachinesByIndex[index] = stateMachineInstance;
+        }
     }
 }
 
@@ -836,6 +897,12 @@ void ArtboardComponentList::bindArtboard(
 
 void ArtboardComponentList::removeArtboardAt(int index)
 {
+    if (!virtualizationEnabled() && index >= 0 &&
+        index < m_artboardInstancesByIndex.size())
+    {
+        m_artboardInstancesByIndex[index] = nullptr;
+        m_stateMachinesByIndex[index] = nullptr;
+    }
     auto item = listItem(index);
     removeArtboard(item);
 }
