@@ -1,0 +1,33 @@
+#pack(scalar) // texture formats are tightly packed
+
+enum EnumJoinType : uint 
+{
+  None = 0,
+  Feather = 1,
+  Round = 2,
+  Bevel = 3,
+  MiterRevert = 4,
+  MiterClip = 5,
+};
+
+struct row
+{
+   float2 XY;
+   float Angle;
+
+   uint ContourID:16;
+   uint :3;
+   uint RightJoin:1;
+   uint LeftJoin:1;
+   uint JoinTangentInner:1;
+   uint JoinTangent0:1;
+   uint MirrorContour:1;
+   uint NegatePathFill:1;
+   uint EmulateStrokeCap:1;
+   EnumJoinType JoinType:3;
+   uint CullExcessTessSegments:1;
+   uint :1; //NEVER_USED_CONTOUR_FLAG
+   uint RetroFitTriangle:1;
+};
+
+row r[];
