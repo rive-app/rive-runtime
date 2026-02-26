@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+
+    <Type Name="rive::simd::gvec&lt;*,*,*&gt;">
+        <DisplayString>{"$T1",sb}{$T2} {($T1*)data,$T2na}</DisplayString>
+        <Expand>
+            <Item Name="x" Condition="$T2 &gt;= 2 &amp;&amp; $T2 &lt;= 4 &amp;&amp; $T3 == 0">data[0]</Item>
+            <Item Name="y" Condition="$T2 &gt;= 2 &amp;&amp; $T2 &lt;= 4 &amp;&amp; $T3 == 0">data[1]</Item>
+            <Item Name="z" Condition="$T2 &gt;= 3 &amp;&amp; $T2 &lt;= 4 &amp;&amp; $T3 == 0">data[2]</Item>
+            <Item Name="w" Condition="$T2 == 4 &amp;&amp; $T3 == 0">data[0]</Item>
+            <ArrayItems Condition="$T2 &lt; 2 || $T2 &gt; 4 || $T3 != 0">
+                <Size>$T2</Size>
+                <ValuePointer>data</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+
+
+    <Type Name="rive::gpu::IntersectionTile">
+        <DisplayString Condition="m_rectangleCount == 1">
+            Tile at {m_topLeft.data[0]},{m_topLeft.data[1]}: {m_rectangleCount} rectangle
+        </DisplayString>
+        <DisplayString>Tile at {m_topLeft.data[0]},{m_topLeft.data[1]}: {m_rectangleCount} rectangles</DisplayString>
+        <Expand>
+            <Synthetic Name="Top Left">
+                <DisplayString>{m_topLeft.data[0]},{m_topLeft.data[1]}</DisplayString>
+            </Synthetic>
+            <Item Name="Max Group Index">m_maxGroupIndex</Item>
+            <Item Name="Max Overlappability">m_overlapBitsForMaxGroup,x</Item>
+            <Item Name="Baseline Group Index">m_baselineGroupIndex</Item>
+            <Item Name="Baseline Overlappability">m_baselineOverlapBits,x</Item>
+
+            <!--
+                Wanted to make this expand into nice items where the elements
+                were all independently expandable, but natvis does not allow
+                putting <Synthetic>s inside of a CustomListItems. So, instead,
+                all of the info gets to be jammed into the Item name.
+            -->
+            <Synthetic Name="Rectangles">
+                <DisplayString>Count: {m_rectangleCount}</DisplayString>
+                <Expand>
+                    <CustomListItems Condition="m_rectangleCount != 0">
+                        <Variable Name="i" InitialValue="0" />
+                        <Variable Name="edgePtr" InitialValue="&amp;m_edges[0].data[0]" />
+                        <Variable Name="giPtr" InitialValue="&amp;m_groupIndices[0].data[0]" />
+                        <Variable Name="ovPtr" InitialValue="&amp;m_overlapBits[0].data[0]" />
+                        <Size>m_rectangleCount</Size>
+                        <Loop>
+                            <Item Name="[{(int)*edgePtr}, {(int)*(edgePtr + 8)}, {(int)*(edgePtr + 16)}, {(int)*(edgePtr + 24)}], Group Idx: {*giPtr}">
+                                *ovPtr,x
+                            </Item>
+                            <Exec>i++</Exec>
+                            <Exec>edgePtr = &amp;m_edges[i / 8].data[i % 8]</Exec>
+                            <Exec>++giPtr</Exec>
+                            <Exec>++ovPtr</Exec>
+                        </Loop>
+                    </CustomListItems>
+                </Expand>
+            </Synthetic>
+        </Expand>
+    </Type>
+
+
+</AutoVisualizer>

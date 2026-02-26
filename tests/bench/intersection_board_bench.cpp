@@ -13,7 +13,7 @@
 using namespace rive;
 using namespace rive::gpu;
 
-class IntersectionTileBench : public Bench
+template <GroupingType Type> class IntersectionTileBenchBase : public Bench
 {
 public:
     void setup() override
@@ -36,10 +36,10 @@ private:
             ltrb.zw = simd::max(box.xy, box.zw);
             ltrb = simd::min(ltrb, int4(254));
             ltrb.zw += 1;
-            uint16_t idx = simd::reduce_max(
-                               m_tile.findMaxIntersectingGroupIndex(ltrb, 0)) +
-                           1;
-            m_tile.addRectangle(ltrb, idx);
+
+            auto r = m_tile.findMaxIntersectingGroupIndex<Type>(ltrb, {});
+            uint16_t idx = simd::reduce_max(r.maxGroupIndices) + 1;
+            m_tile.addRectangle<Type>(ltrb, idx, 0);
         }
         return idx;
     }
@@ -51,7 +51,16 @@ private:
 #endif
 };
 
+class IntersectionTileBench
+    : public IntersectionTileBenchBase<GroupingType::disjoint>
+{};
 REGISTER_BENCH(IntersectionTileBench);
+
+class IntersectionTileBenchWithOverlap
+    : public IntersectionTileBenchBase<GroupingType::overlapAllowed>
+{};
+
+REGISTER_BENCH(IntersectionTileBenchWithOverlap);
 
 class IntersectionBoardBench : public Bench
 {
@@ -63,7 +72,8 @@ public:
         m_width(width),
         m_height(height),
         m_bboxes(bboxes),
-        m_bboxCount(bboxCount)
+        m_bboxCount(bboxCount),
+        m_board{GroupingType::disjoint}
     {}
 
     void setup() override

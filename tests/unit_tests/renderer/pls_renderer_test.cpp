@@ -16,7 +16,7 @@ static RenderContext::FrameDescriptor s_frameDescriptor = {
 };
 
 // Ensures that clip contents get reused when we pop and push the same path(s).
-TEST_CASE("clip-stack", "RiveRenderer")
+TEST_CASE("clip-stack", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -226,7 +226,7 @@ static RawPath& make_oval(const AABB& bounds)
 
 // Ensures that a flush only invalidates the current clip once, and that we can
 // start reusing it again after.
-TEST_CASE("clip-flush-clip-clip", "RiveRenderer")
+TEST_CASE("clip-flush-clip-clip", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -295,7 +295,7 @@ static RawPath& make_cusp(const IAABB& rect)
 }
 
 // Check that clip readBounds and contentBounds get tracked properly.
-TEST_CASE("clip-content-read-bounds", "RiveRenderer")
+TEST_CASE("clip-content-read-bounds", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -508,7 +508,7 @@ static RawPath& make_rect(const AABB& rect)
 
 // Ensures that rectangular clips are handled as "clipRects" where possible,
 // instead of going to the clip buffer.
-TEST_CASE("clip-rects", "RiveRenderer")
+TEST_CASE("clip-rects", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -694,7 +694,7 @@ TEST_CASE("clip-rects", "RiveRenderer")
 
 // This test passes by not triggering assertions within RiveRenderer and
 // RenderContext due to drawing empty paths.
-TEST_CASE("empty-paths", "RiveRenderer")
+TEST_CASE("empty-paths", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -744,7 +744,7 @@ TEST_CASE("empty-paths", "RiveRenderer")
 
 // This test passes by not triggering assertions within RiveRenderer and
 // RenderContext due to drawing empty paths composed of nothing but moves.
-TEST_CASE("empty-paths2", "RiveRenderer")
+TEST_CASE("empty-paths2", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -779,7 +779,7 @@ TEST_CASE("empty-paths2", "RiveRenderer")
     renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
-TEST_CASE("IsAABB", "RiveRenderer")
+TEST_CASE("IsAABB", "[RiveRenderer]")
 {
     AABB rect;
     for (bool doClose : {true, false})
@@ -888,7 +888,7 @@ TEST_CASE("IsAABB", "RiveRenderer")
 }
 
 // Check that paths with NaN vertices don't crash.
-TEST_CASE("nan-render-path", "RiveRenderer")
+TEST_CASE("nan-render-path", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -960,7 +960,7 @@ TEST_CASE("nan-render-path", "RiveRenderer")
 }
 
 // Check that edge cases in stroke thickness don't crash or assert.
-TEST_CASE("stroke-thickness", "RiveRenderer")
+TEST_CASE("stroke-thickness", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -1001,7 +1001,7 @@ TEST_CASE("stroke-thickness", "RiveRenderer")
 }
 
 // When AABB::height() evaluates inf - inf, the result is nan.
-TEST_CASE("nan-testcase", "RiveRenderer")
+TEST_CASE("nan-testcase", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> nullContext =
         RenderContextNULL::MakeContext();
@@ -1033,7 +1033,7 @@ TEST_CASE("nan-testcase", "RiveRenderer")
 }
 
 // This path was found by the fuzzer and triggered an assertion.
-TEST_CASE("nan-testcase2", "RiveRenderer")
+TEST_CASE("nan-testcase2", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> nullContext =
         RenderContextNULL::MakeContext();
@@ -1067,7 +1067,7 @@ TEST_CASE("nan-testcase2", "RiveRenderer")
 }
 
 // Attempting to create a gradient with invalid stops returns null.
-TEST_CASE("invalid-gradient-stops", "RiveRenderer")
+TEST_CASE("invalid-gradient-stops", "[RiveRenderer]")
 {
     std::vector<ColorInt> colors(100);
     std::unique_ptr<RenderContext> nullContext =
@@ -1130,7 +1130,7 @@ TEST_CASE("invalid-gradient-stops", "RiveRenderer")
 
 // Drawing round caps with tiny, negative, and non-finite stroke thickness
 // values should not crash.
-TEST_CASE("round-cap-edge-values", "RiveRenderer")
+TEST_CASE("round-cap-edge-values", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -1178,7 +1178,7 @@ TEST_CASE("round-cap-edge-values", "RiveRenderer")
 // Infinite draw bounds cast to {min32i, min32i, max32i, max32i}.
 // Make sure these bounds don't overflow and cause assertions when working with
 // the intersection board.
-TEST_CASE("infinite-atomic-path", "RiveRenderer")
+TEST_CASE("infinite-atomic-path", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -1207,7 +1207,7 @@ TEST_CASE("infinite-atomic-path", "RiveRenderer")
 #define wrapx(a) rive::ImageSampler::GetWrapXOptionFromKey(a)
 #define wrapy(a) rive::ImageSampler::GetWrapYOptionFromKey(a)
 
-TEST_CASE("image-sample-option-conversions", "RiveRenderer")
+TEST_CASE("image-sample-option-conversions", "[RiveRenderer]")
 {
     rive::ImageSampler defaultOptions = rive::ImageSampler::LinearClamp();
     rive::ImageSampler repeatNearestOptions = {rive::ImageWrap::repeat,
@@ -1268,7 +1268,7 @@ TEST_CASE("image-sample-option-conversions", "RiveRenderer")
 
 // Ensure the renderer gracefully handles a null texture within a
 // RiveRenderImage.
-TEST_CASE("null-render-texture", "RiveRenderer")
+TEST_CASE("null-render-texture", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();

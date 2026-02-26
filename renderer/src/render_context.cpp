@@ -1448,10 +1448,58 @@ void RenderContext::LogicalFlush::writeResources()
         indirectDrawList.clear();
         indirectDrawList.reserve(m_drawPassCount);
 
+        // TODO: For clockwiseAtomic, these next values aren't constant (they're
+        // constants now just to have stand-in values representing the default
+        // case). Instead:
+        //  - There would be (at least) three relevant "overlap bits":
+        //    - color buffer write
+        //    - clip buffer read
+        //    - clip buffer write
+        //  - groupingType should be GroupingType::overlapAllowed (unless there
+        //    is some reason the current draw could *never* overlap anything
+        //    else)
+        //  - Any draws that write to the color buffer (which may include draws
+        //    that also use the *clip* buffer) would set the "color buffer
+        //    write" bit in its overlap bits
+        //  - Draws that are using advanced blending would set the "color buffer
+        //    write" bit in its disallow mask, so that they are not allowed to
+        //    overlap things that write to the color buffer (there is nothing
+        //    extra for advanced blending that goes into the overlap bits -
+        //    advanced blending has no bearing on whether or not things can
+        //    overlap on top of it!)
+        //  - Any draws that read from the clip buffer:
+        //    - set the "clip buffer read" bit in `overlapBits` - this gets
+        //      stored with the rectangle and signifies that the rectangle is
+        //      involved in a clip buffer read
+        //    - sets the "clip buffer write" bit in `disallowOverlapMask` - this
+        //      tells the intersection board that if this draw overlaps a clip
+        //      buffer write, it needs to go in the next draw group (there needs
+        //      to be a barrier)
+        //  - Any draws that write to the clip buffer:
+        //    - set the "clip buffer write" bit in `overlapBits`
+        //    - sets *both* the "clip buffer read/write" bits in
+        //      `disallowOverlapMask` - this means that these draws would need a
+        //      barrier between any previous overlapping clip buffer reads or
+        //      writes.
+        //  - Similarly, the ordering of the bits in the sort key would likely
+        //    want to change for this mode to ensure that the sorting preserves
+        //    proper ordering within a given draw group, since now there are
+        //    overlaps and thus draw ordering can matter.
+        //    (it also might be worth double checking that there aren't other
+        //    modes where a different sort ordering could be more efficient, to
+        //    perhaps better group like things together that don't cause
+        //    barriers)
+        constexpr static uint16_t kOverlapBits = 0;
+        constexpr static uint16_t kDisallowOverlapMask = 0;
+        constexpr static GroupingType kGroupingType = GroupingType::disjoint;
+
         if (m_ctx->m_intersectionBoard == nullptr)
         {
-            m_ctx->m_intersectionBoard = std::make_unique<IntersectionBoard>();
+            m_ctx->m_intersectionBoard =
+                std::make_unique<IntersectionBoard>(kGroupingType);
         }
+
+        assert(m_ctx->m_intersectionBoard->groupingType() == kGroupingType);
         IntersectionBoard* intersectionBoard = m_ctx->m_intersectionBoard.get();
         intersectionBoard->resizeAndReset(m_flushDesc.renderTarget->width(),
                                           m_flushDesc.renderTarget->height());
@@ -1496,7 +1544,10 @@ void RenderContext::LogicalFlush::writeResources()
             int maxPasses =
                 std::max(draw->prepassCount(), draw->subpassCount());
             int16_t drawGroupIdx =
-                intersectionBoard->addRectangle(drawBounds, maxPasses);
+                intersectionBoard->addRectangle(drawBounds,
+                                                kOverlapBits,
+                                                kDisallowOverlapMask,
+                                                maxPasses);
             assert(drawGroupIdx > 0);
             int64_t key = static_cast<int64_t>(drawGroupIdx) << kDrawGroupShift;
 

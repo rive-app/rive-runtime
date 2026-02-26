@@ -113,7 +113,7 @@ using ResourceAllocationCounts = RenderContextTest::ResourceAllocationCounts;
 
 namespace rive::gpu
 {
-TEST_CASE("ResourceAllocationCounts", "RenderContext")
+TEST_CASE("ResourceAllocationCounts", "[RenderContext]")
 {
     ResourceAllocationCounts allocs;
     allocs.pathBufferCount = 1;
@@ -179,7 +179,7 @@ constexpr static double RESOURCE_EXPIRATION_TIME = 5.0001;
 // (ResourceAllocationCounts proves that the SIMD handling of resources works,
 // so here we only check path and contour counts, and assume the rest will
 // follow suite.)
-TEST_CASE("ResourceTriming", "RenderContext")
+TEST_CASE("ResourceTriming", "[RenderContext]")
 {
     RenderContextTest ctx;
     rive::RiveRenderer renderer(&ctx);
@@ -284,7 +284,7 @@ TEST_CASE("ResourceTriming", "RenderContext")
     CHECK(simd::all(ctx.currentResourceAllocations().toVec() == 0));
 }
 
-TEST_CASE("PLSResourceAllocation", "RenderContext")
+TEST_CASE("PLSResourceAllocation", "[RenderContext]")
 {
     RenderContextTest ctx;
     rive::RiveRenderer renderer(&ctx);

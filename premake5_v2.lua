@@ -87,6 +87,14 @@ do
 
     files({ 'src/**.cpp', 'include/**.h', 'include/**.hpp' })
 
+    filter({'toolset:msc' })
+    do
+        -- add a debug visualizer for various runtime types for MSVC debugging.
+        -- (the visualization only works with MSVC-compiled projects, Clang-
+        -- built projects don't work)
+        files({ 'runtime.natvis' })
+    end
+
     filter('options:not for_unreal')
     do
         cppdialect('C++11')
