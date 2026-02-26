@@ -1227,6 +1227,7 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.tessDataHeight = tessDataHeight;
     m_flushDesc.clockwiseFillOverride = frameDescriptor.clockwiseFillOverride;
     m_flushDesc.wireframe = frameDescriptor.wireframe;
+    m_flushDesc.ditherMode = m_ctx->frameDescriptor().ditherMode;
 #ifdef WITH_RIVE_TOOLS
     m_flushDesc.synthesizedFailureType = frameDescriptor.synthesizedFailureType;
 #endif
@@ -1652,6 +1653,10 @@ void RenderContext::LogicalFlush::writeResources()
                 // Insert a barrier every time the drawGroupIdx changes.
                 needsBarrierMask = kDrawGroupMask;
                 neededBarriers = BarrierFlags::plsAtomic;
+                // We need a plsAtomic barrier after the initial clears, loads,
+                // etc.
+                assert(m_pendingBarriers == BarrierFlags::none);
+                m_pendingBarriers = BarrierFlags::plsAtomic;
                 break;
 
             case gpu::InterlockMode::clockwiseAtomic:
@@ -1661,6 +1666,13 @@ void RenderContext::LogicalFlush::writeResources()
                 // changes.
                 needsBarrierMask = 1ll << 63;
                 neededBarriers = BarrierFlags::clockwiseBorrowedCoverage;
+                if (indirectDrawList.empty() || indirectDrawList[0] >= 0)
+                {
+                    // There are no borrowed coverage passes. Initiate the
+                    // transition to the main subpass immediately.
+                    assert(m_pendingBarriers == BarrierFlags::none);
+                    m_pendingBarriers = BarrierFlags::clockwiseBorrowedCoverage;
+                }
                 break;
 
             case gpu::InterlockMode::msaa:
@@ -1694,7 +1706,7 @@ void RenderContext::LogicalFlush::writeResources()
             assert(signedKey >= priorSignedKey);
             // The first draw always gets barriers because we need the barriers
             // after the initial clears, loads, etc.
-            if (priorSignedKey == BEGIN_KEY ||
+            if (priorSignedKey != BEGIN_KEY &&
                 (priorSignedKey & needsBarrierMask) !=
                     (signedKey & needsBarrierMask))
             {
@@ -1877,7 +1889,7 @@ void RenderContext::LogicalFlush::writeResources()
 
     m_flushDesc.drawList = &m_drawList;
     m_flushDesc.firstDstBlendBarrier = m_firstDstBlendBarrier;
-    m_flushDesc.ditherMode = m_ctx->frameDescriptor().ditherMode;
+    m_flushDesc.unresolvedBarriers = m_pendingBarriers;
     // Write out the uniforms for this flush now that the flushDescriptor is
     // complete.
     m_ctx->m_flushUniformData.emplace_back(m_flushDesc, platformFeatures);

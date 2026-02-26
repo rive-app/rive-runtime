@@ -660,6 +660,60 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         // Finally, the standard color dependency from subpass 0 -> subpass 1
         addStandardColorDependencyToNextSubpass(subpassDescs.size());
     }
+    else if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // Borrowed coverage subpass. (This only writes to the coverage buffer,
+        // not color attachments.)
+        subpassDescs.push_back({
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = 0,
+            .colorAttachmentCount = 0,
+        });
+
+        // Supbass 0 needs to wait for prior reads/writes to the coverage buffer
+        // before writing the borrowed coverage.
+        subpassDeps.push_back({
+            .srcSubpass = VK_SUBPASS_EXTERNAL,
+            .dstSubpass = 0,
+            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .dependencyFlags = 0,
+        });
+
+        // Supbass 1 (the main subpass) needs to wait for subpass 0 to finish
+        // generating borrowed coverage before beginning.
+        subpassDeps.push_back({
+            .srcSubpass = 0,
+            .dstSubpass = 1,
+            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        });
+
+        // Supbass 1 also needs to wait for prior reads/writes to the color
+        // attachments before rendering the scene.
+        subpassDeps.push_back({
+            .srcSubpass = VK_SUBPASS_EXTERNAL,
+            .dstSubpass = 1,
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = VK_ACCESS_NONE,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dependencyFlags = 0,
+        });
+        if (!(renderPassOptions &
+              RenderPassOptionsVulkan::fixedFunctionColorOutput))
+        {
+            subpassDeps.back().dstStageMask |=
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            subpassDeps.back().dstAccessMask |=
+                VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        }
+    }
     else
     {
         // Without the extra color-load subpass we need an external dependency
@@ -682,7 +736,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     // Main subpass.
     const uint32_t mainSubpassIdx = subpassDescs.size();
     assert(colorAttachmentRefs.size() ==
-           m_drawPipelineLayout->colorAttachmentCount(0, renderPassOptions));
+           m_drawPipelineLayout->colorAttachmentCount(mainSubpassIdx,
+                                                      renderPassOptions));
     subpassDescs.push_back({
         .flags =
             rasterOrderedAttachmentAccess
@@ -730,20 +785,6 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             // investigate further.
             .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        });
-    }
-    else if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
-    {
-        // clockwiseAtomic mode has a dependency when we switch from
-        // borrowed coverage into forward.
-        subpassDeps.push_back({
-            .srcSubpass = mainSubpassIdx,
-            .dstSubpass = mainSubpassIdx,
-            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
             .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
         });
     }

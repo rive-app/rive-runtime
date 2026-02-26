@@ -76,8 +76,12 @@ extern rive::Span<const uint32_t> draw_clockwise_image_mesh_fixedcolor_frag;
 // InterlockMode::clockwiseAtomic shaders.
 extern rive::Span<const uint32_t> draw_clockwise_atomic_path_vert;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_path_frag;
+extern rive::Span<const uint32_t>
+    draw_clockwise_atomic_path_borrowed_coverage_frag;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_vert;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_frag;
+extern rive::Span<const uint32_t>
+    draw_clockwise_atomic_interior_triangles_borrowed_coverage_frag;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_vert;
 extern rive::Span<const uint32_t>
     draw_clockwise_atomic_atlas_blit_fixedcolor_frag;

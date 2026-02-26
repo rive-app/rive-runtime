@@ -227,14 +227,24 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     vertCode = spirv::draw_clockwise_atomic_path_vert;
-                    fragCode = spirv::draw_clockwise_atomic_path_frag;
+                    fragCode =
+                        (shaderMiscFlags &
+                         gpu::ShaderMiscFlags::borrowedCoveragePass)
+                            ? spirv::
+                                  draw_clockwise_atomic_path_borrowed_coverage_frag
+                            : spirv::draw_clockwise_atomic_path_frag;
                     break;
 
                 case DrawType::interiorTriangulation:
                     vertCode =
                         spirv::draw_clockwise_atomic_interior_triangles_vert;
                     fragCode =
-                        spirv::draw_clockwise_atomic_interior_triangles_frag;
+                        (shaderMiscFlags &
+                         gpu::ShaderMiscFlags::borrowedCoveragePass)
+                            ? spirv::
+                                  draw_clockwise_atomic_interior_triangles_borrowed_coverage_frag
+                            : spirv::
+                                  draw_clockwise_atomic_interior_triangles_frag;
                     break;
 
                 case DrawType::atlasBlit:

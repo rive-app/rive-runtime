@@ -1291,6 +1291,12 @@ struct FlushDescriptor
     // renderTarget.
     const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
     const DrawBatch* firstDstBlendBarrier = nullptr;
+
+    // This tracks any barriers that will not be handled by DrawBatches (e.g.,
+    // renderpass-specific barriers that won't be handled because the batch list
+    // is empty). The backend may need to issue these barriers before finishing
+    // the render pass.
+    BarrierFlags unresolvedBarriers = BarrierFlags::none;
 };
 
 // Returns the area of the (potentially non-rectangular) quadrilateral that

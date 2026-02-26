@@ -155,8 +155,10 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
                        ? 1u
                        : 0u;
         case gpu::InterlockMode::clockwiseAtomic:
-            assert(subpassIndex == 0);
-            return 1u;
+            assert(subpassIndex == 0 || subpassIndex == 1);
+            // Subpass 0 (borrowed coverage) has no color attachments.
+            // Subpass 1 (rendering) has 1 color attachment (for now).
+            return subpassIndex;
         case gpu::InterlockMode::msaa:
             assert(0 <= subpassIndex && subpassIndex <= 2);
             return 1u;

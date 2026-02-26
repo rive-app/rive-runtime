@@ -149,8 +149,18 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey() const
 
 uint32_t subpass_index(gpu::DrawType drawType,
                        gpu::LoadAction colorLoadAction,
-                       gpu::InterlockMode interlockMode)
+                       gpu::InterlockMode interlockMode,
+                       gpu::ShaderMiscFlags shaderMiscFlags)
 {
+    if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // In clockwiseAtomic mode, borrowed coverage is rendered in a separate
+        // subpass prior to the main one.
+        return (shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
+                   ? 0
+                   : 1;
+    }
+
     const uint32_t mainSubpassIdx =
         (interlockMode == gpu::InterlockMode::msaa &&
          colorLoadAction == gpu::LoadAction::preserveRenderTarget)
@@ -206,8 +216,10 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 
     const gpu::PipelineState& pipelineState = props.pipelineState;
     const gpu::InterlockMode interlockMode = pipelineLayout.interlockMode();
-    uint32_t subpassIndex =
-        subpass_index(props.drawType, props.colorLoadAction, interlockMode);
+    uint32_t subpassIndex = subpass_index(props.drawType,
+                                          props.colorLoadAction,
+                                          interlockMode,
+                                          props.shaderMiscFlags);
 
     auto& vertShader =
         pipelineManager->getVertexShaderSynchronous(props.drawType,

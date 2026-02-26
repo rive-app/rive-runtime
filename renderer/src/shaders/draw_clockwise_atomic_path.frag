@@ -5,36 +5,8 @@
 #ifdef @FRAGMENT
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
-STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
-STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32_ATOMIC(COVERAGE_BUFFER_IDX, CoverageBuffer, coverageBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
-
-#ifdef @BORROWED_COVERAGE_PASS
-INLINE void apply_borrowed_coverage(half borrowedCoverage, uint coverageIndex)
-{
-    // Try to apply borrowedCoverage, assuming the existing coverage value
-    // is zero.
-    uint borrowedCoverageFixed =
-        uint(abs(borrowedCoverage) * CLOCKWISE_COVERAGE_PRECISION + .5);
-    uint targetCoverageValue =
-        uniforms.coverageBufferPrefix |
-        (CLOCKWISE_FILL_ZERO_VALUE - borrowedCoverageFixed);
-    uint coverageBeforeMax = STORAGE_BUFFER_ATOMIC_MAX(coverageBuffer,
-                                                       coverageIndex,
-                                                       targetCoverageValue);
-    if (coverageBeforeMax >= uniforms.coverageBufferPrefix)
-    {
-        // Coverage was not zero. Undo the atomicMax and then subtract
-        // borrowedCoverageFixed this time.
-        uint undoAtomicMax =
-            coverageBeforeMax - max(coverageBeforeMax, targetCoverageValue);
-        STORAGE_BUFFER_ATOMIC_ADD(coverageBuffer,
-                                  coverageIndex,
-                                  undoAtomicMax - borrowedCoverageFixed);
-    }
-}
-#endif
 
 INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
                                   half fragCoverage,
@@ -193,14 +165,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     VARYING_UNPACK(v_coveragePlacement, uint2);
     VARYING_UNPACK(v_coverageCoord, float2);
 
-    half4 paintColor;
-#if defined(@DRAW_INTERIOR_TRIANGLES) && defined(@BORROWED_COVERAGE_PASS)
-    if (!@BORROWED_COVERAGE_PASS)
-#endif
-    {
-        paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
-    }
-
+    half4 paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
     if (paintColor.a == .0)
     {
         discard;
@@ -213,26 +178,10 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         find_frag_coverage(v_coverages);
 #endif
 
-    // Swizzle the coverage buffer in a tiled format, starting with 32x32
-    // row-major tiles.
-    uint coverageIndex = v_coveragePlacement.x;
-    uint coveragePitch = v_coveragePlacement.y;
     uint2 coverageCoord = uint2(floor(v_coverageCoord));
-    coverageIndex += (coverageCoord.y >> 5) * (coveragePitch << 5) +
-                     (coverageCoord.x >> 5) * (32 << 5);
-    // Subdivide each main tile into 4x4 column-major tiles.
-    coverageIndex += ((coverageCoord.x & 0x1f) >> 2) * (32 << 2) +
-                     ((coverageCoord.y & 0x1f) >> 2) * (4 << 2);
-    // Let the 4x4 tiles be row-major.
-    coverageIndex += (coverageCoord.y & 0x3) * 4 + (coverageCoord.x & 0x3);
-
-#ifdef @BORROWED_COVERAGE_PASS
-    if (@BORROWED_COVERAGE_PASS)
-    {
-        apply_borrowed_coverage(-fragCoverage, coverageIndex);
-        discard;
-    }
-#endif // BORROWED_COVERAGE_PASS
+    uint coveragePitch = v_coveragePlacement.y;
+    uint coverageIndex = v_coveragePlacement.x +
+                         swizzle_buffer_idx_32x32(coverageCoord, coveragePitch);
 
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)

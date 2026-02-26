@@ -915,3 +915,18 @@ unpack_atlas_coverage_vertex(float3 triangleVertex,
     return vertexPos;
 }
 #endif // @VERTEX && @ATLAS_BLIT
+
+// Converts an x,y image coordinate into a buffer index, swizzling into 32x32
+// tiles for better cache performance.
+// imageWidth must be a multiple of 32.
+uint swizzle_buffer_idx_32x32(uint2 imageCoord, uint imageWidth)
+{
+    uint idx = (imageCoord.y >> 5u) * (imageWidth << 5u) +
+               (imageCoord.x >> 5u) * (32u << 5u);
+    // Subdivide each main tile into 4x4 column-major tiles.
+    idx += ((imageCoord.x & 0x1fu) >> 2u) * (32u << 2u) +
+           ((imageCoord.y & 0x1fu) >> 2u) * (4u << 2u);
+    // Let the 4x4 tiles be row-major.
+    idx += (imageCoord.y & 0x3u) * 4u + (imageCoord.x & 0x3u);
+    return idx;
+}

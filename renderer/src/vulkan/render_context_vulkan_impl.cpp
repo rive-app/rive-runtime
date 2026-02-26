@@ -3187,7 +3187,8 @@ void RenderContextVulkanImpl::submitDrawList(
 
         if (batch.barriers & (gpu::BarrierFlags::plsAtomicPreResolve |
                               gpu::BarrierFlags::msaaPostInit |
-                              gpu::BarrierFlags::preManualResolve))
+                              gpu::BarrierFlags::preManualResolve |
+                              BarrierFlags::clockwiseBorrowedCoverage))
         {
             // vkCmdNextSubpass() supersedes the pipeline barrier we would
             // insert for plsAtomic | dstBlend. So if those flags are also in
@@ -3197,6 +3198,7 @@ void RenderContextVulkanImpl::submitDrawList(
                      ~(gpu::BarrierFlags::plsAtomicPreResolve |
                        gpu::BarrierFlags::msaaPostInit |
                        gpu::BarrierFlags::preManualResolve |
+                       BarrierFlags::clockwiseBorrowedCoverage |
                        BarrierFlags::plsAtomic | BarrierFlags::dstBlend |
                        BarrierFlags::drawBatchBreak)));
             m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -3225,23 +3227,6 @@ void RenderContextVulkanImpl::submitDrawList(
                     .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                     .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
                 });
-        }
-        else if (batch.barriers & BarrierFlags::clockwiseBorrowedCoverage)
-        {
-            // Wait for prior fragment shaders to finish updating the coverage
-            // buffer before we read it again.
-            assert(desc.interlockMode == gpu::InterlockMode::clockwiseAtomic);
-            assert(
-                !(batch.barriers & ~(BarrierFlags::clockwiseBorrowedCoverage |
-                                     BarrierFlags::drawBatchBreak)));
-            m_vk->memoryBarrier(commandBuffer,
-                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                VK_DEPENDENCY_BY_REGION_BIT,
-                                {
-                                    .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                                });
         }
 
         const DrawPipelineVulkan* drawPipeline =
@@ -3409,6 +3394,14 @@ void RenderContextVulkanImpl::submitDrawList(
                 break;
             }
         }
+    }
+
+    if (desc.unresolvedBarriers & gpu::BarrierFlags::clockwiseBorrowedCoverage)
+    {
+        // clockwiseAtomic render passes need to call vkCmdNextSubpass(), even
+        // if we didn't draw anything. Vulkan requires render passes to always
+        // reach the final subpass before calling vkCmdEndRenderPass().
+        m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
     }
 
     assert(pendingTessPatchCount == 0);
