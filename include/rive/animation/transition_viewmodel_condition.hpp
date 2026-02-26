@@ -588,6 +588,9 @@ public:
     }
     ConditionOperation* operation(TransitionConditionOp op);
     void initialize();
+
+private:
+    bool canEvaluate(const StateMachineInstance*) const;
 };
 } // namespace rive
 

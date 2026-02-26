@@ -227,11 +227,28 @@ TransitionViewModelCondition::~TransitionViewModelCondition()
     }
 }
 
+bool TransitionViewModelCondition::canEvaluate(
+    const StateMachineInstance* stateMachineInstance) const
+{
+    if (leftComparator() &&
+        leftComparator()->is<TransitionPropertyArtboardComparator>() &&
+        rightComparator() &&
+        rightComparator()->is<TransitionValueNumberComparator>())
+    {
+        return true;
+    }
+    if (stateMachineInstance->dataContext())
+    {
+        return true;
+    }
+    return false;
+}
+
 bool TransitionViewModelCondition::evaluate(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const
 {
-    if (stateMachineInstance->dataContext())
+    if (canEvaluate(stateMachineInstance))
     {
         return m_comparison->compare(stateMachineInstance, layerInstance);
     }

@@ -2250,3 +2250,21 @@ TEST_CASE("Listen to view model value changes in state machines", "[silver]")
 
     CHECK(silver.matches("listener_view_model"));
 }
+
+TEST_CASE("Artboard properties conditions work without binding", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/artboard_width_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("artboard_width_test"));
+}
