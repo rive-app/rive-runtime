@@ -7,6 +7,8 @@
 #include "rive_file_reader.hpp"
 #include "catch.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/lua/scripting_vm.hpp"
+#include "rive/lua/rive_lua_libs.hpp"
 #include <string>
 
 using namespace rive;
@@ -238,6 +240,9 @@ TEST_CASE("Scripted audio plays", "[audio]")
     auto file = ReadRiveFile("assets/audio_script.riv");
     auto artboard = file->artboardDefault();
     artboard->audioEngine(engine);
+    auto vm = file->scriptingVM();
+    auto context = vm->context();
+    context->isPlaying(true);
 
     auto stateMachine = artboard->stateMachineAt(0);
     auto vmi = file->createDefaultViewModelInstance(artboard.get());

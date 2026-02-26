@@ -60,6 +60,27 @@ void AudioSound::stop(uint64_t fadeTimeInFrames)
     }
 }
 
+void AudioSound::play()
+{
+    if (m_isDisposed)
+    {
+        return;
+    }
+    ma_sound_seek_to_pcm_frame(&m_sound, 0);
+    ma_sound_start(&m_sound);
+}
+
+void AudioSound::pause() { stop(0); }
+
+void AudioSound::resume()
+{
+    if (m_isDisposed)
+    {
+        return;
+    }
+    ma_sound_start(&m_sound);
+}
+
 bool AudioSound::seek(uint64_t timeInFrames)
 {
     if (m_isDisposed)

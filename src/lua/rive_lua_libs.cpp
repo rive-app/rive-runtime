@@ -164,6 +164,8 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"playAtFrame", (int16_t)LuaAtoms::playAtFrame},
     {"playInFrame", (int16_t)LuaAtoms::playInFrame},
     {"stop", (int16_t)LuaAtoms::stop},
+    {"pause", (int16_t)LuaAtoms::pause},
+    {"resume", (int16_t)LuaAtoms::resume},
     {"seek", (int16_t)LuaAtoms::seek},
     {"seekFrame", (int16_t)LuaAtoms::seekFrame},
     {"volume", (int16_t)LuaAtoms::volume},

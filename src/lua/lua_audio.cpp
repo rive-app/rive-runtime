@@ -46,6 +46,14 @@ int ScriptedAudioSource::play(lua_State* L,
     {
         return 0;
     }
+#ifdef WITH_RIVE_TOOLS
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (context && !context->isPlaying())
+    {
+        return 0;
+    }
+#endif
     float startTime = time;
     if (isRelative)
     {
@@ -69,6 +77,15 @@ int ScriptedAudioSource::playFrame(lua_State* L,
     {
         return 0;
     }
+
+#ifdef WITH_RIVE_TOOLS
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (context && !context->isPlaying())
+    {
+        return 0;
+    }
+#endif
     if (isRelative)
     {
         startTime += engine->timeInFrames();
@@ -97,6 +114,21 @@ static int audio_sound_namecall(lua_State* L)
         auto sound = scriptedAudioSound->sound;
         switch (atom)
         {
+            case (int)LuaAtoms::play:
+            {
+                sound->play();
+                return 0;
+            }
+            case (int)LuaAtoms::pause:
+            {
+                sound->pause();
+                return 0;
+            }
+            case (int)LuaAtoms::resume:
+            {
+                sound->resume();
+                return 0;
+            }
             case (int)LuaAtoms::stop:
             {
                 uint64_t fadeTimeInFrames = 0;

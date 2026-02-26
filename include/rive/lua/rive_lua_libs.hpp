@@ -238,6 +238,8 @@ enum class LuaAtoms : int16_t
     playAtFrame,
     playInFrame,
     stop,
+    pause,
+    resume,
     seek,
     seekFrame,
     volume,
@@ -951,12 +953,15 @@ private:
     // Allows direct ScriptedObject reinitialization without regenerating
     // the runtime file.
     std::unordered_map<uint32_t, int> m_assetGeneratorRefs;
+    bool m_isPlaying = false;
 
 public:
     void setGeneratorRef(uint32_t assetId, int ref);
     int getGeneratorRef(uint32_t assetId) const;
     void clearGeneratorRefs();
     bool hasGeneratorRef(uint32_t assetId) const;
+    void isPlaying(bool value) { m_isPlaying = value; }
+    bool isPlaying() const { return m_isPlaying; }
 #endif
 };
 

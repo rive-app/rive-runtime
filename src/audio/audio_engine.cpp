@@ -449,7 +449,7 @@ void AudioEngine::stop(Artboard* artboard)
     while (sound != nullptr)
     {
         auto next = sound->m_nextPlaying;
-        if (sound->m_artboard == artboard)
+        if (sound->m_artboard == artboard || artboard == nullptr)
         {
             sound->stop();
             m_completedSounds.push_back(sound);
@@ -518,6 +518,12 @@ rcp<AudioEngine> AudioEngine::MakeAndStore(uint32_t numChannels,
                                            uint32_t sampleRate)
 {
     auto audioEngine = Make(numChannels, sampleRate);
+#ifdef WITH_RIVE_TOOLS
+    if (m_runtimeAudioEngine)
+    {
+        m_runtimeAudioEngine->stop(nullptr);
+    }
+#endif
     m_runtimeAudioEngine = audioEngine;
     return m_runtimeAudioEngine;
 }
