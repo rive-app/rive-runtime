@@ -488,7 +488,7 @@ TEST_CASE("PLSResourceAllocation", "[RenderContext]")
     CHECK(ctx.currentResourceAllocations().plsAtomicCoverageBackingHeight == 0);
 }
 
-TEST_CASE("MapFailureUnwind", "RenderContext")
+TEST_CASE("MapFailureUnwind", "[RenderContext]")
 {
     for (auto failIndex = 0u;
          failIndex < RenderContextNULLTestImplForMapFail::MAP_COUNT;
