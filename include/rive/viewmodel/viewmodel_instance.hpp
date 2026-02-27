@@ -14,7 +14,7 @@ class ViewModelInstance : public ViewModelInstanceBase,
                           public RefCnt<ViewModelInstance>
 {
 private:
-    std::vector<ViewModelInstanceValue*> m_PropertyValues;
+    std::vector<rcp<ViewModelInstanceValue>> m_PropertyValues;
     std::vector<ViewModelInstance*> m_parents;
     std::vector<DataBindContainer*> m_dependents;
     ViewModel* m_ViewModel;
@@ -28,7 +28,7 @@ public:
     ViewModelInstanceValue* propertyValue(const SymbolType symbolType);
     bool replaceViewModelByName(const std::string& name,
                                 rcp<ViewModelInstance> value);
-    std::vector<ViewModelInstanceValue*> propertyValues();
+    std::vector<rcp<ViewModelInstanceValue>> propertyValues();
     ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
                                              size_t index);
     ViewModelInstanceValue* symbol(int coreType);

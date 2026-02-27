@@ -26,7 +26,6 @@ ViewModelInstance::~ViewModelInstance()
                     this);
             }
         }
-        value->unref();
     }
     m_PropertyValues.clear();
     if (m_ViewModel != nullptr)
@@ -37,7 +36,7 @@ ViewModelInstance::~ViewModelInstance()
 
 void ViewModelInstance::addValue(ViewModelInstanceValue* value)
 {
-    m_PropertyValues.push_back(value);
+    m_PropertyValues.push_back(rcp<ViewModelInstanceValue>(value));
 }
 
 ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
@@ -46,7 +45,7 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
     {
         if (value->viewModelPropertyId() == id)
         {
-            return value;
+            return value.get();
         }
     }
     return nullptr;
@@ -88,7 +87,7 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
         {
             if (value->viewModelProperty() == viewModelProperty)
             {
-                return value;
+                return value.get();
             }
         }
     }
@@ -105,7 +104,7 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
         {
             if (value->viewModelProperty() == viewModelProperty)
             {
-                return value;
+                return value.get();
             }
         }
     }
@@ -139,7 +138,7 @@ void ViewModelInstance::setRoot(rcp<ViewModelInstance> value)
     }
 }
 
-std::vector<ViewModelInstanceValue*> ViewModelInstance::propertyValues()
+std::vector<rcp<ViewModelInstanceValue>> ViewModelInstance::propertyValues()
 {
     return m_PropertyValues;
 }
@@ -211,7 +210,7 @@ ViewModelInstanceValue* ViewModelInstance::symbol(int coreType)
     {
         if (value->coreType() == coreType)
         {
-            return value;
+            return value.get();
         }
     }
     return nullptr;
