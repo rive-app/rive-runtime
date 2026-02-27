@@ -73,15 +73,18 @@ void SliceMesh::updateBuffers()
                                       vertexSizeInBytes);
     }
 
-    if (m_VertexRenderBuffer)
+    if (m_VertexRenderBuffer != nullptr)
     {
         Vec2D* mappedVertices =
             reinterpret_cast<Vec2D*>(m_VertexRenderBuffer->map());
-        for (auto v : m_vertices)
+        if (mappedVertices != nullptr)
         {
-            *mappedVertices++ = v;
+            for (auto v : m_vertices)
+            {
+                *mappedVertices++ = v;
+            }
+            m_VertexRenderBuffer->unmap();
         }
-        m_VertexRenderBuffer->unmap();
     }
 
     // 2. uv render buffer
@@ -106,12 +109,15 @@ void SliceMesh::updateBuffers()
             renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
 
         Vec2D* mappedUVs = reinterpret_cast<Vec2D*>(m_UVRenderBuffer->map());
-        for (auto uv : m_uvs)
+        if (mappedUVs != nullptr)
         {
-            Vec2D xformedUV = uvTransform * uv;
-            *mappedUVs++ = xformedUV;
+            for (auto uv : m_uvs)
+            {
+                Vec2D xformedUV = uvTransform * uv;
+                *mappedUVs++ = xformedUV;
+            }
+            m_UVRenderBuffer->unmap();
         }
-        m_UVRenderBuffer->unmap();
     }
 
     // 3. index render buffer
@@ -132,8 +138,11 @@ void SliceMesh::updateBuffers()
     if (m_IndexRenderBuffer)
     {
         void* mappedIndex = m_IndexRenderBuffer->map();
-        memcpy(mappedIndex, m_indices.data(), indexSizeInBytes);
-        m_IndexRenderBuffer->unmap();
+        if (mappedIndex != nullptr)
+        {
+            memcpy(mappedIndex, m_indices.data(), indexSizeInBytes);
+            m_IndexRenderBuffer->unmap();
+        }
     }
 }
 

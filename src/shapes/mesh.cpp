@@ -114,16 +114,19 @@ void Mesh::onAssetLoaded(RenderImage* renderImage)
         factory->makeRenderBuffer(RenderBufferType::vertex,
                                   RenderBufferFlags::mappedOnceAtInitialization,
                                   m_Vertices.size() * sizeof(Vec2D));
-    if (m_UVRenderBuffer)
+    if (m_UVRenderBuffer != nullptr)
     {
         float* uv = static_cast<float*>(m_UVRenderBuffer->map());
-        for (auto vertex : m_Vertices)
+        if (uv != nullptr)
         {
-            Vec2D xformedUV = uvTransform * Vec2D(vertex->u(), vertex->v());
-            *uv++ = xformedUV.x;
-            *uv++ = xformedUV.y;
+            for (auto vertex : m_Vertices)
+            {
+                Vec2D xformedUV = uvTransform * Vec2D(vertex->u(), vertex->v());
+                *uv++ = xformedUV.x;
+                *uv++ = xformedUV.y;
+            }
+            m_UVRenderBuffer->unmap();
         }
-        m_UVRenderBuffer->unmap();
     }
 
     if (m_IndexBuffer != nullptr)
@@ -135,10 +138,13 @@ void Mesh::onAssetLoaded(RenderImage* renderImage)
         if (m_IndexRenderBuffer)
         {
             void* indexData = m_IndexRenderBuffer->map();
-            memcpy(indexData,
-                   m_IndexBuffer->data(),
-                   m_IndexRenderBuffer->sizeInBytes());
-            m_IndexRenderBuffer->unmap();
+            if (indexData != nullptr)
+            {
+                memcpy(indexData,
+                       m_IndexBuffer->data(),
+                       m_IndexRenderBuffer->sizeInBytes());
+                m_IndexRenderBuffer->unmap();
+            }
         }
     }
 }
@@ -176,11 +182,15 @@ void Mesh::draw(Renderer* renderer,
     {
         Vec2D* mappedVertices =
             reinterpret_cast<Vec2D*>(m_VertexRenderBuffer->map());
-        for (auto vertex : m_Vertices)
+        if (mappedVertices != nullptr)
         {
-            *mappedVertices++ = vertex->renderTranslation();
+            for (auto vertex : m_Vertices)
+            {
+                *mappedVertices++ = vertex->renderTranslation();
+            }
+            m_VertexRenderBuffer->unmap();
         }
-        m_VertexRenderBuffer->unmap();
+
         m_VertexRenderBufferDirty = false;
     }
 

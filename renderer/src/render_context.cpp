@@ -770,40 +770,47 @@ void RenderContext::flush(const FlushResources& flushResources)
 
     m_impl->prepareToFlush(flushResources.currentFrameNumber,
                            flushResources.safeFrameNumber);
-
-    mapResourceBuffers(resourceRequirements);
-
-    for (const auto& flush : m_logicalFlushes)
+    if (mapResourceBuffers(resourceRequirements))
     {
-        flush->writeResources();
+        for (const auto& flush : m_logicalFlushes)
+        {
+            flush->writeResources();
+        }
+
+        assert(m_flushUniformData.elementsWritten() == m_logicalFlushes.size());
+        assert(m_imageDrawUniformData.elementsWritten() ==
+               totalFrameResourceCounts.imageDrawCount);
+        assert(m_pathData.elementsWritten() ==
+               totalFrameResourceCounts.pathCount +
+                   layoutCounts.pathPaddingCount);
+        assert(m_paintData.elementsWritten() ==
+               totalFrameResourceCounts.pathCount +
+                   layoutCounts.paintPaddingCount);
+        assert(m_paintAuxData.elementsWritten() ==
+               totalFrameResourceCounts.pathCount +
+                   layoutCounts.paintAuxPaddingCount);
+        assert(m_contourData.elementsWritten() ==
+               totalFrameResourceCounts.contourCount +
+                   layoutCounts.contourPaddingCount);
+        assert(m_gradSpanData.elementsWritten() ==
+               layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount);
+        assert(m_tessSpanData.elementsWritten() <=
+               totalFrameResourceCounts.maxTessellatedSegmentCount);
+        assert(m_triangleVertexData.elementsWritten() <=
+               totalFrameResourceCounts.maxTriangleVertexCount);
+
+        unmapResourceBuffers(resourceRequirements);
+
+        // Issue logical flushes to the backend.
+        for (const auto& flush : m_logicalFlushes)
+        {
+            m_impl->flush(flush->desc());
+        }
     }
-
-    assert(m_flushUniformData.elementsWritten() == m_logicalFlushes.size());
-    assert(m_imageDrawUniformData.elementsWritten() ==
-           totalFrameResourceCounts.imageDrawCount);
-    assert(m_pathData.elementsWritten() ==
-           totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount);
-    assert(m_paintData.elementsWritten() ==
-           totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount);
-    assert(m_paintAuxData.elementsWritten() ==
-           totalFrameResourceCounts.pathCount +
-               layoutCounts.paintAuxPaddingCount);
-    assert(m_contourData.elementsWritten() ==
-           totalFrameResourceCounts.contourCount +
-               layoutCounts.contourPaddingCount);
-    assert(m_gradSpanData.elementsWritten() ==
-           layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount);
-    assert(m_tessSpanData.elementsWritten() <=
-           totalFrameResourceCounts.maxTessellatedSegmentCount);
-    assert(m_triangleVertexData.elementsWritten() <=
-           totalFrameResourceCounts.maxTriangleVertexCount);
-
-    unmapResourceBuffers(resourceRequirements);
-
-    // Issue logical flushes to the backend.
-    for (const auto& flush : m_logicalFlushes)
+    else
     {
-        m_impl->flush(flush->desc());
+        fprintf(stderr, "Buffer mapping failed, cannot render.\n");
+        unmapResourceBuffers(resourceRequirements);
     }
 
     m_impl->postFlush(flushResources);
@@ -1889,86 +1896,105 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
     m_currentResourceAllocations = allocs;
 }
 
-void RenderContext::mapResourceBuffers(
+bool RenderContext::mapResourceBuffers(
     const ResourceAllocationCounts& mapCounts)
 {
     RIVE_PROF_SCOPE()
+
+#define HANDLE_MAP_FAILURE(...)                                                \
+    do                                                                         \
+    {                                                                          \
+        if (!(__VA_ARGS__))                                                    \
+        {                                                                      \
+            return false;                                                      \
+        }                                                                      \
+    } while (false)
+
     if (mapCounts.flushUniformBufferCount > 0)
     {
-        m_flushUniformData.mapElements(
+        HANDLE_MAP_FAILURE(m_flushUniformData.mapElements(
             m_impl.get(),
             &RenderContextImpl::mapFlushUniformBuffer,
-            mapCounts.flushUniformBufferCount);
+            mapCounts.flushUniformBufferCount));
     }
     assert(m_flushUniformData.hasRoomFor(mapCounts.flushUniformBufferCount));
 
     if (mapCounts.imageDrawUniformBufferCount > 0)
     {
-        m_imageDrawUniformData.mapElements(
+        HANDLE_MAP_FAILURE(m_imageDrawUniformData.mapElements(
             m_impl.get(),
             &RenderContextImpl::mapImageDrawUniformBuffer,
-            mapCounts.imageDrawUniformBufferCount);
+            mapCounts.imageDrawUniformBufferCount));
     }
     assert(m_imageDrawUniformData.hasRoomFor(
         mapCounts.imageDrawUniformBufferCount > 0));
 
     if (mapCounts.pathBufferCount > 0)
     {
-        m_pathData.mapElements(m_impl.get(),
-                               &RenderContextImpl::mapPathBuffer,
-                               mapCounts.pathBufferCount);
+        HANDLE_MAP_FAILURE(
+            m_pathData.mapElements(m_impl.get(),
+                                   &RenderContextImpl::mapPathBuffer,
+                                   mapCounts.pathBufferCount));
     }
     assert(m_pathData.hasRoomFor(mapCounts.pathBufferCount));
 
     if (mapCounts.paintBufferCount > 0)
     {
-        m_paintData.mapElements(m_impl.get(),
-                                &RenderContextImpl::mapPaintBuffer,
-                                mapCounts.paintBufferCount);
+        HANDLE_MAP_FAILURE(
+            m_paintData.mapElements(m_impl.get(),
+                                    &RenderContextImpl::mapPaintBuffer,
+                                    mapCounts.paintBufferCount));
     }
     assert(m_paintData.hasRoomFor(mapCounts.paintBufferCount));
 
     if (mapCounts.paintAuxBufferCount > 0)
     {
-        m_paintAuxData.mapElements(m_impl.get(),
-                                   &RenderContextImpl::mapPaintAuxBuffer,
-                                   mapCounts.paintAuxBufferCount);
+        HANDLE_MAP_FAILURE(
+            m_paintAuxData.mapElements(m_impl.get(),
+                                       &RenderContextImpl::mapPaintAuxBuffer,
+                                       mapCounts.paintAuxBufferCount));
     }
     assert(m_paintAuxData.hasRoomFor(mapCounts.paintAuxBufferCount));
 
     if (mapCounts.contourBufferCount > 0)
     {
-        m_contourData.mapElements(m_impl.get(),
-                                  &RenderContextImpl::mapContourBuffer,
-                                  mapCounts.contourBufferCount);
+        HANDLE_MAP_FAILURE(
+            m_contourData.mapElements(m_impl.get(),
+                                      &RenderContextImpl::mapContourBuffer,
+                                      mapCounts.contourBufferCount));
     }
     assert(m_contourData.hasRoomFor(mapCounts.contourBufferCount));
 
     if (mapCounts.gradSpanBufferCount > 0)
     {
-        m_gradSpanData.mapElements(m_impl.get(),
-                                   &RenderContextImpl::mapGradSpanBuffer,
-                                   mapCounts.gradSpanBufferCount);
+        HANDLE_MAP_FAILURE(
+            m_gradSpanData.mapElements(m_impl.get(),
+                                       &RenderContextImpl::mapGradSpanBuffer,
+                                       mapCounts.gradSpanBufferCount));
     }
     assert(m_gradSpanData.hasRoomFor(mapCounts.gradSpanBufferCount));
 
     if (mapCounts.tessSpanBufferCount > 0)
     {
-        m_tessSpanData.mapElements(m_impl.get(),
-                                   &RenderContextImpl::mapTessVertexSpanBuffer,
-                                   mapCounts.tessSpanBufferCount);
+        HANDLE_MAP_FAILURE(m_tessSpanData.mapElements(
+            m_impl.get(),
+            &RenderContextImpl::mapTessVertexSpanBuffer,
+            mapCounts.tessSpanBufferCount));
     }
     assert(m_tessSpanData.hasRoomFor(mapCounts.tessSpanBufferCount));
 
     if (mapCounts.triangleVertexBufferCount > 0)
     {
-        m_triangleVertexData.mapElements(
+        HANDLE_MAP_FAILURE(m_triangleVertexData.mapElements(
             m_impl.get(),
             &RenderContextImpl::mapTriangleVertexBuffer,
-            mapCounts.triangleVertexBufferCount);
+            mapCounts.triangleVertexBufferCount));
     }
     assert(
         m_triangleVertexData.hasRoomFor(mapCounts.triangleVertexBufferCount));
+
+#undef HANDLE_MAP_FAILURE
+    return true;
 }
 
 void RenderContext::unmapResourceBuffers(

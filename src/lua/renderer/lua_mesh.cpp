@@ -170,11 +170,14 @@ void ScriptedVertexBuffer::update(Factory* factory)
         factory->makeRenderBuffer(RenderBufferType::vertex,
                                   RenderBufferFlags::mappedOnceAtInitialization,
                                   values.size() * sizeof(Vec2D));
-    if (buffer)
+    if (buffer != nullptr)
     {
         float* pos = static_cast<float*>(buffer->map());
-        memcpy(pos, values.data(), buffer->sizeInBytes());
-        buffer->unmap();
+        if (pos != nullptr)
+        {
+            memcpy(pos, values.data(), buffer->sizeInBytes());
+            buffer->unmap();
+        }
     }
     vertexBuffer = buffer;
 }
@@ -190,11 +193,14 @@ void ScriptedTriangleBuffer::update(Factory* factory)
         factory->makeRenderBuffer(RenderBufferType::index,
                                   RenderBufferFlags::mappedOnceAtInitialization,
                                   values.size() * sizeof(uint16_t));
-    if (buffer)
+    if (buffer != nullptr)
     {
         void* indexData = buffer->map();
-        memcpy(indexData, values.data(), buffer->sizeInBytes());
-        buffer->unmap();
+        if (indexData != nullptr)
+        {
+            memcpy(indexData, values.data(), buffer->sizeInBytes());
+            buffer->unmap();
+        }
     }
     indexBuffer = buffer;
 }
