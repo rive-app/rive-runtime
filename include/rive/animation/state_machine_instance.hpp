@@ -249,6 +249,7 @@ private:
     uint8_t m_drawOrderChangeCounter = 0;
     void unbind();
     void removeEventListeners();
+    void initScriptedObjects();
 
 #ifdef WITH_RIVE_TOOLS
 public:

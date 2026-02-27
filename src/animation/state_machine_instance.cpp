@@ -1850,6 +1850,14 @@ void StateMachineInstance::dataContext(rcp<DataContext> dataContext)
     internalDataContext(dataContext);
 }
 
+void StateMachineInstance::initScriptedObjects()
+{
+    for (auto obj : m_scriptedObjectsMap)
+    {
+        obj.second->reinit();
+    }
+}
+
 void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 {
     m_DataContext = dataContext;
@@ -1862,6 +1870,7 @@ void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
     {
         scriptedObjectItr.second->dataContext(dataContext);
     }
+    initScriptedObjects();
 }
 
 void StateMachineInstance::rebind()
