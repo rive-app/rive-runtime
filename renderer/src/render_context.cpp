@@ -21,6 +21,8 @@
 #include "rive/decoders/bitmap_decoder.hpp"
 #endif
 
+#include "sort_key_builder.hpp"
+
 namespace rive::gpu
 {
 constexpr size_t kDefaultSimpleGradientCapacity = 512;
@@ -1504,24 +1506,34 @@ void RenderContext::LogicalFlush::writeResources()
         intersectionBoard->resizeAndReset(m_flushDesc.renderTarget->width(),
                                           m_flushDesc.renderTarget->height());
 
-        // Build a list of sort keys that determine the final draw order.
-        constexpr static int kDrawGroupShift =
-            48; // Where in the key does the draw group begin?
-        constexpr static int64_t kDrawGroupMask = 0x7fffllu << kDrawGroupShift;
-        constexpr static int kDrawTypeShift = 45;
-        constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED =
-            7llu << kDrawTypeShift;
-        constexpr static int kTextureHashShift = 31;
-        constexpr static int64_t kTextureHashMask = 0x3fffllu
-                                                    << kTextureHashShift;
-        constexpr static int kBlendModeShift = 27;
-        constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
-        constexpr static int kDrawContentsShift = 18;
-        constexpr static int64_t kDrawContentsMask = 0x1ffllu
-                                                     << kDrawContentsShift;
-        constexpr static int kDrawIndexShift = 2;
-        constexpr static int64_t kDrawIndexMask = 0x7fff << kDrawIndexShift;
-        constexpr static int64_t kSubpassIndexMask = 0x3;
+        static constexpr SortKeyBuilder keyBuilder{
+            // Our top priority in re-ordering is to group non-overlapping draws
+            // together, in order to maximize batching while preserving
+            // correctness.
+            {.entry = SortEntry::drawGroup, .bitCount = 15},
+
+            // Within sub-groups of non-overlapping draws, sort similar draw
+            // types together.
+            {.entry = SortEntry::drawType, .bitCount = 3},
+
+            // Within sub-groups of matching draw type, sort by texture binding.
+            {.entry = SortEntry::textureHash, .bitCount = 14},
+
+            // If using KHR_blend_equation_advanced, we need a batching barrier
+            // between draws with different blend modes. If not using
+            // KHR_blend_equation_advanced, sorting by blend mode may still give
+            // us better branching on the GPU.
+            {.entry = SortEntry::blendMode, .bitCount = 4},
+
+            // msaa mode draws strokes, fills, and even/odd with different
+            // stencil settings.
+            {.entry = SortEntry::drawContents, .bitCount = 9},
+
+            // Draw and subpass indices go at the bottom of the key so we can
+            // reference them again after sorting without affecting the order.
+            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            {.entry = SortEntry::subpassIndex, .bitCount = 3},
+        };
 
         for (size_t i = 0; i < m_draws.size(); ++i)
         {
@@ -1549,50 +1561,22 @@ void RenderContext::LogicalFlush::writeResources()
                                                 kDisallowOverlapMask,
                                                 maxPasses);
             assert(drawGroupIdx > 0);
-            int64_t key = static_cast<int64_t>(drawGroupIdx) << kDrawGroupShift;
-
-            // Within sub-groups of non-overlapping draws, sort similar draw
-            // types together.
-            int64_t drawType = static_cast<int64_t>(draw->type());
-            assert(drawType <= kDrawTypeMask >> kDrawTypeShift);
-            key |= drawType << kDrawTypeShift;
-
-            // Within sub-groups of matching draw type, sort by texture binding.
-            int64_t textureHash =
-                draw->imageTexture() != nullptr
-                    ? draw->imageTexture()->textureResourceHash() &
-                          (kTextureHashMask >> kTextureHashShift)
+            const auto textureHash =
+                (draw->imageTexture() != nullptr)
+                    ? draw->imageTexture()->textureResourceHash()
                     : 0;
-            key |= textureHash << kTextureHashShift;
+            int64_t key = keyBuilder.buildKey({
+                {SortEntry::blendMode,
+                 gpu::ConvertBlendModeToPLSBlendMode(draw->blendMode())},
+                {SortEntry::drawContents, draw->drawContents()},
+                {SortEntry::drawIndex, i},
+                {SortEntry::drawGroup, drawGroupIdx},
+                {SortEntry::drawType, draw->type()},
+                {SortEntry::subpassIndex, 0}, // This gets added later
 
-            // If using KHR_blend_equation_advanced, we need a batching barrier
-            // between draws with different blend modes. If not using
-            // KHR_blend_equation_advanced, sorting by blend mode may still give
-            // us better branching on the GPU.
-            int64_t blendMode =
-                gpu::ConvertBlendModeToPLSBlendMode(draw->blendMode());
-            assert(blendMode <= kBlendModeMask >> kBlendModeShift);
-            key |= blendMode << kBlendModeShift;
-
-            // msaa mode draws strokes, fills, and even/odd with different
-            // stencil settings.
-            int64_t drawContents = static_cast<int64_t>(draw->drawContents());
-            assert(drawContents <= kDrawContentsMask >> kDrawContentsShift);
-            key |= drawContents << kDrawContentsShift;
-
-            // Draw and subpass indices go at the bottom of the key so we can
-            // reference them again after sorting without affecting the order.
-            assert(i <= kDrawIndexMask >> kDrawIndexShift);
-            key |= i << kDrawIndexShift;
-
-            assert((key & kDrawGroupMask) >> kDrawGroupShift == drawGroupIdx);
-            assert((key & kDrawTypeMask) >> kDrawTypeShift == drawType);
-            assert((key & kTextureHashMask) >> kTextureHashShift ==
-                   textureHash);
-            assert((key & kBlendModeMask) >> kBlendModeShift == blendMode);
-            assert((key & kDrawContentsMask) >> kDrawContentsShift ==
-                   drawContents);
-            assert((key & kDrawIndexMask) >> kDrawIndexShift == i);
+                // The hash may lose bits in the key
+                {SortEntry::textureHash, textureHash, ValidateKeyEntry::no},
+            });
 
             // Add the first prepass and subpass, if any.
             if (draw->prepassCount() > 0)
@@ -1612,10 +1596,16 @@ void RenderContext::LogicalFlush::writeResources()
                 // Increment the drawGroupIdx and i both at once. (The
                 // intersectionBoard already reserved "maxPasses" layers of
                 // drawGroupIndices for us.)
-                key += (1ll << kDrawGroupShift) + 1;
-                assert((key & kDrawGroupMask) >> kDrawGroupShift ==
+                static constexpr auto INCREMENT = keyBuilder.buildPartialKey({
+                    {SortEntry::drawGroup, 1},
+                    {SortEntry::subpassIndex, 1},
+                });
+                key += INCREMENT;
+
+                assert(keyBuilder.extract<int16_t>(SortEntry::drawGroup, key) ==
                        drawGroupIdx + i);
-                assert((key & kSubpassIndexMask) == i);
+                assert(keyBuilder.extract<int>(SortEntry::subpassIndex, key) ==
+                       i);
 
                 if (i < draw->prepassCount())
                 {
@@ -1702,7 +1692,7 @@ void RenderContext::LogicalFlush::writeResources()
             case gpu::InterlockMode::atomics:
                 // In atomic mode, we need barriers any time draws overlap.
                 // Insert a barrier every time the drawGroupIdx changes.
-                needsBarrierMask = kDrawGroupMask;
+                needsBarrierMask = keyBuilder.mask(SortEntry::drawGroup);
                 neededBarriers = BarrierFlags::plsAtomic;
                 // We need a plsAtomic barrier after the initial clears, loads,
                 // etc.
@@ -1730,16 +1720,16 @@ void RenderContext::LogicalFlush::writeResources()
                 // MSAA mode can't batch draws that overlap because they both
                 // rely on the stencil buffer across subpasses. Stop batching
                 // every time the drawGroupIdx changes.
-                needsBarrierMask = kDrawGroupMask;
+                needsBarrierMask = keyBuilder.mask(SortEntry::drawGroup);
                 // MSAA mode draws clips, strokes, fills, and even/odd with
                 // different stencil settings, so these can't be batched.
-                needsBarrierMask |= kDrawContentsMask;
+                needsBarrierMask |= keyBuilder.mask(SortEntry::drawContents);
                 if (platformFeatures.supportsBlendAdvancedKHR)
                 {
                     // If using KHR_blend_equation_advanced, we also need to
                     // stop batching between blend modes in order to change the
                     // blend equation.
-                    needsBarrierMask |= kBlendModeMask;
+                    needsBarrierMask |= keyBuilder.mask(SortEntry::blendMode);
                 }
                 // MSAA barriers only need to prevent batching of draws for now.
                 // If we also need a dstBlend barrier, that will be decided
@@ -1764,8 +1754,10 @@ void RenderContext::LogicalFlush::writeResources()
                 m_pendingBarriers |= neededBarriers;
             }
             int64_t key = abs(signedKey);
-            uint32_t drawIndex = (key & kDrawIndexMask) >> kDrawIndexShift;
-            int subpassIndex = key & kSubpassIndexMask;
+            auto drawIndex =
+                keyBuilder.extract<uint32_t>(SortEntry::drawIndex, key);
+            auto subpassIndex =
+                keyBuilder.extract<int>(SortEntry::subpassIndex, key);
             if (signedKey < 0)
             {
                 // Negative keys are a prepass. Update the subpassIndex to be
@@ -1775,7 +1767,7 @@ void RenderContext::LogicalFlush::writeResources()
             // FIXME: m_currentZIndex shouldn't be a stateful variable; it
             // should be passed to pushToRenderContext() instead.
             m_currentZIndex = math::lossless_numeric_cast<uint32_t>(
-                abs(key >> static_cast<int64_t>(kDrawGroupShift)));
+                keyBuilder.extract<uint32_t>(SortEntry::drawGroup, key));
             m_draws[drawIndex]->pushToRenderContext(this, subpassIndex);
             priorSignedKey = signedKey;
         }
