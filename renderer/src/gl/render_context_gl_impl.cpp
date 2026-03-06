@@ -938,8 +938,7 @@ void RenderContextGLImpl::AtlasProgram::compile(
     }
 }
 
-static GLenum atlas_gl_format(RenderContextGLImpl::AtlasType atlasType,
-                              const GLCapabilities& capabilities)
+static GLenum atlas_gl_format(RenderContextGLImpl::AtlasType atlasType)
 {
     switch (atlasType)
     {
@@ -959,6 +958,23 @@ static GLenum atlas_gl_format(RenderContextGLImpl::AtlasType atlasType,
     RIVE_UNREACHABLE();
 }
 
+static GLenum atlas_gl_filter(RenderContextGLImpl::AtlasType atlasType)
+{
+    switch (atlasType)
+    {
+        using AtlasType = RenderContextGLImpl::AtlasType;
+        case AtlasType::r32f:
+        case AtlasType::r16f:
+            return GL_LINEAR;
+        case AtlasType::r32uiFramebufferFetch:
+        case AtlasType::r32uiPixelLocalStorage:
+        case AtlasType::r32iAtomicTexture:
+        case AtlasType::rgba8:
+            return GL_NEAREST;
+    }
+    RIVE_UNREACHABLE();
+}
+
 void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
@@ -972,10 +988,11 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
         glTexStorage2D(GL_TEXTURE_2D,
                        1,
-                       atlas_gl_format(m_atlasType, m_capabilities),
+                       atlas_gl_format(m_atlasType),
                        width,
                        height);
-        glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
+        const GLenum atlasFilter = atlas_gl_filter(m_atlasType);
+        glutils::SetTexture2DSamplingParams(atlasFilter, atlasFilter);
 
         if (m_atlasVertexShader == 0)
         {
