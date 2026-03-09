@@ -49,6 +49,9 @@ ScriptReffedArtboard::ScriptReffedArtboard(
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
 {
+    // Make sure state machine is deleted before artboard since
+    // StateMachineInstance destructor accesses the artboard.
+    m_stateMachine = nullptr;
     // Make sure artboard is deleted before file.
     m_artboard = nullptr;
     m_file = nullptr;

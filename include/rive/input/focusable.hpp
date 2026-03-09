@@ -2,6 +2,9 @@
 #define _RIVE_FOCUSABLE_HPP_
 
 #include "rive/enum_bitset.hpp"
+#include "rive/math/aabb.hpp"
+#include "rive/math/vec2d.hpp"
+#include <string>
 
 namespace rive
 {
@@ -148,14 +151,39 @@ enum class Key : uint16_t
     menu = 348,
 };
 
+class Artboard;
+class Core;
+
 class Focusable
 {
 public:
+    virtual ~Focusable() = default;
+
+    /// Try to get a Focusable from a Core object.
+    /// Returns nullptr if the object doesn't implement Focusable.
+    static Focusable* from(Core* object);
+
+    /// Get the artboard this focusable belongs to.
+    /// Returns nullptr if not associated with an artboard.
+    virtual Artboard* focusableArtboard() const { return nullptr; }
+
     virtual bool keyInput(Key value,
                           KeyModifiers modifiers,
                           bool isPressed,
                           bool isRepeat) = 0;
     virtual bool textInput(const std::string& text) = 0;
+    virtual void focused() = 0;
+    virtual void blurred() = 0;
+
+    /// Get the world position of this focusable in root artboard space.
+    /// Used for directional focus navigation.
+    /// Returns false if position cannot be determined.
+    virtual bool worldPosition(Vec2D& outPosition) { return false; }
+
+    /// Get the world bounds of this focusable in root artboard space.
+    /// Used for directional focus navigation with overlap/alignment.
+    /// Returns false if bounds cannot be determined (falls back to position).
+    virtual bool worldBounds(AABB& outBounds) { return false; }
 };
 } // namespace rive
 #endif

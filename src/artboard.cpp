@@ -1,6 +1,10 @@
 #include "rive/artboard.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/input/focus_input_traversal.hpp"
+#include "rive/input/focus_manager.hpp"
+#include "rive/input/focusable.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/custom_property_trigger.hpp"
 #include "rive/dependency_sorter.hpp"
@@ -22,6 +26,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_leaf.hpp"
 #include "rive/nested_artboard_layout.hpp"
+#include "rive/animation/nested_state_machine.hpp"
 #include "rive/joystick.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind_flags.hpp"
@@ -56,6 +61,11 @@ Artboard::Artboard()
 
 Artboard::~Artboard()
 {
+    // NOTE: Do NOT call cleanupFocusTree() here! The FocusManager is owned by
+    // StateMachineInstance which may already be destroyed before the Artboard.
+    // Focus cleanup should be done explicitly via cleanupFocusTree() before
+    // the artboard is recycled/destroyed (e.g., in ArtboardComponentList).
+
 #ifdef WITH_RIVE_AUDIO
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     auto audioEngine = m_audioEngine;
@@ -1619,6 +1629,302 @@ std::string Artboard::animationNameAt(size_t index) const
 {
     auto la = this->animation(index);
     return la ? la->name() : "";
+}
+
+// Helper: check if a FocusData has a parent FocusData within the artboard
+// by walking up the component hierarchy
+static bool hasParentFocusData(const FocusData* focusData)
+{
+    // FocusData's parent is a ContainerComponent (likely a Node)
+    // Walk up to find if any ancestor Node has a FocusData child
+    auto* current = focusData->parent();
+    while (current != nullptr)
+    {
+        if (current->is<Node>())
+        {
+            auto* node = current->as<Node>();
+            for (auto child : node->children())
+            {
+                if (child->is<FocusData>() && child != focusData)
+                {
+                    return true;
+                }
+            }
+        }
+        current = current->parent();
+    }
+    return false;
+}
+
+size_t Artboard::rootFocusDataCount() const
+{
+    size_t count = 0;
+    for (auto* object : m_Objects)
+    {
+        if (object != nullptr && object->is<FocusData>())
+        {
+            if (!hasParentFocusData(object->as<FocusData>()))
+            {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+FocusData* Artboard::rootFocusDataAt(size_t index) const
+{
+    size_t count = 0;
+    for (auto* object : m_Objects)
+    {
+        if (object != nullptr && object->is<FocusData>())
+        {
+            if (!hasParentFocusData(object->as<FocusData>()))
+            {
+                if (count == index)
+                {
+                    return object->as<FocusData>();
+                }
+                count++;
+            }
+        }
+    }
+    return nullptr;
+}
+
+void Artboard::buildFocusTree(FocusManager* focusManager,
+                              rcp<FocusNode> parentFocusNode)
+{
+    if (focusManager == nullptr)
+    {
+        return;
+    }
+
+    // Store reference to the active focus manager
+    setActiveFocusManager(focusManager);
+
+#ifdef WITH_RIVE_TOOLS
+    // Store the parent focus node if provided (for later retrieval by tools)
+    if (parentFocusNode != nullptr)
+    {
+        m_externalParentFocusNode = parentFocusNode;
+    }
+    // Use explicit parent if provided, otherwise fall back to external parent
+    rcp<FocusNode> effectiveParent = parentFocusNode != nullptr
+                                         ? parentFocusNode
+                                         : m_externalParentFocusNode;
+#else
+    rcp<FocusNode> effectiveParent = parentFocusNode;
+#endif
+
+    // Register all FocusData in this artboard
+    for (auto* obj : m_Objects)
+    {
+        if (obj != nullptr && obj->is<FocusData>())
+        {
+            auto* fd = obj->as<FocusData>();
+            auto* localParent = fd->findParentFocusData();
+
+            rcp<FocusNode> parentNode = localParent != nullptr
+                                            ? localParent->focusNode()
+                                            : effectiveParent;
+
+            focusManager->addChild(parentNode, fd->focusNode());
+        }
+    }
+    // Propagate focus registration to nested artboards that might have been
+    // created before this artboard's focusManager was available. This handles
+    // ArtboardComponentList and NestedArtboard items that were initialized
+    // before the parent StateMachineInstance was created.
+    //
+    // We check if the nested artboard's focusManager is DIFFERENT from ours.
+    // If it is, that means it created its own internal focusManager when it
+    // should be sharing the parent's. We rebuild its focus tree with the
+    // correct shared focusManager.
+
+    // Handle NestedArtboard instances
+    for (auto* nestedArtboardHost : m_NestedArtboards)
+    {
+        // Find closest focus node (handles artboard boundaries)
+        auto hostParentNode =
+            FocusData::findClosestFocusNode(nestedArtboardHost);
+        if (hostParentNode == nullptr)
+        {
+            hostParentNode = effectiveParent;
+        }
+
+        auto* nestedArtboard = nestedArtboardHost->artboardInstance(0);
+        if (nestedArtboard != nullptr &&
+            nestedArtboard->focusManager() != focusManager)
+        {
+            // Clean up old focus tree if it exists (with wrong focusManager)
+            nestedArtboard->cleanupFocusTree();
+            nestedArtboard->buildFocusTree(focusManager, hostParentNode);
+        }
+
+        // Also update the external focus manager on any nested state machines.
+        // This handles the case where initializeAnimation was called before
+        // the parent artboard had a focus manager.
+        for (auto* animation : nestedArtboardHost->nestedAnimations())
+        {
+            if (animation->is<NestedStateMachine>())
+            {
+                auto* nsm = animation->as<NestedStateMachine>();
+                auto* smi = nsm->stateMachineInstance();
+                if (smi != nullptr && smi->focusManager() != focusManager)
+                {
+                    smi->setExternalFocusManager(focusManager);
+                }
+            }
+        }
+    }
+
+    // Handle ArtboardComponentList instances
+    for (auto* componentList : m_ComponentLists)
+    {
+        // Find closest focus node (handles artboard boundaries)
+        auto hostParentNode = FocusData::findClosestFocusNode(componentList);
+        if (hostParentNode == nullptr)
+        {
+            hostParentNode = effectiveParent;
+        }
+
+        for (size_t i = 0; i < componentList->artboardCount(); i++)
+        {
+            auto* nestedArtboard =
+                componentList->artboardInstance(static_cast<int>(i));
+            if (nestedArtboard != nullptr &&
+                nestedArtboard->focusManager() != focusManager)
+            {
+                // Clean up old focus tree if it exists (with wrong
+                // focusManager)
+                nestedArtboard->cleanupFocusTree();
+                nestedArtboard->buildFocusTree(focusManager, hostParentNode);
+            }
+
+            // Also update the state machine's external focus manager.
+            // This handles the case where linkStateMachine was called before
+            // the parent artboard had a focus manager.
+            auto* smi =
+                componentList->stateMachineInstance(static_cast<int>(i));
+            if (smi != nullptr && smi->focusManager() != focusManager)
+            {
+                smi->setExternalFocusManager(focusManager);
+            }
+        }
+    }
+}
+
+void Artboard::buildFocusTree(rcp<FocusNode> parentFocusNode)
+{
+    if (parentFocusNode == nullptr)
+    {
+        return;
+    }
+    auto* manager = parentFocusNode->manager();
+    if (manager == nullptr)
+    {
+        return;
+    }
+    buildFocusTree(manager, parentFocusNode);
+}
+
+void Artboard::cleanupFocusTree()
+{
+    if (m_activeFocusManager == nullptr)
+    {
+        return;
+    }
+
+    // Remove all FocusData's FocusNodes from the FocusManager
+    for (auto* obj : m_Objects)
+    {
+        if (obj != nullptr && obj->is<FocusData>())
+        {
+            auto* fd = obj->as<FocusData>();
+            // Only remove if the FocusNode was created (lazy initialization)
+            // and is still registered with THIS manager (defensive check for
+            // cases where auto-cleanup via FocusData destructor already ran)
+            auto node = fd->focusNode();
+            if (node != nullptr && node->manager() == m_activeFocusManager)
+            {
+                m_activeFocusManager->removeChild(node);
+            }
+        }
+    }
+
+    // Propagate cleanup to nested artboards that share our FocusManager
+    for (auto* nestedArtboardHost : m_NestedArtboards)
+    {
+        auto* nestedArtboard = nestedArtboardHost->artboardInstance(0);
+        if (nestedArtboard != nullptr &&
+            nestedArtboard->focusManager() == m_activeFocusManager)
+        {
+            nestedArtboard->cleanupFocusTree();
+        }
+    }
+
+    // Propagate cleanup to ArtboardComponentList items
+    for (auto* componentList : m_ComponentLists)
+    {
+        for (size_t i = 0; i < componentList->artboardCount(); i++)
+        {
+            auto* nestedArtboard =
+                componentList->artboardInstance(static_cast<int>(i));
+            if (nestedArtboard != nullptr &&
+                nestedArtboard->focusManager() == m_activeFocusManager)
+            {
+                nestedArtboard->cleanupFocusTree();
+            }
+        }
+    }
+
+    // Clear the active focus manager reference
+    m_activeFocusManager = nullptr;
+}
+
+#ifdef WITH_RIVE_TOOLS
+void Artboard::setExternalParentFocusNode(rcp<FocusNode> node)
+{
+    m_externalParentFocusNode = std::move(node);
+}
+
+rcp<FocusNode> Artboard::externalParentFocusNode() const
+{
+    return m_externalParentFocusNode;
+}
+#endif
+
+bool Artboard::keyInput(uint16_t key,
+                        uint8_t modifiers,
+                        bool isPressed,
+                        bool isRepeat)
+{
+    for (auto* child : children())
+    {
+        if (sendInputToFocusableChildren(child,
+                                         &Focusable::keyInput,
+                                         static_cast<Key>(key),
+                                         static_cast<KeyModifiers>(modifiers),
+                                         isPressed,
+                                         isRepeat))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Artboard::textInput(const std::string& text)
+{
+    for (auto* child : children())
+    {
+        if (sendInputToFocusableChildren(child, &Focusable::textInput, text))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::string Artboard::stateMachineNameAt(size_t index) const

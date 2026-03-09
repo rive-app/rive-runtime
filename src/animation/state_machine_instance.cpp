@@ -51,6 +51,10 @@
 #include "rive/profiler/profiler_macros.h"
 #include "rive/text/text_input.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/animation/focus_listener_group.hpp"
+#include "rive/animation/text_input_listener_group.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/node.hpp"
 #include <unordered_map>
 #include <chrono>
 
@@ -821,6 +825,8 @@ public:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
                         case ListenerType::drag:
+                        case ListenerType::focus:
+                        case ListenerType::blur:
                             break;
                     }
                 }
@@ -844,6 +850,8 @@ public:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
                         case ListenerType::drag:
+                        case ListenerType::focus:
+                        case ListenerType::blur:
                             break;
                     }
                 }
@@ -955,6 +963,8 @@ public:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
                         case ListenerType::drag:
+                        case ListenerType::focus:
+                        case ListenerType::blur:
                             break;
                     }
                 }
@@ -977,6 +987,8 @@ public:
                         case ListenerType::textInput:
                         case ListenerType::viewModel:
                         case ListenerType::drag:
+                        case ListenerType::focus:
+                        case ListenerType::blur:
                             break;
                     }
                 }
@@ -1383,6 +1395,36 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             m_listenerViewModels.push_back(vmListener);
             continue;
         }
+        // Handle focus/blur listeners - they're driven by FocusManager,
+        // not pointer events.
+        if (listener->listenerType() == ListenerType::focus ||
+            listener->listenerType() == ListenerType::blur)
+        {
+            auto target = m_artboardInstance->resolve(listener->targetId());
+            if (target != nullptr && target->is<Node>())
+            {
+                auto node = target->as<Node>();
+                // Find FocusData child of the node
+                FocusData* focusData = nullptr;
+                for (auto child : node->children())
+                {
+                    if (child->is<FocusData>())
+                    {
+                        focusData = child->as<FocusData>();
+                        break;
+                    }
+                }
+                if (focusData != nullptr)
+                {
+                    auto focusGroup =
+                        rivestd::make_unique<FocusListenerGroup>(focusData,
+                                                                 listener,
+                                                                 this);
+                    m_focusListenerGroups.push_back(std::move(focusGroup));
+                }
+            }
+            continue;
+        }
         auto listenerGroup = rivestd::make_unique<ListenerGroup>(listener);
         auto target = m_artboardInstance->resolve(listener->targetId());
         if (target != nullptr && target->is<Component>())
@@ -1488,6 +1530,23 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_hitComponents.push_back(std::move(hc));
     }
 
+#ifdef WITH_RIVE_TEXT
+    // Register TextInputs as hit targets for drag-to-select functionality
+    for (auto textInput : instance->objects<TextInput>())
+    {
+        auto textInputGroup =
+            rivestd::make_unique<TextInputListenerGroup>(textInput, this);
+        auto hitExpandable = rivestd::make_unique<HitExpandable>(
+            textInput->as<Drawable>(),
+            textInput->as<Component>(),
+            this,
+            true); // isOpaque - TextInput blocks hits behind it
+        hitExpandable->addListener(textInputGroup.get());
+        m_hitComponents.push_back(std::move(hitExpandable));
+        m_listenerGroups.push_back(std::move(textInputGroup));
+    }
+#endif
+
     // Initialize local instances of ScriptedObjects
     for (auto& scriptedOb : machine->scriptedObjects())
     {
@@ -1495,6 +1554,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             scriptedOb->cloneScriptedObject(this);
     }
     sortHitComponents();
+
+    // Build the focus tree for this artboard. focusManager() returns the
+    // external manager if set (e.g., when Dart owns the manager at edit time),
+    // otherwise the internal one. For nested artboards that need a parent
+    // FocusNode, Dart should call buildFocusTreeWithParent() after init.
+    m_artboardInstance->buildFocusTree(focusManager(), nullptr);
 }
 
 ScriptedObject* StateMachineInstance::scriptedObject(
@@ -1510,6 +1575,14 @@ ScriptedObject* StateMachineInstance::scriptedObject(
 
 StateMachineInstance::~StateMachineInstance()
 {
+    // Clean up focus tree BEFORE the internal FocusManager is destroyed.
+    // The artboard stores a raw pointer to our m_focusManager, so we must
+    // clear it before m_focusManager's implicit destruction at end of dtor.
+    if (m_externalFocusManager == nullptr && m_artboardInstance != nullptr)
+    {
+        m_artboardInstance->cleanupFocusTree();
+    }
+
     unbind();
     for (auto inst : m_inputInstances)
     {
@@ -1677,6 +1750,75 @@ void StateMachineInstance::applyEvents()
     }
 }
 
+void StateMachineInstance::setExternalFocusManager(FocusManager* manager)
+{
+    if (m_externalFocusManager == manager)
+    {
+        return;
+    }
+
+    // Clean up old focus tree if one was built
+    if (m_artboardInstance != nullptr &&
+        m_artboardInstance->focusManager() != nullptr)
+    {
+        m_artboardInstance->cleanupFocusTree();
+    }
+
+    m_externalFocusManager = manager;
+
+    // Rebuild focus tree with new manager (focusManager() will return the new
+    // external manager if set, or internal if null)
+    if (m_artboardInstance != nullptr)
+    {
+        m_artboardInstance->buildFocusTree(focusManager(), nullptr);
+    }
+}
+
+void StateMachineInstance::queueFocusEvent(FocusListenerGroup* group,
+                                           bool isFocus)
+{
+    m_queuedFocusEvents.push_back({group, isFocus});
+    m_needsAdvance = true;
+}
+
+void StateMachineInstance::setFocus(FocusData* focusData)
+{
+    if (focusData != nullptr)
+    {
+        auto node = focusData->focusNode();
+        auto* fm = focusManager();
+        fm->setFocus(node);
+    }
+    else
+    {
+        focusManager()->clearFocus();
+    }
+}
+
+void StateMachineInstance::processFocusEvents()
+{
+    if (m_queuedFocusEvents.empty())
+    {
+        return;
+    }
+
+    auto events = std::move(m_queuedFocusEvents);
+    m_queuedFocusEvents.clear();
+
+    for (const auto& event : events)
+    {
+        auto listener = event.group->listener();
+        bool isFocusEvent = event.isFocus;
+
+        // Match listener type to event type
+        if ((isFocusEvent && listener->listenerType() == ListenerType::focus) ||
+            (!isFocusEvent && listener->listenerType() == ListenerType::blur))
+        {
+            listener->performChanges(this, Vec2D(), Vec2D(), 0);
+        }
+    }
+}
+
 bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
     if (m_drawOrderChangeCounter !=
@@ -1687,6 +1829,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     }
     if (newFrame)
     {
+        processFocusEvents();
         applyEvents();
         m_needsAdvance = false;
     }
@@ -2140,20 +2283,10 @@ bool StateMachineInstance::keyInput(Key value,
                                     bool isPressed,
                                     bool isRepeat)
 {
-    // For now just find a text input.
-    auto textInput = m_artboardInstance->objects<TextInput>().first();
-    if (textInput != nullptr)
-    {
-        return textInput->keyInput(value, modifiers, isPressed, isRepeat);
-    }
-    return false;
+    return focusManager()->keyInput(value, modifiers, isPressed, isRepeat);
 }
+
 bool StateMachineInstance::textInput(const std::string& text)
 {
-    auto textInput = m_artboardInstance->objects<TextInput>().first();
-    if (textInput != nullptr)
-    {
-        return textInput->textInput(text);
-    }
-    return false;
+    return focusManager()->textInput(text);
 }

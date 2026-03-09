@@ -17,6 +17,28 @@ void TextInput::draw(Renderer* renderer) {}
 
 Core* TextInput::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
+bool TextInput::hitTestPoint(const Vec2D& position,
+                             bool skipOnUnclipped,
+                             bool isPrimaryHit)
+{
+    // TextInput must check its own bounds before delegating to parent.
+    // Unlike layouts, we always check bounds regardless of clip state.
+    Mat2D inverseWorld;
+    if (!worldTransform().invert(&inverseWorld))
+    {
+        return false;
+    }
+
+    Vec2D localPosition = inverseWorld * position;
+    if (!localBounds().contains(localPosition))
+    {
+        return false;
+    }
+
+    // Bounds check passed, now check parent hierarchy
+    return Drawable::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
+}
+
 void TextInput::textChanged()
 {
 #ifdef WITH_RIVE_TEXT
@@ -103,7 +125,8 @@ void TextInput::update(ComponentDirt value)
                 child->invalidateStrokeEffects();
             }
         }
-        if (m_scrollConstraint != nullptr)
+        // Skip scroll adjustment during drag - edge scrolling handles it
+        if (m_scrollConstraint != nullptr && !m_isDragging)
         {
             CursorVisualPosition cursorPosition =
                 m_rawTextInput.cursorVisualPosition();
@@ -228,6 +251,11 @@ bool TextInput::keyInput(Key value,
                          bool isPressed,
                          bool isRepeat)
 {
+    fprintf(stderr,
+            "[TextInput::keyInput] this=%p, key=%d, isPressed=%d\n",
+            (void*)this,
+            (int)value,
+            isPressed);
 #ifdef WITH_RIVE_TEXT
     if (isPressed)
     {
@@ -294,4 +322,170 @@ bool TextInput::textInput(const std::string& text)
     markShapeDirty();
 #endif
     return true;
+}
+
+void TextInput::focused()
+{
+    // TODO: Implement focus visual feedback
+}
+
+void TextInput::blurred()
+{
+    // TODO: Implement blur visual feedback
+}
+
+bool TextInput::worldPosition(Vec2D& outPosition)
+{
+    // TextInput is a TransformComponent, so we can access worldTransform
+    // directly
+    Vec2D localPos = worldTranslation();
+
+    // Transform to root artboard space (handles nested artboards)
+    auto* ab = artboard();
+    if (ab)
+    {
+        outPosition = ab->rootTransform(localPos);
+    }
+    else
+    {
+        outPosition = localPos;
+    }
+    return true;
+}
+
+bool TextInput::worldBounds(AABB& outBounds)
+{
+    // m_worldBounds is computed in update() via
+    // worldTransform().mapBoundingBox()
+    if (m_worldBounds.isEmptyOrNaN())
+    {
+        return false;
+    }
+
+    // Transform to root artboard space (handles nested artboards)
+    auto* ab = artboard();
+    if (ab)
+    {
+        Vec2D minPt = ab->rootTransform(m_worldBounds.min());
+        Vec2D maxPt = ab->rootTransform(m_worldBounds.max());
+        outBounds = AABB(minPt, maxPt);
+    }
+    else
+    {
+        outBounds = m_worldBounds;
+    }
+    return true;
+}
+
+bool TextInput::worldToLocalWithViewport(Vec2D worldPosition, Vec2D& outLocal)
+{
+    m_scrollY = 0.0f;
+
+    // Get the inverse of the world transform to convert to local coordinates
+    Mat2D inverseWorld;
+    if (!worldTransform().invert(&inverseWorld))
+    {
+        return false;
+    }
+
+    Vec2D localPos = inverseWorld * worldPosition;
+
+    // If we have a scroll constraint, handle viewport clamping and edge
+    // detection
+    if (m_scrollConstraint != nullptr)
+    {
+        float viewportHeight = m_scrollConstraint->viewportHeight();
+        float scrollOffsetY = m_scrollConstraint->scrollOffsetY();
+
+        // Convert to viewport-relative coordinates
+        float viewportY = localPos.y + scrollOffsetY;
+
+        // Edge detection for auto-scrolling
+        const float edgeThreshold = 20.0f;
+        const float scrollSpeed = 30.0f;
+
+        if (viewportY < edgeThreshold)
+        {
+            // Near top edge - scroll up
+            m_scrollY = scrollSpeed;
+        }
+        else if (viewportY > viewportHeight - edgeThreshold)
+        {
+            // Near bottom edge - scroll down
+            m_scrollY = -scrollSpeed;
+        }
+
+        // Clamp to viewport bounds for cursor placement
+        if (viewportY < 0.0f)
+        {
+            localPos.y = -scrollOffsetY;
+        }
+        else if (viewportY > viewportHeight)
+        {
+            localPos.y = viewportHeight - scrollOffsetY;
+        }
+    }
+
+    outLocal = localPos;
+    return true;
+}
+
+void TextInput::startDrag(Vec2D worldPosition)
+{
+#ifdef WITH_RIVE_TEXT
+    m_isDragging = true;
+
+    Vec2D localPos;
+    if (!worldToLocalWithViewport(worldPosition, localPos))
+    {
+        return;
+    }
+
+    m_rawTextInput.moveCursorTo(localPos, false);
+    markPaintDirty();
+    // Note: Focus is handled by TextInputListenerGroup which can cross
+    // artboard boundaries to find the appropriate FocusData.
+#endif
+}
+
+void TextInput::drag(Vec2D worldPosition)
+{
+#ifdef WITH_RIVE_TEXT
+    Vec2D localPos;
+    if (!worldToLocalWithViewport(worldPosition, localPos))
+    {
+        return;
+    }
+
+    m_rawTextInput.moveCursorTo(localPos, true);
+    markPaintDirty();
+#endif
+}
+
+void TextInput::endDrag(Vec2D worldPosition)
+{
+    m_isDragging = false;
+    m_scrollY = 0.0f;
+}
+
+bool TextInput::advanceDrag(float elapsedSeconds)
+{
+#ifdef WITH_RIVE_TEXT
+    if (m_scrollY == 0.0f || m_scrollConstraint == nullptr)
+    {
+        return false;
+    }
+
+    // Apply the scroll delta
+    float scrollDelta = m_scrollY * elapsedSeconds;
+    float newScrollOffset = m_scrollConstraint->scrollOffsetY() + scrollDelta;
+
+    m_scrollConstraint->stopPhysics();
+    m_scrollConstraint->scrollOffsetY(newScrollOffset);
+
+    // Continue scrolling while still dragging
+    return m_isDragging;
+#else
+    return false;
+#endif
 }

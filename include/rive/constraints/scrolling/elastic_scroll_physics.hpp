@@ -30,6 +30,7 @@ public:
     }
 
     bool isRunning() { return m_isRunning; }
+    float target() { return m_target; }
     float clamp(float rangeMin, float rangeMax, float value);
     void run(float acceleration,
              float rangeMin,
@@ -39,6 +40,10 @@ public:
              float contentSize,
              float viewportSize);
     float advance(float elapsedSeconds);
+
+    /// Initiate a settling animation from current position to target.
+    /// This skips the velocity phase and goes directly to smooth settling.
+    void scrollTo(float current, float target, float rangeMin, float rangeMax);
 };
 
 class ElasticScrollPhysics : public ElasticScrollPhysicsBase
@@ -58,6 +63,16 @@ public:
         return (m_physicsX != nullptr && m_physicsX->isRunning()) ||
                (m_physicsY != nullptr && m_physicsY->isRunning());
     }
+    float targetX() override
+    {
+        return m_physicsX != nullptr ? m_physicsX->target() : 0.0f;
+    }
+    float targetY() override
+    {
+        return m_physicsY != nullptr ? m_physicsY->target() : 0.0f;
+    }
+    bool hasTargetX() override { return m_physicsX != nullptr; }
+    bool hasTargetY() override { return m_physicsY != nullptr; }
     Vec2D advance(float elapsedSeconds) override;
     Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
     void run(Vec2D rangeMin,
@@ -68,6 +83,14 @@ public:
              float viewportSize) override;
     void prepare(DraggableConstraintDirection dir) override;
     void reset() override;
+
+    /// Initiate animated scroll to target position.
+    void scrollToPosition(Vec2D current,
+                          Vec2D target,
+                          Vec2D rangeMin,
+                          Vec2D rangeMax,
+                          bool horizontal,
+                          bool vertical) override;
 };
 } // namespace rive
 

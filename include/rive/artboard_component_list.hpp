@@ -75,7 +75,9 @@ public:
                      bool skipOnUnclipped,
                      ArtboardInstance* artboard) override;
     Vec2D hostTransformPoint(const Vec2D& vec, ArtboardInstance*) override;
+    Mat2D worldTransformForArtboard(ArtboardInstance*) override;
     void markHostTransformDirty() override { markTransformDirty(); }
+    Component* hostComponent() override { return this; }
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;
     void markLayoutNodeDirty(

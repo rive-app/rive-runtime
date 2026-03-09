@@ -1,0 +1,46 @@
+{
+  "name": "FocusData",
+  "key": {
+    "int": 653,
+    "string": "focusdata"
+  },
+  "extends": "component.json",
+  "properties": {
+    "canFocus": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 953,
+        "string": "canfocus"
+      },
+      "description": "Master switch - can this node receive focus at all?"
+    },
+    "canTouch": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 954,
+        "string": "cantouch"
+      },
+      "description": "Can receive focus via pointer/touch click"
+    },
+    "canTraverse": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 955,
+        "string": "cantraverse"
+      },
+      "description": "Included in Tab/Shift+Tab traversal"
+    },
+    "edgeBehaviorValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 956,
+        "string": "edgebehaviorvalue"
+      },
+      "description": "For scopes: parentScope(0), closedLoop(1), stop(2)"
+    }
+  }
+}

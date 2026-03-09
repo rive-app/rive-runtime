@@ -15,9 +15,12 @@
 #include "rive/scene.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/input/focusable.hpp"
+#include "rive/input/focus_manager.hpp"
 
 namespace rive
 {
+class FocusData;
+class FocusListenerGroup;
 class StateMachine;
 class LayerState;
 class SMIInput;
@@ -207,6 +210,37 @@ public:
     void clearDataContext();
     void internalDataContext(rcp<DataContext> dataContext);
     ScriptedObject* scriptedObject(const ScriptedObject*) const;
+
+    /// Queue a focus event for deferred execution during advance().
+    void queueFocusEvent(FocusListenerGroup* group, bool isFocus);
+
+    /// Get the focus manager for this state machine instance.
+    /// Returns the external focus manager if set, otherwise the internal one.
+    FocusManager* focusManager()
+    {
+        return m_externalFocusManager ? m_externalFocusManager
+                                      : &m_focusManager;
+    }
+
+    /// Check if this state machine is using an external focus manager.
+    bool hasExternalFocusManager() const
+    {
+        return m_externalFocusManager != nullptr;
+    }
+
+    /// Get the internal focus manager (always owned by this
+    /// StateMachineInstance). Useful when you need to operate only on the
+    /// internal manager regardless of whether an external one is set.
+    FocusManager* internalFocusManager() { return &m_focusManager; }
+
+    /// Set an external focus manager to use instead of the internal one.
+    /// This is used when a nested artboard should share focus with its parent.
+    /// If the focus tree was already built with a different manager, it will
+    /// be rebuilt with the new manager.
+    void setExternalFocusManager(FocusManager* manager);
+
+    /// Set focus to a specific FocusData's node.
+    void setFocus(FocusData* focusData);
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)
@@ -250,6 +284,20 @@ private:
     void unbind();
     void removeEventListeners();
     void initScriptedObjects();
+
+    // Focus management
+    FocusManager m_focusManager;
+    FocusManager* m_externalFocusManager = nullptr;
+    std::vector<std::unique_ptr<FocusListenerGroup>> m_focusListenerGroups;
+
+    // Queued focus events for deferred processing
+    struct QueuedFocusEvent
+    {
+        FocusListenerGroup* group;
+        bool isFocus;
+    };
+    std::vector<QueuedFocusEvent> m_queuedFocusEvents;
+    void processFocusEvents();
 
 #ifdef WITH_RIVE_TOOLS
 public:

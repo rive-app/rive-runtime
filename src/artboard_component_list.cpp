@@ -1,9 +1,12 @@
 #include "rive/component.hpp"
 #include "rive/file.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/constraints/list_constraint.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/input/focus_manager.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/world_transform_component.hpp"
@@ -17,18 +20,33 @@ ArtboardComponentList::~ArtboardComponentList() { clear(); }
 
 void ArtboardComponentList::clear()
 {
+    // Clean up focus trees FIRST to prevent use-after-free when the
+    // FocusManager still holds references to FocusNodes.
     for (auto& artboard : m_artboardInstancesMap)
     {
-        artboard.second.reset();
+        if (artboard.second != nullptr)
+        {
+            artboard.second->cleanupFocusTree();
+        }
     }
+
+    // Destroy state machines BEFORE artboards.
+    // StateMachineInstance owns FocusListenerGroup objects that hold raw
+    // pointers to FocusData (owned by artboards). Destroying artboards first
+    // would cause use-after-free when FocusListenerGroup destructor tries to
+    // unregister from the already-deleted FocusData.
     for (auto& sm : m_stateMachinesMap)
     {
         sm.second.reset();
     }
-    m_artboardInstancesMap.clear();
+    for (auto& artboard : m_artboardInstancesMap)
+    {
+        artboard.second.reset();
+    }
     m_stateMachinesMap.clear();
     m_artboardInstancesByIndex.clear();
     m_stateMachinesByIndex.clear();
+    m_artboardInstancesMap.clear();
     m_listItems.clear();
     m_artboardsMap.clear();
     m_resourcePool.clear();
@@ -224,20 +242,36 @@ std::unique_ptr<StateMachineInstance> ArtboardComponentList::
 
 void ArtboardComponentList::linkStateMachineToArtboard(
     StateMachineInstance* stateMachineInstance,
-    ArtboardInstance* artboard)
+    ArtboardInstance* artboardInstance)
 {
-    if (artboard != nullptr && stateMachineInstance != nullptr)
+    if (artboardInstance != nullptr && stateMachineInstance != nullptr)
     {
-        auto dataContext = artboard->dataContext();
+        auto dataContext = artboardInstance->dataContext();
         stateMachineInstance->dataContext(dataContext);
         // TODO: @hernan added this to make sure data binds are procesed in the
         // current frame instead of waiting for the next run. But might not be
         // necessary. Needs more testing.
         stateMachineInstance->updateDataBinds(false);
+
+        // Share parent artboard's focus manager and build focus tree for list
+        // item.
+        auto* parentArtboard = this->artboard();
+        if (parentArtboard != nullptr &&
+            parentArtboard->focusManager() != nullptr)
+        {
+            auto* parentFM = parentArtboard->focusManager();
+            stateMachineInstance->setExternalFocusManager(parentFM);
+
+            // Find closest focus node (handles artboard boundaries)
+            auto parentNode = FocusData::findClosestFocusNode(this);
+
+            // Build list item's focus tree under parent
+            artboardInstance->buildFocusTree(parentFM, parentNode);
+        }
     }
 }
 
-bool ArtboardComponentList ::listsAreEqual(
+bool ArtboardComponentList::listsAreEqual(
     std::vector<rcp<ViewModelInstanceListItem>>* list,
     std::vector<rcp<ViewModelInstanceListItem>>* compared)
 {
@@ -591,6 +625,31 @@ Vec2D ArtboardComponentList::hostTransformPoint(
     return ab ? ab->rootTransform(localVec) : localVec;
 }
 
+Mat2D ArtboardComponentList::worldTransformForArtboard(
+    ArtboardInstance* artboardInstance)
+{
+    auto offset = artboardPosition(artboardInstance);
+    // For scroll-into-view calculations, we need the position in content-local
+    // space (without scroll applied). Use the list's layout position combined
+    // with parent's world transform, rather than worldTransform() which may
+    // include scroll constraints.
+    auto* parentLayout = parent() != nullptr && parent()->is<LayoutComponent>()
+                             ? parent()->as<LayoutComponent>()
+                             : nullptr;
+    if (parentLayout != nullptr)
+    {
+        AABB listBounds = layoutBounds();
+        Mat2D transform =
+            parentLayout->worldTransform() *
+            Mat2D::fromTranslate(listBounds.minX, listBounds.minY);
+        return transform * Mat2D::fromTranslate(offset.x, offset.y);
+    }
+    auto transform = virtualizationEnabled()
+                         ? parent()->as<LayoutComponent>()->worldTransform()
+                         : worldTransform();
+    return transform * Mat2D::fromTranslate(offset.x, offset.y);
+}
+
 void ArtboardComponentList::update(ComponentDirt value)
 {
     Super::update(value);
@@ -912,10 +971,20 @@ void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
     auto itr = m_artboardInstancesMap.find(item);
     if (itr != m_artboardInstancesMap.end())
     {
+        // Clean up focus tree before destroying the artboard to prevent
+        // use-after-free when the FocusManager still holds references
+        // to FocusNodes pointing to FocusData in this artboard.
+        if (itr->second != nullptr)
+        {
+            itr->second->cleanupFocusTree();
+        }
         clearArtboardOverride(itr->second.get());
     }
-    m_artboardInstancesMap.erase(item);
+    // Destroy state machines BEFORE artboards to ensure FocusListenerGroup
+    // can unregister from FocusData before the artboard (and its FocusData)
+    // is destroyed. Otherwise we get use-after-free in ~FocusListenerGroup.
     m_stateMachinesMap.erase(item);
+    m_artboardInstancesMap.erase(item);
 }
 
 void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)

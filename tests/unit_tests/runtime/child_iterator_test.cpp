@@ -36,6 +36,6 @@ TEST_CASE("child typed iterators work", "[iterators]")
     {
         count++;
     }
-    CHECK(allShapePaints.size() == 37);
+    CHECK(allShapePaints.size() == 20);
     CHECK(allShapePaints.size() == count);
 }

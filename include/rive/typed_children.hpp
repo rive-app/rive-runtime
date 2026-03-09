@@ -25,8 +25,8 @@ public:
     TypedChild& operator++()
     {
         m_child++;
-        while (m_child != m_end && (*m_child) != nullptr &&
-               !(*m_child)->template is<T>())
+        while (m_child != m_end &&
+               ((*m_child) == nullptr || !(*m_child)->template is<T>()))
         {
             m_child++;
         }
@@ -51,7 +51,8 @@ public:
     {
         size_t size = m_children.size();
         size_t index = 0;
-        while (index < size && !m_children[index]->template is<T>())
+        while (index < size && (m_children[index] == nullptr ||
+                                !m_children[index]->template is<T>()))
         {
             index++;
         }

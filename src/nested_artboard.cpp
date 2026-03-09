@@ -4,17 +4,35 @@
 #include "rive/file.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/input/focusable.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/data_bind/data_bind_path.hpp"
 #include "rive/clip_result.hpp"
+#include "rive/text/text_input.hpp"
 #include <limits>
 #include <cassert>
 
 using namespace rive;
 
 NestedArtboard::NestedArtboard() {}
-NestedArtboard::~NestedArtboard() {}
+NestedArtboard::~NestedArtboard()
+{
+    // Release dependencies of nested animations BEFORE m_Instance is destroyed.
+    // The nested animations (like NestedStateMachine) hold
+    // StateMachineInstances that reference m_Instance. If we don't release them
+    // here, their destructors (called later when the parent artboard destroys
+    // them from m_Objects) will try to access the already-freed m_Instance.
+    for (auto& animation : m_NestedAnimations)
+    {
+        animation->releaseDependencies();
+    }
+    // Also release the bound state machine's dependencies if it exists
+    if (m_boundNestedStateMachine)
+    {
+        m_boundNestedStateMachine->releaseDependencies();
+    }
+}
 
 Core* NestedArtboard::clone() const
 {
@@ -179,6 +197,11 @@ Vec2D NestedArtboard::hostTransformPoint(const Vec2D& vec,
     auto localVec = Vec2D::transformMat2D(vec, worldTransform());
     auto ab = artboard();
     return ab ? ab->rootTransform(localVec) : localVec;
+}
+
+Mat2D NestedArtboard::worldTransformForArtboard(ArtboardInstance*)
+{
+    return worldTransform();
 }
 
 StatusCode NestedArtboard::import(ImportStack& importStack)
@@ -581,4 +604,28 @@ void NestedArtboard::referencedArtboard(Artboard* artboard)
     assert(artboard != nullptr);
     ArtboardReferencer::referencedArtboard(artboard);
     nest(artboard);
+}
+
+bool NestedArtboard::keyInput(Key value,
+                              KeyModifiers modifiers,
+                              bool isPressed,
+                              bool isRepeat)
+{
+    if (m_Instance == nullptr)
+    {
+        return false;
+    }
+    return m_Instance->keyInput(static_cast<uint16_t>(value),
+                                static_cast<uint8_t>(modifiers),
+                                isPressed,
+                                isRepeat);
+}
+
+bool NestedArtboard::textInput(const std::string& text)
+{
+    if (m_Instance == nullptr)
+    {
+        return false;
+    }
+    return m_Instance->textInput(text);
 }

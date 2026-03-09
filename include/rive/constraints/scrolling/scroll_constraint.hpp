@@ -104,6 +104,20 @@ public:
     }
     Vec2D gap();
     bool mainAxisIsColumn();
+
+    /// Animate scroll to the target position using the physics settling
+    /// animation.
+    void scrollToPosition(float targetX, float targetY);
+
+    /// Get the effective scroll offset X (target if animating, current
+    /// otherwise). Use this to check element visibility during rapid focus
+    /// changes.
+    float effectiveScrollOffsetX();
+
+    /// Get the effective scroll offset Y (target if animating, current
+    /// otherwise). Use this to check element visibility during rapid focus
+    /// changes.
+    float effectiveScrollOffsetY();
 };
 } // namespace rive
 

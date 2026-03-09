@@ -582,3 +582,46 @@ Vec2D ScrollConstraint::gap()
     }
     return Vec2D(content()->gapHorizontal(), content()->gapVertical());
 }
+
+void ScrollConstraint::scrollToPosition(float targetX, float targetY)
+{
+    if (m_physics == nullptr)
+    {
+        // No physics, just set offset directly
+        scrollOffsetX(targetX);
+        scrollOffsetY(targetY);
+        return;
+    }
+
+    Vec2D current(m_offsetX, m_offsetY);
+    Vec2D target(targetX, targetY);
+    Vec2D rangeMin(maxOffsetX(), maxOffsetY());
+    Vec2D rangeMax(0.0f, 0.0f);
+
+    m_physics->scrollToPosition(current,
+                                target,
+                                rangeMin,
+                                rangeMax,
+                                constrainsHorizontal(),
+                                constrainsVertical());
+}
+
+float ScrollConstraint::effectiveScrollOffsetX()
+{
+    if (m_physics != nullptr && m_physics->isRunning() &&
+        m_physics->hasTargetX())
+    {
+        return m_physics->targetX();
+    }
+    return scrollOffsetX();
+}
+
+float ScrollConstraint::effectiveScrollOffsetY()
+{
+    if (m_physics != nullptr && m_physics->isRunning() &&
+        m_physics->hasTargetY())
+    {
+        return m_physics->targetY();
+    }
+    return scrollOffsetY();
+}

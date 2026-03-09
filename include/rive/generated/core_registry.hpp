@@ -20,6 +20,7 @@
 #include "rive/animation/elastic_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
+#include "rive/animation/focus_action.hpp"
 #include "rive/animation/interpolating_keyframe.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
@@ -190,6 +191,7 @@
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
 #include "rive/event.hpp"
+#include "rive/focus_data.hpp"
 #include "rive/foreground_layout_drawable.hpp"
 #include "rive/joystick.hpp"
 #include "rive/layout/artboard_component_list_override.hpp"
@@ -363,12 +365,18 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case ViewModelInstanceBase::typeKey:
-                return new ViewModelInstance();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelInstanceBase::typeKey:
+                return new ViewModelInstance();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -381,18 +389,12 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -545,6 +547,8 @@ public:
                 return new KeyFrameDouble();
             case KeyFrameColorBase::typeKey:
                 return new KeyFrameColor();
+            case FocusActionBase::typeKey:
+                return new FocusAction();
             case StateMachineBase::typeKey:
                 return new StateMachine();
             case StateMachineFireEventBase::typeKey:
@@ -657,6 +661,8 @@ public:
                 return new CustomPropertyGroup();
             case EventBase::typeKey:
                 return new Event();
+            case FocusDataBase::typeKey:
+                return new FocusData();
             case CustomPropertyBooleanBase::typeKey:
                 return new CustomPropertyBoolean();
             case ScriptInputBooleanBase::typeKey:
@@ -1288,6 +1294,9 @@ public:
             case StateTransitionBase::randomWeightPropertyKey:
                 object->as<StateTransitionBase>()->randomWeight(value);
                 break;
+            case FocusActionBase::targetIdPropertyKey:
+                object->as<FocusActionBase>()->targetId(value);
+                break;
             case StateMachineFireEventBase::eventIdPropertyKey:
                 object->as<StateMachineFireEventBase>()->eventId(value);
                 break;
@@ -1351,6 +1360,9 @@ public:
                 break;
             case ImageBase::assetIdPropertyKey:
                 object->as<ImageBase>()->assetId(value);
+                break;
+            case FocusDataBase::edgeBehaviorValuePropertyKey:
+                object->as<FocusDataBase>()->edgeBehaviorValue(value);
                 break;
             case DrawRulesBase::drawTargetIdPropertyKey:
                 object->as<DrawRulesBase>()->drawTargetId(value);
@@ -1575,14 +1587,14 @@ public:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceStringBase>()->propertyValue(value);
                 break;
-            case ComponentBase::namePropertyKey:
-                object->as<ComponentBase>()->name(value);
-                break;
             case DataEnumValueBase::keyPropertyKey:
                 object->as<DataEnumValueBase>()->key(value);
                 break;
             case DataEnumValueBase::valuePropertyKey:
                 object->as<DataEnumValueBase>()->value(value);
+                break;
+            case ComponentBase::namePropertyKey:
+                object->as<ComponentBase>()->name(value);
                 break;
             case DataConverterBase::namePropertyKey:
                 object->as<DataConverterBase>()->name(value);
@@ -1776,6 +1788,15 @@ public:
                 break;
             case ClippingShapeBase::isVisiblePropertyKey:
                 object->as<ClippingShapeBase>()->isVisible(value);
+                break;
+            case FocusDataBase::canFocusPropertyKey:
+                object->as<FocusDataBase>()->canFocus(value);
+                break;
+            case FocusDataBase::canTouchPropertyKey:
+                object->as<FocusDataBase>()->canTouch(value);
+                break;
+            case FocusDataBase::canTraversePropertyKey:
+                object->as<FocusDataBase>()->canTraverse(value);
                 break;
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
                 object->as<CustomPropertyBooleanBase>()->propertyValue(value);
@@ -2826,6 +2847,8 @@ public:
                 return object->as<StateTransitionBase>()->interpolatorId();
             case StateTransitionBase::randomWeightPropertyKey:
                 return object->as<StateTransitionBase>()->randomWeight();
+            case FocusActionBase::targetIdPropertyKey:
+                return object->as<FocusActionBase>()->targetId();
             case StateMachineFireEventBase::eventIdPropertyKey:
                 return object->as<StateMachineFireEventBase>()->eventId();
             case LinearAnimationBase::fpsPropertyKey:
@@ -2869,6 +2892,8 @@ public:
                 return object->as<PolygonBase>()->points();
             case ImageBase::assetIdPropertyKey:
                 return object->as<ImageBase>()->assetId();
+            case FocusDataBase::edgeBehaviorValuePropertyKey:
+                return object->as<FocusDataBase>()->edgeBehaviorValue();
             case DrawRulesBase::drawTargetIdPropertyKey:
                 return object->as<DrawRulesBase>()->drawTargetId();
             case LayoutComponentBase::styleIdPropertyKey:
@@ -3027,12 +3052,12 @@ public:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceStringBase>()
                     ->propertyValue();
-            case ComponentBase::namePropertyKey:
-                return object->as<ComponentBase>()->name();
             case DataEnumValueBase::keyPropertyKey:
                 return object->as<DataEnumValueBase>()->key();
             case DataEnumValueBase::valuePropertyKey:
                 return object->as<DataEnumValueBase>()->value();
+            case ComponentBase::namePropertyKey:
+                return object->as<ComponentBase>()->name();
             case DataConverterBase::namePropertyKey:
                 return object->as<DataConverterBase>()->name();
             case AnimationBase::namePropertyKey:
@@ -3175,6 +3200,12 @@ public:
                 return object->as<RectangleBase>()->linkCornerRadius();
             case ClippingShapeBase::isVisiblePropertyKey:
                 return object->as<ClippingShapeBase>()->isVisible();
+            case FocusDataBase::canFocusPropertyKey:
+                return object->as<FocusDataBase>()->canFocus();
+            case FocusDataBase::canTouchPropertyKey:
+                return object->as<FocusDataBase>()->canTouch();
+            case FocusDataBase::canTraversePropertyKey:
+                return object->as<FocusDataBase>()->canTraverse();
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
@@ -3797,6 +3828,7 @@ public:
             case StateTransitionBase::interpolationTypePropertyKey:
             case StateTransitionBase::interpolatorIdPropertyKey:
             case StateTransitionBase::randomWeightPropertyKey:
+            case FocusActionBase::targetIdPropertyKey:
             case StateMachineFireEventBase::eventIdPropertyKey:
             case LinearAnimationBase::fpsPropertyKey:
             case LinearAnimationBase::durationPropertyKey:
@@ -3818,6 +3850,7 @@ public:
             case ClippingShapeBase::fillRulePropertyKey:
             case PolygonBase::pointsPropertyKey:
             case ImageBase::assetIdPropertyKey:
+            case FocusDataBase::edgeBehaviorValuePropertyKey:
             case DrawRulesBase::drawTargetIdPropertyKey:
             case LayoutComponentBase::styleIdPropertyKey:
             case ArtboardBase::defaultStateMachineIdPropertyKey:
@@ -3890,9 +3923,9 @@ public:
             case ViewModelComponentBase::namePropertyKey:
             case DataEnumCustomBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
-            case ComponentBase::namePropertyKey:
             case DataEnumValueBase::keyPropertyKey:
             case DataEnumValueBase::valuePropertyKey:
+            case ComponentBase::namePropertyKey:
             case DataConverterBase::namePropertyKey:
             case AnimationBase::namePropertyKey:
             case StateMachineComponentBase::namePropertyKey:
@@ -3954,6 +3987,9 @@ public:
             case PointsCommonPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
+            case FocusDataBase::canFocusPropertyKey:
+            case FocusDataBase::canTouchPropertyKey:
+            case FocusDataBase::canTraversePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
             case ArtboardBase::isStatefulPropertyKey:
@@ -4481,6 +4517,8 @@ public:
                 return object->is<StateTransitionBase>();
             case StateTransitionBase::randomWeightPropertyKey:
                 return object->is<StateTransitionBase>();
+            case FocusActionBase::targetIdPropertyKey:
+                return object->is<FocusActionBase>();
             case StateMachineFireEventBase::eventIdPropertyKey:
                 return object->is<StateMachineFireEventBase>();
             case LinearAnimationBase::fpsPropertyKey:
@@ -4523,6 +4561,8 @@ public:
                 return object->is<PolygonBase>();
             case ImageBase::assetIdPropertyKey:
                 return object->is<ImageBase>();
+            case FocusDataBase::edgeBehaviorValuePropertyKey:
+                return object->is<FocusDataBase>();
             case DrawRulesBase::drawTargetIdPropertyKey:
                 return object->is<DrawRulesBase>();
             case LayoutComponentBase::styleIdPropertyKey:
@@ -4665,12 +4705,12 @@ public:
                 return object->is<DataEnumCustomBase>();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceStringBase>();
-            case ComponentBase::namePropertyKey:
-                return object->is<ComponentBase>();
             case DataEnumValueBase::keyPropertyKey:
                 return object->is<DataEnumValueBase>();
             case DataEnumValueBase::valuePropertyKey:
                 return object->is<DataEnumValueBase>();
+            case ComponentBase::namePropertyKey:
+                return object->is<ComponentBase>();
             case DataConverterBase::namePropertyKey:
                 return object->is<DataConverterBase>();
             case AnimationBase::namePropertyKey:
@@ -4789,6 +4829,12 @@ public:
                 return object->is<RectangleBase>();
             case ClippingShapeBase::isVisiblePropertyKey:
                 return object->is<ClippingShapeBase>();
+            case FocusDataBase::canFocusPropertyKey:
+                return object->is<FocusDataBase>();
+            case FocusDataBase::canTouchPropertyKey:
+                return object->is<FocusDataBase>();
+            case FocusDataBase::canTraversePropertyKey:
+                return object->is<FocusDataBase>();
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:

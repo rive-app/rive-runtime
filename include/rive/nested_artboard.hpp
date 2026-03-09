@@ -8,6 +8,7 @@
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/hit_info.hpp"
+#include "rive/input/focusable.hpp"
 #include "rive/span.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/resetting_component.hpp"
@@ -28,7 +29,8 @@ class NestedArtboard : public NestedArtboardBase,
                        public AdvancingComponent,
                        public ResettingComponent,
                        public ArtboardHost,
-                       public ArtboardReferencer
+                       public ArtboardReferencer,
+                       public Focusable
 {
 protected:
     std::unique_ptr<ArtboardInstance> m_Instance; // may be null
@@ -107,12 +109,24 @@ public:
     void reset() override;
     Artboard* parentArtboard() override { return artboard(); }
     Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) override;
+    Mat2D worldTransformForArtboard(ArtboardInstance*) override;
     bool hitTestHost(const Vec2D& position,
                      bool skipOnUnclipped,
                      ArtboardInstance* artboard) override;
     void markHostTransformDirty() override { markTransformDirty(); }
     void file(File*) override;
     File* file() const override;
+    Component* hostComponent() override { return this; }
+
+    // Focusable interface - delegates to nested state machines
+    bool keyInput(Key value,
+                  KeyModifiers modifiers,
+                  bool isPressed,
+                  bool isRepeat) override;
+    bool textInput(const std::string& text) override;
+    void focused() override {}
+    void blurred() override {}
+    Artboard* focusableArtboard() const override { return artboard(); }
 };
 } // namespace rive
 

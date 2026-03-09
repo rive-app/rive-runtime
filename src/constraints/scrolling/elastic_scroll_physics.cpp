@@ -233,3 +233,49 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
         m_snapTarget = NAN;
     }
 }
+
+void ElasticScrollPhysicsHelper::scrollTo(float current,
+                                          float target,
+                                          float rangeMin,
+                                          float rangeMax)
+{
+    m_isRunning = true;
+    m_runRangeMin = rangeMin;
+    m_runRangeMax = rangeMax;
+    m_current = current;
+    m_target = target;
+    m_speed = 0; // Skip velocity phase, go directly to settling
+    m_snapTarget = NAN;
+}
+
+void ElasticScrollPhysics::scrollToPosition(Vec2D current,
+                                            Vec2D target,
+                                            Vec2D rangeMin,
+                                            Vec2D rangeMax,
+                                            bool horizontal,
+                                            bool vertical)
+{
+    // Create physics helpers if needed
+    if (horizontal && m_physicsX == nullptr)
+    {
+        m_physicsX = new ElasticScrollPhysicsHelper(friction(),
+                                                    speedMultiplier(),
+                                                    elasticFactor());
+    }
+    if (vertical && m_physicsY == nullptr)
+    {
+        m_physicsY = new ElasticScrollPhysicsHelper(friction(),
+                                                    speedMultiplier(),
+                                                    elasticFactor());
+    }
+
+    // Initiate settling animation
+    if (m_physicsX != nullptr && horizontal)
+    {
+        m_physicsX->scrollTo(current.x, target.x, rangeMin.x, rangeMax.x);
+    }
+    if (m_physicsY != nullptr && vertical)
+    {
+        m_physicsY->scrollTo(current.y, target.y, rangeMin.y, rangeMax.y);
+    }
+}

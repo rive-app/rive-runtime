@@ -17,6 +17,18 @@ public:
             Span<Core*>((Core**)m_children.data(), m_children.size()));
     }
 
+    template <typename T> T* firstChild()
+    {
+        for (auto* child : m_children)
+        {
+            if (child->is<T>())
+            {
+                return child->as<T>();
+            }
+        }
+        return nullptr;
+    }
+
     const std::vector<Component*>& children() const { return m_children; }
     virtual void addChild(Component* component);
     bool collapse(bool value) override;

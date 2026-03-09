@@ -3,6 +3,7 @@
 #include "rive/refcnt.hpp"
 #include "rive/file.hpp"
 #include "rive/data_bind_path_referencer.hpp"
+#include "rive/math/mat2d.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -29,10 +30,18 @@ public:
                              bool skipOnUnclipped,
                              ArtboardInstance* artboard) = 0;
     virtual Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) = 0;
+    /// Returns the transform matrix from nested artboard space to parent
+    /// artboard space. Unlike hostTransformPoint, this does NOT include
+    /// rootTransform.
+    virtual Mat2D worldTransformForArtboard(ArtboardInstance*) = 0;
     virtual void markHostTransformDirty() = 0;
     virtual bool isLayoutProvider() { return false; }
     virtual void file(File* value) = 0;
     virtual File* file() const = 0;
+
+    /// Return this host as a Component, if applicable (e.g., NestedArtboard).
+    /// Returns nullptr if the host is not a Component.
+    virtual class Component* hostComponent() { return nullptr; }
 };
 } // namespace rive
 

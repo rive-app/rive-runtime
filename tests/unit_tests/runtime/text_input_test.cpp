@@ -8,6 +8,7 @@
 #include "rive/text/text_input_selection.hpp"
 #include "rive/text/text_input_selected_text.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/focus_data.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive_testing.hpp"
 #include "utils/no_op_factory.hpp"
@@ -321,6 +322,11 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
         // Skip if no text input found
         return;
     }
+
+    // Focus the text input (required for text/key input to be handled)
+    auto focusData = abi->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    smi.setFocus(focusData);
 
     // Clear text first
     textInput->rawTextInput()->text("");
