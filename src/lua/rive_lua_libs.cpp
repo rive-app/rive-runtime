@@ -201,7 +201,8 @@ namespace rive
 {
 int luaopen_rive(lua_State* L)
 {
-    lua_callbacks(L)->useratom = [](const char* s, size_t l) -> int16_t {
+    lua_callbacks(L)->useratom =
+        [](lua_State*, const char* s, size_t l) -> int16_t {
         auto itr = atoms.find(s);
         if (itr != atoms.end())
         {
