@@ -6,6 +6,7 @@
 
 #include "rive/renderer/d3d/d3d_constants.hpp"
 
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
 
@@ -963,6 +964,27 @@ rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
     uint32_t height)
 {
     return make_rcp<TextureD3DImpl>(this, image, width, height);
+}
+
+rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
+                                                         uint32_t height)
+{
+    auto texture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
+                                       width,
+                                       height,
+                                       1,
+                                       D3D11_BIND_UNORDERED_ACCESS |
+                                           D3D11_BIND_RENDER_TARGET |
+                                           D3D11_BIND_SHADER_RESOURCE);
+
+    auto renderTarget = makeRenderTarget(width, height);
+    renderTarget->setTargetTexture(texture);
+
+    auto renderImage =
+        make_rcp<RiveRenderImage>(adoptImageTexture(texture, width, height));
+
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
 }
 
 class BufferRingD3D : public BufferRing

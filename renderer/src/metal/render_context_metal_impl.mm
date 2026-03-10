@@ -6,6 +6,7 @@
 
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
@@ -842,6 +843,11 @@ public:
         }
     }
 
+    // Adopt a pre-created MTLTexture (for RenderCanvas).
+    TextureMetalImpl(id<MTLTexture> texture, uint32_t width, uint32_t height) :
+        Texture(width, height), m_texture(texture), m_mipsDirty(false)
+    {}
+
     id<MTLTexture> texture() const { return m_texture; }
 
 private:
@@ -857,6 +863,35 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
 {
     return make_rcp<TextureMetalImpl>(
         m_gpu, width, height, mipLevelCount, imageDataRGBAPremul);
+}
+
+rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
+                                                           uint32_t height)
+{
+    // Create an MTLTexture usable as both a render target and a shader-read
+    // image for compositing into Rive draws.
+    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+    desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+    desc.width = width;
+    desc.height = height;
+    desc.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    desc.textureType = MTLTextureType2D;
+    desc.mipmapLevelCount = 1;
+    desc.storageMode = MTLStorageModePrivate;
+    id<MTLTexture> mtlTexture = [m_gpu newTextureWithDescriptor:desc];
+
+    // Wrap as a RenderTarget for rendering into.
+    auto renderTarget =
+        makeRenderTarget(MTLPixelFormatRGBA8Unorm, width, height);
+    renderTarget->setTargetTexture(mtlTexture);
+
+    // Wrap as a RiveRenderImage for compositing. The TextureMetalImpl adopt
+    // constructor takes a pre-created MTLTexture without uploading data.
+    auto texture = make_rcp<TextureMetalImpl>(mtlTexture, width, height);
+    auto renderImage = make_rcp<RiveRenderImage>(std::move(texture));
+
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
 }
 
 std::unique_ptr<BufferRing> RenderContextMetalImpl::makeUniformBufferRing(

@@ -55,6 +55,9 @@ public:
                                    uint32_t height,
                                    GLuint textureID);
 
+    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
+                                       uint32_t height) override;
+
     // Called *after* the GL context has been modified externally.
     // Re-binds Rive internal resources and invalidates the internal cache of GL
     // state.

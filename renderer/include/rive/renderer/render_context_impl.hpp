@@ -9,6 +9,7 @@
 
 namespace rive::gpu
 {
+class RenderCanvas;
 class Texture;
 
 // This class manages GPU buffers and isues the actual rendering commands from
@@ -43,6 +44,13 @@ public:
         uint32_t height,
         uint32_t mipLevelCount,
         const uint8_t imageDataRGBAPremul[]) = 0;
+
+    // Creates a RenderCanvas: a GPU texture usable as both a render target
+    // and a render image. Returns nullptr if not supported by this backend.
+    virtual rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height)
+    {
+        return nullptr;
+    }
 
     // Resize GPU buffers. These methods cannot fail, and must allocate the
     // exact size requested.

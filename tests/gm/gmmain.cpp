@@ -173,6 +173,8 @@ extern "C" void gms_build_registry()
     MAKE_GM(trickycubicstrokes)
     MAKE_GM(preserverendertarget_blendmode)
     MAKE_GM(trickycubicstrokes_feather)
+    MAKE_GM(render_canvas_basic)
+    MAKE_GM(render_canvas_persistence)
 }
 
 static void dump_gm(GM* gm, const std::string& name)

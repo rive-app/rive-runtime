@@ -5,6 +5,7 @@
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
 #include "rive/renderer/draw.hpp"
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "shaders/constants.glsl"
 
@@ -1907,6 +1908,34 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
                                       framebufferFormat,
                                       width,
                                       height));
+}
+
+rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
+                                                            uint32_t height)
+{
+    wgpu::TextureDescriptor textureDesc = {
+        .usage = wgpu::TextureUsage::TextureBinding |
+                 wgpu::TextureUsage::RenderAttachment |
+                 wgpu::TextureUsage::CopySrc,
+        .dimension = wgpu::TextureDimension::e2D,
+        .size = {width, height},
+        .format = wgpu::TextureFormat::RGBA8Unorm,
+    };
+
+    auto texture =
+        make_rcp<TextureWebGPUImpl>(width,
+                                    height,
+                                    m_device.CreateTexture(&textureDesc));
+
+    auto renderTarget =
+        makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm, width, height);
+    renderTarget->setTargetTextureView(texture->textureView(),
+                                       texture->texture());
+
+    auto renderImage = make_rcp<RiveRenderImage>(std::move(texture));
+
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
 }
 
 class RenderBufferWebGPUImpl : public RenderBuffer

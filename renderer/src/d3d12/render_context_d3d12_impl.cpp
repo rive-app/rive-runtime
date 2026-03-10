@@ -4,6 +4,7 @@
 
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include "rive/renderer/d3d/d3d_constants.hpp"
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/profiler/profiler_macros.h"
 
 // needed for root sig and heap constants
@@ -691,6 +692,28 @@ rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(
     rcp<D3D12Texture> imageTexture)
 {
     return make_rcp<TextureD3D12Impl>(std::move(imageTexture));
+}
+
+rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
+                                                           uint32_t height)
+{
+    auto texture =
+        manager()->make2DTexture(width,
+                                 height,
+                                 1,
+                                 DXGI_FORMAT_R8G8B8A8_UNORM,
+                                 D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
+                                     D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+                                 D3D12_RESOURCE_STATE_COMMON);
+
+    auto renderTarget = make_rcp<RenderTargetD3D12>(this, width, height);
+    renderTarget->setTargetTexture(texture);
+
+    auto renderImage =
+        make_rcp<RiveRenderImage>(adoptImageTexture(std::move(texture)));
+
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
 }
 
 void rive::gpu::RenderContextD3D12Impl::resizeGradientTexture(uint32_t width,

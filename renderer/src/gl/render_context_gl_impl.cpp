@@ -7,6 +7,7 @@
 #include "rive/renderer/gl/render_buffer_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/draw.hpp"
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/texture.hpp"
 #include "shaders/constants.glsl"
@@ -593,6 +594,28 @@ rcp<Texture> RenderContextGLImpl::adoptImageTexture(uint32_t width,
                                                     GLuint textureID)
 {
     return make_rcp<TextureGLImpl>(width, height, textureID, m_capabilities);
+}
+
+rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
+                                                        uint32_t height)
+{
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
+
+    // Wrap as RiveRenderImage. adoptImageTexture() takes ownership of tex.
+    auto renderImage =
+        make_rcp<RiveRenderImage>(adoptImageTexture(width, height, tex));
+
+    // Wrap as TextureRenderTargetGL. It references the same GLuint without
+    // taking ownership.
+    auto renderTarget = make_rcp<TextureRenderTargetGL>(width, height);
+    renderTarget->setTargetTexture(tex);
+
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
 }
 
 // BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we

@@ -187,6 +187,9 @@ public:
                                    uint32_t width,
                                    uint32_t height);
 
+    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
+                                       uint32_t height) override;
+
     const D3DCapabilities& d3dCapabilities() const { return m_d3dCapabilities; }
     ID3D11Device* gpu() const { return m_gpu.Get(); }
     ID3D11DeviceContext* gpuContext() const { return m_gpuContext.Get(); }

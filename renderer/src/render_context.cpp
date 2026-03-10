@@ -9,6 +9,7 @@
 #include "gradient.hpp"
 #include "rive_render_paint.hpp"
 #include "rive/renderer/draw.hpp"
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/profiler/profiler_macros.h"
@@ -142,6 +143,12 @@ rcp<RenderBuffer> RenderContext::makeRenderBuffer(RenderBufferType type,
                                                   size_t sizeInBytes)
 {
     return m_impl->makeRenderBuffer(type, flags, sizeInBytes);
+}
+
+rcp<RenderCanvas> RenderContext::makeRenderCanvas(uint32_t width,
+                                                  uint32_t height)
+{
+    return m_impl->makeRenderCanvas(width, height);
 }
 
 rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)

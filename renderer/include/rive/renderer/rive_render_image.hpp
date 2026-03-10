@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/renderer.hpp"
 #include "rive/renderer/texture.hpp"
 
 namespace rive

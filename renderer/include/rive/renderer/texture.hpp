@@ -5,7 +5,6 @@
 #pragma once
 
 #include "rive/refcnt.hpp"
-#include "rive/renderer/render_context_impl.hpp"
 
 namespace rive::gpu
 {

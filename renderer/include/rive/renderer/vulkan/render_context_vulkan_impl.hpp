@@ -78,6 +78,9 @@ public:
                                   uint32_t mipLevelCount,
                                   const uint8_t imageDataRGBAPremul[]) override;
 
+    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
+                                       uint32_t height) override;
+
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
 private:

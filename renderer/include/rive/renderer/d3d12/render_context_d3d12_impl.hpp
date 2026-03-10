@@ -109,6 +109,9 @@ public:
 
     rcp<Texture> adoptImageTexture(rcp<D3D12Texture> imageTexture);
 
+    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
+                                       uint32_t height) override;
+
 #define IMPLEMENT_RIVE_BUFFER(Name, m_buffer)                                  \
     void resize##Name(size_t sizeInBytes) override                             \
     {                                                                          \

@@ -5,6 +5,7 @@
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 
 #include "vulkan_shaders.hpp"
+#include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
@@ -94,6 +95,72 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
         "RenderContext imageTexture");
     texture->scheduleUpload(imageDataRGBAPremul, height * width * 4);
     return texture;
+}
+
+// A RenderTargetVulkan backed by a vkutil::Texture2D. Used by RenderCanvas.
+// The texture is shared with a RiveRenderImage for compositing.
+class RenderTargetVulkanTexture : public RenderTargetVulkan
+{
+public:
+    RenderTargetVulkanTexture(rcp<VulkanContext> vk,
+                              rcp<vkutil::Texture2D> texture,
+                              uint32_t width,
+                              uint32_t height,
+                              VkFormat format,
+                              VkImageUsageFlags usage) :
+        RenderTargetVulkan(std::move(vk), width, height, format, usage),
+        m_texture(std::move(texture))
+    {}
+
+    VkImage accessTargetImage(VkCommandBuffer commandBuffer,
+                              const vkutil::ImageAccess& dstAccess,
+                              vkutil::ImageAccessAction accessAction) override
+    {
+        m_texture->barrier(commandBuffer, dstAccess, accessAction);
+        return m_texture->vkImage();
+    }
+
+    VkImageView accessTargetImageView(
+        VkCommandBuffer commandBuffer,
+        const vkutil::ImageAccess& dstAccess,
+        vkutil::ImageAccessAction accessAction) override
+    {
+        m_texture->barrier(commandBuffer, dstAccess, accessAction);
+        return m_texture->vkImageView();
+    }
+
+private:
+    rcp<vkutil::Texture2D> m_texture;
+};
+
+rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
+                                                            uint32_t height)
+{
+    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+    VkImageUsageFlags usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+
+    auto texture = m_vk->makeTexture2D(
+        {
+            .format = format,
+            .extent = {width, height},
+            .usage = usage,
+        },
+        "RenderCanvas");
+
+    auto renderImage = make_rcp<RiveRenderImage>(texture);
+
+    auto renderTarget = rcp(new RenderTargetVulkanTexture(m_vk,
+                                                          std::move(texture),
+                                                          width,
+                                                          height,
+                                                          format,
+                                                          usage));
+
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
 }
 
 // Common base class for a pipeline that renders a texture resource at the

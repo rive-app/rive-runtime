@@ -4,6 +4,7 @@
 
 #include "rive/renderer/gpu.hpp"
 
+#include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_target.hpp"
 #include "shaders/constants.glsl"
 #include "rive/renderer/texture.hpp"
