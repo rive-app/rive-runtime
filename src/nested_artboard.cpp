@@ -444,6 +444,23 @@ void NestedArtboard::internalDataContext(rcp<DataContext> value)
     }
 }
 
+void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
+{
+    auto instance = artboardInstance(0);
+    if (instance)
+    {
+        auto dataContext = instance->dataContext();
+        if (dataContext != nullptr)
+        {
+            if (dataContext->viewModelInstance() != viewModelInstance)
+            {
+                dataContext->viewModelInstance(viewModelInstance);
+            }
+        }
+        instance->relinkDataContext();
+    }
+}
+
 void NestedArtboard::clearDataContext()
 {
     // Clear the auto-created stateful instance.

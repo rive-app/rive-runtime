@@ -208,6 +208,8 @@ public:
         BindableProperty* bindableProperty) const;
     bool hasListeners() { return m_hitComponents.size() > 0; }
     void clearDataContext();
+    void relinkDataContext() override;
+    void rebuildDataBind(DataBind*) override;
     void internalDataContext(rcp<DataContext> dataContext);
     ScriptedObject* scriptedObject(const ScriptedObject*) const;
 

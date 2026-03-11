@@ -98,6 +98,7 @@ public:
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                rcp<DataContext> parent) override;
     void internalDataContext(rcp<DataContext> dataContext) override;
+    void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) override;
     void clearDataContext() override;
     void unbind() override;
     void updateDataBinds() override;

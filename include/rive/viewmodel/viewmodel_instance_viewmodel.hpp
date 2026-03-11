@@ -6,6 +6,10 @@
 #include <stdio.h>
 namespace rive
 {
+#ifdef WITH_RIVE_TOOLS
+class ViewModelInstanceViewModel;
+typedef void (*ViewModelViewModelChanged)(ViewModelInstanceViewModel* vmi);
+#endif
 class ViewModelInstanceViewModel : public ViewModelInstanceViewModelBase
 {
 private:
@@ -26,6 +30,7 @@ public:
         {
             m_referenceViewModelInstance->addParent(m_parentViewModelInstance);
         }
+        propertyValueChanged();
     };
     rcp<ViewModelInstance> referenceViewModelInstance()
     {
@@ -41,6 +46,16 @@ public:
     }
     void setRoot(rcp<ViewModelInstance> value) override;
     void advanced() override;
+#ifdef WITH_RIVE_TOOLS
+    void onChanged(ViewModelViewModelChanged callback)
+    {
+        m_changedCallback = callback;
+    }
+    ViewModelViewModelChanged m_changedCallback = nullptr;
+#endif
+
+protected:
+    void propertyValueChanged() override;
 };
 } // namespace rive
 

@@ -1,13 +1,13 @@
 #ifndef _RIVE_PROPERTY_SYMBOl_DEPENDENT_HPP_
 #define _RIVE_PROPERTY_SYMBOl_DEPENDENT_HPP_
-#include "rive/dirtyable.hpp"
 #include "rive/core.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include <stdio.h>
 namespace rive
 {
 class CoreObjectListener;
-class PropertySymbolDependent : public Dirtyable
+class PropertySymbolDependent : public ViewModelValueDependent
 {
 public:
     PropertySymbolDependent(Core* coreObject,
@@ -17,6 +17,7 @@ public:
 
     void addDirt(ComponentDirt value, bool recurse) override;
     virtual void writeValue() = 0;
+    void relinkDataBind() override {}
 
 protected:
     Core* m_coreObject = nullptr;

@@ -60,12 +60,12 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
                       m_SourcePathIdsBuffer,
                       file()->dataResolver())
                 : dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
-        if (vmSource != m_Source)
+        if (m_Source == nullptr || vmSource != m_Source.get())
         {
             if (vmSource != nullptr)
             {
                 clearSource();
-                source(vmSource);
+                source(ref_rcp(vmSource));
                 bind();
             }
             else

@@ -176,12 +176,11 @@ DataType DataBind::sourceOutputType()
     return DataType::none;
 }
 
-void DataBind::source(ViewModelInstanceValue* value)
+void DataBind::source(rcp<ViewModelInstanceValue> value)
 {
     if (!bindsOnce())
     {
         value->addDependent(this);
-        value->ref();
     }
     m_Source = value;
 
@@ -204,7 +203,6 @@ void DataBind::clearSource()
         if (!bindsOnce())
         {
             m_Source->removeDependent(this);
-            m_Source->unref();
         }
         m_Source = nullptr;
     }
@@ -377,6 +375,8 @@ void DataBind::container(DataBindContainer* container)
 {
     m_container = container;
 }
+
+void DataBind::relinkDataBind() { m_container->rebuildDataBind(this); }
 
 bool DataBind::bindsOnce()
 {

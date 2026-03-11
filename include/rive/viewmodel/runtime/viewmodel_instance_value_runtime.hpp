@@ -4,13 +4,13 @@
 #include <string>
 #include <stdint.h>
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
-#include "rive/dirtyable.hpp"
+#include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 
 namespace rive
 {
 
-class ViewModelInstanceValueRuntime : public Dirtyable
+class ViewModelInstanceValueRuntime : public ViewModelValueDependent
 {
 
 public:
@@ -26,6 +26,7 @@ public:
     {
         return m_viewModelInstanceValue;
     }
+    void relinkDataBind() override;
 
 protected:
     ViewModelInstanceValue* m_viewModelInstanceValue = nullptr;

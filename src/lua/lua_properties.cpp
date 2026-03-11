@@ -225,6 +225,26 @@ ScriptedPropertyViewModel::ScriptedPropertyViewModel(
     ScriptedProperty(L, std::move(value)), m_viewModel(std::move(viewModel))
 {}
 
+void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
+{
+    if (m_instanceValue->is<ViewModelInstanceViewModel>())
+    {
+        auto instanceValue = m_instanceValue->as<ViewModelInstanceViewModel>();
+        auto parentViewModelInstance = instanceValue->parentViewModelInstance();
+        auto viewModelInstance = scriptedViewModel->mutableViewModelInstance();
+        parentViewModelInstance->replaceViewModelByProperty(
+            instanceValue,
+            rcp<ViewModelInstance>(viewModelInstance));
+        // Invalidate cached Lua-side value so the next push reflects the new
+        // instance.
+        if (m_valueRef != 0)
+        {
+            lua_unref(m_state, m_valueRef);
+            m_valueRef = 0;
+        }
+    }
+}
+
 ScriptedViewModel::ScriptedViewModel(lua_State* L,
                                      rcp<ViewModel> viewModel,
                                      rcp<ViewModelInstance> viewModelInstance) :
@@ -412,6 +432,33 @@ static int property_vm_index(lua_State* L)
         default:
             return 0;
     }
+}
+
+static int property_vm_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto scriptedPropertyViewModel =
+        lua_torive<ScriptedPropertyViewModel>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+        {
+            auto vm = lua_torive<ScriptedViewModel>(L, 3);
+            scriptedPropertyViewModel->setValue(vm);
+            break;
+        }
+        default:
+            return 0;
+    }
+
+    return 0;
 }
 
 static int vm_index(lua_State* L)
@@ -1275,6 +1322,9 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_pushcfunction(L, property_vm_index, nullptr);
         lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, property_vm_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
 
         lua_pushcfunction(L, property_vm_namecall, nullptr);
         lua_setfield(L, -2, "__namecall");

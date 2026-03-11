@@ -215,6 +215,7 @@ public:
     void addObject(Core* object);
     void addAnimation(LinearAnimation* object);
     void addStateMachine(StateMachine* object);
+    void buildDataContext(rcp<DataContext> value);
 
 public:
     Artboard();
@@ -351,9 +352,11 @@ public:
     void clearDataContext();
     void unbind();
     void rebind() override;
+    void relinkDataContext() override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                rcp<DataContext> parent);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
+    void rebuildDataBind(DataBind*) override;
 
     bool hasAudio() const;
 

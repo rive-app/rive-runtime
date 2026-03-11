@@ -698,6 +698,10 @@ public:
     {
         return m_viewModelInstance;
     }
+    rcp<ViewModelInstance> mutableViewModelInstance()
+    {
+        return m_viewModelInstance;
+    }
 
 private:
     lua_State* m_state;
@@ -717,6 +721,7 @@ public:
     static constexpr const char* luaName = "PropertyViewModel";
     static constexpr bool hasMetatable = true;
     int pushValue();
+    void setValue(ScriptedViewModel*);
 
 private:
     rcp<ViewModel> m_viewModel;

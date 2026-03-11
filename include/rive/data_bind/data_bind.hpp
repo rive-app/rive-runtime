@@ -6,7 +6,7 @@
 #include "rive/data_bind/data_context.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
-#include "rive/dirtyable.hpp"
+#include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -17,7 +17,7 @@ class File;
 class DataBind;
 typedef void (*DataBindChanged)();
 #endif
-class DataBind : public DataBindBase, public Dirtyable
+class DataBind : public DataBindBase, public ViewModelValueDependent
 {
 public:
     ~DataBind();
@@ -35,8 +35,8 @@ public:
     void addDirt(ComponentDirt value, bool recurse) override;
     DataConverter* converter() const { return m_dataConverter; };
     void converter(DataConverter* value) { m_dataConverter = value; };
-    ViewModelInstanceValue* source() const { return m_Source; };
-    void source(ViewModelInstanceValue* value);
+    ViewModelInstanceValue* source() const { return m_Source.get(); };
+    void source(rcp<ViewModelInstanceValue> value);
     void clearSource();
     bool toSource();
     bool toTarget();
@@ -54,6 +54,7 @@ public:
     DataBindContainer* m_container = nullptr;
     void collapse(bool collapsed);
     void initialize();
+    void relinkDataBind() override;
 
 private:
     bool m_isCollapsed = false;
@@ -61,7 +62,7 @@ private:
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
     Core* m_target = nullptr;
-    ViewModelInstanceValue* m_Source = nullptr;
+    rcp<ViewModelInstanceValue> m_Source = nullptr;
     DataBindContextValue* m_ContextValue = nullptr;
     DataConverter* m_dataConverter = nullptr;
     bool bindsOnce();

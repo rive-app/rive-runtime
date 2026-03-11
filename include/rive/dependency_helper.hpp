@@ -51,6 +51,8 @@ public:
     }
 
     const std::vector<U*>& dependents() const { return m_Dependents; }
+
+    std::vector<U*>& mutableDependents() { return m_Dependents; }
 };
 } // namespace rive
 #endif

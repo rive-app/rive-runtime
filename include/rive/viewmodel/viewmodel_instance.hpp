@@ -10,6 +10,7 @@
 namespace rive
 {
 class ViewModel;
+class ViewModelInstanceViewModel;
 class ViewModelInstance : public ViewModelInstanceBase,
                           public RefCnt<ViewModelInstance>
 {
@@ -19,6 +20,7 @@ private:
     std::vector<DataBindContainer*> m_dependents;
     ViewModel* m_ViewModel;
     void rebindDependents();
+    void rebindProperties();
 
 public:
     ~ViewModelInstance();
@@ -28,6 +30,8 @@ public:
     ViewModelInstanceValue* propertyValue(const SymbolType symbolType);
     bool replaceViewModelByName(const std::string& name,
                                 rcp<ViewModelInstance> value);
+    bool replaceViewModelByProperty(ViewModelInstanceViewModel*,
+                                    rcp<ViewModelInstance> value);
     std::vector<rcp<ViewModelInstanceValue>> propertyValues();
     ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
                                              size_t index);

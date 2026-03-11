@@ -4,7 +4,7 @@
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/dependency_helper.hpp"
-#include "rive/dirtyable.hpp"
+#include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include "rive/component.hpp"
 #include "rive/component_dirt.hpp"
 #include "rive/refcnt.hpp"
@@ -48,7 +48,8 @@ public:
     void removeDelegate(ViewModelInstanceValueDelegate* delegate);
 
 protected:
-    DependencyHelper<rcp<ViewModelInstance>, Dirtyable> m_DependencyHelper;
+    DependencyHelper<rcp<ViewModelInstance>, ViewModelValueDependent>
+        m_DependencyHelper;
     void addDirt(ComponentDirt value);
 
     // Suppress/restore calling delegates.
@@ -59,13 +60,17 @@ public:
     StatusCode import(ImportStack& importStack) override;
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();
-    void addDependent(Dirtyable* value);
-    void removeDependent(Dirtyable* value);
+    void addDependent(ViewModelValueDependent* value);
+    void removeDependent(ViewModelValueDependent* value);
     virtual void setRoot(rcp<ViewModelInstance> value);
     virtual void advanced();
     bool hasChanged();
     void onValueChanged();
     const std::string& name() const;
+    std::vector<ViewModelValueDependent*>& dependents()
+    {
+        return m_DependencyHelper.mutableDependents();
+    }
 };
 
 class SuppressDelegation

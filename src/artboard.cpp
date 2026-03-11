@@ -2102,6 +2102,8 @@ StatusCode Artboard::import(ImportStack& importStack)
     return result;
 }
 
+void Artboard::buildDataContext(rcp<DataContext> value) {}
+
 void Artboard::internalDataContext(rcp<DataContext> value)
 {
     m_DataContext = value;
@@ -2124,6 +2126,32 @@ void Artboard::internalDataContext(rcp<DataContext> value)
 }
 
 void Artboard::rebind() { internalDataContext(m_DataContext); }
+
+void Artboard::relinkDataContext()
+{
+    if (m_DataContext == nullptr)
+    {
+        return;
+    }
+    for (auto artboardHost : m_ArtboardHosts)
+    {
+        rcp<ViewModelInstance> value =
+            m_DataContext->getViewModelInstance(artboardHost->dataBindPath());
+        if (value == nullptr)
+        {
+            value = m_DataContext->viewModelInstance();
+        }
+        artboardHost->relinkDataContext(value);
+    }
+}
+
+void Artboard::rebuildDataBind(DataBind* dataBind)
+{
+    if (dataBind->is<DataBindContext>())
+    {
+        dataBind->as<DataBindContext>()->bindFromContext(m_DataContext.get());
+    }
+};
 
 void Artboard::unbind()
 {

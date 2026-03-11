@@ -42,6 +42,7 @@ public:
     /// Return this host as a Component, if applicable (e.g., NestedArtboard).
     /// Returns nullptr if the host is not a Component.
     virtual class Component* hostComponent() { return nullptr; }
+    virtual void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) {}
 };
 } // namespace rive
 

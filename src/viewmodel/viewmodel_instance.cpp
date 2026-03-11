@@ -65,13 +65,44 @@ bool ViewModelInstance::replaceViewModelByName(const std::string& name,
                     viewModelProperty->as<ViewModelPropertyViewModel>()
                         ->viewModelReferenceId())
                 {
+                    auto previousViewModelInstance =
+                        propertyValue->as<ViewModelInstanceViewModel>()
+                            ->referenceViewModelInstance();
                     propertyValue->as<ViewModelInstanceViewModel>()
                         ->referenceViewModelInstance(value);
                     rebindDependents();
+                    if (previousViewModelInstance)
+                    {
+                        previousViewModelInstance->rebindProperties();
+                    }
                     return true;
                 }
                 break;
             }
+        }
+    }
+    return false;
+}
+
+bool ViewModelInstance::replaceViewModelByProperty(
+    ViewModelInstanceViewModel* property,
+    rcp<ViewModelInstance> value)
+{
+    for (auto& propertyValue : m_PropertyValues)
+    {
+        if (propertyValue.get() == property)
+        {
+            auto previousViewModelInstance =
+                propertyValue->as<ViewModelInstanceViewModel>()
+                    ->referenceViewModelInstance();
+            propertyValue->as<ViewModelInstanceViewModel>()
+                ->referenceViewModelInstance(value);
+            rebindDependents();
+            if (previousViewModelInstance)
+            {
+                previousViewModelInstance->rebindProperties();
+            }
+            return true;
         }
     }
     return false;
@@ -255,11 +286,23 @@ void ViewModelInstance::removeDependent(DataBindContainer* dependent)
         m_dependents.end());
 }
 
+void ViewModelInstance::rebindProperties()
+{
+    for (auto& property : m_PropertyValues)
+    {
+        auto dependents = property->dependents();
+        for (auto& dependent : dependents)
+        {
+            dependent->relinkDataBind();
+        }
+    }
+}
+
 void ViewModelInstance::rebindDependents()
 {
     for (auto& dependent : m_dependents)
     {
-        dependent->rebind();
+        dependent->relinkDataContext();
     }
     for (auto& parent : m_parents)
     {

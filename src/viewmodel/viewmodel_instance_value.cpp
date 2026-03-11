@@ -39,12 +39,12 @@ ViewModelProperty* ViewModelInstanceValue::viewModelProperty()
     return m_ViewModelProperty;
 }
 
-void ViewModelInstanceValue::addDependent(Dirtyable* value)
+void ViewModelInstanceValue::addDependent(ViewModelValueDependent* value)
 {
     m_DependencyHelper.addDependent(value);
 }
 
-void ViewModelInstanceValue::removeDependent(Dirtyable* value)
+void ViewModelInstanceValue::removeDependent(ViewModelValueDependent* value)
 {
     m_DependencyHelper.removeDependent(value);
 }

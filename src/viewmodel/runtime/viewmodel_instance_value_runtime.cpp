@@ -24,6 +24,8 @@ ViewModelInstanceValueRuntime::ViewModelInstanceValueRuntime(
     instanceValue->addDependent(this);
 }
 
+void ViewModelInstanceValueRuntime::relinkDataBind() {}
+
 void ViewModelInstanceValueRuntime::addDirt(ComponentDirt dirt, bool recurse)
 {
     m_hasChanged = true;

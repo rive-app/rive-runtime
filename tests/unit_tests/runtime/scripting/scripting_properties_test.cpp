@@ -595,3 +595,28 @@ TEST_CASE("Creates view models from specified named instances", "[silver]")
 
     CHECK(silver.matches("viewmodel_from_instance"));
 }
+
+TEST_CASE("Replace a view model property value from a script", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/replace_view_model.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, 480.0f));
+    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, 480.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("replace_view_model"));
+}

@@ -1014,7 +1014,7 @@ public:
     {}
 };
 
-class ListenerViewModel : public Dirtyable
+class ListenerViewModel : public ViewModelValueDependent
 {
 public:
     virtual ~ListenerViewModel() = default;
@@ -1030,14 +1030,33 @@ public:
             m_viewModelInstanceValue = nullptr;
         }
     }
+    void relinkDataBind()
+    {
+        if (m_dataContext != nullptr)
+        {
+            auto vmProp =
+                m_dataContext->getViewModelProperty(m_listener->dataBindPath());
+            if (vmProp != m_viewModelInstanceValue.get())
+            {
+                clearDataContext();
+                if (vmProp != nullptr)
+                {
+                    m_viewModelInstanceValue = ref_rcp(vmProp);
+                    vmProp->addDependent(this);
+                }
+            }
+        }
+    }
+
     void bindFromContext(rcp<DataContext> dataContext)
     {
+        m_dataContext = dataContext;
         clearDataContext();
         auto vmProp =
             dataContext->getViewModelProperty(m_listener->dataBindPath());
         if (vmProp != nullptr)
         {
-            m_viewModelInstanceValue = rive::ref_rcp(vmProp);
+            m_viewModelInstanceValue = ref_rcp(vmProp);
             vmProp->addDependent(this);
         }
     }
@@ -1058,7 +1077,8 @@ public:
 private:
     StateMachineInstance* m_stateMachineInstance = nullptr;
     const StateMachineListener* m_listener = nullptr;
-    rive::rcp<ViewModelInstanceValue> m_viewModelInstanceValue = nullptr;
+    rcp<ViewModelInstanceValue> m_viewModelInstanceValue = nullptr;
+    rcp<DataContext> m_dataContext = nullptr;
 };
 
 } // namespace rive
@@ -2038,6 +2058,19 @@ void StateMachineInstance::clearDataContext()
         listenerViewModel->clearDataContext();
     }
 }
+
+void StateMachineInstance::relinkDataContext()
+{
+    m_artboardInstance->relinkDataContext();
+}
+
+void StateMachineInstance::rebuildDataBind(DataBind* dataBind)
+{
+    if (dataBind->is<DataBindContext>())
+    {
+        dataBind->as<DataBindContext>()->bindFromContext(m_DataContext.get());
+    }
+};
 
 void StateMachineInstance::unbind()
 {

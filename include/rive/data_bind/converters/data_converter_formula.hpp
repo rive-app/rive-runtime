@@ -5,12 +5,14 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include <stdio.h>
 #include <unordered_map>
 namespace rive
 {
 
-class DataConverterFormula : public DataConverterFormulaBase, public Dirtyable
+class DataConverterFormula : public DataConverterFormulaBase,
+                             public ViewModelValueDependent
 {
 public:
     ~DataConverterFormula();
@@ -20,6 +22,7 @@ public:
     void calculateFormula();
     void isInstance(bool value) { m_isInstance = value; }
     void addDirt(ComponentDirt value, bool recurse) override;
+    void relinkDataBind() override {}
 
 protected:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
