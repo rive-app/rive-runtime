@@ -4,7 +4,7 @@
     "int": 437,
     "string": "viewmodelinstance"
   },
-  "extends": "component.json",
+  "extends": "container_component.json",
   "properties": {
     "viewModelId": {
       "type": "Id",
@@ -14,7 +14,8 @@
       "key": {
         "int": 566,
         "string": "viewmodelid"
-      }
+      },
+      "parentable": 1
     },
     "x": {
       "type": "double",

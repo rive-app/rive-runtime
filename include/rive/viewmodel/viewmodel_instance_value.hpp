@@ -57,6 +57,7 @@ protected:
     void restoreDelegation();
 
 public:
+    StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode import(ImportStack& importStack) override;
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();

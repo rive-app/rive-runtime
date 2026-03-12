@@ -333,6 +333,8 @@ public:
                 return new ViewModelProperty();
             case ViewModelPropertyArtboardBase::typeKey:
                 return new ViewModelPropertyArtboard();
+            case ViewModelInstanceValueBase::typeKey:
+                return new ViewModelInstanceValue();
             case ViewModelInstanceColorBase::typeKey:
                 return new ViewModelInstanceColor();
             case ViewModelPropertyEnumBase::typeKey:
@@ -365,18 +367,12 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
-            case ViewModelPropertyColorBase::typeKey:
-                return new ViewModelPropertyColor();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelPropertyColorBase::typeKey:
+                return new ViewModelPropertyColor();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -389,12 +385,18 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -854,6 +856,9 @@ public:
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
                 object->as<ViewModelPropertyBase>()->symbolTypeValue(value);
                 break;
+            case ComponentBase::parentIdPropertyKey:
+                object->as<ComponentBase>()->parentId(value);
+                break;
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 object->as<ViewModelInstanceValueBase>()->viewModelPropertyId(
                     value);
@@ -878,9 +883,6 @@ public:
                 viewModelReferenceIdPropertyKey:
                 object->as<ViewModelPropertyViewModelBase>()
                     ->viewModelReferenceId(value);
-                break;
-            case ComponentBase::parentIdPropertyKey:
-                object->as<ComponentBase>()->parentId(value);
                 break;
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 object->as<ViewModelInstanceBase>()->viewModelId(value);
@@ -1581,6 +1583,9 @@ public:
             case ViewModelComponentBase::namePropertyKey:
                 object->as<ViewModelComponentBase>()->name(value);
                 break;
+            case ComponentBase::namePropertyKey:
+                object->as<ComponentBase>()->name(value);
+                break;
             case DataEnumCustomBase::namePropertyKey:
                 object->as<DataEnumCustomBase>()->name(value);
                 break;
@@ -1592,9 +1597,6 @@ public:
                 break;
             case DataEnumValueBase::valuePropertyKey:
                 object->as<DataEnumValueBase>()->value(value);
-                break;
-            case ComponentBase::namePropertyKey:
-                object->as<ComponentBase>()->name(value);
                 break;
             case DataConverterBase::namePropertyKey:
                 object->as<DataConverterBase>()->name(value);
@@ -2525,6 +2527,8 @@ public:
                     ->viewModelInstanceId();
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
                 return object->as<ViewModelPropertyBase>()->symbolTypeValue();
+            case ComponentBase::parentIdPropertyKey:
+                return object->as<ComponentBase>()->parentId();
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 return object->as<ViewModelInstanceValueBase>()
                     ->viewModelPropertyId();
@@ -2544,8 +2548,6 @@ public:
                 viewModelReferenceIdPropertyKey:
                 return object->as<ViewModelPropertyViewModelBase>()
                     ->viewModelReferenceId();
-            case ComponentBase::parentIdPropertyKey:
-                return object->as<ComponentBase>()->parentId();
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 return object->as<ViewModelInstanceBase>()->viewModelId();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
@@ -3047,6 +3049,8 @@ public:
         {
             case ViewModelComponentBase::namePropertyKey:
                 return object->as<ViewModelComponentBase>()->name();
+            case ComponentBase::namePropertyKey:
+                return object->as<ComponentBase>()->name();
             case DataEnumCustomBase::namePropertyKey:
                 return object->as<DataEnumCustomBase>()->name();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
@@ -3056,8 +3060,6 @@ public:
                 return object->as<DataEnumValueBase>()->key();
             case DataEnumValueBase::valuePropertyKey:
                 return object->as<DataEnumValueBase>()->value();
-            case ComponentBase::namePropertyKey:
-                return object->as<ComponentBase>()->name();
             case DataConverterBase::namePropertyKey:
                 return object->as<DataConverterBase>()->name();
             case AnimationBase::namePropertyKey:
@@ -3696,6 +3698,7 @@ public:
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
+            case ComponentBase::parentIdPropertyKey:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
@@ -3704,7 +3707,6 @@ public:
             case DataEnumSystemBase::enumTypePropertyKey:
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
-            case ComponentBase::parentIdPropertyKey:
             case ViewModelInstanceBase::viewModelIdPropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
@@ -3921,11 +3923,11 @@ public:
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 return CoreUintType::id;
             case ViewModelComponentBase::namePropertyKey:
+            case ComponentBase::namePropertyKey:
             case DataEnumCustomBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
             case DataEnumValueBase::keyPropertyKey:
             case DataEnumValueBase::valuePropertyKey:
-            case ComponentBase::namePropertyKey:
             case DataConverterBase::namePropertyKey:
             case AnimationBase::namePropertyKey:
             case StateMachineComponentBase::namePropertyKey:
@@ -4259,6 +4261,8 @@ public:
                 return object->is<ViewModelInstanceListItemBase>();
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
                 return object->is<ViewModelPropertyBase>();
+            case ComponentBase::parentIdPropertyKey:
+                return object->is<ComponentBase>();
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 return object->is<ViewModelInstanceValueBase>();
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
@@ -4274,8 +4278,6 @@ public:
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
                 return object->is<ViewModelPropertyViewModelBase>();
-            case ComponentBase::parentIdPropertyKey:
-                return object->is<ComponentBase>();
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 return object->is<ViewModelInstanceBase>();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
@@ -4701,6 +4703,8 @@ public:
                 return object->is<ScriptInputArtboardBase>();
             case ViewModelComponentBase::namePropertyKey:
                 return object->is<ViewModelComponentBase>();
+            case ComponentBase::namePropertyKey:
+                return object->is<ComponentBase>();
             case DataEnumCustomBase::namePropertyKey:
                 return object->is<DataEnumCustomBase>();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
@@ -4709,8 +4713,6 @@ public:
                 return object->is<DataEnumValueBase>();
             case DataEnumValueBase::valuePropertyKey:
                 return object->is<DataEnumValueBase>();
-            case ComponentBase::namePropertyKey:
-                return object->is<ComponentBase>();
             case DataConverterBase::namePropertyKey:
                 return object->is<DataConverterBase>();
             case AnimationBase::namePropertyKey:

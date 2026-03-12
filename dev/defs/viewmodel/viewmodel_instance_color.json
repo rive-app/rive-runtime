@@ -9,11 +9,13 @@
     "propertyValue": {
       "type": "Color",
       "initialValue": "0xFF000000",
+      "animates": true,
       "key": {
         "int": 555,
         "string": "propertyvalue"
       },
-      "description": "The color value"
+      "description": "The color value",
+      "bindable": true
     },
     "playbackValue": {
       "type": "Color",

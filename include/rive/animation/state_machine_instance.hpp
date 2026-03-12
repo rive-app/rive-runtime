@@ -257,6 +257,7 @@ public:
 #endif
     void enablePointerEvents(int pointerId = 0);
     void disablePointerEvents(int pointerId = 0);
+    void dispose();
 
 private:
     std::vector<EventReport> m_reportedEvents;

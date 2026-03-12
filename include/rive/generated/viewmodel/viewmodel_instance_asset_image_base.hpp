@@ -20,6 +20,7 @@ public:
             case ViewModelInstanceAssetImageBase::typeKey:
             case ViewModelInstanceAssetBase::typeKey:
             case ViewModelInstanceValueBase::typeKey:
+            case ComponentBase::typeKey:
                 return true;
             default:
                 return false;

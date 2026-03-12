@@ -32,6 +32,12 @@ NestedArtboard::~NestedArtboard()
     {
         m_boundNestedStateMachine->releaseDependencies();
     }
+
+    // Clear ViewModelInstance references to break potential ref cycles.
+    // The ViewModelInstance and its property values are also in the artboard's
+    // m_Objects list and will be cleaned up there.
+    m_viewModelInstance = nullptr;
+    m_statefulViewModelInstance = nullptr;
 }
 
 Core* NestedArtboard::clone() const
@@ -242,6 +248,22 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
         }
         m_referencedArtboard->host(this);
     }
+
+    // ViewModelInstance children are only added to NestedArtboards
+    // that wrap a stateful component Artboard.
+    for (auto child : children())
+    {
+        if (child->is<ViewModelInstance>())
+        {
+            auto vmi = child->as<ViewModelInstance>();
+            // Take ownership of the VMI's initial ref count. The VMI starts
+            // with ref count 1 from construction. The rcp constructor takes
+            // this ref without adding another. NestedArtboard now owns the VMI.
+            m_statefulViewModelInstance = rcp<ViewModelInstance>(vmi);
+            break;
+        }
+    }
+
     return Super::onAddedClean(context);
 }
 
@@ -390,46 +412,24 @@ void NestedArtboard::internalDataContext(rcp<DataContext> value)
     m_dataContext = value;
     m_viewModelInstance = nullptr;
 
-    // Check if the source artboard is stateful and we should auto-create
-    // a ViewModelInstance.
     if (artboardInstance() != nullptr)
     {
-        auto source = m_referencedArtboard != nullptr
-                          ? m_referencedArtboard->artboardSource()
-                          : nullptr;
-        if (source != nullptr && source->isStateful() && m_file != nullptr)
+        // If we have a stateful ViewModelInstance, bind it to the artboard
+        // instance.
+        if (m_statefulViewModelInstance != nullptr)
         {
-            // Create a stateful ViewModelInstance if we don't have one
-            // or if the ViewModel changed.
-            if (m_statefulViewModelInstance == nullptr ||
-                m_statefulViewModelInstance->viewModelId() !=
-                    source->viewModelId())
+            artboardInstance()->bindViewModelInstance(
+                m_statefulViewModelInstance,
+                value);
+            for (auto& animation : m_NestedAnimations)
             {
-                auto viewModel = m_file->viewModel(source->viewModelId());
-                if (viewModel != nullptr)
+                if (animation->is<NestedStateMachine>())
                 {
-                    m_statefulViewModelInstance =
-                        m_file->createDefaultViewModelInstance(viewModel);
+                    animation->as<NestedStateMachine>()->dataContext(
+                        artboardInstance()->dataContext());
                 }
             }
-
-            if (m_statefulViewModelInstance != nullptr)
-            {
-                // Bind the stateful instance instead of just propagating the
-                // context.
-                artboardInstance()->bindViewModelInstance(
-                    m_statefulViewModelInstance,
-                    value);
-                for (auto& animation : m_NestedAnimations)
-                {
-                    if (animation->is<NestedStateMachine>())
-                    {
-                        animation->as<NestedStateMachine>()->dataContext(
-                            artboardInstance()->dataContext());
-                    }
-                }
-                return;
-            }
+            return;
         }
 
         // Non-stateful path: just propagate the data context.
@@ -463,9 +463,6 @@ void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
 
 void NestedArtboard::clearDataContext()
 {
-    // Clear the auto-created stateful instance.
-    m_statefulViewModelInstance = nullptr;
-
     if (artboardInstance() != nullptr)
     {
         artboardInstance()->clearDataContext();

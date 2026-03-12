@@ -3,13 +3,34 @@
 #include <array>
 #include <algorithm>
 
+#include "rive/artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/refcnt.hpp"
 
 using namespace rive;
+
+StatusCode ViewModelInstanceValue::onAddedDirty(CoreContext* context)
+{
+    StatusCode result = Super::onAddedDirty(context);
+    if (result != StatusCode::Ok)
+    {
+        return result;
+    }
+
+    // If parent is a ViewModelInstance, register with it.
+    // This handles stateful ViewModelInstances (children of NestedArtboard)
+    // where values are cloned separately during artboard cloning.
+    if (parent() != nullptr && parent()->is<ViewModelInstance>())
+    {
+        parent()->as<ViewModelInstance>()->addValue(this);
+    }
+
+    return StatusCode::Ok;
+}
 
 StatusCode ViewModelInstanceValue::import(ImportStack& importStack)
 {
@@ -22,7 +43,16 @@ StatusCode ViewModelInstanceValue::import(ImportStack& importStack)
     }
     viewModelInstanceImporter->addValue(this);
 
-    return Super::import(importStack);
+    // If we're inside an artboard context, import through Component so we're
+    // added to the artboard's object list and can be resolved by ID.
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    if (artboardImporter != nullptr)
+    {
+        return Super::import(importStack);
+    }
+
+    return Core::import(importStack);
 }
 
 bool ViewModelInstanceValue::hasChanged()

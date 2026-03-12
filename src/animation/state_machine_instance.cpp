@@ -1632,6 +1632,13 @@ StateMachineInstance::~StateMachineInstance()
     m_scriptedObjectsMap.clear();
 }
 
+// When a state machine instanced by a higher level runtime is destroyed, we
+// need to clean up all its references from the nested artboard children. The
+// reason is that the artboard might still be kept alive and it might have
+// invalid pointers. This is not necessary for nested state machines because
+// they are destroyed altogether.
+void StateMachineInstance::dispose() { removeEventListeners(); }
+
 void StateMachineInstance::removeEventListeners()
 {
     if (m_artboardInstance != nullptr)

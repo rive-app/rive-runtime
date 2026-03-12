@@ -33,6 +33,8 @@
 #include "rive/animation/nested_bool.hpp"
 #include "rive/animation/nested_number.hpp"
 #include "rive/animation/nested_trigger.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/shapes/shape.hpp"
@@ -44,6 +46,7 @@
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
 
+#include <set>
 #include <unordered_map>
 
 using namespace rive;
@@ -78,10 +81,73 @@ Artboard::~Artboard()
     }
 #endif
     unbind();
+
+    // ViewModelInstance and ViewModelInstanceValue inherit from RefCnt.
+    //
+    // ViewModelInstance (VMI) ownership rules:
+    // - VMIs in the component hierarchy (parent() != nullptr) are expected to
+    //   be owned externally and must NOT be released here.
+    // - VMIs not in the component hierarchy are released by the artboard, but
+    //   AFTER hierarchy components are destroyed to avoid use-after-free. This
+    //   applies to both source and cloned artboards (e.g., artboard instances
+    //   created by ArtboardComponentList).
+    //
+    // ViewModelInstanceValue (VMV) ownership: always owned by their parent
+    // ViewModelInstance via rcp<> in m_PropertyValues. When VMI is deleted,
+    // its destructor clears m_PropertyValues, which unrefs and deletes VMVs.
+    //
+    // Strategy:
+    // 1) Identify VMI/VMV objects by pointer (safe is<>() check BEFORE any
+    // deletions).
+    // 2) Delete everything else immediately, deferring VMI unref until after
+    // hierarchy components are gone.
+    std::set<Core*> vmObjects;
+    std::set<ViewModelInstance*> deferredVmiUnrefs;
+
+    // First pass: identify ViewModelInstance and ViewModelInstanceValue
+    // objects while memory is valid (before any deletions). Precompute which
+    // VMIs should be released so we never dereference pointers after deletes.
+    auto gatherVmObjects = [&](Core* object) {
+        if (object == nullptr || object == this)
+        {
+            return;
+        }
+        if (object->is<ViewModelInstance>())
+        {
+            vmObjects.insert(object);
+            auto vmi = object->as<ViewModelInstance>();
+            if (vmi->parent() == nullptr)
+            {
+                deferredVmiUnrefs.insert(vmi);
+            }
+            return;
+        }
+        if (object->is<ViewModelInstanceValue>())
+        {
+            vmObjects.insert(object);
+        }
+    };
     for (auto object : m_Objects)
     {
-        // First object is artboard
-        if (object == this)
+        gatherVmObjects(object);
+    }
+    for (auto object : m_invalidObjects)
+    {
+        gatherVmObjects(object);
+    }
+
+    auto isVmObject = [&](Core* object) -> bool {
+        return vmObjects.count(object) != 0;
+    };
+
+    // Second pass: delete non-VM objects.
+    for (auto object : m_Objects)
+    {
+        if (object == nullptr || object == this)
+        {
+            continue;
+        }
+        if (isVmObject(object))
         {
             continue;
         }
@@ -89,7 +155,23 @@ Artboard::~Artboard()
     }
     for (auto object : m_invalidObjects)
     {
+        if (object == nullptr)
+        {
+            continue;
+        }
+        if (isVmObject(object))
+        {
+            continue;
+        }
         delete object;
+    }
+
+    // Now release deferred ViewModelInstances (both source and clone artboards)
+    // after hierarchy components have been destroyed. Releasing via unref()
+    // keeps RefCnt ownership semantics intact.
+    for (auto* vmi : deferredVmiUnrefs)
+    {
+        vmi->unref();
     }
 
     deleteDataBinds();

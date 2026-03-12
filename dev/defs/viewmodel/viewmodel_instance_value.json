@@ -4,7 +4,7 @@
     "int": 428,
     "string": "viewmodelinstancevalue"
   },
-  "abstract": true,
+  "extends": "component.json",
   "properties": {
     "viewModelInstanceId": {
       "type": "Id",
@@ -15,6 +15,7 @@
         "int": 553,
         "string": "viewmodelinstanceid"
       },
+      "parentable": 1,
       "description": "Identifier of the view model instance this value is for, at runtime this is expected in context (after) a ViewModelInstance object.",
       "runtime": false
     },

@@ -9,11 +9,13 @@
     "propertyValue": {
       "type": "double",
       "initialValue": "0",
+      "animates": true,
       "key": {
         "int": 575,
         "string": "propertyvalue"
       },
-      "description": "The number value."
+      "description": "The number value.",
+      "bindable": true
     },
     "playbackValue": {
       "type": "double",

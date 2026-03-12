@@ -40,7 +40,7 @@ protected:
     File* m_file = nullptr;
     rcp<ViewModelInstance> m_viewModelInstance = nullptr;
     rcp<DataContext> m_dataContext = nullptr;
-    // Auto-created ViewModelInstance for stateful artboards.
+    // ViewModelInstance child for stateful artboards.
     rcp<ViewModelInstance> m_statefulViewModelInstance = nullptr;
 
 protected:

@@ -346,12 +346,6 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     m_ViewModels.push_back(vmc);
                     break;
                 }
-                case ViewModelInstance::typeKey:
-                {
-                    auto vmi = object->as<ViewModelInstance>();
-                    m_ViewModelInstances.push_back(vmi);
-                    break;
-                }
                 case DataEnum::typeKey:
                 case DataEnumCustom::typeKey:
                 {
@@ -494,11 +488,14 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
                 break;
             case ViewModel::typeKey:
+            {
                 stackObject = rivestd::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());
+                static_cast<ViewModelImporter*>(stackObject.get())->file(this);
                 stackType = ViewModel::typeKey;
                 object->as<ViewModel>()->file(this);
                 break;
+            }
             case ViewModelInstance::typeKey:
                 stackObject = rivestd::make_unique<ViewModelInstanceImporter>(
                     object->as<ViewModelInstance>());
@@ -622,6 +619,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
     return !reader.hasError() && resolved == StatusCode::Ok
                ? ImportResult::success
                : ImportResult::malformed;
+}
+
+void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
+{
+    m_ViewModelInstances.push_back(viewModelInstance);
 }
 
 #ifdef WITH_RIVE_SCRIPTING

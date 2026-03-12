@@ -194,6 +194,7 @@ public:
     std::vector<Artboard*> artboards() { return m_artboards; };
 
     bool hasAudio() const { return m_hasAudio; };
+    void addFileViewModelInstance(ViewModelInstance* viewModelInstance);
 
     // When the runtime is hosted in the editor, we get a pointer
     // to the VM that we can use. If this is nullptr, we can assume

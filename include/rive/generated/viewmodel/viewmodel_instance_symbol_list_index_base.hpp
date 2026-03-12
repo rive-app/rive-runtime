@@ -21,6 +21,7 @@ public:
             case ViewModelInstanceSymbolListIndexBase::typeKey:
             case ViewModelInstanceSymbolBase::typeKey:
             case ViewModelInstanceValueBase::typeKey:
+            case ComponentBase::typeKey:
                 return true;
             default:
                 return false;

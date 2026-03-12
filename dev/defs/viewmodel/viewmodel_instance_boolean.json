@@ -9,11 +9,13 @@
     "propertyValue": {
       "type": "bool",
       "initialValue": "false",
+      "animates": true,
       "key": {
         "int": 593,
         "string": "propertyvalue"
       },
-      "description": "The boolean value."
+      "description": "The boolean value.",
+      "bindable": true
     },
     "playbackValue": {
       "type": "bool",

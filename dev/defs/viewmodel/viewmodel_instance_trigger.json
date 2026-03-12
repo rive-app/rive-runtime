@@ -9,11 +9,13 @@
     "propertyValue": {
       "type": "uint",
       "initialValue": "0",
+      "animates": true,
       "key": {
         "int": 687,
         "string": "propertyvalue"
       },
-      "description": "The boolean value."
+      "description": "The boolean value.",
+      "bindable": true
     },
     "playbackValue": {
       "type": "uint",

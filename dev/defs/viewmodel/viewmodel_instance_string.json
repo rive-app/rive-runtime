@@ -9,11 +9,13 @@
     "propertyValue": {
       "type": "String",
       "initialValue": "''",
+      "animates": true,
       "key": {
         "int": 561,
         "string": "propertyvalue"
       },
-      "description": "The string value."
+      "description": "The string value.",
+      "bindable": true
     },
     "playbackValue": {
       "type": "String",

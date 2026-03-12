@@ -11,11 +11,23 @@
       "typeRuntime": "uint",
       "initialValue": "Core.missingId",
       "initialValueRuntime": "0",
+      "animates": true,
       "key": {
         "int": 560,
         "string": "propertyvalue"
       },
-      "description": "The id of the enum value."
+      "description": "The id of the enum value.",
+      "bindable": true
+    },
+    "playbackValue": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 684,
+        "string": "playbackvalue"
+      },
+      "description": "The id of the enum value.",
+      "runtime": false
     }
   }
 }

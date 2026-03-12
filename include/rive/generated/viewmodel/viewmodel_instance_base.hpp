@@ -1,13 +1,13 @@
 #ifndef _RIVE_VIEW_MODEL_INSTANCE_BASE_HPP_
 #define _RIVE_VIEW_MODEL_INSTANCE_BASE_HPP_
-#include "rive/component.hpp"
+#include "rive/container_component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
-class ViewModelInstanceBase : public Component
+class ViewModelInstanceBase : public ContainerComponent
 {
 protected:
-    typedef Component Super;
+    typedef ContainerComponent Super;
 
 public:
     static const uint16_t typeKey = 437;
@@ -19,6 +19,7 @@ public:
         switch (typeKey)
         {
             case ViewModelInstanceBase::typeKey:
+            case ContainerComponentBase::typeKey:
             case ComponentBase::typeKey:
                 return true;
             default:
@@ -49,7 +50,7 @@ public:
     void copy(const ViewModelInstanceBase& object)
     {
         m_ViewModelId = object.m_ViewModelId;
-        Component::copy(object);
+        ContainerComponent::copy(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -60,7 +61,7 @@ public:
                 m_ViewModelId = CoreUintType::deserialize(reader);
                 return true;
         }
-        return Component::deserialize(propertyKey, reader);
+        return ContainerComponent::deserialize(propertyKey, reader);
     }
 
 protected:

@@ -20,6 +20,7 @@ public:
         {
             case ViewModelInstanceViewModelBase::typeKey:
             case ViewModelInstanceValueBase::typeKey:
+            case ComponentBase::typeKey:
                 return true;
             default:
                 return false;
