@@ -22,15 +22,16 @@ constexpr float gInvScale = 1.0f / kStdScale;
 class CoreTextHBFont : public HBFont
 {
 private:
+    CTFontRef m_ctFont;
     bool m_useSystemShaper;
-    uint16_t m_weight;
-    uint8_t m_width;
 
 public:
     CoreTextHBFont(hb_font_t* font,
+                   CTFontRef ctFont,
                    bool useSystemShaper,
                    uint16_t weight,
                    uint8_t width);
+    ~CoreTextHBFont() override;
 
     void shapeFallbackRun(rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
                           const rive::Unichar text[],
@@ -42,12 +43,87 @@ public:
     rive::RawPath getPath(rive::GlyphID glyph) const override;
 };
 
+struct HBCTFaceData
+{
+    CTFontRef ctFont;
+};
+
+static void hb_ct_face_data_destroy(void* userData)
+{
+    auto data = static_cast<HBCTFaceData*>(userData);
+    if (data != nullptr)
+    {
+        if (data->ctFont != nullptr)
+        {
+            CFRelease(data->ctFont);
+        }
+        delete data;
+    }
+}
+
+static hb_blob_t* hb_ct_reference_table(hb_face_t*,
+                                        hb_tag_t tag,
+                                        void* userData)
+{
+    auto data = static_cast<HBCTFaceData*>(userData);
+    if (data == nullptr || data->ctFont == nullptr)
+    {
+        return hb_blob_get_empty();
+    }
+
+    CFDataRef table = CTFontCopyTable(data->ctFont,
+                                      static_cast<CTFontTableTag>(tag),
+                                      kCTFontTableOptionNoOptions);
+    if (table == nullptr)
+    {
+        return hb_blob_get_empty();
+    }
+
+    const char* bytes = reinterpret_cast<const char*>(CFDataGetBytePtr(table));
+    const auto length = static_cast<unsigned int>(CFDataGetLength(table));
+
+    return hb_blob_create(bytes,
+                          length,
+                          HB_MEMORY_MODE_READONLY,
+                          (void*)table,
+                          [](void* blobUserData) {
+                              CFRelease(static_cast<CFDataRef>(blobUserData));
+                          });
+}
+
+static hb_font_t* hb_font_create_from_ct_tables(CTFontRef ctFont)
+{
+    if (ctFont == nullptr)
+    {
+        return nullptr;
+    }
+
+    auto* faceData = new HBCTFaceData{(CTFontRef)CFRetain(ctFont)};
+    hb_face_t* face = hb_face_create_for_tables(
+        hb_ct_reference_table, faceData, hb_ct_face_data_destroy);
+    if (face == nullptr)
+    {
+        hb_ct_face_data_destroy(faceData);
+        return nullptr;
+    }
+
+    const unsigned int upem = (unsigned int)CTFontGetUnitsPerEm(ctFont);
+    if (upem > 0)
+    {
+        hb_face_set_upem(face, upem);
+    }
+
+    hb_font_t* font = hb_font_create(face);
+    hb_face_destroy(face);
+    return font;
+}
+
 rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont,
                                          bool useSystemShaper,
                                          uint16_t weight,
                                          uint8_t width)
 {
-    auto ctFont = (CTFontRef)systemFont;
+    CTFontRef ctFont = (CTFontRef)systemFont;
     bool isCopy = false;
     if (CTFontGetSize(ctFont) != kStdScale)
     {
@@ -57,15 +133,25 @@ rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont,
             CTFontCreateCopyWithAttributes(ctFont, kStdScale, nullptr, nullptr);
         isCopy = true;
     }
-    auto font = hb_coretext_font_create(ctFont);
-    if (isCopy)
+
+    hb_font_t* font = hb_font_create_from_ct_tables(ctFont);
+    if (font == nullptr)
     {
-        CFRelease(ctFont);
+        font = hb_coretext_font_create(ctFont);
     }
     if (font)
     {
-        return rive::rcp<rive::Font>(
-            new CoreTextHBFont(font, useSystemShaper, weight, width));
+        auto riveFont = rive::rcp<rive::Font>(
+            new CoreTextHBFont(font, ctFont, useSystemShaper, weight, width));
+        if (isCopy)
+        {
+            CFRelease(ctFont);
+        }
+        return riveFont;
+    }
+    if (isCopy)
+    {
+        CFRelease(ctFont);
     }
     return nullptr;
 }
@@ -227,13 +313,30 @@ static void apply_element(void* ctx, const CGPathElement* element)
     }
 }
 
+static bool ct_extract_glyph_path(CTFontRef ctFont,
+                                  rive::GlyphID glyph,
+                                  rive::RawPath* outPath)
+{
+    if (ctFont == nullptr)
+    {
+        return false;
+    }
+    AutoCF<CGPathRef> cgPath = CTFontCreatePathForGlyph(ctFont, glyph, nullptr);
+    if (!cgPath)
+    {
+        return false;
+    }
+    CGPathApply(cgPath.get(), outPath, apply_element);
+    return true;
+}
+
 CoreTextHBFont::CoreTextHBFont(hb_font_t* font,
+                               CTFontRef ctFont,
                                bool useSystemShaper,
                                uint16_t weight,
                                uint8_t width) :
+    m_ctFont(ctFont ? (CTFontRef)CFRetain(ctFont) : nullptr),
     m_useSystemShaper(useSystemShaper),
-    m_weight(weight),
-    m_width(width),
     HBFont(font)
 {
     hb_variation_t variation_data[2];
@@ -242,6 +345,14 @@ CoreTextHBFont::CoreTextHBFont(hb_font_t* font,
     variation_data[1].tag = HB_OT_TAG_VAR_AXIS_WIDTH;
     variation_data[1].value = width;
     hb_font_set_variations(font, variation_data, 2);
+}
+
+CoreTextHBFont::~CoreTextHBFont()
+{
+    if (m_ctFont)
+    {
+        CFRelease(m_ctFont);
+    }
 }
 
 void CoreTextHBFont::shapeFallbackRun(
@@ -259,14 +370,16 @@ void CoreTextHBFont::shapeFallbackRun(
         return;
     }
 
-    CTFontRef ctFont = hb_coretext_font_get_ct_font(m_font);
+    CTFontRef ctFont = m_ctFont;
 
     AutoUTF16 utf16(&text[textStart], textRun.unicharCount);
+    CFIndex utf16Length =
+        rive::math::lossless_numeric_cast<CFIndex>(utf16.array.size());
 
-    assert(utf16.array.size() == textRun.unicharCount);
+    assert(utf16.array.size() >= textRun.unicharCount);
 
     AutoCF<CFStringRef> string = CFStringCreateWithCharactersNoCopy(
-        nullptr, utf16.array.data(), utf16.array.size(), kCFAllocatorNull);
+        nullptr, utf16.array.data(), utf16Length, kCFAllocatorNull);
 
     AutoCF<CFMutableDictionaryRef> attr =
         CFDictionaryCreateMutable(kCFAllocatorDefault,
@@ -276,10 +389,11 @@ void CoreTextHBFont::shapeFallbackRun(
     CFDictionaryAddValue(attr.get(), kCTFontAttributeName, ctFont);
 
     AutoCF<CFMutableAttributedStringRef> attrString =
-        CFAttributedStringCreateMutable(kCFAllocatorDefault,
-                                        textRun.unicharCount);
+        CFAttributedStringCreateMutable(kCFAllocatorDefault, utf16Length);
     CFAttributedStringReplaceString(
         attrString.get(), CFRangeMake(0, 0), string.get());
+    CFAttributedStringSetAttributes(
+        attrString.get(), CFRangeMake(0, utf16Length), attr.get(), false);
 
     AutoCF<CFNumberRef> level_number =
         CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &textRun.level);
@@ -355,18 +469,10 @@ rive::RawPath CoreTextHBFont::getPath(rive::GlyphID glyph) const
     // too.
     if (m_useSystemShaper)
     {
-        CTFontRef ctFont = hb_coretext_font_get_ct_font(m_font);
-        if (ctFont)
+        rive::RawPath ctPath;
+        if (ct_extract_glyph_path(m_ctFont, glyph, &ctPath))
         {
-            AutoCF<CGPathRef> cgPath =
-                CTFontCreatePathForGlyph(ctFont, glyph, nullptr);
-
-            if (cgPath)
-            {
-                rive::RawPath rpath;
-                CGPathApply(cgPath.get(), &rpath, apply_element);
-                return rpath;
-            }
+            return ctPath;
         }
     }
 
@@ -376,18 +482,10 @@ rive::RawPath CoreTextHBFont::getPath(rive::GlyphID glyph) const
     // glyphs. Try getting them from the system.
     if (rpath.empty() && !m_useSystemShaper)
     {
-        CTFontRef ctFont = hb_coretext_font_get_ct_font(m_font);
-        if (ctFont)
+        rive::RawPath ctPath;
+        if (ct_extract_glyph_path(m_ctFont, glyph, &ctPath))
         {
-            AutoCF<CGPathRef> cgPath =
-                CTFontCreatePathForGlyph(ctFont, glyph, nullptr);
-
-            if (cgPath)
-            {
-                rive::RawPath rpath;
-                CGPathApply(cgPath.get(), &rpath, apply_element);
-                return rpath;
-            }
+            return ctPath;
         }
     }
     return rpath;
