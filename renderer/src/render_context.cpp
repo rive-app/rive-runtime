@@ -1430,8 +1430,7 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Write out all the data for our high level draws, and build up a low-level
     // draw list.
-    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering ||
-        m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwise)
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
     {
         for (const DrawUniquePtr& draw : m_draws)
         {
@@ -1692,7 +1691,6 @@ void RenderContext::LogicalFlush::writeResources()
         switch (m_flushDesc.interlockMode)
         {
             case gpu::InterlockMode::rasterOrdering:
-            case gpu::InterlockMode::clockwise:
                 // rasterOrdering and clockwise modes don't reorder draws.
                 RIVE_UNREACHABLE();
 
@@ -1705,6 +1703,11 @@ void RenderContext::LogicalFlush::writeResources()
                 // etc.
                 assert(m_pendingBarriers == BarrierFlags::none);
                 m_pendingBarriers = BarrierFlags::plsAtomic;
+                break;
+
+            case gpu::InterlockMode::clockwise:
+                // clockwise mode doesn't need barriers, but we still reorder in
+                // order to improve batching.
                 break;
 
             case gpu::InterlockMode::clockwiseAtomic:
