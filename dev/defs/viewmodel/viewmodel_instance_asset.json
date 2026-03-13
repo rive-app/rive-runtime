@@ -11,11 +11,13 @@
       "typeRuntime": "uint",
       "initialValue": "Core.missingId",
       "initialValueRuntime": "-1",
+      "animates": true,
       "key": {
         "int": 824,
         "string": "propertyvalue"
       },
-      "description": "An id to an asset."
+      "description": "An id to an asset.",
+      "bindable": true
     },
     "playbackValue": {
       "type": "Id",

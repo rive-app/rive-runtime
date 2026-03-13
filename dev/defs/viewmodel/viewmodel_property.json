@@ -15,6 +15,7 @@
         "int": 558,
         "string": "viewmodelid"
       },
+      "parentable": 1,
       "description": "Identifier used to track parent View Model.",
       "runtime": false
     },
@@ -36,6 +37,15 @@
         "string": "symboltypevalue"
       },
       "description": "Special types of properties. 0 is not a special value type"
+    },
+    "componentProps": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 957,
+        "string": "componentprops"
+      },
+      "runtime": false
     }
   }
 }
