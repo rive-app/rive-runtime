@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/animation/keyed_object.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
@@ -8,6 +9,7 @@
 #include "rive/shapes/shape.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <memory>
 
 TEST_CASE(
     "LinearAnimation with positive speed have normal start and end seconds",
@@ -114,6 +116,43 @@ TEST_CASE("LinearAnimation reports when to keep going correctly", "[animation]")
     REQUIRE(animationInstance.time() == 0.7f);
 
     delete linearAnimation;
+}
+
+class MockKeyedObject : public rive::KeyedObject
+{
+public:
+    MockKeyedObject(rive::StatusCode status, int* callCount) :
+        m_status(status), m_callCount(callCount)
+    {}
+
+    rive::StatusCode onAddedDirty(rive::CoreContext*) override
+    {
+        (*m_callCount)++;
+        return m_status;
+    }
+
+private:
+    rive::StatusCode m_status;
+    int* m_callCount;
+};
+
+TEST_CASE("LinearAnimation keeps initializing after missing keyed object",
+          "[animation]")
+{
+    rive::LinearAnimation animation;
+    int missingObjectCalls = 0;
+    int validObjectCalls = 0;
+
+    animation.addKeyedObject(std::unique_ptr<rive::KeyedObject>(
+        new MockKeyedObject(rive::StatusCode::MissingObject,
+                            &missingObjectCalls)));
+    animation.addKeyedObject(std::unique_ptr<rive::KeyedObject>(
+        new MockKeyedObject(rive::StatusCode::Ok, &validObjectCalls)));
+
+    REQUIRE(animation.onAddedDirty(nullptr) == rive::StatusCode::Ok);
+    REQUIRE(missingObjectCalls == 1);
+    REQUIRE(validObjectCalls == 1);
+    REQUIRE(animation.numKeyedObjects() == 1);
 }
 
 class TestReporter : public rive::KeyedCallbackReporter

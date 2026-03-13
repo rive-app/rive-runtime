@@ -43,6 +43,9 @@ public:
     /// work area start/end, speed, looping).
     float globalToLocalSeconds(float seconds) const;
 
+    // Returns a list of only the KeyedObjects that were validated during
+    // onAddedDirty. This is not guaranteed to be the same as the list in the
+    // exported riv.
     const KeyedObject* getObject(size_t index) const
     {
         if (index < m_KeyedObjects.size())
