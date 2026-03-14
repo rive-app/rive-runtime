@@ -100,11 +100,11 @@ uint32_t OrderedLine::firstCodePointIndex(const GlyphLookup& glyphLookup) const
     if (run->dir() == TextDirection::rtl)
     {
         // If the final run is RTL we want to add the length of the final glyph
-        // to get the actual last available code unit in the line.
+        // to get the actual last available codepoint in the line.
         firstCodePointIndex += glyphLookup.count(run->textIndices[glyphIndex]);
     }
     // Clamp ignoring last zero width space for editing.
-    return std::min(firstCodePointIndex, glyphLookup.lastCodeUnitIndex() - 1);
+    return std::min(firstCodePointIndex, glyphLookup.lastCodePointIndex() - 1);
 }
 
 uint32_t OrderedLine::lastCodePointIndex(const GlyphLookup& glyphLookup) const
@@ -127,7 +127,7 @@ uint32_t OrderedLine::lastCodePointIndex(const GlyphLookup& glyphLookup) const
         lastCodePointIndex += glyphLookup.count(run->textIndices[glyphIndex]);
     }
     // Clamp ignoring last zero width space for editing.
-    return std::min(lastCodePointIndex, glyphLookup.lastCodeUnitIndex() - 1);
+    return std::min(lastCodePointIndex, glyphLookup.lastCodePointIndex() - 1);
 }
 
 bool OrderedLine::containsCodePointIndex(const GlyphLookup& glyphLookup,

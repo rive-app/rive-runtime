@@ -5,10 +5,13 @@
 #include "rive/text_engine.hpp"
 
 #include <unordered_map>
+#include <vector>
 
 struct hb_font_t;
 struct hb_draw_funcs_t;
+struct hb_paint_funcs_t;
 struct hb_feature_t;
+using hb_color_t = uint32_t;
 
 class HBFont : public rive::Font
 {
@@ -25,6 +28,12 @@ public:
     bool isItalic() const override;
 
     rive::RawPath getPath(rive::GlyphID) const override;
+    bool hasColorGlyphs() const override;
+    bool isColorGlyph(rive::GlyphID) const override;
+    size_t getColorLayers(
+        rive::GlyphID,
+        std::vector<ColorGlyphLayer>& out,
+        rive::ColorInt foreground = 0xFF000000) const override;
     rive::SimpleArray<rive::Paragraph> onShapeText(
         rive::Span<const rive::Unichar>,
         rive::Span<const rive::TextRun>,
@@ -65,12 +74,22 @@ public:
 
 private:
     hb_draw_funcs_t* m_drawFuncs;
+    hb_paint_funcs_t* m_paintFuncs;
 
     // Feature value lookup based on tag.
     std::unordered_map<uint32_t, uint32_t> m_featureValues;
 
     // Axis value lookup based on for the feature.
     std::unordered_map<uint32_t, float> m_axisValues;
+
+    // Color glyph (emoji) support — COLRv0 (layers), COLRv1 (paint),
+    // and/or SBIX/CBDT (PNG bitmap).
+    bool m_hasColorLayers = false; // COLRv0
+    bool m_hasColorPaint = false;  // COLRv1
+    bool m_hasPNG = false;         // SBIX or CBDT
+    std::vector<hb_color_t> m_paletteColors;
+    mutable std::unordered_map<rive::GlyphID, std::vector<ColorGlyphLayer>>
+        m_colorLayerCache;
 };
 
 #endif

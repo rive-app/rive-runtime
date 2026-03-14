@@ -17,13 +17,15 @@ public:
     /// Returns true if the text object contains no text.
     bool empty() const;
 
-    /// Appends a run to the text object.
+    /// Appends a run to the text object. The foregroundColor is used for
+    /// color glyphs (emoji) that reference the text's foreground color.
     void append(const std::string& text,
                 rcp<RenderPaint> paint,
                 rcp<Font> font,
                 float size = 16.0f,
                 float lineHeight = -1.0f,
-                float letterSpacing = 0.0f);
+                float letterSpacing = 0.0f,
+                ColorInt foregroundColor = 0xFF000000);
 
     /// Resets the text object to empty state (no text).
     void clear();
@@ -68,6 +70,7 @@ private:
         rcp<RenderPaint> paint;
         bool isEmpty;
         ShapePaintPath path;
+        ColorInt foregroundColor = 0xFF000000;
     };
     SimpleArray<Paragraph> m_shape;
     SimpleArray<SimpleArray<GlyphLine>> m_lines;
@@ -90,6 +93,27 @@ private:
     GlyphRun m_ellipsisRun;
     AABB m_bounds;
     rcp<RenderPath> m_clipRenderPath;
+
+    // Color glyph draw commands for interleaving with style paths.
+    struct RawTextDrawCommand
+    {
+        enum Type
+        {
+            kStylePath,
+            kColorGlyph
+        };
+        Type type;
+        RenderStyle* style = nullptr;
+        struct ColorGlyphInfo
+        {
+            rcp<Font> font;
+            GlyphID glyphId;
+            Mat2D transform;
+            ColorInt foregroundColor;
+        };
+        ColorGlyphInfo colorGlyph;
+    };
+    std::vector<RawTextDrawCommand> m_drawCommands;
 };
 } // namespace rive
 

@@ -157,6 +157,7 @@ private:
 
     const OrderedLine* orderedLine(CursorPosition position) const;
 
+    void ensureShape();
     void buildTextPaths(Factory* factory);
     void computeVisualPositionFromCursor();
     void setTextPrivate(std::string value);

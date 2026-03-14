@@ -484,6 +484,134 @@ TEST_CASE("cursor sub-word movement works", "[text_input]")
     CHECK(textInput.cursor().start().codePointIndex() == 20);
 }
 
+TEST_CASE("cursor skips multi-codepoint glyphs", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    // "cafe\u0301s" = "cafés" where é = e + combining acute accent (2
+    // codepoints, 1 glyph)
+    // Indices: c=0 a=1 f=2 e=3 \u0301=4 s=5
+    std::string defaultText =
+        "caf\xC3\xA9s"; // UTF-8 for café with precomposed é
+    // Actually we need the decomposed form: e + combining acute accent
+    // e = 0x65, combining acute = 0xCC 0x81 in UTF-8
+    defaultText = "cafe\xCC\x81s";
+    textInput.insert(defaultText);
+    textInput.cursor(Cursor::zero());
+    textInput.font(font);
+    textInput.fontSize(72.0f);
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+
+    // Move right: c(0) -> a(1) -> f(2) -> e(3) -> s(5) (should skip index 4)
+    textInput.cursorRight();
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 1);
+
+    textInput.cursorRight();
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 2);
+
+    textInput.cursorRight();
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 3);
+
+    textInput.cursorRight();
+    textInput.update(&factory);
+    // Should skip index 4 (combining accent) and land on 5
+    CHECK(textInput.cursor().start().codePointIndex() == 5);
+}
+
+TEST_CASE("cursor left skips multi-codepoint glyphs", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    std::string defaultText = "cafe\xCC\x81s";
+    textInput.insert(defaultText);
+    textInput.cursor(Cursor::zero());
+    textInput.font(font);
+    textInput.fontSize(72.0f);
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+
+    // Go to end
+    textInput.cursorDown();
+    textInput.update(&factory);
+
+    // Move left from end(6) -> s(5) -> é(3) (skip 4) -> f(2)
+    textInput.cursorLeft();
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 5);
+
+    textInput.cursorLeft();
+    textInput.update(&factory);
+    // Should skip index 4 and land on 3
+    CHECK(textInput.cursor().start().codePointIndex() == 3);
+
+    textInput.cursorLeft();
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 2);
+}
+
+TEST_CASE("backspace deletes entire multi-codepoint glyph", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    std::string defaultText = "cafe\xCC\x81s";
+    textInput.insert(defaultText);
+    textInput.cursor(Cursor::zero());
+    textInput.font(font);
+    textInput.fontSize(72.0f);
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+
+    // Move cursor to after the é (before 's')
+    textInput.cursorDown();
+    textInput.update(&factory);
+    textInput.cursorLeft(); // at 's' = index 5
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 5);
+
+    // Backspace should delete both codepoints of é (indices 3 and 4)
+    textInput.backspace(-1);
+    textInput.update(&factory);
+    CHECK(textInput.text() == "cafs");
+    CHECK(textInput.cursor().start().codePointIndex() == 3);
+}
+
+TEST_CASE("delete forward removes entire multi-codepoint glyph", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    std::string defaultText = "cafe\xCC\x81s";
+    textInput.insert(defaultText);
+    textInput.cursor(Cursor::zero());
+    textInput.font(font);
+    textInput.fontSize(72.0f);
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+
+    // Move cursor to before the é (after 'f') = index 3
+    textInput.cursorRight();
+    textInput.cursorRight();
+    textInput.cursorRight();
+    textInput.update(&factory);
+    CHECK(textInput.cursor().start().codePointIndex() == 3);
+
+    // Delete forward should remove both codepoints of é
+    textInput.backspace(1);
+    textInput.update(&factory);
+    CHECK(textInput.text() == "cafs");
+}
+
 #define CHECK_CURSOR(A, START, END)                                            \
     CHECK(A.start().codePointIndex() == START);                                \
     CHECK(A.end().codePointIndex() == END)

@@ -50,7 +50,6 @@ void RawTextInput::draw(Factory* factory,
 void RawTextInput::backspace(int32_t direction)
 {
     Cursor startingCursor = m_cursor;
-    int32_t offset = direction > 0 ? 0 : -1;
     if (!m_cursor.isCollapsed())
     {
         erase();
@@ -59,15 +58,37 @@ void RawTextInput::backspace(int32_t direction)
     }
     m_idealCursorX = -1.0f;
 
-    auto index = m_cursor.first().codePointIndex(offset);
-
-    if (index >= m_text.size() - 1)
+    ensureShape();
+    const auto& glyphLookup = m_shape.glyphLookup();
+    if (direction > 0)
     {
-        return;
+        // Delete forward: erase the full glyph cluster at cursor position.
+        auto index = m_cursor.first().codePointIndex();
+        if (index >= m_text.size() - 1)
+        {
+            return;
+        }
+        uint32_t clusterCount = glyphLookup.count(index);
+        m_text.erase(m_text.begin() + index,
+                     m_text.begin() + index + clusterCount);
+        auto position = CursorPosition(index);
+        m_cursor = Cursor::collapsed(position);
     }
-    m_text.erase(m_text.begin() + index);
-    auto position = CursorPosition(index);
-    m_cursor = Cursor::collapsed(position);
+    else
+    {
+        // Backspace: erase the full glyph cluster before cursor position.
+        auto index = m_cursor.first().codePointIndex();
+        if (index == 0)
+        {
+            return;
+        }
+        uint32_t clusterStart = glyphLookup.glyphStart(index - 1);
+        uint32_t clusterCount = glyphLookup.count(clusterStart);
+        m_text.erase(m_text.begin() + clusterStart,
+                     m_text.begin() + clusterStart + clusterCount);
+        auto position = CursorPosition(clusterStart);
+        m_cursor = Cursor::collapsed(position);
+    }
     flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
     captureJournalEntry(startingCursor);
 }
@@ -201,17 +222,10 @@ void RawTextInput::computeVisualPositionFromCursor()
     m_cursorVisualPosition = cursorVisualPosition(m_cursor.end());
 }
 
-RawTextInput::Flags RawTextInput::update(Factory* factory)
+void RawTextInput::ensureShape()
 {
-    Flags updated = Flags::none;
-    if (m_textRun.font == nullptr)
-    {
-        return updated;
-    }
-    bool updateTextPath = false;
     if (unflag(Flags::shapeDirty))
     {
-        updated |= Flags::shapeDirty;
         m_textRun.unicharCount = (uint32_t)m_text.size();
         m_shape.shape(m_text,
                       Span<TextRun>(&m_textRun, 1),
@@ -223,6 +237,21 @@ RawTextInput::Flags RawTextInput::update(Factory* factory)
                       m_origin,
                       m_overflow,
                       m_paragraphSpacing);
+    }
+}
+
+RawTextInput::Flags RawTextInput::update(Factory* factory)
+{
+    Flags updated = Flags::none;
+    if (m_textRun.font == nullptr)
+    {
+        return updated;
+    }
+    bool updateTextPath = false;
+    if (flagged(Flags::shapeDirty))
+    {
+        updated |= Flags::shapeDirty;
+        ensureShape();
         updateTextPath = true;
     }
     if (unflag(Flags::selectionDirty))
@@ -455,6 +484,7 @@ void RawTextInput::cursorHorizontal(int32_t offset,
                                     CursorBoundary boundary,
                                     bool select)
 {
+    ensureShape();
     m_idealCursorX = -1.0f;
     CursorPosition end = m_cursor.end();
 
@@ -462,9 +492,28 @@ void RawTextInput::cursorHorizontal(int32_t offset,
     switch (boundary)
     {
         case CursorBoundary::character:
-            position =
-                CursorPosition::atIndex(end.codePointIndex(offset), m_shape);
+        {
+            const auto& glyphLookup = m_shape.glyphLookup();
+            uint32_t nextIndex = end.codePointIndex(offset);
+            // Skip over interior codepoints of multi-codepoint glyphs.
+            if (offset > 0)
+            {
+                while (nextIndex < (uint32_t)(m_text.size() - 1) &&
+                       !glyphLookup.isGlyphBoundary(nextIndex))
+                {
+                    nextIndex++;
+                }
+            }
+            else
+            {
+                while (nextIndex > 0 && !glyphLookup.isGlyphBoundary(nextIndex))
+                {
+                    nextIndex--;
+                }
+            }
+            position = CursorPosition::atIndex(nextIndex, m_shape);
             break;
+        }
         case CursorBoundary::line:
         {
             auto line = orderedLine(end);
@@ -656,6 +705,7 @@ void RawTextInput::cursorRight(CursorBoundary boundary, bool select)
 
 void RawTextInput::cursorUp(bool select)
 {
+    ensureShape();
     if (m_idealCursorX == -1.0f)
     {
         m_idealCursorX = m_cursorVisualPosition.x();
@@ -680,6 +730,7 @@ void RawTextInput::cursorUp(bool select)
 
 void RawTextInput::cursorDown(bool select)
 {
+    ensureShape();
     if (m_idealCursorX == -1.0f)
     {
         m_idealCursorX = m_cursorVisualPosition.x();
@@ -705,6 +756,7 @@ void RawTextInput::cursorDown(bool select)
 
 void RawTextInput::moveCursorTo(Vec2D translation, bool select)
 {
+    ensureShape();
     m_idealCursorX = -1.0f;
     auto position = CursorPosition::fromTranslation(translation, m_shape);
 

@@ -9,6 +9,9 @@ using namespace rive;
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/shapes/paint/color.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
@@ -189,6 +192,7 @@ void Text::clearRenderStyles()
         style->rewindPath();
     }
     m_renderStyles.clear();
+    m_drawCommands.clear();
 
     for (TextValueRun* textValueRun : m_allRuns)
     {
@@ -468,8 +472,6 @@ void Text::buildRenderStyles()
                 GlyphID glyphId = run->glyphs[glyphIndex];
                 float advance = run->advances[glyphIndex];
 
-                RawPath path = font->getPath(glyphId);
-
                 // Step 6.1: translate to the glyph's origin and scale.
                 Vec2D curPos(curX, renderY);
                 float centerX = advance / 2.0f;
@@ -511,21 +513,41 @@ void Text::buildRenderStyles()
                                          curPos.y + offset.y) *
                     pathTransform;
 
-                path.transformInPlace(pathTransform);
-
                 assert(run->styleId < m_allRuns.size());
                 TextValueRun* textValueRun = m_allRuns[run->styleId];
                 TextStylePaint* style = textValueRun->style();
-                // TextValueRun::onAddedDirty botches loading if it cannot
-                // resolve a style, so we're confident we have a style here.
                 assert(style != nullptr);
 
-                if (style->addPath(path, opacity))
+                // Check for color glyph (emoji) -- draw individually
+                // with per-layer colors instead of accumulating.
+                if (font->isColorGlyph(glyphId))
                 {
-                    // This was the first path added to the style, so let's
-                    // mark it in our draw list.
-                    m_renderStyles.push_back(style);
-                    style->propagateOpacity(renderOpacity());
+                    TextDrawCommand cmd;
+                    cmd.type = TextDrawCommand::kColorGlyph;
+                    cmd.colorGlyph = {run->font,
+                                      glyphId,
+                                      pathTransform,
+                                      style->foregroundColor(),
+                                      opacity};
+                    m_drawCommands.push_back(std::move(cmd));
+                }
+                else
+                {
+                    RawPath path = font->getPath(glyphId);
+                    path.transformInPlace(pathTransform);
+
+                    if (style->addPath(path, opacity))
+                    {
+                        // This was the first path added to the style, so
+                        // let's mark it in our draw list.
+                        m_renderStyles.push_back(style);
+                        style->propagateOpacity(renderOpacity());
+
+                        TextDrawCommand cmd;
+                        cmd.type = TextDrawCommand::kStylePath;
+                        cmd.style = style;
+                        m_drawCommands.push_back(std::move(cmd));
+                    }
                 }
 
                 // Bounds of the glyph
@@ -642,14 +664,84 @@ void Text::draw(Renderer* renderer)
         renderer->clipPath(m_clipPath.renderPath(this));
     }
     auto worldTransform = shapeWorldTransform();
-    for (auto style : m_renderStyles)
+    for (auto& cmd : m_drawCommands)
     {
-        style->draw(renderer, worldTransform);
+        if (cmd.type == TextDrawCommand::kStylePath)
+        {
+            cmd.style->draw(renderer, worldTransform);
+        }
+        else
+        {
+            drawColorGlyph(renderer, cmd.colorGlyph, worldTransform);
+        }
     }
     if (m_needsSaveOperation)
     {
         renderer->restore();
     }
+}
+
+void Text::drawColorGlyph(Renderer* renderer,
+                          const TextDrawCommand::ColorGlyphInfo& info,
+                          const Mat2D& worldTransform)
+{
+    std::vector<Font::ColorGlyphLayer> layers;
+    size_t count =
+        info.font->getColorLayers(info.glyphId, layers, info.foregroundColor);
+    if (count == 0)
+    {
+        return;
+    }
+
+    Factory* factory = artboard()->factory();
+    renderer->save();
+    renderer->transform(worldTransform * info.transform);
+
+    for (auto& layer : layers)
+    {
+        if (layer.paintType == Font::ColorGlyphPaintType::image)
+        {
+            // Decode and draw bitmap emoji (SBIX/CBDT).
+            ColorGlyphCacheKey cacheKey{info.font.get(), info.glyphId};
+            auto it = m_emojiImageCache.find(cacheKey);
+            if (it == m_emojiImageCache.end())
+            {
+                auto image = factory->decodeImage(
+                    {layer.imageBytes.data(), layer.imageBytes.size()});
+                it =
+                    m_emojiImageCache.emplace(cacheKey, std::move(image)).first;
+            }
+            if (it->second != nullptr)
+            {
+                renderer->save();
+                // Transform from glyph space: position at bearing and
+                // scale from image pixels to glyph extent units.
+                float scaleX = layer.imageExtentX / (float)layer.imageWidth;
+                float scaleY = layer.imageExtentY / (float)layer.imageHeight;
+                renderer->transform(Mat2D(scaleX,
+                                          0,
+                                          0,
+                                          scaleY,
+                                          layer.imageBearingX,
+                                          layer.imageBearingY));
+                renderer->drawImage(it->second.get(),
+                                    ImageSampler::LinearClamp(),
+                                    BlendMode::srcOver,
+                                    info.opacity);
+                renderer->restore();
+            }
+        }
+        else
+        {
+            auto renderPath =
+                factory->makeRenderPath(layer.path, FillRule::nonZero);
+            auto renderPaint = factory->makeRenderPaint();
+            renderPaint->style(RenderPaintStyle::fill);
+            renderPaint->color(colorModulateOpacity(layer.color, info.opacity));
+            renderer->drawPath(renderPath.get(), renderPaint.get());
+        }
+    }
+    renderer->restore();
 }
 
 void Text::addRun(TextValueRun* run)
@@ -912,6 +1004,7 @@ void Text::update(ComponentDirt value)
         }
         m_orderedLines.clear();
         m_ellipsisRun = {};
+        m_emojiImageCache.clear();
 
         // Immediately build render styles so dimensions get computed.
         buildRenderStyles();

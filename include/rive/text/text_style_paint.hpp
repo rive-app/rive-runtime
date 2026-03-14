@@ -15,6 +15,10 @@ public:
     void rewindPath();
     void draw(Renderer* renderer, const Mat2D& worldTransform);
 
+    /// Returns the foreground color from the first solid fill, or black if
+    /// none.
+    ColorInt foregroundColor() const;
+
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override;
     Component* pathBuilder() override;

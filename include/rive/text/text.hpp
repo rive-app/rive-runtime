@@ -15,13 +15,39 @@
 #include "rive/viewmodel/property_symbol_dependent.hpp"
 #include "rive/dirtyable.hpp"
 
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
 namespace rive
 {
 
+class Factory;
+class Renderer;
 class TextModifierGroup;
+class TextStylePaint;
+
+// A draw command for interleaving monochrome style paths and color glyphs.
+struct TextDrawCommand
+{
+    enum Type
+    {
+        kStylePath,
+        kColorGlyph
+    };
+    Type type;
+    TextStylePaint* style = nullptr; // for kStylePath
+
+    struct ColorGlyphInfo
+    {
+        rcp<Font> font;
+        GlyphID glyphId;
+        Mat2D transform;
+        ColorInt foregroundColor;
+        float opacity;
+    };
+    ColorGlyphInfo colorGlyph; // for kColorGlyph
+};
 
 class StyledText
 {
@@ -110,7 +136,27 @@ private:
 };
 #endif
 
-class TextStylePaint;
+struct ColorGlyphCacheKey
+{
+    const Font* font;
+    GlyphID glyphId;
+    bool operator==(const ColorGlyphCacheKey& o) const
+    {
+        return font == o.font && glyphId == o.glyphId;
+    }
+};
+
+struct ColorGlyphCacheHash
+{
+    size_t operator()(const ColorGlyphCacheKey& k) const
+    {
+        size_t h = std::hash<const void*>()(k.font);
+        h ^=
+            std::hash<uint16_t>()(k.glyphId) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
 class Text : public TextBase,
              public TextInterface,
              public DataBindListItemConsumer
@@ -225,6 +271,7 @@ private:
     std::vector<TextValueRun*> m_runs;
     std::vector<TextValueRun*> m_allRuns;
     std::vector<TextStylePaint*> m_renderStyles;
+    std::vector<TextDrawCommand> m_drawCommands;
     SimpleArray<Paragraph> m_shape;
     SimpleArray<Paragraph> m_modifierShape;
     SimpleArray<SimpleArray<GlyphLine>> m_lines;
@@ -243,6 +290,12 @@ private:
     std::vector<TextStylePaint*> m_textStylePaints;
 
     void clearRenderStyles();
+    void drawColorGlyph(Renderer* renderer,
+                        const TextDrawCommand::ColorGlyphInfo& info,
+                        const Mat2D& worldTransform);
+    std::
+        unordered_map<ColorGlyphCacheKey, rcp<RenderImage>, ColorGlyphCacheHash>
+            m_emojiImageCache;
     TextBoundsInfo computeBoundsInfo();
     LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);
     void buildTextStylePaints();

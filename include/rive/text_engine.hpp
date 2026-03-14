@@ -7,8 +7,11 @@
 
 #include "rive/math/raw_path.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/shapes/paint/color.hpp"
 #include "rive/span.hpp"
 #include "rive/simple_array.hpp"
+
+#include <vector>
 
 namespace rive
 {
@@ -223,6 +226,67 @@ public:
     // relative to (0,0) with the typographic baseline at y = 0.
     //
     virtual RawPath getPath(GlyphID) const = 0;
+
+    // Color glyph (emoji) support via COLR/CPAL tables.
+
+    // A single layer of a color glyph, with its own path and fill.
+    struct GradientStop
+    {
+        float offset;
+        ColorInt color;
+    };
+
+    enum class ColorGlyphPaintType : uint8_t
+    {
+        solid,
+        linearGradient,
+        radialGradient,
+        sweepGradient,
+        image,
+    };
+
+    struct ColorGlyphLayer
+    {
+        RawPath path;
+        ColorGlyphPaintType paintType = ColorGlyphPaintType::solid;
+        ColorInt color = 0xFF000000; // ARGB (for solid fills)
+        bool useForeground = false;  // true if color should use text color
+
+        // Gradient data (only valid when paintType != solid).
+        std::vector<GradientStop> stops;
+        // Linear gradient: (x0,y0) start, (x1,y1) end.
+        // Radial gradient: (x0,y0,r0) inner circle, (x1,y1,r1) outer circle.
+        // Sweep gradient: (x0,y0) center, startAngle, endAngle.
+        float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+        float r0 = 0, r1 = 0;               // radial
+        float startAngle = 0, endAngle = 0; // sweep
+
+        // Image data (only valid when paintType == image).
+        // Raw encoded image bytes (e.g. PNG from SBIX/CBDT).
+        std::vector<uint8_t> imageBytes;
+        unsigned int imageWidth = 0, imageHeight = 0;
+        // Glyph extents for positioning the image.
+        float imageBearingX = 0, imageBearingY = 0;
+        float imageExtentX = 0, imageExtentY = 0;
+    };
+
+    // Whether this font contains any COLR color glyphs.
+    virtual bool hasColorGlyphs() const { return false; }
+
+    // Whether a specific glyph has color layers.
+    virtual bool isColorGlyph(GlyphID) const { return false; }
+
+    // Decompose a color glyph into its colored layers. Returns the number
+    // of layers written to `out`. If the glyph is not a color glyph,
+    // returns 0.
+    virtual size_t getColorLayers(GlyphID,
+                                  std::vector<ColorGlyphLayer>& out,
+                                  ColorInt foreground = 0xFF000000) const
+    {
+        (void)out;
+        (void)foreground;
+        return 0;
+    }
 
     SimpleArray<Paragraph> shapeText(Span<const Unichar> text,
                                      Span<const TextRun> runs,

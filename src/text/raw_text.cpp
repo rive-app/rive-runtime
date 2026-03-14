@@ -2,6 +2,7 @@
 #include "rive/text/raw_text.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/factory.hpp"
+#include "rive/shapes/paint/color.hpp"
 
 using namespace rive;
 
@@ -13,7 +14,8 @@ void RawText::append(const std::string& text,
                      rcp<Font> font,
                      float size,
                      float lineHeight,
-                     float letterSpacing)
+                     float letterSpacing,
+                     ColorInt foregroundColor)
 {
     int styleIndex = 0;
     for (RenderStyle& style : m_styles)
@@ -24,9 +26,13 @@ void RawText::append(const std::string& text,
         }
         styleIndex++;
     }
-    if (styleIndex == m_styles.size())
+    if (styleIndex == (int)m_styles.size())
     {
-        m_styles.push_back({paint, true});
+        m_styles.emplace_back();
+        auto& style = m_styles.back();
+        style.paint = paint;
+        style.isEmpty = true;
+        style.foregroundColor = foregroundColor;
     }
     m_styled.append(font, size, lineHeight, letterSpacing, text, styleIndex);
     m_dirty = true;
@@ -112,6 +118,7 @@ void RawText::update()
         style.isEmpty = true;
     }
     m_renderStyles.clear();
+    m_drawCommands.clear();
     if (m_styled.empty())
     {
         return;
@@ -291,8 +298,6 @@ void RawText::update()
                 GlyphID glyphId = run->glyphs[glyphIndex];
                 float advance = run->advances[glyphIndex];
 
-                RawPath path = font->getPath(glyphId);
-
                 assert(run->styleId < m_styles.size());
                 RenderStyle* style = &m_styles[run->styleId];
                 assert(style != nullptr);
@@ -305,15 +310,32 @@ void RawText::update()
                                 renderY + offset.y);
 
                 x += advance;
-                style->path.addPathClockwise(path, &transform);
 
-                if (style->isEmpty)
+                if (font->isColorGlyph(glyphId))
                 {
-                    // This was the first path added to the style, so let's mark
-                    // it in our draw list.
-                    style->isEmpty = false;
+                    RawTextDrawCommand cmd;
+                    cmd.type = RawTextDrawCommand::kColorGlyph;
+                    cmd.colorGlyph = {run->font,
+                                      glyphId,
+                                      transform,
+                                      style->foregroundColor};
+                    m_drawCommands.push_back(std::move(cmd));
+                }
+                else
+                {
+                    RawPath path = font->getPath(glyphId);
+                    style->path.addPathClockwise(path, &transform);
 
-                    m_renderStyles.push_back(style);
+                    if (style->isEmpty)
+                    {
+                        style->isEmpty = false;
+                        m_renderStyles.push_back(style);
+
+                        RawTextDrawCommand cmd;
+                        cmd.type = RawTextDrawCommand::kStylePath;
+                        cmd.style = style;
+                        m_drawCommands.push_back(std::move(cmd));
+                    }
                 }
             }
             if (lineIndex == ellipsisLine)
@@ -353,12 +375,41 @@ void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
         renderer->save();
         renderer->clipPath(m_clipRenderPath.get());
     }
-    for (auto style : m_renderStyles)
+    for (auto& cmd : m_drawCommands)
     {
-        auto renderPaint = paint ? paint.get() : style->paint.get();
-        if (renderPaint != nullptr)
+        if (cmd.type == RawTextDrawCommand::kStylePath)
         {
-            renderer->drawPath(style->path.renderPath(m_factory), renderPaint);
+            auto renderPaint = paint ? paint.get() : cmd.style->paint.get();
+            if (renderPaint != nullptr)
+            {
+                renderer->drawPath(cmd.style->path.renderPath(m_factory),
+                                   renderPaint);
+            }
+        }
+        else
+        {
+            // Draw color glyph layers.
+            std::vector<Font::ColorGlyphLayer> layers;
+            auto& info = cmd.colorGlyph;
+            size_t count = info.font->getColorLayers(info.glyphId,
+                                                     layers,
+                                                     info.foregroundColor);
+            if (count > 0)
+            {
+                renderer->save();
+                renderer->transform(info.transform);
+                for (auto& layer : layers)
+                {
+                    auto renderPath =
+                        m_factory->makeRenderPath(layer.path,
+                                                  FillRule::nonZero);
+                    auto layerPaint = m_factory->makeRenderPaint();
+                    layerPaint->style(RenderPaintStyle::fill);
+                    layerPaint->color(layer.color);
+                    renderer->drawPath(renderPath.get(), layerPaint.get());
+                }
+                renderer->restore();
+            }
         }
     }
     if (m_overflow == TextOverflow::clipped && m_clipRenderPath)

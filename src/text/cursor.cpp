@@ -207,21 +207,21 @@ CursorPosition CursorPosition::clamped(const FullyShapedText& shape) const
         std::min(m_lineIndex,
                  subtractUint32((uint32_t)shape.orderedLines().size(), 1)),
         std::min(m_codePointIndex,
-                 subtractUint32(shape.glyphLookup().lastCodeUnitIndex(), 1)));
+                 subtractUint32(shape.glyphLookup().lastCodePointIndex(), 1)));
 }
 
 CursorPosition CursorPosition::atIndex(uint32_t codePointIndex,
                                        const FullyShapedText& shape)
 {
-    // Don't go to actual last code unit index as we always insert a zero width
+    // Don't go to actual last codepoint index as we always insert a zero width
     // space.
     // https://en.wikipedia.org/wiki/Zero-width_space
     if (codePointIndex >=
-        subtractUint32(shape.glyphLookup().lastCodeUnitIndex(), 1))
+        subtractUint32(shape.glyphLookup().lastCodePointIndex(), 1))
     {
         return CursorPosition(
             subtractUint32((uint32_t)shape.orderedLines().size(), 1),
-            subtractUint32(shape.glyphLookup().lastCodeUnitIndex(), 1));
+            subtractUint32(shape.glyphLookup().lastCodePointIndex(), 1));
     }
 
     const SimpleArray<Paragraph>& paragraphs = shape.paragraphs();

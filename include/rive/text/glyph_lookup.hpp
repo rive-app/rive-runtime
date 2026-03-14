@@ -7,7 +7,7 @@
 namespace rive
 {
 
-/// Stores the glyphId/Index representing the unicode point at i.
+/// Stores the glyphId/Index representing the codepoint at i.
 class GlyphLookup
 {
 public:
@@ -18,6 +18,8 @@ private:
 
 public:
     uint32_t count(uint32_t index) const;
+    uint32_t glyphStart(uint32_t index) const;
+    bool isGlyphBoundary(uint32_t index) const;
     size_t size() const { return m_glyphIndices.size(); }
 
     // Returns the glyph index from the computed shape given the codePointIndex
@@ -29,7 +31,7 @@ public:
         return m_glyphIndices[codePointIndex];
     }
 
-    uint32_t lastCodeUnitIndex() const
+    uint32_t lastCodePointIndex() const
     {
         return m_glyphIndices.size() == 0
                    ? 0
