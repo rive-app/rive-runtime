@@ -30,6 +30,9 @@ public:
     /// Check if this is a focus listener (vs blur listener).
     bool isFocusListener() const { return m_isFocusListener; }
 
+    /// Check if this is a blur listener (vs focus listener).
+    bool isBlurListener() const { return m_isBlurListener; }
+
     // FocusListener interface
     void onFocused() override;
     void onBlurred() override;
@@ -39,6 +42,7 @@ private:
     const StateMachineListener* m_listener;
     StateMachineInstance* m_stateMachineInstance;
     bool m_isFocusListener;
+    bool m_isBlurListener;
 };
 
 } // namespace rive

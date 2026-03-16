@@ -42,6 +42,9 @@
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_number_change.hpp"
 #include "rive/animation/listener_trigger_change.hpp"
+#include "rive/animation/listener_types/listener_input_type.hpp"
+#include "rive/animation/listener_types/listener_input_type_event.hpp"
+#include "rive/animation/listener_types/listener_input_type_viewmodel.hpp"
 #include "rive/animation/listener_viewmodel_change.hpp"
 #include "rive/animation/nested_bool.hpp"
 #include "rive/animation/nested_input.hpp"
@@ -63,6 +66,7 @@
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_layer_component.hpp"
 #include "rive/animation/state_machine_listener.hpp"
+#include "rive/animation/state_machine_listener_single.hpp"
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
 #include "rive/animation/state_transition.hpp"
@@ -495,14 +499,16 @@ public:
                 return new BlendAnimationDirect();
             case StateMachineNumberBase::typeKey:
                 return new StateMachineNumber();
+            case StateMachineListenerBase::typeKey:
+                return new StateMachineListener();
+            case StateMachineListenerSingleBase::typeKey:
+                return new StateMachineListenerSingle();
             case CubicValueInterpolatorBase::typeKey:
                 return new CubicValueInterpolator();
             case TransitionTriggerConditionBase::typeKey:
                 return new TransitionTriggerCondition();
             case KeyedPropertyBase::typeKey:
                 return new KeyedProperty();
-            case StateMachineListenerBase::typeKey:
-                return new StateMachineListener();
             case TransitionPropertyArtboardComparatorBase::typeKey:
                 return new TransitionPropertyArtboardComparator();
             case TransitionPropertyViewModelComparatorBase::typeKey:
@@ -575,6 +581,12 @@ public:
                 return new NestedStateMachine();
             case ElasticInterpolatorBase::typeKey:
                 return new ElasticInterpolator();
+            case ListenerInputTypeBase::typeKey:
+                return new ListenerInputType();
+            case ListenerInputTypeEventBase::typeKey:
+                return new ListenerInputTypeEvent();
+            case ListenerInputTypeViewModelBase::typeKey:
+                return new ListenerInputTypeViewModel();
             case ExitStateBase::typeKey:
                 return new ExitState();
             case NestedNumberBase::typeKey:
@@ -1229,21 +1241,21 @@ public:
             case BlendAnimationDirectBase::blendSourcePropertyKey:
                 object->as<BlendAnimationDirectBase>()->blendSource(value);
                 break;
+            case StateMachineListenerBase::targetIdPropertyKey:
+                object->as<StateMachineListenerBase>()->targetId(value);
+                break;
+            case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
+                object->as<StateMachineListenerSingleBase>()->listenerTypeValue(
+                    value);
+                break;
+            case StateMachineListenerSingleBase::eventIdPropertyKey:
+                object->as<StateMachineListenerSingleBase>()->eventId(value);
+                break;
             case TransitionInputConditionBase::inputIdPropertyKey:
                 object->as<TransitionInputConditionBase>()->inputId(value);
                 break;
             case KeyedPropertyBase::propertyKeyPropertyKey:
                 object->as<KeyedPropertyBase>()->propertyKey(value);
-                break;
-            case StateMachineListenerBase::targetIdPropertyKey:
-                object->as<StateMachineListenerBase>()->targetId(value);
-                break;
-            case StateMachineListenerBase::listenerTypeValuePropertyKey:
-                object->as<StateMachineListenerBase>()->listenerTypeValue(
-                    value);
-                break;
-            case StateMachineListenerBase::eventIdPropertyKey:
-                object->as<StateMachineListenerBase>()->eventId(value);
                 break;
             case TransitionPropertyArtboardComparatorBase::
                 propertyTypePropertyKey:
@@ -1319,6 +1331,12 @@ public:
                 break;
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 object->as<ElasticInterpolatorBase>()->easingValue(value);
+                break;
+            case ListenerInputTypeBase::listenerTypeValuePropertyKey:
+                object->as<ListenerInputTypeBase>()->listenerTypeValue(value);
+                break;
+            case ListenerInputTypeEventBase::eventIdPropertyKey:
+                object->as<ListenerInputTypeEventBase>()->eventId(value);
                 break;
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 object->as<BlendStateTransitionBase>()->exitBlendAnimationId(
@@ -2802,17 +2820,17 @@ public:
                 return object->as<BlendAnimationDirectBase>()->inputId();
             case BlendAnimationDirectBase::blendSourcePropertyKey:
                 return object->as<BlendAnimationDirectBase>()->blendSource();
+            case StateMachineListenerBase::targetIdPropertyKey:
+                return object->as<StateMachineListenerBase>()->targetId();
+            case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
+                return object->as<StateMachineListenerSingleBase>()
+                    ->listenerTypeValue();
+            case StateMachineListenerSingleBase::eventIdPropertyKey:
+                return object->as<StateMachineListenerSingleBase>()->eventId();
             case TransitionInputConditionBase::inputIdPropertyKey:
                 return object->as<TransitionInputConditionBase>()->inputId();
             case KeyedPropertyBase::propertyKeyPropertyKey:
                 return object->as<KeyedPropertyBase>()->propertyKey();
-            case StateMachineListenerBase::targetIdPropertyKey:
-                return object->as<StateMachineListenerBase>()->targetId();
-            case StateMachineListenerBase::listenerTypeValuePropertyKey:
-                return object->as<StateMachineListenerBase>()
-                    ->listenerTypeValue();
-            case StateMachineListenerBase::eventIdPropertyKey:
-                return object->as<StateMachineListenerBase>()->eventId();
             case TransitionPropertyArtboardComparatorBase::
                 propertyTypePropertyKey:
                 return object->as<TransitionPropertyArtboardComparatorBase>()
@@ -2865,6 +2883,10 @@ public:
                 return object->as<LinearAnimationBase>()->workEnd();
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 return object->as<ElasticInterpolatorBase>()->easingValue();
+            case ListenerInputTypeBase::listenerTypeValuePropertyKey:
+                return object->as<ListenerInputTypeBase>()->listenerTypeValue();
+            case ListenerInputTypeEventBase::eventIdPropertyKey:
+                return object->as<ListenerInputTypeEventBase>()->eventId();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->as<BlendStateTransitionBase>()
                     ->exitBlendAnimationId();
@@ -3808,11 +3830,11 @@ public:
             case BlendAnimationBase::animationIdPropertyKey:
             case BlendAnimationDirectBase::inputIdPropertyKey:
             case BlendAnimationDirectBase::blendSourcePropertyKey:
+            case StateMachineListenerBase::targetIdPropertyKey:
+            case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
+            case StateMachineListenerSingleBase::eventIdPropertyKey:
             case TransitionInputConditionBase::inputIdPropertyKey:
             case KeyedPropertyBase::propertyKeyPropertyKey:
-            case StateMachineListenerBase::targetIdPropertyKey:
-            case StateMachineListenerBase::listenerTypeValuePropertyKey:
-            case StateMachineListenerBase::eventIdPropertyKey:
             case TransitionPropertyArtboardComparatorBase::
                 propertyTypePropertyKey:
             case KeyFrameIdBase::valuePropertyKey:
@@ -3838,6 +3860,8 @@ public:
             case LinearAnimationBase::workStartPropertyKey:
             case LinearAnimationBase::workEndPropertyKey:
             case ElasticInterpolatorBase::easingValuePropertyKey:
+            case ListenerInputTypeBase::listenerTypeValuePropertyKey:
+            case ListenerInputTypeEventBase::eventIdPropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
             case TargetEffectBase::targetIdPropertyKey:
@@ -4226,7 +4250,8 @@ public:
             case ScriptInputViewModelPropertyBase::dataBindPathIdsPropertyKey:
             case NestedArtboardBase::dataBindPathIdsPropertyKey:
             case StateMachineFireTriggerBase::viewModelPathIdsPropertyKey:
-            case StateMachineListenerBase::viewModelPathIdsPropertyKey:
+            case StateMachineListenerSingleBase::viewModelPathIdsPropertyKey:
+            case ListenerInputTypeViewModelBase::viewModelPathIdsPropertyKey:
             case MeshBase::triangleIndexBytesPropertyKey:
             case DataBindPathBase::pathPropertyKey:
             case DataConverterOperationViewModelBase::sourcePathIdsPropertyKey:
@@ -4476,16 +4501,16 @@ public:
                 return object->is<BlendAnimationDirectBase>();
             case BlendAnimationDirectBase::blendSourcePropertyKey:
                 return object->is<BlendAnimationDirectBase>();
+            case StateMachineListenerBase::targetIdPropertyKey:
+                return object->is<StateMachineListenerBase>();
+            case StateMachineListenerSingleBase::listenerTypeValuePropertyKey:
+                return object->is<StateMachineListenerSingleBase>();
+            case StateMachineListenerSingleBase::eventIdPropertyKey:
+                return object->is<StateMachineListenerSingleBase>();
             case TransitionInputConditionBase::inputIdPropertyKey:
                 return object->is<TransitionInputConditionBase>();
             case KeyedPropertyBase::propertyKeyPropertyKey:
                 return object->is<KeyedPropertyBase>();
-            case StateMachineListenerBase::targetIdPropertyKey:
-                return object->is<StateMachineListenerBase>();
-            case StateMachineListenerBase::listenerTypeValuePropertyKey:
-                return object->is<StateMachineListenerBase>();
-            case StateMachineListenerBase::eventIdPropertyKey:
-                return object->is<StateMachineListenerBase>();
             case TransitionPropertyArtboardComparatorBase::
                 propertyTypePropertyKey:
                 return object->is<TransitionPropertyArtboardComparatorBase>();
@@ -4535,6 +4560,10 @@ public:
                 return object->is<LinearAnimationBase>();
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 return object->is<ElasticInterpolatorBase>();
+            case ListenerInputTypeBase::listenerTypeValuePropertyKey:
+                return object->is<ListenerInputTypeBase>();
+            case ListenerInputTypeEventBase::eventIdPropertyKey:
+                return object->is<ListenerInputTypeEventBase>();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->is<BlendStateTransitionBase>();
             case ShapePaintBase::blendModeValuePropertyKey:

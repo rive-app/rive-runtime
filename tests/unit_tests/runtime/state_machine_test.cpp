@@ -15,6 +15,8 @@
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/paint/stroke.hpp>
 #include <rive/shapes/shape.hpp>
+#include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
+#include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
@@ -590,4 +592,123 @@ TEST_CASE("Listeners are sorted in the right order", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("sorted_listeners"));
+}
+
+TEST_CASE("Listeners with multiple types of events", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/multi_listeners.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Trigger first timeline events
+    stateMachine->advanceAndApply(0.5f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Trigger second timeline events
+    stateMachine->advanceAndApply(0.5f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Process second timeline events
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerMove(rive::Vec2D(490.0f, 10.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(490.0f, 10.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerUp(rive::Vec2D(490.0f, 10.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("multi_listeners"));
+}
+
+TEST_CASE("Listeners with multiple types of events and rebinding", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/multi_listeners.riv", &silver);
+
+    auto artboard = file->artboardNamed("Rebind");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto vmiChildProp =
+        vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
+    auto vmiChild = vmiChildProp->referenceViewModelInstance();
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    {
+        auto num1 =
+            vmiChild->propertyValue("num")->as<ViewModelInstanceNumber>();
+        auto num2 =
+            vmiChild->propertyValue("num2")->as<ViewModelInstanceNumber>();
+        num1->propertyValue(2);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+
+        num2->propertyValue(2);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    // Create a new view model instance for RebindChild that will be used to
+    // replace the vm tree
+    auto vmiChild2 = file->createViewModelInstance("RebindChild");
+    if (vmiChild2)
+    {
+        auto num1 =
+            vmiChild2->propertyValue("num")->as<ViewModelInstanceNumber>();
+        auto num2 =
+            vmiChild2->propertyValue("num2")->as<ViewModelInstanceNumber>();
+        vmi->replaceViewModelByName("child", vmiChild2);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        num1->propertyValue(2);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        num2->propertyValue(2);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+        // Nothing should change in this case
+        auto num1Old =
+            vmiChild->propertyValue("num")->as<ViewModelInstanceNumber>();
+        num1Old->propertyValue(3);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("multi_listeners-rebind"));
 }

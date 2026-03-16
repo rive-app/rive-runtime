@@ -1,0 +1,31 @@
+{
+  "name": "ListenerInputTypeViewModel",
+  "key": {
+    "int": 660,
+    "string": "listenerinputtypeviewmodel"
+  },
+  "extends": "animation/listener_types/listener_input_type.json",
+  "properties": {
+    "viewModelPathIds": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 963,
+        "string": "viewmodelpathids"
+      },
+      "description": "Path to the selected view model trigger property if listenerType is a viewModel trigger."
+    },
+    "isDataBindPathRelative": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 964,
+        "string": "isdatabindpathrelative"
+      },
+      "description": "Whether the data bind path is relative",
+      "runtime": false
+    }
+  }
+}

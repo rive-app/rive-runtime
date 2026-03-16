@@ -12,7 +12,8 @@ FocusListenerGroup::FocusListenerGroup(
     m_focusData(focusData),
     m_listener(listener),
     m_stateMachineInstance(stateMachineInstance),
-    m_isFocusListener(listener->listenerType() == ListenerType::focus)
+    m_isFocusListener(listener->hasListener(ListenerType::focus)),
+    m_isBlurListener(listener->hasListener(ListenerType::blur))
 {
     // Register ourselves as a listener on the FocusData
     m_focusData->addFocusListener(this);
@@ -35,7 +36,7 @@ void FocusListenerGroup::onFocused()
 void FocusListenerGroup::onBlurred()
 {
     // Only queue if this is a blur listener
-    if (!m_isFocusListener)
+    if (m_isBlurListener)
     {
         m_stateMachineInstance->queueFocusEvent(this, false);
     }

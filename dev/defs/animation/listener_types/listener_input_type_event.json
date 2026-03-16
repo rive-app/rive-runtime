@@ -1,0 +1,21 @@
+{
+  "name": "ListenerInputTypeEvent",
+  "key": {
+    "int": 659,
+    "string": "listenerinputtypeevent"
+  },
+  "extends": "animation/listener_types/listener_input_type.json",
+  "properties": {
+    "eventId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 962,
+        "string": "eventid"
+      },
+      "description": "Event id for the associated event"
+    }
+  }
+}

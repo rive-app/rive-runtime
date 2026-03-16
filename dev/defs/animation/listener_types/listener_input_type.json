@@ -1,0 +1,28 @@
+{
+  "name": "ListenerInputType",
+  "key": {
+    "int": 658,
+    "string": "listenerinputtype"
+  },
+  "properties": {
+    "listenerTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 965,
+        "string": "listenertypevalue"
+      },
+      "description": "Listener type (hover, click, etc)."
+    },
+    "listenerId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 961,
+        "string": "listenerid"
+      },
+      "description": "The state machine listener this listener belongs to",
+      "runtime": false
+    }
+  }
+}

@@ -6,20 +6,38 @@
 #include "rive/shapes/shape.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/listener_input_change.hpp"
+#include "rive/animation/listener_types/listener_input_type.hpp"
 
 using namespace rive;
 
 StateMachineListener::StateMachineListener() {}
 StateMachineListener::~StateMachineListener() {}
 
+bool StateMachineListener::hasListener(ListenerType listenerType) const
+{
+    for (auto& listenerInputType : m_listenerInputTypes)
+    {
+        if (listenerInputType->listenerTypeValue() == (int)listenerType)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
 {
     m_actions.push_back(std::move(action));
 }
 
+void StateMachineListener::addListenerInputType(
+    std::unique_ptr<ListenerInputType> listenerInputType)
+{
+    m_listenerInputTypes.push_back(std::move(listenerInputType));
+}
+
 StatusCode StateMachineListener::import(ImportStack& importStack)
 {
-    importDataBindPath(importStack);
     auto stateMachineImporter =
         importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr)
@@ -41,6 +59,16 @@ const ListenerAction* StateMachineListener::action(size_t index) const
     return nullptr;
 }
 
+const ListenerInputType* StateMachineListener::listenerInputType(
+    size_t index) const
+{
+    if (index < m_listenerInputTypes.size())
+    {
+        return m_listenerInputTypes[index].get();
+    }
+    return nullptr;
+}
+
 void StateMachineListener::performChanges(
     StateMachineInstance* stateMachineInstance,
     Vec2D position,
@@ -54,20 +82,4 @@ void StateMachineListener::performChanges(
                         previousPosition,
                         pointerId);
     }
-}
-
-void StateMachineListener::decodeViewModelPathIds(Span<const uint8_t> value)
-{
-    decodeDataBindPath(value);
-}
-
-void StateMachineListener::copyViewModelPathIds(
-    const StateMachineListenerBase& object)
-{
-    copyDataBindPath(object.as<StateMachineListener>()->dataBindPath());
-}
-
-std::vector<uint32_t> StateMachineListener::viewModelPathIdsBuffer() const
-{
-    return dataBindPath()->path();
 }

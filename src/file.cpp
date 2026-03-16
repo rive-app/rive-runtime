@@ -452,9 +452,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackType = StateTransition::typeKey;
                 break;
             case StateMachineListener::typeKey:
+            case StateMachineListenerSingle::typeKey:
                 stackObject =
                     rivestd::make_unique<StateMachineListenerImporter>(
                         object->as<StateMachineListener>());
+                stackType = StateMachineListener::typeKey;
                 break;
             case ImageAsset::typeKey:
             case FontAsset::typeKey:

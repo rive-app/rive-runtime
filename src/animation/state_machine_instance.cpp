@@ -16,11 +16,13 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_listener.hpp"
+#include "rive/animation/state_machine_listener_single.hpp"
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/listener_action.hpp"
+#include "rive/animation/listener_types/listener_input_type_viewmodel.hpp"
 #include "rive/animation/scripted_listener_action.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_comparator.hpp"
@@ -53,9 +55,12 @@
 #include "rive/refcnt.hpp"
 #include "rive/animation/focus_listener_group.hpp"
 #include "rive/animation/text_input_listener_group.hpp"
+#include "rive/animation/listener_types/listener_input_type_event.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/node.hpp"
+#include <memory>
 #include <unordered_map>
+#include <vector>
 #include <chrono>
 
 using namespace rive;
@@ -1014,72 +1019,222 @@ public:
     {}
 };
 
-class ListenerViewModel : public ViewModelValueDependent
+class ListenerViewModel;
+
+// Helper that holds one view model property reference, listens to its dirt,
+// and reports the parent ListenerViewModel when the property changes.
+class ListenerViewModelPropertyBinding : public ViewModelValueDependent
 {
 public:
-    virtual ~ListenerViewModel() = default;
+    ListenerViewModelPropertyBinding(ListenerViewModel* parent,
+                                     ViewModelInstanceValue* vmProp);
+    virtual ~ListenerViewModelPropertyBinding();
+    void addDirt(ComponentDirt value, bool recurse) override;
+    void relinkDataBind() override;
+
+protected:
+    ListenerViewModel* m_parent = nullptr;
+    rive::rcp<ViewModelInstanceValue> m_viewModelInstanceValue = nullptr;
+    void clearDataContext();
+};
+class ListenerViewModelPropertyBindingListener
+    : public ListenerViewModelPropertyBinding
+{
+public:
+    ListenerViewModelPropertyBindingListener(
+        ListenerViewModel* parent,
+        ViewModelInstanceValue* vmProp,
+        const StateMachineListenerSingle* listener);
+    void relinkDataBind() override;
+
+private:
+    const StateMachineListenerSingle* m_listener;
+};
+class ListenerViewModelPropertyBindingInput
+    : public ListenerViewModelPropertyBinding
+{
+public:
+    ListenerViewModelPropertyBindingInput(
+        ListenerViewModel* parent,
+        ViewModelInstanceValue* vmProp,
+        const ListenerInputTypeViewModel* listenerInput);
+    void relinkDataBind() override;
+
+private:
+    const ListenerInputTypeViewModel* m_listenerInput;
+};
+
+class ListenerViewModel
+{
+public:
+    virtual ~ListenerViewModel();
     ListenerViewModel(StateMachineInstance* smInstance,
                       const StateMachineListener* listener) :
         m_stateMachineInstance(smInstance), m_listener(listener)
     {}
-    void clearDataContext()
-    {
-        if (m_viewModelInstanceValue != nullptr)
-        {
-            m_viewModelInstanceValue->removeDependent(this);
-            m_viewModelInstanceValue = nullptr;
-        }
-    }
-    void relinkDataBind()
-    {
-        if (m_dataContext != nullptr)
-        {
-            auto vmProp =
-                m_dataContext->getViewModelProperty(m_listener->dataBindPath());
-            if (vmProp != m_viewModelInstanceValue.get())
-            {
-                clearDataContext();
-                if (vmProp != nullptr)
-                {
-                    m_viewModelInstanceValue = ref_rcp(vmProp);
-                    vmProp->addDependent(this);
-                }
-            }
-        }
-    }
 
+    void clearDataContext() { m_propertyBindings.clear(); }
     void bindFromContext(rcp<DataContext> dataContext)
     {
         m_dataContext = dataContext;
         clearDataContext();
-        auto vmProp =
-            dataContext->getViewModelProperty(m_listener->dataBindPath());
-        if (vmProp != nullptr)
+        if (m_listener->is<StateMachineListenerSingle>())
         {
-            m_viewModelInstanceValue = ref_rcp(vmProp);
-            vmProp->addDependent(this);
-        }
-    }
-    void addDirt(ComponentDirt value, bool recurse)
-    {
-        if (m_viewModelInstanceValue)
-        {
-            if (!m_viewModelInstanceValue->is<ViewModelInstanceTrigger>() ||
-                m_viewModelInstanceValue->as<ViewModelInstanceTrigger>()
-                        ->propertyValue() != 0)
+            auto vmProp = dataContext->getViewModelProperty(
+                m_listener->as<StateMachineListenerSingle>()->dataBindPath());
+            if (vmProp != nullptr)
             {
-                m_stateMachineInstance->reportListenerViewModel(this);
+                m_propertyBindings.push_back(
+                    rivestd::make_unique<
+                        ListenerViewModelPropertyBindingListener>(
+                        this,
+                        vmProp,
+                        m_listener->as<StateMachineListenerSingle>()));
+            }
+        }
+        else
+        {
+            size_t index = 0;
+            while (index < m_listener->listenerInputTypeCount())
+            {
+                auto listenerInputType = m_listener->listenerInputType(index);
+                if (listenerInputType->is<ListenerInputTypeViewModel>())
+                {
+                    auto listenerInputTypeVM =
+                        listenerInputType->as<ListenerInputTypeViewModel>();
+                    auto vmProp = dataContext->getViewModelProperty(
+                        listenerInputTypeVM->dataBindPath());
+                    if (vmProp != nullptr)
+                    {
+                        m_propertyBindings.push_back(
+                            rivestd::make_unique<
+                                ListenerViewModelPropertyBindingInput>(
+                                this,
+                                vmProp,
+                                listenerInputTypeVM));
+                    }
+                }
+                index++;
             }
         }
     }
+    void reportToStateMachine(ViewModelInstanceValue* value)
+    {
+        if (!value->is<ViewModelInstanceTrigger>() ||
+            value->as<ViewModelInstanceTrigger>()->propertyValue() != 0)
+        {
+            m_stateMachineInstance->reportListenerViewModel(this);
+        }
+    }
     const StateMachineListener* listener() { return m_listener; }
+    DataContext* dataContext()
+    {
+        if (m_dataContext)
+        {
+
+            return m_dataContext.get();
+        }
+        return nullptr;
+    }
 
 private:
     StateMachineInstance* m_stateMachineInstance = nullptr;
     const StateMachineListener* m_listener = nullptr;
-    rcp<ViewModelInstanceValue> m_viewModelInstanceValue = nullptr;
     rcp<DataContext> m_dataContext = nullptr;
+    std::vector<std::unique_ptr<ListenerViewModelPropertyBinding>>
+        m_propertyBindings;
 };
+
+ListenerViewModelPropertyBinding::ListenerViewModelPropertyBinding(
+    ListenerViewModel* parent,
+    ViewModelInstanceValue* vmProp) :
+    m_parent(parent), m_viewModelInstanceValue(rive::ref_rcp(vmProp))
+{
+    vmProp->addDependent(this);
+}
+
+void ListenerViewModelPropertyBinding::relinkDataBind() {};
+
+ListenerViewModelPropertyBinding::~ListenerViewModelPropertyBinding()
+{
+    clearDataContext();
+}
+
+void ListenerViewModelPropertyBinding::clearDataContext()
+{
+
+    if (m_viewModelInstanceValue != nullptr)
+    {
+        m_viewModelInstanceValue->removeDependent(this);
+        m_viewModelInstanceValue = nullptr;
+    }
+}
+
+ListenerViewModelPropertyBindingListener::
+    ListenerViewModelPropertyBindingListener(
+        ListenerViewModel* parent,
+        ViewModelInstanceValue* vmProp,
+        const StateMachineListenerSingle* listener) :
+    ListenerViewModelPropertyBinding(parent, vmProp), m_listener(listener)
+{}
+
+void ListenerViewModelPropertyBindingListener::relinkDataBind()
+{
+    auto dataContext = m_parent->dataContext();
+    if (dataContext)
+    {
+
+        auto vmProp =
+            dataContext->getViewModelProperty(m_listener->dataBindPath());
+        if (vmProp != m_viewModelInstanceValue.get())
+        {
+            clearDataContext();
+            if (vmProp != nullptr)
+            {
+                m_viewModelInstanceValue = ref_rcp(vmProp);
+                vmProp->addDependent(this);
+            }
+        }
+    }
+}
+
+ListenerViewModelPropertyBindingInput::ListenerViewModelPropertyBindingInput(
+    ListenerViewModel* parent,
+    ViewModelInstanceValue* vmProp,
+    const ListenerInputTypeViewModel* listenerInput) :
+    ListenerViewModelPropertyBinding(parent, vmProp),
+    m_listenerInput(listenerInput)
+{}
+
+void ListenerViewModelPropertyBindingInput::relinkDataBind()
+{
+    auto dataContext = m_parent->dataContext();
+    if (dataContext)
+    {
+        auto vmProp =
+            dataContext->getViewModelProperty(m_listenerInput->dataBindPath());
+        if (vmProp != m_viewModelInstanceValue.get())
+        {
+            clearDataContext();
+            if (vmProp != nullptr)
+            {
+                m_viewModelInstanceValue = ref_rcp(vmProp);
+                vmProp->addDependent(this);
+            }
+        }
+    }
+}
+
+void ListenerViewModelPropertyBinding::addDirt(ComponentDirt value,
+                                               bool recurse)
+{
+    if (m_parent != nullptr && m_viewModelInstanceValue != nullptr)
+    {
+        m_parent->reportToStateMachine(m_viewModelInstanceValue.get());
+    }
+}
+
+ListenerViewModel::~ListenerViewModel() { clearDataContext(); }
 
 } // namespace rive
 
@@ -1405,11 +1560,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     for (std::size_t i = 0; i < machine->listenerCount(); i++)
     {
         auto listener = machine->listener(i);
-        if (listener->listenerType() == ListenerType::event)
+        if (listener->hasListener(ListenerType::event))
         {
             continue;
         }
-        if (listener->listenerType() == ListenerType::viewModel)
+        if (listener->hasListener(ListenerType::viewModel))
         {
             auto vmListener = new ListenerViewModel(this, listener);
             m_listenerViewModels.push_back(vmListener);
@@ -1417,8 +1572,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         }
         // Handle focus/blur listeners - they're driven by FocusManager,
         // not pointer events.
-        if (listener->listenerType() == ListenerType::focus ||
-            listener->listenerType() == ListenerType::blur)
+        if (listener->hasListener(ListenerType::focus) ||
+            listener->hasListener(ListenerType::blur))
         {
             auto target = m_artboardInstance->resolve(listener->targetId());
             if (target != nullptr && target->is<Node>())
@@ -1838,8 +1993,8 @@ void StateMachineInstance::processFocusEvents()
         bool isFocusEvent = event.isFocus;
 
         // Match listener type to event type
-        if ((isFocusEvent && listener->listenerType() == ListenerType::focus) ||
-            (!isFocusEvent && listener->listenerType() == ListenerType::blur))
+        if ((isFocusEvent && listener->hasListener(ListenerType::focus)) ||
+            (!isFocusEvent && listener->hasListener(ListenerType::blur)))
         {
             listener->performChanges(this, Vec2D(), Vec2D(), 0);
         }
@@ -2205,7 +2360,7 @@ void StateMachineInstance::notifyEventListeners(
             auto listener = m_machine->listener(i);
             auto target = artboard()->resolve(listener->targetId());
             if (listener != nullptr &&
-                listener->listenerType() == ListenerType::event &&
+                listener->hasListener(ListenerType::event) &&
                 (source == nullptr || source == target))
             {
                 for (const auto event : events)
@@ -2240,12 +2395,43 @@ void StateMachineInstance::notifyEventListeners(
                             continue;
                         }
                     }
-                    auto listenerEvent =
-                        sourceArtboard->resolve(listener->eventId());
-                    if (listenerEvent == event.event())
+                    if (listener->is<StateMachineListenerSingle>())
                     {
-                        listener->performChanges(this, Vec2D(), Vec2D(), 0);
-                        break;
+                        auto listenerEvent = sourceArtboard->resolve(
+                            listener->as<StateMachineListenerSingle>()
+                                ->eventId());
+                        if (listenerEvent == event.event())
+                        {
+                            listener->performChanges(this, Vec2D(), Vec2D(), 0);
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        size_t index = 0;
+                        while (index < listener->listenerInputTypeCount())
+                        {
+                            auto listenerInputType =
+                                listener->listenerInputType(index);
+                            if (listenerInputType->is<ListenerInputTypeEvent>())
+                            {
+
+                                auto listenerInputTypeEvent =
+                                    listenerInputType
+                                        ->as<ListenerInputTypeEvent>();
+                                auto listenerEvent = sourceArtboard->resolve(
+                                    listenerInputTypeEvent->eventId());
+                                if (listenerEvent == event.event())
+                                {
+                                    listener->performChanges(this,
+                                                             Vec2D(),
+                                                             Vec2D(),
+                                                             0);
+                                    break;
+                                }
+                            }
+                            index += 1;
+                        }
                     }
                 }
             }

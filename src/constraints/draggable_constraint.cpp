@@ -1,4 +1,5 @@
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_listener_single.hpp"
 #include "rive/component.hpp"
 #include "rive/constraints/draggable_constraint.hpp"
 
@@ -9,7 +10,7 @@ std::vector<ListenerGroupWithTargets*> DraggableConstraint::listenerGroups()
     std::vector<ListenerGroupWithTargets*> result;
     for (auto dragProxy : draggables())
     {
-        auto listener = new StateMachineListener();
+        auto listener = new StateMachineListenerSingle();
         listener->listenerTypeValue(
             static_cast<uint32_t>(ListenerType::componentProvided));
         auto* listenerGroup =
