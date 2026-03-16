@@ -138,3 +138,29 @@ TEST_CASE("Test that adding and removing an item updates the list", "[silver]")
 
     CHECK(silver.matches("list_items"));
 }
+
+TEST_CASE("Clear view model list", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/clear_viewmodel_list.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(1.2f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(1.2f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("clear_viewmodel_list"));
+}

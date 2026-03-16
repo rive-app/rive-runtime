@@ -23,6 +23,7 @@ public:
     void swap(uint32_t index1, uint32_t index2);
     rcp<ViewModelInstanceListItem> pop();
     rcp<ViewModelInstanceListItem> shift();
+    void removeAllItems();
     Core* clone() const override;
     void advanced() override;
     void parentViewModelInstance(ViewModelInstance* parent)

@@ -126,6 +126,23 @@ void ViewModelInstanceList::removeItem(rcp<ViewModelInstanceListItem> listItem)
     propertyValueChanged();
 }
 
+void ViewModelInstanceList::removeAllItems()
+{
+    if (m_ListItems.size() > 0)
+    {
+        for (auto& listItem : m_ListItems)
+        {
+            if (listItem->viewModelInstance())
+            {
+                listItem->viewModelInstance()->removeParent(
+                    parentViewModelInstance());
+            }
+        }
+        m_ListItems.clear();
+        propertyValueChanged();
+    }
+}
+
 rcp<ViewModelInstanceListItem> ViewModelInstanceList::item(uint32_t index)
 {
     if (index < m_ListItems.size())

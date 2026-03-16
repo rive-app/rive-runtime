@@ -25,6 +25,7 @@ public:
     void removeInstance(ViewModelInstanceRuntime*);
     void removeInstanceAt(int);
     void swap(uint32_t, uint32_t);
+    void removeAllInstances();
     size_t size() const;
     const DataType dataType() override { return DataType::list; }
 

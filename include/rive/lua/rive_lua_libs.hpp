@@ -174,6 +174,7 @@ enum class LuaAtoms : int16_t
     shift,
     pop,
     swap,
+    clear,
 
     // Artboards
     draw,

@@ -109,6 +109,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"pop", (int16_t)LuaAtoms::pop},
     {"swap", (int16_t)LuaAtoms::swap},
     {"shift", (int16_t)LuaAtoms::shift},
+    {"clear", (int16_t)LuaAtoms::clear},
     {"draw", (int16_t)LuaAtoms::draw},
     {"advance", (int16_t)LuaAtoms::advance},
     {"frameOrigin", (int16_t)LuaAtoms::frameOrigin},

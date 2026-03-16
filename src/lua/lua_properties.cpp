@@ -552,6 +552,12 @@ static int property_namecall_atom(lua_State* L,
             }
             return 0;
         }
+        case (int)LuaAtoms::clear:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            list->removeAllItems();
+            return 0;
+        }
 
         case (int)LuaAtoms::insert:
         {
