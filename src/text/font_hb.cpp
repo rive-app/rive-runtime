@@ -1283,6 +1283,34 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
             auto gr = shape_run(&text[unicharIndex], tr, unicharIndex);
             unicharIndex += tr.unicharCount;
 
+            // Handle dual-presentation characters (e.g. ☠ U+2620) that have a
+            // text-form glyph in the current font but are followed by U+FE0F
+            // (VARIATION SELECTOR-16), which requests emoji presentation.
+            // The standard fallback only fires for glyph ID 0, so we explicitly
+            // force such glyphs to 0 here — but only when a color emoji
+            // fallback font is actually available for that codepoint, to avoid
+            // regressing the rendering when no emoji font is loaded.
+            if (gFallbackProc && gFallbackProcEnabled && !hasColorGlyphs())
+            {
+                for (size_t gi = 0; gi < gr.glyphs.size(); ++gi)
+                {
+                    if (gr.glyphs[gi] != 0)
+                    {
+                        auto textPos = gr.textIndices[gi];
+                        if (textPos + 1 < text.size() &&
+                            text[textPos + 1] == 0xFE0F)
+                        {
+                            auto emojiFont =
+                                gFallbackProc(text[textPos], 0, this);
+                            if (emojiFont && emojiFont->hasColorGlyphs())
+                            {
+                                gr.glyphs[gi] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
             auto end = gr.glyphs.end();
             auto iter = std::find(gr.glyphs.begin(), end, 0);
             if (!gFallbackProc || iter == end || !gFallbackProcEnabled)
