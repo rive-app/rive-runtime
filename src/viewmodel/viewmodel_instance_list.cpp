@@ -162,6 +162,40 @@ void ViewModelInstanceList::swap(uint32_t index1, uint32_t index2)
     }
 }
 
+void ViewModelInstanceList::updateList(
+    std::vector<rcp<ViewModelInstanceListItem>>* list)
+{
+    if (list == nullptr)
+    {
+        return;
+    }
+
+    // Detach old children from this host instance before replacing the list.
+    if (parentViewModelInstance())
+    {
+        for (auto& item : m_ListItems)
+        {
+            if (item->viewModelInstance() != nullptr)
+            {
+                item->viewModelInstance()->removeParent(
+                    parentViewModelInstance());
+            }
+        }
+    }
+
+    m_ListItems.clear();
+    m_ListItems.reserve(list->size());
+    for (auto& item : *list)
+    {
+        m_ListItems.push_back(item);
+        if (parentViewModelInstance() && item->viewModelInstance() != nullptr)
+        {
+            item->viewModelInstance()->addParent(parentViewModelInstance());
+        }
+    }
+    propertyValueChanged();
+}
+
 Core* ViewModelInstanceList::clone() const
 {
     auto cloned = new ViewModelInstanceList();

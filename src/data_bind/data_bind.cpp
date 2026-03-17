@@ -34,6 +34,7 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/component.hpp"
 
 using namespace rive;
 
@@ -118,6 +119,21 @@ StatusCode DataBind::import(ImportStack& importStack)
                 }
                 default:
                 {
+                    // Prefer the artboard that actually owns the target object.
+                    // Relying on latest<ArtboardImporter> can attach binds to
+                    // the wrong source artboard when multiple artboards are
+                    // loaded.
+                    if (target()->is<Component>())
+                    {
+                        auto comp = target()->as<Component>();
+                        auto parentArtboard = comp->artboard();
+                        if (parentArtboard != nullptr)
+                        {
+                            parentArtboard->addDataBind(this);
+                            return Super::import(importStack);
+                        }
+                    }
+
                     auto artboardImporter =
                         importStack.latest<ArtboardImporter>(
                             ArtboardBase::typeKey);

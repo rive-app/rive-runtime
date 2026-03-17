@@ -1,5 +1,7 @@
 #ifndef _RIVE_DATA_BIND_LIST_ITEM_PROVIDER_HPP_
 #define _RIVE_DATA_BIND_LIST_ITEM_PROVIDER_HPP_
+#include "rive/core.hpp"
+#include "rive/refcnt.hpp"
 namespace rive
 {
 class ViewModelInstanceListItem;

@@ -4,5 +4,19 @@
     "int": 441,
     "string": "viewmodelinstancelist"
   },
-  "extends": "viewmodel/viewmodel_instance_value.json"
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "listSource": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 966,
+        "string": "listsource"
+      },
+      "description": "Path to the bound ViewModelInstanceList.",
+      "bindable": true
+    }
+  }
 }

@@ -899,6 +899,9 @@ public:
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 object->as<ViewModelInstanceBase>()->viewModelId(value);
                 break;
+            case ViewModelInstanceListBase::listSourcePropertyKey:
+                object->as<ViewModelInstanceListBase>()->listSource(value);
+                break;
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceTriggerBase>()->propertyValue(
                     value);
@@ -2568,6 +2571,8 @@ public:
                     ->viewModelReferenceId();
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 return object->as<ViewModelInstanceBase>()->viewModelId();
+            case ViewModelInstanceListBase::listSourcePropertyKey:
+                return object->as<ViewModelInstanceListBase>()->listSource();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceTriggerBase>()
                     ->propertyValue();
@@ -3730,6 +3735,7 @@ public:
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
             case ViewModelInstanceBase::viewModelIdPropertyKey:
+            case ViewModelInstanceListBase::listSourcePropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
@@ -4305,6 +4311,8 @@ public:
                 return object->is<ViewModelPropertyViewModelBase>();
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 return object->is<ViewModelInstanceBase>();
+            case ViewModelInstanceListBase::listSourcePropertyKey:
+                return object->is<ViewModelInstanceListBase>();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceTriggerBase>();
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:

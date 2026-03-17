@@ -3,6 +3,7 @@
 #include "rive/component.hpp"
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
 
 using namespace rive;
 
@@ -16,6 +17,8 @@ DataBindListItemConsumer* DataBindListItemConsumer::from(Core* component)
             return component->as<ListPath>();
         case Text::typeKey:
             return component->as<Text>();
+        case ViewModelInstanceList::typeKey:
+            return component->as<ViewModelInstanceList>();
     }
     return nullptr;
 }
