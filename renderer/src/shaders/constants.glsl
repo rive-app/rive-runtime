@@ -233,14 +233,30 @@
 #define FIXED_COVERAGE_MASK 0x1ffffu
 
 // Fixed-point coverage values for clockwiseAtomic mode.
-// clockwiseAtomic mode uses 6:11 fixed point, so the winding number breaks if a
-// shape has more than 32 levels of self overlap in either winding direction at
-// any point.
-#define CLOCKWISE_COVERAGE_BIT_COUNT 17u
-#define CLOCKWISE_COVERAGE_MASK 0x1ffffu
-#define CLOCKWISE_COVERAGE_PRECISION float(2048)
-#define CLOCKWISE_COVERAGE_INVERSE_PRECISION float(0.00048828125)
-#define CLOCKWISE_FILL_ZERO_VALUE (1u << 16)
+//
+// The coverage buffer is laid out as:
+//
+//   prefix(12) : blendColorValid(1) : coverageInt(9) : coverageFract(10)
+//
+// The prefix is a monotonically increasing token that instructs the shader to
+// treat coverage as "cleared to zero" when it doesn't match the expectation,
+// effectively allowing us to clear the coverage buffer by incrementing the
+// token.
+//
+// The "blendColorValid" bit is used by shaders to signal once the blend color
+// has become valid (and before overwriting the framebuffer), indicating that
+// fragments should use that value instead of reading the framebuffer.
+//
+// NOTE: Coverage uses 9:10 fixed point, so the entire coverage buffer breaks if
+// a shape has more than 2^8 levels of self overlap in either winding direction
+// at any point. This impacts future paths as well.
+#define CLOCKWISE_COVERAGE_PRECISION float(1024)
+#define CLOCKWISE_COVERAGE_INVERSE_PRECISION float(0.0009765625)
+#define CLOCKWISE_COVERAGE_BIT_COUNT 19u
+#define CLOCKWISE_FILL_ZERO_VALUE (1u << (CLOCKWISE_COVERAGE_BIT_COUNT - 1u))
+#define CLOCKWISE_COVERAGE_MASK ((1u << CLOCKWISE_COVERAGE_BIT_COUNT) - 1u)
+#define BLEND_COLOR_VALID_BIT (1u << CLOCKWISE_COVERAGE_BIT_COUNT)
+#define CLOCKWISE_COVERAGE_PREFIX_ONE_VALUE (BLEND_COLOR_VALID_BIT << 1u)
 
 // Vendor IDs for driver workarounds.
 #define VULKAN_VENDOR_AMD 0x1002u

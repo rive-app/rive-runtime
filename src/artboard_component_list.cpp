@@ -1,5 +1,6 @@
 #include "rive/component.hpp"
 #include "rive/file.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/constraints/layout_constraint.hpp"
@@ -147,6 +148,28 @@ void ArtboardComponentList::updateLayoutBounds(bool animate)
 #endif
     computeLayoutBounds();
 }
+
+#ifdef WITH_RIVE_LAYOUT
+bool ArtboardComponentList::cascadeLayoutStyle(
+    LayoutStyleInterpolation inheritedInterpolation,
+    KeyFrameInterpolator* inheritedInterpolator,
+    float inheritedInterpolationTime,
+    LayoutDirection direction)
+{
+    for (int i = 0; i < (int)artboardCount(); i++)
+    {
+        auto artboard = artboardInstance(i);
+        if (artboard != nullptr)
+        {
+            artboard->cascadeLayoutStyle(inheritedInterpolation,
+                                         inheritedInterpolator,
+                                         inheritedInterpolationTime,
+                                         direction);
+        }
+    }
+    return false;
+}
+#endif
 
 bool ArtboardComponentList::syncStyleChanges()
 {

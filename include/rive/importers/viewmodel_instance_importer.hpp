@@ -11,12 +11,13 @@ class ViewModelInstanceValue;
 class ViewModelInstanceImporter : public ImportStackObject
 {
 private:
-    ViewModelInstance* m_ViewModelInstance;
+    ViewModelInstance* m_ViewModelInstance = nullptr;
 
 public:
     ViewModelInstanceImporter(ViewModelInstance* viewModelInstance);
     void addValue(ViewModelInstanceValue* value);
     StatusCode resolve() override;
+    ViewModelInstance* viewModelInstance() { return m_ViewModelInstance; }
 };
 } // namespace rive
 #endif

@@ -13,7 +13,6 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/rectangle.hpp"
-#include "rive/nested_artboard_layout.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #ifdef WITH_RIVE_LAYOUT
@@ -1225,6 +1224,13 @@ bool LayoutComponent::cascadeLayoutStyle(
                 interpolator(),
                 interpolationTime(),
                 actualDirection());
+        }
+        else if (auto provider = LayoutNodeProvider::from(child))
+        {
+            provider->cascadeLayoutStyle(interpolation(),
+                                         interpolator(),
+                                         interpolationTime(),
+                                         actualDirection());
         }
     }
     return updated;

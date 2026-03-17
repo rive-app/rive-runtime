@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
 #include "rive/focus_data.hpp"

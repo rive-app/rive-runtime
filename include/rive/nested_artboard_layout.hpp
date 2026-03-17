@@ -26,6 +26,12 @@ public:
 
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;
+#ifdef WITH_RIVE_LAYOUT
+    bool cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
+                            KeyFrameInterpolator* inheritedInterpolator,
+                            float inheritedInterpolationTime,
+                            LayoutDirection direction) override;
+#endif
     AABB layoutBounds() override;
     size_t numLayoutNodes() override { return 1; }
     bool isLayoutProvider() override { return true; }

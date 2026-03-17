@@ -6,6 +6,9 @@
 #define DRAW_PATH
 #define RENDER_MODE_CLOCKWISE_ATOMIC
 #define NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
+#ifndef FIXED_FUNCTION_COLOR_OUTPUT
+#define USING_PLS_STORAGE_TEXTURES
+#endif
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"

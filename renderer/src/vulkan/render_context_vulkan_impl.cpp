@@ -24,6 +24,10 @@ namespace rive::gpu
 {
 using PLSBackingType = PipelineManagerVulkan::PLSBackingType;
 
+// Indices of coverage and clip images in the m_plsTransientImageArray.
+constexpr uint32_t PLS_TRANSIENT_COVERAGE_IDX = 0u;
+constexpr uint32_t PLS_TRANSIENT_CLIP_IDX = 1u;
+
 constexpr VkDeviceSize ZERO_OFFSET[1] = {0};
 constexpr uint32_t ZERO_OFFSET_32[1] = {0};
 
@@ -886,6 +890,12 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             // Qualcomm advertises EXT_rasterization_order_attachment_access,
             // but it's slow. Use atomics instead on this platform.
             m_platformFeatures.supportsRasterOrderingMode = false;
+            // Framebuffer reads on Qualcomm seem to not work in clockwiseAtomic
+            // mode unless we issue a simple, 1-pixel draw that reads the
+            // framebuffer between borrowed coverage and the main draws.
+            m_platformFeatures
+                .clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit =
+                true;
             // Pixel4 struggles with fine-grained fp16 path IDs.
             m_platformFeatures.pathIDGranularity = 2;
             break;
@@ -1172,7 +1182,7 @@ void RenderContextVulkanImpl::resizeTransientPLSBacking(uint32_t width,
     m_plsTransientCoverageView.reset();
     m_plsTransientClipView.reset();
     m_plsTransientScratchColorTexture.reset();
-    m_plsTransientScratchColorView_RGB10_A2.reset();
+    m_plsBlendStorageTexture_RGB10_A2.reset();
     m_plsOffscreenColorTexture.reset();
 }
 
@@ -1240,22 +1250,11 @@ vkutil::ImageView* RenderContextVulkanImpl::plsTransientCoverageView()
 {
     if (m_plsTransientCoverageView == nullptr)
     {
-        m_plsTransientCoverageView = m_vk->makeImageView(
-            ref_rcp(plsTransientImageArray()),
-            {
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = VK_FORMAT_R32_UINT,
-                .subresourceRange =
-                    {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                    },
-            },
-            "plsTransientCoverageView");
+        m_plsTransientCoverageView =
+            makePLSTransientImageView(VK_FORMAT_R32_UINT,
+                                      PLS_TRANSIENT_COVERAGE_IDX,
+                                      "plsTransientCoverageView");
     }
-
     return m_plsTransientCoverageView.get();
 }
 
@@ -1263,35 +1262,38 @@ vkutil::ImageView* RenderContextVulkanImpl::plsTransientClipView()
 {
     if (m_plsTransientClipView == nullptr)
     {
-        assert(m_plsTransientPlaneCount != 0);
-        if (m_plsTransientPlaneCount == 1)
-        {
-            // When planeCount is 1, the shaders are guaranteed to only use
-            // 1 single plane in an entire render pass, so we can just alias
-            // the coverage & clip views to each other to keep the bindings and
-            // validation happy.
-            m_plsTransientClipView = ref_rcp(plsTransientCoverageView());
-        }
-        else
-        {
-            m_plsTransientClipView = m_vk->makeImageView(
-                ref_rcp(plsTransientImageArray()),
-                {
-                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                    .format = VK_FORMAT_R32_UINT,
-                    .subresourceRange =
-                        {
-                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .levelCount = 1,
-                            .baseArrayLayer = 1,
-                            .layerCount = 1,
-                        },
-                },
-                "plsTransientClipView");
-        }
+        m_plsTransientClipView =
+            makePLSTransientImageView(VK_FORMAT_R32_UINT,
+                                      PLS_TRANSIENT_CLIP_IDX,
+                                      "plsTransientClipView");
     }
-
     return m_plsTransientClipView.get();
+}
+
+rcp<vkutil::ImageView> RenderContextVulkanImpl::makePLSTransientImageView(
+    VkFormat format,
+    uint32_t index,
+    const char* debugName)
+{
+    return m_vk->makeImageView(
+        ref_rcp(plsTransientImageArray()),
+        {
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = format,
+            .subresourceRange =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .levelCount = 1,
+                    // If the transient array isn't large enough to host this
+                    // index, it's safe to alias with a lower one (e.g., a clip
+                    // and coverage view that will never be used together in the
+                    // same render pass).
+                    .baseArrayLayer =
+                        std::min(index, m_plsTransientPlaneCount - 1u),
+                    .layerCount = 1,
+                },
+        },
+        debugName);
 }
 
 vkutil::Texture2D* RenderContextVulkanImpl::plsTransientScratchColorTexture()
@@ -1316,28 +1318,22 @@ vkutil::Texture2D* RenderContextVulkanImpl::plsTransientScratchColorTexture()
     return m_plsTransientScratchColorTexture.get();
 }
 
-vkutil::ImageView* RenderContextVulkanImpl::
-    plsTransientScratchColorView_RGB10_A2()
+vkutil::Texture2D* RenderContextVulkanImpl::plsBlendStorageTexture_RGB10_A2()
 {
-    if (m_plsTransientScratchColorView_RGB10_A2 == nullptr)
+    if (m_plsBlendStorageTexture_RGB10_A2 == nullptr)
     {
-        m_plsTransientScratchColorView_RGB10_A2 = m_vk->makeExternalImageView(
+        m_plsBlendStorageTexture_RGB10_A2 = m_vk->makeTexture2D(
             {
-                .image = plsTransientScratchColorTexture()->vkImage(),
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
                 .format = VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-                .subresourceRange =
-                    {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                    },
+                .extent = m_plsExtent,
+                .usage = VK_IMAGE_USAGE_STORAGE_BIT |
+                         // For vkCmdClearColorImage.
+                         VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             },
-            "plsTransientScratchColorView_RGB10_A2");
+            "plsBlendStorageTexture_RGB10_A2");
     }
 
-    return m_plsTransientScratchColorView_RGB10_A2.get();
+    return m_plsBlendStorageTexture_RGB10_A2.get();
 }
 
 vkutil::Texture2D* RenderContextVulkanImpl::accessPLSOffscreenColorTexture(
@@ -1702,91 +1698,99 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
         clearValues.push_back(
             {.color = vkutil::color_clear_rgba32f(m_desc.colorClearValue)});
     }
-    if (m_desc.interlockMode == gpu::InterlockMode::rasterOrdering)
+    switch (m_desc.interlockMode)
     {
-        assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(*m_impl->plsTransientClipView());
-        clearValues.push_back({});
-
-        assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
-        framebufferViews.push_back(
-            m_impl->plsTransientScratchColorTexture()->vkImageView());
-        clearValues.push_back({});
-
-        assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
-        framebufferViews.push_back(*m_impl->plsTransientCoverageView());
-        clearValues.push_back(
-            {.color = vkutil::color_clear_r32ui(m_desc.coverageClearValue)});
-
-        if (renderPassOptions & RenderPassOptionsVulkan::manuallyResolved)
-        {
-            // The render pass will transfer the color data back into the
-            // renderTarget at the end.
-            assert(framebufferViews.size() == PLS_PLANE_COUNT);
-            framebufferViews.push_back(renderTarget->accessTargetImageView(
-                commandBuffer,
-                {
-                    .pipelineStages =
-                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                },
-                vkutil::ImageAccessAction::invalidateContents));
+        case gpu::InterlockMode::rasterOrdering:
+            assert(framebufferViews.size() == CLIP_PLANE_IDX);
+            framebufferViews.push_back(*m_impl->plsTransientClipView());
             clearValues.push_back({});
-        }
-    }
-    else if (m_desc.interlockMode == gpu::InterlockMode::atomics)
-    {
-        assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(
-            m_impl->plsTransientScratchColorTexture()->vkImageView());
-        clearValues.push_back({});
 
-        if (pipelineLayout.renderPassOptions() &
-            RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)
-        {
-            assert(framebufferViews.size() == COALESCED_ATOMIC_RESOLVE_IDX);
-            framebufferViews.push_back(renderTarget->accessTargetImageView(
-                commandBuffer,
-                {
-                    .pipelineStages =
-                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                },
-                m_drawBounds.contains(
-                    IAABB{0,
-                          0,
-                          static_cast<int32_t>(renderTarget->width()),
-                          static_cast<int32_t>(renderTarget->height())})
-                    ? vkutil::ImageAccessAction::invalidateContents
-                    : vkutil::ImageAccessAction::preserveContents));
+            assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
+            framebufferViews.push_back(
+                m_impl->plsTransientScratchColorTexture()->vkImageView());
             clearValues.push_back({});
-        }
-    }
-    else if (m_desc.interlockMode == gpu::InterlockMode::msaa)
-    {
-        assert(framebufferViews.size() == MSAA_DEPTH_STENCIL_IDX);
-        framebufferViews.push_back(
-            renderTarget->msaaDepthStencilTexture()->vkImageView());
-        clearValues.push_back({.depthStencil = {m_desc.depthClearValue,
-                                                m_desc.stencilClearValue}});
 
-        assert(framebufferViews.size() == MSAA_RESOLVE_IDX);
-        framebufferViews.push_back(m_msaaResolveImageView);
-        clearValues.push_back({});
+            assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
+            framebufferViews.push_back(*m_impl->plsTransientCoverageView());
+            clearValues.push_back({.color = vkutil::color_clear_r32ui(
+                                       m_desc.coverageClearValue)});
 
-        if (pipelineLayout.renderPassOptions() &
-            RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
-        {
-            assert(overrideColorLoadAction ==
-                   gpu::LoadAction::preserveRenderTarget);
-            assert(m_msaaColorSeedImageView != VK_NULL_HANDLE);
-            assert(m_msaaColorSeedImageView != m_msaaResolveImageView);
-            assert(framebufferViews.size() == MSAA_COLOR_SEED_IDX);
-            framebufferViews.push_back(m_msaaColorSeedImageView);
+            if (renderPassOptions & RenderPassOptionsVulkan::manuallyResolved)
+            {
+                // The render pass will transfer the color data back into the
+                // renderTarget at the end.
+                assert(framebufferViews.size() == PLS_PLANE_COUNT);
+                framebufferViews.push_back(renderTarget->accessTargetImageView(
+                    commandBuffer,
+                    {
+                        .pipelineStages =
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    },
+                    vkutil::ImageAccessAction::invalidateContents));
+                clearValues.push_back({});
+            }
+            break;
+
+        case gpu::InterlockMode::atomics:
+        case gpu::InterlockMode::clockwiseAtomic:
+            assert(framebufferViews.size() == CLIP_PLANE_IDX);
+            framebufferViews.push_back(
+                m_impl->plsTransientScratchColorTexture()->vkImageView());
             clearValues.push_back({});
-        }
+
+            if (pipelineLayout.renderPassOptions() &
+                RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)
+            {
+                assert(m_desc.interlockMode == gpu::InterlockMode::atomics);
+                assert(framebufferViews.size() == COALESCED_ATOMIC_RESOLVE_IDX);
+                framebufferViews.push_back(renderTarget->accessTargetImageView(
+                    commandBuffer,
+                    {
+                        .pipelineStages =
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    },
+                    m_drawBounds.contains(
+                        IAABB{0,
+                              0,
+                              static_cast<int32_t>(renderTarget->width()),
+                              static_cast<int32_t>(renderTarget->height())})
+                        ? vkutil::ImageAccessAction::invalidateContents
+                        : vkutil::ImageAccessAction::preserveContents));
+                clearValues.push_back({});
+            }
+            break;
+
+        case gpu::InterlockMode::clockwise:
+            // clockwise uses storage textures exclusively instead of MRT.
+            break;
+
+        case gpu::InterlockMode::msaa:
+            assert(framebufferViews.size() == MSAA_DEPTH_STENCIL_IDX);
+            framebufferViews.push_back(
+                renderTarget->msaaDepthStencilTexture()->vkImageView());
+            clearValues.push_back({.depthStencil = {m_desc.depthClearValue,
+                                                    m_desc.stencilClearValue}});
+
+            assert(framebufferViews.size() == MSAA_RESOLVE_IDX);
+            framebufferViews.push_back(m_msaaResolveImageView);
+            clearValues.push_back({});
+
+            if (pipelineLayout.renderPassOptions() &
+                RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
+            {
+                assert(overrideColorLoadAction ==
+                       gpu::LoadAction::preserveRenderTarget);
+                assert(m_msaaColorSeedImageView != VK_NULL_HANDLE);
+                assert(m_msaaColorSeedImageView != m_msaaResolveImageView);
+                assert(framebufferViews.size() == MSAA_COLOR_SEED_IDX);
+                framebufferViews.push_back(m_msaaColorSeedImageView);
+                clearValues.push_back({});
+            }
+            break;
     }
 
     rcp<vkutil::Framebuffer> framebuffer = vk->makeFramebuffer({
@@ -2702,10 +2706,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         colorAttachmentIsOffscreen = true;
     }
 
-    const bool usesStorageTextures =
-        plsBackingType == PLSBackingType::storageTexture ||
-        desc.interlockMode == gpu::InterlockMode::atomics;
-    if (usesStorageTextures)
+    if (desc.interlockMode == gpu::InterlockMode::clockwise ||
+        desc.interlockMode == gpu::InterlockMode::atomics)
     {
         // Clear the PLS planes that are bound as storage textures.
         const VkImage storageImageToClear =
@@ -2713,9 +2715,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 ? m_plsAtomicCoverageTexture->vkImage()
                 : *plsTransientImageArray();
 
-        VkPipelineStageFlags srcStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        VkPipelineStageFlags dstStages = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        StackVector<VkImageMemoryBarrier, 2> barriers;
+        assert(plsBackingType == PLSBackingType::inputAttachment ||
+               !m_platformFeatures.supportsRasterOrderingMode);
 
         // Don't clear the storageImageToClear until shaders in previous flushes
         // have finished using it.
@@ -2724,53 +2725,19 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // time. If that changes, we will need to consider that the
         // plsTransientImageArray may have been bound previously as input
         // attachments.
-        assert(plsBackingType == PLSBackingType::inputAttachment ||
-               !m_platformFeatures.supportsRasterOrderingMode);
-        barriers.push_back({
-            .srcAccessMask =
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .image = storageImageToClear,
-        });
-
-        // The scratch color texture may also need a barrier.
-        // NOTE: atomic mode uses the scratch color texture for clipping because
-        // of its RGBA format.
-        const bool usesScratchColorTexture =
-            desc.interlockMode == gpu::InterlockMode::atomics ||
-            !(renderPassOptions &
-              RenderPassOptionsVulkan::fixedFunctionColorOutput);
-        if (usesScratchColorTexture)
-        {
-            // Don't use the scratch color texture until shaders in previous
-            // render passes have finished using it.
-            // NOTE: The scratch texture may have been bound as an input
-            // attachment OR a storage texture.
-            const VkAccessFlags storageTextureAccess =
-                m_platformFeatures.supportsClockwiseMode
-                    ? VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
-                    : 0;
-            srcStages |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            dstStages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            barriers.push_back({
+        m_vk->imageMemoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            {
                 .srcAccessMask =
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | storageTextureAccess,
-                .dstAccessMask =
-                    VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | storageTextureAccess,
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = plsTransientScratchColorTexture()->vkImage(),
+                .image = storageImageToClear,
             });
-        }
-
-        m_vk->imageMemoryBarriers(commandBuffer,
-                                  srcStages,
-                                  dstStages,
-                                  0,
-                                  barriers.size(),
-                                  barriers.data());
 
         // Clear the entire storageImageToClear, even if we aren't going to use
         // the whole thing. There is a future world where we may want to
@@ -2844,6 +2811,25 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // previously as storage textures.
         assert(desc.interlockMode != gpu::InterlockMode::rasterOrdering ||
                !m_platformFeatures.supportsClockwiseMode);
+    }
+
+    if ((desc.interlockMode == gpu::InterlockMode::clockwise ||
+         desc.interlockMode == gpu::InterlockMode::clockwiseAtomic) &&
+        !(renderPassOptions &
+          RenderPassOptionsVulkan::fixedFunctionColorOutput))
+    {
+        // Clockwise modes use an extra storage texture for a blendColor when
+        // advanced blend is active. Wait for any memory transactions on the
+        // blend texture before beginning.
+        plsBlendStorageTexture_RGB10_A2()->barrier(
+            commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .accessMask =
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+            vkutil::ImageAccessAction::invalidateContents);
     }
 
     if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
@@ -2956,9 +2942,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 }});
         }
 
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-            desc.interlockMode == gpu::InterlockMode::atomics ||
-            desc.interlockMode == gpu::InterlockMode::clockwise)
+        if (desc.interlockMode != gpu::InterlockMode::msaa)
         {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
@@ -2968,34 +2952,45 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 },
                 {{
                     .imageView =
-                        (desc.interlockMode == gpu::InterlockMode::atomics)
+                        (desc.interlockMode == gpu::InterlockMode::atomics ||
+                         desc.interlockMode ==
+                             gpu::InterlockMode::clockwiseAtomic)
                             ? plsTransientScratchColorTexture()->vkImageView()
                             : *plsTransientClipView(),
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
+        }
 
-            if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
-                (desc.interlockMode == gpu::InterlockMode::clockwise &&
-                 !(renderPassOptions &
-                   RenderPassOptionsVulkan::fixedFunctionColorOutput)))
-            {
-                m_vk->updateImageDescriptorSets(
-                    inputAttachmentDescriptorSet,
-                    {
-                        .dstBinding = SCRATCH_COLOR_PLANE_IDX,
-                        .descriptorType = plsDescriptorType,
-                    },
-                    {{
-                        .imageView =
-                            (desc.interlockMode ==
-                             gpu::InterlockMode::clockwise)
-                                ? *plsTransientScratchColorView_RGB10_A2()
-                                : plsTransientScratchColorTexture()
-                                      ->vkImageView(),
-                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    }});
-            }
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+            ((desc.interlockMode == gpu::InterlockMode::clockwise ||
+              desc.interlockMode == gpu::InterlockMode::clockwiseAtomic) &&
+             !(renderPassOptions &
+               RenderPassOptionsVulkan::fixedFunctionColorOutput)))
+        {
+            m_vk->updateImageDescriptorSets(
+                inputAttachmentDescriptorSet,
+                {
+                    .dstBinding = SCRATCH_COLOR_PLANE_IDX,
+                    .descriptorType = (desc.interlockMode ==
+                                       gpu::InterlockMode::clockwiseAtomic)
+                                          ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                                          : plsDescriptorType,
+                },
+                {{
+                    .imageView =
+                        (desc.interlockMode == gpu::InterlockMode::clockwise ||
+                         desc.interlockMode ==
+                             gpu::InterlockMode::clockwiseAtomic)
+                            ? plsBlendStorageTexture_RGB10_A2()->vkImageView()
+                            : plsTransientScratchColorTexture()->vkImageView(),
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                }});
+        }
 
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
+            desc.interlockMode == gpu::InterlockMode::atomics ||
+            desc.interlockMode == gpu::InterlockMode::clockwise)
+        {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
                 {
@@ -3257,30 +3252,21 @@ void RenderContextVulkanImpl::submitDrawList(
                               gpu::BarrierFlags::preManualResolve |
                               BarrierFlags::clockwiseBorrowedCoverage))
         {
-            // vkCmdNextSubpass() supersedes the pipeline barrier we would
-            // insert for plsAtomic | dstBlend. So if those flags are also in
-            // the barrier, we can just call vkCmdNextSubpass() and skip
-            // vkCmdPipelineBarrier().
-            assert(!(batch.barriers &
-                     ~(gpu::BarrierFlags::plsAtomicPreResolve |
-                       gpu::BarrierFlags::msaaPostInit |
-                       gpu::BarrierFlags::preManualResolve |
-                       BarrierFlags::clockwiseBorrowedCoverage |
-                       BarrierFlags::plsAtomic | BarrierFlags::dstBlend |
-                       BarrierFlags::drawBatchBreak)));
             m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
         }
-        else if (batch.barriers &
-                 (BarrierFlags::plsAtomic | BarrierFlags::dstBlend))
+
+        if (batch.barriers & (BarrierFlags::plsAtomic | BarrierFlags::dstBlend))
         {
             // Wait for color attachment writes to complete before we read the
             // input attachments again.
             assert(desc.interlockMode == gpu::InterlockMode::atomics ||
-                   desc.interlockMode == gpu::InterlockMode::msaa);
+                   (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic &&
+                    !desc.fixedFunctionColorOutput) ||
+                   (desc.interlockMode == gpu::InterlockMode::msaa &&
+                    (!desc.fixedFunctionColorOutput ||
+                     // The MSAA init also reads the framebuffer.
+                     batch.drawType == gpu::DrawType::renderPassInitialize)));
             assert(drawType != gpu::DrawType::renderPassResolve);
-            assert(!(batch.barriers &
-                     ~(BarrierFlags::plsAtomic | BarrierFlags::dstBlend |
-                       BarrierFlags::drawBatchBreak)));
             m_vk->memoryBarrier(
                 commandBuffer,
                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -3456,7 +3442,29 @@ void RenderContextVulkanImpl::submitDrawList(
             {
                 if (drawPipeline != nullptr)
                 {
+                    if (desc.interlockMode ==
+                        gpu::InterlockMode::clockwiseAtomic)
+                    {
+                        // clockwiseAtomic's renderPassInitialize is just a
+                        // workaround for Qualcomm, and only needs to touch one
+                        // pixel.
+                        // TODO: add scissor to DrawBatch.
+                        VkRect2D scissorRect =
+                            vkutil::rect2d(IAABB{0, 0, 1, 1});
+                        m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissorRect);
+                    }
+
                     m_vk->CmdDraw(commandBuffer, 4, 1, 0, 0);
+
+                    if (desc.interlockMode ==
+                        gpu::InterlockMode::clockwiseAtomic)
+                    {
+                        // Restore the scissor.
+                        // TODO: add scissor to DrawBatch.
+                        VkRect2D scissorRect =
+                            vkutil::rect2d(drawRenderPass->scissor());
+                        m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissorRect);
+                    }
                 }
                 break;
             }

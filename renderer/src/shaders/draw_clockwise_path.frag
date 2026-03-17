@@ -10,7 +10,7 @@ PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 #endif
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-PLS_DECL4F_RGB10_A2(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
+PLS_DECL4F_RGB10_A2(SCRATCH_COLOR_PLANE_IDX, blendColorBuffer);
 #endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageBuffer);
 PLS_BLOCK_END
@@ -162,16 +162,16 @@ PLS_MAIN(@drawFragmentMain)
 #ifndef @DRAW_INTERIOR_TRIANGLES
                     if (c1 < maxCoverage)
                     {
-                        half3 scratchRGBToSave = paintColor.rgb;
+                        half3 blendRGBToSave = paintColor.rgb;
 #ifdef @ENABLE_DITHER
                         if (@ENABLE_DITHER)
                         {
-                            scratchRGBToSave +=
+                            blendRGBToSave +=
                                 dither * uniforms.ditherConversionToRGB10;
                         }
 #endif
-                        PLS_STORE4F(scratchColorBuffer,
-                                    make_half4(scratchRGBToSave, 0.0));
+                        PLS_STORE4F(blendColorBuffer,
+                                    make_half4(blendRGBToSave, 0.0));
                     }
 #endif
                 }
@@ -181,11 +181,11 @@ PLS_MAIN(@drawFragmentMain)
                     // blend mode, meaning, the current dstColor is no longer
                     // the correct value we need to pass to
                     // advanced_color_blend(). Instead, the first fragment saved
-                    // its result of advanced_color_blend() to the scratch
-                    // buffer, which we can pull back up and use to apply our
-                    // fragment's coverage contribution.
-                    paintColor.rgb = PLS_LOAD4F(scratchColorBuffer).rgb;
-                    PLS_PRESERVE_4F(scratchColorBuffer);
+                    // its result of advanced_color_blend() to the
+                    // blendColorBuffer, which we can pull back up and use to
+                    // apply our fragment's coverage contribution.
+                    paintColor.rgb = PLS_LOAD4F(blendColorBuffer).rgb;
+                    PLS_PRESERVE_4F(blendColorBuffer);
                 }
             }
             // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when
@@ -198,13 +198,7 @@ PLS_MAIN(@drawFragmentMain)
 
         // Emit a paint color whose post-src-over-blend result is algebraically
         // equivalent to applying the c0 -> c1 coverage delta.
-        //
-        // NOTE: "max(, eps)" is just to avoid a divide by zero. When the
-        // denominator would be 0, c0 == 1, which also means c1 == 1, and there
-        // is no coverage to apply. Since c0 == c1 == 1, (c1 - c0) / eps == 0,
-        // which is the result we want in this case.
-        paintColor *=
-            (c1 - c0) / max(1. - c0 * paintColor.a, EPSILON_FP16_NON_DENORM);
+        paintColor *= incremental_clockwise_coverage(c0, c1, paintColor.a);
 #ifdef @ENABLE_DITHER
         if (@ENABLE_DITHER)
         {

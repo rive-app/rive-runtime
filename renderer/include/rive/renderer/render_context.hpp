@@ -754,6 +754,8 @@ private:
 
         ClipInfo& getWritableClipInfo(uint32_t clipID);
 
+        void scheduleBarriersForNextDraw(BarrierFlags);
+
         // Either appends a new drawBatch to m_drawList or merges into
         // m_drawList.tail(). Updates the batch's ShaderFeatures according to
         // the passed parameters.

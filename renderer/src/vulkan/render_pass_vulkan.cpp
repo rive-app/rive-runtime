@@ -269,7 +269,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     }
 
     if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        interlockMode == gpu::InterlockMode::atomics)
+        interlockMode == gpu::InterlockMode::atomics ||
+        interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
         // CLIP attachment.
         assert(attachments.size() == CLIP_PLANE_IDX);
@@ -277,7 +278,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         attachments.push_back({
             // The clip buffer is encoded as RGBA8 in atomic mode so we can
             // block writes by emitting alpha=0.
-            .format = (interlockMode == gpu::InterlockMode::atomics)
+            .format = (interlockMode == gpu::InterlockMode::atomics ||
+                       interlockMode == gpu::InterlockMode::clockwiseAtomic)
                           ? VK_FORMAT_R8G8B8A8_UNORM
                           : VK_FORMAT_R32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -495,36 +497,32 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     // Input attachments.
     StackVector<VkAttachmentReference, PLS_PLANE_COUNT> inputAttachmentRefs;
     StackVector<VkAttachmentReference, 1> msaaColorSeedInputAttachmentRef;
-    if (interlockMode != gpu::InterlockMode::clockwiseAtomic)
+    inputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
+                                    colorAttachmentRefs.data());
+    if (renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput)
     {
-        inputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
-                                        colorAttachmentRefs.data());
-        if (renderPassOptions &
-            RenderPassOptionsVulkan::fixedFunctionColorOutput)
+        // COLOR is not an input attachment if we're using fixed function
+        // blending.
+        if (inputAttachmentRefs.size() > 1)
         {
-            // COLOR is not an input attachment if we're using fixed function
-            // blending.
-            if (inputAttachmentRefs.size() > 1)
-            {
-                inputAttachmentRefs[0] = {.attachment = VK_ATTACHMENT_UNUSED};
-            }
-            else
-            {
-                inputAttachmentRefs.clear();
-            }
+            inputAttachmentRefs[0] = {.attachment = VK_ATTACHMENT_UNUSED};
         }
-        if (interlockMode == gpu::InterlockMode::msaa &&
-            loadAction == gpu::LoadAction::preserveRenderTarget)
+        else
         {
-            msaaColorSeedInputAttachmentRef.push_back({
-                .attachment =
-                    (renderPassOptions &
-                     RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
-                        ? MSAA_COLOR_SEED_IDX
-                        : MSAA_RESOLVE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            });
+            inputAttachmentRefs.clear();
         }
+    }
+    if (interlockMode == gpu::InterlockMode::msaa &&
+        loadAction == gpu::LoadAction::preserveRenderTarget)
+    {
+        msaaColorSeedInputAttachmentRef.push_back({
+            .attachment =
+                (renderPassOptions &
+                 RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
+                    ? MSAA_COLOR_SEED_IDX
+                    : MSAA_RESOLVE_IDX,
+            .layout = VK_IMAGE_LAYOUT_GENERAL,
+        });
     }
 
     const bool rasterOrderedAttachmentAccess =
@@ -762,7 +760,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     if ((interlockMode == gpu::InterlockMode::rasterOrdering &&
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||
-        (interlockMode == gpu::InterlockMode::msaa &&
+        ((interlockMode == gpu::InterlockMode::clockwiseAtomic ||
+          interlockMode == gpu::InterlockMode::msaa) &&
          !(renderPassOptions &
            RenderPassOptionsVulkan::fixedFunctionColorOutput)))
     {

@@ -69,7 +69,8 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             break;
         case DrawType::renderPassInitialize:
             assert(interlockMode == InterlockMode::atomics ||
-                   interlockMode == InterlockMode::msaa);
+                   interlockMode == InterlockMode::msaa ||
+                   interlockMode == InterlockMode::clockwiseAtomic);
             drawTypeKey = 5;
             break;
         case DrawType::renderPassResolve:
@@ -494,6 +495,7 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
                                        : 2.f) /
                                       flushDesc.atlasContentHeight),
     m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
+    m_epsilonForPseudoMemoryBarrier(1e-9f),
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
     m_mipMapLODBias(MIP_MAP_LOD_BIAS),
@@ -1183,9 +1185,18 @@ static BlendEquation get_blend_equation(
                                                       : BlendEquation::none;
 
         case InterlockMode::clockwiseAtomic:
-            // clockwiseAtomic currently always sets fixedFunctionColorOutput.
-            assert(flushDesc.fixedFunctionColorOutput);
-            return BlendEquation::srcOver;
+            if ((batch.shaderMiscFlags &
+                 gpu::ShaderMiscFlags::borrowedCoveragePass) ||
+                batch.drawType == DrawType::renderPassInitialize)
+            {
+                return BlendEquation::none;
+            }
+            else
+            {
+                // clockwiseAtomic uses src-over to accumulate coverage, even
+                // with advanced blend.
+                return BlendEquation::srcOver;
+            }
 
         case InterlockMode::msaa:
             if (batch.drawContents & DrawContents::opaquePaint)
@@ -1292,7 +1303,8 @@ void get_pipeline_state(const DrawBatch& batch,
 
         case DrawType::renderPassInitialize:
             assert(flushDesc.interlockMode == InterlockMode::atomics ||
-                   flushDesc.interlockMode == InterlockMode::msaa);
+                   flushDesc.interlockMode == InterlockMode::msaa ||
+                   flushDesc.interlockMode == InterlockMode::clockwiseAtomic);
             break;
 
         case DrawType::msaaStrokes:

@@ -17,18 +17,20 @@
 #define NEEDS_INTERLOCK
 #endif
 
-#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
 PLS_BLOCK_BEGIN
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 #endif
+#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
 #endif
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageBuffer);
+#else // @RENDER_MODE_CLOCKWISE_ATOMIC
+PLS_DECL4F(CLIP_PLANE_IDX, clipBuffer);
+#endif
 PLS_BLOCK_END
-#endif // !@RENDER_MODE_CLOCKWISE_ATOMIC
 
 // ATLAS_BLIT includes draw_path_common.glsl, which declares the textures &
 // samplers, so we only need to declare these for image meshes.
@@ -122,8 +124,7 @@ PLS_MAIN(@drawFragmentMain)
     coverage *= imageDrawUniforms.opacity;
 #endif
 
-#if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) &&                                  \
-    !defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
+#if !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
@@ -175,12 +176,20 @@ PLS_MAIN(@drawFragmentMain)
                            uniforms.ditherScale,
                            uniforms.ditherBias);
 
-    PLS_STORE4F(colorBuffer, dstColorPremul * (1. - color.a) + color);
-#endif // !@FIXED_FUNCTION_COLOR_OUTPUT && !@RENDER_MODE_CLOCKWISE_ATOMIC
+#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
+    color = dstColorPremul * (1. - color.a) + color;
+#endif
+
+    PLS_STORE4F(colorBuffer, color);
+#endif // !@FIXED_FUNCTION_COLOR_OUTPUT
 
 #ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
     PLS_PRESERVE_UI(clipBuffer);
     PLS_PRESERVE_UI(coverageBuffer);
+#else
+    // Since blend is enabled, storing 0 to the clip will ensure it remains
+    // unchanged.
+    PLS_STORE4F(clipBuffer, make_half4(.0));
 #endif
 #ifdef NEEDS_INTERLOCK
     PLS_INTERLOCK_END;

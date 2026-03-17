@@ -37,7 +37,7 @@ class ViewModelInstanceValue : public ViewModelInstanceValueBase,
     friend class SuppressDelegation;
 
 private:
-    ViewModelProperty* m_ViewModelProperty;
+    ViewModelProperty* m_ViewModelProperty = nullptr;
     static std::string defaultName;
     ValueFlags m_changeFlags;
     std::vector<ViewModelInstanceValueDelegate*> m_delegates;
@@ -50,6 +50,7 @@ public:
 protected:
     DependencyHelper<rcp<ViewModelInstance>, ViewModelValueDependent>
         m_DependencyHelper;
+    ViewModelInstance* m_viewModelInstance = nullptr;
     void addDirt(ComponentDirt value);
 
     // Suppress/restore calling delegates.
@@ -61,6 +62,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();
+    void viewModelInstance(ViewModelInstance* value);
     void addDependent(ViewModelValueDependent* value);
     void removeDependent(ViewModelValueDependent* value);
     virtual void setRoot(rcp<ViewModelInstance> value);
@@ -90,7 +92,7 @@ public:
     }
 
 private:
-    ViewModelInstanceValue* m_value;
+    ViewModelInstanceValue* m_value = nullptr;
     bool m_suppressed;
 };
 

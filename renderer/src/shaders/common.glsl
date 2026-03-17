@@ -260,16 +260,23 @@ int4 renderTargetUpdateBounds;  // drawBounds, or renderTargetBounds if there is
 float2 atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
 float2 atlasContentInverseViewport; // 2 / atlasContentBounds
 uint coverageBufferPrefix;
-uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
-                        // compliant).
+// GLSL doesn't appear to provide a lightweight, region-local barrier for memory
+// ordering outside of memoryBarrier*(), which have severe consequences for
+// tiling. When we are already relying on other API level barriers and only need
+// to guard against instruction reordering, we can multiply by a tiny epsilon
+// instead, and introduce artifical dependencies that enforce ordering but don't
+// actually have an effect on the final outcome.
+float epsilonForPseudoMemoryBarrier;
+// Spacing between adjacent path IDs (1 if IEEE compliant).
+uint pathIDGranularity;
 float vertexDiscardValue;
 float mipMapLODBias;
 uint maxPathId;
 float ditherScale;
 float ditherBias;
-float ditherConversionToRGB10; // Amount by which to multiply a computed dither
-                               // value when storing as RGB10 (as opposed to
-                               // writing it out to the framebuffer).
+// Amount by which to multiply a computed dither value when storing as RGB10 (as
+// opposed to writing it out to the framebuffer).
+float ditherConversionToRGB10;
 // Debugging.
 uint wireframeEnabled;
 UNIFORM_BLOCK_END(uniforms)

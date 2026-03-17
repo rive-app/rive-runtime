@@ -249,3 +249,31 @@ TEST_CASE("data()", "[stack_vector]")
         CHECK(constVec.data()[i] == i);
     }
 }
+
+TEST_CASE("range iter", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    CHECK(vec.dataOrNull() == nullptr);
+    CHECK(constify(vec).dataOrNull() == nullptr);
+
+    vec.push_back_n(NUM_TEST_VALUES, nullptr);
+    CHECK(vec.dataOrNull() != nullptr);
+    CHECK(constify(vec).dataOrNull() != nullptr);
+    CHECK(vec.size() == NUM_TEST_VALUES);
+    CHECK(constify(vec).size() == NUM_TEST_VALUES);
+
+    std::iota(vec.dataOrNull(), vec.dataOrNull() + NUM_TEST_VALUES, 0);
+    int i = 0;
+    for (uint32_t val : vec)
+    {
+        CHECK(val == i++);
+    }
+    CHECK(i == NUM_TEST_VALUES);
+
+    i = 0;
+    for (uint32_t val : constify(vec))
+    {
+        CHECK(val == i++);
+    }
+    CHECK(i == NUM_TEST_VALUES);
+}

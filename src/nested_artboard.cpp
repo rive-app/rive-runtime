@@ -447,7 +447,7 @@ void NestedArtboard::internalDataContext(rcp<DataContext> value)
 void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
 {
     auto instance = artboardInstance(0);
-    if (instance)
+    if (instance && !instance->isStateful())
     {
         auto dataContext = instance->dataContext();
         if (dataContext != nullptr)

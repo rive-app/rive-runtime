@@ -80,6 +80,12 @@ public:
     Component* hostComponent() override { return this; }
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;
+#ifdef WITH_RIVE_LAYOUT
+    bool cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
+                            KeyFrameInterpolator* inheritedInterpolator,
+                            float inheritedInterpolationTime,
+                            LayoutDirection direction) override;
+#endif
     void markLayoutNodeDirty(
         bool shouldForceUpdateLayoutBounds = false) override;
     bool isLayoutProvider() override { return true; }

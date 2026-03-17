@@ -12,6 +12,7 @@
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/data_bind/data_values/data_value_artboard.hpp"
+#include "rive/data_bind/data_values/data_value_viewmodel.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/refcnt.hpp"
 
@@ -71,6 +72,9 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
             case ViewModelInstanceArtboardBase::typeKey:
                 m_dataValue = new DataValueArtboard(
                     source->as<ViewModelInstanceArtboard>()->propertyValue());
+                break;
+            case ViewModelInstanceViewModelBase::typeKey:
+                m_dataValue = new DataValueViewModel();
                 break;
             default:
                 m_dataValue = new DataValue();
@@ -132,6 +136,12 @@ void DataBindContextValue::syncSourceValue()
             case ViewModelInstanceArtboardBase::typeKey:
                 m_dataValue->as<DataValueArtboard>()->value(
                     source->as<ViewModelInstanceArtboard>()->propertyValue());
+                break;
+            case ViewModelInstanceViewModelBase::typeKey:
+                m_dataValue->as<DataValueViewModel>()->value(
+                    source->as<ViewModelInstanceViewModel>()
+                        ->referenceViewModelInstance()
+                        .get());
                 break;
         }
     }

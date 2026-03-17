@@ -15,7 +15,8 @@
         "int": 577,
         "string": "propertyvalue"
       },
-      "description": "The id of the viewmodel instance."
+      "description": "The id of the viewmodel instance.",
+      "bindable": true
     }
   }
 }

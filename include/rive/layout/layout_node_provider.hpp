@@ -1,6 +1,7 @@
 #ifndef _RIVE_LAYOUT_NODE_PROVIDER_HPP_
 #define _RIVE_LAYOUT_NODE_PROVIDER_HPP_
 
+#include "rive/layout/layout_enums.hpp"
 #include <assert.h>
 #include <vector>
 
@@ -8,6 +9,7 @@ namespace rive
 {
 class AABB;
 class Component;
+class KeyFrameInterpolator;
 class LayoutConstraint;
 class TransformComponent;
 
@@ -30,6 +32,16 @@ public:
     virtual void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false)
     {}
     virtual size_t numLayoutNodes() = 0;
+#ifdef WITH_RIVE_LAYOUT
+    virtual bool cascadeLayoutStyle(
+        LayoutStyleInterpolation inheritedInterpolation,
+        KeyFrameInterpolator* inheritedInterpolator,
+        float inheritedInterpolationTime,
+        LayoutDirection direction)
+    {
+        return false;
+    }
+#endif
 };
 } // namespace rive
 

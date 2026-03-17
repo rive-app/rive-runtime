@@ -28,6 +28,7 @@
 
 namespace rive
 {
+class KeyFrameInterpolator;
 class ArtboardComponentList;
 class ArtboardHost;
 class File;
@@ -96,6 +97,7 @@ private:
     bool m_FrameOrigin = true;
     std::unordered_set<LayoutComponent*> m_dirtyLayout;
     bool m_isCleaningDirtyLayouts = false;
+    std::unique_ptr<KeyFrameInterpolator> m_ownedInheritedInterpolator;
     float m_originalWidth = 0;
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
@@ -279,6 +281,10 @@ public:
     LayoutData* takeLayoutData();
     bool syncStyleChanges() override;
     void syncStyleChangesWithUpdate(bool forceUpdate = false);
+    std::unique_ptr<KeyFrameInterpolator>& ownedInheritedInterpolator()
+    {
+        return m_ownedInheritedInterpolator;
+    }
     void calculateLayout();
     bool canHaveOverrides() override { return true; }
 

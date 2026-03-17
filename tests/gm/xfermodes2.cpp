@@ -44,6 +44,46 @@ protected:
         float x = 0, y = 0;
         size_t m = 0;
 
+        for (BlendMode mode RIVE_MAYBE_UNUSED : {BlendMode::srcOver,
+                                                 BlendMode::screen,
+                                                 BlendMode::overlay,
+                                                 BlendMode::darken,
+                                                 BlendMode::lighten,
+                                                 BlendMode::colorDodge,
+                                                 BlendMode::colorBurn,
+                                                 BlendMode::hardLight,
+                                                 BlendMode::softLight,
+                                                 BlendMode::difference,
+                                                 BlendMode::exclusion,
+                                                 BlendMode::multiply,
+                                                 BlendMode::hue,
+                                                 BlendMode::saturation,
+                                                 BlendMode::color,
+                                                 BlendMode::luminosity})
+        {
+            renderer->save();
+
+            renderer->translate(x, y);
+            auto p = factory->makeRenderPaint();
+            // // p.setStyle(SkPaint::kFill_Style);
+            // p.setShader(fBG);
+            rive::AABB r = {0, 0, w, h};
+            p->shader(dstGrad);
+            rivegm::draw_rect(renderer, r, p.get());
+            renderer->restore();
+
+            x += w + 10;
+            if ((m % W) == W - 1)
+            {
+                x = 0;
+                y += h + 30;
+            }
+            ++m;
+        }
+
+        x = 0, y = 0;
+        m = 0;
+
         for (BlendMode mode : {BlendMode::srcOver,
                                BlendMode::screen,
                                BlendMode::overlay,
@@ -71,7 +111,8 @@ protected:
             // rivegm::draw_rect(renderer, r, p.get());
 
             p->shader(dstGrad);
-            rivegm::draw_rect(renderer, r, p.get());
+            // rivegm::draw_rect(renderer, r, p.get());
+
             p->shader(srcGrad);
             p->blendMode(mode);
             rivegm::draw_rect(renderer, r, p.get());

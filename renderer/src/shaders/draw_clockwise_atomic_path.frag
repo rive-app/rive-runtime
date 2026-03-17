@@ -4,44 +4,79 @@
 
 #ifdef @FRAGMENT
 
+PLS_BLOCK_BEGIN
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
+#endif
+PLS_DECL4F(CLIP_PLANE_IDX, clipBuffer);
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+PLS_DECL4F_RGB10_A2_ATOMIC(SCRATCH_COLOR_PLANE_IDX, blendColorBuffer);
+#endif
+PLS_BLOCK_END
+
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32_ATOMIC(COVERAGE_BUFFER_IDX, CoverageBuffer, coverageBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
 
 INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
                                   half fragCoverage,
-                                  uint coverageIndex)
+                                  uint coverageIndex,
+                                  OUT(uint) preexistingCoverageValue,
+                                  OUT(half) newCoverage)
 {
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     if (min(paintAlpha, fragCoverage) >= 1.)
     {
         // Solid stroke pixels don't need to work out coverage at all. We can
-        // just blast them out without ever touching the coverage buffer.
+        // just blast them out without ever touching the coverage buffer, even
+        // if another fragment from the path will get drawn on top. This is
+        // because any fragment drawn on top will be the same color, and any
+        // color blended onto a fully opaque version of itself is a no-op.
         return;
     }
+#endif
 
     half X;
     uint fragCoverageFixed =
         uint(abs(fragCoverage) * CLOCKWISE_COVERAGE_PRECISION + .5);
-    uint coverageBeforeMax = STORAGE_BUFFER_ATOMIC_MAX(
+    preexistingCoverageValue = STORAGE_BUFFER_ATOMIC_MAX(
         coverageBuffer,
         coverageIndex,
         uniforms.coverageBufferPrefix | fragCoverageFixed);
-    if (coverageBeforeMax < uniforms.coverageBufferPrefix)
+    if (preexistingCoverageValue < uniforms.coverageBufferPrefix)
     {
         // This is the first fragment of the stroke to touch this pixel. Just
         // multiply in our coverage and write it out.
         X = fragCoverage;
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+        newCoverage = fragCoverage;
+#endif
     }
     else
     {
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+        if ((preexistingCoverageValue & BLEND_COLOR_VALID_BIT) != 0u)
+        {
+            // The BLEND_COLOR_VALID_BIT had already been set at this fragment.
+            // Redo the atomic max with that bit set.
+            preexistingCoverageValue = STORAGE_BUFFER_ATOMIC_MAX(
+                coverageBuffer,
+                coverageIndex,
+                uniforms.coverageBufferPrefix | BLEND_COLOR_VALID_BIT |
+                    fragCoverageFixed);
+        }
+#endif
         // This pixel has been touched previously by a fragment in the stroke.
         // Multiply in an incremental coverage value that mixes with what's
         // already in the framebuffer.
-        half c1 =
-            cast_uint_to_half(coverageBeforeMax & CLOCKWISE_COVERAGE_MASK) *
-            CLOCKWISE_COVERAGE_INVERSE_PRECISION;
-        half c2 = max(c1, fragCoverage);
-        X = (c2 - c1) / (1. - c1 * paintAlpha);
+        half c0 = cast_uint_to_half(preexistingCoverageValue &
+                                    CLOCKWISE_COVERAGE_MASK) *
+                  CLOCKWISE_COVERAGE_INVERSE_PRECISION;
+        half c1 = max(c0, fragCoverage);
+        X = incremental_clockwise_coverage(c0, c1, paintAlpha);
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+        newCoverage = c1;
+#endif
     }
 
     paintAlpha *= X;
@@ -49,25 +84,34 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
 
 INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
                                 half fragCoverageRemaining,
-                                uint coverageIndex)
+                                uint coverageIndex,
+                                OUT(uint) preexistingCoverageValue,
+                                OUT(half) newCoverage)
 {
-    uint coverageInitialValue =
-        STORAGE_BUFFER_LOAD(coverageBuffer, coverageIndex);
-    if (min(paintAlpha, fragCoverageRemaining) >= 1. &&
-        (coverageInitialValue < uniforms.coverageBufferPrefix ||
-         coverageInitialValue >=
-             (uniforms.coverageBufferPrefix | CLOCKWISE_FILL_ZERO_VALUE)))
-    {
-        // If we're solid, AND the current coverage at this pixel is >= 0, then
-        // we can just write out or color without working out coverage any
-        // further.
-        return;
-    }
-
     half X = .0; // Amount by which to multiply paintAlpha.
     uint fragCoverageRemainingFixed =
         uint(abs(fragCoverageRemaining) * CLOCKWISE_COVERAGE_PRECISION + .5);
-    if (coverageInitialValue < uniforms.coverageBufferPrefix)
+
+    preexistingCoverageValue =
+        STORAGE_BUFFER_LOAD(coverageBuffer, coverageIndex);
+
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+    if (min(paintAlpha, fragCoverageRemaining) >= 1. &&
+        (preexistingCoverageValue < uniforms.coverageBufferPrefix ||
+         preexistingCoverageValue >=
+             (uniforms.coverageBufferPrefix | CLOCKWISE_FILL_ZERO_VALUE)))
+    {
+        // If we're solid, AND the current coverage at this pixel is >= 0, then
+        // we can just write out our color without working out coverage any
+        // further, even if another fragment from the path will get drawn on
+        // top. This is because any fragment drawn on top will be the same
+        // color, and any color blended onto a fully opaque version of itself is
+        // a no-op.
+        return;
+    }
+#endif
+
+    if (preexistingCoverageValue < uniforms.coverageBufferPrefix)
     {
         // The initial coverage value does not belong to this path. We *might*
         // be the first fragment of the path to touch this pixel. Attempt to
@@ -78,12 +122,18 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
         uint coverageBeforeMax = STORAGE_BUFFER_ATOMIC_MAX(coverageBuffer,
                                                            coverageIndex,
                                                            targetCoverage);
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+        preexistingCoverageValue = coverageBeforeMax;
+#endif
         if (coverageBeforeMax <= uniforms.coverageBufferPrefix)
         {
             // Success! We were the first fragment of the path at this pixel.
             X = fragCoverageRemaining; // Just multiply paintAlpha by coverage.
 #ifdef @DRAW_INTERIOR_TRIANGLES
             X = min(X, 1.);
+#endif
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+            newCoverage = X;
 #endif
             fragCoverageRemaining = .0; // We're done.
         }
@@ -97,24 +147,27 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
             // NOTE: because we know coverage was initially zero, and because
             // coverage is always positive in this pass, we know
             // coverageBeforeMax >= 0.
-            uint c1Fixed = (coverageBeforeMax & CLOCKWISE_COVERAGE_MASK) -
+            uint c0Fixed = (coverageBeforeMax & CLOCKWISE_COVERAGE_MASK) -
                            CLOCKWISE_FILL_ZERO_VALUE;
-            half c1 = cast_uint_to_half(c1Fixed) *
+            half c0 = cast_uint_to_half(c0Fixed) *
                       CLOCKWISE_COVERAGE_INVERSE_PRECISION;
-            half c2 = fragCoverageRemaining;
+            half c1 = fragCoverageRemaining;
 #ifdef @DRAW_INTERIOR_TRIANGLES
-            c2 = min(c2, 1.);
+            c1 = min(c1, 1.);
+#endif
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+            newCoverage = c1;
 #endif
             // Apply the coverage increase from the atomicMax here. The next
             // step will apply the remaining increase.
-            X = (c2 - c1) / (1. - c1 * paintAlpha);
+            X = incremental_clockwise_coverage(c0, c1, paintAlpha);
 
             // We increased coverage by an amount of "fragCoverageRemaining" -
             // "coverageBeforeMax". However, we wanted to increase coverage by
             // "fragCoverageRemaining". So the remaining amount we still need to
             // increase by is "coverageBeforeMax".
-            fragCoverageRemainingFixed = c1Fixed;
-            fragCoverageRemaining = c1;
+            fragCoverageRemainingFixed = c0Fixed;
+            fragCoverageRemaining = c0;
         }
     }
 
@@ -126,25 +179,30 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
             STORAGE_BUFFER_ATOMIC_ADD(coverageBuffer,
                                       coverageIndex,
                                       fragCoverageRemainingFixed);
-        half c1 =
+        half c0 =
             cast_int_to_half(int((coverageBeforeAdd & CLOCKWISE_COVERAGE_MASK) -
                                  CLOCKWISE_FILL_ZERO_VALUE)) *
             CLOCKWISE_COVERAGE_INVERSE_PRECISION;
-        half c2 = c1 + fragCoverageRemaining;
+        half c1 = c0 + fragCoverageRemaining;
+        c0 = clamp(c0, .0, 1.);
         c1 = clamp(c1, .0, 1.);
-        c2 = clamp(c2, .0, 1.);
-        // Apply the coverage increase from c1 -> c2 that we just did, in
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+        newCoverage = c1;
+#endif
+        // Apply the coverage increase from c0 -> c1 that we just did, in
         // addition to any coverage that had been applied previously.
-        half one_minus_c1a = 1. - c1 * paintAlpha;
-        if (one_minus_c1a <= .0)
-            discard;
-        X += (1. - X * paintAlpha) * (c2 - c1) / one_minus_c1a;
+        X += (1. - X * paintAlpha) *
+             incremental_clockwise_coverage(c0, c1, paintAlpha);
     }
 
     paintAlpha *= X;
 }
 
-FRAG_DATA_MAIN(half4, @drawFragmentMain)
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
+#else
+PLS_MAIN(@drawFragmentMain)
+#endif
 {
     VARYING_UNPACK(v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -166,10 +224,13 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     VARYING_UNPACK(v_coverageCoord, float2);
 
     half4 paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
-    if (paintColor.a == .0)
-    {
-        discard;
-    }
+
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+    // Fetch the framebuffer BEFORE any atomic operations on the coverage
+    // buffer. In order for advanced blend to work, we have to fetch the
+    // framebuffer value before checking if it's still valid.
+    half4 dstColor = PLS_LOAD4F(colorBuffer);
+#endif
 
     half fragCoverage =
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -178,10 +239,27 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         find_frag_coverage(v_coverages);
 #endif
 
-    uint2 coverageCoord = uint2(floor(v_coverageCoord));
+    float2 coverageCoord = v_coverageCoord;
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+    // This little trick forces the shader to fetch the framebuffer BEFORE any
+    // atomic operations on the coverage buffer. (i.e., not to reorder the above
+    // fetch past this point). In order for advanced blend to work, we have to
+    // fetch the framebuffer value before operating on coverage.
+    //
+    // NOTE: Since v_coverageCoord is pixel-grid aligned, it will always have a
+    // fractional value of ~.5 (because varyings are sampled at at pixel
+    // center). So as long as colorBuffer is a standard unorm in the range 0..1,
+    // this will have literally no effect on the final outcome. If we ever
+    // support rendering to full floating point targets outside the range 0..1,
+    // we may need to put some more thought into this.
+    coverageCoord +=
+        (dstColor.rg + dstColor.ba) * uniforms.epsilonForPseudoMemoryBarrier;
+#endif
+    coverageCoord = floor(coverageCoord);
     uint coveragePitch = v_coveragePlacement.y;
-    uint coverageIndex = v_coveragePlacement.x +
-                         swizzle_buffer_idx_32x32(coverageCoord, coveragePitch);
+    uint coverageIndex =
+        v_coveragePlacement.x +
+        swizzle_buffer_idx_32x32(uint2(coverageCoord), coveragePitch);
 
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
@@ -191,30 +269,113 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
 #endif
 
+    uint preexistingCoverageValue;
+    float newCoverage;
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))
     {
         fragCoverage = clamp(fragCoverage, .0, 1.);
-        apply_stroke_coverage(paintColor.a, fragCoverage, coverageIndex);
+        apply_stroke_coverage(paintColor.a,
+                              fragCoverage,
+                              coverageIndex,
+                              preexistingCoverageValue,
+                              newCoverage);
     }
     else // It's a fill.
 #endif   // !DRAW_INTERIOR_TRIANGLES
     {
-        apply_fill_coverage(paintColor.a, fragCoverage, coverageIndex);
+        apply_fill_coverage(paintColor.a,
+                            fragCoverage,
+                            coverageIndex,
+                            preexistingCoverageValue,
+                            newCoverage);
     }
+
+#ifdef @ENABLE_DITHER
+    half dither;
+    if (@ENABLE_DITHER)
+    {
+        dither = get_dither(_fragCoord.xy,
+                            uniforms.ditherScale,
+                            uniforms.ditherBias);
+    }
+#endif
+
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+    if (paintColor.a > .0)
+    {
+        bool wasBlendColorValid =
+            preexistingCoverageValue >= uniforms.coverageBufferPrefix &&
+            (preexistingCoverageValue & BLEND_COLOR_VALID_BIT) != 0u;
+        if (!wasBlendColorValid)
+        {
+            // If the saved blend color was not yet valid after we fetched
+            // dstColor, we are guaranteed that dstColor is valid because the
+            // BLEND_COLOR_VALID_BIT gets set before any color outputs that
+            // might overwrite the framebuffer.
+            // Calculate a blendColor based on dstColor.
+            paintColor.rgb =
+                advanced_color_blend(paintColor.rgb,
+                                     dstColor,
+                                     cast_half_to_ushort(v_blendMode));
+
+            // Anybody who updated, or will update, the coverage buffer before
+            // we overwrite the framebuffer is guaranteed to have a dstColor
+            // that is unaffected by our color output. They already have it.
+            // But if 0 < coverage < 1 after our fragment, we have to save out
+            // the blend color we just found for any future fragments that may
+            // need to blend, before we overwrite the contents of the
+            // framebuffer.
+            if (newCoverage < 1.)
+            {
+                half3 blendRGBToSave = paintColor.rgb;
+#ifdef @ENABLE_DITHER
+                if (@ENABLE_DITHER)
+                {
+                    blendRGBToSave += dither * uniforms.ditherConversionToRGB10;
+                }
+#endif
+                PLS_STORE4F_ATOMIC(blendColorBuffer,
+                                   make_half4(blendRGBToSave, .0));
+
+                // Mark this pixel as having a valid blendColor, AFTER writing
+                // out the blendColor, but BEFORE updating the framebuffer.
+                memoryBarrier();
+                STORAGE_BUFFER_ATOMIC_OR(coverageBuffer,
+                                         coverageIndex,
+                                         BLEND_COLOR_VALID_BIT);
+            }
+        }
+        else
+        {
+            // Use the saved blendColor whenever it's valid, because shortly
+            // after that point the framebuffer can be overwritten, invalidating
+            // the dstColor.
+            paintColor.rgb = PLS_LOAD4F_ATOMIC(blendColorBuffer).rgb;
+        }
+    }
+#endif
+
     paintColor.rgb *= paintColor.a;
 
 #ifdef @ENABLE_DITHER
     if (@ENABLE_DITHER)
     {
-        half dither = get_dither(_fragCoord.xy,
-                                 uniforms.ditherScale,
-                                 uniforms.ditherBias);
         paintColor.rgb += dither;
     }
 #endif
 
-    EMIT_FRAG_DATA(paintColor);
+    // Since blend is enabled, storing 0 to the clip will ensure it remains
+    // unchanged.
+    PLS_STORE4F(clipBuffer, make_half4(.0));
+
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+    PLS_STORE4F(colorBuffer, paintColor);
+    EMIT_PLS;
+#else
+    _fragColor = paintColor;
+    EMIT_PLS_AND_FRAG_COLOR
+#endif
 }
 
 #endif // FRAGMENT

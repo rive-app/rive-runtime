@@ -1,7 +1,8 @@
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/artboard.hpp"
-#include "rive/math/aabb.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/layout/layout_data.hpp"
+#include "rive/math/aabb.hpp"
 
 using namespace rive;
 
@@ -119,6 +120,24 @@ void NestedArtboardLayout::updateLayoutBounds(bool animate)
     artboardInstance()->updateLayoutBounds(animate);
 #endif
 }
+
+#ifdef WITH_RIVE_LAYOUT
+bool NestedArtboardLayout::cascadeLayoutStyle(
+    LayoutStyleInterpolation inheritedInterpolation,
+    KeyFrameInterpolator* inheritedInterpolator,
+    float inheritedInterpolationTime,
+    LayoutDirection direction)
+{
+    if (artboardInstance() != nullptr)
+    {
+        artboardInstance()->cascadeLayoutStyle(inheritedInterpolation,
+                                               inheritedInterpolator,
+                                               inheritedInterpolationTime,
+                                               direction);
+    }
+    return false;
+}
+#endif
 
 void NestedArtboardLayout::updateWidthOverride()
 {

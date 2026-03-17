@@ -12,6 +12,7 @@
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
+#include "rive/renderer/stack_vector.hpp"
 #include "rive/profiler/profiler_macros.h"
 
 #include "shaders/constants.glsl"
@@ -958,6 +959,7 @@ static uint32_t pls_transient_backing_plane_count(
         case gpu::InterlockMode::rasterOrdering:
             return 3; // clip, scratch, coverage
         case gpu::InterlockMode::atomics:
+        case gpu::InterlockMode::clockwiseAtomic:
             return 1; // only clip (coverage is atomic)
         case gpu::InterlockMode::clockwise:
         {
@@ -973,7 +975,6 @@ static uint32_t pls_transient_backing_plane_count(
             }
             return n;
         }
-        case gpu::InterlockMode::clockwiseAtomic:
         case gpu::InterlockMode::msaa:
             return 0; // N/A
     }
@@ -994,6 +995,7 @@ static bool wants_fixed_function_color_output(
             return false;
 
         case gpu::InterlockMode::atomics:
+        case gpu::InterlockMode::clockwiseAtomic:
             return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::clockwise:
@@ -1001,10 +1003,6 @@ static bool wants_fixed_function_color_output(
                                              gpu::DrawContents::evenOddFill)));
             return platformFeatures.supportsClockwiseFixedFunctionMode &&
                    !(combinedDrawContents & gpu::DrawContents::advancedBlend);
-
-        case gpu::InterlockMode::clockwiseAtomic:
-            // clockwiseAtomic currently always sets fixedFunctionColorOutput.
-            return true;
 
         case gpu::InterlockMode::msaa:
             // Manual MSAA resolves read the framebuffer, so they can't use
@@ -1283,6 +1281,30 @@ void RenderContext::LogicalFlush::layoutResources(
                gpu::kGradSpanBufferAlignmentInElements ==
            0);
     RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
+}
+
+void RenderContext::LogicalFlush::scheduleBarriersForNextDraw(
+    BarrierFlags barrierFlags)
+{
+    if (m_ctx->platformFeatures()
+            .clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit &&
+        (barrierFlags & gpu::BarrierFlags::clockwiseBorrowedCoverage) &&
+        (m_combinedDrawContents & gpu::DrawContents::advancedBlend))
+    {
+        m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                gpu::DrawType::renderPassInitialize,
+                                ShaderMiscFlags::none,
+                                gpu::DrawContents::none,
+                                1,
+                                0,
+                                BlendMode::overlay,
+                                ImageSampler::LinearClamp(),
+                                gpu::BarrierFlags::clockwiseBorrowedCoverage |
+                                    BarrierFlags::dstBlend);
+        barrierFlags &= ~gpu::BarrierFlags::clockwiseBorrowedCoverage;
+    }
+
+    m_pendingBarriers |= barrierFlags;
 }
 
 void RenderContext::LogicalFlush::writeResources()
@@ -1676,18 +1698,25 @@ void RenderContext::LogicalFlush::writeResources()
             m_combinedDrawContents |= m_drawList.tail()->drawContents;
             // The draw that follows the this init will need a special
             // "msaaPostInit" barrier.
-            m_pendingBarriers |= BarrierFlags::msaaPostInit;
+            scheduleBarriersForNextDraw(BarrierFlags::msaaPostInit);
             assert(m_dstBlendBarrierListTail == &m_firstDstBlendBarrier);
             assert(m_firstDstBlendBarrier == nullptr);
             m_firstDstBlendBarrier = m_drawList.tail();
             m_dstBlendBarrierListTail = &m_drawList.tail()->nextDstBlendBarrier;
         }
 
+        // Indicates required barriers between draws whose keys differ on the
+        // given mask.
+        struct BarriersForKeyDiff
+        {
+            int64_t mask;
+            BarrierFlags barrier;
+        };
+        StackVector<BarriersForKeyDiff, 2> barriersForKeyDiffs;
+
         // Find a mask that tells us when to insert barriers, and which barriers
         // are needed. When the keys of two adjacent draws differ within this
         // bitmask, we insert a barrier between them.
-        int64_t needsBarrierMask = 0;
-        BarrierFlags neededBarriers = BarrierFlags::none;
         switch (m_flushDesc.interlockMode)
         {
             case gpu::InterlockMode::rasterOrdering:
@@ -1695,15 +1724,17 @@ void RenderContext::LogicalFlush::writeResources()
                 RIVE_UNREACHABLE();
 
             case gpu::InterlockMode::atomics:
+            {
                 // In atomic mode, we need barriers any time draws overlap.
                 // Insert a barrier every time the drawGroupIdx changes.
-                needsBarrierMask = keyBuilder.mask(SortEntry::drawGroup);
-                neededBarriers = BarrierFlags::plsAtomic;
+                barriersForKeyDiffs.push_back(
+                    {keyBuilder.mask(SortEntry::drawGroup),
+                     BarrierFlags::plsAtomic});
                 // We need a plsAtomic barrier after the initial clears, loads,
                 // etc.
-                assert(m_pendingBarriers == BarrierFlags::none);
-                m_pendingBarriers = BarrierFlags::plsAtomic;
+                scheduleBarriersForNextDraw(BarrierFlags::plsAtomic);
                 break;
+            }
 
             case gpu::InterlockMode::clockwise:
                 // clockwise mode doesn't need barriers, but we still reorder in
@@ -1711,41 +1742,52 @@ void RenderContext::LogicalFlush::writeResources()
                 break;
 
             case gpu::InterlockMode::clockwiseAtomic:
+            {
                 // In clockwiseAtomic mode, we only need a barrier between the
                 // borrowedCoverage prepasses and the main rendering. Prepasses
                 // have a negative key, so just insert a barrier when the sign
                 // changes.
-                needsBarrierMask = 1ll << 63;
-                neededBarriers = BarrierFlags::clockwiseBorrowedCoverage;
+                constexpr static int64_t SIGN_BIT = (1ll << 63);
+                barriersForKeyDiffs.push_back(
+                    {SIGN_BIT, BarrierFlags::clockwiseBorrowedCoverage});
+                // Just break batching between draw groups. If we also need a
+                // dstBlend or clip barrier, that will be scheduled later.
+                barriersForKeyDiffs.push_back(
+                    {keyBuilder.mask(SortEntry::drawGroup),
+                     BarrierFlags::drawBatchBreak});
                 if (indirectDrawList.empty() || indirectDrawList[0] >= 0)
                 {
                     // There are no borrowed coverage passes. Initiate the
                     // transition to the main subpass immediately.
-                    assert(m_pendingBarriers == BarrierFlags::none);
-                    m_pendingBarriers = BarrierFlags::clockwiseBorrowedCoverage;
+                    scheduleBarriersForNextDraw(
+                        BarrierFlags::clockwiseBorrowedCoverage);
                 }
                 break;
+            }
 
             case gpu::InterlockMode::msaa:
+            {
                 // MSAA mode can't batch draws that overlap because they both
                 // rely on the stencil buffer across subpasses. Stop batching
                 // every time the drawGroupIdx changes.
-                needsBarrierMask = keyBuilder.mask(SortEntry::drawGroup);
+                int64_t needsBreakMask = keyBuilder.mask(SortEntry::drawGroup);
                 // MSAA mode draws clips, strokes, fills, and even/odd with
                 // different stencil settings, so these can't be batched.
-                needsBarrierMask |= keyBuilder.mask(SortEntry::drawContents);
+                needsBreakMask |= keyBuilder.mask(SortEntry::drawContents);
                 if (platformFeatures.supportsBlendAdvancedKHR)
                 {
                     // If using KHR_blend_equation_advanced, we also need to
                     // stop batching between blend modes in order to change the
                     // blend equation.
-                    needsBarrierMask |= keyBuilder.mask(SortEntry::blendMode);
+                    needsBreakMask |= keyBuilder.mask(SortEntry::blendMode);
                 }
                 // MSAA barriers only need to prevent batching of draws for now.
                 // If we also need a dstBlend barrier, that will be decided
                 // later.
-                neededBarriers = BarrierFlags::drawBatchBreak;
+                barriersForKeyDiffs.push_back(
+                    {needsBreakMask, BarrierFlags::drawBatchBreak});
                 break;
+            }
         }
 
         // Write out the draw data from the sorted draw list, and build up a
@@ -1755,13 +1797,17 @@ void RenderContext::LogicalFlush::writeResources()
         for (const int64_t signedKey : indirectDrawList)
         {
             assert(signedKey >= priorSignedKey);
-            // The first draw always gets barriers because we need the barriers
-            // after the initial clears, loads, etc.
-            if (priorSignedKey != BEGIN_KEY &&
-                (priorSignedKey & needsBarrierMask) !=
-                    (signedKey & needsBarrierMask))
+            // The first draw never gets barriers. If barriers are required
+            // before the first draw, those get scheduled outside this loop.
+            if (priorSignedKey != BEGIN_KEY)
             {
-                m_pendingBarriers |= neededBarriers;
+                for (auto [mask, barriers] : barriersForKeyDiffs)
+                {
+                    if ((priorSignedKey & mask) != (signedKey & mask))
+                    {
+                        scheduleBarriersForNextDraw(barriers);
+                    }
+                }
             }
             int64_t key = abs(signedKey);
             auto drawIndex =
@@ -2482,7 +2528,7 @@ uint32_t RenderContext::incrementCoverageBufferPrefix(
             // monotonically increasing.
             *needsCoverageBufferClear = true;
         }
-        m_coverageBufferPrefix += 1 << CLOCKWISE_COVERAGE_BIT_COUNT;
+        m_coverageBufferPrefix += CLOCKWISE_COVERAGE_PREFIX_ONE_VALUE;
     } while (m_coverageBufferPrefix == 0);
 
     return m_coverageBufferPrefix;
@@ -3156,6 +3202,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
 
     shaderMiscFlags |= m_baselineShaderMiscFlags;
 
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic &&
+        draw->blendMode() == BlendMode::srcOver)
+    {
+        // In clockwiseAtomic mode, individual draws can use
+        // fixedFunctionColorOutput even if the render pass as a whole does not.
+        shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+    }
+
     bool canMergeWithPreviousBatch;
     switch (drawType)
     {
@@ -3323,7 +3377,15 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         assert(batch->imageTexture == draw->imageTexture());
     }
 
-    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa)
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
+    {
+        if (draw->blendMode() != BlendMode::srcOver &&
+            !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass))
+        {
+            batch->barriers |= BarrierFlags::dstBlend;
+        }
+    }
+    else if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
         // msaa does't mix src-over draws with advanced blend draws.
         assert((batch->shaderFeatures &

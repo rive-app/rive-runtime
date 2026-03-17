@@ -278,7 +278,7 @@ private:
     /// List of view models instances in the file. We keep this list to keep
     /// them alive during the lifetime of this file. This list does not hold a
     /// reference to instances created by users.
-    std::vector<ViewModelInstance*> m_ViewModelInstances;
+    std::vector<rcp<ViewModelInstance>> m_ViewModelInstances;
 
     mutable std::vector<rcp<ViewModelRuntime>> m_viewModelRuntimes;
     std::vector<DataEnum*> m_Enums;

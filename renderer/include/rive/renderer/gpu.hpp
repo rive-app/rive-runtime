@@ -203,6 +203,10 @@ struct PlatformFeatures
     // DrawType::renderPassInitialize when LoadAction::preserveRenderTarget is
     // specified.
     bool msaaColorPreserveNeedsDraw = false;
+    // Workaround for Qualcomm. Framebuffer reads on Qualcomm seem to not work
+    // in clockwiseAtomic mode unless we issue a simple, 1-pixel draw that reads
+    // the framebuffer between borrowed coverage and the main draws.
+    bool clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit = false;
     // Workaround for precision issues. Determines how far apart we space unique
     // path IDs when they will be bit-casted to fp16.
     uint8_t pathIDGranularity = 1;
@@ -848,6 +852,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             // TODO: shader features aren't fully implemented yet in
             // clockwiseAtomic mode.
             return ShaderFeatures::ENABLE_CLIP_RECT |
+                   ShaderFeatures::ENABLE_ADVANCED_BLEND |
+                   ShaderFeatures::ENABLE_HSL_BLEND_MODES |
                    ShaderFeatures::ENABLE_FEATHER |
                    ShaderFeatures::ENABLE_DITHER;
         case InterlockMode::msaa:
@@ -953,13 +959,20 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                        ShaderFeatures::ENABLE_ADVANCED_BLEND |
                        ShaderFeatures::ENABLE_DITHER;
             }
-            else
+            else if (interlockMode == InterlockMode::msaa)
             {
-                assert(interlockMode == InterlockMode::msaa);
                 // MSAA mode only needs to initialize color, and only when
                 // preserving the render target but using a transient MSAA
                 // attachment.
                 mask = ShaderFeatures::ENABLE_DITHER;
+            }
+            else
+            {
+                // The renderPassInitialize draw in clockwiseAtomic mode is just
+                // a simple workaround that draws a single pixel. No Rive
+                // ShaderFeatures needed.
+                assert(interlockMode == InterlockMode::clockwiseAtomic);
+                mask = ShaderFeatures::NONE;
             }
             break;
         case DrawType::renderPassResolve:
@@ -1373,6 +1386,14 @@ private:
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
     // values. (clockwiseAtomic mode only.)
     WRITEONLY uint32_t m_coverageBufferPrefix;
+    // GLSL doesn't appear to provide a lightweight, region-local barrier for
+    // memory ordering outside of memoryBarrier*(), which have severe
+    // consequences for tiling. When we are already relying on other API level
+    // barriers and only need to guard against instruction reordering, we can
+    // multiply by a tiny epsilon instead, and introduce artifical dependencies
+    // that enforce ordering but don't actually have an effect on the final
+    // outcome.
+    WRITEONLY float m_epsilonForPseudoMemoryBarrier;
     // Spacing between adjacent path IDs (1 if IEEE compliant).
     WRITEONLY uint32_t m_pathIDGranularity;
     WRITEONLY float m_vertexDiscardValue;
@@ -1385,7 +1406,7 @@ private:
     WRITEONLY float m_ditherConversionToRGB10;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 100];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 104];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 

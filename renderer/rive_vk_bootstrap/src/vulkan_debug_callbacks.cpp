@@ -64,6 +64,7 @@ static bool should_error_message_abort(const char* message)
         // running.
         "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/docs/adreno-gpu/developer-guide/index.html",
         "The following warning was triggered: VKDBGUTILWARN003. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
+        "The following warning was triggered: VKDBGUTILWARN002. Please refer to the Adreno Game Developer Guide for more information: https://developer.qualcomm.com/sites/default/files/docs/adreno-gpu/snapdragon-game-toolkit/learn_guides.html",
     };
 
     for (const char* msg : s_ignoredValidationMsgList)

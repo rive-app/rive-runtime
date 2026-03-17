@@ -207,10 +207,6 @@ File::~File()
     {
         viewModel->unref();
     }
-    for (auto& viewModelInstance : m_ViewModelInstances)
-    {
-        viewModelInstance->unref();
-    }
 #ifdef WITH_RIVE_TOOLS
     m_viewModelInstanceRegistrar = nullptr;
 #endif
@@ -625,7 +621,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 
 void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
 {
-    m_ViewModelInstances.push_back(viewModelInstance);
+    m_ViewModelInstances.push_back(rcp<ViewModelInstance>(viewModelInstance));
 }
 
 #ifdef WITH_RIVE_SCRIPTING

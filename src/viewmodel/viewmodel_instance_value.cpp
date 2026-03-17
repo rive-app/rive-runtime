@@ -106,6 +106,11 @@ void ViewModelInstanceValue::advanced()
     m_changeFlags &= ~ValueFlags::valueChanged;
 }
 
+void ViewModelInstanceValue::viewModelInstance(ViewModelInstance* value)
+{
+    m_viewModelInstance = value;
+}
+
 void ViewModelInstanceValue::addDelegate(
     ViewModelInstanceValueDelegate* delegate)
 {

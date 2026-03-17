@@ -5,6 +5,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/file.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
@@ -47,6 +48,10 @@ void ViewModelInstance::addValue(ViewModelInstanceValue* value)
         {
             return;
         }
+    }
+    if (value)
+    {
+        value->viewModelInstance(this);
     }
     m_PropertyValues.push_back(rcp<ViewModelInstanceValue>(value));
 }

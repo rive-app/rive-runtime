@@ -163,8 +163,15 @@ private:
     vkutil::Image* plsTransientImageArray();
     vkutil::ImageView* plsTransientCoverageView();
     vkutil::ImageView* plsTransientClipView();
+    rcp<vkutil::ImageView> makePLSTransientImageView(VkFormat,
+                                                     uint32_t index,
+                                                     const char* debugName);
+    // Used by rasterOrdering to stash the original dst color before overwriting
+    // it, and by atomic and clockwiseAtomic as the clip buffer.
     vkutil::Texture2D* plsTransientScratchColorTexture();
-    vkutil::ImageView* plsTransientScratchColorView_RGB10_A2();
+    // Used by clockwise and clockwiseAtomic to save an intermediate RGB blend
+    // color across overlapping fragments.
+    vkutil::Texture2D* plsBlendStorageTexture_RGB10_A2();
 
     // The offscreen color texture is not transient and supports PLS. It is used
     // in place of the renderTarget (via copying in and out) when the
@@ -253,6 +260,9 @@ private:
                        VkImageView msaaResolveImageView,
                        RenderPassOptionsVulkan,
                        const IAABB& scissor);
+
+        const IAABB& drawBounds() const { return m_drawBounds; }
+        const IAABB& scissor() const { return m_scissor; }
 
         const DrawPipelineLayoutVulkan& pipelineLayout() const
         {
@@ -401,7 +411,7 @@ private:
     rcp<vkutil::ImageView> m_plsTransientCoverageView;
     rcp<vkutil::ImageView> m_plsTransientClipView;
     rcp<vkutil::Texture2D> m_plsTransientScratchColorTexture;
-    rcp<vkutil::ImageView> m_plsTransientScratchColorView_RGB10_A2;
+    rcp<vkutil::Texture2D> m_plsBlendStorageTexture_RGB10_A2;
     rcp<vkutil::Texture2D> m_plsOffscreenColorTexture;
     rcp<vkutil::Texture2D> m_plsAtomicCoverageTexture;
 

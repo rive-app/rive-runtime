@@ -319,6 +319,7 @@
 #define STORAGE_BUFFER_LOAD(NAME, I) NAME._values[I]
 #define STORAGE_BUFFER_ATOMIC_MAX(NAME, I, X) atomicMax(NAME._values[I], X)
 #define STORAGE_BUFFER_ATOMIC_ADD(NAME, I, X) atomicAdd(NAME._values[I], X)
+#define STORAGE_BUFFER_ATOMIC_OR(NAME, I, X) atomicOr(NAME._values[I], X)
 
 #endif // DISABLE_SHADER_STORAGE_BUFFERS
 
@@ -441,8 +442,7 @@
 
 #ifndef @USING_PLS_STORAGE_TEXTURES
 #define @USING_PLS_STORAGE_TEXTURES
-
-#endif // PLS_IMPL_STORAGE_TEXTURE
+#endif
 
 #endif // PLS_IMPL_STORAGE_TEXTURE
 
@@ -573,13 +573,20 @@
 #define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
     layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
         uniform highp coherent uimage2D NAME
+#define PLS_DECL4F_RGB10_A2_ATOMIC(IDX, NAME)                                  \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgb10_a2)            \
+        uniform mediump coherent image2D NAME
 #else
 #define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
     layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#define PLS_DECL4F_RGB10_A2_ATOMIC(IDX, NAME)                                  \
+    layout(binding = IDX, rgb10_a2) uniform mediump coherent image2D NAME;
 #endif
 #define PLS_LOADUI_ATOMIC(PLANE) imageLoad(PLANE, _plsCoord).r
 #define PLS_STOREUI_ATOMIC(PLANE, VALUE)                                       \
     imageStore(PLANE, _plsCoord, uvec4(VALUE))
+#define PLS_LOAD4F_ATOMIC(PLANE) imageLoad(PLANE, _plsCoord)
+#define PLS_STORE4F_ATOMIC(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
 #define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
 #define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
 

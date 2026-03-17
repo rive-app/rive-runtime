@@ -25,6 +25,7 @@
 #include "rive/data_bind/context/context_value_color.hpp"
 #include "rive/data_bind/context/context_value_trigger.hpp"
 #include "rive/data_bind/context/context_value_symbol_list_index.hpp"
+#include "rive/data_bind/context/context_value_viewmodel.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/formula/formula_token.hpp"
@@ -187,6 +188,8 @@ DataType DataBind::sourceOutputType()
                 return DataType::assetImage;
             case ViewModelInstanceArtboardBase::typeKey:
                 return DataType::artboard;
+            case ViewModelInstanceViewModelBase::typeKey:
+                return DataType::viewModel;
         }
     }
     return DataType::none;
@@ -268,6 +271,9 @@ void DataBind::bind()
             break;
         case DataType::artboard:
             m_ContextValue = new DataBindContextValueArtboard(this);
+            break;
+        case DataType::viewModel:
+            m_ContextValue = new DataBindContextValueViewModel(this);
             break;
         case DataType::any:
             m_ContextValue = new DataBindContextValueAny(this);

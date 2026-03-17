@@ -347,23 +347,6 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         assert(blendEquation == gpu::BlendEquation::none);
     }
 #endif
-    else if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
-    {
-        // Clockwise mode is still an experimental Vulkan-only feature.
-        // Override the pipeline blend state.
-        if (props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
-        {
-            // Borrowed coverage clockwise draws only update the coverage buffer
-            // (which is not a render target attachment).
-            blendEquation = gpu::BlendEquation::none;
-            colorWriteEnabled = false;
-        }
-        else
-        {
-            // Forward coverage clockwise draws are all unmultiplied src-over.
-            blendEquation = gpu::BlendEquation::srcOver;
-        }
-    }
 
     StackVector<VkPipelineColorBlendAttachmentState, PLS_PLANE_COUNT>
         blendStates;

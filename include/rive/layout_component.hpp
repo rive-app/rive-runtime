@@ -282,7 +282,7 @@ public:
     bool cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
                             KeyFrameInterpolator* inheritedInterpolator,
                             float inheritedInterpolationTime,
-                            LayoutDirection direction);
+                            LayoutDirection direction) override;
     bool setInheritedInterpolation(
         LayoutStyleInterpolation inheritedInterpolation,
         KeyFrameInterpolator* inheritedInterpolator,

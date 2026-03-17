@@ -916,6 +916,25 @@ unpack_atlas_coverage_vertex(float3 triangleVertex,
 }
 #endif // @VERTEX && @ATLAS_BLIT
 
+// Calculates a coverage value to multiply into the paintColor that will
+// convert the current framebuffer value from "paint blended on top with
+// coverage of c0" to "paint blended on top with coverage of c1".
+//
+// i.e., The paint has already been blended into the framebuffer with coverage
+// "c0". After this fragment blends, it will be equivalent to the paint having
+// been blended into the framebuffer with coverage "c1".
+//
+// NOTE: c1 must be > c0, which is why this is only applicable in clockwise
+// modes.
+INLINE half incremental_clockwise_coverage(half c0, half c1, half paintAlpha)
+{
+    // NOTE: "max(, eps)" is just to avoid a divide by zero. When the
+    // denominator would be 0, c0 == 1, which also means c1 == 1, and there is
+    // no coverage to apply. Since c0 == c1 == 1, (c1 - c0) / eps == 0, which is
+    // the result we want in this case.
+    return (c1 - c0) / max(1. - c0 * paintAlpha, EPSILON_FP16_NON_DENORM);
+}
+
 // Converts an x,y image coordinate into a buffer index, swizzling into 32x32
 // tiles for better cache performance.
 // imageWidth must be a multiple of 32.

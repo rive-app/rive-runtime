@@ -44,9 +44,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
         });
     }
 
-    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        interlockMode == gpu::InterlockMode::atomics ||
-        interlockMode == gpu::InterlockMode::clockwise)
+    if (interlockMode != gpu::InterlockMode::msaa)
     {
         plsLayoutBindings.push_back({
             .binding = CLIP_PLANE_IDX,
@@ -54,17 +52,28 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
-        if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-            (interlockMode == gpu::InterlockMode::clockwise &&
-             !fixedFunctionColorOutput))
-        {
-            plsLayoutBindings.push_back({
-                .binding = SCRATCH_COLOR_PLANE_IDX,
-                .descriptorType = plsDescriptorType,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            });
-        }
+    }
+
+    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+        ((interlockMode == gpu::InterlockMode::clockwise ||
+          interlockMode == gpu::InterlockMode::clockwiseAtomic) &&
+         !fixedFunctionColorOutput))
+    {
+        plsLayoutBindings.push_back({
+            .binding = SCRATCH_COLOR_PLANE_IDX,
+            .descriptorType =
+                (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+                    ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                    : plsDescriptorType,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        });
+    }
+
+    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+        interlockMode == gpu::InterlockMode::atomics ||
+        interlockMode == gpu::InterlockMode::clockwise)
+    {
         plsLayoutBindings.push_back({
             .binding = COVERAGE_PLANE_IDX,
             .descriptorType = m_interlockMode == gpu::InterlockMode::atomics
@@ -156,9 +165,10 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
                        : 0u;
         case gpu::InterlockMode::clockwiseAtomic:
             assert(subpassIndex == 0 || subpassIndex == 1);
-            // Subpass 0 (borrowed coverage) has no color attachments.
-            // Subpass 1 (rendering) has 1 color attachment (for now).
-            return subpassIndex;
+            // Subpass 0 (borrowed coverage) has no attachments. (It only
+            // updates the coverage buffer.)
+            // Subpass 1 (rendering) has 2 attachments: color & clip.
+            return subpassIndex * 2;
         case gpu::InterlockMode::msaa:
             assert(0 <= subpassIndex && subpassIndex <= 2);
             return 1u;
