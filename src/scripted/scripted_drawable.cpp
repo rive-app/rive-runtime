@@ -10,6 +10,7 @@ using namespace rive;
 #ifdef WITH_RIVE_SCRIPTING
 bool ScriptedDrawable::scriptInit(ScriptingVM* vm)
 {
+    m_isAdvanceActive = true;
     ScriptedObject::scriptInit(vm);
     addDirt(ComponentDirt::Paint);
     return true;
