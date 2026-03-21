@@ -208,6 +208,33 @@ private:
     ConditionComparandUint32* m_rightComparand = nullptr;
 };
 
+class ConditionComparisonViewModel : public ConditionComparison
+{
+public:
+    ConditionComparisonViewModel(ConditionComparandViewModel* left,
+                                 ConditionComparandViewModel* right,
+                                 ConditionOperation* operation) :
+        ConditionComparison(operation),
+        m_leftComparand(left),
+        m_rightComparand(right)
+    {}
+    ~ConditionComparisonViewModel()
+    {
+        delete m_leftComparand;
+        delete m_rightComparand;
+    }
+    bool compare(const StateMachineInstance* stateMachineInstance,
+                 StateMachineLayerInstance* layerInstance) override
+    {
+        return comparePointers(m_leftComparand->value(stateMachineInstance),
+                               m_rightComparand->value(stateMachineInstance));
+    }
+
+private:
+    ConditionComparandViewModel* m_leftComparand = nullptr;
+    ConditionComparandViewModel* m_rightComparand = nullptr;
+};
+
 TransitionViewModelCondition::~TransitionViewModelCondition()
 {
     if (m_leftComparator != nullptr)
@@ -755,6 +782,38 @@ void TransitionViewModelCondition::initialize()
                 }
                 break;
             }
+            case BindablePropertyViewModel::typeKey:
+            {
+                if (rightComparator()
+                        ->is<TransitionPropertyViewModelComparator>())
+                {
+                    auto rightBindableProperty =
+                        rightComparator()
+                            ->as<TransitionPropertyViewModelComparator>()
+                            ->bindableProperty();
+                    if (rightBindableProperty == nullptr)
+                    {
+                        break;
+                    }
+                    if (rightBindableProperty->is<BindablePropertyViewModel>())
+                    {
+                        auto leftComparand =
+                            new ConditionComparandViewModelBindable(
+                                leftBindableProperty
+                                    ->as<BindablePropertyViewModel>());
+                        auto rightComparand =
+                            new ConditionComparandViewModelBindable(
+                                rightBindableProperty
+                                    ->as<BindablePropertyViewModel>());
+                        m_comparison =
+                            new ConditionComparisonViewModel(leftComparand,
+                                                             rightComparand,
+                                                             operation(op()));
+                        return;
+                    }
+                }
+                break;
+            }
             case BindablePropertyArtboard::typeKey:
             {
                 if (rightComparator()
@@ -832,4 +891,9 @@ bool ConditionComparison::compareColors(int left, int right)
 bool ConditionComparison::compareUints32(uint32_t left, uint32_t right)
 {
     return m_operation->compareUints32(left, right);
+}
+
+bool ConditionComparison::comparePointers(const void* left, const void* right)
+{
+    return m_operation->compareBooleans(left == right, true);
 }

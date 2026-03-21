@@ -43,7 +43,11 @@ void DataBindContext::resolvePath()
             auto dataResolver = m_file->dataResolver();
             if (dataResolver)
             {
-                m_SourcePathIdsBuffer = dataResolver->resolvePath(pathId);
+                auto resolvedPath = dataResolver->resolvePath(pathId);
+                if (!resolvedPath.empty())
+                {
+                    m_SourcePathIdsBuffer = resolvedPath;
+                }
             }
         }
     }

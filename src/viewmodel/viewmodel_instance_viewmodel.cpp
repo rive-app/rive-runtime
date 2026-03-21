@@ -3,6 +3,7 @@
 #include <array>
 
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/data_bind/data_values/data_value_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/refcnt.hpp"
@@ -111,6 +112,11 @@ StatusCode ViewModelInstanceViewModel::import(ImportStack& importStack)
 void ViewModelInstanceViewModel::updateViewModel(ViewModelInstance* value)
 {
     m_viewModelInstance->replaceViewModelByProperty(this, ref_rcp(value));
+}
+
+void ViewModelInstanceViewModel::applyValue(DataValueViewModel* dataValue)
+{
+    updateViewModel(dataValue->value());
 }
 
 Core* ViewModelInstanceViewModel::clone() const

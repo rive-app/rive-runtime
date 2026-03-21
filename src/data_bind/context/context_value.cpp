@@ -47,12 +47,18 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
             {
                 auto viewmodelInstanceEnum =
                     source->as<ViewModelInstanceEnum>();
+                auto viewModelProperty =
+                    viewmodelInstanceEnum->viewModelProperty();
                 auto viewModelPropertyEnum =
-                    viewmodelInstanceEnum->viewModelProperty()
-                        ->as<ViewModelPropertyEnum>();
+                    viewModelProperty != nullptr &&
+                            viewModelProperty->is<ViewModelPropertyEnum>()
+                        ? viewModelProperty->as<ViewModelPropertyEnum>()
+                        : nullptr;
                 m_dataValue =
                     new DataValueEnum(viewmodelInstanceEnum->propertyValue(),
-                                      viewModelPropertyEnum->dataEnum());
+                                      viewModelPropertyEnum != nullptr
+                                          ? viewModelPropertyEnum->dataEnum()
+                                          : nullptr);
             }
             break;
             case ViewModelInstanceTriggerBase::typeKey:
@@ -217,6 +223,13 @@ void DataBindContextValue::applyToSource(Core* component,
             calculateValueAndApply<DataValueInteger,
                                    uint32_t,
                                    ViewModelInstanceArtboard>(isMainDirection);
+        }
+        break;
+        case ViewModelInstanceViewModelBase::typeKey:
+        {
+            calculateValueAndApply<DataValueViewModel,
+                                   ViewModelInstance*,
+                                   ViewModelInstanceViewModel>(isMainDirection);
         }
         break;
     }

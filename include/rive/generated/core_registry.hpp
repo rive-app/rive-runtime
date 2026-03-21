@@ -158,6 +158,7 @@
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
+#include "rive/data_bind/bindable_property_viewmodel.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/data_converter_boolean_negate.hpp"
 #include "rive/data_bind/converters/data_converter_formula.hpp"
@@ -783,6 +784,8 @@ public:
                 return new BindablePropertyEnum();
             case BindablePropertyColorBase::typeKey:
                 return new BindablePropertyColor();
+            case BindablePropertyViewModelBase::typeKey:
+                return new BindablePropertyViewModel();
             case NestedArtboardLeafBase::typeKey:
                 return new NestedArtboardLeaf();
             case WeightBase::typeKey:

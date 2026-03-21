@@ -12,6 +12,7 @@
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/bindable_property_integer.hpp"
+#include "rive/data_bind/bindable_property_viewmodel.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_any.hpp"
@@ -103,6 +104,7 @@ StatusCode DataBind::import(ImportStack& importStack)
                 case BindablePropertyTriggerBase::typeKey:
                 case BindablePropertyIntegerBase::typeKey:
                 case BindablePropertyAssetBase::typeKey:
+                case BindablePropertyViewModelBase::typeKey:
                 case BindablePropertyListBase::typeKey:
                 case TransitionPropertyViewModelComparatorBase::typeKey:
                 case StateTransitionBase::typeKey:

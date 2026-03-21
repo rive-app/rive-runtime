@@ -29,6 +29,10 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
     if (m_ViewModelInstance != nullptr &&
         m_ViewModelInstance->viewModelId() == path[0])
     {
+        if (path.size() == 1)
+        {
+            return nullptr;
+        }
         rcp<ViewModelInstance> instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end() - 1; it++)
         {
@@ -67,6 +71,16 @@ ViewModelInstanceValue* DataContext::getRelativeViewModelProperty(
     }
     {
         rcp<ViewModelInstance> instance = m_ViewModelInstance;
+        if (path.size() == 1)
+        {
+            ViewModelInstanceValue* propertyValue =
+                instance->propertyValue(resolver->resolveName(path[0]));
+            if (propertyValue)
+            {
+                return propertyValue;
+            }
+            goto skip_relative_path;
+        }
         for (it = path.begin(); it != path.end() - 1; it++)
         {
             auto viewModelInstanceValue =

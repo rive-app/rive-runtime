@@ -1,7 +1,11 @@
 #include "rive/animation/listener_viewmodel_change.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_viewmodel.hpp"
+#include "rive/data_bind/data_bind_context.hpp"
+#include "rive/generated/core_registry.hpp"
 #include "rive/importers/bindable_property_importer.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 
 using namespace rive;
 
@@ -48,15 +52,28 @@ void ListenerViewModelChange::perform(
     // bindable instance
     auto dataBind =
         stateMachineInstance->bindableDataBindToSource(bindableInstance);
-    // Apply the change that will assign the value of the bindable property to
-    // the view model property instance
-    if (dataBind != nullptr)
-    {
-
-        dataBind->updateSourceBinding(true);
-    }
     auto dataBindToTarget =
         stateMachineInstance->bindableDataBindToTarget(bindableInstance);
+    if (dataBind != nullptr)
+    {
+        if (dataBind->target() != nullptr &&
+            dataBind->target()->is<BindablePropertyViewModel>())
+        {
+            auto targetValue =
+                dataBind->target()->as<BindablePropertyViewModel>();
+            auto context = stateMachineInstance->dataContext();
+            if (context != nullptr)
+            {
+                auto value = context->viewModelInstance().get();
+                targetValue->viewModelInstanceValue(value);
+                CoreRegistry::setUint(
+                    targetValue,
+                    BindablePropertyIdBase::propertyValuePropertyKey,
+                    ViewModelInstance::pointerKey(value));
+            }
+        }
+        dataBind->updateSourceBinding(true);
+    }
     if (dataBindToTarget)
     {
         dataBindToTarget->addDirt(ComponentDirt::Bindings, true);

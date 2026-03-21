@@ -13,9 +13,6 @@ public:
     void apply(Core* component,
                uint32_t propertyKey,
                bool isMainDirection) override;
-    virtual void applyToSource(Core* component,
-                               uint32_t propertyKey,
-                               bool isMainDirection) override;
 };
 } // namespace rive
 

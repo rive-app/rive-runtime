@@ -500,7 +500,12 @@ void NestedArtboard::bindViewModelInstance(
     m_viewModelInstance = viewModelInstance;
     if (artboardInstance() != nullptr)
     {
-        artboardInstance()->bindViewModelInstance(viewModelInstance, parent);
+        // Stateful nested artboards must keep their own instance as the local
+        // root context, while the incoming instance remains the parent context.
+        auto instanceToBind = m_statefulViewModelInstance != nullptr
+                                  ? m_statefulViewModelInstance
+                                  : viewModelInstance;
+        artboardInstance()->bindViewModelInstance(instanceToBind, parent);
         for (auto& animation : m_NestedAnimations)
         {
             if (animation->is<NestedStateMachine>())

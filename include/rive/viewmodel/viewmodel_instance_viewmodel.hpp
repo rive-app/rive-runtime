@@ -7,6 +7,7 @@
 #include <stdio.h>
 namespace rive
 {
+class DataValueViewModel;
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceViewModel;
 typedef void (*ViewModelViewModelChanged)(ViewModelInstanceViewModel* vmi);
@@ -48,6 +49,7 @@ public:
     void setRoot(rcp<ViewModelInstance> value) override;
     void advanced() override;
     void updateViewModel(ViewModelInstance*) override;
+    void applyValue(DataValueViewModel*);
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
 #ifdef WITH_RIVE_TOOLS

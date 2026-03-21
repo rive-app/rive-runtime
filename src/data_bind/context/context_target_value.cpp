@@ -7,11 +7,15 @@
 #include "rive/data_bind/data_values/data_value_integer.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_string.hpp"
+#include "rive/data_bind/data_values/data_value_viewmodel.hpp"
+#include "rive/data_bind/bindable_property_viewmodel.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
@@ -47,10 +51,17 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
                     m_targetValue = new DataValueNumber();
                 }
             }
-            else if (dataBind->source()->coreType() ==
-                     ViewModelInstanceAssetImageBase::typeKey)
+            else if (dataBind->source() != nullptr &&
+                     dataBind->source()->coreType() ==
+                         ViewModelInstanceAssetImageBase::typeKey)
             {
                 m_targetValue = new DataValueAssetImage();
+            }
+            else if (dataBind->source() != nullptr &&
+                     dataBind->source()->coreType() ==
+                         ViewModelInstanceViewModelBase::typeKey)
+            {
+                m_targetValue = new DataValueViewModel();
             }
             else
             {
@@ -128,6 +139,40 @@ bool DataBindContextTargetValue::syncTargetValue()
                 {
                     m_targetValue->as<DataValueAssetImage>()->imageValue(
                         fileAsset->renderImage());
+                    didChange = true;
+                }
+                return didChange;
+            }
+            else if (m_dataBind->target()->coreType() ==
+                     BindablePropertyViewModelBase::typeKey)
+            {
+                bool didChange = false;
+                auto viewModelInstance = m_dataBind->target()
+                                             ->as<BindablePropertyViewModel>()
+                                             ->viewModelInstanceValue();
+                if (m_targetValue->is<DataValueViewModel>() &&
+                    m_targetValue->as<DataValueViewModel>()->value() !=
+                        viewModelInstance)
+                {
+                    m_targetValue->as<DataValueViewModel>()->value(
+                        viewModelInstance);
+                    didChange = true;
+                }
+                return didChange;
+            }
+            else if (m_dataBind->target()->coreType() ==
+                     ViewModelInstanceViewModelBase::typeKey)
+            {
+                bool didChange = false;
+                auto viewModelInstanceViewModel =
+                    m_dataBind->target()->as<ViewModelInstanceViewModel>();
+                if (viewModelInstanceViewModel->referenceViewModelInstance()
+                        .get() !=
+                    m_targetValue->as<DataValueViewModel>()->value())
+                {
+                    m_targetValue->as<DataValueViewModel>()->value(
+                        viewModelInstanceViewModel->referenceViewModelInstance()
+                            .get());
                     didChange = true;
                 }
                 return didChange;

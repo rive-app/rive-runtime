@@ -17,6 +17,10 @@ public:
     void decodeSourcePathIds(Span<const uint8_t> value) override;
     void copySourcePathIds(const DataBindContextBase& object) override;
     void bindFromContext(DataContext* dataContext);
+    const std::vector<uint32_t>& sourcePathIds() const
+    {
+        return m_SourcePathIdsBuffer;
+    }
 
 private:
     void resolvePath();
