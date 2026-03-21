@@ -2,7 +2,9 @@
 #include "rive/artboard.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/component.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/drawable.hpp"
 #include "rive/input/focus_input_traversal.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/focus_listener.hpp"
@@ -406,6 +408,85 @@ rcp<FocusNode> FocusData::findClosestFocusNode(Component* component)
         current = current->parent();
     }
     return nullptr;
+}
+
+namespace
+{
+
+bool componentAllowsFocusTraversal(const Component* c)
+{
+    if (c == nullptr || c->isCollapsed())
+    {
+        return false;
+    }
+    if (c->is<Drawable>())
+    {
+        if (c->as<Drawable>()->isHidden())
+        {
+            return false;
+        }
+    }
+    if (c->is<TransformComponent>())
+    {
+        if (c->as<TransformComponent>()->renderOpacity() <= 0.0f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
+bool FocusData::isEligibleForFocusTraversal() const
+{
+    if (isCollapsed())
+    {
+        return false;
+    }
+    Component* start = parent();
+    if (start == nullptr)
+    {
+        return true;
+    }
+    if (!componentAllowsFocusTraversal(start))
+    {
+        return false;
+    }
+    ParentTraversal traversal(start);
+    while (true)
+    {
+        ContainerComponent* p = traversal.next();
+        if (p == nullptr)
+        {
+            break;
+        }
+        if (!componentAllowsFocusTraversal(p))
+        {
+            return false;
+        }
+        if (traversal.didCrossBoundary())
+        {
+            ArtboardHost* host = traversal.crossingHost();
+            if (host != nullptr)
+            {
+                Component* hc = host->hostComponent();
+                if (hc != nullptr)
+                {
+                    if (!componentAllowsFocusTraversal(hc))
+                    {
+                        return false;
+                    }
+                    if (hc->is<NestedArtboard>() &&
+                        hc->as<NestedArtboard>()->isPaused())
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
 }
 
 bool FocusData::worldPosition(Vec2D& outPosition)

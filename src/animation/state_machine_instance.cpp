@@ -2057,6 +2057,7 @@ bool StateMachineInstance::advanceAndApply(float seconds)
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
     // to true.
     bool keepGoing = this->advance(seconds, true) || seconds == 0.0f;
+    focusManager()->dropFocusIfFocusTargetHidden();
     if (m_artboardInstance->advanceInternal(
             seconds,
             AdvanceFlags::IsRoot | AdvanceFlags::Animate |

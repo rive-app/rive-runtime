@@ -5,6 +5,7 @@
 #include "rive/input/focus_manager.hpp"
 #include "rive/artboard.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/focus_data.hpp"
 #include "rive/math/aabb.hpp"
 #include <algorithm>
 #include <cmath>
@@ -13,6 +14,47 @@
 
 namespace rive
 {
+
+static bool focusNodeEligibleForFocus(FocusNode* node)
+{
+    if (node == nullptr || !node->canFocus())
+    {
+        return false;
+    }
+#ifdef WITH_RIVE_TOOLS
+    if (node->isCollapsed())
+    {
+        return false;
+    }
+#endif
+    Focusable* f = node->focusable();
+    if (f == nullptr)
+    {
+        return true;
+    }
+    return f->isEligibleForFocusTraversal();
+}
+
+static bool focusNodeEligibleForTraversal(FocusNode* node)
+{
+    if (node == nullptr || !node->canTraverse())
+    {
+        return false;
+    }
+    return focusNodeEligibleForFocus(node);
+}
+
+void FocusManager::dropFocusIfFocusTargetHidden()
+{
+    if (m_primaryFocus == nullptr)
+    {
+        return;
+    }
+    if (!focusNodeEligibleForTraversal(m_primaryFocus.get()))
+    {
+        clearFocus();
+    }
+}
 
 Artboard* FocusManager::primaryFocusArtboard() const
 {
@@ -59,6 +101,10 @@ void FocusManager::setFocus(rcp<FocusNode> node)
         return;
     }
 
+    if (node != nullptr && !focusNodeEligibleForFocus(node.get()))
+    {
+        return;
+    }
     FocusNode* oldFocus = m_primaryFocus.get();
     m_primaryFocus = std::move(node);
     notifyFocusChange(oldFocus, m_primaryFocus.get());
@@ -158,11 +204,13 @@ void FocusManager::removeChild(rcp<FocusNode> child)
 
 bool FocusManager::focusNext()
 {
+    dropFocusIfFocusTargetHidden();
     return findNextFocusable(m_primaryFocus.get(), true) != nullptr;
 }
 
 bool FocusManager::focusPrevious()
 {
+    dropFocusIfFocusTargetHidden();
     return findNextFocusable(m_primaryFocus.get(), false) != nullptr;
 }
 
@@ -231,7 +279,8 @@ static void collectAllTraversableNodes(const std::vector<rcp<FocusNode>>& nodes,
 {
     for (const auto& node : nodes)
     {
-        if (node->canFocus() && node->canTraverse() && isLeaf(node.get()))
+        if (node->canFocus() && node->canTraverse() && isLeaf(node.get()) &&
+            focusNodeEligibleForTraversal(node.get()))
         {
             result.push_back(node.get());
         }
@@ -488,6 +537,7 @@ FocusNode* FocusManager::findNodeInDirection(FocusNode* current,
 
 bool FocusManager::focusLeft()
 {
+    dropFocusIfFocusTargetHidden();
     FocusNode* next =
         findNodeInDirection(m_primaryFocus.get(), Direction::left);
     if (next)
@@ -500,6 +550,7 @@ bool FocusManager::focusLeft()
 
 bool FocusManager::focusRight()
 {
+    dropFocusIfFocusTargetHidden();
     FocusNode* next =
         findNodeInDirection(m_primaryFocus.get(), Direction::right);
     if (next)
@@ -512,6 +563,7 @@ bool FocusManager::focusRight()
 
 bool FocusManager::focusUp()
 {
+    dropFocusIfFocusTargetHidden();
     FocusNode* next = findNodeInDirection(m_primaryFocus.get(), Direction::up);
     if (next)
     {
@@ -523,6 +575,7 @@ bool FocusManager::focusUp()
 
 bool FocusManager::focusDown()
 {
+    dropFocusIfFocusTargetHidden();
     FocusNode* next =
         findNodeInDirection(m_primaryFocus.get(), Direction::down);
     if (next)
@@ -538,6 +591,7 @@ bool FocusManager::keyInput(Key key,
                             bool isPressed,
                             bool isRepeat)
 {
+    dropFocusIfFocusTargetHidden();
     // Bubble up through focus tree until someone handles the input
     FocusNode* node = m_primaryFocus.get();
     while (node != nullptr)
@@ -553,6 +607,7 @@ bool FocusManager::keyInput(Key key,
 
 bool FocusManager::textInput(const std::string& text)
 {
+    dropFocusIfFocusTargetHidden();
     // Bubble up through focus tree until someone handles the input
     FocusNode* node = m_primaryFocus.get();
     while (node != nullptr)
@@ -665,7 +720,7 @@ std::vector<FocusNode*> FocusManager::getTraversableNodes(
 
     for (const auto& child : *childList)
     {
-        if (child->canFocus() && child->canTraverse())
+        if (focusNodeEligibleForTraversal(child.get()))
         {
             result.push_back(child.get());
         }
@@ -681,36 +736,93 @@ std::vector<FocusNode*> FocusManager::getTraversableNodes(
     return result;
 }
 
-// Helper to get the first focusable leaf (deepest first child)
-static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager)
+static bool hasEligibleTraversableChildInFocusTree(FocusNode* node)
 {
-    if (!node)
-        return nullptr;
-
-    // If node has traversable children, descend to first child
-    auto children = manager->getTraversableNodes(node);
-    if (!children.empty())
+    for (const auto& ch : node->children())
     {
-        return getFirstLeaf(children.front(), manager);
+        if (focusNodeEligibleForTraversal(ch.get()))
+        {
+            return true;
+        }
     }
-    // No traversable children - this is a leaf
-    return node;
+    return false;
 }
 
-// Helper to get the last focusable leaf (deepest last child)
+// First eligible leaf under node (deepest first); nullptr if none
+static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager)
+{
+    if (node == nullptr)
+    {
+        return nullptr;
+    }
+    auto children = manager->getTraversableNodes(node);
+    for (FocusNode* ch : children)
+    {
+        FocusNode* leaf = getFirstLeaf(ch, manager);
+        if (leaf != nullptr)
+        {
+            return leaf;
+        }
+    }
+    if (focusNodeEligibleForTraversal(node) &&
+        !hasEligibleTraversableChildInFocusTree(node))
+    {
+        return node;
+    }
+    return nullptr;
+}
+
 static FocusNode* getLastLeaf(FocusNode* node, const FocusManager* manager)
 {
-    if (!node)
-        return nullptr;
-
-    // If node has traversable children, descend to last child
-    auto children = manager->getTraversableNodes(node);
-    if (!children.empty())
+    if (node == nullptr)
     {
-        return getLastLeaf(children.back(), manager);
+        return nullptr;
     }
-    // No traversable children - this is a leaf
-    return node;
+    auto children = manager->getTraversableNodes(node);
+    for (auto it = children.rbegin(); it != children.rend(); ++it)
+    {
+        FocusNode* leaf = getLastLeaf(*it, manager);
+        if (leaf != nullptr)
+        {
+            return leaf;
+        }
+    }
+    if (focusNodeEligibleForTraversal(node) &&
+        !hasEligibleTraversableChildInFocusTree(node))
+    {
+        return node;
+    }
+    return nullptr;
+}
+
+static FocusNode* firstEligibleLeafFrom(
+    const std::vector<FocusNode*>& traversable,
+    bool forward,
+    const FocusManager* manager)
+{
+    if (forward)
+    {
+        for (FocusNode* t : traversable)
+        {
+            FocusNode* leaf = getFirstLeaf(t, manager);
+            if (leaf != nullptr)
+            {
+                return leaf;
+            }
+        }
+    }
+    else
+    {
+        for (auto it = traversable.rbegin(); it != traversable.rend(); ++it)
+        {
+            FocusNode* leaf = getLastLeaf(*it, manager);
+            if (leaf != nullptr)
+            {
+                return leaf;
+            }
+        }
+    }
+    return nullptr;
 }
 
 FocusNode* FocusManager::findNextFocusable(FocusNode* current,
@@ -721,7 +833,6 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
 
     if (traversable.empty())
     {
-        // No traversable nodes at this level, try parent scope
         if (scope)
         {
             return findNextFocusable(scope, forward);
@@ -729,97 +840,111 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
         return nullptr;
     }
 
-    // Find current position
     auto it = std::find(traversable.begin(), traversable.end(), current);
-
     FocusNode* next = nullptr;
 
     if (it == traversable.end())
     {
-        // No current focus or current not in this list, pick first or last leaf
-        FocusNode* candidate =
-            forward ? traversable.front() : traversable.back();
-        next = forward ? getFirstLeaf(candidate, this)
-                       : getLastLeaf(candidate, this);
+        next = firstEligibleLeafFrom(traversable, forward, this);
     }
     else
     {
+        size_t idx = static_cast<size_t>(it - traversable.begin());
         if (forward)
         {
-            ++it;
-            if (it == traversable.end())
+            for (size_t i = idx + 1; i < traversable.size(); i++)
             {
-                // At end, check edge behavior
-                EdgeBehavior edge =
-                    scope ? scope->edgeBehavior() : EdgeBehavior::parentScope;
-                switch (edge)
+                next = getFirstLeaf(traversable[i], this);
+                if (next != nullptr)
                 {
-                    case EdgeBehavior::closedLoop:
-                    {
-                        FocusNode* candidate = traversable.front();
-                        next = getFirstLeaf(candidate, this);
-                        break;
-                    }
-                    case EdgeBehavior::stop:
-                        next = current; // Stay on current
-                        break;
-                    case EdgeBehavior::parentScope:
-                        // Exit to parent scope - find scope's next sibling
-                        if (scope)
-                        {
-                            return findNextFocusable(scope, forward);
-                        }
-                        // No parent, wrap to first leaf
-                        next = getFirstLeaf(traversable.front(), this);
-                        break;
+                    break;
                 }
             }
-            else
+            if (next == nullptr)
             {
-                // Move to next sibling, descend to its first leaf
-                next = getFirstLeaf(*it, this);
-            }
-        }
-        else
-        {
-            // Going backward
-            if (it == traversable.begin())
-            {
-                // At beginning of scope, check edge behavior
                 EdgeBehavior edge =
                     scope ? scope->edgeBehavior() : EdgeBehavior::parentScope;
                 switch (edge)
                 {
                     case EdgeBehavior::closedLoop:
-                    {
-                        FocusNode* candidate = traversable.back();
-                        next = getLastLeaf(candidate, this);
+                        for (size_t i = 0; i < idx; i++)
+                        {
+                            next = getFirstLeaf(traversable[i], this);
+                            if (next != nullptr)
+                            {
+                                break;
+                            }
+                        }
+                        if (next == nullptr)
+                        {
+                            next =
+                                firstEligibleLeafFrom(traversable, true, this);
+                        }
                         break;
-                    }
                     case EdgeBehavior::stop:
                         next = current;
                         break;
                     case EdgeBehavior::parentScope:
-                        // Exit to parent scope - find scope's previous sibling
                         if (scope)
                         {
                             return findNextFocusable(scope, forward);
                         }
-                        // No parent, wrap to last leaf
-                        next = getLastLeaf(traversable.back(), this);
+                        next = firstEligibleLeafFrom(traversable, true, this);
                         break;
                 }
             }
-            else
+        }
+        else
+        {
+            for (int i = static_cast<int>(idx) - 1; i >= 0; i--)
             {
-                // Move to previous sibling, descend to its last leaf
-                --it;
-                next = getLastLeaf(*it, this);
+                next = getLastLeaf(traversable[static_cast<size_t>(i)], this);
+                if (next != nullptr)
+                {
+                    break;
+                }
+            }
+            if (next == nullptr)
+            {
+                EdgeBehavior edge =
+                    scope ? scope->edgeBehavior() : EdgeBehavior::parentScope;
+                switch (edge)
+                {
+                    case EdgeBehavior::closedLoop:
+                        for (int i = static_cast<int>(traversable.size()) - 1;
+                             i > static_cast<int>(idx);
+                             i--)
+                        {
+                            next =
+                                getLastLeaf(traversable[static_cast<size_t>(i)],
+                                            this);
+                            if (next != nullptr)
+                            {
+                                break;
+                            }
+                        }
+                        if (next == nullptr)
+                        {
+                            next =
+                                firstEligibleLeafFrom(traversable, false, this);
+                        }
+                        break;
+                    case EdgeBehavior::stop:
+                        next = current;
+                        break;
+                    case EdgeBehavior::parentScope:
+                        if (scope)
+                        {
+                            return findNextFocusable(scope, forward);
+                        }
+                        next = firstEligibleLeafFrom(traversable, false, this);
+                        break;
+                }
             }
         }
     }
 
-    if (next && next != current)
+    if (next != nullptr && next != current)
     {
         const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
         return next;

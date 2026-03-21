@@ -1,6 +1,11 @@
 #include <catch.hpp>
 #include "rive/input/focus_node.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "utils/serializing_factory.hpp"
+#include "rive_file_reader.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 
 namespace rive
 {
@@ -635,3 +640,94 @@ TEST_CASE("FocusManager stop prevents backward traversal", "[FocusManager]")
 }
 
 } // namespace rive
+
+TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
+          "[FocusManager]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/focus_collapsing.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto focusManager = artboard->focusManager();
+    auto opacityProp =
+        vmi->propertyValue("opacity")->as<rive::ViewModelInstanceNumber>();
+    auto isMainLayout2VisibleProp = vmi->propertyValue("isMainLayout2Visible")
+                                        ->as<rive::ViewModelInstanceBoolean>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    focusManager->focusNext();
+    // Focus on an element
+    REQUIRE(focusManager->primaryFocus() != nullptr);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Hide the element, ensure the focus has been dropped
+    opacityProp->propertyValue(0);
+    // First advance sets the opacity to 0
+    stateMachine->advanceAndApply(0.016f);
+    // Next frame the focus is dropped
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(focusManager->primaryFocus() == nullptr);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    opacityProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(focusManager->primaryFocus() != nullptr);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    isMainLayout2VisibleProp->propertyValue(false);
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Toggles only between visible focused elements
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Fully rotates over all nodes
+    isMainLayout2VisibleProp->propertyValue(true);
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("focus_collapsing"));
+}

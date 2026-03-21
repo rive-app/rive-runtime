@@ -165,6 +165,9 @@ public:
     void setExternalParentFocusNode(rcp<FocusNode> node);
     /// Get the external parent FocusNode for this artboard.
     rcp<FocusNode> externalParentFocusNode() const;
+    // collapseSingle is only used by the editor. Its purpose is to set the
+    // collapse value to the immediate artboard but not to its children
+    void collapseSingle(bool);
 #endif
 
     /// Build the focus tree for this artboard, registering all FocusData nodes

@@ -36,6 +36,10 @@ public:
     rcp<FocusNode> primaryFocus() const { return m_primaryFocus; }
     void setFocus(rcp<FocusNode> node);
     void clearFocus();
+
+    /// Clears primary focus if it targets FocusData that is no longer visible
+    /// in the hierarchy (collapsed, hidden, opacity 0, nested host hidden).
+    void dropFocusIfFocusTargetHidden();
     bool hasFocus(rcp<FocusNode> node) const; // node or descendant has focus
     bool hasPrimaryFocus(
         rcp<FocusNode> node) const; // node is the primary focus

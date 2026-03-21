@@ -184,6 +184,9 @@ public:
     /// Used for directional focus navigation with overlap/alignment.
     /// Returns false if bounds cannot be determined (falls back to position).
     virtual bool worldBounds(AABB& outBounds) { return false; }
+
+    /// Returns whether the Focusable is currently eligible for focus traversal
+    virtual bool isEligibleForFocusTraversal() const { return true; }
 };
 } // namespace rive
 #endif

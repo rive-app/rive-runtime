@@ -1976,6 +1976,8 @@ rcp<FocusNode> Artboard::externalParentFocusNode() const
 {
     return m_externalParentFocusNode;
 }
+
+void Artboard::collapseSingle(bool value) { Component::collapse(value); }
 #endif
 
 bool Artboard::keyInput(uint16_t key,

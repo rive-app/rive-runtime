@@ -49,6 +49,12 @@ public:
     bool canTraverse() const { return m_flags & Flag::kCanTraverse; }
     void canTraverse(bool value) { setFlag(Flag::kCanTraverse, value); }
 
+#ifdef WITH_RIVE_TOOLS
+    // Only at edit time, we push down the collapse status of the nodes because
+    // we can't get the FocusData node from the FocusNode
+    bool isCollapsed() const { return m_isCollapsed; }
+    void isCollapsed(bool value) { m_isCollapsed = value; }
+#endif
     // True if this node or any descendant currently has focus
     // (set by FocusManager during focus transitions)
     bool hasFocus() const { return m_flags & Flag::kHasFocus; }
@@ -176,6 +182,9 @@ private:
                         // false
     uint8_t m_flags = defaultFlags;
     int16_t m_tabIndex = 0;
+#ifdef WITH_RIVE_TOOLS
+    bool m_isCollapsed = false;
+#endif
 };
 
 } // namespace rive

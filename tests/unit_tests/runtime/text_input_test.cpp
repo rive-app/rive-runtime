@@ -314,7 +314,7 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     StateMachineInstance smi(stateMachine, abi.get());
 
     // Advance to initialize
-    smi.advance(0.0f);
+    smi.advanceAndApply(0.0f);
 
     auto textInput = abi->objects<TextInput>().first();
     if (textInput == nullptr)

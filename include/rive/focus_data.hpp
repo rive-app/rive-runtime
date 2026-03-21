@@ -40,6 +40,12 @@ public:
     /// @return The closest FocusNode, or nullptr if none found
     static rcp<FocusNode> findClosestFocusNode(Component* component);
 
+    /// True if this focus target should participate in tab/spatial navigation
+    /// and pointer focus (not under a collapsed/hidden/opacity-zero branch,
+    /// including nested artboard hosts). Non-FocusData focusables are treated
+    /// as visible by FocusManager.
+    bool isEligibleForFocusTraversal() const override;
+
     // Focusable interface implementation
     bool keyInput(Key value,
                   KeyModifiers modifiers,
