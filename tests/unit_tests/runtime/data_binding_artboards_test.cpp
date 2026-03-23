@@ -18,6 +18,7 @@
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
@@ -315,4 +316,43 @@ TEST_CASE(
     stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
     CHECK(silver.matches("data_bind_artboard_input"));
+}
+
+TEST_CASE("Data bind external artboard with no initial source artboard",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/databind_external_artboard_main.riv", &silver);
+    auto file2 =
+        ReadRiveFile("assets/databind_external_artboard_child.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    auto artboardProp =
+        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+    auto insertedArtboard = file2->bindableArtboardNamed("ExternalChild");
+    artboardProp->asset(insertedArtboard);
+
+    auto mainVM = file2->viewModelByName("Child");
+    auto mainVMI = mainVM->createInstanceFromName("Instance");
+    auto newCircleProp = mainVMI->propertyString("label");
+    vmi->replaceViewModelByName("child", mainVMI->instance());
+    newCircleProp->value("updated label");
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("databind_external_artboard_main"));
 }
