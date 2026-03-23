@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <vector>
 #include <unordered_map>
+#include "rive/animation/keyboard_listener_group.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_transition.hpp"
@@ -292,6 +293,8 @@ private:
     FocusManager m_focusManager;
     FocusManager* m_externalFocusManager = nullptr;
     std::vector<std::unique_ptr<FocusListenerGroup>> m_focusListenerGroups;
+    std::vector<std::unique_ptr<KeyboardListenerGroup>>
+        m_keyboardListenerGroups;
 
     // Queued focus events for deferred processing
     struct QueuedFocusEvent

@@ -70,6 +70,22 @@ void FocusData::removeFocusListener(FocusListener* listener)
     }
 }
 
+void FocusData::addKeyboardListener(KeyboardListener* listener)
+{
+    m_keyboardListeners.push_back(listener);
+}
+
+void FocusData::removeKeyboardListener(KeyboardListener* listener)
+{
+    auto it = std::find(m_keyboardListeners.begin(),
+                        m_keyboardListeners.end(),
+                        listener);
+    if (it != m_keyboardListeners.end())
+    {
+        m_keyboardListeners.erase(it);
+    }
+}
+
 void FocusData::focus()
 {
     // Note: In C++ runtime, focus() needs a FocusManager to set focus.
@@ -83,12 +99,23 @@ bool FocusData::keyInput(Key value,
                          bool isPressed,
                          bool isRepeat)
 {
+
+    // Notify listeners
+    bool handled = false;
+    for (auto* listener : m_keyboardListeners)
+    {
+        handled = listener->keyInput(value, modifiers, isPressed, isRepeat);
+        if (handled)
+        {
+            break;
+        }
+    }
     // Search only the children of this FocusData's owner (parent Node),
     // not the entire artboard.
     auto* parentNode = parent();
     if (parentNode == nullptr || !parentNode->is<Node>())
     {
-        return false;
+        return handled;
     }
     // If the parent is Focusable and immediately handles the input, we're done!
     auto* focusable = Focusable::from(parentNode);
@@ -96,6 +123,11 @@ bool FocusData::keyInput(Key value,
         focusable->keyInput(value, modifiers, isPressed, isRepeat))
     {
         return true;
+    }
+    // If it was already handled, we're done too!
+    if (handled)
+    {
+        return handled;
     }
     for (auto* child : parentNode->as<Node>()->children())
     {

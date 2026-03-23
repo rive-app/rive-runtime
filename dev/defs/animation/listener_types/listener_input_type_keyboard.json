@@ -1,0 +1,8 @@
+{
+  "name": "ListenerInputTypeKeyboard",
+  "key": {
+    "int": 665,
+    "string": "listenerinputtypekeyboard"
+  },
+  "extends": "animation/listener_types/listener_input_type.json"
+}

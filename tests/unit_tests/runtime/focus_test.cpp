@@ -731,3 +731,83 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
 
     CHECK(silver.matches("focus_collapsing"));
 }
+
+TEST_CASE("Focused elements receive keyboard inputs", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/keyboard_listener.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    auto focusManager = artboard->focusManager();
+    // Child index 5
+    focusManager->focusPrevious();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->keyInput(rive::Key::space,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Child index 4
+    focusManager->focusPrevious();
+    // Child index 3
+    focusManager->focusPrevious();
+    // Child index 2
+    focusManager->focusPrevious();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->keyInput(rive::Key::space,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Child index 1
+    focusManager->focusPrevious();
+    // Child index 0
+    focusManager->focusPrevious();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->keyInput(rive::Key::space,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->focusPrevious();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    focusManager->keyInput(rive::Key::space,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("keyboard_listener"));
+}

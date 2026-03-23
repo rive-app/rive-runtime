@@ -832,6 +832,7 @@ public:
                         case ListenerType::drag:
                         case ListenerType::focus:
                         case ListenerType::blur:
+                        case ListenerType::keyboard:
                             break;
                     }
                 }
@@ -857,6 +858,7 @@ public:
                         case ListenerType::drag:
                         case ListenerType::focus:
                         case ListenerType::blur:
+                        case ListenerType::keyboard:
                             break;
                     }
                 }
@@ -970,6 +972,7 @@ public:
                         case ListenerType::drag:
                         case ListenerType::focus:
                         case ListenerType::blur:
+                        case ListenerType::keyboard:
                             break;
                     }
                 }
@@ -994,6 +997,7 @@ public:
                         case ListenerType::drag:
                         case ListenerType::focus:
                         case ListenerType::blur:
+                        case ListenerType::keyboard:
                             break;
                     }
                 }
@@ -1596,6 +1600,34 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                                                  listener,
                                                                  this);
                     m_focusListenerGroups.push_back(std::move(focusGroup));
+                }
+            }
+            continue;
+        }
+        if (listener->hasListener(ListenerType::keyboard))
+        {
+            auto target = m_artboardInstance->resolve(listener->targetId());
+            if (target != nullptr && target->is<Node>())
+            {
+                auto node = target->as<Node>();
+                // Find FocusData child of the node
+                FocusData* focusData = nullptr;
+                for (auto child : node->children())
+                {
+                    if (child->is<FocusData>())
+                    {
+                        focusData = child->as<FocusData>();
+                        break;
+                    }
+                }
+                if (focusData != nullptr)
+                {
+                    auto keyboardGroup =
+                        rivestd::make_unique<KeyboardListenerGroup>(focusData,
+                                                                    listener,
+                                                                    this);
+                    m_keyboardListenerGroups.push_back(
+                        std::move(keyboardGroup));
                 }
             }
             continue;

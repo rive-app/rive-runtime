@@ -1,0 +1,19 @@
+{
+  "name": "UserInput",
+  "key": {
+    "int": 663,
+    "string": "userinput"
+  },
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 970,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track where this input is used",
+      "runtime": false
+    }
+  }
+}

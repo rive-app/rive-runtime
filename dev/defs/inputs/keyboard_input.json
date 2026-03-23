@@ -1,0 +1,37 @@
+{
+  "name": "KeyboardInput",
+  "key": {
+    "int": 664,
+    "string": "keyboardinput"
+  },
+  "extends": "inputs/user_input.json",
+  "properties": {
+    "keyType": {
+      "type": "uint",
+      "initialValue": "-1",
+      "key": {
+        "int": 971,
+        "string": "keytype"
+      },
+      "description": "Key type for this keyboard input"
+    },
+    "keyPhase": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 972,
+        "string": "keyphase"
+      },
+      "description": "Key phase to listen to (keyDown, keyUp, keyRepeat)"
+    },
+    "modifiers": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 973,
+        "string": "modifiers"
+      },
+      "description": "bit flag for none, shift, control, alt, meta"
+    }
+  }
+}

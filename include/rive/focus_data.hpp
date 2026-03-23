@@ -3,6 +3,7 @@
 #include "rive/component_dirt.hpp"
 #include "rive/generated/focus_data_base.hpp"
 #include "rive/input/focus_node.hpp"
+#include "rive/input/keyboard_listener.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/refcnt.hpp"
@@ -25,6 +26,12 @@ public:
 
     /// Unregister a listener.
     void removeFocusListener(FocusListener* listener);
+
+    /// Register a listener to be notified of key input events.
+    void addKeyboardListener(KeyboardListener* listener);
+
+    /// Unregister a keyboard listener.
+    void removeKeyboardListener(KeyboardListener* listener);
 
     /// Programmatically focus this node.
     void focus();
@@ -75,6 +82,7 @@ private:
                                       const AABB& elementBounds);
     rcp<FocusNode> m_focusNode;
     std::vector<FocusListener*> m_focusListeners;
+    std::vector<KeyboardListener*> m_keyboardListeners;
 };
 } // namespace rive
 

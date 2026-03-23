@@ -19,6 +19,7 @@ enum class ListenerType : int
     drag = 12,
     focus = 13,
     blur = 14,
+    keyboard = 15,
 };
 }
 #endif

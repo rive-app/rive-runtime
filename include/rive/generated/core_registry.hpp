@@ -44,6 +44,7 @@
 #include "rive/animation/listener_trigger_change.hpp"
 #include "rive/animation/listener_types/listener_input_type.hpp"
 #include "rive/animation/listener_types/listener_input_type_event.hpp"
+#include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
 #include "rive/animation/listener_types/listener_input_type_viewmodel.hpp"
 #include "rive/animation/listener_viewmodel_change.hpp"
 #include "rive/animation/nested_bool.hpp"
@@ -198,6 +199,8 @@
 #include "rive/event.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/foreground_layout_drawable.hpp"
+#include "rive/inputs/keyboard_input.hpp"
+#include "rive/inputs/user_input.hpp"
 #include "rive/joystick.hpp"
 #include "rive/layout/artboard_component_list_override.hpp"
 #include "rive/layout/axis.hpp"
@@ -586,6 +589,8 @@ public:
                 return new ListenerInputType();
             case ListenerInputTypeEventBase::typeKey:
                 return new ListenerInputTypeEvent();
+            case ListenerInputTypeKeyboardBase::typeKey:
+                return new ListenerInputTypeKeyboard();
             case ListenerInputTypeViewModelBase::typeKey:
                 return new ListenerInputTypeViewModel();
             case ExitStateBase::typeKey:
@@ -852,6 +857,10 @@ public:
                 return new FileAssetContents();
             case AudioEventBase::typeKey:
                 return new AudioEvent();
+            case UserInputBase::typeKey:
+                return new UserInput();
+            case KeyboardInputBase::typeKey:
+                return new KeyboardInput();
             case ScriptInputArtboardBase::typeKey:
                 return new ScriptInputArtboard();
         }
@@ -1594,6 +1603,15 @@ public:
                 break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
+                break;
+            case KeyboardInputBase::keyTypePropertyKey:
+                object->as<KeyboardInputBase>()->keyType(value);
+                break;
+            case KeyboardInputBase::keyPhasePropertyKey:
+                object->as<KeyboardInputBase>()->keyPhase(value);
+                break;
+            case KeyboardInputBase::modifiersPropertyKey:
+                object->as<KeyboardInputBase>()->modifiers(value);
                 break;
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 object->as<ScriptInputArtboardBase>()->artboardId(value);
@@ -3068,6 +3086,12 @@ public:
                 return object->as<ScriptAssetBase>()->generatorFunctionRef();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
+            case KeyboardInputBase::keyTypePropertyKey:
+                return object->as<KeyboardInputBase>()->keyType();
+            case KeyboardInputBase::keyPhasePropertyKey:
+                return object->as<KeyboardInputBase>()->keyPhase();
+            case KeyboardInputBase::modifiersPropertyKey:
+                return object->as<KeyboardInputBase>()->modifiers();
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 return object->as<ScriptInputArtboardBase>()->artboardId();
         }
@@ -3953,6 +3977,9 @@ public:
             case FileAssetBase::assetIdPropertyKey:
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
+            case KeyboardInputBase::keyTypePropertyKey:
+            case KeyboardInputBase::keyPhasePropertyKey:
+            case KeyboardInputBase::modifiersPropertyKey:
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 return CoreUintType::id;
             case ViewModelComponentBase::namePropertyKey:
@@ -4739,6 +4766,12 @@ public:
                 return object->is<ScriptAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
+            case KeyboardInputBase::keyTypePropertyKey:
+                return object->is<KeyboardInputBase>();
+            case KeyboardInputBase::keyPhasePropertyKey:
+                return object->is<KeyboardInputBase>();
+            case KeyboardInputBase::modifiersPropertyKey:
+                return object->is<KeyboardInputBase>();
             case ScriptInputArtboardBase::artboardIdPropertyKey:
                 return object->is<ScriptInputArtboardBase>();
             case ViewModelComponentBase::namePropertyKey:
