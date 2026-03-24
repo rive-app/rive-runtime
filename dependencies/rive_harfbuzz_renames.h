@@ -1,6 +1,22 @@
 // clang-format off
 // hb_*
 #define OT rive_OT
+#define CFF rive_CFF
+#define AAT rive_AAT
+#define cff1_path_param_t rive_cff1_path_param_t
+#define cff2_path_param_t rive_cff2_path_param_t
+#define cff1_cs_opset_path_t rive_cff1_cs_opset_path_t
+#define cff2_cs_opset_path_t rive_cff2_cs_opset_path_t
+#define cff1_cs_opset_seac_t rive_cff1_cs_opset_seac_t
+#define cff1_cs_opset_extents_t rive_cff1_cs_opset_extents_t
+#define cff2_cs_opset_extents_t rive_cff2_cs_opset_extents_t
+#define cff1_extents_param_t rive_cff1_extents_param_t
+#define cff2_extents_param_t rive_cff2_extents_param_t
+#define cff1_path_procs_path_t rive_cff1_path_procs_path_t
+#define cff2_path_procs_path_t rive_cff2_path_procs_path_t
+#define cff1_path_procs_extents_t rive_cff1_path_procs_extents_t
+#define cff2_path_procs_extents_t rive_cff2_path_procs_extents_t
+#define get_seac_param_t rive_get_seac_param_t
 #define _hb_CrapPool rive__hb_CrapPool
 #define _hb_NullPool rive__hb_NullPool
 #define _hb_Null_AAT_Lookup rive__hb_Null_AAT_Lookup
@@ -221,8 +237,11 @@
 #define hb_concat_iter_t rive_hb_concat_iter_t
 #define hb_copy rive_hb_copy
 #define hb_coretext_draw_glyph_or_fail rive_hb_coretext_draw_glyph_or_fail
+#define hb_coretext_face_create rive_hb_coretext_face_create
 #define hb_coretext_face_create_from_blob_or_fail rive_hb_coretext_face_create_from_blob_or_fail
 #define hb_coretext_face_create_from_file_or_fail rive_hb_coretext_face_create_from_file_or_fail
+#define hb_coretext_face_get_cg_font rive_hb_coretext_face_get_cg_font
+#define hb_coretext_font_create rive_hb_coretext_font_create
 #define hb_coretext_face_data_t rive_hb_coretext_face_data_t
 #define hb_coretext_font_data_t rive_hb_coretext_font_data_t
 #define hb_coretext_font_funcs_lazy_loader_t rive_hb_coretext_font_funcs_lazy_loader_t
