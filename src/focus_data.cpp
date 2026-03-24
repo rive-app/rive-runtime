@@ -99,7 +99,6 @@ bool FocusData::keyInput(Key value,
                          bool isPressed,
                          bool isRepeat)
 {
-
     // Notify listeners
     bool handled = false;
     for (auto* listener : m_keyboardListeners)

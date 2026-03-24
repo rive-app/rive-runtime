@@ -1,4 +1,5 @@
 #include "rive/animation/keyboard_listener_group.hpp"
+#include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/focus_data.hpp"
@@ -27,6 +28,14 @@ bool KeyboardListenerGroup::keyInput(Key key,
                                      bool isPressed,
                                      bool isRepeat)
 {
+    if (!ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(listener(),
+                                                                   key,
+                                                                   modifiers,
+                                                                   isPressed,
+                                                                   isRepeat))
+    {
+        return false;
+    }
     listener()->performChanges(m_stateMachineInstance, Vec2D(), Vec2D(), 0);
     // Always return false for now. In the future we will let listeners decide
     // whether they stop event propagation

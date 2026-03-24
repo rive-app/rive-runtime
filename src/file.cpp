@@ -32,6 +32,7 @@
 #include "rive/importers/state_transition_importer.hpp"
 #include "rive/importers/state_machine_layer_component_importer.hpp"
 #include "rive/importers/transition_viewmodel_condition_importer.hpp"
+#include "rive/importers/listener_input_type_keyboard_importer.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/importers/viewmodel_instance_list_importer.hpp"
@@ -462,6 +463,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                                                         m_assetLoader,
                                                         m_factory);
                 stackType = FileAsset::typeKey;
+                break;
+            case ListenerInputTypeKeyboardBase::typeKey:
+                stackObject =
+                    rivestd::make_unique<ListenerInputTypeKeyboardImporter>(
+                        object->as<ListenerInputTypeKeyboard>());
+                stackType = ListenerInputTypeKeyboardBase::typeKey;
                 break;
 #ifdef WITH_RIVE_SCRIPTING
             case ScriptAsset::typeKey:

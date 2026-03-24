@@ -811,3 +811,119 @@ TEST_CASE("Focused elements receive keyboard inputs", "[silver]")
 
     CHECK(silver.matches("keyboard_listener"));
 }
+
+TEST_CASE("Keyboard inputs with different key combinations", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/keyboard_listener.riv", &silver);
+
+    auto artboard = file->artboardNamed("KeyboardInput");
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto keyCountProp =
+        vmi->propertyValue("keyCount")->as<rive::ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    auto focusManager = artboard->focusManager();
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    // Key "a" on phase down with no modifiers is captured
+    focusManager->keyInput(rive::Key::a, rive::KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 1);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    // Key "a" on phase repeat with no modifiers is not captured
+    focusManager->keyInput(rive::Key::a, rive::KeyModifiers::none, true, true);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 1);
+    // Key "a" on phase up with no modifiers is captured
+    focusManager->keyInput(rive::Key::a,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 2);
+
+    // Key "a" on phase down with modifiers is not captured
+    focusManager->keyInput(rive::Key::a,
+                           rive::KeyModifiers::shift,
+                           true,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 2);
+
+    // Key "e" on any phase is not captured
+    focusManager->keyInput(rive::Key::e,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    focusManager->keyInput(rive::Key::e, rive::KeyModifiers::none, true, true);
+    focusManager->keyInput(rive::Key::e, rive::KeyModifiers::none, true, false);
+    CHECK(keyCountProp->propertyValue() == 2);
+    stateMachine->advanceAndApply(0.016f);
+    // Key "b" on phase down with no modifiers is NOT captured
+    focusManager->keyInput(rive::Key::b, rive::KeyModifiers::none, true, false);
+    // Key "b" on phase up with no modifiers is NOT captured
+    CHECK(keyCountProp->propertyValue() == 2);
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->keyInput(rive::Key::b,
+                           rive::KeyModifiers::none,
+                           false,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 3);
+    // Key "b" on phase repeat with no modifiers is captured
+    focusManager->keyInput(rive::Key::b, rive::KeyModifiers::none, true, true);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 4);
+    // Key "d" on phase down with no modifiers is not captured
+    focusManager->keyInput(rive::Key::d, rive::KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 4);
+    // Key "d" on phase down with shift + command modifiers is captured
+    focusManager->keyInput(rive::Key::d,
+                           rive::KeyModifiers::shift | rive::KeyModifiers::meta,
+                           true,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 5);
+    // Key "c" on phase down with shift + command modifiers is NOT captured
+    focusManager->keyInput(rive::Key::c,
+                           rive::KeyModifiers::shift | rive::KeyModifiers::meta,
+                           true,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 5);
+    // Key "c" on phase down with shift modifiers is captured
+    focusManager->keyInput(rive::Key::c,
+                           rive::KeyModifiers::shift,
+                           true,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 6);
+    // Key "x" on phase down with shift modifiers is NOT captured
+    focusManager->keyInput(rive::Key::x,
+                           rive::KeyModifiers::shift,
+                           true,
+                           false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(keyCountProp->propertyValue() == 6);
+
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("keyboard_listener-KeyboardInput"));
+}
