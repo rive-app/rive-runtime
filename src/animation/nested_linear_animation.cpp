@@ -8,7 +8,7 @@ NestedLinearAnimation::~NestedLinearAnimation() {}
 
 void NestedLinearAnimation::initializeAnimation(ArtboardInstance* artboard)
 {
-    m_AnimationInstance = rivestd::make_unique<LinearAnimationInstance>(
+    m_AnimationInstance = std::make_unique<LinearAnimationInstance>(
         artboard->animation(animationId()),
         artboard);
 }

@@ -628,7 +628,7 @@ SerializingFactory::SerializingFactory() : m_writer(&m_buffer)
 
 std::unique_ptr<Renderer> SerializingFactory::makeRenderer()
 {
-    return rivestd::make_unique<SerializingRenderer>(&m_writer);
+    return std::make_unique<SerializingRenderer>(&m_writer);
 }
 
 void SerializingFactory::addFrame()

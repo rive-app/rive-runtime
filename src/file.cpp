@@ -379,24 +379,24 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         switch (stackType)
         {
             case Backboard::typeKey:
-                stackObject = rivestd::make_unique<BackboardImporter>(
+                stackObject = std::make_unique<BackboardImporter>(
                     object->as<Backboard>());
                 static_cast<BackboardImporter*>(stackObject.get())->file(this);
                 break;
             case Artboard::typeKey:
-                stackObject = rivestd::make_unique<ArtboardImporter>(
-                    object->as<Artboard>());
+                stackObject =
+                    std::make_unique<ArtboardImporter>(object->as<Artboard>());
                 break;
             case DataEnumCustom::typeKey:
-                stackObject = rivestd::make_unique<EnumImporter>(
+                stackObject = std::make_unique<EnumImporter>(
                     object->as<DataEnumCustom>());
                 break;
             case LinearAnimation::typeKey:
-                stackObject = rivestd::make_unique<LinearAnimationImporter>(
+                stackObject = std::make_unique<LinearAnimationImporter>(
                     object->as<LinearAnimation>());
                 break;
             case KeyedObject::typeKey:
-                stackObject = rivestd::make_unique<KeyedObjectImporter>(
+                stackObject = std::make_unique<KeyedObjectImporter>(
                     object->as<KeyedObject>());
                 break;
             case KeyedProperty::typeKey:
@@ -407,13 +407,13 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 {
                     return ImportResult::malformed;
                 }
-                stackObject = rivestd::make_unique<KeyedPropertyImporter>(
+                stackObject = std::make_unique<KeyedPropertyImporter>(
                     importer->animation(),
                     object->as<KeyedProperty>());
                 break;
             }
             case StateMachine::typeKey:
-                stackObject = rivestd::make_unique<StateMachineImporter>(
+                stackObject = std::make_unique<StateMachineImporter>(
                     object->as<StateMachine>());
                 break;
             case StateMachineLayer::typeKey:
@@ -425,7 +425,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     return ImportResult::malformed;
                 }
 
-                stackObject = rivestd::make_unique<StateMachineLayerImporter>(
+                stackObject = std::make_unique<StateMachineLayerImporter>(
                     object->as<StateMachineLayer>(),
                     artboardImporter->artboard());
 
@@ -438,30 +438,29 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BlendState1DViewModel::typeKey:
             case BlendState1DInput::typeKey:
             case BlendStateDirect::typeKey:
-                stackObject = rivestd::make_unique<LayerStateImporter>(
+                stackObject = std::make_unique<LayerStateImporter>(
                     object->as<LayerState>());
                 stackType = LayerState::typeKey;
                 break;
             case StateTransition::typeKey:
             case BlendStateTransition::typeKey:
-                stackObject = rivestd::make_unique<StateTransitionImporter>(
+                stackObject = std::make_unique<StateTransitionImporter>(
                     object->as<StateTransition>());
                 stackType = StateTransition::typeKey;
                 break;
             case StateMachineListener::typeKey:
             case StateMachineListenerSingle::typeKey:
-                stackObject =
-                    rivestd::make_unique<StateMachineListenerImporter>(
-                        object->as<StateMachineListener>());
+                stackObject = std::make_unique<StateMachineListenerImporter>(
+                    object->as<StateMachineListener>());
                 stackType = StateMachineListener::typeKey;
                 break;
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
             case AudioAsset::typeKey:
-                stackObject = rivestd::make_unique<FileAssetImporter>(
-                    object->as<FileAsset>(),
-                    m_assetLoader,
-                    m_factory);
+                stackObject =
+                    std::make_unique<FileAssetImporter>(object->as<FileAsset>(),
+                                                        m_assetLoader,
+                                                        m_factory);
                 stackType = FileAsset::typeKey;
                 break;
 #ifdef WITH_RIVE_SCRIPTING
@@ -469,26 +468,26 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             {
                 auto scriptAsset = object->as<ScriptAsset>();
                 stackObject =
-                    rivestd::make_unique<ScriptAssetImporter>(scriptAsset,
-                                                              m_assetLoader,
-                                                              m_factory,
-                                                              &inBandBytecode);
+                    std::make_unique<ScriptAssetImporter>(scriptAsset,
+                                                          m_assetLoader,
+                                                          m_factory,
+                                                          &inBandBytecode);
                 stackType = FileAsset::typeKey;
                 scriptAsset->file(this);
                 break;
             }
 #endif
             case ManifestAsset::typeKey:
-                stackObject = rivestd::make_unique<FileAssetImporter>(
-                    object->as<FileAsset>(),
-                    m_assetLoader,
-                    m_factory);
+                stackObject =
+                    std::make_unique<FileAssetImporter>(object->as<FileAsset>(),
+                                                        m_assetLoader,
+                                                        m_factory);
                 stackType = FileAsset::typeKey;
                 m_manifest = rcp<FileAsset>(object->as<ManifestAsset>());
                 break;
             case ViewModel::typeKey:
             {
-                stackObject = rivestd::make_unique<ViewModelImporter>(
+                stackObject = std::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());
                 static_cast<ViewModelImporter*>(stackObject.get())->file(this);
                 stackType = ViewModel::typeKey;
@@ -496,20 +495,19 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             }
             case ViewModelInstance::typeKey:
-                stackObject = rivestd::make_unique<ViewModelInstanceImporter>(
+                stackObject = std::make_unique<ViewModelInstanceImporter>(
                     object->as<ViewModelInstance>());
                 stackType = ViewModelInstance::typeKey;
                 break;
             case ViewModelInstanceList::typeKey:
-                stackObject =
-                    rivestd::make_unique<ViewModelInstanceListImporter>(
-                        object->as<ViewModelInstanceList>());
+                stackObject = std::make_unique<ViewModelInstanceListImporter>(
+                    object->as<ViewModelInstanceList>());
                 stackType = ViewModelInstanceList::typeKey;
                 break;
             case TransitionViewModelCondition::typeKey:
             case TransitionArtboardCondition::typeKey:
                 stackObject =
-                    rivestd::make_unique<TransitionViewModelConditionImporter>(
+                    std::make_unique<TransitionViewModelConditionImporter>(
                         object->as<TransitionViewModelCondition>());
                 stackType = TransitionViewModelCondition::typeKey;
                 break;
@@ -524,19 +522,18 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyTrigger::typeKey:
             case BindablePropertyInteger::typeKey:
             case BindablePropertyList::typeKey:
-                stackObject = rivestd::make_unique<BindablePropertyImporter>(
+                stackObject = std::make_unique<BindablePropertyImporter>(
                     object->as<BindableProperty>());
                 stackType = BindablePropertyBase::typeKey;
                 break;
             case DataConverterGroupBase::typeKey:
-                stackObject = rivestd::make_unique<DataConverterGroupImporter>(
+                stackObject = std::make_unique<DataConverterGroupImporter>(
                     object->as<DataConverterGroup>());
                 stackType = DataConverterGroupBase::typeKey;
                 break;
             case DataConverterFormulaBase::typeKey:
-                stackObject =
-                    rivestd::make_unique<DataConverterFormulaImporter>(
-                        object->as<DataConverterFormula>());
+                stackObject = std::make_unique<DataConverterFormulaImporter>(
+                    object->as<DataConverterFormula>());
                 stackType = DataConverterFormulaBase::typeKey;
                 break;
             case DataConverterNumberToList::typeKey:
@@ -560,14 +557,14 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
                 {
-                    stackObject = rivestd::make_unique<ScriptedObjectImporter>(
+                    stackObject = std::make_unique<ScriptedObjectImporter>(
                         scriptedObject);
                     stackType = ScriptedDrawable::typeKey;
                 }
                 break;
             }
             case DataBindPathBase::typeKey:
-                stackObject = rivestd::make_unique<DataBindPathImporter>(
+                stackObject = std::make_unique<DataBindPathImporter>(
                     object->as<DataBindPath>());
                 stackType = DataBindPathBase::typeKey;
                 break;
@@ -584,7 +581,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         if (object->is<StateMachineLayerComponent>() &&
             importStack.makeLatest(
                 StateMachineLayerComponent::typeKey,
-                rivestd::make_unique<StateMachineLayerComponentImporter>(
+                std::make_unique<StateMachineLayerComponentImporter>(
                     object->as<StateMachineLayerComponent>())) !=
                 StatusCode::Ok)
         {
@@ -675,7 +672,7 @@ void File::registerScripts()
 void File::makeScriptingVM()
 {
     cleanupScriptingVM();
-    auto context = rivestd::make_unique<CPPRuntimeScriptingContext>(m_factory);
+    auto context = std::make_unique<CPPRuntimeScriptingContext>(m_factory);
     m_scriptingVM = make_rcp<ScriptingVM>(std::move(context));
     initializeLuaData(m_scriptingVM->state(), m_ViewModels);
 }

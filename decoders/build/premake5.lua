@@ -1,17 +1,13 @@
-workspace('rive')
-configurations({ 'debug', 'release' })
-
-require('setup_compiler')
+dofile('rive_build_config.lua')
 
 rive = path.getabsolute('../../')
 
-dofile(rive .. '/dependencies/premake5_libpng.lua')
+dofile(rive .. '/dependencies/premake5_libpng_v2.lua')
 
 project('rive_decoders')
 dependson('libpng')
 kind('StaticLib')
 language('C++')
-cppdialect('C++17')
 targetdir('%{cfg.buildcfg}')
 objdir('obj/%{cfg.buildcfg}')
 fatalwarnings { "All" }

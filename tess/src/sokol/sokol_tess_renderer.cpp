@@ -813,7 +813,7 @@ public:
                 m_strokeDirty = false;
                 break;
             case RenderPaintStyle::stroke:
-                m_stroke = rivestd::make_unique<ContourStroke>();
+                m_stroke = std::make_unique<ContourStroke>();
                 m_strokeDirty = true;
                 break;
         }

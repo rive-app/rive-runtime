@@ -915,7 +915,7 @@ AABB RawTextInput::measure(float maxWidth, float maxHeight)
     if (!m_measuringShape)
     {
         force = true;
-        m_measuringShape = rivestd::make_unique<FullyShapedText>();
+        m_measuringShape = std::make_unique<FullyShapedText>();
     }
     if (unflag(Flags::measureDirty) || force)
     {

@@ -97,13 +97,11 @@ do
 
     filter('options:not for_unreal')
     do
-        cppdialect('C++11')
         fatalwarnings({ 'All' })
     end
 
     filter({ 'options:for_unreal' })
     do
-        cppdialect('C++17')
         defines({ '_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR' })
     end
 

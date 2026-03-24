@@ -45,8 +45,7 @@ public:
     {
         m_numResults = numResults;
         m_errorOk = errorOk;
-        auto context =
-            rivestd::make_unique<TestScriptingContext>(&m_factory, this);
+        auto context = std::make_unique<TestScriptingContext>(&m_factory, this);
         m_vm = make_rcp<ScriptingVM>(std::move(context));
 
         for (const auto& pair : modules)

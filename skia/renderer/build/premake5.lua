@@ -1,7 +1,4 @@
-workspace('rive')
-configurations({ 'debug', 'release' })
-
-require('setup_compiler')
+dofile('rive_build_config.lua')
 
 SKIA_DIR = os.getenv('SKIA_DIR')
 dependencies = os.getenv('DEPENDENCIES')
@@ -19,7 +16,6 @@ project('rive_skia_renderer')
 do
     kind('StaticLib')
     language('C++')
-    cppdialect('C++17')
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}')
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}')
     includedirs({

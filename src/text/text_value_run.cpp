@@ -111,7 +111,7 @@ void TextValueRun::computeHitContours()
 {
     if (!m_rectanglesToContour)
     {
-        m_rectanglesToContour = rivestd::make_unique<RectanglesToContour>();
+        m_rectanglesToContour = std::make_unique<RectanglesToContour>();
     }
     else
     {

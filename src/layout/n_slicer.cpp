@@ -6,7 +6,7 @@
 
 using namespace rive;
 
-NSlicer::NSlicer() { m_sliceMesh = rivestd::make_unique<SliceMesh>(this); }
+NSlicer::NSlicer() { m_sliceMesh = std::make_unique<SliceMesh>(this); }
 
 Image* NSlicer::image()
 {

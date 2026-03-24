@@ -19,27 +19,29 @@ struct FactoryWrapper
 static FactoryWrapper testingWindowFactories[] = {
     {"Vulkan",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeVulkanTexture({
+         return std::unique_ptr<TestingWindow>(
+             TestingWindow::MakeVulkanTexture({
 #ifdef RIVE_ANDROID
-             // Android doesn't support validation layers for command line
-             // apps like the unit_tests.
-             .disableValidationLayers = true,
-             // The OnePlus7 doesn't support debug callbacks either for
-             // command line apps.
-             .disableDebugCallbacks = true,
+                 // Android doesn't support validation layers for command line
+                 // apps like the unit_tests.
+                 .disableValidationLayers = true,
+                 // The OnePlus7 doesn't support debug callbacks either for
+                 // command line apps.
+                 .disableDebugCallbacks = true,
 #endif
-         }));
+             }));
      }},
 #if defined(__APPLE__)
     {"Metal",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeMetalTexture({}));
+         return std::unique_ptr<TestingWindow>(
+             TestingWindow::MakeMetalTexture({}));
      }},
 #endif
 #ifdef _WIN32
     {"D3D12",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+         return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
              TestingWindow::Backend::d3d12,
              {},
              TestingWindow::Visibility::headless,
@@ -47,7 +49,7 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
     {"D3D12 atomic",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+         return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
              TestingWindow::Backend::d3d12,
              {.atomic = true},
              TestingWindow::Visibility::headless,
@@ -55,7 +57,7 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
     {"D3D11",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+         return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
              TestingWindow::Backend::d3d,
              {},
              TestingWindow::Visibility::headless,
@@ -63,7 +65,7 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
     {"D3D11 atomic",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+         return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
              TestingWindow::Backend::d3d,
              {.atomic = true},
              TestingWindow::Visibility::headless,
@@ -71,7 +73,7 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
     {"OpenGL",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+         return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
              TestingWindow::Backend::gl,
              {},
              TestingWindow::Visibility::headless,
@@ -79,7 +81,7 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
     {"OpenGL atomic",
      []() {
-         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+         return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
              TestingWindow::Backend::gl,
              {.atomic = true},
              TestingWindow::Visibility::headless,
@@ -89,7 +91,7 @@ static FactoryWrapper testingWindowFactories[] = {
 #ifdef RIVE_ANDROID
     {"EGL (GL backend)",
      []() {
-         return rivestd::adopt_unique(
+         return std::unique_ptr<TestingWindow>(
              TestingWindow::MakeEGL(TestingWindow::Backend::gl, {}, nullptr));
      }},
 #endif

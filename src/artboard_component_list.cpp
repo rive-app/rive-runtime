@@ -1019,7 +1019,7 @@ void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)
     auto recorderIt = m_propertyRecordersMap.find(artboard);
     if (recorderIt == m_propertyRecordersMap.end())
     {
-        auto propertyRecorder = rivestd::make_unique<PropertyRecorder>();
+        auto propertyRecorder = std::make_unique<PropertyRecorder>();
         propertyRecorder->recordArtboard(artboard);
         m_propertyRecordersMap[artboard] = std::move(propertyRecorder);
         for (auto& nestedArtboard : artboard->nestedArtboards())

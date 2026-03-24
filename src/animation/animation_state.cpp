@@ -9,7 +9,7 @@ using namespace rive;
 std::unique_ptr<StateInstance> AnimationState::makeInstance(
     ArtboardInstance* instance) const
 {
-    return rivestd::make_unique<AnimationStateInstance>(this, instance);
+    return std::make_unique<AnimationStateInstance>(this, instance);
 }
 
 #ifdef TESTING

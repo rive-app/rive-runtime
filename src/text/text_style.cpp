@@ -55,7 +55,7 @@ StatusCode TextStyle::onAddedClean(CoreContext* context)
     // This ensures context propagates to variation helper too.
     if (!m_variations.empty() || !m_styleFeatures.empty())
     {
-        m_variationHelper = rivestd::make_unique<TextVariationHelper>(this);
+        m_variationHelper = std::make_unique<TextVariationHelper>(this);
     }
     if (m_variationHelper != nullptr)
     {

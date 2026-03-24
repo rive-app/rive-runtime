@@ -236,7 +236,7 @@ CoreObjectData* PropertyRecorder::getCoreObjectData(uint32_t id)
         }
     }
 
-    auto newCoreObjectData = rivestd::make_unique<CoreObjectData>(id);
+    auto newCoreObjectData = std::make_unique<CoreObjectData>(id);
     auto ref = newCoreObjectData.get();
     m_coreObjectsData.push_back(std::move(newCoreObjectData));
     return ref;

@@ -1089,8 +1089,7 @@ public:
             if (vmProp != nullptr)
             {
                 m_propertyBindings.push_back(
-                    rivestd::make_unique<
-                        ListenerViewModelPropertyBindingListener>(
+                    std::make_unique<ListenerViewModelPropertyBindingListener>(
                         this,
                         vmProp,
                         m_listener->as<StateMachineListenerSingle>()));
@@ -1111,7 +1110,7 @@ public:
                     if (vmProp != nullptr)
                     {
                         m_propertyBindings.push_back(
-                            rivestd::make_unique<
+                            std::make_unique<
                                 ListenerViewModelPropertyBindingInput>(
                                 this,
                                 vmProp,
@@ -1381,9 +1380,9 @@ void StateMachineInstance::addToHitLookup(
         auto itr = hitLookup.find(target);
         if (itr == hitLookup.end())
         {
-            auto hs = rivestd::make_unique<HitLayout>(target->as<Drawable>(),
-                                                      this,
-                                                      isOpaque);
+            auto hs = std::make_unique<HitLayout>(target->as<Drawable>(),
+                                                  this,
+                                                  isOpaque);
             hitLookup[target] = hitLayout = hs.get();
             m_hitComponents.push_back(std::move(hs));
         }
@@ -1408,7 +1407,7 @@ void StateMachineInstance::addToHitLookup(
             Shape* shape = target->as<Shape>();
             shape->addFlags(PathFlags::neverDeferUpdate);
             shape->addDirt(ComponentDirt::Path, true);
-            auto hs = rivestd::make_unique<HitExpandable>(shape, shape, this);
+            auto hs = std::make_unique<HitExpandable>(shape, shape, this);
             hitLookup[target] = hitShape = hs.get();
             m_hitComponents.push_back(std::move(hs));
         }
@@ -1428,9 +1427,8 @@ void StateMachineInstance::addToHitLookup(
         {
             TextValueRun* run = target->as<TextValueRun>();
             run->textComponent()->addDirt(ComponentDirt::Path, true);
-            auto hs = rivestd::make_unique<HitTextRun>(run->textComponent(),
-                                                       run,
-                                                       this);
+            auto hs =
+                std::make_unique<HitTextRun>(run->textComponent(), run, this);
             hitLookup[target] = hitTextRun = hs.get();
             m_hitComponents.push_back(std::move(hs));
         }
@@ -1596,9 +1594,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 if (focusData != nullptr)
                 {
                     auto focusGroup =
-                        rivestd::make_unique<FocusListenerGroup>(focusData,
-                                                                 listener,
-                                                                 this);
+                        std::make_unique<FocusListenerGroup>(focusData,
+                                                             listener,
+                                                             this);
                     m_focusListenerGroups.push_back(std::move(focusGroup));
                 }
             }
@@ -1623,16 +1621,16 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 if (focusData != nullptr)
                 {
                     auto keyboardGroup =
-                        rivestd::make_unique<KeyboardListenerGroup>(focusData,
-                                                                    listener,
-                                                                    this);
+                        std::make_unique<KeyboardListenerGroup>(focusData,
+                                                                listener,
+                                                                this);
                     m_keyboardListenerGroups.push_back(
                         std::move(keyboardGroup));
                 }
             }
             continue;
         }
-        auto listenerGroup = rivestd::make_unique<ListenerGroup>(listener);
+        auto listenerGroup = std::make_unique<ListenerGroup>(listener);
         auto target = m_artboardInstance->resolve(listener->targetId());
         if (target != nullptr && target->is<Component>())
         {
@@ -1703,9 +1701,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         // TODO: @hernan as an optimization only create a HitNestedArtboard if
         // the nested artboard has state machines or if it is bound via data
         // binding
-        auto hn = rivestd::make_unique<HitNestedArtboard>(
-            nestedArtboard->as<Component>(),
-            this);
+        auto hn =
+            std::make_unique<HitNestedArtboard>(nestedArtboard->as<Component>(),
+                                                this);
         m_hitComponents.push_back(std::move(hn));
         for (auto animation : nestedArtboard->nestedAnimations())
         {
@@ -1731,9 +1729,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     }
     for (auto componentList : instance->artboardComponentLists())
     {
-        auto hc = rivestd::make_unique<HitComponentList>(
-            componentList->as<Component>(),
-            this);
+        auto hc =
+            std::make_unique<HitComponentList>(componentList->as<Component>(),
+                                               this);
         m_hitComponents.push_back(std::move(hc));
     }
 
@@ -1742,8 +1740,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     for (auto textInput : instance->objects<TextInput>())
     {
         auto textInputGroup =
-            rivestd::make_unique<TextInputListenerGroup>(textInput, this);
-        auto hitExpandable = rivestd::make_unique<HitExpandable>(
+            std::make_unique<TextInputListenerGroup>(textInput, this);
+        auto hitExpandable = std::make_unique<HitExpandable>(
             textInput->as<Drawable>(),
             textInput->as<Component>(),
             this,

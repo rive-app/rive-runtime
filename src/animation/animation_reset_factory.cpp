@@ -67,7 +67,7 @@ private:
         }
 
         auto keyedObjectData =
-            rivestd::make_unique<KeyedObjectData>(keyedObject->objectId());
+            std::make_unique<KeyedObjectData>(keyedObject->objectId());
         auto ref = keyedObjectData.get();
         keyedObjectsData.push_back(std::move(keyedObjectData));
         return ref;
@@ -181,7 +181,7 @@ std::unique_ptr<AnimationReset> AnimationResetFactory::getInstance()
         m_resources.pop_back();
         return instance;
     }
-    auto instance = rivestd::make_unique<AnimationReset>();
+    auto instance = std::make_unique<AnimationReset>();
     return instance;
 }
 
