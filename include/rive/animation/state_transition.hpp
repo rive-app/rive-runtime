@@ -96,6 +96,13 @@ public:
                StateTransitionFlags::EnableEarlyExit;
     }
 
+    bool durationIsPercentage() const
+    {
+        return (transitionFlags() &
+                StateTransitionFlags::DurationIsPercentage) ==
+               StateTransitionFlags::DurationIsPercentage;
+    }
+
     StatusCode import(ImportStack& importStack) override;
 
     size_t conditionCount() const { return m_Conditions.size(); }

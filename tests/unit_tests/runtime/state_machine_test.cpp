@@ -712,3 +712,66 @@ TEST_CASE("Listeners with multiple types of events and rebinding", "[silver]")
 
     CHECK(silver.matches("multi_listeners-rebind"));
 }
+
+TEST_CASE("Transition duration in nested state machines is bindable",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/transition_duration_bind_nested.riv", &silver);
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+
+    int frames = 86;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("transition_duration_bind_nested"));
+}
+
+TEST_CASE("Transition duration in artboard list state machines is bindable",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/transition_duration_bind_list.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+
+    int frames = 86;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("transition_duration_bind_list"));
+}

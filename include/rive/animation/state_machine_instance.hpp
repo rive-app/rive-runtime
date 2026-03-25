@@ -14,6 +14,7 @@
 #include "rive/listener_type.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/scene.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/focus_manager.hpp"
@@ -207,6 +208,13 @@ public:
         BindableProperty* bindableProperty) const;
     DataBind* bindableDataBindToTarget(
         BindableProperty* bindableProperty) const;
+
+    /// Find the per-instance BindablePropertyNumber for the given shared
+    /// StateTransition and property key (e.g. durationPropertyKey).
+    /// Returns nullptr if no binding exists.
+    BindablePropertyNumber* findTransitionPropertyInstance(
+        const StateTransition* transition,
+        uint32_t propertyKey) const;
     bool hasListeners() { return m_hitComponents.size() > 0; }
     void clearDataContext();
     void relinkDataContext() override;
@@ -284,6 +292,12 @@ private:
         m_bindableDataBindsToTarget;
     std::unordered_map<BindableProperty*, DataBind*>
         m_bindableDataBindsToSource;
+    /// Map from shared StateTransition* to per-instance BindablePropertyNumber
+    /// instances, keyed by original property key. Data binds write to these
+    /// instead of the shared StateTransition object.
+    std::unordered_map<const Core*,
+                       std::unordered_map<uint32_t, BindablePropertyNumber*>>
+        m_transitionPropertyInstances;
     uint8_t m_drawOrderChangeCounter = 0;
     void unbind();
     void removeEventListeners();

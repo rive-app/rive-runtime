@@ -34,6 +34,8 @@
 #include "rive/constraints/draggable_constraint.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/context/context_value.hpp"
+#include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/event_report.hpp"
 #include "rive/hit_result.hpp"
@@ -62,6 +64,7 @@
 #include <unordered_map>
 #include <vector>
 #include <chrono>
+#include <cmath>
 
 using namespace rive;
 namespace rive
@@ -120,13 +123,18 @@ public:
     void updateMix(float seconds)
     {
         if (m_transition != nullptr && m_stateFrom != nullptr &&
-            m_transition->duration() != 0)
+            resolvedDuration() != 0)
         {
-            m_mix = std::min(
-                1.0f,
-                std::max(0.0f,
-                         (m_mix + seconds / m_transition->mixTime(
-                                                m_stateFrom->state()))));
+            auto mixTime = resolvedMixTime();
+            if (mixTime == 0.0f)
+            {
+                m_mix = 1.0f;
+            }
+            else
+            {
+                m_mix =
+                    std::min(1.0f, std::max(0.0f, (m_mix + seconds / mixTime)));
+            }
             if (m_mix == 1.0f && !m_transitionCompleted)
             {
                 m_transitionCompleted = true;
@@ -184,10 +192,48 @@ public:
                (m_currentState != nullptr && m_currentState->keepGoing());
     }
 
+    /// Returns the per-instance transition duration, resolving any data
+    /// binding override. Falls back to the shared definition value when
+    /// no binding exists.
+    uint32_t resolvedDuration() const
+    {
+        if (m_transitionDurationProperty != nullptr)
+        {
+            float val = m_transitionDurationProperty->propertyValue();
+            return val < 0 ? 0 : static_cast<uint32_t>(std::round(val));
+        }
+        return m_transition->duration();
+    }
+
+    /// Computes the mix time using the per-instance resolved duration.
+    float resolvedMixTime() const
+    {
+        auto dur = resolvedDuration();
+        if (dur == 0)
+        {
+            return 0;
+        }
+        if (m_transition->durationIsPercentage())
+        {
+            float animationDuration = 0.0f;
+            auto state = m_stateFrom->state();
+            if (state->is<AnimationState>())
+            {
+                auto animation = state->as<AnimationState>()->animation();
+                if (animation != nullptr)
+                {
+                    animationDuration = animation->durationSeconds();
+                }
+            }
+            return (float)dur / 100.0f * animationDuration;
+        }
+        return (float)dur / 1000.0f;
+    }
+
     bool isTransitioning()
     {
         return m_transition != nullptr && m_stateFrom != nullptr &&
-               m_transition->duration() != 0 && m_mix < 1.0f;
+               resolvedDuration() != 0 && m_mix < 1.0f;
     }
 
     bool updateState()
@@ -390,9 +436,13 @@ public:
             m_stateMachineChangedOnAdvance = true;
             // state actually has changed
             m_transition = transition;
+            m_transitionDurationProperty =
+                m_stateMachineInstance->findTransitionPropertyInstance(
+                    transition,
+                    StateTransitionBase::durationPropertyKey);
             fireEvents(StateMachineFireOccurance::atStart,
                        transition->events());
-            if (transition->duration() == 0)
+            if (resolvedDuration() == 0)
             {
                 m_transitionCompleted = true;
                 fireEvents(StateMachineFireOccurance::atEnd,
@@ -526,6 +576,7 @@ private:
     StateInstance* m_stateFrom = nullptr;
 
     const StateTransition* m_transition = nullptr;
+    BindablePropertyNumber* m_transitionDurationProperty = nullptr;
     std::unique_ptr<AnimationReset> m_animationReset = nullptr;
     bool m_transitionCompleted = false;
 
@@ -1551,7 +1602,22 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         }
         else
         {
-            dataBindClone->target(dataBind->target());
+            auto* originalTarget = dataBind->target();
+            dataBindClone->target(originalTarget);
+            if (originalTarget->is<StateTransitionBase>())
+            {
+                // Create a per-instance BindablePropertyNumber to
+                // receive the data-bound value instead of writing
+                // to the shared StateTransition. Swap the target
+                // and propertyKey so the normal apply() path writes
+                // to our instance-local property.
+                auto* prop = new BindablePropertyNumber();
+                m_transitionPropertyInstances[originalTarget]
+                                             [dataBind->propertyKey()] = prop;
+                dataBindClone->target(prop);
+                dataBindClone->propertyKey(
+                    BindablePropertyNumberBase::propertyValuePropertyKey);
+            }
         }
     }
 
@@ -1804,6 +1870,14 @@ StateMachineInstance::~StateMachineInstance()
         delete pair.second;
         pair.second = nullptr;
     }
+    for (auto& outer : m_transitionPropertyInstances)
+    {
+        for (auto& inner : outer.second)
+        {
+            delete inner.second;
+        }
+    }
+    m_transitionPropertyInstances.clear();
     for (auto& listenerViewModel : m_listenerViewModels)
     {
         delete listenerViewModel;
@@ -2533,6 +2607,22 @@ DataBind* StateMachineInstance::bindableDataBindToTarget(
         return nullptr;
     }
     return dataBind->second;
+}
+
+BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
+    const StateTransition* transition,
+    uint32_t propertyKey) const
+{
+    auto it = m_transitionPropertyInstances.find(transition);
+    if (it != m_transitionPropertyInstances.end())
+    {
+        auto propIt = it->second.find(propertyKey);
+        if (propIt != it->second.end())
+        {
+            return propIt->second;
+        }
+    }
+    return nullptr;
 }
 
 bool StateMachineInstance::keyInput(Key value,
