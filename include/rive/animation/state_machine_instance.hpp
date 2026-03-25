@@ -152,12 +152,6 @@ public:
                         int pointerId = 0);
     HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
 
-    bool keyInput(Key value,
-                  KeyModifiers modifiers,
-                  bool isPressed,
-                  bool isRepeat);
-    bool textInput(const std::string& text);
-
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
 

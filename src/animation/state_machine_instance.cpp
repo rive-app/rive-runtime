@@ -1668,7 +1668,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
             continue;
         }
-        if (listener->hasListener(ListenerType::keyboard))
+        if (listener->hasListener(ListenerType::keyboard) ||
+            listener->hasListener(ListenerType::textInput))
         {
             auto target = m_artboardInstance->resolve(listener->targetId());
             if (target != nullptr && target->is<Node>())
@@ -2623,17 +2624,4 @@ BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
         }
     }
     return nullptr;
-}
-
-bool StateMachineInstance::keyInput(Key value,
-                                    KeyModifiers modifiers,
-                                    bool isPressed,
-                                    bool isRepeat)
-{
-    return focusManager()->keyInput(value, modifiers, isPressed, isRepeat);
-}
-
-bool StateMachineInstance::textInput(const std::string& text)
-{
-    return focusManager()->textInput(text);
 }

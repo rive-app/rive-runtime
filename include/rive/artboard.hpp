@@ -191,17 +191,6 @@ public:
     /// still holds references to FocusNodes pointing to deleted FocusData.
     void cleanupFocusTree();
 
-    /// Send key input to Focusable children in hierarchy order.
-    /// Returns true if any Focusable handled the input.
-    bool keyInput(uint16_t key,
-                  uint8_t modifiers,
-                  bool isPressed,
-                  bool isRepeat);
-
-    /// Send text input to Focusable children in hierarchy order.
-    /// Returns true if any Focusable handled the input.
-    bool textInput(const std::string& text);
-
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override
     {

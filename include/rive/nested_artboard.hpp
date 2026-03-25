@@ -120,11 +120,8 @@ public:
     Component* hostComponent() override { return this; }
 
     // Focusable interface - delegates to nested state machines
-    bool keyInput(Key value,
-                  KeyModifiers modifiers,
-                  bool isPressed,
-                  bool isRepeat) override;
-    bool textInput(const std::string& text) override;
+    bool keyInput(Key, KeyModifiers, bool, bool) override { return false; };
+    bool textInput(const std::string&) override { return false; };
     void focused() override {}
     void blurred() override {}
     Artboard* focusableArtboard() const override { return artboard(); }

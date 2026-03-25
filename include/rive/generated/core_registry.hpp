@@ -45,6 +45,7 @@
 #include "rive/animation/listener_types/listener_input_type.hpp"
 #include "rive/animation/listener_types/listener_input_type_event.hpp"
 #include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
+#include "rive/animation/listener_types/listener_input_type_text.hpp"
 #include "rive/animation/listener_types/listener_input_type_viewmodel.hpp"
 #include "rive/animation/listener_viewmodel_change.hpp"
 #include "rive/animation/nested_bool.hpp"
@@ -591,6 +592,8 @@ public:
                 return new ListenerInputTypeEvent();
             case ListenerInputTypeKeyboardBase::typeKey:
                 return new ListenerInputTypeKeyboard();
+            case ListenerInputTypeTextBase::typeKey:
+                return new ListenerInputTypeText();
             case ListenerInputTypeViewModelBase::typeKey:
                 return new ListenerInputTypeViewModel();
             case ExitStateBase::typeKey:

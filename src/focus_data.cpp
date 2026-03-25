@@ -5,7 +5,6 @@
 #include "rive/component.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/drawable.hpp"
-#include "rive/input/focus_input_traversal.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/focus_listener.hpp"
 #include "rive/input/focus_manager.hpp"
@@ -86,6 +85,22 @@ void FocusData::removeKeyboardListener(KeyboardListener* listener)
     }
 }
 
+void FocusData::addTextInputListener(KeyboardListener* listener)
+{
+    m_textInputListeners.push_back(listener);
+}
+
+void FocusData::removeTextInputListener(KeyboardListener* listener)
+{
+    auto it = std::find(m_textInputListeners.begin(),
+                        m_textInputListeners.end(),
+                        listener);
+    if (it != m_textInputListeners.end())
+    {
+        m_textInputListeners.erase(it);
+    }
+}
+
 void FocusData::focus()
 {
     // Note: In C++ runtime, focus() needs a FocusManager to set focus.
@@ -100,42 +115,9 @@ bool FocusData::keyInput(Key value,
                          bool isRepeat)
 {
     // Notify listeners
-    bool handled = false;
     for (auto* listener : m_keyboardListeners)
     {
-        handled = listener->keyInput(value, modifiers, isPressed, isRepeat);
-        if (handled)
-        {
-            break;
-        }
-    }
-    // Search only the children of this FocusData's owner (parent Node),
-    // not the entire artboard.
-    auto* parentNode = parent();
-    if (parentNode == nullptr || !parentNode->is<Node>())
-    {
-        return handled;
-    }
-    // If the parent is Focusable and immediately handles the input, we're done!
-    auto* focusable = Focusable::from(parentNode);
-    if (focusable != nullptr &&
-        focusable->keyInput(value, modifiers, isPressed, isRepeat))
-    {
-        return true;
-    }
-    // If it was already handled, we're done too!
-    if (handled)
-    {
-        return handled;
-    }
-    for (auto* child : parentNode->as<Node>()->children())
-    {
-        if (sendInputToFocusableChildren(child,
-                                         &Focusable::keyInput,
-                                         value,
-                                         modifiers,
-                                         isPressed,
-                                         isRepeat))
+        if (listener->keyInput(value, modifiers, isPressed, isRepeat))
         {
             return true;
         }
@@ -145,25 +127,10 @@ bool FocusData::keyInput(Key value,
 
 bool FocusData::textInput(const std::string& text)
 {
-    // Search only the children of this FocusData's owner (parent Node),
-    // not the entire artboard.
-    auto* parentNode = parent();
-    if (parentNode == nullptr || !parentNode->is<Node>())
-    {
-        return false;
-    }
 
-    // If the parent is Focusable and immediately handles the input, we're done!
-    auto* focusable = Focusable::from(parentNode);
-    if (focusable != nullptr && focusable->textInput(text))
+    for (auto* listener : m_textInputListeners)
     {
-        return true;
-    }
-
-    // Look through children for a Focusable to handle the text input.
-    for (auto* child : parentNode->as<Node>()->children())
-    {
-        if (sendInputToFocusableChildren(child, &Focusable::textInput, text))
+        if (listener->textInput(text))
         {
             return true;
         }

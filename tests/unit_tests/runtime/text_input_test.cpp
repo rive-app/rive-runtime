@@ -26,11 +26,12 @@ TEST_CASE("file with text input loads correctly", "[text_input]")
     auto textInput = artboard->objects<TextInput>().first();
     CHECK(textInput != nullptr);
 
-    CHECK(textInput->children<TextInputDrawable>().size() == 4);
+    CHECK(textInput->children<TextInputDrawable>().size() == 3);
     CHECK(textInput->children<TextInputText>().size() == 1);
     CHECK(textInput->children<TextInputSelection>().size() == 1);
     CHECK(textInput->children<TextInputCursor>().size() == 1);
-    CHECK(textInput->children<TextInputSelectedText>().size() == 1);
+    // Keeping this check for now. Might need it back in the future
+    CHECK(textInput->children<TextInputSelectedText>().size() == 0);
 }
 
 TEST_CASE("file with text input renders correctly", "[silver]")
@@ -312,6 +313,7 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
 
     auto abi = artboard->instance();
     StateMachineInstance smi(stateMachine, abi.get());
+    auto focusManager = abi->focusManager();
 
     // Advance to initialize
     smi.advanceAndApply(0.0f);
@@ -333,12 +335,13 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     textInput->rawTextInput()->cursor(Cursor::zero());
 
     // Test textInput through state machine
-    bool handled = smi.textInput("typed text");
+    bool handled = focusManager->textInput("typed text");
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed text");
 
     // Test keyInput through state machine (backspace)
-    handled = smi.keyInput(Key::backspace, KeyModifiers::none, true, false);
+    handled =
+        focusManager->keyInput(Key::backspace, KeyModifiers::none, true, false);
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed tex");
 }

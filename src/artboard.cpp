@@ -3,7 +3,6 @@
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
 #include "rive/focus_data.hpp"
-#include "rive/input/focus_input_traversal.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
@@ -1979,38 +1978,6 @@ rcp<FocusNode> Artboard::externalParentFocusNode() const
 
 void Artboard::collapseSingle(bool value) { Component::collapse(value); }
 #endif
-
-bool Artboard::keyInput(uint16_t key,
-                        uint8_t modifiers,
-                        bool isPressed,
-                        bool isRepeat)
-{
-    for (auto* child : children())
-    {
-        if (sendInputToFocusableChildren(child,
-                                         &Focusable::keyInput,
-                                         static_cast<Key>(key),
-                                         static_cast<KeyModifiers>(modifiers),
-                                         isPressed,
-                                         isRepeat))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Artboard::textInput(const std::string& text)
-{
-    for (auto* child : children())
-    {
-        if (sendInputToFocusableChildren(child, &Focusable::textInput, text))
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 std::string Artboard::stateMachineNameAt(size_t index) const
 {

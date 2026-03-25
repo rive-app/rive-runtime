@@ -66,14 +66,21 @@ ProcessEventResult TextInputListenerGroup::processEvent(
     {
         m_textInput->startDrag(position);
         m_isDragging = true;
-        // Focus the closest FocusNode ancestor (handles artboard boundaries)
+
         auto* manager = stateMachineInstance->focusManager();
         if (manager != nullptr)
         {
-            auto focusNode = FocusData::findClosestFocusNode(m_textInput);
-            if (focusNode != nullptr)
+            for (auto* child : m_textInput->children())
             {
-                manager->setFocus(focusNode);
+                if (child->is<FocusData>())
+                {
+                    auto focusNode = child->as<FocusData>()->focusNode();
+                    if (focusNode != nullptr)
+                    {
+                        manager->setFocus(focusNode);
+                    }
+                    break;
+                }
             }
         }
         return ProcessEventResult::scroll;

@@ -625,27 +625,3 @@ void NestedArtboard::referencedArtboard(Artboard* artboard)
     ArtboardReferencer::referencedArtboard(artboard);
     nest(artboard);
 }
-
-bool NestedArtboard::keyInput(Key value,
-                              KeyModifiers modifiers,
-                              bool isPressed,
-                              bool isRepeat)
-{
-    if (m_Instance == nullptr)
-    {
-        return false;
-    }
-    return m_Instance->keyInput(static_cast<uint16_t>(value),
-                                static_cast<uint8_t>(modifiers),
-                                isPressed,
-                                isRepeat);
-}
-
-bool NestedArtboard::textInput(const std::string& text)
-{
-    if (m_Instance == nullptr)
-    {
-        return false;
-    }
-    return m_Instance->textInput(text);
-}

@@ -927,3 +927,50 @@ TEST_CASE("Keyboard inputs with different key combinations", "[silver]")
 
     CHECK(silver.matches("keyboard_listener-KeyboardInput"));
 }
+
+TEST_CASE("Text input events are handled on focused nodes", "[silver]")
+{
+    auto file = ReadRiveFile("assets/text_input_event.riv");
+
+    auto artboard = file->artboardDefault();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    auto isFocusedProp =
+        vmi->propertyValue("isFocused")->as<rive::ViewModelInstanceBoolean>();
+    auto hasKeyedProp =
+        vmi->propertyValue("hasKeyed")->as<rive::ViewModelInstanceBoolean>();
+    auto hasTextedProp =
+        vmi->propertyValue("hasTexted")->as<rive::ViewModelInstanceBoolean>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto focusManager = artboard->focusManager();
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(isFocusedProp->propertyValue() == true);
+    CHECK(hasKeyedProp->propertyValue() == false);
+    CHECK(hasTextedProp->propertyValue() == false);
+
+    // Key "b" on phase down with no modifiers is NOT captured
+    focusManager->keyInput(rive::Key::b, rive::KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(isFocusedProp->propertyValue() == true);
+    CHECK(hasKeyedProp->propertyValue() == false);
+    CHECK(hasTextedProp->propertyValue() == false);
+    // Text "b" on captured by text but not by key
+    focusManager->textInput("b");
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(isFocusedProp->propertyValue() == true);
+    CHECK(hasKeyedProp->propertyValue() == false);
+    CHECK(hasTextedProp->propertyValue() == true);
+
+    // Key "a" on phase down with no modifiers is captured by key
+    focusManager->keyInput(rive::Key::a, rive::KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(isFocusedProp->propertyValue() == true);
+    CHECK(hasKeyedProp->propertyValue() == true);
+    CHECK(hasTextedProp->propertyValue() == true);
+}

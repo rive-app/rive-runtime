@@ -33,6 +33,9 @@ public:
                   bool isPressed,
                   bool isRepeat) override;
 
+    /// Called when the associated FocusData receives text input.
+    bool textInput(const std::string& text) override;
+
 private:
     FocusData* m_focusData;
     const StateMachineListener* m_listener;

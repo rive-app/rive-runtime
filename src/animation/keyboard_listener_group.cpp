@@ -2,6 +2,7 @@
 #include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_listener.hpp"
+#include "rive/text/text_input.hpp"
 #include "rive/focus_data.hpp"
 
 using namespace rive;
@@ -15,12 +16,26 @@ KeyboardListenerGroup::KeyboardListenerGroup(
     m_stateMachineInstance(stateMachineInstance)
 {
     // Register ourselves as a listener on the FocusData
-    m_focusData->addKeyboardListener(this);
+    if (m_listener->hasListener(ListenerType::keyboard))
+    {
+        m_focusData->addKeyboardListener(this);
+    }
+    if (m_listener->hasListener(ListenerType::textInput))
+    {
+        m_focusData->addTextInputListener(this);
+    }
 }
 
 KeyboardListenerGroup::~KeyboardListenerGroup()
 {
-    m_focusData->removeKeyboardListener(this);
+    if (m_listener->hasListener(ListenerType::keyboard))
+    {
+        m_focusData->removeKeyboardListener(this);
+    }
+    if (m_listener->hasListener(ListenerType::textInput))
+    {
+        m_focusData->removeTextInputListener(this);
+    }
 }
 
 bool KeyboardListenerGroup::keyInput(Key key,
@@ -28,6 +43,21 @@ bool KeyboardListenerGroup::keyInput(Key key,
                                      bool isPressed,
                                      bool isRepeat)
 {
+    // Special case for text inputs.
+    // TODO: @hernan consider moving it into a special internal TextInput
+    // listener action.
+    if (m_focusData && m_focusData->parent())
+    {
+
+        auto parent = m_focusData->parent();
+        if (parent->is<TextInput>())
+        {
+            return parent->as<TextInput>()->keyInput(key,
+                                                     modifiers,
+                                                     isPressed,
+                                                     isRepeat);
+        }
+    }
     if (!ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(listener(),
                                                                    key,
                                                                    modifiers,
@@ -37,7 +67,24 @@ bool KeyboardListenerGroup::keyInput(Key key,
         return false;
     }
     listener()->performChanges(m_stateMachineInstance, Vec2D(), Vec2D(), 0);
-    // Always return false for now. In the future we will let listeners decide
-    // whether they stop event propagation
+    return false;
+}
+
+bool KeyboardListenerGroup::textInput(const std::string& text)
+{
+
+    // Special case for text inputs.
+    // TODO: @hernan consider moving it into a special internal TextInput
+    // listener action.
+    if (m_focusData && m_focusData->parent())
+    {
+
+        auto parent = m_focusData->parent();
+        if (parent->is<TextInput>())
+        {
+            return parent->as<TextInput>()->textInput(text);
+        }
+    }
+    listener()->performChanges(m_stateMachineInstance, Vec2D(), Vec2D(), 0);
     return false;
 }

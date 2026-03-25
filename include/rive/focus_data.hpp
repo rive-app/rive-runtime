@@ -33,6 +33,12 @@ public:
     /// Unregister a keyboard listener.
     void removeKeyboardListener(KeyboardListener* listener);
 
+    /// Register a listener to be notified of text input events.
+    void addTextInputListener(KeyboardListener* listener);
+
+    /// Unregister a text input listener.
+    void removeTextInputListener(KeyboardListener* listener);
+
     /// Programmatically focus this node.
     void focus();
 
@@ -83,6 +89,7 @@ private:
     rcp<FocusNode> m_focusNode;
     std::vector<FocusListener*> m_focusListeners;
     std::vector<KeyboardListener*> m_keyboardListeners;
+    std::vector<KeyboardListener*> m_textInputListeners;
 };
 } // namespace rive
 

@@ -17,6 +17,9 @@ public:
                           KeyModifiers modifiers,
                           bool isPressed,
                           bool isRepeat) = 0;
+
+    /// Called when the associated FocusData receives text input.
+    virtual bool textInput(const std::string& text) = 0;
 };
 
 } // namespace rive
