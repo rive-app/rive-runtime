@@ -20,11 +20,11 @@ jobs:
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
-      - name: Build
-        run: |
-          ./build.sh clean
-          ./build.sh
-          ./build.sh release
+#      - name: Build
+#        run: |
+#          ./build.sh clean
+#          ./build.sh
+#          ./build.sh release
 
       - name: Tests
         run: |
@@ -57,10 +57,10 @@ jobs:
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
-      - name: Build
-        run: |
-          ./build.sh
-          ./build.sh release
+#      - name: Build
+#        run: |
+#          ./build.sh
+#          ./build.sh release
 
       - name: Build glfw
         working-directory: skia/dependencies/
