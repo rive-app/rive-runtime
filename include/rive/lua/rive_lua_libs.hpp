@@ -572,7 +572,8 @@ private:
 class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
 {
 public:
-    ScriptReffedArtboard(rcp<File> file,
+    ScriptReffedArtboard(lua_State* L,
+                         rcp<File> file,
                          std::unique_ptr<ArtboardInstance>&& artboardInstance,
                          rcp<ViewModelInstance> viewModelInstance,
                          rcp<DataContext> parentDataContext);
@@ -582,12 +583,18 @@ public:
     Artboard* artboard();
     StateMachineInstance* stateMachine();
     rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
+    void releaseReferences();
+    static void releaseAll(lua_State* state);
 
 private:
     rcp<File> m_file;
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
+    lua_State* m_luaState = nullptr;
+    ScriptReffedArtboard* m_trackNext = nullptr;
+    ScriptReffedArtboard* m_trackPrev = nullptr;
+    static ScriptReffedArtboard* s_head;
 };
 
 class ScriptedArtboard
@@ -630,7 +637,6 @@ public:
 private:
     lua_State* m_state = nullptr;
     rcp<ScriptReffedArtboard> m_scriptReffedArtboard = nullptr;
-    rcp<DataContext> m_dataContext = nullptr;
     int m_dataRef = 0;
 };
 
@@ -704,11 +710,17 @@ public:
         return m_viewModelInstance;
     }
 
+    void releaseReferences();
+    static void releaseAll(lua_State* state);
+
 private:
     lua_State* m_state;
     rcp<ViewModel> m_viewModel;
     rcp<ViewModelInstance> m_viewModelInstance;
     std::unordered_map<std::string, int> m_propertyRefs;
+    ScriptedViewModel* m_trackNext = nullptr;
+    ScriptedViewModel* m_trackPrev = nullptr;
+    static ScriptedViewModel* s_head;
 };
 
 class ScriptedPropertyViewModel : public ScriptedProperty
