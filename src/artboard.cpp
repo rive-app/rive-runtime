@@ -68,15 +68,24 @@ Artboard::~Artboard()
     }
 #endif
     unbind();
+#ifdef WITH_RIVE_SCRIPTING
+    lua_State* luaState = nullptr;
+    if (!m_ScriptedObjects.empty())
+    {
+        luaState = m_ScriptedObjects[0]->state();
+    }
+#endif
     for (auto object : m_Objects)
     {
-        // First object is artboard
         if (object == this)
         {
             continue;
         }
         delete object;
     }
+#ifdef WITH_RIVE_SCRIPTING
+    ScriptedObject::collectLuaGarbage(luaState);
+#endif
     for (auto object : m_invalidObjects)
     {
         delete object;

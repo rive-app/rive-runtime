@@ -373,14 +373,20 @@ void ScriptedObject::scriptDispose()
     {
         lua_unref(m_state, m_self);
         lua_unref(m_state, m_context);
-#ifdef TESTING
-        // Force GC to collect any ScriptedArtboard instances created via
-        // instance()
-        lua_gc(m_state, LUA_GCCOLLECT, 0);
-#endif
     }
     m_state = nullptr;
     m_self = 0;
+}
+
+void ScriptedObject::collectLuaGarbage(lua_State* state)
+{
+    if (state != nullptr)
+    {
+        ScriptReffedArtboard::releaseAll(state);
+        ScriptedViewModel::releaseAll(state);
+        lua_gc(state, LUA_GCCOLLECT, 0);
+        lua_gc(state, LUA_GCCOLLECT, 0);
+    }
 }
 #else
 void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard) {}

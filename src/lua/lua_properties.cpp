@@ -225,17 +225,60 @@ ScriptedPropertyViewModel::ScriptedPropertyViewModel(
     ScriptedProperty(L, std::move(value)), m_viewModel(std::move(viewModel))
 {}
 
+ScriptedViewModel* ScriptedViewModel::s_head = nullptr;
+
 ScriptedViewModel::ScriptedViewModel(lua_State* L,
                                      rcp<ViewModel> viewModel,
                                      rcp<ViewModelInstance> viewModelInstance) :
     m_state(L), m_viewModel(viewModel), m_viewModelInstance(viewModelInstance)
-{}
+{
+    m_trackNext = s_head;
+    m_trackPrev = nullptr;
+    if (s_head)
+    {
+        s_head->m_trackPrev = this;
+    }
+    s_head = this;
+}
 
 ScriptedViewModel::~ScriptedViewModel()
 {
+    if (m_trackPrev)
+    {
+        m_trackPrev->m_trackNext = m_trackNext;
+    }
+    else if (s_head == this)
+    {
+        s_head = m_trackNext;
+    }
+    if (m_trackNext)
+    {
+        m_trackNext->m_trackPrev = m_trackPrev;
+    }
     for (auto itr : m_propertyRefs)
     {
         lua_unref(m_state, itr.second);
+    }
+    releaseReferences();
+}
+
+void ScriptedViewModel::releaseReferences()
+{
+    m_viewModel = nullptr;
+    m_viewModelInstance = nullptr;
+}
+
+void ScriptedViewModel::releaseAll(lua_State* state)
+{
+    ScriptedViewModel* current = s_head;
+    while (current)
+    {
+        ScriptedViewModel* next = current->m_trackNext;
+        if (current->m_state == state)
+        {
+            current->releaseReferences();
+        }
+        current = next;
     }
 }
 
