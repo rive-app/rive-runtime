@@ -275,7 +275,7 @@ bool TransitionViewModelCondition::evaluate(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const
 {
-    if (canEvaluate(stateMachineInstance))
+    if (canEvaluate(stateMachineInstance) && m_comparison != nullptr)
     {
         return m_comparison->compare(stateMachineInstance, layerInstance);
     }
