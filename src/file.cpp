@@ -466,7 +466,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             case ListenerInputTypeKeyboardBase::typeKey:
                 stackObject =
-                    rivestd::make_unique<ListenerInputTypeKeyboardImporter>(
+                    std::make_unique<ListenerInputTypeKeyboardImporter>(
                         object->as<ListenerInputTypeKeyboard>());
                 stackType = ListenerInputTypeKeyboardBase::typeKey;
                 break;
