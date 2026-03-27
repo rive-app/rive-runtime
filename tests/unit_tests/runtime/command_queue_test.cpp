@@ -2939,6 +2939,92 @@ TEST_CASE("listEnums", "[CommandQueue]")
     serverThread.join();
 }
 
+class TestViewModelInstanceViewModelNameListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelInstanceViewModelNameReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        std::string viewModelName) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        CHECK(viewModelName == m_expectedViewModelName);
+        m_hasCallback = true;
+    }
+
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          uint64_t requestId,
+                                          std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
+    uint64_t m_requestId = 0;
+    ViewModelInstanceHandle m_handle;
+    std::string m_expectedViewModelName;
+    bool m_hasCallback = false;
+    int m_receivedErrors = 0;
+};
+
+TEST_CASE("requestViewModelInstanceViewModelName", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestViewModelInstanceViewModelNameListener vmListener;
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    ViewModelInstanceHandle vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &vmListener);
+
+    vmListener.m_handle = vmHandle;
+    vmListener.m_expectedViewModelName = "Test All";
+    vmListener.m_requestId = 0x50;
+
+    commandQueue->requestViewModelInstanceViewModelName(vmHandle,
+                                                        vmListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(vmListener.m_hasCallback);
+
+    // A handle that resolves to a null instance on the server (invalid view
+    // model name) should not trigger the success callback but should produce
+    // an error on its listener.
+    TestViewModelInstanceViewModelNameListener badListener;
+    ViewModelInstanceHandle badHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Blah",
+                                                        "Blah",
+                                                        &badListener);
+    badListener.m_handle = badHandle;
+
+    commandQueue->requestViewModelInstanceViewModelName(badHandle);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(!badListener.m_hasCallback);
+    CHECK(badListener.m_receivedErrors >= 1);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class TestRenderImageErrorListener : public CommandQueue::RenderImageListener
 {
 public:
@@ -4331,8 +4417,15 @@ public:
                                    size_t,
                                    size);
 
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelInstanceViewModelNameReceived,
+                                   ViewModelInstanceHandle,
+                                   18,
+                                   std::string,
+                                   viewModelName);
+
     size_t m_size = 2;
     std::string m_path = "Test List";
+    std::string m_viewModelName = "Test All";
     ViewModelInstanceHandle m_handle;
     CommandQueue::ViewModelInstanceData m_instanceData = {
         .metaData = PropertyData{DataType::boolean, "Test Bool"},
@@ -4420,6 +4513,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     commandQueue->requestDefaultViewModelInfo(artboardHandle, fileHandle, 20);
     commandQueue->requestViewModelInstanceBool(viewModel, "Test Bool", 13);
     commandQueue->requestViewModelInstanceListSize(viewModel, "Test List", 14);
+    commandQueue->requestViewModelInstanceViewModelName(viewModel, 18);
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
@@ -4442,6 +4536,8 @@ TEST_CASE("global Listener", "[CommandQueue]")
     CHECK_CALLBACK(globalViewModelInstanceListener, onViewModelDataReceived);
     CHECK_CALLBACK(globalViewModelInstanceListener,
                    onViewModelListSizeReceived);
+    CHECK_CALLBACK(globalViewModelInstanceListener,
+                   onViewModelInstanceViewModelNameReceived);
 
     CHECK_CALLBACK(globalArtboardListener, onArtboardDeleted);
     CHECK_CALLBACK(globalArtboardListener, onStateMachinesListed);

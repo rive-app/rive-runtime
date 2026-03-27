@@ -31,6 +31,7 @@ public:
     ~ViewModelInstanceRuntime();
 
     const std::string& name() const;
+    const std::string& viewModelName() const;
     size_t propertyCount() const;
     ViewModelInstanceNumberRuntime* propertyNumber(
         const std::string& path) const;

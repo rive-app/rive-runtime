@@ -1717,6 +1717,37 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::getViewModelInstanceViewModelName:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto viewModelInstance = getViewModelInstance(handle);
+                if (viewModelInstance)
+                {
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::
+                            viewModelInstanceViewModelNameReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    m_commandQueue->m_messageNames
+                        << viewModelInstance->viewModelName();
+                }
+                else
+                {
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::viewModelError)
+                        << "Invalid view model instance handle " << handle;
+                }
+                break;
+            }
+
             case CommandQueue::Command::listViewModelEnums:
             {
                 FileHandle handle;

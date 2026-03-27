@@ -1390,6 +1390,9 @@ TEST_CASE("View model runtime properties", "[data binding]")
     REQUIRE(vm != nullptr);
     auto instance = vm->createDefaultInstance();
     REQUIRE(instance != nullptr);
+    // Grab ViewModel name from instance
+    auto viewModelName = instance->viewModelName();
+    REQUIRE(viewModelName == "vm");
     // Number
     auto num = instance->propertyNumber("num");
     REQUIRE(num != nullptr);

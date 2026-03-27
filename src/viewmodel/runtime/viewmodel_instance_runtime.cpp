@@ -43,6 +43,11 @@ const std::string& ViewModelInstanceRuntime::name() const
     return m_viewModelInstance->name();
 }
 
+const std::string& ViewModelInstanceRuntime::viewModelName() const
+{
+    return m_viewModelInstance->viewModel()->name();
+}
+
 size_t ViewModelInstanceRuntime::propertyCount() const
 {
     return m_viewModelInstance->propertyValues().size();

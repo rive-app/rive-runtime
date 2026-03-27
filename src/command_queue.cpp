@@ -892,6 +892,15 @@ void CommandQueue::requestArtboardNames(FileHandle fileHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::requestViewModelInstanceViewModelName(
+    ViewModelInstanceHandle viewModelInstanceHandle,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getViewModelInstanceViewModelName;
+    m_commandStream << viewModelInstanceHandle;
+    m_commandStream << requestId;
+}
 void CommandQueue::requestViewModelEnums(FileHandle fileHandle,
                                          uint64_t requestId)
 {
@@ -1174,6 +1183,34 @@ void CommandQueue::processMessages()
                         std::move(defaultViewModelInstance));
                 }
 
+                break;
+            }
+            case Message::viewModelInstanceViewModelNameReceived:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                std::string viewModelName;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageNames >> viewModelName;
+
+                lock.unlock();
+                if (m_globalViewModelListener)
+                {
+                    m_globalViewModelListener
+                        ->onViewModelInstanceViewModelNameReceived(
+                            handle,
+                            requestId,
+                            viewModelName);
+                }
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelInstanceViewModelNameReceived(
+                        handle,
+                        requestId,
+                        viewModelName);
+                }
                 break;
             }
             case Message::viewModelsListend:
