@@ -126,13 +126,30 @@ void ShapePaint::draw(Renderer* renderer,
             {
                 return;
             }
+            // When a path effect is active, the inner path and clip must be
+            // based on the effect-modified path, not the original shape path.
+            // Only rebuild when the effect path has actually changed.
+            if (pathEffect != nullptr && m_feather->effectPathDirty())
+            {
+                auto container = ShapePaintContainer::from(parent());
+                if (container != nullptr)
+                {
+                    bool offsetInArtboard =
+                        m_feather->space() == TransformSpace::world;
+                    m_feather->rebuildInnerPath(
+                        pathEffect,
+                        container->shapeWorldTransform(),
+                        offsetInArtboard);
+                }
+            }
             pathToDraw = m_feather->innerPath();
             if (!saved)
             {
                 saved = true;
                 renderer->save();
             }
-            auto renderPath = shapePaintPath->renderPath(this);
+            auto clipPath = pathEffect ? pathEffect : shapePaintPath;
+            auto renderPath = clipPath->renderPath(this);
             if (renderPath != nullptr)
             {
                 renderer->clipPath(renderPath);
@@ -176,6 +193,10 @@ void ShapePaint::draw(Renderer* renderer,
 void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
 {
     EffectsContainer::invalidateEffects(invalidatingEffect);
+    if (m_feather != nullptr)
+    {
+        m_feather->markEffectPathDirty();
+    }
     invalidateRendering();
 }
 

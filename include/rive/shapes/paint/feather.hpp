@@ -18,6 +18,12 @@ public:
     void buildDependencies() override;
 
     ShapePaintPath* innerPath() { return &m_innerPath; }
+    void rebuildInnerPath(const ShapePaintPath* path,
+                          const Mat2D& shapeTransform,
+                          bool offsetInArtboard);
+
+    bool effectPathDirty() const { return m_effectPathDirty; }
+    void markEffectPathDirty() { m_effectPathDirty = true; }
 
 protected:
     void strengthChanged() override;
@@ -26,6 +32,7 @@ protected:
 
 private:
     ShapePaintPath m_innerPath;
+    bool m_effectPathDirty = true;
 #ifdef TESTING
 public:
     int renderCount = 0;

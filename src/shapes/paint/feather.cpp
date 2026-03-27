@@ -52,20 +52,10 @@ void Feather::update(ComponentDirt value)
                 {
                     return;
                 }
-                auto bounds = path->rawPath()->bounds().pad(strength() * 1.5f);
-                Vec2D innerOffset(offsetX(), offsetY());
-                if (offsetInArtboard)
-                {
-                    Mat2D inverseTransform = transform.invertOrIdentity();
-                    innerOffset =
-                        Vec2D::transformDir(innerOffset, inverseTransform);
-                }
-                m_innerPath.rewind();
-                m_innerPath.addRect(bounds);
-                Mat2D innerOffsetTransform =
-                    Mat2D::fromTranslation(innerOffset);
-                m_innerPath.addPathBackwards(*path->rawPath(),
-                                             &innerOffsetTransform);
+                rebuildInnerPath(path, transform, offsetInArtboard);
+                // Mark dirty so draw() re-applies the effect path override if
+                // one is active (update() only has the original shape path).
+                m_effectPathDirty = true;
             }
 #ifdef TESTING
             renderCount++;
@@ -73,6 +63,24 @@ void Feather::update(ComponentDirt value)
             return;
         }
     }
+}
+
+void Feather::rebuildInnerPath(const ShapePaintPath* path,
+                               const Mat2D& shapeTransform,
+                               bool offsetInArtboard)
+{
+    m_effectPathDirty = false;
+    auto bounds = path->rawPath()->bounds().pad(strength() * 1.5f);
+    Vec2D innerOffset(offsetX(), offsetY());
+    if (offsetInArtboard)
+    {
+        Mat2D inverseTransform = shapeTransform.invertOrIdentity();
+        innerOffset = Vec2D::transformDir(innerOffset, inverseTransform);
+    }
+    m_innerPath.rewind();
+    m_innerPath.addRect(bounds);
+    Mat2D innerOffsetTransform = Mat2D::fromTranslation(innerOffset);
+    m_innerPath.addPathBackwards(*path->rawPath(), &innerOffsetTransform);
 }
 
 void Feather::buildDependencies()
