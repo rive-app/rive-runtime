@@ -943,17 +943,35 @@ void ArtboardComponentList::bindArtboard(
 
         // Check if the source artboard is stateful - if so, create a new
         // instance for it (takes priority over any existing list item
-        // instance).
+        // instance). Clone the list item's instance when available so we
+        // pick up its property values; otherwise fall back to the default.
         if (m_file != nullptr)
         {
             auto source = artboardInstance->artboardSource();
             if (source != nullptr && source->isStateful())
             {
-                auto viewModel = m_file->viewModel(source->viewModelId());
-                if (viewModel != nullptr)
+                auto listItemInstance = listItem->viewModelInstance();
+                if (listItemInstance != nullptr)
                 {
-                    viewModelInstance =
-                        m_file->createDefaultViewModelInstance(viewModel);
+                    auto copy = rcp<ViewModelInstance>(
+                        listItemInstance->clone()->as<ViewModelInstance>());
+                    m_file->completeViewModelInstance(copy);
+#ifdef WITH_RIVE_TOOLS
+                    if (copy)
+                    {
+                        m_file->registerViewModelInstance(copy.get(), copy);
+                    }
+#endif
+                    viewModelInstance = copy;
+                }
+                else
+                {
+                    auto viewModel = m_file->viewModel(source->viewModelId());
+                    if (viewModel != nullptr)
+                    {
+                        viewModelInstance =
+                            m_file->createDefaultViewModelInstance(viewModel);
+                    }
                 }
                 // Store the auto-created instance on the list item.
                 if (viewModelInstance != nullptr)
