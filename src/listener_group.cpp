@@ -1,3 +1,4 @@
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/constraints/scrolling/scroll_bar_constraint.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
@@ -177,24 +178,37 @@ ProcessEventResult ListenerGroup::processEvent(
     }
     auto _listener = listener();
     bool shouldPerformChanges = false;
+    auto listenerTypeMatched = hitEvent;
     // Always update hover states regardless of which specific listener type
     // we're trying to trigger.
     // If hover has changed and:
     // - it's hovering and the listener is of type enter
     // - it's not hovering and the listener is of type exit
-    if (hoverChange &&
-        ((isGroupHovered && _listener->hasListener(ListenerType::enter)) ||
-         (!isGroupHovered && _listener->hasListener(ListenerType::exit))))
+    if (hoverChange)
     {
-        shouldPerformChanges = true;
+        if (isGroupHovered && _listener->hasListener(ListenerType::enter))
+        {
+            shouldPerformChanges = true;
+            listenerTypeMatched = ListenerType::enter;
+        }
+        else if ((!isGroupHovered &&
+                  _listener->hasListener(ListenerType::exit)))
+        {
+            shouldPerformChanges = true;
+            listenerTypeMatched = ListenerType::exit;
+        }
     }
     // Perform changes if:
     // - the click gesture is complete and the listener is of type click
     // - the event type matches the listener type and it is hovering the
     // group
-    if ((pointer->phase == GestureClickPhase::clicked &&
-         _listener->hasListener(ListenerType::click)) ||
-        (isGroupHovered && _listener->hasListener(hitEvent)))
+    if (pointer->phase == GestureClickPhase::clicked &&
+        _listener->hasListener(ListenerType::click))
+    {
+        shouldPerformChanges = true;
+        listenerTypeMatched = ListenerType::click;
+    }
+    else if (isGroupHovered && _listener->hasListener(hitEvent))
     {
         shouldPerformChanges = true;
     }
@@ -207,6 +221,7 @@ ProcessEventResult ListenerGroup::processEvent(
         hitEvent == ListenerType::move)
     {
         shouldPerformChanges = true;
+        listenerTypeMatched = ListenerType::drag;
         if (!m_hasDragged)
         {
             stateMachineInstance->dragStart(position,
@@ -221,9 +236,12 @@ ProcessEventResult ListenerGroup::processEvent(
 
         _listener->performChanges(
             stateMachineInstance,
-            position,
-            Vec2D(previousPosition->x, previousPosition->y),
-            pointerId);
+            ListenerInvocation::pointer(
+                position,
+                Vec2D(previousPosition->x, previousPosition->y),
+                pointerId,
+                listenerTypeMatched,
+                timeStamp));
         stateMachineInstance->markNeedsAdvance();
         consume();
     }

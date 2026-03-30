@@ -73,6 +73,8 @@ private:
     static const int m_dataConvertsBit = 1 << 10;
     static const int m_dataReverseConvertsBit = 1 << 11;
     static const int m_resizesBit = 1 << 12;
+    static const int m_listenerPerforms = 1 << 13;
+    static const int m_listenerPerformsAction = 1 << 14;
 
     int m_implementedMethods = 0;
 
@@ -98,6 +100,14 @@ public:
     bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
     bool measures() { return (m_implementedMethods & m_measuresBit) != 0; }
     bool resizes() { return (m_implementedMethods & m_resizesBit) != 0; }
+    bool performs() const
+    {
+        return (m_implementedMethods & m_listenerPerforms) != 0;
+    }
+    bool performsAction() const
+    {
+        return (m_implementedMethods & m_listenerPerformsAction) != 0;
+    }
     bool wantsPointerDown()
     {
         return (m_implementedMethods & m_wantsPointerDownBit) != 0;

@@ -1,4 +1,5 @@
 #include "rive/animation/listener_align_target.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/node.hpp"
 #include "rive/constraints/constraint.hpp"
@@ -6,10 +7,20 @@
 using namespace rive;
 
 void ListenerAlignTarget::perform(StateMachineInstance* stateMachineInstance,
-                                  Vec2D position,
-                                  Vec2D previousPosition,
-                                  int pointerId) const
+                                  const ListenerInvocation& invocation) const
 {
+    Vec2D position;
+    Vec2D previousPosition;
+    if (const PointerInvocation* p = invocation.asPointer())
+    {
+        position = p->position;
+        previousPosition = p->previousPosition;
+    }
+    else
+    {
+        position = Vec2D(0, 0);
+        previousPosition = Vec2D(0, 0);
+    }
     auto coreTarget = stateMachineInstance->artboard()->resolve(targetId());
     if (coreTarget == nullptr || !coreTarget->is<Node>())
     {

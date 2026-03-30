@@ -3,6 +3,7 @@
  */
 
 #include "rive/animation/focus_action.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
 #include "rive/focus_data.hpp"
@@ -11,10 +12,9 @@
 using namespace rive;
 
 void FocusAction::perform(StateMachineInstance* stateMachineInstance,
-                          Vec2D position,
-                          Vec2D previousPosition,
-                          int pointerId) const
+                          const ListenerInvocation& invocation) const
 {
+    (void)invocation;
     auto target = stateMachineInstance->artboard()->resolve(targetId());
     if (target == nullptr || !target->is<Node>())
     {

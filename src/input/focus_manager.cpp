@@ -86,7 +86,20 @@ FocusManager::~FocusManager()
     // Don't call clearFocus() here - it would invoke callbacks on FocusNodes,
     // but during destruction (especially Dart finalizers) callbacks may be
     // invalid. Just clear the reference directly.
+    for (auto node : m_rootNodes)
+    {
+        removeManager(node);
+    }
     m_primaryFocus = nullptr;
+}
+
+void FocusManager::removeManager(rcp<FocusNode> node)
+{
+    for (const auto& child : node->children())
+    {
+        removeManager(child);
+    }
+    node->m_manager = nullptr;
 }
 
 void FocusManager::setFocus(rcp<FocusNode> node)

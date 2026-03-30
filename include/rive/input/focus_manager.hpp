@@ -132,6 +132,7 @@ public:
 private:
     rcp<FocusNode> m_primaryFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;
+    void removeManager(rcp<FocusNode>);
 #ifdef WITH_RIVE_TOOLS
     FocusChangedCallback m_focusChangedCallback = nullptr;
     ScrollIntoViewCallback m_scrollIntoViewCallback = nullptr;

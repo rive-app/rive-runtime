@@ -5,6 +5,30 @@
 
 using namespace rive;
 
+static const char* hit_listener_type_string(int raw)
+{
+    switch (static_cast<ListenerType>(raw))
+    {
+        case ListenerType::enter:
+            return "pointerEnter";
+        case ListenerType::exit:
+            return "pointerExit";
+        case ListenerType::down:
+            return "pointerDown";
+        case ListenerType::up:
+            return "pointerUp";
+        case ListenerType::move:
+            return "pointerMove";
+        case ListenerType::click:
+            return "click";
+        case ListenerType::drag:
+            return "pointerDrag";
+        default:
+            return "unknown";
+    }
+    return "unknown";
+}
+
 static int pointer_event_index(lua_State* L)
 {
     int atom;
@@ -25,6 +49,19 @@ static int pointer_event_index(lua_State* L)
             lua_pushvector2(L,
                             pointerEvent->m_position.x,
                             pointerEvent->m_position.y);
+            return 1;
+        case (int)LuaAtoms::previousPosition:
+            lua_pushvector2(L,
+                            pointerEvent->m_previousPosition.x,
+                            pointerEvent->m_previousPosition.y);
+            return 1;
+        case (int)LuaAtoms::type:
+            lua_pushstring(
+                L,
+                hit_listener_type_string(pointerEvent->m_hitListenerType));
+            return 1;
+        case (int)LuaAtoms::timeStamp:
+            lua_pushnumber(L, pointerEvent->m_timeStamp);
             return 1;
     }
 
@@ -100,6 +137,8 @@ int luaopen_rive_input(lua_State* L)
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
     }
+
+    rive_lua_register_listener_invocation_types(L);
 
     return 1;
 }

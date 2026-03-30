@@ -15,6 +15,7 @@
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_layer.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/animation/state_machine_listener_single.hpp"
 #include "rive/animation/state_machine_number.hpp"
@@ -60,6 +61,7 @@
 #include "rive/animation/listener_types/listener_input_type_event.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/node.hpp"
+#include <array>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -69,6 +71,21 @@
 using namespace rive;
 namespace rive
 {
+namespace
+{
+constexpr std::array<ListenerType, 9> kPointerHitListenerTypes = {
+    ListenerType::enter,
+    ListenerType::exit,
+    ListenerType::down,
+    ListenerType::up,
+    ListenerType::move,
+    ListenerType::click,
+    ListenerType::dragStart,
+    ListenerType::dragEnd,
+    ListenerType::drag,
+};
+} // namespace
+
 class StateMachineLayerInstance
 {
 public:
@@ -1666,7 +1683,6 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     m_focusListenerGroups.push_back(std::move(focusGroup));
                 }
             }
-            continue;
         }
         if (listener->hasListener(ListenerType::keyboard) ||
             listener->hasListener(ListenerType::textInput))
@@ -1695,25 +1711,28 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                         std::move(keyboardGroup));
                 }
             }
-            continue;
         }
-        auto listenerGroup = std::make_unique<ListenerGroup>(listener);
-        auto target = m_artboardInstance->resolve(listener->targetId());
-        if (target != nullptr && target->is<Component>())
+
+        if (listener->hasListeners(kPointerHitListenerTypes))
         {
-            bool isLayoutComponent = false;
-            if (target->is<LayoutComponent>())
+            auto listenerGroup = std::make_unique<ListenerGroup>(listener);
+            auto target = m_artboardInstance->resolve(listener->targetId());
+            if (target != nullptr && target->is<Component>())
             {
-                isLayoutComponent = true;
-                target = target->as<LayoutComponent>()->proxy();
+                bool isLayoutComponent = false;
+                if (target->is<LayoutComponent>())
+                {
+                    isLayoutComponent = true;
+                    target = target->as<LayoutComponent>()->proxy();
+                }
+                addToHitLookup(target->as<Component>(),
+                               isLayoutComponent,
+                               hitLookup,
+                               listenerGroup.get(),
+                               false);
             }
-            addToHitLookup(target->as<Component>(),
-                           isLayoutComponent,
-                           hitLookup,
-                           listenerGroup.get(),
-                           false);
+            m_listenerGroups.push_back(std::move(listenerGroup));
         }
-        m_listenerGroups.push_back(std::move(listenerGroup));
     }
 
     std::vector<ListenerGroupProvider*> componentProvidedListenerGroups;
@@ -2101,7 +2120,9 @@ void StateMachineInstance::processFocusEvents()
         if ((isFocusEvent && listener->hasListener(ListenerType::focus)) ||
             (!isFocusEvent && listener->hasListener(ListenerType::blur)))
         {
-            listener->performChanges(this, Vec2D(), Vec2D(), 0);
+            listener->performChanges(
+                this,
+                ListenerInvocation::focus(event.group, event.isFocus));
         }
     }
 }
@@ -2446,10 +2467,9 @@ void StateMachineInstance::notifyListenerViewModels(
     {
         for (auto& listenerViewModel : events)
         {
-            listenerViewModel->listener()->performChanges(this,
-                                                          Vec2D(),
-                                                          Vec2D(),
-                                                          0);
+            listenerViewModel->listener()->performChanges(
+                this,
+                ListenerInvocation::viewModelChange(listenerViewModel));
         }
     }
 }
@@ -2508,7 +2528,11 @@ void StateMachineInstance::notifyEventListeners(
                                 ->eventId());
                         if (listenerEvent == event.event())
                         {
-                            listener->performChanges(this, Vec2D(), Vec2D(), 0);
+                            listener->performChanges(
+                                this,
+                                ListenerInvocation::reportedEvent(
+                                    event.event(),
+                                    event.secondsDelay()));
                             break;
                         }
                     }
@@ -2529,10 +2553,11 @@ void StateMachineInstance::notifyEventListeners(
                                     listenerInputTypeEvent->eventId());
                                 if (listenerEvent == event.event())
                                 {
-                                    listener->performChanges(this,
-                                                             Vec2D(),
-                                                             Vec2D(),
-                                                             0);
+                                    listener->performChanges(
+                                        this,
+                                        ListenerInvocation::reportedEvent(
+                                            event.event(),
+                                            event.secondsDelay()));
                                     break;
                                 }
                             }

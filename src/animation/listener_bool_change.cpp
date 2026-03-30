@@ -25,10 +25,9 @@ bool ListenerBoolChange::validateNestedInputType(const NestedInput* input) const
 }
 
 void ListenerBoolChange::perform(StateMachineInstance* stateMachineInstance,
-                                 Vec2D position,
-                                 Vec2D previousPosition,
-                                 int pointerId) const
+                                 const ListenerInvocation& invocation) const
 {
+    (void)invocation;
     if (nestedInputId() != Core::emptyId)
     {
         auto nestedInputInstance =

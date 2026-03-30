@@ -1,8 +1,9 @@
 #ifndef _RIVE_STATE_MACHINE_LISTENER_HPP_
 #define _RIVE_STATE_MACHINE_LISTENER_HPP_
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/generated/animation/state_machine_listener_base.hpp"
 #include "rive/listener_type.hpp"
-#include "rive/math/vec2d.hpp"
+#include "rive/span.hpp"
 #include "rive/animation/listener_types/listener_input_type.hpp"
 
 namespace rive
@@ -24,6 +25,7 @@ public:
     //     return (ListenerType)listenerTypeValue();
     // }
     virtual bool hasListener(ListenerType) const;
+    bool hasListeners(Span<const ListenerType> listenerTypes) const;
     size_t actionCount() const { return m_actions.size(); }
     size_t listenerInputTypeCount() const
     {
@@ -35,9 +37,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
 
     void performChanges(StateMachineInstance* stateMachineInstance,
-                        Vec2D position,
-                        Vec2D previousPosition,
-                        int pointerId) const;
+                        const ListenerInvocation& invocation) const;
 
 private:
     void addAction(std::unique_ptr<ListenerAction>);

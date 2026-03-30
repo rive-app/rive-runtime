@@ -25,6 +25,19 @@ bool StateMachineListener::hasListener(ListenerType listenerType) const
     return false;
 }
 
+bool StateMachineListener::hasListeners(
+    Span<const ListenerType> listenerTypes) const
+{
+    for (auto listenerType : listenerTypes)
+    {
+        if (hasListener(listenerType))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
 {
     m_actions.push_back(std::move(action));
@@ -71,15 +84,10 @@ const ListenerInputType* StateMachineListener::listenerInputType(
 
 void StateMachineListener::performChanges(
     StateMachineInstance* stateMachineInstance,
-    Vec2D position,
-    Vec2D previousPosition,
-    int pointerId) const
+    const ListenerInvocation& invocation) const
 {
     for (auto& action : m_actions)
     {
-        action->perform(stateMachineInstance,
-                        position,
-                        previousPosition,
-                        pointerId);
+        action->perform(stateMachineInstance, invocation);
     }
 }

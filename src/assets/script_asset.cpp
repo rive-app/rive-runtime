@@ -173,6 +173,21 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
         }
         rive_lua_pop(state, 1);
     }
+    else if (scriptProtocol == ScriptProtocol::listenerAction)
+    {
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "perform")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_listenerPerforms;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "performAction")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_listenerPerformsAction;
+        }
+        rive_lua_pop(state, 1);
+    }
     rive_lua_pop(state, 1);
     return true;
 }

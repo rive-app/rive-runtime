@@ -12,13 +12,9 @@ public:
     ~ScriptedListenerAction();
     virtual void disposeScriptInputs() override;
     void perform(StateMachineInstance* stateMachineInstance,
-                 Vec2D position,
-                 Vec2D previousPosition,
-                 int pointerId) const override;
+                 const ListenerInvocation& invocation) const override;
     void performStateful(StateMachineInstance* stateMachineInstance,
-                         Vec2D position,
-                         Vec2D previousPosition,
-                         int pointerId) const;
+                         const ListenerInvocation& invocation) const;
 
     uint32_t assetId() override { return scriptAssetId(); }
     bool addScriptedDirt(ComponentDirt value, bool recurse = false) override

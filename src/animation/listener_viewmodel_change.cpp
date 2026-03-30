@@ -1,4 +1,5 @@
 #include "rive/animation/listener_viewmodel_change.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_viewmodel.hpp"
@@ -40,10 +41,9 @@ StatusCode ListenerViewModelChange::import(ImportStack& importStack)
 // same bindable property with two data binding objects.
 void ListenerViewModelChange::perform(
     StateMachineInstance* stateMachineInstance,
-    Vec2D position,
-    Vec2D previousPosition,
-    int pointerId) const
+    const ListenerInvocation& invocation) const
 {
+    (void)invocation;
     // Get the bindable property instance from the state machine instance
     // context
     auto bindableInstance =

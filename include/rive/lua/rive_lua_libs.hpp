@@ -32,6 +32,7 @@
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/hit_result.hpp"
 #include "rive/lua/scripting_vm.hpp"
 #include "rive/refcnt.hpp"
@@ -254,6 +255,38 @@ enum class LuaAtoms : int16_t
     setTime,
     setTimeFrames,
     setTimePercentage,
+
+    // PointerEvent (append to avoid shifting existing atom ids)
+    previousPosition,
+    timeStamp,
+
+    // ScriptedInvocation / listener payloads (append only)
+    isPointerEvent,
+    isKeyboardEvent,
+    isTextInput,
+    isFocus,
+    isReportedEvent,
+    isViewModelChange,
+    isNone,
+    isGamepad,
+    asPointerEvent,
+    asKeyboardEvent,
+    asTextInput,
+    asFocus,
+    asReportedEvent,
+    asViewModelChange,
+    asGamepad,
+    asNone,
+    key,
+    alt,
+    control,
+    meta,
+    text,
+    phase,
+    delaySeconds,
+    deviceId,
+    buttonMask,
+    axis0,
 };
 
 struct ScriptedMat2D
@@ -1046,8 +1079,16 @@ public:
 class ScriptedPointerEvent
 {
 public:
-    ScriptedPointerEvent(uint8_t id, Vec2D position) :
-        m_id(id), m_position(position)
+    ScriptedPointerEvent(uint8_t id,
+                         Vec2D position,
+                         Vec2D previousPosition = Vec2D(),
+                         int hitListenerType = 0,
+                         float timeStamp = 0.f) :
+        m_id(id),
+        m_position(position),
+        m_previousPosition(previousPosition),
+        m_hitListenerType(hitListenerType),
+        m_timeStamp(timeStamp)
     {}
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 24;
@@ -1056,6 +1097,9 @@ public:
 
     uint8_t m_id = 0;
     Vec2D m_position;
+    Vec2D m_previousPosition;
+    int m_hitListenerType = 0;
+    float m_timeStamp = 0.f;
     HitResult m_hitResult = HitResult::none;
 };
 
@@ -1131,6 +1175,136 @@ private:
     ScriptedObject* m_scriptedObject = nullptr;
     bool m_disposed = false;
 };
+
+/// Wraps [`ListenerInvocation`] for `performAction` in scripted listener
+/// actions.
+class ScriptedInvocation
+{
+public:
+    explicit ScriptedInvocation(ListenerInvocation inv) :
+        m_invocation(std::move(inv))
+    {}
+
+    ListenerInvocation& invocation() { return m_invocation; }
+    const ListenerInvocation& invocation() const { return m_invocation; }
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 41;
+    static constexpr const char* luaName = "Invocation";
+    static constexpr bool hasMetatable = true;
+
+private:
+    ListenerInvocation m_invocation;
+};
+
+class ScriptedKeyboardInvocation
+{
+public:
+    ScriptedKeyboardInvocation(Key key,
+                               KeyModifiers modifiers,
+                               bool isPressed,
+                               bool isRepeat) :
+        m_key(key),
+        m_modifiers(modifiers),
+        m_isPressed(isPressed),
+        m_isRepeat(isRepeat)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 42;
+    static constexpr const char* luaName = "KeyboardInvocation";
+    static constexpr bool hasMetatable = true;
+
+    Key m_key;
+    KeyModifiers m_modifiers;
+    bool m_isPressed;
+    bool m_isRepeat;
+};
+
+class ScriptedTextInputInvocation
+{
+public:
+    explicit ScriptedTextInputInvocation(std::string text) :
+        m_text(std::move(text))
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 43;
+    static constexpr const char* luaName = "TextInputInvocation";
+    static constexpr bool hasMetatable = true;
+
+    const std::string& text() const { return m_text; }
+
+private:
+    std::string m_text;
+};
+
+class ScriptedFocusInvocation
+{
+public:
+    explicit ScriptedFocusInvocation(bool isFocus) : m_isFocus(isFocus) {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 44;
+    static constexpr const char* luaName = "FocusInvocation";
+    static constexpr bool hasMetatable = true;
+
+    bool m_isFocus;
+};
+
+class ScriptedReportedEventInvocation
+{
+public:
+    ScriptedReportedEventInvocation(Event* event, float delaySeconds) :
+        m_event(event), m_delaySeconds(delaySeconds)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 45;
+    static constexpr const char* luaName = "ReportedEventInvocation";
+    static constexpr bool hasMetatable = true;
+
+    /// Valid only for the duration of the listener callback; do not retain.
+    Event* m_event;
+    float m_delaySeconds;
+};
+
+class ScriptedViewModelChangeInvocation
+{
+public:
+    ScriptedViewModelChangeInvocation() = default;
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 46;
+    static constexpr const char* luaName = "ViewModelChangeInvocation";
+    static constexpr bool hasMetatable = true;
+};
+
+class ScriptedGamepadInvocation
+{
+public:
+    ScriptedGamepadInvocation(int deviceId, uint64_t buttonMask, float axis0) :
+        m_deviceId(deviceId), m_buttonMask(buttonMask), m_axis0(axis0)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 47;
+    static constexpr const char* luaName = "GamepadInvocation";
+    static constexpr bool hasMetatable = true;
+
+    int m_deviceId;
+    uint64_t m_buttonMask;
+    float m_axis0;
+};
+
+class ScriptedNoneInvocation
+{
+public:
+    ScriptedNoneInvocation() = default;
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 48;
+    static constexpr const char* luaName = "NoneInvocation";
+    static constexpr bool hasMetatable = true;
+};
+
+void rive_lua_register_listener_invocation_types(lua_State* L);
+void rive_lua_push_pointer_arg_for_perform(lua_State* L,
+                                           const ListenerInvocation& inv);
+void rive_lua_push_scripted_invocation(lua_State* L,
+                                       const ListenerInvocation& inv);
 
 static void interruptCPP(lua_State* L, int gc);
 
