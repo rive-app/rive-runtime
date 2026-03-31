@@ -57,6 +57,11 @@ public:
     void markNeedsUpdate() override;
     bool willDraw() override;
     Component* component() override { return this; }
+    bool keyInput(Key key,
+                  KeyModifiers modifiers,
+                  bool isPressed,
+                  bool isRepeat);
+    bool textInput(const std::string& text);
 
 private:
     bool m_isAdvanceActive = true;

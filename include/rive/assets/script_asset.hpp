@@ -75,6 +75,8 @@ private:
     static const int m_resizesBit = 1 << 12;
     static const int m_listenerPerforms = 1 << 13;
     static const int m_listenerPerformsAction = 1 << 14;
+    static const int m_wantsKeyboardInputBit = 1 << 15;
+    static const int m_wantsTextInputBit = 1 << 16;
 
     int m_implementedMethods = 0;
 
@@ -137,6 +139,14 @@ public:
     bool dataReverseConverts()
     {
         return (m_implementedMethods & m_dataReverseConvertsBit) != 0;
+    }
+    bool wantsKeyboardInput()
+    {
+        return (m_implementedMethods & m_wantsKeyboardInputBit) != 0;
+    }
+    bool wantsTextInput()
+    {
+        return (m_implementedMethods & m_wantsTextInputBit) != 0;
     }
 };
 

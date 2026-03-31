@@ -8,6 +8,9 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "utils/no_op_renderer.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive_file_reader.hpp"
 
 using namespace rive;
 
@@ -301,4 +304,38 @@ end
 
         CHECK(top == lua_gettop(L));
     }
+}
+
+TEST_CASE("scripted drawable with keyboard and text input receive inputs",
+          "[silver]")
+{
+    auto file = ReadRiveFile("assets/keyboard_event_to_script.riv");
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    auto textKey = vmi->propertyValue("textKey")->as<ViewModelInstanceNumber>();
+    auto inputText =
+        vmi->propertyValue("inputText")->as<ViewModelInstanceString>();
+    CHECK(textKey->propertyValue() == 0);
+    CHECK(inputText->propertyValue() == "");
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto focusManager = artboard->focusManager();
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+
+    focusManager->keyInput(Key::a, KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(textKey->propertyValue() == 65);
+    CHECK(inputText->propertyValue() == "");
+
+    focusManager->textInput("test");
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(textKey->propertyValue() == 65);
+    CHECK(inputText->propertyValue() == "test");
 }

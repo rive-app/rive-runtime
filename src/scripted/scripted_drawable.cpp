@@ -118,6 +118,97 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     return hitResult;
 }
 
+bool ScriptedDrawable::keyInput(Key key,
+                                KeyModifiers modifiers,
+                                bool isPressed,
+                                bool isRepeat)
+{
+    if (!wantsKeyboardInput())
+    {
+        return false;
+    }
+    bool shouldStopPropagation = false;
+    auto L = state();
+    if (L == nullptr)
+    {
+        return shouldStopPropagation;
+    }
+    // Stack: []
+    rive_lua_pushRef(L, self());
+    // Stack: [self]
+    lua_getfield(L, -1, "keyboardEvent");
+    // Stack: [self, field]
+    lua_pushvalue(L, -2);
+    // Stack: [self, field, self]
+    lua_newrive<ScriptedKeyboardInvocation>(L,
+                                            key,
+                                            modifiers,
+                                            isPressed,
+                                            isRepeat);
+
+    // Stack: [self, field, self, keyEvent]
+    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 1)) != LUA_OK)
+    {
+        fprintf(stderr, "%s failed\n", "keyboardEvent");
+        // Stack: [self, status]
+        rive_lua_pop(L, 1);
+    }
+    else
+    {
+        if (lua_isboolean(L, -1))
+        {
+            shouldStopPropagation = lua_toboolean(L, -1);
+        }
+        // Stack: [self, result]
+        rive_lua_pop(L, 1);
+    }
+    // Stack: [self]
+    rive_lua_pop(L, 1);
+    return shouldStopPropagation;
+}
+
+bool ScriptedDrawable::textInput(const std::string& text)
+{
+    if (!wantsTextInput())
+    {
+        return false;
+    }
+    bool shouldStopPropagation = false;
+    auto L = state();
+    if (L == nullptr)
+    {
+        return shouldStopPropagation;
+    }
+    // Stack: []
+    rive_lua_pushRef(L, self());
+    // Stack: [self]
+    lua_getfield(L, -1, "textEvent");
+    // Stack: [self, field]
+    lua_pushvalue(L, -2);
+    // Stack: [self, field, self]
+    lua_newrive<ScriptedTextInputInvocation>(L, text);
+
+    // Stack: [self, field, self, textInvocation]
+    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 1)) != LUA_OK)
+    {
+        fprintf(stderr, "%s failed\n", "textEvent");
+        // Stack: [self, status]
+        rive_lua_pop(L, 1);
+    }
+    else
+    {
+        if (lua_isboolean(L, -1))
+        {
+            shouldStopPropagation = lua_toboolean(L, -1);
+        }
+        // Stack: [self, result]
+        rive_lua_pop(L, 1);
+    }
+    // Stack: [self]
+    rive_lua_pop(L, 1);
+    return shouldStopPropagation;
+}
+
 bool ScriptedDrawable::willDraw()
 {
     return Super::willDraw() && m_vm != nullptr && draws();

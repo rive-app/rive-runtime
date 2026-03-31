@@ -1844,6 +1844,30 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_scriptedObjectsMap[scriptedOb] =
             scriptedOb->cloneScriptedObject(this);
     }
+    // Register Scripted objects as keyboard and text targets when expected
+    for (auto object : instance->objects<ContainerComponent>())
+    {
+        auto scriptedObject = ScriptedObject::from(object);
+        if (scriptedObject && (scriptedObject->wantsKeyboardInput() ||
+                               scriptedObject->wantsTextInput()))
+        {
+            for (auto& child : object->as<ContainerComponent>()->children())
+            {
+                if (child->is<FocusData>())
+                {
+
+                    auto keyboardGroup =
+                        std::make_unique<KeyboardListenerGroup>(
+                            child->as<FocusData>(),
+                            nullptr,
+                            this);
+                    m_keyboardListenerGroups.push_back(
+                        std::move(keyboardGroup));
+                    break;
+                }
+            }
+        }
+    }
     sortHitComponents();
 
     // Build the focus tree for this artboard. focusManager() returns the
