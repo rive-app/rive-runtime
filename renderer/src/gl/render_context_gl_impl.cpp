@@ -405,8 +405,8 @@ void RenderContextGLImpl::buildAtlasRenderPipelines()
     m_atlasStrokePipelineState = gpu::ATLAS_STROKE_PIPELINE_STATE;
     switch (m_atlasType)
     {
-        case AtlasType::r32f:
         case AtlasType::r16f:
+        case AtlasType::r32f:
             break;
         case AtlasType::r32uiFramebufferFetch:
             defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32UI_FRAMEBUFFER_FETCH);
@@ -966,10 +966,10 @@ static GLenum atlas_gl_format(RenderContextGLImpl::AtlasType atlasType)
     switch (atlasType)
     {
         using AtlasType = RenderContextGLImpl::AtlasType;
-        case AtlasType::r32f:
-            return GL_R32F;
         case AtlasType::r16f:
             return GL_R16F;
+        case AtlasType::r32f:
+            return GL_R32F;
         case AtlasType::r32uiFramebufferFetch:
         case AtlasType::r32uiPixelLocalStorage:
             return GL_R32UI;
@@ -986,8 +986,8 @@ static GLenum atlas_gl_filter(RenderContextGLImpl::AtlasType atlasType)
     switch (atlasType)
     {
         using AtlasType = RenderContextGLImpl::AtlasType;
-        case AtlasType::r32f:
         case AtlasType::r16f:
+        case AtlasType::r32f:
             return GL_LINEAR;
         case AtlasType::r32uiFramebufferFetch:
         case AtlasType::r32uiPixelLocalStorage:
@@ -1168,8 +1168,8 @@ RenderContextGLImpl::DrawShader::DrawShader(
             defines.push_back(GLSL_ATLAS_BLIT);
             switch (renderContextImpl->m_atlasType)
             {
-                case AtlasType::r32f:
                 case AtlasType::r16f:
+                case AtlasType::r32f:
                     break;
                 case AtlasType::r32uiFramebufferFetch:
                 case AtlasType::r32uiPixelLocalStorage:
@@ -1868,8 +1868,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
         switch (m_atlasType)
         {
-            case AtlasType::r32f:
             case AtlasType::r16f:
+            case AtlasType::r32f:
             case AtlasType::rgba8:
             {
                 constexpr GLfloat clearZero4f[4]{};
@@ -1970,8 +1970,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         // Finalize the atlas render pass if needed.
         switch (m_atlasType)
         {
-            case AtlasType::r32f:
             case AtlasType::r16f:
+            case AtlasType::r32f:
             case AtlasType::rgba8:
             case AtlasType::r32uiFramebufferFetch:
                 break;
@@ -2491,9 +2491,9 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
 }
 
 #ifdef WITH_RIVE_TOOLS
-void RenderContextGLImpl::testingOnly_resetAtlasDesiredType(
-    RenderContext* owningRenderContext,
-    AtlasType atlasDesiredType)
+RenderContextGLImpl::AtlasType RenderContextGLImpl::
+    testingOnly_resetAtlasDesiredType(RenderContext* owningRenderContext,
+                                      AtlasType atlasDesiredType)
 {
     owningRenderContext->releaseResources();
     assert(m_atlasTexture == 0); // Should be cleared by releaseResources().
@@ -2514,7 +2514,8 @@ void RenderContextGLImpl::testingOnly_resetAtlasDesiredType(
     // sampling a different AtlasType.
     m_pipelineManager.clearCache();
 
-    m_atlasType = select_atlas_type(m_capabilities, atlasDesiredType);
+    return std::exchange(m_atlasType,
+                         select_atlas_type(m_capabilities, atlasDesiredType));
 }
 #endif
 

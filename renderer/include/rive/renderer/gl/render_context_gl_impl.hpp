@@ -102,10 +102,13 @@ public:
     // Changes the context's AtlasType for testing purposes. If atlasDesiredType
     // is not supported, the next supported AtlasType down the list is chosen.
     //
+    // Returns the original AtlasType from before this call was made.
+    //
     // NOTE: this also calls releaseResources() on the owning RenderContext to
     // ensure the atlas texture gets reallocated.
-    void testingOnly_resetAtlasDesiredType(RenderContext* owningRenderContext,
-                                           AtlasType atlasDesiredType);
+    AtlasType testingOnly_resetAtlasDesiredType(
+        RenderContext* owningRenderContext,
+        AtlasType atlasDesiredType);
 #endif
 
 private:

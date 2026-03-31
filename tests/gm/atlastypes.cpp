@@ -55,6 +55,10 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
     starStroke->style(RenderPaintStyle::stroke);
     starStroke->thickness(.05f);
 
+#ifndef RIVE_TOOLS_NO_GL
+    auto originalAtlasType = gpu::RenderContextGLImpl::AtlasType::r16f;
+#endif
+
     for (int i = 0; i < 6; ++i)
     {
         if (renderContext != nullptr)
@@ -64,9 +68,13 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
                     TestingWindow::Get()->renderContextGLImpl())
             {
                 TestingWindow::Get()->flushPLSContext();
-                glImpl->testingOnly_resetAtlasDesiredType(
+                auto lastAtlasType = glImpl->testingOnly_resetAtlasDesiredType(
                     renderContext,
                     static_cast<gpu::RenderContextGLImpl::AtlasType>(i));
+                if (i == 0)
+                {
+                    originalAtlasType = lastAtlasType;
+                }
                 renderContext->beginFrame(frameDescriptor);
             }
 #endif
@@ -109,9 +117,8 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
                 TestingWindow::Get()->renderContextGLImpl())
         {
             TestingWindow::Get()->flushPLSContext();
-            glImpl->testingOnly_resetAtlasDesiredType(
-                renderContext,
-                gpu::RenderContextGLImpl::AtlasType::r32f);
+            glImpl->testingOnly_resetAtlasDesiredType(renderContext,
+                                                      originalAtlasType);
             renderContext->beginFrame(frameDescriptor);
         }
 #endif
