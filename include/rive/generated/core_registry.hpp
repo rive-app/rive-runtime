@@ -883,6 +883,9 @@ public:
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
                 object->as<ViewModelPropertyBase>()->symbolTypeValue(value);
                 break;
+            case ViewModelPropertyBase::componentPropsPropertyKey:
+                object->as<ViewModelPropertyBase>()->componentProps(value);
+                break;
             case ComponentBase::parentIdPropertyKey:
                 object->as<ComponentBase>()->parentId(value);
                 break;
@@ -2572,6 +2575,8 @@ public:
                     ->viewModelInstanceId();
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
                 return object->as<ViewModelPropertyBase>()->symbolTypeValue();
+            case ViewModelPropertyBase::componentPropsPropertyKey:
+                return object->as<ViewModelPropertyBase>()->componentProps();
             case ComponentBase::parentIdPropertyKey:
                 return object->as<ComponentBase>()->parentId();
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
@@ -3755,6 +3760,7 @@ public:
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
+            case ViewModelPropertyBase::componentPropsPropertyKey:
             case ComponentBase::parentIdPropertyKey:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
@@ -4324,6 +4330,8 @@ public:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
                 return object->is<ViewModelInstanceListItemBase>();
             case ViewModelPropertyBase::symbolTypeValuePropertyKey:
+                return object->is<ViewModelPropertyBase>();
+            case ViewModelPropertyBase::componentPropsPropertyKey:
                 return object->is<ViewModelPropertyBase>();
             case ComponentBase::parentIdPropertyKey:
                 return object->is<ComponentBase>();

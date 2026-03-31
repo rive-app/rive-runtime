@@ -176,6 +176,17 @@ private:
     std::unordered_map<ArtboardInstance*, ArtboardComponentListOverride*>
         m_artboardOverridesMap;
     std::unordered_map<int, int> m_artboardMapRules;
+
+    // Data binds that bridge properties between a stateful component's
+    // cloned ViewModelInstance and the original (user-provided) one.
+    // Keyed by list item so they can be cleaned up when the item is removed.
+    std::unordered_map<rcp<ViewModelInstanceListItem>,
+                       std::vector<std::unique_ptr<DataBind>>>
+        m_bridgeDataBinds;
+    void createBridgeBinds(rcp<ViewModelInstanceListItem> listItem,
+                           ViewModelInstance* original,
+                           ViewModelInstance* clone);
+    void removeBridgeBinds(const rcp<ViewModelInstanceListItem>& listItem);
     void attachArtboardOverride(ArtboardInstance*,
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);

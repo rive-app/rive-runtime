@@ -6,10 +6,22 @@
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/constraints/list_constraint.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind_flags.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_number_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_string_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_color_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_boolean_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_enum_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_list_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_trigger_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_viewmodel_base.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
+#include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/world_transform_component.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/artboard_list_map_rule.hpp"
@@ -30,6 +42,22 @@ void ArtboardComponentList::clear()
             artboard.second->cleanupFocusTree();
         }
     }
+
+    // Clean up bridge binds FIRST since they reference VM instances
+    // that may be owned by the artboard instances below.
+    auto* parentAb = artboard();
+    for (auto& [item, binds] : m_bridgeDataBinds)
+    {
+        for (auto& bind : binds)
+        {
+            bind->unbind();
+            if (parentAb != nullptr)
+            {
+                parentAb->removeDataBind(bind.get());
+            }
+        }
+    }
+    m_bridgeDataBinds.clear();
 
     // Destroy state machines BEFORE artboards.
     // StateMachineInstance owns FocusListenerGroup objects that hold raw
@@ -963,6 +991,12 @@ void ArtboardComponentList::bindArtboard(
                     }
 #endif
                     viewModelInstance = copy;
+
+                    // Create bridge data binds between the original and
+                    // cloned VM instances for input/output properties.
+                    createBridgeBinds(listItem,
+                                      listItemInstance.get(),
+                                      copy.get());
                 }
                 else
                 {
@@ -972,11 +1006,12 @@ void ArtboardComponentList::bindArtboard(
                         viewModelInstance =
                             m_file->createDefaultViewModelInstance(viewModel);
                     }
-                }
-                // Store the auto-created instance on the list item.
-                if (viewModelInstance != nullptr)
-                {
-                    listItem->viewModelInstance(viewModelInstance);
+                    // Store the default instance on the list item so we
+                    // don't recreate one every time.
+                    if (viewModelInstance != nullptr)
+                    {
+                        listItem->viewModelInstance(viewModelInstance);
+                    }
                 }
             }
         }
@@ -1021,11 +1056,143 @@ void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
         }
         clearArtboardOverride(itr->second.get());
     }
+    // Remove bridge data binds before destroying the artboard.
+    removeBridgeBinds(item);
     // Destroy state machines BEFORE artboards to ensure FocusListenerGroup
     // can unregister from FocusData before the artboard (and its FocusData)
     // is destroyed. Otherwise we get use-after-free in ~FocusListenerGroup.
     m_stateMachinesMap.erase(item);
     m_artboardInstancesMap.erase(item);
+}
+
+/// Returns the propertyValuePropertyKey for a ViewModelInstanceValue based
+/// on its core type, or Core::invalidPropertyKey if unsupported.
+static uint16_t propertyValueKeyForType(uint16_t coreType)
+{
+    switch (coreType)
+    {
+        case ViewModelInstanceNumberBase::typeKey:
+            return ViewModelInstanceNumberBase::propertyValuePropertyKey;
+        case ViewModelInstanceStringBase::typeKey:
+            return ViewModelInstanceStringBase::propertyValuePropertyKey;
+        case ViewModelInstanceColorBase::typeKey:
+            return ViewModelInstanceColorBase::propertyValuePropertyKey;
+        case ViewModelInstanceBooleanBase::typeKey:
+            return ViewModelInstanceBooleanBase::propertyValuePropertyKey;
+        case ViewModelInstanceEnumBase::typeKey:
+            return ViewModelInstanceEnumBase::propertyValuePropertyKey;
+        case ViewModelInstanceTriggerBase::typeKey:
+            return ViewModelInstanceTriggerBase::propertyValuePropertyKey;
+        case ViewModelInstanceViewModelBase::typeKey:
+            return ViewModelInstanceViewModelBase::propertyValuePropertyKey;
+        default:
+            return Core::invalidPropertyKey;
+    }
+}
+
+void ArtboardComponentList::createBridgeBinds(
+    rcp<ViewModelInstanceListItem> listItem,
+    ViewModelInstance* original,
+    ViewModelInstance* clone)
+{
+    if (original == nullptr || clone == nullptr)
+    {
+        return;
+    }
+    auto* vm = clone->viewModel();
+    if (vm == nullptr)
+    {
+        return;
+    }
+    auto* parentArtboard = artboard();
+    if (parentArtboard == nullptr)
+    {
+        return;
+    }
+
+    auto& binds = m_bridgeDataBinds[listItem];
+
+    for (auto& cloneValueRcp : clone->propertyValues())
+    {
+        auto* cloneValue = cloneValueRcp.get();
+        auto* prop = cloneValue->viewModelProperty();
+        if (prop == nullptr || (!prop->isInput() && !prop->isOutput()))
+        {
+            continue;
+        }
+
+        // Find the matching property on the original by ViewModelProperty
+        // pointer (both instances share the same ViewModel definition).
+        ViewModelInstanceValue* originalValue = nullptr;
+        for (auto& origRcp : original->propertyValues())
+        {
+            if (origRcp->viewModelProperty() == prop)
+            {
+                originalValue = origRcp.get();
+                break;
+            }
+        }
+        if (originalValue == nullptr)
+        {
+            continue;
+        }
+
+        auto propKey = propertyValueKeyForType(cloneValue->coreType());
+        if (propKey == Core::invalidPropertyKey)
+        {
+            continue;
+        }
+
+        if (prop->isInput())
+        {
+            // Input: original → clone (source to target)
+            auto bind = std::make_unique<DataBind>();
+            bind->source(ref_rcp(originalValue));
+            bind->target(cloneValue);
+            bind->propertyKey(propKey);
+            bind->flags(static_cast<uint32_t>(DataBindFlags::ToTarget));
+            bind->bind();
+            parentArtboard->addDataBind(bind.get());
+            binds.push_back(std::move(bind));
+        }
+
+        if (prop->isOutput())
+        {
+            // Output: clone → original. Uses ToSource direction so the
+            // bind is in the persisting list and continuously syncs
+            // changes made by the component's state machine back to
+            // the user-provided VM instance.
+            // ToSource semantics: reads from target, writes to source.
+            auto bind = std::make_unique<DataBind>();
+            bind->source(ref_rcp(originalValue));
+            bind->target(cloneValue);
+            bind->propertyKey(propKey);
+            bind->flags(static_cast<uint32_t>(DataBindFlags::ToSource));
+            bind->bind();
+            parentArtboard->addDataBind(bind.get());
+            binds.push_back(std::move(bind));
+        }
+    }
+}
+
+void ArtboardComponentList::removeBridgeBinds(
+    const rcp<ViewModelInstanceListItem>& listItem)
+{
+    auto itr = m_bridgeDataBinds.find(listItem);
+    if (itr == m_bridgeDataBinds.end())
+    {
+        return;
+    }
+    auto* parentArtboard = artboard();
+    for (auto& bind : itr->second)
+    {
+        bind->unbind();
+        if (parentArtboard != nullptr)
+        {
+            parentArtboard->removeDataBind(bind.get());
+        }
+    }
+    m_bridgeDataBinds.erase(itr);
 }
 
 void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)

@@ -46,6 +46,24 @@ bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
     return didUpdate;
 }
 
+void DataBindContainer::removeDataBind(DataBind* dataBind)
+{
+    m_dataBinds.erase(
+        std::remove(m_dataBinds.begin(), m_dataBinds.end(), dataBind),
+        m_dataBinds.end());
+    m_persistingDataBinds.erase(std::remove(m_persistingDataBinds.begin(),
+                                            m_persistingDataBinds.end(),
+                                            dataBind),
+                                m_persistingDataBinds.end());
+    m_dirtyDataBinds.erase(
+        std::remove(m_dirtyDataBinds.begin(), m_dirtyDataBinds.end(), dataBind),
+        m_dirtyDataBinds.end());
+    m_pendingDirtyDataBinds.erase(std::remove(m_pendingDirtyDataBinds.begin(),
+                                              m_pendingDirtyDataBinds.end(),
+                                              dataBind),
+                                  m_pendingDirtyDataBinds.end());
+}
+
 void DataBindContainer::addDataBind(DataBind* dataBind)
 {
     m_dataBinds.push_back(dataBind);

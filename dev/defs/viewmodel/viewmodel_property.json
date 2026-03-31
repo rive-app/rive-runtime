@@ -45,7 +45,7 @@
         "int": 957,
         "string": "componentprops"
       },
-      "runtime": false
+      "description": "Bitfield that stores data about the property including whether its an input or an output of a stateful component"
     }
   }
 }

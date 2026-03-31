@@ -29,9 +29,11 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t symbolTypeValuePropertyKey = 875;
+    static const uint16_t componentPropsPropertyKey = 957;
 
 protected:
     uint32_t m_SymbolTypeValue = 0;
+    uint32_t m_ComponentProps = 0;
 
 public:
     inline uint32_t symbolTypeValue() const { return m_SymbolTypeValue; }
@@ -45,10 +47,22 @@ public:
         symbolTypeValueChanged();
     }
 
+    inline uint32_t componentProps() const { return m_ComponentProps; }
+    void componentProps(uint32_t value)
+    {
+        if (m_ComponentProps == value)
+        {
+            return;
+        }
+        m_ComponentProps = value;
+        componentPropsChanged();
+    }
+
     Core* clone() const override;
     void copy(const ViewModelPropertyBase& object)
     {
         m_SymbolTypeValue = object.m_SymbolTypeValue;
+        m_ComponentProps = object.m_ComponentProps;
         ViewModelComponent::copy(object);
     }
 
@@ -59,12 +73,16 @@ public:
             case symbolTypeValuePropertyKey:
                 m_SymbolTypeValue = CoreUintType::deserialize(reader);
                 return true;
+            case componentPropsPropertyKey:
+                m_ComponentProps = CoreUintType::deserialize(reader);
+                return true;
         }
         return ViewModelComponent::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void symbolTypeValueChanged() {}
+    virtual void componentPropsChanged() {}
 };
 } // namespace rive
 
