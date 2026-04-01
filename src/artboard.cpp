@@ -140,6 +140,13 @@ Artboard::~Artboard()
         return vmObjects.count(object) != 0;
     };
 
+#ifdef WITH_RIVE_SCRIPTING
+    lua_State* luaState = nullptr;
+    if (!m_ScriptedObjects.empty())
+    {
+        luaState = m_ScriptedObjects[0]->state();
+    }
+#endif
     // Second pass: delete non-VM objects.
     for (auto object : m_Objects)
     {
@@ -153,6 +160,9 @@ Artboard::~Artboard()
         }
         delete object;
     }
+#ifdef WITH_RIVE_SCRIPTING
+    ScriptedObject::collectLuaGarbage(luaState);
+#endif
     for (auto object : m_invalidObjects)
     {
         if (object == nullptr)

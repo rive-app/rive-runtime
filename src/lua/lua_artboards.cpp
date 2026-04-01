@@ -15,14 +15,18 @@
 
 using namespace rive;
 
+ScriptReffedArtboard* ScriptReffedArtboard::s_head = nullptr;
+
 ScriptReffedArtboard::ScriptReffedArtboard(
+    lua_State* L,
     rcp<File> file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
     rcp<DataContext> parentDataContext) :
     m_file(file),
     m_artboard(std::move(artboardInstance)),
-    m_stateMachine(m_artboard->defaultStateMachine())
+    m_stateMachine(m_artboard->defaultStateMachine()),
+    m_luaState(L)
 {
     if (viewModelInstance)
     {
@@ -45,16 +49,56 @@ ScriptReffedArtboard::ScriptReffedArtboard(
             m_stateMachine->bindViewModelInstance(m_viewModelInstance);
         }
     }
+    // Track this instance for cleanup during artboard destruction
+    m_trackNext = s_head;
+    m_trackPrev = nullptr;
+    if (s_head)
+    {
+        s_head->m_trackPrev = this;
+    }
+    s_head = this;
 }
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
 {
-    // Make sure state machine is deleted before artboard since
-    // StateMachineInstance destructor accesses the artboard.
+    // Remove from tracking list
+    if (m_trackPrev)
+    {
+        m_trackPrev->m_trackNext = m_trackNext;
+    }
+    else if (s_head == this)
+    {
+        s_head = m_trackNext;
+    }
+    if (m_trackNext)
+    {
+        m_trackNext->m_trackPrev = m_trackPrev;
+    }
+    releaseReferences();
+}
+
+void ScriptReffedArtboard::releaseReferences()
+{
+    // StateMachine must be deleted before artboard since its destructor
+    // accesses the artboard.
     m_stateMachine = nullptr;
-    // Make sure artboard is deleted before file.
     m_artboard = nullptr;
+    m_viewModelInstance = nullptr;
     m_file = nullptr;
+}
+
+void ScriptReffedArtboard::releaseAll(lua_State* state)
+{
+    ScriptReffedArtboard* current = s_head;
+    while (current)
+    {
+        ScriptReffedArtboard* next = current->m_trackNext;
+        if (current->m_luaState == state)
+        {
+            current->releaseReferences();
+        }
+        current = next;
+    }
 }
 
 rive::rcp<rive::File> ScriptReffedArtboard::file() { return m_file; }
@@ -264,7 +308,7 @@ int ScriptedArtboard::instance(lua_State* L,
                                   m_scriptReffedArtboard->file(),
                                   std::move(artboardInstance),
                                   viewModelInstance,
-                                  m_dataContext);
+                                  artboard()->dataContext());
     return 1;
 }
 
@@ -384,11 +428,11 @@ ScriptedArtboard::ScriptedArtboard(
     rcp<DataContext> dataContext) :
     m_state(L),
     m_scriptReffedArtboard(
-        make_rcp<ScriptReffedArtboard>(file,
+        make_rcp<ScriptReffedArtboard>(L,
+                                       file,
                                        std::move(artboardInstance),
                                        viewModelInstance,
-                                       dataContext)),
-    m_dataContext(dataContext)
+                                       dataContext))
 {}
 
 ScriptedArtboard::~ScriptedArtboard()

@@ -59,6 +59,9 @@ public:
     lua_State* state() const { return m_vm ? m_vm->state() : nullptr; }
 #endif
     void scriptDispose();
+#ifdef WITH_RIVE_SCRIPTING
+    static void collectLuaGarbage(lua_State* state);
+#endif
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;
     void setAsset(rcp<FileAsset> asset) override;
     static ScriptedObject* from(Core* object);
