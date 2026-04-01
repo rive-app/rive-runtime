@@ -42,38 +42,45 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
     half coverage =
 #ifdef @ATLAS_BLIT
-        filter_feather_atlas(
-            v_atlasCoord,
-            uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+        clamp(
+            TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
+            make_half(.0),
+            make_half(1.));
 #else
         1.;
 #endif
     half4 color = find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 #endif
 
-#ifdef @ENABLE_ADVANCED_BLEND
-    if (@ENABLE_ADVANCED_BLEND)
-    {
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-        // Do the color portion of the blend mode in the shader.
+// Need to check both flags here because in GL when KHR_blend_equation_advanced
+// is supported, it is possible that neither is defined.
+#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+    // Do the color portion of the blend mode in the shader.
 #ifdef @DRAW_IMAGE_MESH
-        color.rgb = unmultiply_rgb(color);
-        ushort blendMode = cast_uint_to_ushort(imageDrawUniforms.blendMode);
+    color.rgb = unmultiply_rgb(color);
+    ushort blendMode = cast_uint_to_ushort(imageDrawUniforms.blendMode);
 #else
-        // NOTE: for non-image-meshes, "color" is already unmultiplied because
-        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
-        // blend.
-        ushort blendMode = cast_half_to_ushort(v_blendMode);
+    // NOTE: for non-image-meshes, "color" is already unmultiplied because
+    // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
+    // blend.
+    ushort blendMode = cast_half_to_ushort(v_blendMode);
 #endif
-        half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
-        color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode);
-#endif // @FIXED_FUNCTION_COLOR_OUTPUT
+    half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
+    color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode);
 
-        // Src-over blending is enabled, so just premultiply and let the HW
-        // finish the the the alpha portion of the blend mode.
-        color.rgb *= color.a;
-    }
-#endif // @ENABLE_ADVANCED_BLEND
+    // Src-over blending is enabled, so just premultiply and let the HW
+    // finish the the the alpha portion of the blend mode.
+    color.rgb *= color.a;
+    // clang-format off
+#elif defined(@SPEC_CONST_NONE) && defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@DRAW_IMAGE_MESH)
+    // clang-format on
+    // in WebGPU with no specialization constants (when SPEC_CONST_NONE) is
+    // true), ENABLE_ADVANCED_BLEND is always set to true, so the vertex
+    // shader will not premultiply the color (Except with image meshes, where
+    // it's always premultiplied). Premultiply it now to get the correct color
+    // for srcOver blending.
+    color.rgb *= color.a;
+#endif
 
     // Certain platforms give us less control of the format of what we are
     // rendering too. Specifically, we are auto converted from linear -> sRGB on

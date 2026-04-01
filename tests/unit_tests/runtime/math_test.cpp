@@ -1,5 +1,8 @@
 #include <catch.hpp>
+#include <rive/math/bitwise.hpp>
 #include <rive/math/math_types.hpp>
+#include <rive/enum_bitset.hpp>
+#include <rive/span.hpp>
 
 using namespace rive;
 
@@ -138,4 +141,122 @@ TEST_CASE("positive_mod", "[math]")
     CHECK(math::positive_mod(-5.5f, 7.0f) == 1.5f);
     CHECK(math::positive_mod(-5.5f, -70.0f) == 64.5f);
     CHECK(math::positive_mod(45.5f, -12.0f) == 9.5f);
+}
+
+TEST_CASE("count_set_bits", "[math]")
+{
+    CHECK(math::count_set_bits(0u) == 0);
+    CHECK(math::count_set_bits(1u) == 1);
+    CHECK(math::count_set_bits(0x80000000u) == 1);
+    CHECK(math::count_set_bits(0b10010101100110u) == 7);
+    CHECK(math::count_set_bits(~0b10010101100110u) == 32 - 7);
+
+    CHECK(math::count_set_bits(0ull) == 0);
+    CHECK(math::count_set_bits(1ull) == 1);
+    CHECK(math::count_set_bits(0x8000000000000000ull) == 1);
+    CHECK(math::count_set_bits(0b10010101100110ull) == 7);
+    CHECK(math::count_set_bits(~0b10010101100110ull) == 64 - 7);
+
+    CHECK(math::internal::count_set_bits_fallback(0u) == 0);
+    CHECK(math::internal::count_set_bits_fallback(1u) == 1);
+    CHECK(math::internal::count_set_bits_fallback(0x80000000u) == 1);
+    CHECK(math::internal::count_set_bits_fallback(0b10010101100110u) == 7);
+    CHECK(math::internal::count_set_bits_fallback(~0b10010101100110u) ==
+          32 - 7);
+
+    CHECK(math::internal::count_set_bits_fallback(0ull) == 0);
+    CHECK(math::internal::count_set_bits_fallback(1ull) == 1);
+    CHECK(math::internal::count_set_bits_fallback(0x8000000000000000ull) == 1);
+    CHECK(math::internal::count_set_bits_fallback(0b10010101100110ull) == 7);
+    CHECK(math::internal::count_set_bits_fallback(~0b10010101100110ull) ==
+          64 - 7);
+}
+
+TEST_CASE("compact_bitmask_value", "[math]")
+{
+    CHECK(math::compact_bitmask_value(0x00000000u, 0x00000000u) == 0);
+    CHECK(math::compact_bitmask_value(0xffffffffu, 0x00000000u) == 0);
+    CHECK(math::compact_bitmask_value(0x00000000u, 0x10001000u) == 0);
+    CHECK(math::compact_bitmask_value(0x00001000u, 0x10001000u) == 1);
+    CHECK(math::compact_bitmask_value(0x10000000u, 0x10001000u) == 2);
+    CHECK(math::compact_bitmask_value(0x10001000u, 0x10001000u) == 3);
+    CHECK(math::compact_bitmask_value(0x10101000u, 0x10001000u) == 3);
+    CHECK(math::compact_bitmask_value(0xffffffffu, 0x10001000u) == 3);
+    CHECK(math::compact_bitmask_value(0xffffffffu, 0x10001010u) == 7);
+    CHECK(math::compact_bitmask_value(0x10000000u, 0x10001010u) == 4);
+}
+
+TEST_CASE("expand_compacted_bitmask_value", "[math]")
+{
+    CHECK(math::expand_compacted_bitmask_value(0x00000000u, 0x00000000) == 0);
+    CHECK(math::expand_compacted_bitmask_value(0xffffffffu, 0x00000000) == 0);
+    CHECK(math::expand_compacted_bitmask_value(0x00000000u, 0x10001000) == 0);
+    CHECK(math::expand_compacted_bitmask_value(1, 0x10001000) == 0x00001000);
+    CHECK(math::expand_compacted_bitmask_value(2, 0x10001000) == 0x10000000);
+    CHECK(math::expand_compacted_bitmask_value(3, 0x10001000) == 0x10001000);
+    CHECK(math::expand_compacted_bitmask_value(0xffffffff, 0x10001000) ==
+          0x10001000);
+    CHECK(math::expand_compacted_bitmask_value(7, 0x10001010) == 0x10001010);
+    CHECK(math::expand_compacted_bitmask_value(4, 0x10001010) == 0x10000000);
+}
+
+template <typename T>
+static void iterate_bit_combinations_case(
+    T mask,
+    const std::initializer_list<T>& expectedValues)
+{
+    auto it = std::begin(expectedValues);
+    for (auto combo : math::iterate_bit_combinations_in_mask(mask))
+    {
+        CHECK(combo == *it);
+        ++it;
+    }
+
+    CHECK(it == std::end(expectedValues));
+}
+
+enum class TestEnum
+{
+    none = 0x00,
+    a = 0x01,
+    b = 0x02,
+    c = 0x10,
+};
+RIVE_MAKE_ENUM_BITSET(TestEnum);
+
+TEST_CASE("iterate_bit_combinations_in_mask", "[math]")
+{
+    // There is a single possible value when there are no bits in the mask.
+    iterate_bit_combinations_case(0x00000000u, {0x00000000u});
+
+    // Iteration is actually from most flags -> no flags
+    iterate_bit_combinations_case(0x00000001u, {0x00000001u, 0x00000000u});
+    iterate_bit_combinations_case(0x00001001u,
+                                  {
+                                      0x00001001u,
+                                      0x00001000u,
+                                      0x00000001u,
+                                      0x00000000u,
+                                  });
+
+    iterate_bit_combinations_case(TestEnum(TestEnum::a | TestEnum::c),
+                                  {
+                                      TestEnum(TestEnum::a | TestEnum::c),
+                                      TestEnum::c,
+                                      TestEnum::a,
+                                      TestEnum::none,
+                                  });
+
+    iterate_bit_combinations_case(
+        TestEnum(TestEnum::a | TestEnum::b | TestEnum::c),
+        {
+            TestEnum(TestEnum::a | TestEnum::b | TestEnum::c),
+            TestEnum(TestEnum::b | TestEnum::c),
+            TestEnum(TestEnum::a | TestEnum::c),
+            TestEnum::c,
+            TestEnum(TestEnum::a | TestEnum::b),
+            TestEnum::b,
+            TestEnum::a,
+            TestEnum::none,
+        });
 }

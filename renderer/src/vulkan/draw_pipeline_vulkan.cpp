@@ -2,6 +2,7 @@
  * Copyright 2025 Rive
  */
 
+#include "rive/math/bitwise.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include "rive/renderer/stack_vector.hpp"
@@ -109,40 +110,30 @@ static VkBlendOp vk_blend_op(gpu::BlendEquation equation)
     RIVE_UNREACHABLE();
 }
 
-uint64_t DrawPipelineVulkan::PipelineProps::createKey() const
+uint64_t DrawPipelineVulkan::PipelineProps::createKey(
+    const PlatformFeatures& platformFeatures) const
 {
-    uint64_t key = gpu::ShaderUniqueKey(drawType,
-                                        shaderFeatures,
-                                        interlockMode,
-                                        shaderMiscFlags);
+    uint64_t key = gpu::pipeline_unique_key(
+        drawType,
+        shaderFeatures,
+        interlockMode,
+        shaderMiscFlags,
+        drawContents,
+        (renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput),
+        blendMode,
+        platformFeatures);
 
-    // DrawPipelineVulkan::Options.
-    assert(key << OPTION_COUNT >> OPTION_COUNT == key);
-    assert(static_cast<uint64_t>(drawPipelineOptions) < 1 << OPTION_COUNT);
-    key = (key << OPTION_COUNT) | static_cast<uint64_t>(drawPipelineOptions);
-
-    // PipelineState::uniqueKey.
-    assert(key << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT >>
-               gpu::PipelineState::UNIQUE_KEY_BIT_COUNT ==
-           key);
-    assert(pipelineState.uniqueKey <
-           1 << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT);
-    key = (key << gpu::PipelineState::UNIQUE_KEY_BIT_COUNT) |
-          pipelineState.uniqueKey;
-
-    // gpu::ShaderUniqueKey already includes the interlock mode so we don't need
-    // to also include it in the render pass key.
     const uint64_t renderPassKeyNoInterlockMode =
         RenderPassVulkan::KeyNoInterlockMode(renderPassOptions,
                                              renderTargetFormat,
                                              colorLoadAction);
-    assert(key << RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT >>
-               RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT ==
-           key);
-    assert(renderPassKeyNoInterlockMode <
-           1 << RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT);
-    key = (key << RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT) |
-          renderPassKeyNoInterlockMode;
+    key = math::add_bits_to_key(
+        key,
+        renderPassKeyNoInterlockMode,
+        RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT);
+
+    key =
+        math::add_bits_to_key(key, uint64_t(drawPipelineOptions), OPTION_COUNT);
 
     return key;
 }
@@ -198,7 +189,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     PipelineManagerVulkan* pipelineManager,
     const DrawPipelineLayoutVulkan& pipelineLayout,
     const PipelineProps& props,
-    VkRenderPass vkRenderPass
+    VkRenderPass vkRenderPass,
+    const PlatformFeatures& platformFeatures
 #ifdef WITH_RIVE_TOOLS
     ,
     SynthesizedFailureType synthesizedFailureType
@@ -214,7 +206,19 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     }
 #endif
 
-    const gpu::PipelineState& pipelineState = props.pipelineState;
+    const bool pipelineWriteOnlyRenderTarget =
+        (props.renderPassOptions &
+         RenderPassOptionsVulkan::fixedFunctionColorOutput) != 0;
+
+    const gpu::PipelineState pipelineState =
+        get_pipeline_state(props.drawType,
+                           props.interlockMode,
+                           props.shaderMiscFlags,
+                           props.drawContents,
+                           pipelineWriteOnlyRenderTarget,
+                           props.blendMode,
+                           platformFeatures);
+
     const gpu::InterlockMode interlockMode = pipelineLayout.interlockMode();
     uint32_t subpassIndex = subpass_index(props.drawType,
                                           props.colorLoadAction,

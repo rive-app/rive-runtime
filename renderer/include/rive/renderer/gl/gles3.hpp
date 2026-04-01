@@ -199,6 +199,7 @@ struct GLCapabilities
     bool EXT_base_instance : 1;
     bool EXT_clip_cull_distance : 1;
     bool EXT_color_buffer_half_float : 1;
+    bool OES_texture_half_float_linear : 1;
     bool EXT_color_buffer_float : 1;
     bool EXT_float_blend : 1;
     bool EXT_multisampled_render_to_texture : 1;

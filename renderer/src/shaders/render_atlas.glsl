@@ -74,37 +74,37 @@ INLINE half signed_fill_coverage(float4 coverages,
 
 // Store coverage as fp32 data bits in an r32ui color buffer, and use
 // framebuffer-fetch to manipulate it.
-layout(location = 0) inout highp uvec4 _fragCoverage;
+layout(location = 0) inout uint4 coverageCount;
 
 #ifdef @ATLAS_FEATHERED_FILL
 void main()
 {
-    float coverage = uintBitsToFloat(_fragCoverage.r);
+    float coverage = uintBitsToFloat(coverageCount.r);
     coverage += signed_fill_coverage(v_coverages,
                                      gl_FrontFacing TEXTURE_CONTEXT_FORWARD);
-    _fragCoverage.r = floatBitsToUint(coverage);
+    coverageCount.r = floatBitsToUint(coverage);
 }
 #endif
 
 #ifdef @ATLAS_FEATHERED_STROKE
 void main()
 {
-    float coverage = uintBitsToFloat(_fragCoverage.r);
+    float coverage = uintBitsToFloat(coverageCount.r);
     coverage = max(coverage, eval_feathered_stroke(v_coverages));
-    _fragCoverage.r = floatBitsToUint(coverage);
+    coverageCount.r = floatBitsToUint(coverage);
 }
 #endif
 
-#elif defined(@ATLAS_RENDER_TARGET_R32UI_PLS_EXT)
+#elif defined(@ATLAS_RENDER_TARGET_R8_PLS_EXT)
 
 // Manipulate fp32 coverage in pixel local storage, which will be written out
 // to an r32ui color buffer during a separate resolve step.
-__pixel_localEXT PLS { layout(r32f) highp float _plsCoverage; };
+__pixel_localEXT PLS { layout(r32f) float coverageCount; };
 
 #ifdef @ATLAS_FEATHERED_FILL
 void main()
 {
-    _plsCoverage +=
+    coverageCount +=
         signed_fill_coverage(v_coverages,
                              gl_FrontFacing TEXTURE_CONTEXT_FORWARD);
 }
@@ -113,7 +113,7 @@ void main()
 #ifdef @ATLAS_FEATHERED_STROKE
 void main()
 {
-    _plsCoverage = max(_plsCoverage, eval_feathered_stroke(v_coverages));
+    coverageCount = max(coverageCount, eval_feathered_stroke(v_coverages));
 }
 #endif
 
@@ -121,24 +121,24 @@ void main()
 
 // Store and manipulate coverage as fp32 data bits in r32ui-texture-backed pixel
 // local storage.
-layout(binding = 0, r32ui) uniform highp upixelLocalANGLE _plsCoverage;
+layout(binding = 0, r32ui) uniform highp upixelLocalANGLE coverageCount;
 
 #ifdef @ATLAS_FEATHERED_FILL
 void main()
 {
-    float coverage = uintBitsToFloat(pixelLocalLoadANGLE(_plsCoverage).r);
+    float coverage = uintBitsToFloat(pixelLocalLoadANGLE(coverageCount).r);
     coverage += signed_fill_coverage(v_coverages,
                                      gl_FrontFacing TEXTURE_CONTEXT_FORWARD);
-    pixelLocalStoreANGLE(_plsCoverage, uint4(floatBitsToUint(coverage)));
+    pixelLocalStoreANGLE(coverageCount, uint4(floatBitsToUint(coverage)));
 }
 #endif
 
 #ifdef @ATLAS_FEATHERED_STROKE
 void main()
 {
-    float coverage = uintBitsToFloat(pixelLocalLoadANGLE(_plsCoverage).r);
+    float coverage = uintBitsToFloat(pixelLocalLoadANGLE(coverageCount).r);
     coverage = max(coverage, eval_feathered_stroke(v_coverages));
-    pixelLocalStoreANGLE(_plsCoverage, uint4(floatBitsToUint(coverage)));
+    pixelLocalStoreANGLE(coverageCount, uint4(floatBitsToUint(coverage)));
 }
 #endif
 

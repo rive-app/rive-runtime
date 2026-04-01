@@ -83,6 +83,17 @@ public:
 
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
+    void startAsyncPipelineCreation(InterlockMode,
+                                    VkFormat framebufferFormat,
+                                    VkImageUsageFlags framebufferUsage,
+                                    LoadAction colorLoadAction);
+
+    void startAsyncPipelineCreation(InterlockMode,
+                                    RenderTargetVulkan& renderTarget,
+                                    LoadAction);
+
+    void waitForAsyncPipelineCreation();
+
 private:
     RenderContextVulkanImpl(rcp<VulkanContext>, const ContextOptions&);
 

@@ -995,8 +995,11 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     // Find a fully-featured superset of features whose pipeline we can fall
     // back on while waiting for it to compile.
     ShaderFeatures fullyFeaturedPipelineFeatures =
-        gpu::UbershaderFeaturesMaskFor(
-            shaderFeatures, drawType, desc.interlockMode, m_platformFeatures);
+        gpu::UbershaderFeaturesMaskFor(shaderFeatures,
+                                       drawType,
+                                       desc.interlockMode,
+                                       shaderMiscFlags,
+                                       m_platformFeatures);
 
     if (m_contextOptions.shaderCompilationMode ==
         ShaderCompilationMode::onlyUbershaders)

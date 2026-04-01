@@ -58,6 +58,17 @@ TEST_CASE("enum-operators", "[enum_bitset]")
     CHECK(((Flags::one | Flags::two) | (Flags::four | Flags::eight)) ==
           (Flags)15);
 
+    // All ^ overloads
+    CHECK(!(Flags::zero ^ Flags::zero));
+    CHECK(Flags::zero ^ Flags::one);
+    CHECK((Flags::one ^ Flags::one) == Flags::zero);
+    CHECK((Flags::one ^ Flags::two) == (Flags)3);
+    CHECK((Flags::one ^ (Flags::one | Flags::four)) == Flags::four);
+    CHECK(((Flags::one | Flags::two) ^ Flags::two) == Flags::one);
+    CHECK(((Flags::one | Flags::two) ^ Flags::four) == Flags(7));
+    CHECK(((Flags::one | Flags::two) ^
+           (Flags::one | Flags::four | Flags::eight)) == Flags(14));
+
     // All ~ overloads.
     CHECK(~Flags::two == (Flags)(255 ^ 2)); // Flags is a uint8_t
     CHECK(~(Flags::two | Flags::eight) ==
@@ -83,5 +94,12 @@ TEST_CASE("enum-operators", "[enum_bitset]")
     CHECK(flags == Flags::eight);
     flags |= ~Flags::eight;
     CHECK(flags == (Flags)255); // Flags is a uint8_t
+
+    // All ^= overloads.
+    flags = Flags::one;
+    flags ^= Flags::two;
+    CHECK(flags == Flags(3));
+    flags ^= (Flags::two | Flags::four);
+    CHECK(flags == Flags(5));
 }
 } // namespace rive

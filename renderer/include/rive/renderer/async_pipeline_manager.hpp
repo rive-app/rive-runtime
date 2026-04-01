@@ -9,6 +9,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <thread>
 
@@ -39,7 +40,7 @@ struct StandardPipelineProps
         SynthesizedFailureType::none;
 #endif
 
-    uint32_t createKey() const
+    uint32_t createKey(const PlatformFeatures&) const
     {
         return gpu::ShaderUniqueKey(drawType,
                                     shaderFeatures,
@@ -59,7 +60,8 @@ public:
 
     // The pipeline key might be 32- or 64-bit depending on renderer, so detect
     // which it is.
-    using PipelineKey = decltype(std::declval<PipelineProps>().createKey());
+    using PipelineKey = decltype(std::declval<PipelineProps>().createKey(
+        std::declval<PlatformFeatures>()));
 
     AsyncPipelineManager(ShaderCompilationMode mode) : m_mode(mode) {}
 
@@ -83,6 +85,7 @@ public:
             gpu::UbershaderFeaturesMaskFor(props.shaderFeatures,
                                            props.drawType,
                                            props.interlockMode,
+                                           props.shaderMiscFlags,
                                            platformFeatures);
 
         PipelineCreateType createType;
@@ -111,7 +114,7 @@ public:
                 break;
         }
 
-        PipelineKey key = props.createKey();
+        PipelineKey key = props.createKey(platformFeatures);
 
         auto iter = m_pipelines.find(key);
 
@@ -133,6 +136,13 @@ public:
             // Otherwise, do not synthesize compilation failure for an
             // ubershader.
             props.synthesizedFailureType = gpu::SynthesizedFailureType::none;
+
+            if (iter == m_pipelines.end())
+            {
+                // If we're going to try to create this ubershader, test to see
+                // if it's even a valid combination of properties
+                assert(isValidUbershaderPipelineProps(props, platformFeatures));
+            }
         }
 #endif
 
@@ -144,7 +154,8 @@ public:
             //  (for, say, WebGL where there is background shader compilation),
             //  or it might return a nullptr/nullopt value (which means it
             //  queued the work into our jobQueue and we'll get it later)
-            auto pipeline = createPipeline(createType, key, props);
+            auto pipeline =
+                createPipeline(createType, key, props, platformFeatures);
 
             iter = m_pipelines.insert({key, std::move(pipeline)}).first;
 
@@ -182,16 +193,20 @@ public:
         if (!iter->second)
         {
             // We don't have this shader yet, so run through the list of
-            //  completed shaders and see
-            CompletedJob completedJob;
-            while (popCompletedJob(&completedJob))
+            //  completed shaders and see if it's done yet.
+            if (processCompletedJobs(key))
             {
-                m_pipelines[completedJob.key] = std::move(completedJob.program);
-                if (completedJob.key == key)
-                {
-                    assert(iter->second);
-                    break;
-                }
+                assert(iter->second);
+            }
+            else if (props.shaderFeatures == ubershaderFeatures)
+            {
+                // This ubershader must have been queued by the user so we need
+                // to block until it's ready (or failed), since we can't render
+                // without it (this wait will attempt to move it to the front of
+                // the line so we don't have to wait on every shader that may
+                // have been queued before it)
+                waitForPipelineForRender(key);
+                assert(iter->second);
             }
         }
 
@@ -281,14 +296,8 @@ public:
     {
         std::unique_lock lock{m_mutex};
 
-        // Start by clearing the job queue (There's no reset or clear on
-        // std::queue so we have to pop manually). Doing it this way instead of
-        // doing "m_jobQueue = {}" to keep the internal buffer intact and avoid
-        // some heap allocations the next time we start queueing jobs again
-        while (!m_jobQueue.empty())
-        {
-            m_jobQueue.pop();
-        }
+        // Start by clearing the job queue.
+        m_jobQueue.clear();
 
         // Now wait for the background thread(s) to finish any work they are
         // actively doing.
@@ -305,7 +314,105 @@ public:
         clearCacheInternal();
     }
 
+    void waitForAllBackgroundPipelineCreation()
+    {
+        {
+            std::unique_lock lock{m_mutex};
+            while (m_currentThreadPipelineKey.has_value() ||
+                   !m_jobQueue.empty())
+            {
+                m_jobCompleteCV.wait(lock);
+            }
+        }
+
+        // Since all the jobs are done, go ahead and get them all into the
+        // pipeline list.
+        processCompletedJobs();
+    }
+
 protected:
+    bool queuePipelineIfNotFound(const PipelineProps& props,
+                                 const PlatformFeatures& platformFeatures)
+    {
+        PipelineKey key = props.createKey(platformFeatures);
+        auto iter = m_pipelines.find(key);
+        if (iter != m_pipelines.end())
+        {
+            // This is already in our pipelines list which means it was already
+            // created.
+            return false;
+        }
+
+        auto pipeline = createPipeline(PipelineCreateType::async,
+                                       key,
+                                       props,
+                                       platformFeatures);
+        m_pipelines.insert({key, std::move(pipeline)});
+        return true;
+    }
+
+    void waitForPipelineForRender(PipelineKey key)
+    {
+        auto iter = m_pipelines.find(key);
+        assert(iter != m_pipelines.end() &&
+               "waiting on pipeline that hasn't been queued or created");
+
+        if (iter->second)
+        {
+            // It's already completed, we don't have to do anything.
+            return;
+        }
+
+        // Do a quick first-effort processing of any completed jobs to see
+        // if it's already done before manipulating the job queue.
+        if (processCompletedJobs(key))
+        {
+            assert(iter->second);
+            return;
+        }
+
+        {
+            // We want this pipeline now, so move it to the front of the
+            // queue if it's still in it (if it's *not* in the queue then it
+            // either finished after the above processing or it's already
+            // being processed by the thread)
+            std::lock_guard lock{m_mutex};
+            auto queueIter =
+                std::find_if(m_jobQueue.begin(),
+                             m_jobQueue.end(),
+                             [key](auto& e) { return e.key == key; });
+
+            if (queueIter != m_jobQueue.end())
+            {
+                auto params = std::move(*queueIter);
+                m_jobQueue.erase(queueIter);
+                m_jobQueue.push_front(std::move(params));
+            }
+        }
+
+        while (true)
+        {
+            {
+                std::unique_lock lock{m_mutex};
+                if (m_completedJobs.empty())
+                {
+                    // Nothing to process yet so wait until we have
+                    // something.
+                    m_jobCompleteCV.wait(lock);
+                }
+            }
+
+            // We now have at least one thing in the completed jobs list, so
+            // process anything that's there (at least until we reach the job we
+            // care about)
+            if (processCompletedJobs(key))
+            {
+                assert(iter->second);
+                return;
+            }
+        }
+    }
+
     virtual std::unique_ptr<VertexShaderType> createVertexShader(
         DrawType,
         ShaderFeatures,
@@ -332,7 +439,8 @@ protected:
     virtual std::unique_ptr<PipelineType> createPipeline(
         PipelineCreateType,
         PipelineKey key,
-        const PipelineProps&) = 0;
+        const PipelineProps&,
+        const PlatformFeatures&) = 0;
 
     // For renderers like GL that have a polling/step-based async setup,
     //  override this function to return whether or not the pipeline is
@@ -350,9 +458,43 @@ protected:
     // within the safety of the mutex lock
     virtual void clearCacheInternal() {}
 
+#if !defined(NDEBUG)
+    virtual bool isValidUbershaderPipelineProps(
+        const PipelineProps& props,
+        const PlatformFeatures& platformFeatures)
+    {
+        bool found = true;
+        auto curKey = ShaderUniqueKey(props.drawType,
+                                      props.shaderFeatures,
+                                      props.interlockMode,
+                                      props.shaderMiscFlags);
+
+        ForEachUbershaderPermutation(
+            props.interlockMode,
+            platformFeatures,
+            [&found, curKey, &props](DrawType drawType,
+                                     ShaderFeatures shaderFeatures,
+                                     ShaderMiscFlags shaderMiscFlags) {
+                auto testKey = ShaderUniqueKey(drawType,
+                                               shaderFeatures,
+                                               props.interlockMode,
+                                               shaderMiscFlags);
+                if (testKey == curKey)
+                {
+                    found = true;
+                }
+                return !found; // Keep going if we didn't find a match.
+            });
+
+        return found;
+    }
+#endif
+
     // Called by the render context to use the background threading model to
     //  create pipeline
-    void queueBackgroundJob(PipelineKey key, const PipelineProps& props)
+    void queueBackgroundJob(PipelineKey key,
+                            const PipelineProps& props,
+                            const PlatformFeatures& platformFeatures)
     {
         // start the job thread if we haven't already
         if (!m_jobThread.joinable())
@@ -363,7 +505,7 @@ protected:
 
         std::unique_lock lock{m_mutex};
 
-        m_jobQueue.push({props, key});
+        m_jobQueue.push_back({props, key, &platformFeatures});
         m_newJobCV.notify_one();
     }
 
@@ -433,6 +575,7 @@ private:
     {
         PipelineProps props;
         PipelineKey key;
+        const PlatformFeatures* platformFeatures;
     };
 
     struct CompletedJob
@@ -441,17 +584,40 @@ private:
         std::unique_ptr<PipelineType> program;
     };
 
-    bool popCompletedJob(CompletedJob* jobOut)
+    bool processCompletedJobs(
+        std::optional<PipelineKey> targetKey = std::nullopt)
     {
-        std::lock_guard lock{m_mutex};
-        if (m_completedJobs.empty())
+        while (true)
         {
-            return false;
+            CompletedJob completedJob;
+            {
+                std::lock_guard lock{m_mutex};
+                if (m_completedJobs.empty())
+                {
+                    // Nothing in the queue so if there was a key to
+                    // specifically stop on, we didn't reach it (if there wasn't
+                    // one, we still return success since we processed every
+                    // available completed job).
+                    return !targetKey.has_value();
+                }
+
+                completedJob = std::move(m_completedJobs.back());
+                m_completedJobs.pop_back();
+            }
+
+            // Threaded pipelines are expected to be ready (or errored) when
+            // they are in the completed stack.
+            assert(getPipelineStatus(*completedJob.program) !=
+                   PipelineStatus::notReady);
+
+            m_pipelines[completedJob.key] = std::move(completedJob.program);
+            if (targetKey.has_value() && completedJob.key == *targetKey)
+            {
+                return true;
+            }
         }
 
-        *jobOut = std::move(m_completedJobs.back());
-        m_completedJobs.pop_back();
-        return true;
+        return !targetKey.has_value();
     }
 
     void backgroundShaderCompilationThread()
@@ -473,13 +639,15 @@ private:
                 }
 
                 nextJob = std::move(m_jobQueue.front());
-                m_jobQueue.pop();
+                m_jobQueue.pop_front();
+                m_currentThreadPipelineKey = nextJob.key;
                 m_activePipelineCreationCount++;
             }
 
             auto newPipeline = createPipeline(PipelineCreateType::sync,
                                               nextJob.key,
-                                              nextJob.props);
+                                              nextJob.props,
+                                              *nextJob.platformFeatures);
 
             {
                 std::unique_lock lock{m_mutex};
@@ -487,6 +655,8 @@ private:
                     nextJob.key,
                     std::move(newPipeline),
                 });
+
+                m_currentThreadPipelineKey.reset();
                 m_activePipelineCreationCount--;
                 m_jobCompleteCV.notify_all();
             }
@@ -499,13 +669,14 @@ private:
         m_fragmentShaderMap;
     std::unordered_map<PipelineKey, std::unique_ptr<PipelineType>> m_pipelines;
 
-    std::queue<JobParams> m_jobQueue;
+    std::deque<JobParams> m_jobQueue;
     std::vector<CompletedJob> m_completedJobs;
 
     bool m_isDone = false;
     uint32_t m_activePipelineCreationCount = 0;
     const ShaderCompilationMode m_mode = ShaderCompilationMode::standard;
     std::thread m_jobThread;
+    std::optional<PipelineKey> m_currentThreadPipelineKey;
     std::mutex m_mutex;
     std::condition_variable m_newJobCV;
     std::condition_variable m_jobCompleteCV;

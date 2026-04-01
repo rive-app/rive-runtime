@@ -31,20 +31,19 @@ public:
 
         // Vulkan has pipeline props beyond just the standard ones
 
-        gpu::PipelineState pipelineState;
-
+        DrawContents drawContents;
+        rive::BlendMode blendMode;
         Options drawPipelineOptions;
         RenderPassOptionsVulkan renderPassOptions;
         VkFormat renderTargetFormat;
         LoadAction colorLoadAction;
-        uint32_t subpassIndex;
 
 #ifdef WITH_RIVE_TOOLS
         SynthesizedFailureType synthesizedFailureType =
             SynthesizedFailureType::none;
 #endif
 
-        uint64_t createKey() const;
+        uint64_t createKey(const PlatformFeatures&) const;
     };
 
     using VertexShaderType = DrawShaderVulkan;
@@ -53,7 +52,8 @@ public:
     DrawPipelineVulkan(PipelineManagerVulkan*,
                        const DrawPipelineLayoutVulkan&,
                        const PipelineProps&,
-                       VkRenderPass
+                       VkRenderPass,
+                       const PlatformFeatures&
 #ifdef WITH_RIVE_TOOLS
                        ,
                        SynthesizedFailureType

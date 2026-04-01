@@ -73,52 +73,6 @@ template <typename T, typename U> T lossless_numeric_cast(U u)
     return t;
 }
 
-// Attempt to generate a "clz" assembly instruction.
-RIVE_ALWAYS_INLINE static int clz32(uint32_t x)
-{
-    assert(x != 0);
-#if __has_builtin(__builtin_clz)
-    return __builtin_clz(x);
-#else
-    uint64_t doubleBits = bit_cast<uint64_t>(static_cast<double>(x));
-    return 1054 - (doubleBits >> 52);
-#endif
-}
-
-RIVE_ALWAYS_INLINE static int clz64(uint64_t x)
-{
-    assert(x != 0);
-#if __has_builtin(__builtin_clzll)
-    return __builtin_clzll(x);
-#else
-    uint32_t hi32 = x >> 32;
-    return hi32 != 0 ? clz32(hi32) : 32 + clz32(x & 0xffffffff);
-#endif
-}
-
-// Returns the 1-based index of the most significat bit in x.
-//
-//   0    -> 0
-//   1    -> 1
-//   2..3 -> 2
-//   4..7 -> 3
-//   ...
-//
-RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x)
-{
-    return x != 0 ? 32 - clz32(x) : 0;
-}
-
-// Attempt to generate a "rotl" (rotate-left) assembly instruction.
-RIVE_ALWAYS_INLINE static uint32_t rotateleft32(uint32_t x, int y)
-{
-#if __has_builtin(__builtin_rotateleft32)
-    return __builtin_rotateleft32(x, y);
-#else
-    return (x << y) | (x >> (32 - y));
-#endif
-}
-
 // Returns x rounded up to the next multiple of N.
 // If x is already a multiple of N, returns x.
 template <size_t N, typename T>

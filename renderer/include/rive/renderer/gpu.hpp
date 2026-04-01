@@ -6,6 +6,7 @@
 
 #include "rive/enum_bitset.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/math/bitwise.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/math/simd.hpp"
@@ -13,6 +14,8 @@
 #include "rive/shapes/paint/color.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
+
+#include <functional>
 
 // Use the define to run the feather LUT code
 // #define RIVE_GENERATE_FEATHER_LUT
@@ -999,6 +1002,7 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     ShaderFeatures requestedFeatures,
     DrawType drawType,
     InterlockMode interlockMode,
+    ShaderMiscFlags shaderMiscFlags,
     const PlatformFeatures& platformFeatures)
 {
     ShaderFeatures outFeatures = ShaderFeaturesMaskFor(drawType, interlockMode);
@@ -1020,6 +1024,23 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     {
         outFeatures &= ~ShaderFeatures::ENABLE_CLIP_RECT;
     }
+
+    // Borrowed coverage and anything with fixedFunctionColorOutput cannot
+    // coexist with ENABLE_ADVANCED_BLEND
+    if (shaderMiscFlags & (ShaderMiscFlags::borrowedCoveragePass |
+                           ShaderMiscFlags::fixedFunctionColorOutput))
+    {
+        outFeatures &= ~ShaderFeatures::ENABLE_ADVANCED_BLEND;
+    }
+
+    // in atomic mode, coalescedResolveAndTransfer currently implies advanced
+    // blend.
+    if (interlockMode == InterlockMode::atomics &&
+        (shaderMiscFlags & ShaderMiscFlags::coalescedResolveAndTransfer))
+    {
+        outFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
+    }
+
     return outFeatures;
 }
 
@@ -1030,6 +1051,11 @@ uint32_t ShaderUniqueKey(DrawType,
                          ShaderMiscFlags);
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
+
+void ForEachUbershaderPermutation(
+    InterlockMode,
+    const PlatformFeatures&,
+    const std::function<bool(DrawType, ShaderFeatures, ShaderMiscFlags)>&);
 
 // Flags indicating the contents of a draw. These don't affect shaders, but in
 // msaa mode they are needed to break up batching. (msaa needs different
@@ -1053,8 +1079,40 @@ enum class DrawContents
     // Put clip updates last because they use an entirely different shader in
     // clockwise mode.
     clipUpdate = 1 << 8,
+
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
+
+// These are the only draw contents flags that apply to the pipeline state (and
+// they only matter for MSAA)
+constexpr static DrawContents DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE =
+    DrawContents::activeClip | DrawContents::clipUpdate |
+    DrawContents::clockwiseFill | DrawContents::evenOddFill |
+    DrawContents::opaquePaint;
+
+enum class StencilType
+{
+    disabled,
+    activeStencilClip,
+    borrowedCoverage,
+    forwardClippedByBackward,
+    backwardTriangleCleanup,
+    stencilNestedOrEvenOdd,
+    evenOddDrawAndReset,
+    nestedClipReset,
+    clipReset,
+};
+
+constexpr uint32_t STENCIL_TYPE_BIT_COUNT = 4;
+
+struct StencilInfo
+{
+    StencilType stencilType;
+    DrawContents drawContentsMask;
+    bool areDrawContentsValid = true;
+};
+
+StencilInfo get_stencil_info(InterlockMode, DrawType, DrawContents);
 
 // A nestedClip draw updates the clip buffer while simultaneously clipping
 // against the outerClip that is currently in the clip buffer.
@@ -1830,6 +1888,8 @@ enum class CullFace : uint8_t
     counterclockwise,
 };
 
+constexpr uint32_t CULL_FACE_BIT_COUNT = 2;
+
 // Blend equation to select for the fixed-function GPU pipeline (not our own
 // in-shader blending). For now, the backend is free to decide whether it will
 // use premultiplied alpha or not.
@@ -1862,6 +1922,23 @@ enum class BlendEquation : uint8_t
     luminosity = static_cast<int>(rive::BlendMode::luminosity),
 };
 
+struct DepthState
+{
+    bool depthTestEnabled;
+    bool depthWriteEnabled;
+};
+
+DepthState get_depth_state(InterlockMode interlockMode,
+                           DrawType drawType,
+                           DrawContents drawContents);
+
+CullFace get_cull_face(DrawType drawType);
+bool get_color_write_enable(DrawType drawType,
+                            InterlockMode interlockMode,
+                            ShaderMiscFlags shaderMiscFlags,
+                            bool fixedFunctionColorOutput,
+                            DrawContents drawContents);
+
 // Common pipeline state that applies to every Rive draw and every backend.
 struct PipelineState
 {
@@ -1881,11 +1958,25 @@ struct PipelineState
     CullFace cullFace = CullFace::none;
     BlendEquation blendEquation = BlendEquation::none;
     bool colorWriteEnabled = true;
-
-    // 18-bit key that uniquely identifies the pipeline state.
-    constexpr static int UNIQUE_KEY_BIT_COUNT = 18;
-    uint32_t uniqueKey;
 };
+
+// Returns a unique value that can be used to key a whole pipeline.
+uint64_t pipeline_unique_key(DrawType,
+                             ShaderFeatures,
+                             InterlockMode,
+                             ShaderMiscFlags,
+                             DrawContents,
+                             bool fixedFunctionColorOutput,
+                             rive::BlendMode,
+                             const PlatformFeatures&);
+
+PipelineState get_pipeline_state(DrawType,
+                                 InterlockMode,
+                                 ShaderMiscFlags,
+                                 DrawContents,
+                                 bool fixedFunctionColorOutput,
+                                 rive::BlendMode,
+                                 const PlatformFeatures&);
 
 void get_pipeline_state(const DrawBatch&,
                         const FlushDescriptor&,

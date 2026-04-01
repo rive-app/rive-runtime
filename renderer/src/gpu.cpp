@@ -2,14 +2,14 @@
  * Copyright 2022 Rive
  */
 
+#include "shaders/constants.glsl"
+#include "rive/math/bitwise.hpp"
 #include "rive/renderer/gpu.hpp"
-
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_target.hpp"
-#include "shaders/constants.glsl"
 #include "rive/renderer/texture.hpp"
-#include "rive_render_paint.hpp"
 #include "gradient.hpp"
+#include "rive_render_paint.hpp"
 
 #include "generated/shaders/draw_path.vert.exports.h"
 
@@ -18,6 +18,251 @@ namespace rive::gpu
 static_assert(kGradTextureWidth == GRAD_TEXTURE_WIDTH);
 static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
 static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
+
+static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
+{
+    switch (mode)
+    {
+        case InterlockMode::rasterOrdering:
+        {
+            static constexpr DrawType types[] = {
+                DrawType::midpointFanPatches,
+                DrawType::midpointFanCenterAAPatches,
+                DrawType::outerCurvePatches,
+                DrawType::interiorTriangulation,
+                DrawType::atlasBlit,
+                DrawType::imageMesh,
+                DrawType::renderPassResolve,
+            };
+            return make_span(types);
+        }
+
+        case InterlockMode::clockwise:
+        {
+            static constexpr DrawType types[] = {
+                DrawType::midpointFanPatches,
+                DrawType::midpointFanCenterAAPatches,
+                DrawType::outerCurvePatches,
+                DrawType::interiorTriangulation,
+                DrawType::atlasBlit,
+                DrawType::imageMesh,
+            };
+            return make_span(types);
+        }
+        case InterlockMode::atomics:
+        {
+            static constexpr DrawType types[] = {
+                DrawType::midpointFanPatches,
+                DrawType::midpointFanCenterAAPatches,
+                DrawType::outerCurvePatches,
+                DrawType::interiorTriangulation,
+                DrawType::atlasBlit,
+                DrawType::imageRect,
+                DrawType::imageMesh,
+                DrawType::renderPassInitialize,
+                DrawType::renderPassResolve,
+            };
+            return make_span(types);
+        }
+        case InterlockMode::clockwiseAtomic:
+        {
+            static constexpr DrawType types[] = {
+                DrawType::midpointFanPatches,
+                DrawType::midpointFanCenterAAPatches,
+                DrawType::outerCurvePatches,
+                DrawType::interiorTriangulation,
+                DrawType::atlasBlit,
+                DrawType::imageMesh,
+            };
+            return make_span(types);
+        }
+        case InterlockMode::msaa:
+        {
+            static constexpr DrawType types[] = {
+                DrawType::atlasBlit,
+                DrawType::imageMesh,
+                DrawType::msaaStrokes,
+                DrawType::msaaMidpointFanBorrowedCoverage,
+                DrawType::msaaMidpointFans,
+                DrawType::msaaMidpointFanStencilReset,
+                DrawType::msaaMidpointFanPathsStencil,
+                DrawType::msaaMidpointFanPathsCover,
+                DrawType::msaaOuterCubics,
+                DrawType::msaaStencilClipReset,
+                DrawType::renderPassInitialize,
+                DrawType::renderPassResolve,
+            };
+            return make_span(types);
+        }
+    }
+
+    assert(false && "Unexpected interlock mode");
+    return {};
+}
+
+static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
+                                                   InterlockMode mode)
+{
+    ShaderMiscFlags outFlags = ShaderMiscFlags::none;
+
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+            switch (mode)
+            {
+                case InterlockMode::rasterOrdering:
+                    break;
+
+                case InterlockMode::clockwise:
+                    outFlags |= ShaderMiscFlags::borrowedCoveragePass |
+                                ShaderMiscFlags::clipUpdateOnly;
+                    break;
+
+                case InterlockMode::clockwiseAtomic:
+                    outFlags |= ShaderMiscFlags::borrowedCoveragePass;
+                    break;
+
+                case InterlockMode::atomics:
+                case InterlockMode::msaa:
+                    break;
+            }
+            break;
+
+        case DrawType::renderPassInitialize:
+            if (mode == InterlockMode::atomics)
+            {
+                outFlags |= ShaderMiscFlags::storeColorClear |
+                            ShaderMiscFlags::swizzleColorBGRAToRGBA;
+            }
+            break;
+        case DrawType::renderPassResolve:
+            if (mode == InterlockMode::atomics)
+            {
+                outFlags |= ShaderMiscFlags::coalescedResolveAndTransfer;
+            }
+            break;
+
+        case DrawType::atlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
+            break;
+    }
+
+    switch (mode)
+    {
+        case InterlockMode::atomics:
+        case InterlockMode::clockwise:
+        case InterlockMode::clockwiseAtomic:
+        case InterlockMode::msaa:
+            outFlags |= ShaderMiscFlags::fixedFunctionColorOutput;
+            break;
+
+        case InterlockMode::rasterOrdering:
+            outFlags |= ShaderMiscFlags::clockwiseFill;
+            break;
+    }
+
+    return outFlags;
+}
+
+void ForEachUbershaderPermutation(
+    InterlockMode interlockMode,
+    const PlatformFeatures& platformFeatures,
+    const std::function<bool(DrawType, ShaderFeatures, ShaderMiscFlags)>& func)
+{
+    // RenderPassInitialize is only needed in these two specific scenarios, and
+    // should be skipped otherwise.
+    const bool allowRenderPassInitialize =
+        (interlockMode == InterlockMode::atomics &&
+         platformFeatures.atomicPLSInitNeedsDraw) ||
+        (interlockMode == InterlockMode::msaa &&
+         platformFeatures.msaaColorPreserveNeedsDraw);
+
+    for (auto drawType : get_valid_draw_types(interlockMode))
+    {
+        if (drawType == DrawType::renderPassInitialize &&
+            !allowRenderPassInitialize)
+        {
+            continue;
+        }
+
+        const auto allValidMiscFlags =
+            get_valid_shader_misc_flags(drawType, interlockMode);
+
+        for (auto curMiscFlags :
+             math::iterate_bit_combinations_in_mask(allValidMiscFlags))
+        {
+            // Filter out any invalid combinations of ShaderMiscFlags
+            switch (interlockMode)
+            {
+                case InterlockMode::atomics:
+                    if (curMiscFlags &
+                        ShaderMiscFlags::coalescedResolveAndTransfer)
+                    {
+                        if (curMiscFlags &
+                            ShaderMiscFlags::fixedFunctionColorOutput)
+                        {
+                            continue;
+                        }
+                    }
+                    break;
+
+                case InterlockMode::clockwiseAtomic:
+                case InterlockMode::rasterOrdering:
+                case InterlockMode::clockwise:
+                case InterlockMode::msaa:
+                    break;
+            }
+
+            // Get the minimal set of ubershader features (with no optional
+            // flags)
+            const auto minUbershaderFeatures =
+                UbershaderFeaturesMaskFor(ShaderFeatures::NONE,
+                                          drawType,
+                                          interlockMode,
+                                          curMiscFlags,
+                                          platformFeatures);
+
+            // Now find the ubershader that has *all* flags set
+            const auto maxUbershaderFeatures = UbershaderFeaturesMaskFor(
+                ShaderFeaturesMaskFor(drawType, interlockMode),
+                drawType,
+                interlockMode,
+                curMiscFlags,
+                platformFeatures);
+
+            // Get the flags that still change ubershader behavior
+            const ShaderFeatures allOptionalUbershaderFeatures =
+                minUbershaderFeatures ^ maxUbershaderFeatures;
+
+            // Now iterate the
+            for (auto curOptionalFeatures :
+                 math::iterate_bit_combinations_in_mask(
+                     allOptionalUbershaderFeatures))
+            {
+                ShaderFeatures features =
+                    curOptionalFeatures | minUbershaderFeatures;
+
+                if (!func(drawType, features, curMiscFlags))
+                {
+                    // Function returned false to stop iterating.
+                    return;
+                }
+            }
+        }
+    }
+}
 
 uint32_t ShaderUniqueKey(DrawType drawType,
                          ShaderFeatures shaderFeatures,
@@ -784,16 +1029,13 @@ float find_transformed_area(const AABB& bounds, const Mat2D& matrix)
            .5f;
 }
 
-static void get_depth_state(InterlockMode interlockMode,
-                            DrawType drawType,
-                            DrawContents drawContents,
-                            PipelineState* pipelineState)
+DepthState get_depth_state(InterlockMode interlockMode,
+                           DrawType drawType,
+                           DrawContents drawContents)
 {
     if (interlockMode != InterlockMode::msaa)
     {
-        pipelineState->depthTestEnabled = false;
-        pipelineState->depthWriteEnabled = false;
-        return;
+        return {.depthTestEnabled = false, .depthWriteEnabled = false};
     }
 
     switch (drawType)
@@ -802,76 +1044,58 @@ static void get_depth_state(InterlockMode interlockMode,
         case DrawType::imageMesh:
         case DrawType::atlasBlit:
         case DrawType::outerCurvePatches:
-            pipelineState->depthTestEnabled = true;
-            pipelineState->depthWriteEnabled = false;
-            break;
-
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaStencilClipReset:
-            pipelineState->depthTestEnabled = true;
-            pipelineState->depthWriteEnabled = false;
+            return {.depthTestEnabled = true, .depthWriteEnabled = false};
             break;
 
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
-            pipelineState->depthTestEnabled = true;
-            pipelineState->depthWriteEnabled = true;
+            return {.depthTestEnabled = true, .depthWriteEnabled = true};
             break;
 
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
-            pipelineState->depthTestEnabled = true;
-            pipelineState->depthWriteEnabled =
-                !(drawContents & DrawContents::clipUpdate);
+            return {
+                .depthTestEnabled = true,
+                .depthWriteEnabled = !(drawContents & DrawContents::clipUpdate),
+            };
             break;
 
         case DrawType::msaaMidpointFanStencilReset:
-            pipelineState->depthTestEnabled = true;
-            pipelineState->depthWriteEnabled =
-                !(drawContents &
-                  (DrawContents::clockwiseFill | DrawContents::clipUpdate));
-            break;
+            return {
+                .depthTestEnabled = true,
+                .depthWriteEnabled =
+                    !(drawContents &
+                      (DrawContents::clockwiseFill | DrawContents::clipUpdate)),
+            };
 
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
-            pipelineState->depthTestEnabled = false;
-            pipelineState->depthWriteEnabled = false;
-            break;
+            return {.depthTestEnabled = false, .depthWriteEnabled = false};
 
         case DrawType::interiorTriangulation:
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
-            RIVE_UNREACHABLE();
+            break;
     }
+
+    RIVE_UNREACHABLE();
 }
 
-// Returns an 8-bit key that uniquely identifies the stencil settings.
-static uint8_t get_stencil_settings(InterlockMode interlockMode,
-                                    DrawType drawType,
-                                    DrawContents drawContents,
-                                    PipelineState* pipelineState)
+StencilInfo get_stencil_info(InterlockMode interlockMode,
+                             DrawType drawType,
+                             DrawContents drawContents)
 {
+    bool areDrawContentsValid = true;
     if (interlockMode != InterlockMode::msaa)
     {
-        pipelineState->stencilTestEnabled = false;
-        pipelineState->stencilWriteMask = 0;
-        return 0;
+        // Only MSAA has any valid stencil types
+        return {StencilType::disabled,
+                DrawContents::none,
+                areDrawContentsValid};
     }
-
-    pipelineState->stencilTestEnabled = true;
-
-    // Draw contents that affect on the stencil settings for this particular
-    // drawType.
-    struct
-    {
-        bool isClockwiseFill = false;
-        bool isEvenOddFill = false;
-        bool hasActiveClip = false;
-        bool isClipUpdate = false;
-    } effectiveDrawContents;
-
-    uint8_t stencilKey = 0;
 
     switch (drawType)
     {
@@ -880,9 +1104,130 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
         case DrawType::atlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
-        {
-            effectiveDrawContents.hasActiveClip =
-                drawContents & DrawContents::activeClip;
+            if (drawContents & DrawContents::activeClip)
+            {
+                return {
+                    StencilType::activeStencilClip,
+                    DrawContents::activeClip,
+                    areDrawContentsValid,
+                };
+            }
+            else
+            {
+                return {
+                    StencilType::disabled,
+                    DrawContents::none,
+                    areDrawContentsValid,
+                };
+            }
+
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+            return {
+                StencilType::borrowedCoverage,
+                DrawContents::activeClip,
+                areDrawContentsValid,
+            };
+
+        case DrawType::msaaMidpointFans:
+            return {
+                StencilType::forwardClippedByBackward,
+                DrawContents::activeClip | DrawContents::clipUpdate,
+                areDrawContentsValid,
+            };
+
+        case DrawType::msaaMidpointFanStencilReset:
+            return {
+                StencilType::backwardTriangleCleanup,
+                DrawContents::clockwiseFill | DrawContents::activeClip |
+                    DrawContents::clipUpdate,
+                areDrawContentsValid,
+            };
+
+        case DrawType::msaaMidpointFanPathsStencil:
+            areDrawContentsValid =
+                (drawContents & (DrawContents::evenOddFill) ||
+                 (drawContents & kNestedClipUpdateMask) ==
+                     kNestedClipUpdateMask);
+            return {
+                StencilType::stencilNestedOrEvenOdd,
+                DrawContents::activeClip | DrawContents::evenOddFill,
+                areDrawContentsValid,
+            };
+
+        case DrawType::msaaMidpointFanPathsCover:
+            areDrawContentsValid = (drawContents & DrawContents::evenOddFill);
+            return {StencilType::evenOddDrawAndReset,
+                    DrawContents::clipUpdate,
+                    areDrawContentsValid};
+
+        case DrawType::msaaStencilClipReset:
+            return {
+                ((drawContents & kNestedClipUpdateMask) ==
+                 kNestedClipUpdateMask)
+                    ? StencilType::nestedClipReset
+                    : StencilType::clipReset,
+                DrawContents::clockwiseFill,
+                areDrawContentsValid,
+            };
+
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return {
+                StencilType::disabled,
+                DrawContents::none,
+                areDrawContentsValid,
+            };
+
+        case DrawType::interiorTriangulation:
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+            break;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+// Returns an 8-bit key that uniquely identifies the stencil settings.
+static void get_stencil_settings(InterlockMode interlockMode,
+                                 DrawType drawType,
+                                 DrawContents drawContents,
+                                 PipelineState* pipelineState)
+{
+    if (interlockMode != InterlockMode::msaa)
+    {
+        pipelineState->stencilTestEnabled = false;
+        pipelineState->stencilWriteMask = 0;
+        return;
+    }
+
+    pipelineState->stencilTestEnabled = true;
+
+    // Draw contents that affect on the stencil settings for this particular
+    // drawType.
+    const auto stencilInfo =
+        get_stencil_info(interlockMode, drawType, drawContents);
+
+    assert(stencilInfo.areDrawContentsValid);
+
+    // Apply the mask we were given - if the mask is missing bits, tests will
+    // fail.
+    drawContents &= stencilInfo.drawContentsMask;
+
+    const bool isClockwiseFill = (drawContents & DrawContents::clockwiseFill);
+    const bool isEvenOddFill = (drawContents & DrawContents::evenOddFill);
+    const bool hasActiveClip = (drawContents & DrawContents::activeClip);
+    const bool isClipUpdate = (drawContents & DrawContents::clipUpdate);
+
+    switch (stencilInfo.stencilType)
+    {
+        case StencilType::disabled:
+            pipelineState->stencilTestEnabled = false;
+            pipelineState->stencilWriteMask = 0;
+            break;
+
+        case StencilType::activeStencilClip:
+            assert(hasActiveClip);
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask = 0xff;
             pipelineState->stencilReference = 0x80;
@@ -890,21 +1235,15 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
                 .failOp = StencilOp::keep,
                 .passOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
-                .compareOp = effectiveDrawContents.hasActiveClip
-                                 ? StencilCompareOp::equal
-                                 : StencilCompareOp::always,
+                .compareOp = StencilCompareOp::equal,
             };
-            pipelineState->stencilDoubleSided = false;
-            stencilKey = 1;
-            break;
-        }
 
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        {
+            pipelineState->stencilDoubleSided = false;
+            break;
+
+        case StencilType::borrowedCoverage:
             // Count backward triangle hits (negative coverage) in the stencil
             // buffer.
-            effectiveDrawContents.hasActiveClip =
-                drawContents & DrawContents::activeClip;
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask = 0x7f;
             pipelineState->stencilReference = 0x80;
@@ -912,106 +1251,67 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
                 .failOp = StencilOp::keep,
                 .passOp = StencilOp::incrWrap,
                 .depthFailOp = StencilOp::keep,
-                .compareOp = effectiveDrawContents.hasActiveClip
-                                 ? StencilCompareOp::lessOrEqual
-                                 : StencilCompareOp::always,
+                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
+                                           : StencilCompareOp::always,
             };
             pipelineState->stencilDoubleSided = false;
-            stencilKey = 2;
             break;
-        }
 
-        case DrawType::msaaMidpointFans:
-        {
+        case StencilType::forwardClippedByBackward:
             // Draw forward triangles, clipped by the backward triangle counts.
             // (The depth test prevents double hits.)
-            effectiveDrawContents.hasActiveClip =
-                drawContents & DrawContents::activeClip;
-            effectiveDrawContents.isClipUpdate =
-                drawContents & DrawContents::clipUpdate;
-            pipelineState->stencilCompareMask =
-                effectiveDrawContents.hasActiveClip ? 0xff : 0x7f;
-            pipelineState->stencilWriteMask =
-                effectiveDrawContents.isClipUpdate ? 0xff : 0x7f;
+            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
+            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x7f;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
                 .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
                                                 // outside the clip.
-                .passOp = effectiveDrawContents.isClipUpdate
-                              ? StencilOp::replace
-                              : StencilOp::keep,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::equal,
             };
             pipelineState->stencilBackOps = {
                 .failOp = StencilOp::keep,
-                .passOp = effectiveDrawContents.isClipUpdate
-                              ? StencilOp::replace
-                              : StencilOp::zero,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::less,
             };
             pipelineState->stencilDoubleSided = true;
-            stencilKey = 3;
             break;
-        }
 
-        case DrawType::msaaMidpointFanStencilReset:
-        {
+        case StencilType::backwardTriangleCleanup:
             // Clean up backward triangles in the stencil buffer, (also filling
             // negative winding numbers for nonZero fill).
-            effectiveDrawContents.isClockwiseFill =
-                drawContents & DrawContents::clockwiseFill;
-            effectiveDrawContents.hasActiveClip =
-                drawContents & DrawContents::activeClip;
-            effectiveDrawContents.isClipUpdate =
-                drawContents & DrawContents::clipUpdate;
-            pipelineState->stencilCompareMask =
-                effectiveDrawContents.hasActiveClip ? 0xff : 0x7f;
+            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
             pipelineState->stencilWriteMask =
-                effectiveDrawContents.isClockwiseFill
+                isClockwiseFill
                     // For clockwise fill, disable clip-bit writes when cleaning
                     // up backward triangles. Clockwise only fills in forward
                     // triangles.
                     ? 0x7f
-                    : (effectiveDrawContents.isClipUpdate ? 0xff : 0x7f);
+                    : (isClipUpdate ? 0xff : 0x7f);
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
                 .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
                                                 // outside the clip.
-                .passOp = effectiveDrawContents.isClipUpdate
-                              ? StencilOp::replace
-                              : StencilOp::keep,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::equal,
             };
             pipelineState->stencilBackOps = {
                 .failOp = StencilOp::keep,
-                .passOp = effectiveDrawContents.isClipUpdate
-                              ? StencilOp::replace
-                              : StencilOp::zero,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::less,
             };
             pipelineState->stencilDoubleSided = true;
-            stencilKey = 4;
             break;
-        }
 
-        case DrawType::msaaMidpointFanPathsStencil:
-        {
+        case StencilType::stencilNestedOrEvenOdd:
             // Just stencil the path into the stencil buffer. This is used for
             // nested clip updates and for evenOdd paths.
-            assert(drawContents & (DrawContents::evenOddFill) ||
-                   (drawContents & kNestedClipUpdateMask) ==
-                       kNestedClipUpdateMask);
-            effectiveDrawContents.isEvenOddFill =
-                drawContents & DrawContents::evenOddFill;
-            effectiveDrawContents.hasActiveClip =
-                drawContents & DrawContents::activeClip;
             pipelineState->stencilCompareMask = 0xff;
-            pipelineState->stencilWriteMask =
-                effectiveDrawContents.isEvenOddFill ? 0x1 : 0x7f;
+            pipelineState->stencilWriteMask = isEvenOddFill ? 0x1 : 0x7f;
             pipelineState->stencilReference = 0x80;
             // Decrement front-facing triangles so the MSB is set when
             // clockwise.
@@ -1019,9 +1319,8 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
                 .failOp = StencilOp::keep,
                 .passOp = StencilOp::decrWrap,
                 .depthFailOp = StencilOp::keep,
-                .compareOp = effectiveDrawContents.hasActiveClip
-                                 ? StencilCompareOp::lessOrEqual
-                                 : StencilCompareOp::always,
+                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
+                                           : StencilCompareOp::always,
             };
             pipelineState->stencilBackOps = {
                 .failOp = pipelineState->stencilFrontOps.failOp,
@@ -1030,113 +1329,67 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
                 .compareOp = pipelineState->stencilFrontOps.compareOp,
             };
             pipelineState->stencilDoubleSided = true;
-            stencilKey = 5;
             break;
-        }
 
-        case DrawType::msaaMidpointFanPathsCover:
-        {
+        case StencilType::evenOddDrawAndReset:
             // Draw & reset stencil winding numbers. This is only needed for
             // evenOdd paths.
-            assert(drawContents & DrawContents::evenOddFill);
-            effectiveDrawContents.isClipUpdate =
-                drawContents & DrawContents::clipUpdate;
             pipelineState->stencilCompareMask = 0x7f;
-            pipelineState->stencilWriteMask =
-                effectiveDrawContents.isClipUpdate ? 0xff : 0x1;
+            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x1;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
                 .failOp = StencilOp::keep,
-                .passOp = effectiveDrawContents.isClipUpdate
-                              ? StencilOp::replace
-                              : StencilOp::zero,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::notEqual,
             };
             pipelineState->stencilDoubleSided = false;
-            stencilKey = 6;
             break;
-        }
 
-        case DrawType::msaaStencilClipReset:
-        {
-            if ((drawContents & kNestedClipUpdateMask) == kNestedClipUpdateMask)
-            {
-                // The nested clip just got stencilled and left in the stencil
-                // buffer. Intersect it with the existing clip. (Erasing regions
-                // of the existing clip that are outside the nested clip.)
-                effectiveDrawContents.isClockwiseFill =
-                    drawContents & DrawContents::clockwiseFill;
-                pipelineState->stencilCompareMask =
-                    effectiveDrawContents.isClockwiseFill
-                        // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
-                        //   => "If clipbit is set and winding is negative"
-                        //   => "If clipbit is set and winding is clockwise"
-                        //      (because clockwise decrements)
-                        //
-                        ? 0xc0
-                        // non-clockwise: 0x80 < stencilValue
-                        //   => "If clipbit is set and winding is nonzero"
-                        : 0xff;
-                pipelineState->stencilWriteMask = 0xff;
-                pipelineState->stencilReference = 0x80;
-                pipelineState->stencilFrontOps = {
-                    .failOp = StencilOp::zero,
-                    .passOp = StencilOp::replace,
-                    .depthFailOp = StencilOp::keep,
-                    .compareOp = StencilCompareOp::less,
-                };
-                pipelineState->stencilDoubleSided = false;
-                stencilKey = 7;
-            }
-            else
-            {
-                // Clear the entire previous clip.
-                pipelineState->stencilCompareMask = 0xff;
-                pipelineState->stencilWriteMask = 0xff;
-                pipelineState->stencilReference = 0x00;
-                pipelineState->stencilFrontOps = {
-                    .failOp = StencilOp::keep,
-                    .passOp = StencilOp::zero,
-                    .depthFailOp = StencilOp::keep,
-                    .compareOp = StencilCompareOp::notEqual,
-                };
-                pipelineState->stencilDoubleSided = false;
-                stencilKey = 8;
-            }
+        case StencilType::nestedClipReset:
+            // The nested clip just got stencilled and left in the stencil
+            // buffer. Intersect it with the existing clip. (Erasing regions of
+            // the existing clip that are outside the nested clip.)
+            pipelineState->stencilCompareMask =
+                isClockwiseFill
+                    // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
+                    //   => "If clipbit is set and winding is negative"
+                    //   => "If clipbit is set and winding is clockwise"
+                    //      (because clockwise decrements)
+                    //
+                    ? 0xc0
+                    // non-clockwise: 0x80 < stencilValue
+                    //   => "If clipbit is set and winding is nonzero"
+                    : 0xff;
+            pipelineState->stencilWriteMask = 0xff;
+            pipelineState->stencilReference = 0x80;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::zero,
+                .passOp = StencilOp::replace,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::less,
+            };
+            pipelineState->stencilDoubleSided = false;
+
             break;
-        }
 
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-        {
-            pipelineState->stencilTestEnabled = false;
-            pipelineState->stencilWriteMask = 0;
+        case StencilType::clipReset:
+            // Clear the entire previous clip.
+            pipelineState->stencilCompareMask = 0xff;
+            pipelineState->stencilWriteMask = 0xff;
+            pipelineState->stencilReference = 0x00;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::keep,
+                .passOp = StencilOp::zero,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::notEqual,
+            };
+            pipelineState->stencilDoubleSided = false;
             break;
-        }
-
-        case DrawType::interiorTriangulation:
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-            RIVE_UNREACHABLE();
     }
-
-    assert(stencilKey != 0 || drawType == DrawType::renderPassInitialize ||
-           drawType == DrawType::renderPassResolve);
-    assert(stencilKey < 1 << 4);
-    if (effectiveDrawContents.hasActiveClip)
-        stencilKey |= (1 << 4);
-    if (effectiveDrawContents.isClipUpdate)
-        stencilKey |= (1 << 5);
-    if (effectiveDrawContents.isClockwiseFill)
-        stencilKey |= (1 << 6);
-    if (effectiveDrawContents.isEvenOddFill)
-        stencilKey |= (1 << 7);
-    return stencilKey;
 }
 
-static CullFace get_cull_face(DrawType drawType)
+CullFace get_cull_face(DrawType drawType)
 {
     switch (drawType)
     {
@@ -1172,22 +1425,26 @@ static CullFace get_cull_face(DrawType drawType)
 }
 
 static BlendEquation get_blend_equation(
-    const FlushDescriptor& flushDesc,
-    const DrawBatch& batch,
+    DrawType drawType,
+    InterlockMode interlockMode,
+    ShaderMiscFlags shaderMiscFlags,
+    DrawContents drawContents,
+    BlendMode blendMode,
+    bool fixedFunctionColorOutput,
     const PlatformFeatures& platformFeatures)
 {
-    switch (flushDesc.interlockMode)
+    switch (interlockMode)
     {
         case InterlockMode::rasterOrdering:
         case InterlockMode::atomics:
         case InterlockMode::clockwise:
-            return flushDesc.fixedFunctionColorOutput ? BlendEquation::srcOver
-                                                      : BlendEquation::none;
+            return fixedFunctionColorOutput ? BlendEquation::srcOver
+                                            : BlendEquation::none;
 
         case InterlockMode::clockwiseAtomic:
-            if ((batch.shaderMiscFlags &
+            if ((shaderMiscFlags &
                  gpu::ShaderMiscFlags::borrowedCoveragePass) ||
-                batch.drawType == DrawType::renderPassInitialize)
+                drawType == DrawType::renderPassInitialize)
             {
                 return BlendEquation::none;
             }
@@ -1199,12 +1456,12 @@ static BlendEquation get_blend_equation(
             }
 
         case InterlockMode::msaa:
-            if (batch.drawContents & DrawContents::opaquePaint)
+            if (drawContents & DrawContents::opaquePaint)
             {
                 return BlendEquation::none;
             }
             else if (!platformFeatures.supportsBlendAdvancedKHR ||
-                     batch.firstBlendMode == BlendMode::srcOver)
+                     blendMode == BlendMode::srcOver)
             {
                 // Normal and in-shader blending both use src-over hardware
                 // blend coefficients.
@@ -1212,8 +1469,8 @@ static BlendEquation get_blend_equation(
                 // When drawing an advanced blend mode, the shader only does the
                 // "color" portion of the blend equation, and relies on the
                 // hardware blend unit to finish the "alpha" portion.
-                assert(batch.drawType != DrawType::renderPassInitialize &&
-                       batch.drawType != DrawType::renderPassResolve);
+                assert(drawType != DrawType::renderPassInitialize &&
+                       drawType != DrawType::renderPassResolve);
                 return BlendEquation::srcOver;
             }
             else
@@ -1221,19 +1478,22 @@ static BlendEquation get_blend_equation(
                 // When m_platformFeatures.supportsBlendAdvancedKHR is true in
                 // MSAA mode, the renderContext does not combine draws that have
                 // different blend modes.
-                assert(batch.drawType != DrawType::renderPassInitialize &&
-                       batch.drawType != DrawType::renderPassResolve);
-                return static_cast<BlendEquation>(batch.firstBlendMode);
+                assert(drawType != DrawType::renderPassInitialize &&
+                       drawType != DrawType::renderPassResolve);
+                return static_cast<BlendEquation>(blendMode);
             }
     }
 
     RIVE_UNREACHABLE();
 }
 
-static bool get_color_writemask(const FlushDescriptor& flushDesc,
-                                const DrawBatch& batch)
+bool get_color_write_enable(DrawType drawType,
+                            InterlockMode interlockMode,
+                            ShaderMiscFlags shaderMiscFlags,
+                            bool fixedFunctionColorOutput,
+                            DrawContents drawContents)
 {
-    switch (batch.drawType)
+    switch (drawType)
     {
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
@@ -1244,8 +1504,8 @@ static bool get_color_writemask(const FlushDescriptor& flushDesc,
         case DrawType::imageMesh:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
-            if (batch.shaderMiscFlags & (ShaderMiscFlags::clipUpdateOnly |
-                                         ShaderMiscFlags::borrowedCoveragePass))
+            if (shaderMiscFlags & (ShaderMiscFlags::clipUpdateOnly |
+                                   ShaderMiscFlags::borrowedCoveragePass))
             {
                 // Clip updates and borrowed coverage passes don't output color.
                 return false;
@@ -1253,8 +1513,8 @@ static bool get_color_writemask(const FlushDescriptor& flushDesc,
             // We generate pipeline state under the assumption that pixel local
             // storage can still be written when colorWriteEnabled is false.
             // Disable color writes when we're rendering only to PLS.
-            return flushDesc.fixedFunctionColorOutput ||
-                   flushDesc.interlockMode == InterlockMode::msaa;
+            return fixedFunctionColorOutput ||
+                   interlockMode == InterlockMode::msaa;
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
             return true;
@@ -1264,24 +1524,124 @@ static bool get_color_writemask(const FlushDescriptor& flushDesc,
             return false;
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
-            return !(batch.drawContents & DrawContents::clipUpdate);
+            return !(drawContents & DrawContents::clipUpdate);
         case DrawType::msaaMidpointFanStencilReset:
             // For clockwise fill, disable color writes when cleaning up
             // backward triangles. Clockwise only fills in forward triangles.
-            return !(batch.drawContents &
+            return !(drawContents &
                      (DrawContents::clockwiseFill | DrawContents::clipUpdate));
     }
-    return false;
+
+    RIVE_UNREACHABLE();
+}
+
+uint64_t pipeline_unique_key(DrawType drawType,
+                             ShaderFeatures shaderFeatures,
+                             InterlockMode interlockMode,
+                             ShaderMiscFlags shaderMiscFlags,
+                             DrawContents drawContents,
+                             bool fixedFunctionColorOutput,
+                             rive::BlendMode blendMode,
+                             const PlatformFeatures& platformFeatures)
+{
+    uint64_t key = gpu::ShaderUniqueKey(drawType,
+                                        shaderFeatures,
+                                        interlockMode,
+                                        shaderMiscFlags);
+
+    constexpr auto VALID_PIPELINE_DRAW_CONTENTS_BIT_COUNT =
+        math::count_set_bits(uint32_t(DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE));
+
+    const auto stencilInfo =
+        get_stencil_info(interlockMode,
+                         drawType,
+                         drawContents & DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE);
+
+    const auto drawContentsMask =
+        (interlockMode == InterlockMode::msaa)
+            ? DrawContents(stencilInfo.drawContentsMask |
+                           DrawContents::opaquePaint)
+            : DrawContents::none;
+
+    assert((drawContentsMask & DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE) ==
+           drawContentsMask);
+
+    const auto effectiveDrawContents =
+        DrawContents(drawContents & drawContentsMask);
+
+    // Compact the draw contents to only the bits that matter for the pipeline
+    // (and, thus, the key)
+    key = math::add_bits_to_key(
+        key,
+        math::compact_bitmask_value(
+            uint32_t(effectiveDrawContents),
+            uint32_t(DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE)),
+        VALID_PIPELINE_DRAW_CONTENTS_BIT_COUNT);
+
+    // Only MSAA cares about other blend modes during pipeline creation.
+    auto effectiveBlendMode = (interlockMode == InterlockMode::msaa &&
+                               platformFeatures.supportsBlendAdvancedKHR)
+                                  ? blendMode
+                                  : BlendMode::srcOver;
+
+    assert(uint32_t(effectiveBlendMode) < (1u << BLEND_MODE_BIT_COUNT));
+
+    key = math::add_bits_to_key(key,
+                                uint32_t(effectiveBlendMode),
+                                BLEND_MODE_BIT_COUNT);
+
+    key = math::add_bits_to_key(key,
+                                uint32_t(stencilInfo.stencilType),
+                                STENCIL_TYPE_BIT_COUNT);
+
+    const bool colorWriteEnabled =
+        get_color_write_enable(drawType,
+                               interlockMode,
+                               shaderMiscFlags,
+                               fixedFunctionColorOutput,
+                               effectiveDrawContents);
+    key = math::add_bits_to_key(key, uint32_t(colorWriteEnabled), 1);
+    const auto depthState =
+        get_depth_state(interlockMode, drawType, effectiveDrawContents);
+    key = math::add_bits_to_key(key, uint32_t(depthState.depthTestEnabled), 1);
+    key = math::add_bits_to_key(key, uint32_t(depthState.depthWriteEnabled), 1);
+    key = math::add_bits_to_key(key,
+                                uint32_t(get_cull_face(drawType)),
+                                CULL_FACE_BIT_COUNT);
+    return key;
 }
 
 void get_pipeline_state(const DrawBatch& batch,
                         const FlushDescriptor& flushDesc,
                         const PlatformFeatures& platformFeatures,
-                        PipelineState* pipelineState)
+                        PipelineState* pipelineStateOut)
 {
+    *pipelineStateOut = get_pipeline_state(batch.drawType,
+                                           flushDesc.interlockMode,
+                                           batch.shaderMiscFlags,
+                                           batch.drawContents,
+                                           flushDesc.fixedFunctionColorOutput,
+                                           batch.firstBlendMode,
+                                           platformFeatures);
+}
+
+PipelineState get_pipeline_state(DrawType drawType,
+                                 InterlockMode interlockMode,
+                                 ShaderMiscFlags shaderMiscFlags,
+                                 DrawContents drawContents,
+                                 bool fixedFunctionColorOutput,
+                                 rive::BlendMode blendMode,
+                                 const PlatformFeatures& platformFeatures)
+{
+    // Only some DrawContents flags are relevant (and only for msaa at the
+    // moment)
+    drawContents &= (interlockMode == InterlockMode::msaa)
+                        ? DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE
+                        : DrawContents::none;
+
 #ifndef NDEBUG
     // Ensure drawType is compatible with the interlock mode.
-    switch (batch.drawType)
+    switch (drawType)
     {
         case DrawType::atlasBlit:
         case DrawType::imageMesh:
@@ -1291,20 +1651,20 @@ void get_pipeline_state(const DrawBatch& batch,
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-            assert(flushDesc.interlockMode != InterlockMode::msaa);
+            assert(interlockMode != InterlockMode::msaa);
             break;
 
         case DrawType::imageRect:
         case DrawType::renderPassResolve:
-            assert(flushDesc.interlockMode == InterlockMode::rasterOrdering ||
-                   flushDesc.interlockMode == InterlockMode::atomics ||
-                   flushDesc.interlockMode == InterlockMode::msaa);
+            assert(interlockMode == InterlockMode::rasterOrdering ||
+                   interlockMode == InterlockMode::atomics ||
+                   interlockMode == InterlockMode::msaa);
             break;
 
         case DrawType::renderPassInitialize:
-            assert(flushDesc.interlockMode == InterlockMode::atomics ||
-                   flushDesc.interlockMode == InterlockMode::msaa ||
-                   flushDesc.interlockMode == InterlockMode::clockwiseAtomic);
+            assert(interlockMode == InterlockMode::atomics ||
+                   interlockMode == InterlockMode::msaa ||
+                   interlockMode == InterlockMode::clockwiseAtomic);
             break;
 
         case DrawType::msaaStrokes:
@@ -1315,35 +1675,31 @@ void get_pipeline_state(const DrawBatch& batch,
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
-            assert(flushDesc.interlockMode == InterlockMode::msaa);
+            assert(interlockMode == InterlockMode::msaa);
             break;
     }
 #endif
 
-    get_depth_state(flushDesc.interlockMode,
-                    batch.drawType,
-                    batch.drawContents,
-                    pipelineState);
-    uint8_t stencilKey = get_stencil_settings(flushDesc.interlockMode,
-                                              batch.drawType,
-                                              batch.drawContents,
-                                              pipelineState);
-    pipelineState->cullFace = get_cull_face(batch.drawType);
-    pipelineState->blendEquation =
-        get_blend_equation(flushDesc, batch, platformFeatures);
-    pipelineState->colorWriteEnabled = get_color_writemask(flushDesc, batch);
-
-    // Work out a pipeline key (for backends that cache pipelines objects).
-    uint32_t key = pipelineState->depthTestEnabled;
-    key = (key << 1) | static_cast<uint32_t>(pipelineState->depthWriteEnabled);
-    key = (key << 8) | stencilKey;
-    assert(static_cast<uint32_t>(pipelineState->cullFace) < 1 << 2);
-    key = (key << 2) | static_cast<uint32_t>(pipelineState->cullFace);
-    assert(static_cast<uint32_t>(pipelineState->blendEquation) < 1 << 5);
-    key = (key << 5) | static_cast<uint32_t>(pipelineState->blendEquation);
-    key = (key << 1) | static_cast<uint32_t>(pipelineState->colorWriteEnabled);
-    assert(key < 1 << PipelineState::UNIQUE_KEY_BIT_COUNT);
-    pipelineState->uniqueKey = key;
+    PipelineState pipelineState;
+    auto depthState = get_depth_state(interlockMode, drawType, drawContents);
+    pipelineState.depthTestEnabled = depthState.depthTestEnabled;
+    pipelineState.depthWriteEnabled = depthState.depthWriteEnabled;
+    get_stencil_settings(interlockMode, drawType, drawContents, &pipelineState);
+    pipelineState.cullFace = get_cull_face(drawType);
+    pipelineState.blendEquation = get_blend_equation(drawType,
+                                                     interlockMode,
+                                                     shaderMiscFlags,
+                                                     drawContents,
+                                                     blendMode,
+                                                     fixedFunctionColorOutput,
+                                                     platformFeatures);
+    pipelineState.colorWriteEnabled =
+        get_color_write_enable(drawType,
+                               interlockMode,
+                               shaderMiscFlags,
+                               fixedFunctionColorOutput,
+                               drawContents);
+    return pipelineState;
 }
 
 // Borrowed from:

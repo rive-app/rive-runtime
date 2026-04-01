@@ -80,9 +80,10 @@ PLS_MAIN(@drawFragmentMain)
 
 #ifdef @ATLAS_BLIT
     half4 color = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
-    half coverage = filter_feather_atlas(
-        v_atlasCoord,
-        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+    half coverage = clamp(
+        TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
+        make_half(.0),
+        make_half(1.));
 #endif
 
 #ifdef @DRAW_IMAGE_MESH

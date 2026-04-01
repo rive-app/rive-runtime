@@ -3241,12 +3241,6 @@ void RenderContextVulkanImpl::submitDrawList(
             drawPipelineOptions |= DrawPipelineVulkan::Options::wireframe;
         }
 
-        gpu::PipelineState pipelineState;
-        gpu::get_pipeline_state(batch,
-                                desc,
-                                m_platformFeatures,
-                                &pipelineState);
-
         if (batch.barriers & (gpu::BarrierFlags::plsAtomicPreResolve |
                               gpu::BarrierFlags::msaaPostInit |
                               gpu::BarrierFlags::preManualResolve |
@@ -3289,7 +3283,8 @@ void RenderContextVulkanImpl::submitDrawList(
                     .shaderFeatures = shaderFeatures,
                     .interlockMode = desc.interlockMode,
                     .shaderMiscFlags = shaderMiscFlags,
-                    .pipelineState = pipelineState,
+                    .drawContents = batch.drawContents,
+                    .blendMode = batch.firstBlendMode,
                     .drawPipelineOptions = drawPipelineOptions,
                     .renderPassOptions = drawRenderPass->renderPassOptions(),
                     .renderTargetFormat = renderTarget->framebufferFormat(),
@@ -3511,6 +3506,37 @@ void RenderContextVulkanImpl::hotloadShaders(
                                              m_workarounds);
     m_atlasPipeline =
         std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
+}
+
+void RenderContextVulkanImpl::startAsyncPipelineCreation(
+    InterlockMode interlockMode,
+    VkFormat renderTargetFormat,
+    VkImageUsageFlags renderTargetUsage,
+    LoadAction colorLoadAction)
+{
+    m_pipelineManager->queueUbershaderPipelineCreation(interlockMode,
+                                                       renderTargetFormat,
+                                                       renderTargetUsage,
+                                                       colorLoadAction,
+                                                       platformFeatures());
+}
+
+void RenderContextVulkanImpl::startAsyncPipelineCreation(
+    InterlockMode interlockMode,
+    RenderTargetVulkan& renderTarget,
+    LoadAction colorLoadAction)
+{
+    m_pipelineManager->queueUbershaderPipelineCreation(
+        interlockMode,
+        renderTarget.framebufferFormat(),
+        renderTarget.targetUsageFlags(),
+        colorLoadAction,
+        platformFeatures());
+}
+
+void RenderContextVulkanImpl::waitForAsyncPipelineCreation()
+{
+    m_pipelineManager->waitForAllBackgroundPipelineCreation();
 }
 
 std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(

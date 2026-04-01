@@ -82,13 +82,14 @@ public:
     // buffers are only supported via extensions in GL.
     //
     // These are sorted with the most preferred types higher up in the list.
-    enum class AtlasType
+    enum class AtlasRenderType
     {
         r16f, // Most preferred. Balances performances with precision.
         r32f, // Uses HW blending to count coverage.
 
         r32uiFramebufferFetch, // Stores coverage as fp32 bits in a uint.
-        r32uiPixelLocalStorage,
+        r8PixelLocalStorageEXT,
+        r32uiPixelLocalStorageANGLE,
 
         r32iAtomicTexture, // Stores coverage as 16:16 fixed point.
 
@@ -96,19 +97,20 @@ public:
                // up coverage into all 4 components of an RGBA texture.
     };
 
-    AtlasType atlasType() const { return m_atlasType; }
+    AtlasRenderType atlasRenderType() const { return m_atlasRenderType; }
 
 #ifdef WITH_RIVE_TOOLS
-    // Changes the context's AtlasType for testing purposes. If atlasDesiredType
-    // is not supported, the next supported AtlasType down the list is chosen.
+    // Changes the context's AtlasRenderType for testing purposes. If
+    // atlasDesiredRenderType is not supported, the next supported
+    // AtlasRenderType down the list is chosen.
     //
-    // Returns the original AtlasType from before this call was made.
+    // Returns the original AtlasRenderType from before this call was made.
     //
     // NOTE: this also calls releaseResources() on the owning RenderContext to
     // ensure the atlas texture gets reallocated.
-    AtlasType testingOnly_resetAtlasDesiredType(
+    AtlasRenderType testingOnly_resetAtlasDesiredRenderType(
         RenderContext* owningRenderContext,
-        AtlasType atlasDesiredType);
+        AtlasRenderType atlasDesiredRenderType);
 #endif
 
 private:
@@ -315,21 +317,22 @@ private:
     };
 
     // Atlas rendering pipelines.
-    AtlasType m_atlasType;
+    AtlasRenderType m_atlasRenderType;
     glutils::Shader m_atlasVertexShader;
     AtlasProgram m_atlasFillProgram;
     AtlasProgram m_atlasStrokeProgram;
     gpu::PipelineState m_atlasFillPipelineState;
     gpu::PipelineState m_atlasStrokePipelineState;
-#ifdef RIVE_ANDROID
-    // Pipelines for clearing and resolving EXT_shader_pixel_local_storage.
+    // Pipelines for clearing and resolving atlases into a GL_R8 texture for
+    // sampling.
     glutils::Shader m_atlasResolveVertexShader;
     glutils::Program m_atlasClearProgram = glutils::Program::Zero();
     glutils::Program m_atlasResolveProgram = glutils::Program::Zero();
     glutils::VAO m_atlasResolveVAO;
-#endif
+    glutils::Texture m_atlasRenderTexture = glutils::Texture::Zero();
     glutils::Texture m_atlasTexture = glutils::Texture::Zero();
-    glutils::Framebuffer m_atlasFBO;
+    glutils::Framebuffer m_atlasRenderFBO = glutils::Framebuffer::Zero();
+    glutils::Framebuffer m_atlasResolveFBO = glutils::Framebuffer::Zero();
 
     // Wraps a compiled GL "draw" shader, either vertex or fragment, with a
     // specific set of features enabled via #define. The set of features to
@@ -433,7 +436,8 @@ private:
         virtual std::unique_ptr<DrawProgram> createPipeline(
             PipelineCreateType createType,
             uint32_t key,
-            const PipelineProps&) override;
+            const PipelineProps&,
+            const PlatformFeatures&) override;
 
         virtual PipelineStatus getPipelineStatus(
             const DrawProgram& state) const override;

@@ -502,7 +502,8 @@ INLINE void resolve_paint(uint pathID,
     // Apply the advanced blend mode, if applicable.
     ushort blendMode;
     if (@ENABLE_ADVANCED_BLEND && fragColorOut.a != .0 &&
-        (blendMode = cast_uint_to_ushort((paintData.x >> 4) & 0xfu)) != 0u)
+        (blendMode = cast_uint_to_ushort((paintData.x >> 4) & 0xfu)) !=
+            BLEND_SRC_OVER)
     {
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
         fragColorOut.rgb =
@@ -701,9 +702,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 
     half coverage;
 #ifdef @ATLAS_BLIT
-    coverage = filter_feather_atlas(
-        v_atlasCoord,
-        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+    coverage = clamp(
+        TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
+        make_half(.0),
+        make_half(1.));
 #else
     coverage = v_windingWeight;
 #endif

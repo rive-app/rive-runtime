@@ -82,6 +82,26 @@ public:
         return PLSBackingType::inputAttachment;
     }
 
+    void forEachUbershaderPermutation(
+        InterlockMode,
+        VkFormat renderTargetFormat,
+        VkImageUsageFlags renderTargetUsage,
+        LoadAction,
+        const PlatformFeatures&,
+        const std::function<bool(const PipelineProps&)>& props);
+
+#if !defined(NDEBUG)
+    virtual bool isValidUbershaderPipelineProps(
+        const PipelineProps& props,
+        const PlatformFeatures& platformFeatures) override;
+#endif
+
+    void queueUbershaderPipelineCreation(InterlockMode,
+                                         VkFormat renderTargetFormat,
+                                         VkImageUsageFlags renderTargetUsage,
+                                         LoadAction,
+                                         const PlatformFeatures&);
+
 private:
     virtual std::unique_ptr<DrawShaderVulkan> createVertexShader(
         DrawType drawType,
@@ -97,7 +117,8 @@ private:
     virtual std::unique_ptr<DrawPipelineVulkan> createPipeline(
         PipelineCreateType createType,
         uint64_t key,
-        const PipelineProps& props) override;
+        const PipelineProps& props,
+        const PlatformFeatures&) override;
 
     virtual PipelineStatus getPipelineStatus(
         const DrawPipelineVulkan&) const override;

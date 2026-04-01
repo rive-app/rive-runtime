@@ -22,6 +22,16 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
     const bool fixedFunctionColorOutput =
         shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput;
 
+    if (type == Type::fragment && interlockMode == InterlockMode::msaa &&
+        drawType != DrawType::renderPassInitialize &&
+        drawType != DrawType::renderPassResolve)
+    {
+        // Fixed function color output and advanced blend are mutually exclusive
+        // and one of them should always be set in msaa mode.
+        assert(fixedFunctionColorOutput !=
+               bool(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND));
+    }
+
     Span<const uint32_t> vertCode;
     Span<const uint32_t> fragCode;
 

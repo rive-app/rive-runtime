@@ -360,7 +360,11 @@ private:
             m_device->vkDevice(),
             m_device->vulkanFeatures(),
             m_instance->getVkGetInstanceProcAddrPtr(),
-            {.forceAtomicMode = m_backendParams.atomic});
+            {
+                .forceAtomicMode = m_backendParams.atomic,
+                .shaderCompilationMode =
+                    ShaderCompilationMode::alwaysSynchronous,
+            });
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
         VK_CHECK(m_device->getSurfaceCapabilities(m_windowSurface,

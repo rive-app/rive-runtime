@@ -57,15 +57,7 @@ TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       @featherTexture);
 #endif
 #ifdef @ATLAS_BLIT
-#ifdef @ATLAS_TEXTURE_R32UI_FLOAT_BITS
-TEXTURE_R32UI(PER_FLUSH_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
-#elif defined(@ATLAS_TEXTURE_R32I_FIXED_POINT)
-TEXTURE_R32I(PER_FLUSH_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
-#elif defined(@ATLAS_TEXTURE_RGBA8_UNORM)
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
-#else
 TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
-#endif
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 // The Qualcomm compiler can't handle line breaks in #ifs.
@@ -263,74 +255,6 @@ INLINE half eval_feathered_stroke(float4 coverages TEXTURE_CONTEXT_DECL)
     return featherCoverage;
 }
 #endif // @ENABLE_FEATHER
-
-#if defined(@FRAGMENT) && defined(@ATLAS_BLIT)
-
-INLINE half filter_feather(half4 coverages,
-                           float2 atlasCoord,
-                           float2 atlasQuadCenter)
-{
-    coverages.xw = mix(coverages.xw,
-                       coverages.yz,
-                       make_half(atlasCoord.x + .5 - atlasQuadCenter.x));
-    coverages.x = mix(coverages.w,
-                      coverages.x,
-                      make_half(atlasCoord.y + .5 - atlasQuadCenter.y));
-    return clamp(coverages.x, make_half(0.0), make_half(1.0));
-}
-
-// Upscales a pre-rendered feather from the atlas, converting from gaussian
-// space to linear before doing a bilerp.
-INLINE half
-filter_feather_atlas(float2 atlasCoord,
-                     float2 atlasTextureInverseSize TEXTURE_CONTEXT_DECL)
-{
-    // Gather the quad of pixels we need to filter.
-    // Gather from the exact center of the quad to make sure there are no
-    // rounding differences between us and the texture unit.
-
-    half4 coverages;
-    float2 atlasQuadCenter = round(atlasCoord);
-
-#ifdef @ATLAS_TEXTURE_R32UI_FLOAT_BITS
-    coverages = uintBitsToFloat(uint4(TEXTURE_GATHER(@atlasTexture,
-                                                     atlasSampler,
-                                                     atlasQuadCenter,
-                                                     atlasTextureInverseSize)));
-    return filter_feather(coverages, atlasCoord, atlasQuadCenter);
-#elif defined(@ATLAS_TEXTURE_R32I_FIXED_POINT)
-    int4 coverages_i32 = int4(TEXTURE_GATHER(@atlasTexture,
-                                             atlasSampler,
-                                             atlasQuadCenter,
-                                             atlasTextureInverseSize));
-    coverages = float4(coverages_i32) * (1. / ATLAS_R32I_FIXED_POINT_FACTOR);
-    return filter_feather(coverages, atlasCoord, atlasQuadCenter);
-#elif defined(@ATLAS_TEXTURE_RGBA8_UNORM)
-    int2 coord = int2(atlasQuadCenter);
-    half4x4 coverages_u8x4 =
-        make_half4x4(TEXTURE_GATHER_MATRIX(@atlasTexture, coord, .rgba));
-    // Apply the following weights to the RGBA of each u8x4 coverage value:
-    //   - R counts fractional, positive coverage.
-    //   - G counts fractional, negative coverage.
-    //   - B counts integer, positive coverage.
-    //   - A counts integer, negative coverage.
-    coverages = make_half4(ATLAS_UNORM8_COVERAGE_SCALE_FACTOR,
-                           -ATLAS_UNORM8_COVERAGE_SCALE_FACTOR,
-                           255.,
-                           -255.) *
-                coverages_u8x4;
-    return filter_feather(coverages, atlasCoord, atlasQuadCenter);
-#else
-    half cov = TEXTURE_SAMPLE_LOD(@atlasTexture,
-                                  atlasSampler,
-                                  atlasCoord * atlasTextureInverseSize,
-                                  .0)
-                   .r;
-    return clamp(cov, make_half(0.0), make_half(1.0));
-#endif
-}
-
-#endif // @FRAGMENT && @ATLAS_BLIT
 
 #if defined(@VERTEX) && defined(@DRAW_PATH)
 INLINE int2 tess_texel_coord(int texelIndex)
@@ -911,7 +835,8 @@ unpack_atlas_coverage_vertex(float3 triangleVertex,
     // outAtlasCoord tells the fragment shader where to fetch coverage from the
     // atlas, when using atlas coverage.
     float3 atlasTransform = uintBitsToFloat(pathData2.yzw);
-    outAtlasCoord = vertexPos * atlasTransform.x + atlasTransform.yz;
+    outAtlasCoord = (vertexPos * atlasTransform.x + atlasTransform.yz) *
+                    uniforms.atlasTextureInverseSize;
     return vertexPos;
 }
 #endif // @VERTEX && @ATLAS_BLIT

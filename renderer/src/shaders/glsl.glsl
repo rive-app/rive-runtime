@@ -67,7 +67,7 @@
 // be declared before any code.
 #ifdef @ATLAS_RENDER_TARGET_R32UI_FRAMEBUFFER_FETCH
 #extension GL_EXT_shader_framebuffer_fetch : require
-#elif defined(@ATLAS_RENDER_TARGET_R32UI_PLS_EXT)
+#elif defined(@ATLAS_RENDER_TARGET_R8_PLS_EXT)
 #extension GL_EXT_shader_pixel_local_storage : require
 #elif defined(@ATLAS_RENDER_TARGET_R32UI_PLS_ANGLE)
 #extension GL_ANGLE_shader_pixel_local_storage : require

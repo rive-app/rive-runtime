@@ -21,5 +21,7 @@ enum class BlendMode : unsigned char
     color = 27,
     luminosity = 28
 };
-}
+
+constexpr uint32_t BLEND_MODE_BIT_COUNT = 5;
+} // namespace rive
 #endif

@@ -3202,10 +3202,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
 
     shaderMiscFlags |= m_baselineShaderMiscFlags;
 
-    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic &&
+    if ((m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic ||
+         m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa) &&
         draw->blendMode() == BlendMode::srcOver)
     {
-        // In clockwiseAtomic mode, individual draws can use
+        // In clockwiseAtomic and msaa modes, individual draws can use
         // fixedFunctionColorOutput even if the render pass as a whole does not.
         shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
     }

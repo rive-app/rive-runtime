@@ -3548,22 +3548,17 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 renderTarget->m_targetTexture.Get());
         }
 #endif
-        uint64_t pipelineKey = gpu::ShaderUniqueKey(drawType,
-                                                    batch.shaderFeatures,
-                                                    desc.interlockMode,
-                                                    batch.shaderMiscFlags);
+        uint64_t pipelineKey =
+            gpu::pipeline_unique_key(drawType,
+                                     batch.shaderFeatures,
+                                     desc.interlockMode,
+                                     batch.shaderMiscFlags,
+                                     batch.drawContents,
+                                     desc.fixedFunctionColorOutput,
+                                     batch.firstBlendMode,
+                                     platformFeatures());
 
-        assert(pipelineKey << PipelineState::UNIQUE_KEY_BIT_COUNT >>
-                   PipelineState::UNIQUE_KEY_BIT_COUNT ==
-               pipelineKey);
-        assert(pipelineState.uniqueKey <
-               1 << PipelineState::UNIQUE_KEY_BIT_COUNT);
-        pipelineKey = (pipelineKey << PipelineState::UNIQUE_KEY_BIT_COUNT) |
-                      pipelineState.uniqueKey;
-
-        assert(pipelineKey << 1 >> 1 == pipelineKey);
-        pipelineKey =
-            (pipelineKey << 1) | static_cast<uint32_t>(targetIsGLFBO0);
+        pipelineKey = math::add_bits_to_key(pipelineKey, targetIsGLFBO0, 1);
 
         const DrawPipeline& drawPipeline =
             m_drawPipelines
