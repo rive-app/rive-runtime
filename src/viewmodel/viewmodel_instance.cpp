@@ -335,6 +335,15 @@ void ViewModelInstance::rebindProperties()
         {
             dependent->relinkDataBind();
         }
+        if (property->is<ViewModelInstanceViewModel>())
+        {
+            auto viewModelInstance = property->as<ViewModelInstanceViewModel>()
+                                         ->referenceViewModelInstance();
+            if (viewModelInstance)
+            {
+                viewModelInstance->rebindProperties();
+            }
+        }
     }
 }
 

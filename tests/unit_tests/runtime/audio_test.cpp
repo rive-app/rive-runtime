@@ -272,4 +272,48 @@ TEST_CASE("Scripted audio plays", "[audio]")
     REQUIRE(sound->volume() == 0.1f);
 }
 
+TEST_CASE("audio source duration from file", "[audio]")
+{
+    auto file = loadFile("assets/audio/what.wav");
+    auto span = Span<uint8_t>(file);
+    rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+    REQUIRE(audioSource->channels() == 2);
+    REQUIRE(audioSource->sampleRate() == 44100);
+
+    float duration = audioSource->duration();
+    // 9688 frames at 44100 Hz
+    REQUIRE(duration == Approx(9688.0f / 44100.0f));
+
+    // Verify caching: second call returns same value without re-decoding.
+    REQUIRE(audioSource->duration() == duration);
+}
+
+TEST_CASE("audio source duration from buffered samples", "[audio]")
+{
+    const uint32_t numChannels = 2;
+    const uint32_t sampleRate = 48000;
+    const uint32_t numFrames = 48000; // 1 second worth of frames
+    std::vector<float> samples(numFrames * numChannels, 0.0f);
+    auto span = Span<float>(samples.data(), samples.size());
+    rcp<AudioSource> audioSource =
+        rcp<AudioSource>(new AudioSource(span, numChannels, sampleRate));
+    REQUIRE(audioSource->isBuffered());
+    REQUIRE(audioSource->duration() == Approx(1.0f));
+}
+
+#ifndef MA_NO_MP3
+TEST_CASE("audio source duration mp3", "[audio]")
+{
+    auto file = loadFile("assets/audio/song.mp3");
+    auto span = Span<uint8_t>(file);
+    rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+
+    float duration = audioSource->duration();
+    // Duration should be positive for a valid mp3.
+    REQUIRE(duration > 0.0f);
+    // Cached value should match.
+    REQUIRE(audioSource->duration() == duration);
+}
+#endif
+
 // TODO check if sound->stop calls completed callback!!!

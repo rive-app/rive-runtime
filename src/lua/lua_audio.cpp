@@ -99,6 +99,40 @@ int ScriptedAudioSource::playFrame(lua_State* L, AudioEngine* engine)
     return playFrame(L, engine, 0, true);
 }
 
+static int audio_source_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto* scriptedAudioSource = lua_torive<ScriptedAudioSource>(L, 1);
+    if (scriptedAudioSource == nullptr ||
+        scriptedAudioSource->source() == nullptr)
+    {
+        return 0;
+    }
+    switch (atom)
+    {
+        case (int)LuaAtoms::duration:
+            lua_pushnumber(
+                L,
+                (lua_Number)scriptedAudioSource->source()->duration());
+            return 1;
+        default:
+            break;
+    }
+
+    luaL_error(L,
+               "'%s' is not a valid index of %s",
+               key,
+               ScriptedAudioSource::luaName);
+    return 0;
+}
+
 static int audio_sound_namecall(lua_State* L)
 {
     int atom;
@@ -412,6 +446,9 @@ int luaopen_rive_audio(lua_State* L)
 #ifdef WITH_RIVE_AUDIO
     {
         lua_register_rive<ScriptedAudioSource>(L);
+
+        lua_pushcfunction(L, audio_source_index, nullptr);
+        lua_setfield(L, -2, "__index");
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable

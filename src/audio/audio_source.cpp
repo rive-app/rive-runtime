@@ -53,6 +53,7 @@ AudioSource::AudioSource(rive::Span<float> samples,
     m_isBuffered(true),
     m_channels(numChannels),
     m_sampleRate(sampleRate),
+    m_duration(-1.0f),
     m_ownedBytes((uint8_t*)samples.data(), samples.size() * sizeof(float))
 {
     assert(numChannels != 0);
@@ -60,13 +61,18 @@ AudioSource::AudioSource(rive::Span<float> samples,
 }
 
 AudioSource::AudioSource(rive::Span<uint8_t> fileBytes) :
-    m_isBuffered(false), m_channels(0), m_sampleRate(0), m_fileBytes(fileBytes)
+    m_isBuffered(false),
+    m_channels(0),
+    m_sampleRate(0),
+    m_duration(-1.0f),
+    m_fileBytes(fileBytes)
 {}
 
 AudioSource::AudioSource(rive::SimpleArray<uint8_t> fileBytes) :
     m_isBuffered(false),
     m_channels(0),
     m_sampleRate(0),
+    m_duration(-1.0f),
     m_fileBytes(fileBytes.data(), fileBytes.size()),
     m_ownedBytes(std::move(fileBytes))
 {}
@@ -100,6 +106,17 @@ public:
 
     uint32_t sampleRate() { return (uint32_t)m_decoder.outputSampleRate; }
 
+    uint64_t lengthInFrames()
+    {
+        ma_uint64 length;
+        if (ma_data_source_get_length_in_pcm_frames(&m_decoder, &length) !=
+            MA_SUCCESS)
+        {
+            return 0;
+        }
+        return (uint64_t)length;
+    }
+
 private:
     ma_decoder m_decoder;
 };
@@ -122,6 +139,31 @@ uint32_t AudioSource::sampleRate()
     }
     AudioSourceDecoder audioDecoder(m_fileBytes);
     return m_sampleRate = audioDecoder.sampleRate();
+}
+
+float AudioSource::duration()
+{
+    if (m_duration >= 0.0f)
+    {
+        return m_duration;
+    }
+    if (m_isBuffered)
+    {
+        uint32_t ch = channels();
+        uint32_t sr = sampleRate();
+        if (ch == 0 || sr == 0)
+        {
+            return m_duration = 0.0f;
+        }
+        return m_duration = (float)bufferedSamples().size() / (float)(ch * sr);
+    }
+    AudioSourceDecoder audioDecoder(m_fileBytes);
+    uint32_t sr = audioDecoder.sampleRate();
+    if (sr == 0)
+    {
+        return m_duration = 0.0f;
+    }
+    return m_duration = (float)audioDecoder.lengthInFrames() / (float)sr;
 }
 
 AudioFormat AudioSource::format() const

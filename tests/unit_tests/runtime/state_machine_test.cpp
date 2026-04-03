@@ -17,6 +17,8 @@
 #include <rive/shapes/shape.hpp>
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
+#include <rive/viewmodel/viewmodel_instance_string.hpp>
+#include <rive/viewmodel/viewmodel.hpp>
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
@@ -774,4 +776,59 @@ TEST_CASE("Transition duration in artboard list state machines is bindable",
     }
 
     CHECK(silver.matches("transition_duration_bind_list"));
+}
+
+TEST_CASE("Replace view model instances with multiple view model levels",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/rebind_with_nested_viewmodel.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    {
+        auto second =
+            vmi->propertyValue("sec")->as<ViewModelInstanceViewModel>();
+        auto secInstance = second->referenceViewModelInstance();
+        auto third =
+            secInstance->propertyValue("thi")->as<ViewModelInstanceViewModel>();
+        auto thirdInstance = third->referenceViewModelInstance();
+        thirdInstance->propertyValue("label")
+            ->as<ViewModelInstanceString>()
+            ->propertyValue("updated");
+    }
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Create a new view model with a new child view model
+    auto thirdVM = file->viewModel("Third");
+    auto thirdInstance = thirdVM->createInstance();
+    thirdInstance->propertyValue("label")
+        ->as<ViewModelInstanceString>()
+        ->propertyValue("new updated");
+    auto secondVM = file->viewModel("Second");
+    auto secondInstance = secondVM->createInstance();
+    secondInstance->replaceViewModelByName("thi", thirdInstance);
+    vmi->replaceViewModelByName("sec", secondInstance);
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("rebind_with_nested_viewmodel"));
 }

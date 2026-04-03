@@ -40,6 +40,11 @@ public:
 
     uint32_t channels();
     uint32_t sampleRate();
+#ifdef WITH_RIVE_AUDIO
+    float duration();
+#else
+    float duration() { return 0; }
+#endif
     AudioFormat format() const;
     const rive::Span<uint8_t> bytes() const
     {
@@ -65,6 +70,7 @@ private:
     bool m_isBuffered;
     uint32_t m_channels;
     uint32_t m_sampleRate;
+    float m_duration;
     rive::Span<uint8_t> m_fileBytes;
     rive::SimpleArray<uint8_t> m_ownedBytes;
 #endif
