@@ -11,11 +11,17 @@
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/scripted/scripted_object.hpp"
 
 #include <math.h>
 #include <stdio.h>
 
 using namespace rive;
+
+static ScriptingContext* scriptingContext(lua_State* L)
+{
+    return static_cast<ScriptingContext*>(lua_getthreaddata(L));
+}
 
 static void pushViewModelInstanceValue(lua_State* L,
                                        rcp<ViewModel> viewModel,
@@ -101,16 +107,9 @@ static void pushViewModelInstanceValue(lua_State* L,
 //     return 1;
 // }
 
-ScriptedProperty::~ScriptedProperty()
-{
-    m_instanceValue->removeDelegate(this);
-    clearListeners();
-}
+ScriptedProperty::~ScriptedProperty() { dispose(); }
 
-ScriptedPropertyViewModel::~ScriptedPropertyViewModel()
-{
-    lua_unref(m_state, m_valueRef);
-}
+ScriptedPropertyViewModel::~ScriptedPropertyViewModel() { dispose(); }
 
 void ScriptedProperty::clearListeners()
 {
@@ -130,7 +129,43 @@ ScriptedProperty::ScriptedProperty(lua_State* L,
                                    rcp<ViewModelInstanceValue> value) :
     m_state(L), m_instanceValue(std::move(value))
 {
-    m_instanceValue->addDelegate(this);
+    if (m_instanceValue != nullptr)
+    {
+        m_instanceValue->addDelegate(this);
+    }
+
+    auto context = scriptingContext(L);
+    if (context != nullptr)
+    {
+        m_owner = context->currentScriptedObject();
+        if (m_owner != nullptr)
+        {
+            m_owner->addTrackedScriptedProperty(this);
+        }
+    }
+}
+
+void ScriptedProperty::dispose()
+{
+    if (m_disposed)
+    {
+        return;
+    }
+    m_disposed = true;
+
+    if (m_owner != nullptr)
+    {
+        m_owner->removeTrackedScriptedProperty(this);
+        m_owner = nullptr;
+    }
+
+    if (m_instanceValue != nullptr)
+    {
+        m_instanceValue->removeDelegate(this);
+        m_instanceValue = nullptr;
+    }
+
+    clearListeners();
 }
 
 void ScriptedProperty::valueChanged()
@@ -227,7 +262,8 @@ ScriptedPropertyViewModel::ScriptedPropertyViewModel(
 
 void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
 {
-    if (m_instanceValue->is<ViewModelInstanceViewModel>())
+    if (m_instanceValue != nullptr &&
+        m_instanceValue->is<ViewModelInstanceViewModel>())
     {
         auto instanceValue = m_instanceValue->as<ViewModelInstanceViewModel>();
         auto parentViewModelInstance = instanceValue->parentViewModelInstance();
@@ -243,6 +279,16 @@ void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
             m_valueRef = 0;
         }
     }
+}
+
+void ScriptedPropertyViewModel::dispose()
+{
+    if (m_valueRef != 0)
+    {
+        lua_unref(m_state, m_valueRef);
+        m_valueRef = 0;
+    }
+    ScriptedProperty::dispose();
 }
 
 ScriptedViewModel::ScriptedViewModel(lua_State* L,

@@ -48,7 +48,8 @@ void ScriptedDrawable::draw(Renderer* renderer)
     // Stack: [scriptedRenderer, self, "draw", self]
     lua_pushvalue(L, -4);
     // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 0)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
+        LUA_OK)
     {
         // Stack: [scriptedRenderer, self, status]
         rive_lua_pop(L, 1);
@@ -107,7 +108,8 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
         lua_pushvalue(state, -2);
         auto pointerEvent =
             lua_newrive<ScriptedPointerEvent>(state, pointerId, localPos);
-        if (static_cast<lua_Status>(rive_lua_pcall(state, 2, 0)) != LUA_OK)
+        if (static_cast<lua_Status>(
+                rive_lua_pcall_with_context(state, m_drawable, 2, 0)) != LUA_OK)
         {
             fprintf(stderr, "%s failed\n", mName.c_str());
             rive_lua_pop(state, 1);
@@ -147,7 +149,8 @@ bool ScriptedDrawable::keyInput(Key key,
                                             isRepeat);
 
     // Stack: [self, field, self, keyEvent]
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 1)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
+        LUA_OK)
     {
         fprintf(stderr, "%s failed\n", "keyboardEvent");
         // Stack: [self, status]
@@ -189,7 +192,8 @@ bool ScriptedDrawable::textInput(const std::string& text)
     lua_newrive<ScriptedTextInputInvocation>(L, text);
 
     // Stack: [self, field, self, textInvocation]
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 1)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
+        LUA_OK)
     {
         fprintf(stderr, "%s failed\n", "textEvent");
         // Stack: [self, status]

@@ -8,8 +8,11 @@
 #include "utils/no_op_renderer.hpp"
 #include "rive/layout/layout_enums.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive_file_reader.hpp"
 #include <memory>
 
@@ -747,6 +750,72 @@ end
     converter->scriptDispose();
 }
 
+TEST_CASE("scriptDispose clears viewmodel listeners immediately", "[scripting]")
+{
+    auto file = ReadRiveFile("assets/scripted_color.riv");
+    auto artboard = file->artboard("ColorArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    auto property = viewModelInstance->propertyValue("colorProp");
+    REQUIRE(property != nullptr);
+    auto colorProperty = property->as<ViewModelInstanceColor>();
+    REQUIRE(colorProperty != nullptr);
+
+    ScriptingTest vm(
+        R"(
+function init(self, context)
+  local vm = context:viewModel()
+  local prop = vm:getColor("colorProp")
+  prop:addListener(function()
+    print("context listener fired")
+  end)
+  return true
+end
+
+function registerSelfListener(self)
+  local prop = self.selfVm:getColor("colorProp")
+  prop:addListener(function()
+    print("self listener fired")
+  end)
+end
+
+return function()
+  return {
+    init = init,
+    registerSelfListener = registerSelfListener,
+  }
+end
+)");
+
+    lua_State* L = vm.state();
+    REQUIRE(L != nullptr);
+    REQUIRE(lua_gettop(L) >= 1);
+    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+
+    ScriptedObjectTest object;
+    object.implementedMethods(object.implementedMethods() | (1 << 9));
+    object.dataContext(make_rcp<DataContext>(viewModelInstance));
+    REQUIRE(object.scriptInit(vm.vm()));
+
+    ViewModelInstanceViewModel vmInput;
+    vmInput.referenceViewModelInstance(viewModelInstance);
+    object.setViewModelInput("selfVm", &vmInput);
+    object.trigger("registerSelfListener");
+
+    colorProperty->propertyValue(0xFF101567);
+    REQUIRE(vm.console.size() == 2);
+    CHECK(vm.console[0] == "context listener fired");
+    CHECK(vm.console[1] == "self listener fired");
+
+    object.scriptDispose();
+
+    colorProperty->propertyValue(0xFF101568);
+    CHECK(vm.console.size() == 2);
+}
+
 TEST_CASE("scripted input color and trigger test", "[silver]")
 {
     rive::SerializingFactory silver;
@@ -781,4 +850,20 @@ TEST_CASE("scripted input color and trigger test", "[silver]")
     }
 
     CHECK(silver.matches("script_input_color_trigger"));
+}
+
+TEST_CASE(
+    "This test ensures there is no memory leak from attaching listeners to properties",
+    "[scripting]")
+{
+    auto file = ReadRiveFile("assets/scripted_memory_leak.riv");
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboardDefault()->instance();
+    REQUIRE(artboard != nullptr);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto machine = artboard->defaultStateMachine();
+    REQUIRE(machine != nullptr);
+    machine->bindViewModelInstance(vmi);
+    machine->advanceAndApply(0.0f);
 }

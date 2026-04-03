@@ -55,7 +55,11 @@ void ScriptedListenerAction::performStateful(
         lua_pushvalue(L, -2);
         rive_lua_push_scripted_invocation(L, invocation);
         // Stack: [self, performAction, self, invocation]
-        if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 0)) != LUA_OK)
+        if (static_cast<lua_Status>(rive_lua_pcall_with_context(
+                L,
+                const_cast<ScriptedListenerAction*>(this),
+                2,
+                0)) != LUA_OK)
         {
             // Stack: [self, status]
             lua_pop(L, 1);
@@ -69,7 +73,11 @@ void ScriptedListenerAction::performStateful(
         // Stack: [self, perform, self]
         rive_lua_push_pointer_arg_for_perform(L, invocation);
         // Stack: [self, perform, self, pointerEvent]
-        if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 0)) != LUA_OK)
+        if (static_cast<lua_Status>(rive_lua_pcall_with_context(
+                L,
+                const_cast<ScriptedListenerAction*>(this),
+                2,
+                0)) != LUA_OK)
         {
             // Stack: [self, status]
             lua_pop(L, 1);

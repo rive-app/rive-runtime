@@ -106,7 +106,8 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
     if (pushDataValue(value))
     {
         // Stack: [self, field, self, ScriptedData]
-        if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 1)) == LUA_OK)
+        if (static_cast<lua_Status>(
+                rive_lua_pcall_with_context(L, this, 2, 1)) == LUA_OK)
         {
             auto result = (ScriptedDataValue*)lua_touserdata(L, -1);
             if (result->isNumber())

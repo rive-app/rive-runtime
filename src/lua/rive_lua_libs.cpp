@@ -275,6 +275,17 @@ int rive_lua_pcall(lua_State* state, int nargs, int nresults)
     return context->pCall(state, nargs, nresults);
 }
 
+int rive_lua_pcall_with_context(lua_State* state,
+                                ScriptedObject* scriptedObject,
+                                int nargs,
+                                int nresults)
+{
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(state));
+    ScopedScriptedObjectContext scope(context, scriptedObject);
+    return context->pCall(state, nargs, nresults);
+}
+
 int rive_lua_pushRef(lua_State* state, int ref)
 {
     return lua_rawgeti(state, luaRegistryIndex, ref);

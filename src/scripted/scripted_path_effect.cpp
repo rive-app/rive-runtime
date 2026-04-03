@@ -60,7 +60,8 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         auto scriptedNode = lua_torive<ScriptedNode>(L, -1);
         scriptedNode->shapePaint(shapePaint);
         // Stack: [self, "update", self, pathData, node]
-        if (static_cast<lua_Status>(rive_lua_pcall(L, 3, 1)) != LUA_OK)
+        if (static_cast<lua_Status>(
+                rive_lua_pcall_with_context(L, this, 3, 1)) != LUA_OK)
         {
             fprintf(stderr, "update function failed\n");
         }

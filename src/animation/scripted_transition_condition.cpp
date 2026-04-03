@@ -50,7 +50,11 @@ bool ScriptedTransitionCondition::evaluateStateful(
         lua_insert(L, -2); // Swap self and field
 
         // Stack: [field, self]
-        if (static_cast<lua_Status>(rive_lua_pcall(L, 1, 1)) == LUA_OK)
+        if (static_cast<lua_Status>(rive_lua_pcall_with_context(
+                L,
+                const_cast<ScriptedTransitionCondition*>(this),
+                1,
+                1)) == LUA_OK)
         {
             if (lua_isboolean(L, -1))
             {

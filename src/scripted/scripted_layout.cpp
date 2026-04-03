@@ -34,7 +34,8 @@ void ScriptedLayout::callScriptedResize(Vec2D size)
     // Stack: [self, function, self]
     lua_pushvec2d(L, size);
     // Stack: [self, function, self, size]
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 0)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
+        LUA_OK)
     {
         // Stack: [self, status]
         fprintf(stderr, "resize failed\n");
@@ -63,7 +64,8 @@ Vec2D ScriptedLayout::measureLayout(float width,
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 1, 1)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 1, 1)) !=
+        LUA_OK)
     {
 
         fprintf(stderr, "measure failed\n");

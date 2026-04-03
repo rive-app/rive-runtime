@@ -9,7 +9,9 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/scripting_vm.hpp"
 #endif
+#include <algorithm>
 #include <stdio.h>
+#include <vector>
 
 namespace rive
 {
@@ -18,6 +20,7 @@ class Component;
 class DataContext;
 class ViewModelInstanceValue;
 class DataBindContainer;
+class ScriptedProperty;
 
 class ScriptedObject : public FileAssetReferencer,
                        public CustomPropertyContainer,
@@ -36,6 +39,7 @@ protected:
 #endif
 private:
     rcp<DataContext> m_dataContext = nullptr;
+    std::vector<ScriptedProperty*> m_trackedScriptedProperties;
     void disposeScriptedContext();
 
 public:
@@ -70,6 +74,25 @@ public:
         return nullptr;
     }
     void cloneProperties(CustomPropertyContainer*, DataBindContainer*) const;
+    void addTrackedScriptedProperty(ScriptedProperty* property)
+    {
+        if (property != nullptr)
+        {
+            m_trackedScriptedProperties.push_back(property);
+        }
+    }
+    void removeTrackedScriptedProperty(ScriptedProperty* property)
+    {
+        auto it = std::remove(m_trackedScriptedProperties.begin(),
+                              m_trackedScriptedProperties.end(),
+                              property);
+        m_trackedScriptedProperties.erase(it,
+                                          m_trackedScriptedProperties.end());
+    }
+    const std::vector<ScriptedProperty*>& trackedScriptedProperties() const
+    {
+        return m_trackedScriptedProperties;
+    }
 };
 } // namespace rive
 

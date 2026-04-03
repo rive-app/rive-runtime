@@ -699,15 +699,19 @@ public:
     int addListener();
     int removeListener();
     void clearListeners();
+    virtual void dispose();
 
     void valueChanged() override;
 
     const lua_State* state() const { return m_state; }
 
     ViewModelInstanceValue* instanceValue() { return m_instanceValue.get(); }
+    ScriptedObject* owner() const { return m_owner; }
 
 private:
     std::vector<ScriptedListener> m_listeners;
+    ScriptedObject* m_owner = nullptr;
+    bool m_disposed = false;
 
 protected:
     lua_State* m_state;
@@ -756,6 +760,7 @@ public:
     static constexpr bool hasMetatable = true;
     int pushValue();
     void setValue(ScriptedViewModel*);
+    void dispose() override;
 
 private:
     rcp<ViewModel> m_viewModel;
@@ -947,6 +952,10 @@ inline void lua_pushvec2d(lua_State* L, Vec2D vec)
 int luaopen_rive(lua_State* L);
 int rive_luaErrorHandler(lua_State* L);
 int rive_lua_pcall(lua_State* state, int nargs, int nresults);
+int rive_lua_pcall_with_context(lua_State* state,
+                                ScriptedObject* scriptedObject,
+                                int nargs,
+                                int nresults);
 int rive_lua_pushRef(lua_State* state, int ref);
 void rive_lua_pop(lua_State* state, int count);
 
@@ -956,6 +965,14 @@ public:
     ScriptingContext(Factory* factory) : m_factory(factory) {}
     virtual ~ScriptingContext() = default;
     Factory* factory() const { return m_factory; }
+    ScriptedObject* currentScriptedObject() const
+    {
+        return m_currentScriptedObject;
+    }
+    void currentScriptedObject(ScriptedObject* value)
+    {
+        m_currentScriptedObject = value;
+    }
 
     virtual void printError(lua_State* state) = 0;
     virtual void printBeginLine(lua_State* state) = 0;
@@ -983,6 +1000,7 @@ private:
 
 private:
     Factory* m_factory;
+    ScriptedObject* m_currentScriptedObject = nullptr;
     std::vector<ModuleDetails*> m_modulesToRegister;
     std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
     std::unordered_set<ModuleDetails*> m_pendingModules;
@@ -1002,6 +1020,34 @@ public:
     void isPlaying(bool value) { m_isPlaying = value; }
     bool isPlaying() const { return m_isPlaying; }
 #endif
+};
+
+class ScopedScriptedObjectContext
+{
+public:
+    ScopedScriptedObjectContext(ScriptingContext* context,
+                                ScriptedObject* scriptedObject) :
+        m_context(context),
+        m_previous(context == nullptr ? nullptr
+                                      : context->currentScriptedObject())
+    {
+        if (m_context != nullptr)
+        {
+            m_context->currentScriptedObject(scriptedObject);
+        }
+    }
+
+    ~ScopedScriptedObjectContext()
+    {
+        if (m_context != nullptr)
+        {
+            m_context->currentScriptedObject(m_previous);
+        }
+    }
+
+private:
+    ScriptingContext* m_context;
+    ScriptedObject* m_previous;
 };
 
 class ScriptedDataValue

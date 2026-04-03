@@ -167,7 +167,7 @@ void ScriptedObject::trigger(std::string name)
         return;
     }
     lua_pushvalue(L, -2);
-    rive_lua_pcall(L, 1, 0);
+    rive_lua_pcall_with_context(L, this, 1, 0);
     rive_lua_pop(L, 1);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
@@ -183,7 +183,8 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds)
     lua_getfield(L, -1, "advance");
     lua_pushvalue(L, -2);
     lua_pushnumber(L, elapsedSeconds);
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 2, 1)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
+        LUA_OK)
     {
         rive_lua_pop(L, 2);
         return false;
@@ -207,7 +208,8 @@ void ScriptedObject::scriptUpdate()
     // Stack: [self, field] Swap self and field
     lua_insert(L, -2);
     // Stack: [field, self]
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 1, 0)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 1, 0)) !=
+        LUA_OK)
     {
         rive_lua_pop(L, 1);
     }
@@ -236,7 +238,8 @@ bool ScriptedObject::scriptInit(ScriptingVM* vm)
             return false;
         }
     }
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 0, 1)) != LUA_OK)
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 0, 1)) !=
+        LUA_OK)
     {
         rive_lua_pop(L, 1);
         return false;
@@ -277,7 +280,7 @@ bool ScriptedObject::scriptInit(ScriptingVM* vm)
             // Stack: [self, field, self]
             rive_lua_pushRef(L, m_context);
             // Stack: [self, field, self, ScriptedContext]
-            auto pCallResult = rive_lua_pcall(L, 2, 1);
+            auto pCallResult = rive_lua_pcall_with_context(L, this, 2, 1);
             if (static_cast<lua_Status>(pCallResult) != LUA_OK)
             {
                 lua_unref(L, m_self);
@@ -348,6 +351,16 @@ void ScriptedObject::disposeScriptedContext()
 void ScriptedObject::scriptDispose()
 {
     disposeScriptInputs();
+
+    auto trackedProperties = m_trackedScriptedProperties;
+    for (auto* property : trackedProperties)
+    {
+        if (property != nullptr)
+        {
+            property->dispose();
+        }
+    }
+    m_trackedScriptedProperties.clear();
 
     lua_State* L = state();
     if (L != nullptr)
