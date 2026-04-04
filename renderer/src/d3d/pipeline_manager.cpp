@@ -33,8 +33,8 @@ static std::string build_shader(DrawType drawType,
     s << "#define " << shaderTypeDefine << '\n';
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
-        ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
-        if (shaderFeatures & feature)
+        const auto feature = ShaderFeatures(1 << i);
+        if (enums::is_flag_set(shaderFeatures, feature))
         {
             s << "#define " << GetShaderFeatureGLSLName(feature) << " 1\n";
         }
@@ -54,11 +54,13 @@ static std::string build_shader(DrawType drawType,
     {
         s << "#define " << GLSL_ENABLE_MIN_16_PRECISION << '\n';
     }
-    if (shaderMiscFlags & ShaderMiscFlags::fixedFunctionColorOutput)
+    if (enums::is_flag_set(shaderMiscFlags,
+                           ShaderMiscFlags::fixedFunctionColorOutput))
     {
         s << "#define " << GLSL_FIXED_FUNCTION_COLOR_OUTPUT << '\n';
     }
-    if (shaderMiscFlags & ShaderMiscFlags::coalescedResolveAndTransfer)
+    if (enums::is_flag_set(shaderMiscFlags,
+                           ShaderMiscFlags::coalescedResolveAndTransfer))
     {
         s << "#define " << GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER << '\n';
         if (!d3dCapabilities.allowsUAVSlot0WithColorOutput)
@@ -67,7 +69,7 @@ static std::string build_shader(DrawType drawType,
               << COALESCED_OFFSCREEN_COLOR_PLANE_IDX << '\n';
         }
     }
-    if (shaderMiscFlags & ShaderMiscFlags::clockwiseFill)
+    if (enums::is_flag_set(shaderMiscFlags, ShaderMiscFlags::clockwiseFill))
     {
         s << "#define " << GLSL_CLOCKWISE_FILL << " 1\n";
     }
@@ -112,7 +114,8 @@ static std::string build_shader(DrawType drawType,
     s << glsl::constants << '\n';
     s << glsl::hlsl << '\n';
     s << glsl::common << '\n';
-    if (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
+    if (enums::is_flag_set(shaderFeatures,
+                           ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
         s << glsl::advanced_blend << '\n';
     }

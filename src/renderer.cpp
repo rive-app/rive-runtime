@@ -110,7 +110,8 @@ RenderBuffer::~RenderBuffer() {}
 void* RenderBuffer::map()
 {
     assert(m_mapCount == 0 ||
-           !(m_flags & RenderBufferFlags::mappedOnceAtInitialization));
+           !enums::is_flag_set(m_flags,
+                               RenderBufferFlags::mappedOnceAtInitialization));
     assert(m_mapCount == m_unmapCount);
     RIVE_DEBUG_CODE(++m_mapCount;)
     m_dirty = true;

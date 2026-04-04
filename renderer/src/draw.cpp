@@ -369,7 +369,7 @@ void Draw::setClipID(uint32_t clipID)
     // For clipUpdates, m_clipID refers to the ID we are writing to the stencil
     // buffer (NOT the ID we are clipping against). It therefore doesn't affect
     // the activeClip flag in that case.
-    if (!(m_drawContents & gpu::DrawContents::clipUpdate))
+    if (!enums::is_flag_set(m_drawContents, gpu::DrawContents::clipUpdate))
     {
         if (m_clipID != 0)
         {
@@ -1518,7 +1518,8 @@ void PathDraw::countSubpasses()
                 // handled by a separate msaaStencilClipReset draw.)
                 m_subpassCount = 1;
             }
-            else if (m_drawContents & gpu::DrawContents::evenOddFill)
+            else if (enums::is_flag_set(m_drawContents,
+                                        gpu::DrawContents::evenOddFill))
             {
                 m_subpassCount = 2; // MSAA "slow" path: stencil-then-cover.
             }
@@ -1530,8 +1531,9 @@ void PathDraw::countSubpasses()
             if (isOpaque())
             {
                 const bool usesClipping =
-                    m_drawContents & (gpu::DrawContents::activeClip |
-                                      gpu::DrawContents::clipUpdate);
+                    enums::any_flag_set(m_drawContents,
+                                        gpu::DrawContents::activeClip |
+                                            gpu::DrawContents::clipUpdate);
                 if (!usesClipping)
                 {
                     // Render this path front-to-back instead of back-to-front.

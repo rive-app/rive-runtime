@@ -42,7 +42,7 @@ public:
         glDeleteShader(fragmentShader);
 
         glutils::LinkProgram(m_id);
-        if (actions & LoadStoreActionsEXT::clearColor)
+        if (enums::is_flag_set(actions, LoadStoreActionsEXT::clearColor))
         {
             m_colorClearUniLocation =
                 glGetUniformLocation(m_id, GLSL_clearColor);
@@ -117,8 +117,9 @@ public:
             // fixedFunctionColorOutput.
             assert(impl->m_capabilities.EXT_shader_pixel_local_storage2);
             assert(desc.interlockMode == gpu::InterlockMode::clockwise);
-            assert(!(desc.combinedShaderFeatures &
-                     gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND));
+            assert(!enums::is_flag_set(
+                desc.combinedShaderFeatures,
+                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND));
             glFramebufferPixelLocalStorageSizeEXT(GL_FRAMEBUFFER,
                                                   2 * sizeof(uint32_t));
         }

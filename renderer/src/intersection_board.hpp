@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/math/simd.hpp"
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 #include <vector>
 
 namespace rive::gpu

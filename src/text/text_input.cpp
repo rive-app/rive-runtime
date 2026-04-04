@@ -106,7 +106,7 @@ void TextInput::update(ComponentDirt value)
     {
         Factory* factory = artboard()->factory();
         RawTextInput::Flags changed = m_rawTextInput.update(factory);
-        if ((changed & RawTextInput::Flags::shapeDirty) != 0)
+        if (enums::is_flag_set(changed, RawTextInput::Flags::shapeDirty))
         {
             m_worldBounds =
                 worldTransform().mapBoundingBox(m_rawTextInput.bounds());
@@ -118,7 +118,7 @@ void TextInput::update(ComponentDirt value)
             }
 #endif
         }
-        if ((changed & RawTextInput::Flags::selectionDirty) != 0)
+        if (enums::is_flag_set(changed, RawTextInput::Flags::selectionDirty))
         {
             for (auto child : children<TextInputDrawable>())
             {

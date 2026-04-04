@@ -964,12 +964,14 @@ static uint32_t pls_transient_backing_plane_count(
         case gpu::InterlockMode::clockwise:
         {
             uint32_t n = 1; // coverage
-            if (combinedDrawContents &
-                (gpu::DrawContents::activeClip | gpu::DrawContents::clipUpdate))
+            if (enums::any_flag_set(combinedDrawContents,
+                                    gpu::DrawContents::activeClip |
+                                        gpu::DrawContents::clipUpdate))
             {
                 ++n; // clip
             }
-            if (combinedDrawContents & gpu::DrawContents::advancedBlend)
+            if (enums::is_flag_set(combinedDrawContents,
+                                   gpu::DrawContents::advancedBlend))
             {
                 ++n; // scratch color
             }
@@ -996,19 +998,23 @@ static bool wants_fixed_function_color_output(
 
         case gpu::InterlockMode::atomics:
         case gpu::InterlockMode::clockwiseAtomic:
-            return !(combinedDrawContents & gpu::DrawContents::advancedBlend);
+            return !enums::is_flag_set(combinedDrawContents,
+                                       gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::clockwise:
-            assert(!(combinedDrawContents & (gpu::DrawContents::nonZeroFill |
-                                             gpu::DrawContents::evenOddFill)));
+            assert(enums::no_flags_set(combinedDrawContents,
+                                       gpu::DrawContents::nonZeroFill |
+                                           gpu::DrawContents::evenOddFill));
             return platformFeatures.supportsClockwiseFixedFunctionMode &&
-                   !(combinedDrawContents & gpu::DrawContents::advancedBlend);
+                   !enums::is_flag_set(combinedDrawContents,
+                                       gpu::DrawContents::advancedBlend);
 
         case gpu::InterlockMode::msaa:
             // Manual MSAA resolves read the framebuffer, so they can't use
             // fixedFunctionColorOutput.
             return !manuallyResolved &&
-                   !(combinedDrawContents & gpu::DrawContents::advancedBlend);
+                   !enums::is_flag_set(combinedDrawContents,
+                                       gpu::DrawContents::advancedBlend);
     }
 
     RIVE_UNREACHABLE();
@@ -1288,8 +1294,10 @@ void RenderContext::LogicalFlush::scheduleBarriersForNextDraw(
 {
     if (m_ctx->platformFeatures()
             .clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit &&
-        (barrierFlags & gpu::BarrierFlags::clockwiseBorrowedCoverage) &&
-        (m_combinedDrawContents & gpu::DrawContents::advancedBlend))
+        enums::is_flag_set(barrierFlags,
+                           gpu::BarrierFlags::clockwiseBorrowedCoverage) &&
+        enums::is_flag_set(m_combinedDrawContents,
+                           gpu::DrawContents::advancedBlend))
     {
         m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                 gpu::DrawType::renderPassInitialize,
@@ -3098,7 +3106,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     // draws in rasterOrdering mode, instead of just making a variant of
     // draw_raster_order_path.frag.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering &&
-        (draw->drawContents() & gpu::DrawContents::clockwiseFill))
+        enums::is_flag_set(draw->drawContents(),
+                           gpu::DrawContents::clockwiseFill))
     {
         shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
     }
@@ -3106,7 +3115,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     // Clockwise mode gives clip updates a dedicated draw by setting
     // gpu::ShaderMiscFlags::clipUpdateOnly.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwise &&
-        (draw->drawContents() & gpu::DrawContents::clipUpdate))
+        enums::is_flag_set(draw->drawContents(), gpu::DrawContents::clipUpdate))
     {
         shaderMiscFlags |= gpu::ShaderMiscFlags::clipUpdateOnly;
     }
@@ -3125,9 +3134,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     {
         pathShaderFeatures |= ShaderFeatures::ENABLE_FEATHER;
     }
-    if (draw->drawContents() & gpu::DrawContents::evenOddFill)
+    if (enums::is_flag_set(draw->drawContents(),
+                           gpu::DrawContents::evenOddFill))
     {
-        assert(!(batch.shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill));
+        assert(!enums::is_flag_set(batch.shaderMiscFlags,
+                                   gpu::ShaderMiscFlags::clockwiseFill));
         pathShaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
     }
     constexpr static gpu::DrawContents NESTED_CLIP_FLAGS =
@@ -3160,14 +3171,14 @@ RIVE_ALWAYS_INLINE static bool can_combine_shader_misc_flags(
 
     // Strokes draw identically in the clockwise and legacy shaders, so strokes
     // can be combined with paths of any fill type.
-    if ((!(batch->drawContents & ANY_PATH_FILL) ||
-         !(draw->drawContents() & ANY_PATH_FILL)))
+    if ((enums::no_flags_set(batch->drawContents, ANY_PATH_FILL) ||
+         enums::no_flags_set(draw->drawContents(), ANY_PATH_FILL)))
     {
         compareMask &= ~gpu::ShaderMiscFlags::clockwiseFill;
     }
 
-    return (batch->shaderMiscFlags & compareMask).bits() ==
-           (shaderMiscFlags & compareMask).bits();
+    return (batch->shaderMiscFlags & compareMask) ==
+           (shaderMiscFlags & compareMask);
 }
 
 RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
@@ -3289,16 +3300,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         batch->elementCount += elementCount;
 
         // clockwise doesn't mix regular draws and clip updates.
-        assert(
-            m_ctx->frameInterlockMode() != gpu::InterlockMode::clockwise ||
-            (batch->drawContents & gpu::DrawContents::clipUpdate).bits() ==
-                (draw->drawContents() & gpu::DrawContents::clipUpdate).bits());
+        assert(m_ctx->frameInterlockMode() != gpu::InterlockMode::clockwise ||
+               (batch->drawContents & gpu::DrawContents::clipUpdate) ==
+                   (draw->drawContents() & gpu::DrawContents::clipUpdate));
 
         // Feathered fills should never combine with fills, strokes, or
         // feathered strokes because they use a different DrawType.
-        assert(
-            (batch->drawContents & gpu::DrawContents::featheredFill).bits() ==
-            (draw->drawContents() & gpu::DrawContents::featheredFill).bits());
+        assert((batch->drawContents & gpu::DrawContents::featheredFill) ==
+               (draw->drawContents() & gpu::DrawContents::featheredFill));
 
         // msaa can't mix drawContents in a batch.
         assert(m_ctx->frameInterlockMode() != gpu::InterlockMode::msaa ||
@@ -3334,9 +3343,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
 
     if (paintType != PaintType::clipUpdate &&
-        !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass))
+        !enums::is_flag_set(shaderMiscFlags,
+                            gpu::ShaderMiscFlags::borrowedCoveragePass))
     {
-        assert(!(shaderMiscFlags & gpu::ShaderMiscFlags::clipUpdateOnly));
+        assert(!enums::is_flag_set(shaderMiscFlags,
+                                   gpu::ShaderMiscFlags::clipUpdateOnly));
         switch (draw->blendMode())
         {
             case BlendMode::hue:
@@ -3381,7 +3392,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
     {
         if (draw->blendMode() != BlendMode::srcOver &&
-            !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass))
+            !enums::is_flag_set(shaderMiscFlags,
+                                gpu::ShaderMiscFlags::borrowedCoveragePass))
         {
             batch->barriers |= BarrierFlags::dstBlend;
         }
@@ -3389,8 +3401,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     else if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
         // msaa does't mix src-over draws with advanced blend draws.
-        assert((batch->shaderFeatures &
-                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
+        assert(enums::is_flag_set(batch->shaderFeatures,
+                                  gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
                (draw->blendMode() != BlendMode::srcOver));
         // If using KHR_blend_equation_advanced, we can't mix blend modes in a
         // batch.
@@ -3415,7 +3427,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             {
                 batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
                 assert(m_dstBlendBarrierListTail != nullptr);
-                if (!(batch->barriers & BarrierFlags::dstBlend))
+                if (!enums::is_flag_set(batch->barriers,
+                                        BarrierFlags::dstBlend))
                 {
                     batch->barriers |= BarrierFlags::dstBlend;
                     // Add ourselves to the "dstBlendBarrier" list.

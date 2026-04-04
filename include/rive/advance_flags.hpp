@@ -1,7 +1,7 @@
 #ifndef _RIVE_ADVANCE_FLAGS_HPP_
 #define _RIVE_ADVANCE_FLAGS_HPP_
 
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 
 namespace rive
 {
@@ -21,6 +21,5 @@ enum class AdvanceFlags : unsigned short
     /// Whether we are advancing to a new frame
     NewFrame = 1 << 3,
 };
-RIVE_MAKE_ENUM_BITSET(AdvanceFlags)
 } // namespace rive
 #endif

@@ -28,7 +28,7 @@ public:
 
     bool isJoystickFlagged(JoystickFlags flag) const
     {
-        return ((JoystickFlags)joystickFlags()) & flag;
+        return enums::any_flag_set(JoystickFlags(joystickFlags()), flag);
     }
 
     bool canApplyBeforeUpdate() const { return m_handleSource == nullptr; }

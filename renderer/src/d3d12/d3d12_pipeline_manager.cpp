@@ -201,7 +201,8 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
 
     D3D12_BLEND_DESC blendDesc{};
     blendDesc.RenderTarget[0].BlendEnable =
-        props.shaderMiscFlags & ShaderMiscFlags::fixedFunctionColorOutput;
+        enums::is_flag_set(props.shaderMiscFlags,
+                           ShaderMiscFlags::fixedFunctionColorOutput);
     blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
     blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
     blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
@@ -209,8 +210,9 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
     blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
     blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
     blendDesc.RenderTarget[0].RenderTargetWriteMask =
-        props.shaderMiscFlags & (ShaderMiscFlags::fixedFunctionColorOutput |
-                                 ShaderMiscFlags::coalescedResolveAndTransfer)
+        enums::any_flag_set(props.shaderMiscFlags,
+                            ShaderMiscFlags::fixedFunctionColorOutput |
+                                ShaderMiscFlags::coalescedResolveAndTransfer)
             ? D3D12_COLOR_WRITE_ENABLE_ALL
             : 0;
 

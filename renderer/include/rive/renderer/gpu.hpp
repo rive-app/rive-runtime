@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/bitwise.hpp"
 #include "rive/math/mat2d.hpp"
@@ -827,7 +827,7 @@ enum class ShaderFeatures
     ENABLE_HSL_BLEND_MODES = 1 << 6,
     ENABLE_DITHER = 1 << 7,
 };
-RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
+
 constexpr static size_t kShaderFeatureCount = 8;
 constexpr static ShaderFeatures kAllShaderFeatures =
     static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
@@ -913,7 +913,6 @@ enum class ShaderMiscFlags : uint32_t
     // (2) copying the offscreen texture to back the renderTarget.
     coalescedResolveAndTransfer = 1 << 6,
 };
-RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     DrawType drawType,
@@ -1027,8 +1026,9 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
 
     // Borrowed coverage and anything with fixedFunctionColorOutput cannot
     // coexist with ENABLE_ADVANCED_BLEND
-    if (shaderMiscFlags & (ShaderMiscFlags::borrowedCoveragePass |
-                           ShaderMiscFlags::fixedFunctionColorOutput))
+    if (enums::any_flag_set(shaderMiscFlags,
+                            ShaderMiscFlags::borrowedCoveragePass |
+                                ShaderMiscFlags::fixedFunctionColorOutput))
     {
         outFeatures &= ~ShaderFeatures::ENABLE_ADVANCED_BLEND;
     }
@@ -1036,7 +1036,8 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     // in atomic mode, coalescedResolveAndTransfer currently implies advanced
     // blend.
     if (interlockMode == InterlockMode::atomics &&
-        (shaderMiscFlags & ShaderMiscFlags::coalescedResolveAndTransfer))
+        enums::is_flag_set(shaderMiscFlags,
+                           ShaderMiscFlags::coalescedResolveAndTransfer))
     {
         outFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
     }
@@ -1081,7 +1082,6 @@ enum class DrawContents
     clipUpdate = 1 << 8,
 
 };
-RIVE_MAKE_ENUM_BITSET(DrawContents)
 
 // These are the only draw contents flags that apply to the pipeline state (and
 // they only matter for MSAA)
@@ -1153,7 +1153,6 @@ enum class BarrierFlags : uint8_t
     // drawList. (No GPU dependencies.)
     drawBatchBreak = 1 << 6,
 };
-RIVE_MAKE_ENUM_BITSET(BarrierFlags);
 
 // Low-level batch of geometry to submit to the GPU.
 struct DrawBatch
@@ -1729,11 +1728,11 @@ size_t StorageTextureBufferSize(size_t bufferSizeInBytes,
 // winding, or both?
 enum class WindingFaces
 {
+    none = 0,
     negative = 1 << 0,
     positive = 1 << 1,
     all = negative | positive,
 };
-RIVE_MAKE_ENUM_BITSET(WindingFaces)
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive
 // to read mapped memory, we use this class to enforce the write-only nature of

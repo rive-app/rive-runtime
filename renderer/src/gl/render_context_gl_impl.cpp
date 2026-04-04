@@ -1229,24 +1229,27 @@ RenderContextGLImpl::DrawShader::DrawShader(
         // Atomics are currently always done on storage textures.
         defines.push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
     }
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput)
+    if (enums::is_flag_set(shaderMiscFlags,
+                           gpu::ShaderMiscFlags::fixedFunctionColorOutput))
     {
         defines.push_back(GLSL_FIXED_FUNCTION_COLOR_OUTPUT);
     }
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+    if (enums::is_flag_set(shaderMiscFlags,
+                           gpu::ShaderMiscFlags::clockwiseFill))
     {
         defines.push_back(GLSL_CLOCKWISE_FILL);
     }
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
+    if (enums::is_flag_set(shaderMiscFlags,
+                           gpu::ShaderMiscFlags::borrowedCoveragePass))
     {
         defines.push_back(GLSL_BORROWED_COVERAGE_PASS);
     }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
-        ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
-        if (shaderFeatures & feature)
+        const auto feature = ShaderFeatures(1 << i);
+        if (enums::any_flag_set(shaderFeatures, feature))
         {
-            assert((kVertexShaderFeaturesMask & feature) ||
+            assert(enums::is_flag_set(kVertexShaderFeaturesMask, feature) ||
                    shaderType == GL_FRAGMENT_SHADER);
             if (interlockMode == gpu::InterlockMode::msaa &&
                 feature == gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
@@ -1309,8 +1312,9 @@ RenderContextGLImpl::DrawShader::DrawShader(
             assert(interlockMode == gpu::InterlockMode::atomics);
             defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
             defines.push_back(GLSL_RESOLVE_PLS);
-            if (shaderMiscFlags &
-                gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+            if (enums::is_flag_set(
+                    shaderMiscFlags,
+                    gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
             {
                 assert(shaderType == GL_FRAGMENT_SHADER);
                 defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
@@ -1332,7 +1336,8 @@ RenderContextGLImpl::DrawShader::DrawShader(
     sources.push_back(glsl::constants);
     sources.push_back(glsl::common);
     if (shaderType == GL_FRAGMENT_SHADER &&
-        (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+        enums::is_flag_set(shaderFeatures,
+                           ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
         sources.push_back(glsl::advanced_blend);
     }
@@ -1350,8 +1355,9 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_path_vert);
                     sources.push_back(
                         (interlockMode == gpu::InterlockMode::clockwise)
-                            ? (shaderMiscFlags &
-                               gpu::ShaderMiscFlags::clipUpdateOnly)
+                            ? enums::is_flag_set(
+                                  shaderMiscFlags,
+                                  gpu::ShaderMiscFlags::clipUpdateOnly)
                                   ? gpu::glsl::draw_clockwise_clip_frag
                                   : gpu::glsl::draw_clockwise_path_frag
                             : gpu::glsl::draw_raster_order_path_frag);
@@ -1593,8 +1599,9 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
         (isTessellationDraw ||
          drawType == gpu::DrawType::interiorTriangulation ||
          drawType == gpu::DrawType::atlasBlit) &&
-        !(shaderMiscFlags & (gpu::ShaderMiscFlags::clipUpdateOnly |
-                             gpu::ShaderMiscFlags::borrowedCoveragePass));
+        enums::no_flags_set(shaderMiscFlags,
+                            gpu::ShaderMiscFlags::clipUpdateOnly |
+                                gpu::ShaderMiscFlags::borrowedCoveragePass);
     if (isImageDraw)
     {
         glUniformBlockBinding(
@@ -1614,7 +1621,8 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     {
         glutils::Uniform1iByName(m_id, GLSL_gradTexture, GRAD_TEXTURE_IDX);
     }
-    if (isTessellationDraw && (shaderFeatures & ShaderFeatures::ENABLE_FEATHER))
+    if (isTessellationDraw &&
+        enums::is_flag_set(shaderFeatures, ShaderFeatures::ENABLE_FEATHER))
     {
         assert(isPaintDraw || interlockMode == gpu::InterlockMode::atomics);
         glutils::Uniform1iByName(m_id,
@@ -1654,7 +1662,8 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
         }
     }
     if (interlockMode == gpu::InterlockMode::msaa &&
-        (shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+        enums::is_flag_set(shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
         !renderContextImpl->m_capabilities.KHR_blend_equation_advanced)
     {
         glutils::Uniform1iByName(m_id,
@@ -2277,8 +2286,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->setPipelineState(gpu::GL_DEFAULT_PIPELINE_STATE);
         glClear(buffersToClear);
 
-        if (desc.combinedShaderFeatures &
-            gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)
+        if (enums::is_flag_set(desc.combinedShaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
         {
             if (m_capabilities.KHR_blend_equation_advanced_coherent)
             {
@@ -2359,7 +2368,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             // Set up the next clipRect.
             bool needsClipPlanes =
-                (shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT);
+                enums::is_flag_set(shaderFeatures,
+                                   gpu::ShaderFeatures::ENABLE_CLIP_RECT);
             if (needsClipPlanes != clipPlanesEnabled)
             {
                 auto toggleEnableOrDisable =
@@ -2373,13 +2383,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         m_state->setPipelineState(pipelineState);
 
-        if (batch.barriers &
-            (BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPreResolve))
+        if (enums::any_flag_set(batch.barriers,
+                                BarrierFlags::plsAtomic |
+                                    BarrierFlags::plsAtomicPreResolve))
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             m_plsImpl->barrier(desc);
         }
-        else if (batch.barriers & BarrierFlags::dstBlend)
+        else if (enums::is_flag_set(batch.barriers, BarrierFlags::dstBlend))
         {
             assert(!m_capabilities.KHR_blend_equation_advanced_coherent);
             if (m_capabilities.KHR_blend_equation_advanced)
@@ -2569,8 +2580,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                     msaaDepthStencilColor.data() + 2);
         }
 
-        if ((desc.combinedShaderFeatures &
-             gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+        if (enums::is_flag_set(desc.combinedShaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
             m_capabilities.KHR_blend_equation_advanced_coherent)
         {
             glDisable(GL_BLEND_ADVANCED_COHERENT_KHR);

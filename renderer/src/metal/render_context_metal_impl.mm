@@ -190,8 +190,8 @@ public:
                           1 /*ATLAS_BLIT*/ + 1 /*null terminator*/);
         for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
         {
-            ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
-            if (shaderFeatures & feature)
+            const auto feature = ShaderFeatures(1 << i);
+            if (enums::is_flag_set(shaderFeatures, feature))
             {
                 namespaceID[i] = '1';
             }
@@ -225,7 +225,8 @@ public:
             case DrawType::interiorTriangulation:
             case DrawType::atlasBlit:
                 namespacePrefix =
-                    (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+                    enums::is_flag_set(shaderMiscFlags,
+                                       gpu::ShaderMiscFlags::clockwiseFill)
                         ? 'c'
                         : 'p';
                 break;
@@ -310,8 +311,9 @@ public:
                     // In atomic mode, the PLS planes are accessed as device
                     // buffers. We only use the "framebuffer" attachment
                     // configured above.
-                    if (shaderMiscFlags &
-                        gpu::ShaderMiscFlags::fixedFunctionColorOutput)
+                    if (enums::is_flag_set(
+                            shaderMiscFlags,
+                            gpu::ShaderMiscFlags::fixedFunctionColorOutput))
                     {
                         // The shader expectes a "src-over" blend function in
                         // order to to implement antialiasing and opacity.
@@ -768,7 +770,8 @@ public:
         m_gpu(gpu)
     {
         int bufferCount =
-            flags() & RenderBufferFlags::mappedOnceAtInitialization
+            enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization)
                 ? 1
                 : gpu::kBufferRingSize;
         for (int i = 0; i < bufferCount; ++i)
@@ -1206,8 +1209,8 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
         // separately. Since the PLS plane indices collide with other buffer
         // bindings, offset the binding indices of these buffers by
         // DEFAULT_BINDINGS_SET_SIZE.
-        if (!(baselineShaderMiscFlags &
-              gpu::ShaderMiscFlags::fixedFunctionColorOutput))
+        if (!enums::is_flag_set(baselineShaderMiscFlags,
+                                gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
             [encoder
                 setFragmentBuffer:renderTarget->colorAtomicBuffer()
@@ -1605,7 +1608,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
         gpu::ShaderMiscFlags batchMiscFlags =
             baselineShaderMiscFlags | batch.shaderMiscFlags;
-        if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput))
+        if (!enums::is_flag_set(batchMiscFlags,
+                                gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
             if (batch.drawType == gpu::DrawType::renderPassResolve)
             {
@@ -1667,8 +1671,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
 
         // Issue any barriers if needed.
-        if (batch.barriers &
-            (BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPreResolve))
+        if (enums::any_flag_set(batch.barriers,
+                                BarrierFlags::plsAtomic |
+                                    BarrierFlags::plsAtomicPreResolve))
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             switch (m_metalFeatures.atomicBarrierType)

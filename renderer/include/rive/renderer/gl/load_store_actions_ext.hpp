@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/renderer/gpu.hpp"
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 #include <iostream>
 
 namespace rive::gpu
@@ -22,7 +22,6 @@ enum class LoadStoreActionsEXT
     clearCoverage = 1 << 3,
     clearClip = 1 << 4,
 };
-RIVE_MAKE_ENUM_BITSET(LoadStoreActionsEXT)
 
 constexpr static uint32_t LOAD_STORE_ACTIONS_EXT_COUNT = 5;
 

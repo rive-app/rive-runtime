@@ -57,7 +57,7 @@ StatusCode ViewModelInstanceValue::import(ImportStack& importStack)
 
 bool ViewModelInstanceValue::hasChanged()
 {
-    return m_changeFlags & ValueFlags::valueChanged;
+    return enums::is_flag_set(m_changeFlags, ValueFlags::valueChanged);
 }
 
 void ViewModelInstanceValue::viewModelProperty(ViewModelProperty* value)
@@ -132,7 +132,7 @@ void ViewModelInstanceValue::removeDelegate(
 
 bool ViewModelInstanceValue::suppressDelegation()
 {
-    if (m_changeFlags & ValueFlags::delegating)
+    if (enums::is_flag_set(m_changeFlags, ValueFlags::delegating))
     {
         return false;
     }
@@ -149,7 +149,7 @@ void ViewModelInstanceValue::onValueChanged()
 {
     m_changeFlags |= ValueFlags::valueChanged;
 
-    if (m_changeFlags & ValueFlags::delegatesChanged)
+    if (enums::is_flag_set(m_changeFlags, ValueFlags::delegatesChanged))
     {
         m_delegatesCopy.clear();
         std::copy(m_delegates.begin(),
@@ -158,7 +158,7 @@ void ViewModelInstanceValue::onValueChanged()
         m_changeFlags &= ~ValueFlags::delegatesChanged;
     }
 
-    if (m_changeFlags & ValueFlags::delegating)
+    if (enums::is_flag_set(m_changeFlags, ValueFlags::delegating))
     {
         // We're already calling delegates for this value change, changing the
         // value in a delegate will not report the change.

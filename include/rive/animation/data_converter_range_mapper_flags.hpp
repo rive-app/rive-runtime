@@ -1,12 +1,13 @@
 #ifndef _RIVE_DATA_CONVERTER_RANGE_MAPPER_FLAGS_HPP_
 #define _RIVE_DATA_CONVERTER_RANGE_MAPPER_FLAGS_HPP_
 
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 
 namespace rive
 {
 enum class DataConverterRangeMapperFlags : unsigned short
 {
+    None = 0,
 
     /// Whether the lower bound should be clamped
     ClampLower = 1 << 0,
@@ -21,7 +22,5 @@ enum class DataConverterRangeMapperFlags : unsigned short
     Reverse = 1 << 3,
 
 };
-
-RIVE_MAKE_ENUM_BITSET(DataConverterRangeMapperFlags)
 } // namespace rive
 #endif

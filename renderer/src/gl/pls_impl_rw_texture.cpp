@@ -218,7 +218,8 @@ class RenderContextGLImpl::PLSImplRWTexture
             }
         }
 
-        if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
+        if (enums::is_flag_set(desc.combinedShaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_CLIPPING))
         {
             constexpr static GLuint kZeroClear[4]{};
             glClearBufferuiv(GL_COLOR, nextTransientLayer, kZeroClear);
@@ -234,8 +235,8 @@ class RenderContextGLImpl::PLSImplRWTexture
 
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
             (desc.interlockMode == gpu::InterlockMode::clockwise &&
-             (desc.combinedShaderFeatures &
-              gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)))
+             enums::is_flag_set(desc.combinedShaderFeatures,
+                                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)))
         {
             glBindImageTexture(
                 SCRATCH_COLOR_PLANE_IDX,

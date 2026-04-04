@@ -1,12 +1,14 @@
 #ifndef _RIVE_DATA_BIND_FLAGS_HPP_
 #define _RIVE_DATA_BIND_FLAGS_HPP_
 
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 
 namespace rive
 {
 enum class DataBindFlags : unsigned short
 {
+    None = 0,
+
     /// Whether the main binding direction is to source (0) or to target (1)
     Direction = 1 << 0,
 
@@ -29,7 +31,5 @@ enum class DataBindFlags : unsigned short
     ToSource = 1 << 0,
 
 };
-
-RIVE_MAKE_ENUM_BITSET(DataBindFlags)
 } // namespace rive
 #endif

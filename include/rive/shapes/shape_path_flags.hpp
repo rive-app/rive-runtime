@@ -11,8 +11,6 @@ enum class ShapePathFlags : uint8_t
     hidden = 1 << 0, // Unused at runtime
     isCounterClockwise = 1 << 1,
 };
-
-RIVE_MAKE_ENUM_BITSET(ShapePathFlags)
 } // namespace rive
 
 #endif

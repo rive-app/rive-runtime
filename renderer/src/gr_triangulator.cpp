@@ -460,8 +460,10 @@ size_t GrTriangulator::emitMonotonePoly(
     {
         riveWeight = -riveWeight;
     }
-    if ((riveWeight < 0 && !(windingFaces & gpu::WindingFaces::negative)) ||
-        (riveWeight >= 0 && !(windingFaces & gpu::WindingFaces::positive)))
+    if ((riveWeight < 0 &&
+         !enums::is_flag_set(windingFaces, gpu::WindingFaces::negative)) ||
+        (riveWeight >= 0 &&
+         !enums::is_flag_set(windingFaces, gpu::WindingFaces::positive)))
     {
         return 0;
     }

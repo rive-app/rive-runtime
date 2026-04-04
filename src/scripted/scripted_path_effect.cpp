@@ -113,7 +113,7 @@ bool ScriptedPathEffect::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
-    if ((flags & AdvanceFlags::AdvanceNested) == 0)
+    if (!enums::is_flag_set(flags, AdvanceFlags::AdvanceNested))
     {
         elapsedSeconds = 0;
     }

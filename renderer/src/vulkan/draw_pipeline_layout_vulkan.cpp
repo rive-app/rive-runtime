@@ -21,7 +21,8 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
     m_renderPassOptions(renderPassOptions)
 {
     const bool fixedFunctionColorOutput =
-        m_renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput;
+        enums::is_flag_set(m_renderPassOptions,
+                           RenderPassOptionsVulkan::fixedFunctionColorOutput);
 
     // PLS planes get bound per flush as input attachments or storage
     // textures.
@@ -159,8 +160,9 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
             return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
         case gpu::InterlockMode::clockwise:
             assert(subpassIndex == 0);
-            return (renderPassOptions &
-                    RenderPassOptionsVulkan::fixedFunctionColorOutput)
+            return enums::is_flag_set(
+                       renderPassOptions,
+                       RenderPassOptionsVulkan::fixedFunctionColorOutput)
                        ? 1u
                        : 0u;
         case gpu::InterlockMode::clockwiseAtomic:

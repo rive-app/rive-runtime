@@ -255,7 +255,8 @@ class RenderContextGLImpl::PLSImplWebGL
                                                      clearColor4f);
         }
         GLenum clipLoadAction =
-            (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
+            enums::is_flag_set(desc.combinedShaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_CLIPPING)
                 ? GL_LOAD_OP_ZERO_ANGLE
                 : GL_DONT_CARE;
         GLenum loadOps[4] = {webgl_load_op(desc.colorLoadAction),

@@ -2,7 +2,7 @@
 #define _RIVE_SHAPE_PAINT_MUTATOR_HPP_
 
 #include "rive/status_code.hpp"
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 
 namespace rive
 {
@@ -52,6 +52,5 @@ private:
     /// The Component providing this ShapePaintMutator interface.
     Component* m_component = nullptr;
 };
-RIVE_MAKE_ENUM_BITSET(ShapePaintMutator::Flags);
 } // namespace rive
 #endif

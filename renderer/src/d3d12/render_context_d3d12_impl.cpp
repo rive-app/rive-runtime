@@ -197,7 +197,8 @@ public:
         m_uploadBuffer =
             manager->makeUploadBuffer(static_cast<UINT>(sizeInBytes));
 
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             mappedOnceMempry = m_uploadBuffer->map();
         }
@@ -221,7 +222,9 @@ public:
                 D3D12_RESOURCE_STATE_COMMON);
 
             cmdList->ResourceBarrier(1, &barrier);
-            if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+            if (enums::is_flag_set(
+                    flags(),
+                    RenderBufferFlags::mappedOnceAtInitialization))
             {
                 m_uploadBuffer = nullptr;
             }
@@ -235,7 +238,8 @@ protected:
     {
         assert(m_uploadBuffer);
         needsUpload = true;
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             assert(mappedOnceMempry);
             return mappedOnceMempry;
@@ -249,7 +253,8 @@ protected:
     void onUnmap() override
     {
         assert(m_uploadBuffer);
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             assert(mappedOnceMempry);
             m_uploadBuffer->unmap();
@@ -1415,7 +1420,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         !desc.fixedFunctionColorOutput &&
         !renderTarget->targetTextureSupportsUAV();
 
-    if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
+    if (enums::is_flag_set(desc.combinedShaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_CLIPPING))
     {
         constexpr static UINT kZero[4]{};
         auto gpuHandle =
@@ -1490,8 +1496,9 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             m_platformFeatures);
 
         // all atomic barriers are the same for dx12
-        if (batch.barriers &
-            (BarrierFlags::plsAtomicPreResolve | BarrierFlags::plsAtomic))
+        if (enums::any_flag_set(batch.barriers,
+                                BarrierFlags::plsAtomicPreResolve |
+                                    BarrierFlags::plsAtomic))
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             auto target = renderTarget->targetTextureSupportsUAV()
@@ -1506,8 +1513,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                     renderTarget->clip()->resource())};
 
             cmdList->ResourceBarrier(
-                desc.combinedShaderFeatures &
-                        gpu::ShaderFeatures::ENABLE_CLIPPING
+                enums::is_flag_set(desc.combinedShaderFeatures,
+                                   gpu::ShaderFeatures::ENABLE_CLIPPING)
                     ? 3
                     : 2,
                 barriers);

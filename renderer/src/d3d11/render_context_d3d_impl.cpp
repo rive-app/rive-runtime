@@ -803,7 +803,8 @@ public:
         m_desc.BindFlags = type() == RenderBufferType::vertex
                                ? D3D11_BIND_VERTEX_BUFFER
                                : D3D11_BIND_INDEX_BUFFER;
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             m_desc.Usage = D3D11_USAGE_IMMUTABLE;
             m_desc.CPUAccessFlags = 0;
@@ -824,7 +825,8 @@ public:
 protected:
     void* onMap() override
     {
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             assert(m_mappedMemoryForImmutableBuffer);
             return m_mappedMemoryForImmutableBuffer.get();
@@ -843,7 +845,8 @@ protected:
 
     void onUnmap() override
     {
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             assert(!m_buffer);
             D3D11_SUBRESOURCE_DATA bufferDataDesc{};
@@ -1815,7 +1818,8 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             case gpu::LoadAction::dontCare:
                 break;
         }
-        if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
+        if (enums::is_flag_set(desc.combinedShaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_CLIPPING))
         {
             constexpr static UINT kZero[4]{};
             m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->clipUAV(),

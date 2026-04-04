@@ -119,7 +119,8 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
         interlockMode,
         shaderMiscFlags,
         drawContents,
-        (renderPassOptions & RenderPassOptionsVulkan::fixedFunctionColorOutput),
+        enums::is_flag_set(renderPassOptions,
+                           RenderPassOptionsVulkan::fixedFunctionColorOutput),
         blendMode,
         platformFeatures);
 
@@ -147,7 +148,8 @@ uint32_t subpass_index(gpu::DrawType drawType,
     {
         // In clockwiseAtomic mode, borrowed coverage is rendered in a separate
         // subpass prior to the main one.
-        return (shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass)
+        return enums::is_flag_set(shaderMiscFlags,
+                                  gpu::ShaderMiscFlags::borrowedCoveragePass)
                    ? 0
                    : 1;
     }
@@ -207,8 +209,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 #endif
 
     const bool pipelineWriteOnlyRenderTarget =
-        (props.renderPassOptions &
-         RenderPassOptionsVulkan::fixedFunctionColorOutput) != 0;
+        enums::is_flag_set(props.renderPassOptions,
+                           RenderPassOptionsVulkan::fixedFunctionColorOutput);
 
     const gpu::PipelineState pipelineState =
         get_pipeline_state(props.drawType,
@@ -245,16 +247,26 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     }
 
     uint32_t shaderPermutationFlags[SPECIALIZATION_COUNT] = {
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_FEATHER,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_EVEN_ODD,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
-        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_DITHER,
-        props.shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
-        props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePass,
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_CLIPPING),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_CLIP_RECT),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_FEATHER),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_EVEN_ODD),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_DITHER),
+        enums::is_flag_set(props.shaderMiscFlags,
+                           gpu::ShaderMiscFlags::clockwiseFill),
+        enums::is_flag_set(props.shaderMiscFlags,
+                           gpu::ShaderMiscFlags::borrowedCoveragePass),
         pipelineManager->vendorID(),
     };
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
@@ -307,7 +319,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineRasterizationStateCreateInfo
         pipelineRasterizationStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = (props.drawPipelineOptions & Options::wireframe)
+            .polygonMode = enums::is_flag_set(props.drawPipelineOptions,
+                                              Options::wireframe)
                                ? VK_POLYGON_MODE_LINE
                                : VK_POLYGON_MODE_FILL,
             .cullMode = vk_cull_mode(pipelineState.cullFace),
@@ -325,8 +338,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     bool colorWriteEnabled =
         pipelineState.colorWriteEnabled || usesColorAttachmentsForPLS;
     if (interlockMode == gpu::InterlockMode::atomics &&
-        !(props.shaderMiscFlags &
-          gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
+        !enums::is_flag_set(props.shaderMiscFlags,
+                            gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
     {
         // Vulkan deviates from the other renderers by enabling src-over
         // blending for PLS planes in atomic mode.
@@ -344,8 +357,9 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         blendEquation = gpu::BlendEquation::srcOver;
     }
 #ifndef NDEBUG
-    else if (props.shaderMiscFlags &
-             gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+    else if (enums::is_flag_set(
+                 props.shaderMiscFlags,
+                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
     {
         assert(interlockMode == gpu::InterlockMode::atomics);
         assert(blendEquation == gpu::BlendEquation::none);

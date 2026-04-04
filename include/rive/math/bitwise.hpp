@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include "rive/rive_types.hpp"
+#include "rive/enums.hpp"
 #include "rive/math/math_types.hpp"
 
 namespace rive::math

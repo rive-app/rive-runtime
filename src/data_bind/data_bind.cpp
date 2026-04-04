@@ -385,7 +385,8 @@ void DataBind::addDirt(ComponentDirt value, bool recurse)
         m_changedCallback();
     }
 #endif
-    if ((m_Dirt & ComponentDirt::Dependents) != 0 && m_ContextValue != nullptr)
+    if (enums::is_flag_set(m_Dirt, ComponentDirt::Dependents) &&
+        m_ContextValue != nullptr)
     {
         m_ContextValue->invalidate();
     }
@@ -405,27 +406,27 @@ void DataBind::relinkDataBind() { m_container->rebuildDataBind(this); }
 bool DataBind::bindsOnce()
 {
     auto flagsValue = static_cast<DataBindFlags>(flags());
-    return (flagsValue & DataBindFlags::Once) == DataBindFlags::Once;
+    return enums::is_flag_set(flagsValue, DataBindFlags::Once);
 }
 
 bool DataBind::toSource()
 {
     auto flagsValue = static_cast<DataBindFlags>(flags());
-    return (flagsValue & (DataBindFlags::TwoWay | DataBindFlags::ToSource)) !=
-           0;
+    return enums::any_flag_set(flagsValue,
+                               DataBindFlags::TwoWay | DataBindFlags::ToSource);
 }
 
 bool DataBind::toTarget()
 {
     auto flagsValue = static_cast<DataBindFlags>(flags());
-    return (flagsValue & DataBindFlags::TwoWay) != 0 ||
-           (flagsValue & DataBindFlags::ToSource) == 0;
+    return enums::is_flag_set(flagsValue, DataBindFlags::TwoWay) ||
+           !enums::is_flag_set(flagsValue, DataBindFlags::ToSource);
 }
 
 bool DataBind::isNameBased()
 {
     auto flagsValue = static_cast<DataBindFlags>(flags());
-    return (flagsValue & DataBindFlags::NameBased) != 0;
+    return enums::is_flag_set(flagsValue, DataBindFlags::NameBased);
 }
 
 bool DataBind::advance(float elapsedTime)

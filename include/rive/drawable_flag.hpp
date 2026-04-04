@@ -1,7 +1,7 @@
 #ifndef _RIVE_DRAWABLE_FLAGS_HPP_
 #define _RIVE_DRAWABLE_FLAGS_HPP_
 
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 
 namespace rive
 {
@@ -26,6 +26,5 @@ enum class DrawableFlag : unsigned short
     /// Using Clean instead of dirty so it doesn't need to be initialized to 1
     WorldBoundsClean = 1 << 4,
 };
-RIVE_MAKE_ENUM_BITSET(DrawableFlag)
 } // namespace rive
 #endif

@@ -58,7 +58,8 @@ public:
     gpu::DrawContents drawContents() const { return m_drawContents; }
     bool isOpaque() const
     {
-        return m_drawContents & gpu::DrawContents::opaquePaint;
+        return enums::is_flag_set(m_drawContents,
+                                  gpu::DrawContents::opaquePaint);
     }
     uint32_t clipID() const { return m_clipID; }
     bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }

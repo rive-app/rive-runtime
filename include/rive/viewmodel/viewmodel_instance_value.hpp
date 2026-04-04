@@ -22,11 +22,11 @@ public:
 
 enum class ValueFlags : uint8_t
 {
+    none = 0,
     valueChanged = 1 << 1,
     delegatesChanged = 1 << 2,
     delegating = 1 << 3,
 };
-RIVE_MAKE_ENUM_BITSET(ValueFlags)
 
 class SuppressDelegation;
 

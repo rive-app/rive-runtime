@@ -1,7 +1,7 @@
 #ifndef _RIVE_FOCUSABLE_HPP_
 #define _RIVE_FOCUSABLE_HPP_
 
-#include "rive/enum_bitset.hpp"
+#include "rive/enums.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/vec2d.hpp"
 #include <string>

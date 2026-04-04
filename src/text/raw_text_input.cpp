@@ -870,12 +870,12 @@ void RawTextInput::redo()
 
 bool RawTextInput::flagged(RawTextInput::Flags mask) const
 {
-    return m_flags & mask;
+    return enums::any_flag_set(m_flags, mask);
 }
 
 bool RawTextInput::unflag(RawTextInput::Flags mask)
 {
-    if (m_flags & mask)
+    if (enums::any_flag_set(m_flags, mask))
     {
         m_flags &= ~mask;
         return true;

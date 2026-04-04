@@ -41,12 +41,14 @@ void RenderBufferGLImpl::init(rcp<GLState> state)
     glGenBuffers(1, &m_bufferID);
     m_state->bindVAO(0);
     m_state->bindBuffer(m_target, m_bufferID);
-    glBufferData(m_target,
-                 sizeInBytes(),
-                 nullptr,
-                 (flags() & RenderBufferFlags::mappedOnceAtInitialization)
-                     ? GL_STATIC_DRAW
-                     : GL_DYNAMIC_DRAW);
+    glBufferData(
+        m_target,
+        sizeInBytes(),
+        nullptr,
+        enums::is_flag_set(flags(),
+                           RenderBufferFlags::mappedOnceAtInitialization)
+            ? GL_STATIC_DRAW
+            : GL_DYNAMIC_DRAW);
 }
 
 GLuint RenderBufferGLImpl::detachBuffer()
@@ -94,7 +96,8 @@ void RenderBufferGLImpl::onUnmap()
                         0,
                         sizeInBytes(),
                         m_fallbackMappedMemory.get());
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             m_fallbackMappedMemory
                 .reset(); // This buffer will only be mapped once.
@@ -110,7 +113,8 @@ bool RenderBufferGLImpl::canMapBuffer() const
     return !m_state->capabilities().isANGLESystemDriver &&
            // NVIDIA gives performance warnings when mapping GL_STATIC_DRAW
            // buffers.
-           !(flags() & RenderBufferFlags::mappedOnceAtInitialization);
+           !enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization);
 }
 #endif
 } // namespace rive::gpu

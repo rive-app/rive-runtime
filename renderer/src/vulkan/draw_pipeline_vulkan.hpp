@@ -71,5 +71,4 @@ private:
     VkPipeline m_vkPipeline = VK_NULL_HANDLE;
 };
 
-RIVE_MAKE_ENUM_BITSET(DrawPipelineVulkan::Options);
 } // namespace rive::gpu

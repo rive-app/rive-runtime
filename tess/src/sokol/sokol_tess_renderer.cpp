@@ -169,7 +169,8 @@ public:
     {
         // If the buffer will be immutable, defer creation until the client
         // unmaps for the only time and we have our initial data.
-        if (!(flags() & RenderBufferFlags::mappedOnceAtInitialization))
+        if (!enums::is_flag_set(flags(),
+                                RenderBufferFlags::mappedOnceAtInitialization))
         {
             m_buffer = sg_make_buffer(makeNoDataBufferDesc());
         }
@@ -196,7 +197,8 @@ protected:
 
     void onUnmap() override
     {
-        if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+        if (enums::is_flag_set(flags(),
+                               RenderBufferFlags::mappedOnceAtInitialization))
         {
             // We are an immutable buffer. Creation was deferred until now.
             assert(!m_buffer.id);
@@ -220,7 +222,9 @@ private:
     {
         return {
             .size = sizeInBytes(),
-            .usage = (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+            .usage = enums::is_flag_set(
+                         flags(),
+                         RenderBufferFlags::mappedOnceAtInitialization)
                          ? SG_USAGE_IMMUTABLE
                          : SG_USAGE_STREAM,
             .type = (type() == RenderBufferType::index)

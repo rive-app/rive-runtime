@@ -1,7 +1,7 @@
 #include <catch.hpp>
 #include <rive/math/bitwise.hpp>
 #include <rive/math/math_types.hpp>
-#include <rive/enum_bitset.hpp>
+#include <rive/enums.hpp>
 #include <rive/span.hpp>
 
 using namespace rive;
@@ -222,7 +222,6 @@ enum class TestEnum
     b = 0x02,
     c = 0x10,
 };
-RIVE_MAKE_ENUM_BITSET(TestEnum);
 
 TEST_CASE("iterate_bit_combinations_in_mask", "[math]")
 {

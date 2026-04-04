@@ -491,8 +491,9 @@ static Span<const BlendMode> get_relevant_blend_modes_for_pipeline_creation(
             // If this assert ever fires (i.e. if we ever support GPU fixed-
             // function advanced blend in Vulkan), we'll need to return a list
             // of all blend modes instead of just srcOver.
-            assert((drawContents & DrawContents::opaquePaint) ||
-                   !platformFeatures.supportsBlendAdvancedKHR);
+            assert(
+                enums::is_flag_set(drawContents, DrawContents::opaquePaint) ||
+                !platformFeatures.supportsBlendAdvancedKHR);
             return make_span(SRC_OVER_ONLY);
     }
 
@@ -535,7 +536,8 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
 
             if (interlockMode != InterlockMode::clockwiseAtomic &&
                 interlockMode != InterlockMode::msaa &&
-                (shaderMiscFlags & ShaderMiscFlags::fixedFunctionColorOutput))
+                enums::is_flag_set(shaderMiscFlags,
+                                   ShaderMiscFlags::fixedFunctionColorOutput))
             {
                 // In non-clockwiseAtomic mode, the render pass
                 // fixedFunctionColorOutput should match the one in
@@ -558,8 +560,9 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                 case InterlockMode::atomics:
                     if (!(renderTargetUsage &
                           VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) &&
-                        !(shaderMiscFlags &
-                          ShaderMiscFlags::fixedFunctionColorOutput))
+                        !enums::is_flag_set(
+                            shaderMiscFlags,
+                            ShaderMiscFlags::fixedFunctionColorOutput))
                     {
                         fixedPassOptions |= RenderPassOptionsVulkan::
                             atomicCoalescedResolveAndTransfer;
@@ -573,8 +576,9 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                     // this flag even if the shader has it specified (a shader
                     // is allowed to say "I don't read from the framebuffer"
                     // even if something else in the pipleine does)
-                    if (shaderMiscFlags &
-                        ShaderMiscFlags::fixedFunctionColorOutput)
+                    if (enums::is_flag_set(
+                            shaderMiscFlags,
+                            ShaderMiscFlags::fixedFunctionColorOutput))
                     {
                         validPassOptions |=
                             RenderPassOptionsVulkan::fixedFunctionColorOutput;
@@ -586,8 +590,9 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                         RenderPassOptionsVulkan::manuallyResolved |
                         RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture;
 
-                    if (shaderMiscFlags &
-                        ShaderMiscFlags::fixedFunctionColorOutput)
+                    if (enums::is_flag_set(
+                            shaderMiscFlags,
+                            ShaderMiscFlags::fixedFunctionColorOutput))
                     {
                         // Like clockwiseAtomic, msaa render passes are allowed
                         // to not have this flag even if a specific shader
@@ -614,24 +619,28 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                 {
                     props.renderPassOptions =
                         variableRenderPassOptions | fixedPassOptions;
-                    if ((props.renderPassOptions &
-                         RenderPassOptionsVulkan::manuallyResolved) &&
-                        (props.renderPassOptions &
-                         (RenderPassOptionsVulkan::fixedFunctionColorOutput |
-                          RenderPassOptionsVulkan::
-                              rasterOrderingInterruptible)))
+                    if (enums::is_flag_set(
+                            props.renderPassOptions,
+                            RenderPassOptionsVulkan::manuallyResolved) &&
+                        enums::any_flag_set(
+                            props.renderPassOptions,
+                            RenderPassOptionsVulkan::fixedFunctionColorOutput |
+                                RenderPassOptionsVulkan::
+                                    rasterOrderingInterruptible))
                     {
                         // manuallyResolved and these other flags are mutually
                         // exclusive
                         continue;
                     }
 
-                    if ((props.renderPassOptions &
-                         RenderPassOptionsVulkan::
-                             atomicCoalescedResolveAndTransfer))
+                    if (enums::is_flag_set(
+                            props.renderPassOptions,
+                            RenderPassOptionsVulkan::
+                                atomicCoalescedResolveAndTransfer))
                     {
-                        if (props.renderPassOptions &
-                            RenderPassOptionsVulkan::fixedFunctionColorOutput)
+                        if (enums::is_flag_set(props.renderPassOptions,
+                                               RenderPassOptionsVulkan::
+                                                   fixedFunctionColorOutput))
                         {
                             // atomicCoalescedResolveAndTransfer should never be
                             // set when fixedFunctionColorOutput is set.
@@ -639,8 +648,9 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                         }
 
                         if (drawType == DrawType::renderPassResolve &&
-                            !(props.shaderMiscFlags &
-                              ShaderMiscFlags::coalescedResolveAndTransfer))
+                            !enums::is_flag_set(
+                                props.shaderMiscFlags,
+                                ShaderMiscFlags::coalescedResolveAndTransfer))
                         {
                             // ShaderMiscFlags::coalescedResolveAndTransfer will
                             // never be set if atomicCoalescedResolveAndTransfer
@@ -682,8 +692,9 @@ bool PipelineManagerVulkan::isValidUbershaderPipelineProps(
     forEachUbershaderPermutation(
         props.interlockMode,
         props.renderTargetFormat,
-        (props.renderPassOptions &
-         RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)
+        enums::is_flag_set(
+            props.renderPassOptions,
+            RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer)
             ? VkImageUsageFlagBits(0)
             : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         props.colorLoadAction,

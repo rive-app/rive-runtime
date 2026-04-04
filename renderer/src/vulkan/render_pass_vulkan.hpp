@@ -46,7 +46,6 @@ enum class RenderPassOptionsVulkan
     // itself can't be bound as an input attachment.
     msaaSeedFromOffscreenTexture = 1 << 5,
 };
-RIVE_MAKE_ENUM_BITSET(RenderPassOptionsVulkan);
 
 constexpr static int RENDER_PASS_OPTION_COUNT = 6;
 

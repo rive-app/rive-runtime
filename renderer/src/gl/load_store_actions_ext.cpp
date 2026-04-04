@@ -21,7 +21,8 @@ LoadStoreActionsEXT BuildLoadActionsEXT(const gpu::FlushDescriptor& desc,
     {
         actions |= LoadStoreActionsEXT::loadColor;
     }
-    if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
+    if (enums::is_flag_set(desc.combinedShaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_CLIPPING))
     {
         actions |= LoadStoreActionsEXT::clearClip;
     }
@@ -34,23 +35,23 @@ std::ostream& BuildLoadStoreEXTGLSL(std::ostream& shader,
     auto addDefine = [&shader](const char* name) {
         shader << "#define " << name << "\n";
     };
-    if (actions & LoadStoreActionsEXT::clearColor)
+    if (enums::is_flag_set(actions, LoadStoreActionsEXT::clearColor))
     {
         addDefine(GLSL_CLEAR_COLOR);
     }
-    if (actions & LoadStoreActionsEXT::loadColor)
+    if (enums::is_flag_set(actions, LoadStoreActionsEXT::loadColor))
     {
         addDefine(GLSL_LOAD_COLOR);
     }
-    if (actions & LoadStoreActionsEXT::storeColor)
+    if (enums::is_flag_set(actions, LoadStoreActionsEXT::storeColor))
     {
         addDefine(GLSL_STORE_COLOR);
     }
-    if (actions & LoadStoreActionsEXT::clearCoverage)
+    if (enums::is_flag_set(actions, LoadStoreActionsEXT::clearCoverage))
     {
         addDefine(GLSL_CLEAR_COVERAGE);
     }
-    if (actions & LoadStoreActionsEXT::clearClip)
+    if (enums::is_flag_set(actions, LoadStoreActionsEXT::clearClip))
     {
         addDefine(GLSL_CLEAR_CLIP);
     }

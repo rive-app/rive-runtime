@@ -229,7 +229,6 @@ inline RawTextInput::Delineator operator&(const RawTextInput::Delineator& a,
 {
     return (RawTextInput::Delineator)((uint8_t)a & (uint8_t)b);
 }
-RIVE_MAKE_ENUM_BITSET(RawTextInput::Flags);
 } // namespace rive
 
 #endif
