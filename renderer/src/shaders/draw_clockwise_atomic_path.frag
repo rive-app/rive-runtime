@@ -10,7 +10,7 @@ PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
 #endif
 PLS_DECL4F(CLIP_PLANE_IDX, clipBuffer);
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-PLS_DECL4F_RGB10_A2_ATOMIC(SCRATCH_COLOR_PLANE_IDX, blendColorBuffer);
+PLS_DECL4F_RGB10_A2_UAV(SCRATCH_COLOR_PLANE_IDX, blendColorBuffer);
 #endif
 PLS_BLOCK_END
 
@@ -335,8 +335,8 @@ PLS_MAIN(@drawFragmentMain)
                     blendRGBToSave += dither * uniforms.ditherConversionToRGB10;
                 }
 #endif
-                PLS_STORE4F_ATOMIC(blendColorBuffer,
-                                   make_half4(blendRGBToSave, .0));
+                PLS_STORE4F_UAV(blendColorBuffer,
+                                make_half4(blendRGBToSave, .0));
 
                 // Mark this pixel as having a valid blendColor, AFTER writing
                 // out the blendColor, but BEFORE updating the framebuffer.
@@ -351,7 +351,7 @@ PLS_MAIN(@drawFragmentMain)
             // Use the saved blendColor whenever it's valid, because shortly
             // after that point the framebuffer can be overwritten, invalidating
             // the dstColor.
-            paintColor.rgb = PLS_LOAD4F_ATOMIC(blendColorBuffer).rgb;
+            paintColor.rgb = PLS_LOAD4F_UAV(blendColorBuffer).rgb;
         }
     }
 #endif

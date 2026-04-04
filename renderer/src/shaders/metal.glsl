@@ -294,7 +294,7 @@
     $device uint* NAME                                                         \
         [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE)),          \
           $raster_order_group(0)]]
-#define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
     $device $atomic_uint* NAME                                                 \
         [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE)),          \
           $raster_order_group(0)]]
@@ -307,7 +307,7 @@
 #define PLS_DECLUI(IDX, NAME)                                                  \
     $device uint* NAME                                                         \
         [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE))]]
-#define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
     $device $atomic_uint* NAME                                                 \
         [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE))]]
 #endif // @PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED
@@ -319,12 +319,12 @@
 
 #define PLS_LOAD4F(PLANE) unpackUnorm4x8(_pls.PLANE[_plsIdx])
 #define PLS_LOADUI(PLANE) _pls.PLANE[_plsIdx]
-#define PLS_LOADUI_ATOMIC(PLANE)                                               \
+#define PLS_LOADUI_UAV(PLANE)                                                  \
     $atomic_load_explicit(&_pls.PLANE[_plsIdx],                                \
                           $memory_order::$memory_order_relaxed)
 #define PLS_STORE4F(PLANE, VALUE) _pls.PLANE[_plsIdx] = packUnorm4x8(VALUE)
 #define PLS_STOREUI(PLANE, VALUE) _pls.PLANE[_plsIdx] = (VALUE)
-#define PLS_STOREUI_ATOMIC(PLANE, VALUE)                                       \
+#define PLS_STOREUI_UAV(PLANE, VALUE)                                          \
     $atomic_store_explicit(&_pls.PLANE[_plsIdx],                               \
                            VALUE,                                              \
                            $memory_order::$memory_order_relaxed)
@@ -401,7 +401,7 @@
     {
 #define PLS_DECL4F(IDX, NAME) [[$color(IDX)]] half4 NAME
 #define PLS_DECLUI(IDX, NAME) [[$color(IDX)]] uint NAME
-#define PLS_DECLUI_ATOMIC PLS_DECLUI
+#define PLS_DECLUI_UAV PLS_DECLUI
 #define PLS_BLOCK_END                                                          \
     }                                                                          \
     ;
@@ -410,10 +410,10 @@
 
 #define PLS_LOAD4F(PLANE) _inpls.PLANE
 #define PLS_LOADUI(PLANE) _inpls.PLANE
-#define PLS_LOADUI_ATOMIC(PLANE) PLS_LOADUI
+#define PLS_LOADUI_UAV(PLANE) PLS_LOADUI
 #define PLS_STORE4F(PLANE, VALUE) _pls.PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) _pls.PLANE = (VALUE)
-#define PLS_STOREUI_ATOMIC(PLANE) PLS_STOREUI
+#define PLS_STOREUI_UAV(PLANE) PLS_STOREUI
 #define PLS_PRESERVE_4F(PLANE) _pls.PLANE = _inpls.PLANE
 #define PLS_PRESERVE_UI(PLANE) _pls.PLANE = _inpls.PLANE
 
