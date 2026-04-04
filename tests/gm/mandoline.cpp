@@ -142,16 +142,16 @@ protected:
         renderer->scale(100, 81);
         mandoline.reset(
             {0, 500},
-            {-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))});
+            {-cosf(degrees_to_radians(-60)), sinf(degrees_to_radians(-60))});
         mandoline.sliceQuadratic(
             {-2, 0},
-            {-cosf(degreesToRadians(60)), sinf(degreesToRadians(60))});
-        mandoline.sliceQuadratic(
-            {-cosf(degreesToRadians(120)) * 2, sinf(degreesToRadians(120)) * 2},
-            {1, 0});
+            {-cosf(degrees_to_radians(60)), sinf(degrees_to_radians(60))});
+        mandoline.sliceQuadratic({-cosf(degrees_to_radians(120)) * 2,
+                                  sinf(degrees_to_radians(120)) * 2},
+                                 {1, 0});
         mandoline.sliceLine({0, 0});
         mandoline.sliceLine(
-            {-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))});
+            {-cosf(degrees_to_radians(-60)), sinf(degrees_to_radians(-60))});
         renderer->drawPath(mandoline.path(), paint);
         renderer->restore();
 

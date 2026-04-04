@@ -113,11 +113,6 @@ RIVE_ALWAYS_INLINE static float positive_mod(float value, float range)
 
 inline float degrees_to_radians(float degrees) { return degrees * PI / 180.0f; }
 
-RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees)
-{
-    return degrees * (PI / 180.0f);
-}
-
 // Returns the smallest number that can be added to 'value', such that
 // 'value % alignment' == 0.
 template <uint32_t ALIGNMENT> uint32_t padding_to_align_up(uintptr_t value)

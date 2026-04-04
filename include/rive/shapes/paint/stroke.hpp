@@ -16,6 +16,7 @@ public:
     ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
 
     void buildDependencies() override;
+    void update(ComponentDirt value) override;
     void invalidateRendering() override;
     ShapePaintType paintType() const override { return ShapePaintType::stroke; }
 

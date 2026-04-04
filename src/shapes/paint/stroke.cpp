@@ -34,22 +34,22 @@ bool Stroke::isVisible() const
     return Super::isVisible() && thickness() > 0.0f;
 }
 
-void Stroke::thicknessChanged()
-{
-    assert(m_RenderPaint != nullptr);
-    m_RenderPaint->thickness(thickness());
-}
+void Stroke::thicknessChanged() { addDirt(ComponentDirt::Paint); }
 
-void Stroke::capChanged()
-{
-    assert(m_RenderPaint != nullptr);
-    m_RenderPaint->cap((StrokeCap)cap());
-}
+void Stroke::capChanged() { addDirt(ComponentDirt::Paint); }
 
-void Stroke::joinChanged()
+void Stroke::joinChanged() { addDirt(ComponentDirt::Paint); }
+
+void Stroke::update(ComponentDirt value)
 {
-    assert(m_RenderPaint != nullptr);
-    m_RenderPaint->join((StrokeJoin)join());
+    Super::update(value);
+    if (hasDirt(value, ComponentDirt::Paint))
+    {
+        assert(m_RenderPaint != nullptr);
+        m_RenderPaint->thickness(thickness());
+        m_RenderPaint->cap((StrokeCap)cap());
+        m_RenderPaint->join((StrokeJoin)join());
+    }
 }
 
 void Stroke::invalidateRendering()
