@@ -1402,6 +1402,9 @@ public:
             case ImageBase::assetIdPropertyKey:
                 object->as<ImageBase>()->assetId(value);
                 break;
+            case ImageBase::fitPropertyKey:
+                object->as<ImageBase>()->fit(value);
+                break;
             case FocusDataBase::edgeBehaviorValuePropertyKey:
                 object->as<FocusDataBase>()->edgeBehaviorValue(value);
                 break;
@@ -2320,6 +2323,12 @@ public:
             case ImageBase::originYPropertyKey:
                 object->as<ImageBase>()->originY(value);
                 break;
+            case ImageBase::alignmentXPropertyKey:
+                object->as<ImageBase>()->alignmentX(value);
+                break;
+            case ImageBase::alignmentYPropertyKey:
+                object->as<ImageBase>()->alignmentY(value);
+                break;
             case CubicDetachedVertexBase::inRotationPropertyKey:
                 object->as<CubicDetachedVertexBase>()->inRotation(value);
                 break;
@@ -2950,6 +2959,8 @@ public:
                 return object->as<PolygonBase>()->points();
             case ImageBase::assetIdPropertyKey:
                 return object->as<ImageBase>()->assetId();
+            case ImageBase::fitPropertyKey:
+                return object->as<ImageBase>()->fit();
             case FocusDataBase::edgeBehaviorValuePropertyKey:
                 return object->as<FocusDataBase>()->edgeBehaviorValue();
             case DrawRulesBase::drawTargetIdPropertyKey:
@@ -3598,6 +3609,10 @@ public:
                 return object->as<ImageBase>()->originX();
             case ImageBase::originYPropertyKey:
                 return object->as<ImageBase>()->originY();
+            case ImageBase::alignmentXPropertyKey:
+                return object->as<ImageBase>()->alignmentX();
+            case ImageBase::alignmentYPropertyKey:
+                return object->as<ImageBase>()->alignmentY();
             case CubicDetachedVertexBase::inRotationPropertyKey:
                 return object->as<CubicDetachedVertexBase>()->inRotation();
             case CubicDetachedVertexBase::inDistancePropertyKey:
@@ -3918,6 +3933,7 @@ public:
             case ClippingShapeBase::fillRulePropertyKey:
             case PolygonBase::pointsPropertyKey:
             case ImageBase::assetIdPropertyKey:
+            case ImageBase::fitPropertyKey:
             case FocusDataBase::edgeBehaviorValuePropertyKey:
             case DrawRulesBase::drawTargetIdPropertyKey:
             case LayoutComponentBase::styleIdPropertyKey:
@@ -4216,6 +4232,8 @@ public:
             case StarBase::innerRadiusPropertyKey:
             case ImageBase::originXPropertyKey:
             case ImageBase::originYPropertyKey:
+            case ImageBase::alignmentXPropertyKey:
+            case ImageBase::alignmentYPropertyKey:
             case CubicDetachedVertexBase::inRotationPropertyKey:
             case CubicDetachedVertexBase::inDistancePropertyKey:
             case CubicDetachedVertexBase::outRotationPropertyKey:
@@ -4640,6 +4658,8 @@ public:
             case PolygonBase::pointsPropertyKey:
                 return object->is<PolygonBase>();
             case ImageBase::assetIdPropertyKey:
+                return object->is<ImageBase>();
+            case ImageBase::fitPropertyKey:
                 return object->is<ImageBase>();
             case FocusDataBase::edgeBehaviorValuePropertyKey:
                 return object->is<FocusDataBase>();
@@ -5226,6 +5246,10 @@ public:
             case ImageBase::originXPropertyKey:
                 return object->is<ImageBase>();
             case ImageBase::originYPropertyKey:
+                return object->is<ImageBase>();
+            case ImageBase::alignmentXPropertyKey:
+                return object->is<ImageBase>();
+            case ImageBase::alignmentYPropertyKey:
                 return object->is<ImageBase>();
             case CubicDetachedVertexBase::inRotationPropertyKey:
                 return object->is<CubicDetachedVertexBase>();

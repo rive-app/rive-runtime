@@ -15,7 +15,8 @@
         "int": 206,
         "string": "assetid"
       },
-      "description": "Image drawable for an image asset"
+      "description": "Image drawable for an image asset",
+      "bindable": true
     },
     "originX": {
       "type": "double",
@@ -36,6 +37,30 @@
         "string": "originy"
       },
       "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+    },
+    "fit": {
+      "type": "uint",
+      "key": {
+        "int": 974,
+        "string": "fit"
+      },
+      "description": "Fit type for the Image, determines how the image resizes within its layout container."
+    },
+    "alignmentX": {
+      "type": "double",
+      "key": {
+        "int": 975,
+        "string": "alignmentx"
+      },
+      "description": "Alignment value on X, determines how the image aligns horizontally in its layout container."
+    },
+    "alignmentY": {
+      "type": "double",
+      "key": {
+        "int": 976,
+        "string": "alignmenty"
+      },
+      "description": "Alignment value on Y, determines how the image aligns vertically in its layout container."
     }
   }
 }

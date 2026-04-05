@@ -231,3 +231,166 @@ TEST_CASE("Dynamic image binding with listener action", "[silver]")
 
     CHECK(silver.matches("image_binding_with_listener"));
 }
+
+TEST_CASE("Image fit & alignment with databound images", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/image_fit_alignment.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    // Coverage for generated ImageBase fit/alignment setters/getters.
+    auto firstImage = [&]() -> rive::Image* {
+        for (auto image : artboard->objects<rive::Image>())
+        {
+            return image;
+        }
+        return nullptr;
+    };
+    auto imageForCoverage = firstImage();
+    REQUIRE(imageForCoverage != nullptr);
+    auto originalFit = imageForCoverage->fit();
+    auto originalAlignmentX = imageForCoverage->alignmentX();
+    auto originalAlignmentY = imageForCoverage->alignmentY();
+
+    auto testFit = originalFit == static_cast<uint32_t>(rive::Fit::contain)
+                       ? static_cast<uint32_t>(rive::Fit::cover)
+                       : static_cast<uint32_t>(rive::Fit::contain);
+    auto testAlignmentX = originalAlignmentX == -1.0f ? 1.0f : -1.0f;
+    auto testAlignmentY = originalAlignmentY == -1.0f ? 1.0f : -1.0f;
+
+    imageForCoverage->fit(testFit);
+    imageForCoverage->alignmentX(testAlignmentX);
+    imageForCoverage->alignmentY(testAlignmentY);
+
+    CHECK(imageForCoverage->fit() == testFit);
+    CHECK(imageForCoverage->alignmentX() == testAlignmentX);
+    CHECK(imageForCoverage->alignmentY() == testAlignmentY);
+
+    imageForCoverage->fit(originalFit);
+    imageForCoverage->alignmentX(originalAlignmentX);
+    imageForCoverage->alignmentY(originalAlignmentY);
+
+    CHECK(imageForCoverage->fit() == originalFit);
+    CHECK(imageForCoverage->alignmentX() == originalAlignmentX);
+    CHECK(imageForCoverage->alignmentY() == originalAlignmentY);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto imageProperty = vmi->propertyValue("imageProperty");
+    REQUIRE(imageProperty != nullptr);
+    REQUIRE(imageProperty->is<rive::ViewModelInstanceAssetImage>());
+    auto imageAssetProperty =
+        imageProperty->as<rive::ViewModelInstanceAssetImage>();
+    auto noScaleImage = [&]() -> rive::Image* {
+        for (auto image : artboard->objects<rive::Image>())
+        {
+            if (image->fit() == static_cast<uint32_t>(rive::Fit::none))
+            {
+                return image;
+            }
+        }
+        return nullptr;
+    };
+
+    auto assets = file->assets();
+    auto findAssetIndexByName = [&](const char* assetName) -> size_t {
+        for (size_t i = 0; i < assets.size(); i++)
+        {
+            if (assets[i]->name() == assetName)
+            {
+                return i;
+            }
+        }
+        return assets.size();
+    };
+
+    auto image1Index = findAssetIndexByName("image1");
+    auto image2Index = findAssetIndexByName("image2");
+    auto image3Index = findAssetIndexByName("image3");
+    REQUIRE(image1Index != assets.size());
+    REQUIRE(image2Index != assets.size());
+    REQUIRE(image3Index != assets.size());
+
+    int frames = 20;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    imageAssetProperty->propertyValue(static_cast<uint32_t>(image2Index));
+    stateMachine->advanceAndApply(0.0f);
+    auto noScale = noScaleImage();
+    REQUIRE(noScale != nullptr);
+    CHECK(noScale->transform()[4] < 0.0f);
+    CHECK(noScale->transform()[5] < 0.0f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    imageAssetProperty->propertyValue(static_cast<uint32_t>(image3Index));
+    stateMachine->advanceAndApply(0.0f);
+    noScale = noScaleImage();
+    REQUIRE(noScale != nullptr);
+    CHECK(noScale->transform()[4] < 0.0f);
+    CHECK(noScale->transform()[5] < 0.0f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("image_fit_alignment"));
+}
+
+TEST_CASE("Image fit & alignment with databound images 2", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/image_fit_alignment_2.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("image_fit_alignment_2"));
+}

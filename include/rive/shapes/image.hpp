@@ -20,6 +20,8 @@ private:
     // and use the image width/height to compute the proper scale
     float m_layoutWidth = NAN;
     float m_layoutHeight = NAN;
+    float m_layoutOffsetX = 0.0f;
+    float m_layoutOffsetY = 0.0f;
     void updateImageScale();
 
 public:
@@ -44,6 +46,7 @@ public:
     float height() const;
     void assetUpdated() override;
     AABB localBounds() const override;
+    void updateTransform() override;
 
 #ifdef TESTING
     Mesh* mesh() const;
