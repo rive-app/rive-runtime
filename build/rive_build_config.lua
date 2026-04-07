@@ -306,7 +306,12 @@ filter({ 'system:windows', 'options:for_unreal' })
 do
     staticruntime('off')
     runtime('Release')
-    -- Unreal no longer supports c++17
+end
+
+-- Unreal requires c++20 under most circumstances. However, some platforms require 17. So make it a seperate flag
+newoption({ trigger = 'cpp20', description = 'use c++ 20 standard' })
+filter({'options:cpp20'})
+do
     cppdialect('C++20')
 end
 

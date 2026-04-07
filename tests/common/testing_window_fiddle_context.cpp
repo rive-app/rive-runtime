@@ -289,6 +289,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::external:
             case Backend::null:
                 break;
             case Backend::gl:

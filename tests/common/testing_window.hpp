@@ -59,6 +59,7 @@ public:
         dawn,
         wgpu,
         rhi,
+        external,
         coregraphics,
         skia,
         null,
@@ -175,6 +176,7 @@ public:
 
     struct FrameOptions
     {
+        const char* name;
         uint32_t clearColor;
         bool doClear = true;
         bool forceMSAA = false;

@@ -455,7 +455,7 @@ class Minifier:
 
 
     # generates rewritten glsl from our tokens.
-    def emit_tokens_to_rewritten_glsl(self, out, *, preserve_exported_switches):
+    def emit_tokens_to_rewritten_glsl(self, out, *, preserve_exported_switches, calling_token_type:str=None):
         # stand-in for a null token.
         lasttoken = lambda : None
         lasttoken.type = ""
@@ -474,7 +474,8 @@ class Minifier:
 
             is_directive = tok.type in ["DEFINE", "IFDEF", "DIRECTIVE"]
             needs_whitespace = tok.type in ["FLOAT", "INT", "HEX", "ID", "DEFINED_ID"]
-            if is_directive and not is_newline:
+            # Adding this calling_token_type != 'DEFINE' prevents us from adding a new line to stringify macros
+            if is_directive and not is_newline and calling_token_type != 'DEFINE':
                 out.write('\n')
             elif needs_whitespace and lasttoken_needs_whitespace:
                 out.write(' ')
@@ -498,13 +499,15 @@ class Minifier:
                 if tok.define_arglist != None:
                     is_newline = tok.define_arglist.emit_tokens_to_rewritten_glsl(\
                         out,\
-                        preserve_exported_switches=preserve_exported_switches)
+                        preserve_exported_switches=preserve_exported_switches,\
+                        calling_token_type=tok.type)
                     assert(not is_newline)
                 if tok.define_val != None:
                     out.write(' ')
                     is_newline = tok.define_val.emit_tokens_to_rewritten_glsl(\
                         out,\
-                        preserve_exported_switches=preserve_exported_switches)
+                        preserve_exported_switches=preserve_exported_switches,\
+                        calling_token_type=tok.type)
 
             elif tok.type == "IFDEF":
                 out.write('#')
@@ -522,7 +525,8 @@ class Minifier:
                 if tok.directive_val != None:
                     is_newline = tok.directive_val.emit_tokens_to_rewritten_glsl(\
                         out,\
-                        preserve_exported_switches=preserve_exported_switches)
+                        preserve_exported_switches=preserve_exported_switches,\
+                        calling_token_type=tok.type)
 
             else:
                 out.write(tok.value)

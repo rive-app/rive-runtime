@@ -16,11 +16,14 @@ if _OPTIONS['with-skia'] then
     dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/premake5_v2.lua')
 end
 
+newoption({trigger = 'all_tools_as_static', description = 'force all RiveTool projects to be static libs'})
+
 function rive_tools_project(name, project_kind)
     project(name)
     if project_kind == 'RiveTool' then
         kind(
             _OPTIONS['for_unreal'] and 'StaticLib'
+                or _OPTIONS['all_tools_as_static'] and 'StaticLib'
                 or _OPTIONS['for_android'] and 'SharedLib'
                 or _OPTIONS['os'] == 'ios' and 'StaticLib'
                 or 'ConsoleApp'

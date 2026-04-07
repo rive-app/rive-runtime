@@ -69,7 +69,7 @@ $typedef $uint ushort;
 
 #endif // ENABLE_MIN_16_PRECISION
 
-#define SPLAT(A, B) A##B
+#define CONCAT(A, B) A##B
 
 #define INLINE $inline
 #define OUT(ARG_TYPE) out ARG_TYPE
@@ -78,7 +78,7 @@ $typedef $uint ushort;
 #define ATTR_BLOCK_BEGIN(NAME)                                                 \
     struct NAME                                                                \
     {
-#define ATTR(IDX, TYPE, NAME) TYPE NAME : SPLAT(ATTRIBUTE, IDX)
+#define ATTR(IDX, TYPE, NAME) TYPE NAME : CONCAT(ATTRIBUTE, IDX)
 #define ATTR_BLOCK_END                                                         \
     }                                                                          \
     ;
@@ -103,7 +103,7 @@ $typedef $uint ushort;
 #define NO_PERSPECTIVE $noperspective
 #define @OPTIONALLY_FLAT $nointerpolation
 #define FLAT $nointerpolation
-#define VARYING(IDX, TYPE, NAME) TYPE NAME : SPLAT($TEXCOORD, IDX)
+#define VARYING(IDX, TYPE, NAME) TYPE NAME : CONCAT($TEXCOORD, IDX)
 
 #ifdef @NEEDS_CLIP_DISTANCE
 #define VARYING_BLOCK_END                                                      \
@@ -351,6 +351,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     return _varyings;
 #endif // End !@NO_VARYING
 
+// RHI is forced counter clockwise front. So reverse the "isFrontFace" argument
+// for clockwise
+
 #ifdef @NO_VARYING
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
     $EARLYDEPTHSTENCIL DATA_TYPE NAME(float4 _pos : $SV_Position) : $SV_Target \
@@ -360,10 +363,11 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
     EARLYDEPTHSTENCIL DATA_TYPE NAME(float4 _pos : $SV_Position,               \
                                      uint _sampleMask : $SV_Coverage,          \
-                                     bool _clockwise : $SV_IsFrontFace) :      \
+                                     bool _isFrontFace : $SV_IsFrontFace) :    \
         $SV_Target                                                             \
     {                                                                          \
-        float2 _fragCoord = _pos.xy;
+        float2 _fragCoord = _pos.xy;                                           \
+        bool _clockwise = !_isFrontFace;
 #else
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
     $EARLYDEPTHSTENCIL DATA_TYPE NAME(Varyings _varyings,                      \
@@ -377,12 +381,13 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
     DATA_TYPE NAME(Varyings _varyings,                                         \
                    uint _sampleMask : $SV_Coverage,                            \
-                   bool _clockwise : $SV_IsFrontFace) :                        \
+                   bool _isFrontFace : $SV_IsFrontFace) :                      \
         $SV_Target                                                             \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \
-        uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
+        uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x; \
+        bool _clockwise = !_isFrontFace;
 
 #endif
 

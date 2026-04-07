@@ -29,7 +29,7 @@ public:
     // Calls clearColor(), updateFrameOptions(),
     // TestingWindow::beginFrame(), draw(), TestingWindow::flush(). (Most GMs
     // just need to override onDraw() instead of overriding this method.)
-    virtual void run(std::vector<uint8_t>* pixels);
+    virtual void run(const char* name, std::vector<uint8_t>* pixels);
 
     virtual rive::ColorInt clearColor() const { return 0xffffffff; }
 

@@ -100,7 +100,7 @@ do
         fatalwarnings({ 'All' })
     end
 
-    filter({ 'options:for_unreal' })
+    filter({'options:for_unreal'})
     do
         defines({ '_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR' })
     end

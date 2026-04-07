@@ -6,7 +6,7 @@ newoption({
 })
 
 if not _OPTIONS['for_unreal'] then
-    rive_tools_project('bench', _OPTIONS['os'] == 'ios' and 'StaticLib' or 'ConsoleApp')
+    rive_tools_project('bench', _OPTIONS['os'] == 'ios' and 'StaticLib' or _OPTIONS['all_tools_as_static'] and 'StaticLib' or 'ConsoleApp' )
     do
         files({ 'bench/*.cpp' })
     end

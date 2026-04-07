@@ -474,6 +474,8 @@ int player_ios_main(int argc, const char* argv[])
 int rive_android_main(int argc, const char* const* argv)
 #elif defined(__EMSCRIPTEN__)
 int rive_wasm_main(int argc, const char* const* argv)
+#elif defined(EXTERN_TOOLS)
+int rive_main(int argc, const char* argv[])
 #else
 int main(int argc, const char* argv[])
 #endif

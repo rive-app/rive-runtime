@@ -203,9 +203,10 @@ PLS_MAIN(@drawFragmentMain)
                            uniforms.ditherScale,
                            uniforms.ditherBias);
     _fragColor = color;
-#endif
-
+    EMIT_PLS_AND_FRAG_COLOR
+#else
     EMIT_PLS;
+#endif
 }
 
 #endif // @FRAGMENT

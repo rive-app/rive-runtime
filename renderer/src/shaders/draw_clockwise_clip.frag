@@ -21,10 +21,10 @@ PLS_MAIN(@drawFragmentMain)
     half clipID = -v_clipIDs.x;
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    VARYING_INIT(v_windingWeight, half);
+    VARYING_UNPACK(v_windingWeight, half);
     half fragCoverage = v_windingWeight;
 #else
-    VARYING_INIT(v_coverages, COVERAGE_TYPE);
+    VARYING_UNPACK(v_coverages, COVERAGE_TYPE);
     half fragCoverage = v_coverages.x;
 #endif //@DRAW_INTERIOR_TRIANGLES
 

@@ -140,6 +140,11 @@ static bool render_and_dump_png(int cellSize,
         fprintf(stderr, "%s: error: %s\n", rivName, msg);
         abort();
     }
+    catch (const std::exception& e)
+    {
+        fprintf(stderr, "%s: error: %s\n", rivName, e.what());
+        abort();
+    }
     catch (...)
     {
         fprintf(stderr, "error rendering %s\n", rivName);
@@ -227,7 +232,7 @@ static bool is_riv_file(const std::filesystem::path& file)
     return strcmp(file.extension().string().c_str(), ".riv") == 0;
 }
 
-#if defined(RIVE_UNREAL)
+#if defined(RIVE_UNREAL) || defined(EXTERN_TOOLS)
 int goldens_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int goldens_ios_main(int argc, const char* argv[])

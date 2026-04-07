@@ -193,7 +193,7 @@ static void dump_gm(GM* gm, const std::string& name)
     }
     for (int l = 0; l < loopCount; l++)
     {
-        gm->run(&pixels);
+        gm->run(name.c_str(), &pixels);
     }
     assert(pixels.size() == height * width * 4);
     if (TestHarness::Instance().initialized())
@@ -312,7 +312,7 @@ extern "C" bool gms_run_gm(REGISTRY_HANDLE position_handle)
     uint32_t width = gm->width();
     uint32_t height = gm->height();
     TestingWindow::Get()->resize(width, height);
-    gm->run(nullptr);
+    gm->run(gmName.c_str(), nullptr);
 
     return true;
 }
@@ -353,6 +353,8 @@ extern "C" bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
 }
 
 extern "C" int gms_main(int argc, const char* argv[])
+#elif defined(EXTERN_TOOLS)
+extern int rive_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int gms_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)

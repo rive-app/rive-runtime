@@ -58,6 +58,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "wgpu";
         case Backend::rhi:
             return "rhi";
+        case Backend::external:
+            return "external";
         case TestingWindow::Backend::coregraphics:
             return "coregraphics";
         case TestingWindow::Backend::skia:
@@ -255,6 +257,10 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::skia;
     }
+    if (nameStr == "external")
+    {
+        return Backend::external;
+    }
     if (nameStr == "null")
     {
         return Backend::null;
@@ -287,7 +293,8 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                    Visibility visibility,
                                    void* platformWindow)
 {
-    assert((backend == Backend::rhi) == (s_TestingWindow != nullptr));
+    assert((backend == Backend::rhi || backend == Backend::external) ==
+           (s_TestingWindow != nullptr));
 
 #if defined(_WIN32) && !defined(RIVE_UNREAL)
     // Set our backdoor GPU selection variables in case the API doesn't
@@ -405,6 +412,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
             s_TestingWindow = TestingWindow::MakeWGPU(backendParams);
             break;
         case Backend::rhi:
+        case Backend::external:
             break;
         case Backend::coregraphics:
             s_TestingWindow = MakeCoreGraphics();

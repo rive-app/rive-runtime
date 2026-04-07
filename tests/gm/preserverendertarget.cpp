@@ -19,7 +19,7 @@ protected:
         GM(64, 64), m_empty(empty), m_blendMode(blendMode)
     {}
 
-    void run(std::vector<uint8_t>* pixels) override
+    void run(const char* name, std::vector<uint8_t>* pixels) override
     {
         Paint yellow;
         yellow->color(0xffffff00);
