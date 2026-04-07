@@ -32,7 +32,7 @@ protected:
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_TOOLS
-    rcp<ScriptingVM> m_vm; // Ref-counted for editor
+    rcp<ScriptingVM> m_vm = nullptr; // Ref-counted for editor
 #else
     ScriptingVM* m_vm = nullptr; // Non-owning for runtime
 #endif
@@ -93,6 +93,7 @@ public:
     {
         return m_trackedScriptedProperties;
     }
+    virtual bool addDataBindFromScriptedObject(DataBind*) { return false; }
 };
 } // namespace rive
 

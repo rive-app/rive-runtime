@@ -62,6 +62,7 @@ public:
         return ScriptProtocol::converter;
     }
     Component* component() override { return nullptr; }
+    bool addDataBindFromScriptedObject(DataBind*) override;
 };
 } // namespace rive
 

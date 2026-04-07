@@ -80,6 +80,11 @@ StatusCode DataBind::import(ImportStack& importStack)
                         importer->addDataBind(this);
                     }
                 }
+                else if (input->scriptedObject()->addDataBindFromScriptedObject(
+                             this))
+                {
+                    ownsDataBind = false;
+                }
             }
             input->dataBind(this, ownsDataBind);
         }

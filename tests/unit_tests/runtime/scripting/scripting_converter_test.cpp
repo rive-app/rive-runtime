@@ -405,3 +405,33 @@ TEST_CASE("scripted string converter", "[silver]")
 
     CHECK(silver.matches("script_string_converter"));
 }
+
+TEST_CASE("Data converter with bound inputs in artboard and state machine",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/scripted_data_converter_bound_input.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scripted_data_converter_bound_input"));
+}

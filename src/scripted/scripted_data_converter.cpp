@@ -228,6 +228,37 @@ Core* ScriptedDataConverter::clone() const
     {
         auto clonedValue = prop->clone()->as<CustomProperty>();
         twin->addProperty(clonedValue);
+        auto scriptedInputClone = ScriptInput::from(clonedValue);
+        auto scriptedInputSource = ScriptInput::from(prop);
+        auto thisDataBinds = dataBinds();
+        auto twinDataBinds = twin->dataBinds();
+        if (scriptedInputClone && scriptedInputSource)
+        {
+            if (scriptedInputSource->dataBind())
+            {
+                int index = 0;
+                // Data binds are cloned in the data converters, and assigned to
+                // the right target here
+                for (auto& dataBind : thisDataBinds)
+                {
+                    if (dataBind->target() == prop)
+                    {
+                        if (index < twinDataBinds.size())
+                        {
+                            twinDataBinds[index]->target(clonedValue);
+                            scriptedInputClone->dataBind(twinDataBinds[index]);
+                        }
+                    }
+                    index++;
+                }
+            }
+        }
     }
     return twin;
+}
+
+bool ScriptedDataConverter::addDataBindFromScriptedObject(DataBind* dataBind)
+{
+    addDataBind(dataBind);
+    return true;
 }
