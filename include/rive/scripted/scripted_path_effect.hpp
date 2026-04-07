@@ -60,6 +60,9 @@ public:
 
 protected:
     virtual EffectPath* createEffectPath() override;
+
+private:
+    bool m_isAdvanceActive = true;
 };
 } // namespace rive
 

@@ -13,6 +13,7 @@ void ScriptedEffectPath::invalidateEffect() { m_path.rewind(); }
 #ifdef WITH_RIVE_SCRIPTING
 bool ScriptedPathEffect::scriptInit(ScriptingVM* vm)
 {
+    m_isAdvanceActive = true;
     ScriptedObject::scriptInit(vm);
     addScriptedDirt(ComponentDirt::Paint, true);
     return true;
@@ -113,11 +114,21 @@ bool ScriptedPathEffect::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
+    if (!m_isAdvanceActive)
+    {
+        return false;
+    }
+    m_isAdvanceActive = false;
     if (!enums::is_flag_set(flags, AdvanceFlags::AdvanceNested))
     {
         elapsedSeconds = 0;
     }
-    return scriptAdvance(elapsedSeconds);
+    auto advanced = scriptAdvance(elapsedSeconds);
+    if (advanced)
+    {
+        m_isAdvanceActive = true;
+    }
+    return advanced;
 }
 
 bool ScriptedPathEffect::addScriptedDirt(ComponentDirt value, bool recurse)
@@ -187,5 +198,6 @@ void ScriptedPathEffect::update(ComponentDirt value)
     if (hasDirt(value, ComponentDirt::ScriptUpdate))
     {
         invalidateEffectFromLocal();
+        m_isAdvanceActive = true;
     }
 }
