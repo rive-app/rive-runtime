@@ -61,6 +61,13 @@ public:
         input->copyValue(animationData->to);
         input->copyValue(m_currentValue);
     }
+    void resetToStart(DataValue* input)
+    {
+        resetValues(input);
+        m_isSmoothingAnimation = false;
+        m_animationDataA.elapsedSeconds = 0;
+        m_animationDataB.elapsedSeconds = 0;
+    }
     void reset()
     {
         dispose();

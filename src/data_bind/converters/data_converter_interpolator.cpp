@@ -144,6 +144,11 @@ bool DataConverterInterpolator::advance(float elapsedTime)
 DataValue* DataConverterInterpolator::convert(DataValue* input,
                                               DataBind* dataBind)
 {
+    if (duration() == 0 && m_advancer.initialized())
+    {
+        m_advancer.resetToStart(input);
+        return input;
+    }
     if (!m_advancer.initialized())
     {
         if (input->is<DataValueNumber>())

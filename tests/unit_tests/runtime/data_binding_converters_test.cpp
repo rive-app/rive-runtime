@@ -137,3 +137,64 @@ TEST_CASE("data converter interpolator resets on binding", "[silver]")
 
     CHECK(silver.matches("data_converter_interpolator_reset"));
 }
+
+TEST_CASE("Interpolations that change duration to zero work correctly",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/interpolation_zero_duration.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto objectX = vmi->propertyValue("objectX")->as<ViewModelInstanceNumber>();
+    auto interpValue =
+        vmi->propertyValue("interpValue")->as<ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    objectX->propertyValue(200);
+
+    int frames = (int)(1.5f / 0.1f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    interpValue->propertyValue(0);
+    stateMachine->advanceAndApply(0.016f);
+    objectX->propertyValue(400);
+    stateMachine->advanceAndApply(0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    interpValue->propertyValue(1);
+    stateMachine->advanceAndApply(0.016f);
+    objectX->propertyValue(200);
+    stateMachine->advanceAndApply(0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("interpolation_zero_duration"));
+}
