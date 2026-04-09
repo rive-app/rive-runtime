@@ -71,7 +71,7 @@ parser.add_argument("-t", "--target",
                     default="host",
                     choices=["host", "android", "ios", "iossim", "unreal",
                              "unreal_android", "webbrowser", "webserver",
-                             "webbrowserandroid", "webserverandroid"],
+                             "webbrowserandroid", "webserverandroid", 'console'],
                     help="which platform to run on")
 parser.add_argument("-a", "--android-arch",
                     default="arm64",
@@ -698,6 +698,9 @@ def main():
             args.builddir = f"out/wasm_{buildconfig}"
         if args.backend == None:
             args.backend = "gl"
+    elif args.target == "console":
+        args.jobs_per_tool = 1
+        args.remote = True 
     else:
         assert(args.target == "host")
         if args.builddir == None:
@@ -850,7 +853,8 @@ def main():
         serial_deploy = not args.server_only and ("ios" in args.target or
                                                   args.target == "android" or
                                                   "unreal" in args.target or
-                                                  args.target.startswith("web"))
+                                                  args.target.startswith("web") or 
+                                                  args.target == "console")
         procs = []
 
         # Serially deployed targets are finished once they've sent their
