@@ -122,7 +122,16 @@ newoption({
 if _OPTIONS['raw_shaders'] then
     minify_flags = minify_flags .. ' --human-readable'
     defines({ 'RIVE_RAW_SHADERS' })
+
+    -- MSVC cannot import the raw shaders as strings becasue they are too long,
+    -- so signal to the minify script to use an alternate mode where it writes
+    -- out as a char array instead.
+    if _OPTIONS['toolset'] == 'msc' then
+        minify_flags = minify_flags .. ' --msvc'
+    end
 end
+
+
 
 makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
 
@@ -200,7 +209,7 @@ do
     externalincludedirs({'glad/include'})
     fatalwarnings({ 'All' })
 
-    files({ 'src/*.cpp', 'src/*.hpp', 'src/*.h', 'src/shaders/*.glsl', 
+    files({ 'src/*.cpp', 'src/*.hpp', 'src/*.h', 'src/shaders/*.glsl',
             'src/shaders/*.frag', 'src/shaders/*.vert', 'include/**.hpp', 'include/**.h' })
 
 

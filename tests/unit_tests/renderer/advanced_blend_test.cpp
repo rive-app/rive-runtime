@@ -2,14 +2,23 @@
  * Copyright 2025 Rive
  */
 
-// glsl cross-compiling requires the clang/gcc vector extension.
-#ifndef _MSC_VER
-
 #include "common/rand.hpp"
 #include <catch.hpp>
 
+// <array> is included in "cpp.glsl" so include it here first so that it
+// doesn't try to put all of its functions into the glsl_cross namespace
+#include <array>
+
 namespace glsl_cross
 {
+#ifdef _MSC_VER
+#pragma warning(push)
+// The shader code writes float constants without the "f" suffix, so disable
+// this warning since there ends up being a lot of it:
+//  truncation from 'double' to 'glsl_cross::half'
+#pragma warning(disable : 4305)
+#endif
+
 #include "cpp.glsl"
 #include "generated/shaders/constants.minified.glsl"
 #if 0
@@ -29,7 +38,12 @@ static half3 unmultiply_rgb(half4 premul)
 #define FRAGMENT
 #define ENABLE_ADVANCED_BLEND true
 #define ENABLE_HSL_BLEND_MODES true
+
 #include "generated/shaders/advanced_blend.minified.glsl"
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 constexpr static float INF = std::numeric_limits<float>::infinity();
 
@@ -257,17 +271,17 @@ TEST_CASE("glsl_colorburn", "[advanced_blend]")
 
         // 0, if Cd < 1 and Cs <= 0
         CHECK(simd::all(
-            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1, -1),
+            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1f, -1),
                                                  make_half3(1 - 1e-6f),
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
         CHECK(simd::all(
             advanced_blend_coeffs_with_dst_alpha(make_half3(-10, -100, -INF),
-                                                 make_half3(1 - 1e-6),
+                                                 make_half3(1 - 1e-6f),
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
         CHECK(simd::all(
-            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1, -1),
+            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1f, -1),
                                                  make_half3(0),
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
@@ -277,7 +291,7 @@ TEST_CASE("glsl_colorburn", "[advanced_blend]")
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
         CHECK(simd::all(
-            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1, -1),
+            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1f, -1),
                                                  make_half3(-1e-6f),
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
@@ -287,7 +301,7 @@ TEST_CASE("glsl_colorburn", "[advanced_blend]")
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
         CHECK(simd::all(
-            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1, -1),
+            advanced_blend_coeffs_with_dst_alpha(make_half3(0, -1e-1f, -1),
                                                  make_half3(-INF),
                                                  dstAlpha,
                                                  BLEND_MODE_COLORBURN) == 0));
@@ -326,5 +340,3 @@ TEST_CASE("glsl_colorburn", "[advanced_blend]")
     }
 }
 } // namespace glsl_cross
-
-#endif // _MSC_VER

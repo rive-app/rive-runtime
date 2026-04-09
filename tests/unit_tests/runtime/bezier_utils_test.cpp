@@ -11,14 +11,11 @@
 #include "common/rand.hpp"
 #include <catch.hpp>
 
-// glsl cross-compiling requires the clang/gcc vector extension.
-#ifndef _MSC_VER
 #include "../renderer/cpp.glsl"
 namespace glsl_cross
 {
 #include "generated/shaders/bezier_utils.minified.glsl"
 }
-#endif
 
 namespace rive
 {
@@ -616,8 +613,6 @@ TEST_CASE("EvalCubic", "[bezier_utils]")
     }
 }
 
-// glsl cross-compiling requires the clang/gcc vector extension.
-#ifndef _MSC_VER
 static void check_cubic_coeffs_tangents_glsl(const Vec2D* pts)
 {
     // Check cubic coefficients.
@@ -1074,6 +1069,5 @@ TEST_CASE("measure_cubic_local_curvature_glsl", "[bezier_utils]")
         check_cubic_local_curvature_glsl(randos);
     }
 }
-#endif
 } // namespace math
 } // namespace rive
