@@ -21,6 +21,7 @@ class DataContext;
 class ViewModelInstanceValue;
 class DataBindContainer;
 class ScriptedProperty;
+class ScriptedContext;
 
 class ScriptedObject : public FileAssetReferencer,
                        public CustomPropertyContainer,
@@ -29,6 +30,7 @@ class ScriptedObject : public FileAssetReferencer,
 protected:
     int m_self = 0;
     int m_context = 0;
+    ScriptedContext* m_contextPtr = nullptr;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_TOOLS

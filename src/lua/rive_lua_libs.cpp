@@ -288,6 +288,7 @@ int rive_lua_pcall_with_context(lua_State* state,
 
 int rive_lua_pushRef(lua_State* state, int ref)
 {
+    lua_checkstack(state, 1);
     return lua_rawgeti(state, luaRegistryIndex, ref);
 }
 

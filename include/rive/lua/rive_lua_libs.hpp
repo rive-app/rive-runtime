@@ -1211,15 +1211,13 @@ class ScriptedContext
 public:
     ScriptedContext(ScriptedObject*);
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
+    void clearScriptedObject() { m_scriptedObject = nullptr; }
     static constexpr uint8_t luaTag = LUA_T_COUNT + 28;
     static constexpr const char* luaName = "Context";
     static constexpr bool hasMetatable = true;
-    void dispose() { m_disposed = true; }
-    bool disposed() { return m_disposed; }
 
 private:
     ScriptedObject* m_scriptedObject = nullptr;
-    bool m_disposed = false;
 };
 
 /// Wraps [`ListenerInvocation`] for `performAction` in scripted listener

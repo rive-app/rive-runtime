@@ -5,6 +5,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive_file_reader.hpp"
+#include <string>
 
 using namespace rive;
 
@@ -61,6 +62,32 @@ end
         CHECK(top == lua_gettop(L));
         CHECK(scriptedObjectTest.needsUpdate());
     }
+}
+
+TEST_CASE("Scripted Context errors when used after disposal", "[scripting]")
+{
+    ScriptingTest vm(
+        R"(
+function callMarkNeedsUpdate(context: Context)
+  context:markNeedsUpdate()
+end
+)");
+    ScriptedObjectTest scriptedObjectTest;
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    lua_getglobal(L, "callMarkNeedsUpdate");
+    auto scriptedContext = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    scriptedContext->clearScriptedObject();
+    int result = lua_pcall(L, 1, 0, 0);
+    REQUIRE(result == LUA_ERRRUN);
+    const char* error = lua_tostring(L, -1);
+    REQUIRE(error != nullptr);
+    CHECK(std::string(error).find(
+              "context:markNeedsUpdate() called on a disposed context") !=
+          std::string::npos);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
 }
 
 TEST_CASE("script has access to user created view models via Data", "[silver]")

@@ -252,11 +252,6 @@ bool ScriptedObject::scriptInit(ScriptingVM* vm)
     else
     {
         // Stack: [self]
-        lua_newrive<ScriptedContext>(L, this);
-        // Stack: [self, ScriptedContext]
-        m_context = lua_ref(L, -1);
-        rive_lua_pop(L, 1);
-        // Stack: [self]
         m_self = lua_ref(L, -1);
 #ifdef WITH_RIVE_TOOLS
         m_vm = ref_rcp(vm); // Increment refcount for shared ownership
@@ -273,6 +268,11 @@ bool ScriptedObject::scriptInit(ScriptingVM* vm)
         }
         if (inits())
         {
+            // Stack: [self]
+            m_contextPtr = lua_newrive<ScriptedContext>(L, this);
+            // Stack: [self, ScriptedContext]
+            m_context = lua_ref(L, -1);
+            rive_lua_pop(L, 1);
             // Stack: [self]
             lua_getfield(L, -1, "init");
             // Stack: [self, field]
@@ -336,14 +336,18 @@ void ScriptedObject::disposeScriptInputs()
 
 void ScriptedObject::disposeScriptedContext()
 {
+    if (m_contextPtr != nullptr)
+    {
+        m_contextPtr->clearScriptedObject();
+        m_contextPtr = nullptr;
+    }
     if (m_context != 0)
     {
         lua_State* L = state();
-        rive_lua_pushRef(L, m_context);
-        auto scriptedContext = lua_torive<ScriptedContext>(L, -1);
-        scriptedContext->dispose();
-        rive_lua_pop(L, 1);
-        lua_unref(L, m_context);
+        if (L != nullptr)
+        {
+            lua_unref(L, m_context);
+        }
         m_context = 0;
     }
 }
