@@ -34,6 +34,8 @@
 namespace rive
 {
 
+class TransitionPropertyComponentComparator;
+
 class ConditionOperation
 {
 public:
@@ -613,6 +615,86 @@ public:
 
 private:
     TransitionValueArtboardComparator* m_value;
+};
+
+class ConditionComparandComponentCoreNumber : public ConditionComparandNumber
+{
+public:
+    explicit ConditionComparandComponentCoreNumber(
+        TransitionPropertyComponentComparator* comparator);
+    float value(const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
+class ConditionComparandComponentCoreUintAsNumber
+    : public ConditionComparandNumber
+{
+public:
+    explicit ConditionComparandComponentCoreUintAsNumber(
+        TransitionPropertyComponentComparator* comparator);
+    float value(const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
+class ConditionComparandComponentCoreBoolean : public ConditionComparandBoolean
+{
+public:
+    explicit ConditionComparandComponentCoreBoolean(
+        TransitionPropertyComponentComparator* comparator);
+    bool value(const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
+class ConditionComparandComponentCoreString : public ConditionComparandString
+{
+public:
+    explicit ConditionComparandComponentCoreString(
+        TransitionPropertyComponentComparator* comparator);
+    std::string value(
+        const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
+class ConditionComparandComponentCoreColor : public ConditionComparandColor
+{
+public:
+    explicit ConditionComparandComponentCoreColor(
+        TransitionPropertyComponentComparator* comparator);
+    int value(const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
+class ConditionComparandComponentCoreUint : public ConditionComparandUint32
+{
+public:
+    explicit ConditionComparandComponentCoreUint(
+        TransitionPropertyComponentComparator* comparator);
+    uint32_t value(const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
+class ConditionComparandComponentViewModel : public ConditionComparandViewModel
+{
+public:
+    explicit ConditionComparandComponentViewModel(
+        TransitionPropertyComponentComparator* comparator);
+    ViewModelInstance* value(
+        const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
 };
 
 class ConditionComparison

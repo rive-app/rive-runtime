@@ -1,0 +1,30 @@
+{
+  "name": "TransitionPropertyComponentComparator",
+  "key": {
+    "int": 667,
+    "string": "transitionpropertycomponentcomparator"
+  },
+  "extends": "animation/transition_property_comparator.json",
+  "properties": {
+    "objectId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 977,
+        "string": "objectid"
+      },
+      "description": "Identifier used to track the object that is keyed."
+    },
+    "propertyKey": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 978,
+        "string": "propertykey"
+      },
+      "description": "The core property key to read from the component"
+    }
+  }
+}

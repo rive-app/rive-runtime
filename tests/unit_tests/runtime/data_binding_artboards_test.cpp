@@ -17,6 +17,7 @@
 #include <rive/viewmodel/viewmodel_instance_artboard.hpp>
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
+#include <rive/viewmodel/runtime/viewmodel_instance_runtime.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/nested_artboard.hpp"
@@ -198,6 +199,40 @@ TEST_CASE("Test recursive data binding artboards is skipped", "[data binding]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("data_binding_artboards_test_recursive"));
+}
+
+TEST_CASE("Setting a bindable artboard clears stale bound instance",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+
+    auto vmiArtboard =
+        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+    REQUIRE(vmiArtboard != nullptr);
+    auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
+    auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
+    REQUIRE(runtimeArtboard != nullptr);
+
+    auto sourceA = file->bindableArtboardNamed("ch1");
+    auto sourceB = file->bindableArtboardNamed("ch2");
+    REQUIRE(sourceA != nullptr);
+    REQUIRE(sourceB != nullptr);
+
+    runtimeArtboard->value(sourceA);
+    runtimeArtboard->viewModelInstance(vmi);
+    REQUIRE(vmiArtboard->viewModelInstance() != nullptr);
+
+    // Runtime assignment should clear any previously bound VMI.
+    runtimeArtboard->value(sourceB);
+    CHECK(vmiArtboard->viewModelInstance() == nullptr);
 }
 
 TEST_CASE("Test default data binding artboard from different source",

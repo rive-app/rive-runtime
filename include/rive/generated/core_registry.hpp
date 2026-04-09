@@ -80,6 +80,7 @@
 #include "rive/animation/transition_number_condition.hpp"
 #include "rive/animation/transition_property_artboard_comparator.hpp"
 #include "rive/animation/transition_property_comparator.hpp"
+#include "rive/animation/transition_property_component_comparator.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_self_comparator.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
@@ -582,6 +583,8 @@ public:
                 return new ListenerViewModelChange();
             case TransitionValueNumberComparatorBase::typeKey:
                 return new TransitionValueNumberComparator();
+            case TransitionPropertyComponentComparatorBase::typeKey:
+                return new TransitionPropertyComponentComparator();
             case NestedStateMachineBase::typeKey:
                 return new NestedStateMachine();
             case ElasticInterpolatorBase::typeKey:
@@ -1349,6 +1352,15 @@ public:
                 break;
             case LinearAnimationBase::workEndPropertyKey:
                 object->as<LinearAnimationBase>()->workEnd(value);
+                break;
+            case TransitionPropertyComponentComparatorBase::objectIdPropertyKey:
+                object->as<TransitionPropertyComponentComparatorBase>()
+                    ->objectId(value);
+                break;
+            case TransitionPropertyComponentComparatorBase::
+                propertyKeyPropertyKey:
+                object->as<TransitionPropertyComponentComparatorBase>()
+                    ->propertyKey(value);
                 break;
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 object->as<ElasticInterpolatorBase>()->easingValue(value);
@@ -2924,6 +2936,13 @@ public:
                 return object->as<LinearAnimationBase>()->workStart();
             case LinearAnimationBase::workEndPropertyKey:
                 return object->as<LinearAnimationBase>()->workEnd();
+            case TransitionPropertyComponentComparatorBase::objectIdPropertyKey:
+                return object->as<TransitionPropertyComponentComparatorBase>()
+                    ->objectId();
+            case TransitionPropertyComponentComparatorBase::
+                propertyKeyPropertyKey:
+                return object->as<TransitionPropertyComponentComparatorBase>()
+                    ->propertyKey();
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 return object->as<ElasticInterpolatorBase>()->easingValue();
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
@@ -3916,6 +3935,9 @@ public:
             case LinearAnimationBase::loopValuePropertyKey:
             case LinearAnimationBase::workStartPropertyKey:
             case LinearAnimationBase::workEndPropertyKey:
+            case TransitionPropertyComponentComparatorBase::objectIdPropertyKey:
+            case TransitionPropertyComponentComparatorBase::
+                propertyKeyPropertyKey:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
             case ListenerInputTypeEventBase::eventIdPropertyKey:
@@ -4625,6 +4647,11 @@ public:
                 return object->is<LinearAnimationBase>();
             case LinearAnimationBase::workEndPropertyKey:
                 return object->is<LinearAnimationBase>();
+            case TransitionPropertyComponentComparatorBase::objectIdPropertyKey:
+                return object->is<TransitionPropertyComponentComparatorBase>();
+            case TransitionPropertyComponentComparatorBase::
+                propertyKeyPropertyKey:
+                return object->is<TransitionPropertyComponentComparatorBase>();
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 return object->is<ElasticInterpolatorBase>();
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:

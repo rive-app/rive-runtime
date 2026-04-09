@@ -18,6 +18,7 @@
 #include <rive/viewmodel/viewmodel_instance_viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include <rive/viewmodel/viewmodel_instance_string.hpp>
+#include <rive/viewmodel/viewmodel_instance_boolean.hpp>
 #include <rive/viewmodel/viewmodel.hpp>
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
@@ -831,4 +832,84 @@ TEST_CASE("Replace view model instances with multiple view model levels",
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("rebind_with_nested_viewmodel"));
+}
+
+TEST_CASE("Component based transition conditions", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/component_based_conditions.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    auto numberProperty =
+        vmi->propertyValue("numberProperty")->as<ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    numberProperty->propertyValue(1.5);
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(2.5f / 0.1f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("component_based_conditions"));
+}
+
+TEST_CASE("Component based transition conditions with other props", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/component_based_conditions.riv", &silver);
+
+    auto artboard = file->artboardNamed("Artboard2");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    auto boolProperty =
+        vmi->propertyValue("vmBool")->as<ViewModelInstanceBoolean>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    boolProperty->propertyValue(true);
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(2.5f / 0.1f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("component_based_conditions-Artboard2"));
 }

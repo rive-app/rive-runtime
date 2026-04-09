@@ -1,10 +1,28 @@
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_transition.hpp"
+#include "rive/animation/transition_property_component_comparator.hpp"
+#include "rive/artboard.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
+#include "rive/core/field_types/core_color_type.hpp"
+#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/generated/core_registry.hpp"
+#include "rive/generated/custom_property_enum_base.hpp"
+#include "rive/generated/custom_property_trigger_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_artboard_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_asset_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_enum_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_trigger_base.hpp"
+#include "rive/generated/viewmodel/viewmodel_instance_viewmodel_base.hpp"
 #include "rive/importers/state_transition_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/component_dirt.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+
+#include <vector>
 
 using namespace rive;
 
@@ -235,6 +253,742 @@ private:
     ConditionComparandViewModel* m_rightComparand = nullptr;
 };
 
+namespace
+{
+
+Core* resolveComponentTarget(const StateMachineInstance* smi,
+                             const TransitionPropertyComponentComparator* comp)
+{
+    if (smi == nullptr || comp == nullptr)
+    {
+        return nullptr;
+    }
+    Artboard* artboard = smi->artboard();
+    if (artboard == nullptr)
+    {
+        return nullptr;
+    }
+    Core* target = artboard->resolve(comp->objectId());
+    if (target == nullptr ||
+        !CoreRegistry::objectSupportsProperty(target, comp->propertyKey()))
+    {
+        return nullptr;
+    }
+    return target;
+}
+
+enum class ComponentComparandKind
+{
+    NumberDouble,
+    NumberFromUint,
+    Boolean,
+    String,
+    Color,
+    Enum,
+    Trigger,
+    Asset,
+    Artboard,
+    ViewModel,
+};
+
+bool describeComponentSide(const TransitionPropertyComponentComparator* comp,
+                           ComponentComparandKind* outKind)
+{
+    int fieldId = CoreRegistry::propertyFieldId((int)comp->propertyKey());
+    if (fieldId < 0)
+    {
+        return false;
+    }
+    const uint32_t pk = comp->propertyKey();
+    switch (fieldId)
+    {
+        case CoreDoubleType::id:
+            *outKind = ComponentComparandKind::NumberDouble;
+            return true;
+        case CoreBoolType::id:
+            *outKind = ComponentComparandKind::Boolean;
+            return true;
+        case CoreStringType::id:
+            *outKind = ComponentComparandKind::String;
+            return true;
+        case CoreColorType::id:
+            *outKind = ComponentComparandKind::Color;
+            return true;
+        case CoreUintType::id:
+            if (pk == CustomPropertyEnumBase::propertyValuePropertyKey ||
+                pk == ViewModelInstanceEnumBase::propertyValuePropertyKey)
+            {
+                *outKind = ComponentComparandKind::Enum;
+                return true;
+            }
+            if (pk == CustomPropertyTriggerBase::propertyValuePropertyKey ||
+                pk == ViewModelInstanceTriggerBase::propertyValuePropertyKey)
+            {
+                *outKind = ComponentComparandKind::Trigger;
+                return true;
+            }
+            if (pk == ViewModelInstanceAssetBase::propertyValuePropertyKey)
+            {
+                *outKind = ComponentComparandKind::Asset;
+                return true;
+            }
+            if (pk == ViewModelInstanceArtboardBase::propertyValuePropertyKey)
+            {
+                *outKind = ComponentComparandKind::Artboard;
+                return true;
+            }
+            if (pk == ViewModelInstanceViewModelBase::propertyValuePropertyKey)
+            {
+                *outKind = ComponentComparandKind::ViewModel;
+                return true;
+            }
+            *outKind = ComponentComparandKind::NumberFromUint;
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool componentKindsCompatible(ComponentComparandKind a,
+                              ComponentComparandKind b)
+{
+    auto isNumberKind = [](ComponentComparandKind k) {
+        return k == ComponentComparandKind::NumberDouble ||
+               k == ComponentComparandKind::NumberFromUint;
+    };
+    if (isNumberKind(a) && isNumberKind(b))
+    {
+        return true;
+    }
+    return a == b;
+}
+
+ConditionComparandNumber* makeComponentNumberComparand(
+    TransitionPropertyComponentComparator* comp,
+    ComponentComparandKind kind)
+{
+    if (kind == ComponentComparandKind::NumberDouble)
+    {
+        return new ConditionComparandComponentCoreNumber(comp);
+    }
+    return new ConditionComparandComponentCoreUintAsNumber(comp);
+}
+
+bool describeViewModelBindableKind(BindableProperty* bindable,
+                                   ComponentComparandKind* outKind)
+{
+    if (bindable == nullptr)
+    {
+        return false;
+    }
+    switch (bindable->coreType())
+    {
+        case BindablePropertyNumber::typeKey:
+            *outKind = ComponentComparandKind::NumberDouble;
+            return true;
+        case BindablePropertyInteger::typeKey:
+            *outKind = ComponentComparandKind::NumberFromUint;
+            return true;
+        case BindablePropertyBoolean::typeKey:
+            *outKind = ComponentComparandKind::Boolean;
+            return true;
+        case BindablePropertyString::typeKey:
+            *outKind = ComponentComparandKind::String;
+            return true;
+        case BindablePropertyColor::typeKey:
+            *outKind = ComponentComparandKind::Color;
+            return true;
+        case BindablePropertyEnum::typeKey:
+            *outKind = ComponentComparandKind::Enum;
+            return true;
+        case BindablePropertyTrigger::typeKey:
+            *outKind = ComponentComparandKind::Trigger;
+            return true;
+        case BindablePropertyAsset::typeKey:
+            *outKind = ComponentComparandKind::Asset;
+            return true;
+        case BindablePropertyArtboard::typeKey:
+            *outKind = ComponentComparandKind::Artboard;
+            return true;
+        case BindablePropertyViewModel::typeKey:
+            *outKind = ComponentComparandKind::ViewModel;
+            return true;
+        default:
+            return false;
+    }
+}
+
+enum class ComparatorSide
+{
+    Left,
+    Right,
+};
+
+// Artboard properties and literal values only participate on the left / right
+// respectively (matches historical initialize() support).
+void appendComparableKinds(TransitionComparator* comparator,
+                           ComparatorSide side,
+                           std::vector<ComponentComparandKind>& out)
+{
+    if (comparator->is<TransitionPropertyArtboardComparator>())
+    {
+        if (side == ComparatorSide::Left)
+        {
+            out.push_back(ComponentComparandKind::NumberDouble);
+        }
+        return;
+    }
+    if (comparator->is<TransitionPropertyComponentComparator>())
+    {
+        ComponentComparandKind k;
+        if (describeComponentSide(
+                comparator->as<TransitionPropertyComponentComparator>(),
+                &k))
+        {
+            out.push_back(k);
+        }
+        return;
+    }
+    if (comparator->is<TransitionPropertyViewModelComparator>())
+    {
+        ComponentComparandKind k;
+        if (describeViewModelBindableKind(
+                comparator->as<TransitionPropertyViewModelComparator>()
+                    ->bindableProperty(),
+                &k))
+        {
+            out.push_back(k);
+        }
+        return;
+    }
+    if (side != ComparatorSide::Right)
+    {
+        return;
+    }
+    if (comparator->is<TransitionValueNumberComparator>())
+    {
+        out.push_back(ComponentComparandKind::NumberDouble);
+        return;
+    }
+    if (comparator->is<TransitionValueBooleanComparator>())
+    {
+        out.push_back(ComponentComparandKind::Boolean);
+        return;
+    }
+    if (comparator->is<TransitionValueStringComparator>())
+    {
+        out.push_back(ComponentComparandKind::String);
+        return;
+    }
+    if (comparator->is<TransitionValueColorComparator>())
+    {
+        out.push_back(ComponentComparandKind::Color);
+        return;
+    }
+    if (comparator->is<TransitionValueEnumComparator>())
+    {
+        out.push_back(ComponentComparandKind::Enum);
+        return;
+    }
+    if (comparator->is<TransitionValueAssetComparator>())
+    {
+        out.push_back(ComponentComparandKind::Asset);
+        return;
+    }
+    if (comparator->is<TransitionValueArtboardComparator>())
+    {
+        out.push_back(ComponentComparandKind::Artboard);
+        return;
+    }
+    // Uint32 comparison vs component triggers; VM trigger + value trigger uses
+    // ConditionComparisonSelf and is handled before kind intersection.
+    if (comparator->is<TransitionValueTriggerComparator>())
+    {
+        out.push_back(ComponentComparandKind::Trigger);
+        return;
+    }
+}
+
+// Picks the first (lk, rk) pair such that componentKindsCompatible(lk, rk),
+// scanning leftKinds in order then rightKinds (deterministic tie-break).
+bool intersectCompatibleKinds(
+    const std::vector<ComponentComparandKind>& leftKinds,
+    const std::vector<ComponentComparandKind>& rightKinds,
+    ComponentComparandKind* outLeftKind,
+    ComponentComparandKind* outRightKind)
+{
+    for (ComponentComparandKind lk : leftKinds)
+    {
+        for (ComponentComparandKind rk : rightKinds)
+        {
+            if (componentKindsCompatible(lk, rk))
+            {
+                *outLeftKind = lk;
+                *outRightKind = rk;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+enum class ComparisonShape
+{
+    Number,
+    Boolean,
+    String,
+    Color,
+    Enum,
+    Uint32,
+    ViewModel,
+};
+
+// Maps compatible kinds to ConditionComparison wrapper. Numeric: any
+// NumberDouble in the pair uses float compare (Number); both NumberFromUint
+// uses exact uint32 compare (Uint32), including component+component generic
+// uint fields and VM integer pairs.
+bool resolveComparisonShape(ComponentComparandKind lk,
+                            ComponentComparandKind rk,
+                            ComparisonShape* outShape)
+{
+    if (!componentKindsCompatible(lk, rk))
+    {
+        return false;
+    }
+    auto isNumberKind = [](ComponentComparandKind k) {
+        return k == ComponentComparandKind::NumberDouble ||
+               k == ComponentComparandKind::NumberFromUint;
+    };
+    if (isNumberKind(lk) && isNumberKind(rk))
+    {
+        if (lk == ComponentComparandKind::NumberFromUint &&
+            rk == ComponentComparandKind::NumberFromUint)
+        {
+            *outShape = ComparisonShape::Uint32;
+            return true;
+        }
+        *outShape = ComparisonShape::Number;
+        return true;
+    }
+    if (lk != rk)
+    {
+        return false;
+    }
+    switch (lk)
+    {
+        case ComponentComparandKind::Boolean:
+            *outShape = ComparisonShape::Boolean;
+            return true;
+        case ComponentComparandKind::String:
+            *outShape = ComparisonShape::String;
+            return true;
+        case ComponentComparandKind::Color:
+            *outShape = ComparisonShape::Color;
+            return true;
+        case ComponentComparandKind::Enum:
+            *outShape = ComparisonShape::Enum;
+            return true;
+        case ComponentComparandKind::Trigger:
+        case ComponentComparandKind::Asset:
+        case ComponentComparandKind::Artboard:
+            *outShape = ComparisonShape::Uint32;
+            return true;
+        case ComponentComparandKind::ViewModel:
+            *outShape = ComparisonShape::ViewModel;
+            return true;
+        default:
+            return false;
+    }
+}
+
+struct ComparandSlot
+{
+    ConditionComparandNumber* number = nullptr;
+    ConditionComparandBoolean* boolean = nullptr;
+    ConditionComparandString* string = nullptr;
+    ConditionComparandColor* color = nullptr;
+    ConditionComparandUint32* uint32 = nullptr;
+    ConditionComparandViewModel* viewModel = nullptr;
+};
+
+void clearComparandSlot(ComparandSlot& s)
+{
+    delete s.number;
+    delete s.boolean;
+    delete s.string;
+    delete s.color;
+    delete s.uint32;
+    delete s.viewModel;
+    s = ComparandSlot{};
+}
+
+// Builds one comparand for `c` and kind `k` given the resolved comparison.
+bool makeComparand(TransitionComparator* c,
+                   ComponentComparandKind k,
+                   ComparisonShape shape,
+                   ComparandSlot* slot)
+{
+    switch (shape)
+    {
+        case ComparisonShape::Number:
+        {
+            if (c->is<TransitionPropertyArtboardComparator>())
+            {
+                slot->number = new ConditionComparandArtboardProperty(
+                    c->as<TransitionPropertyArtboardComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr)
+                {
+                    return false;
+                }
+                if (bp->is<BindablePropertyNumber>())
+                {
+                    slot->number = new ConditionComparandNumberBindable(
+                        bp->as<BindablePropertyNumber>());
+                    return true;
+                }
+                if (bp->is<BindablePropertyInteger>())
+                {
+                    slot->number = new ConditionComparandNumberBindableInteger(
+                        bp->as<BindablePropertyInteger>());
+                    return true;
+                }
+                return false;
+            }
+            if (c->is<TransitionValueNumberComparator>())
+            {
+                slot->number = new ConditionComparandNumberValue(
+                    c->as<TransitionValueNumberComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyComponentComparator>())
+            {
+                auto* comp = c->as<TransitionPropertyComponentComparator>();
+                if (k == ComponentComparandKind::NumberDouble)
+                {
+                    slot->number =
+                        new ConditionComparandComponentCoreNumber(comp);
+                    return true;
+                }
+                if (k == ComponentComparandKind::NumberFromUint)
+                {
+                    slot->number = makeComponentNumberComparand(comp, k);
+                    return true;
+                }
+                return false;
+            }
+            return false;
+        }
+        case ComparisonShape::Boolean:
+        {
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr || !bp->is<BindablePropertyBoolean>())
+                {
+                    return false;
+                }
+                slot->boolean = new ConditionComparandBooleanBindable(
+                    bp->as<BindablePropertyBoolean>());
+                return true;
+            }
+            if (c->is<TransitionValueBooleanComparator>())
+            {
+                slot->boolean = new ConditionComparandBooleanValue(
+                    c->as<TransitionValueBooleanComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyComponentComparator>())
+            {
+                slot->boolean = new ConditionComparandComponentCoreBoolean(
+                    c->as<TransitionPropertyComponentComparator>());
+                return true;
+            }
+            return false;
+        }
+        case ComparisonShape::String:
+        {
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr || !bp->is<BindablePropertyString>())
+                {
+                    return false;
+                }
+                slot->string = new ConditionComparandStringBindable(
+                    bp->as<BindablePropertyString>());
+                return true;
+            }
+            if (c->is<TransitionValueStringComparator>())
+            {
+                slot->string = new ConditionComparandStringValue(
+                    c->as<TransitionValueStringComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyComponentComparator>())
+            {
+                slot->string = new ConditionComparandComponentCoreString(
+                    c->as<TransitionPropertyComponentComparator>());
+                return true;
+            }
+            return false;
+        }
+        case ComparisonShape::Color:
+        {
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr || !bp->is<BindablePropertyColor>())
+                {
+                    return false;
+                }
+                slot->color = new ConditionComparandColorBindable(
+                    bp->as<BindablePropertyColor>());
+                return true;
+            }
+            if (c->is<TransitionValueColorComparator>())
+            {
+                slot->color = new ConditionComparandColorValue(
+                    c->as<TransitionValueColorComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyComponentComparator>())
+            {
+                slot->color = new ConditionComparandComponentCoreColor(
+                    c->as<TransitionPropertyComponentComparator>());
+                return true;
+            }
+            return false;
+        }
+        case ComparisonShape::Enum:
+        {
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr || !bp->is<BindablePropertyEnum>())
+                {
+                    return false;
+                }
+                slot->uint32 = new ConditionComparandEnumBindable(
+                    bp->as<BindablePropertyEnum>());
+                return true;
+            }
+            if (c->is<TransitionValueEnumComparator>())
+            {
+                slot->uint32 = new ConditionComparandEnumValue(
+                    c->as<TransitionValueEnumComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyComponentComparator>())
+            {
+                slot->uint32 = new ConditionComparandComponentCoreUint(
+                    c->as<TransitionPropertyComponentComparator>());
+                return true;
+            }
+            return false;
+        }
+        case ComparisonShape::Uint32:
+        {
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr)
+                {
+                    return false;
+                }
+                if (k == ComponentComparandKind::NumberFromUint &&
+                    bp->is<BindablePropertyInteger>())
+                {
+                    slot->uint32 = new ConditionComparandIntegerBindable(
+                        bp->as<BindablePropertyInteger>());
+                    return true;
+                }
+                if (k == ComponentComparandKind::Trigger &&
+                    bp->is<BindablePropertyTrigger>())
+                {
+                    slot->uint32 = new ConditionComparandTriggerBindable(
+                        bp->as<BindablePropertyTrigger>());
+                    return true;
+                }
+                if (k == ComponentComparandKind::Asset &&
+                    bp->is<BindablePropertyAsset>())
+                {
+                    slot->uint32 = new ConditionComparandAssetBindable(
+                        bp->as<BindablePropertyAsset>());
+                    return true;
+                }
+                if (k == ComponentComparandKind::Artboard &&
+                    bp->is<BindablePropertyArtboard>())
+                {
+                    slot->uint32 = new ConditionComparandArtboardBindable(
+                        bp->as<BindablePropertyArtboard>());
+                    return true;
+                }
+                return false;
+            }
+            if (c->is<TransitionValueTriggerComparator>())
+            {
+                slot->uint32 = new ConditionComparandTriggerValue(
+                    c->as<TransitionValueTriggerComparator>());
+                return true;
+            }
+            if (c->is<TransitionValueAssetComparator>())
+            {
+                slot->uint32 = new ConditionComparandAssetValue(
+                    c->as<TransitionValueAssetComparator>());
+                return true;
+            }
+            if (c->is<TransitionValueArtboardComparator>())
+            {
+                slot->uint32 = new ConditionComparandArtboardValue(
+                    c->as<TransitionValueArtboardComparator>());
+                return true;
+            }
+            if (c->is<TransitionPropertyComponentComparator>())
+            {
+                slot->uint32 = new ConditionComparandComponentCoreUint(
+                    c->as<TransitionPropertyComponentComparator>());
+                return true;
+            }
+            return false;
+        }
+        case ComparisonShape::ViewModel:
+        {
+            if (k != ComponentComparandKind::ViewModel)
+            {
+                return false;
+            }
+            if (c->is<TransitionPropertyViewModelComparator>())
+            {
+                auto* bp = c->as<TransitionPropertyViewModelComparator>()
+                               ->bindableProperty();
+                if (bp == nullptr || !bp->is<BindablePropertyViewModel>())
+                {
+                    return false;
+                }
+                slot->viewModel = new ConditionComparandViewModelBindable(
+                    bp->as<BindablePropertyViewModel>());
+                return true;
+            }
+            return false;
+        }
+        default:
+            return false;
+    }
+}
+
+ConditionComparison* wrapComparison(ComparisonShape shape,
+                                    ComparandSlot& leftSlot,
+                                    ComparandSlot& rightSlot,
+                                    ConditionOperation* op)
+{
+    switch (shape)
+    {
+        case ComparisonShape::Number:
+            if (leftSlot.number == nullptr || rightSlot.number == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonNumber(leftSlot.number,
+                                                 rightSlot.number,
+                                                 op);
+        case ComparisonShape::Boolean:
+            if (leftSlot.boolean == nullptr || rightSlot.boolean == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonBoolean(leftSlot.boolean,
+                                                  rightSlot.boolean,
+                                                  op);
+        case ComparisonShape::String:
+            if (leftSlot.string == nullptr || rightSlot.string == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonString(leftSlot.string,
+                                                 rightSlot.string,
+                                                 op);
+        case ComparisonShape::Color:
+            if (leftSlot.color == nullptr || rightSlot.color == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonColor(leftSlot.color,
+                                                rightSlot.color,
+                                                op);
+        case ComparisonShape::Enum:
+            if (leftSlot.uint32 == nullptr || rightSlot.uint32 == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonEnum(leftSlot.uint32,
+                                               rightSlot.uint32,
+                                               op);
+        case ComparisonShape::Uint32:
+            if (leftSlot.uint32 == nullptr || rightSlot.uint32 == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonUint32(leftSlot.uint32,
+                                                 rightSlot.uint32,
+                                                 op);
+        case ComparisonShape::ViewModel:
+            if (leftSlot.viewModel == nullptr || rightSlot.viewModel == nullptr)
+            {
+                return nullptr;
+            }
+            return new ConditionComparisonViewModel(leftSlot.viewModel,
+                                                    rightSlot.viewModel,
+                                                    op);
+        default:
+            return nullptr;
+    }
+}
+
+bool buildComparandsFromIntersect(TransitionComparator* left,
+                                  TransitionComparator* right,
+                                  ComponentComparandKind lk,
+                                  ComponentComparandKind rk,
+                                  ConditionOperation* op,
+                                  ConditionComparison** outComparison)
+{
+    ComparisonShape shape;
+    if (!resolveComparisonShape(lk, rk, &shape))
+    {
+        return false;
+    }
+    ComparandSlot leftSlot, rightSlot;
+    if (!makeComparand(left, lk, shape, &leftSlot) ||
+        !makeComparand(right, rk, shape, &rightSlot))
+    {
+        clearComparandSlot(leftSlot);
+        clearComparandSlot(rightSlot);
+        return false;
+    }
+    ConditionComparison* wrapped =
+        wrapComparison(shape, leftSlot, rightSlot, op);
+    if (wrapped == nullptr)
+    {
+        clearComparandSlot(leftSlot);
+        clearComparandSlot(rightSlot);
+        return false;
+    }
+    *outComparison = wrapped;
+    return true;
+}
+
+} // namespace
+
 TransitionViewModelCondition::~TransitionViewModelCondition()
 {
     if (m_leftComparator != nullptr)
@@ -257,18 +1011,17 @@ TransitionViewModelCondition::~TransitionViewModelCondition()
 bool TransitionViewModelCondition::canEvaluate(
     const StateMachineInstance* stateMachineInstance) const
 {
-    if (leftComparator() &&
-        leftComparator()->is<TransitionPropertyArtboardComparator>() &&
-        rightComparator() &&
-        rightComparator()->is<TransitionValueNumberComparator>())
+    if (!leftComparator() || !rightComparator())
     {
-        return true;
+        return false;
     }
-    if (stateMachineInstance->dataContext())
+    if (!stateMachineInstance->dataContext() &&
+        (rightComparator()->is<TransitionPropertyViewModelComparator>() ||
+         leftComparator()->is<TransitionPropertyViewModelComparator>()))
     {
-        return true;
+        return false;
     }
-    return false;
+    return true;
 }
 
 bool TransitionViewModelCondition::evaluate(
@@ -316,555 +1069,166 @@ ConditionOperation* TransitionViewModelCondition::operation(
 
 void TransitionViewModelCondition::initialize()
 {
-    if (leftComparator() && rightComparator())
+    TransitionComparator* left = leftComparator();
+    TransitionComparator* right = rightComparator();
+    if (left == nullptr || right == nullptr)
     {
-        if (leftComparator()->is<TransitionPropertyArtboardComparator>())
-        {
+        return;
+    }
 
-            auto leftProperty =
-                leftComparator()->as<TransitionPropertyArtboardComparator>();
-            if (rightComparator()->is<TransitionPropertyViewModelComparator>())
+    // Asymmetric: Self compares the left bindable against its data bind source,
+    // not a typed comparand intersection.
+    if (right->is<TransitionSelfComparator>())
+    {
+        if (left->is<TransitionPropertyViewModelComparator>())
+        {
+            auto* leftBindable =
+                left->as<TransitionPropertyViewModelComparator>()
+                    ->bindableProperty();
+            if (leftBindable != nullptr)
             {
-                auto rightBindableProperty =
-                    rightComparator()
-                        ->as<TransitionPropertyViewModelComparator>()
-                        ->bindableProperty();
-                if (rightBindableProperty == nullptr)
-                {
-                    m_comparison = new ConditionComparisonNone();
-                    return;
-                }
-                if (rightBindableProperty->is<BindablePropertyNumber>())
-                {
-                    auto leftComparand =
-                        new ConditionComparandArtboardProperty(leftProperty);
-                    auto rightComparand = new ConditionComparandNumberBindable(
-                        rightBindableProperty->as<BindablePropertyNumber>());
-                    m_comparison =
-                        new ConditionComparisonNumber(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-                else if (rightBindableProperty->is<BindablePropertyInteger>())
-                {
-                    auto leftComparand =
-                        new ConditionComparandArtboardProperty(leftProperty);
-                    auto rightComparand =
-                        new ConditionComparandNumberBindableInteger(
-                            rightBindableProperty
-                                ->as<BindablePropertyInteger>());
-                    m_comparison =
-                        new ConditionComparisonNumber(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-            }
-            else if (rightComparator()->is<TransitionValueNumberComparator>())
-            {
-                auto leftComparand =
-                    new ConditionComparandArtboardProperty(leftProperty);
-                auto rightComparand = new ConditionComparandNumberValue(
-                    rightComparator()->as<TransitionValueNumberComparator>());
-                m_comparison = new ConditionComparisonNumber(leftComparand,
-                                                             rightComparand,
-                                                             operation(op()));
+                m_comparison = new ConditionComparisonSelf(leftBindable);
                 return;
             }
         }
-        auto leftBindableProperty =
-            leftComparator()
-                ->as<TransitionPropertyViewModelComparator>()
-                ->bindableProperty();
-        if (leftBindableProperty == nullptr)
-        {
-            m_comparison = new ConditionComparisonNone();
-            return;
-        }
-        if (rightComparator()->is<TransitionSelfComparator>())
-        {
-            m_comparison = new ConditionComparisonSelf(leftBindableProperty);
-            return;
-        }
-        switch (leftBindableProperty->coreType())
-        {
-            case BindablePropertyNumber::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyNumber>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandNumberBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyNumber>());
-                        auto rightComparand =
-                            new ConditionComparandNumberBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyNumber>());
-                        m_comparison =
-                            new ConditionComparisonNumber(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                    else if (rightBindableProperty
-                                 ->is<BindablePropertyInteger>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandNumberBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyNumber>());
-                        auto rightComparand =
-                            new ConditionComparandNumberBindableInteger(
-                                rightBindableProperty
-                                    ->as<BindablePropertyInteger>());
-                        m_comparison =
-                            new ConditionComparisonNumber(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueNumberComparator>())
-                {
-                    auto leftComparand = new ConditionComparandNumberBindable(
-                        leftBindableProperty->as<BindablePropertyNumber>());
-                    auto rightComparand = new ConditionComparandNumberValue(
-                        rightComparator()
-                            ->as<TransitionValueNumberComparator>());
-                    m_comparison =
-                        new ConditionComparisonNumber(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-                break;
-            }
-
-            case BindablePropertyBoolean::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyBoolean>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandBooleanBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyBoolean>());
-                        auto rightComparand =
-                            new ConditionComparandBooleanBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyBoolean>());
-                        m_comparison =
-                            new ConditionComparisonBoolean(leftComparand,
-                                                           rightComparand,
-                                                           operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueBooleanComparator>())
-                {
-                    auto leftComparand = new ConditionComparandBooleanBindable(
-                        leftBindableProperty->as<BindablePropertyBoolean>());
-                    auto rightComparand = new ConditionComparandBooleanValue(
-                        rightComparator()
-                            ->as<TransitionValueBooleanComparator>());
-                    m_comparison =
-                        new ConditionComparisonBoolean(leftComparand,
-                                                       rightComparand,
-                                                       operation(op()));
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyString::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyString>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandStringBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyString>());
-                        auto rightComparand =
-                            new ConditionComparandStringBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyString>());
-                        m_comparison =
-                            new ConditionComparisonString(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueStringComparator>())
-                {
-                    auto leftComparand = new ConditionComparandStringBindable(
-                        leftBindableProperty->as<BindablePropertyString>());
-                    auto rightComparand = new ConditionComparandStringValue(
-                        rightComparator()
-                            ->as<TransitionValueStringComparator>());
-                    m_comparison =
-                        new ConditionComparisonString(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyColor::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyColor>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandColorBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyColor>());
-                        auto rightComparand =
-                            new ConditionComparandColorBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyColor>());
-                        m_comparison =
-                            new ConditionComparisonColor(leftComparand,
-                                                         rightComparand,
-                                                         operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueColorComparator>())
-                {
-                    auto leftComparand = new ConditionComparandColorBindable(
-                        leftBindableProperty->as<BindablePropertyColor>());
-                    auto rightComparand = new ConditionComparandColorValue(
-                        rightComparator()
-                            ->as<TransitionValueColorComparator>());
-                    m_comparison =
-                        new ConditionComparisonColor(leftComparand,
-                                                     rightComparand,
-                                                     operation(op()));
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyEnum::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyEnum>())
-                    {
-                        auto leftComparand = new ConditionComparandEnumBindable(
-                            leftBindableProperty->as<BindablePropertyEnum>());
-                        auto rightComparand =
-                            new ConditionComparandEnumBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyEnum>());
-                        m_comparison =
-                            new ConditionComparisonEnum(leftComparand,
-                                                        rightComparand,
-                                                        operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()->is<TransitionValueEnumComparator>())
-                {
-                    auto leftComparand = new ConditionComparandEnumBindable(
-                        leftBindableProperty->as<BindablePropertyEnum>());
-                    auto rightComparand = new ConditionComparandEnumValue(
-                        rightComparator()->as<TransitionValueEnumComparator>());
-                    m_comparison = new ConditionComparisonEnum(leftComparand,
-                                                               rightComparand,
-                                                               operation(op()));
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyTrigger::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyTrigger>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandTriggerBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyTrigger>());
-                        auto rightComparand =
-                            new ConditionComparandTriggerBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyTrigger>());
-                        m_comparison =
-                            new ConditionComparisonUint32(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueTriggerComparator>())
-                {
-                    m_comparison =
-                        new ConditionComparisonSelf(leftBindableProperty);
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyInteger::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyInteger>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandIntegerBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyInteger>());
-                        auto rightComparand =
-                            new ConditionComparandIntegerBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyInteger>());
-                        m_comparison =
-                            new ConditionComparisonUint32(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                    else if (rightBindableProperty
-                                 ->is<BindablePropertyNumber>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandNumberBindableInteger(
-                                leftBindableProperty
-                                    ->as<BindablePropertyInteger>());
-                        auto rightComparand =
-                            new ConditionComparandNumberBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyNumber>());
-                        m_comparison =
-                            new ConditionComparisonNumber(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueNumberComparator>())
-                {
-                    auto leftComparand =
-                        new ConditionComparandNumberBindableInteger(
-                            leftBindableProperty
-                                ->as<BindablePropertyInteger>());
-                    auto rightComparand = new ConditionComparandNumberValue(
-                        rightComparator()
-                            ->as<TransitionValueNumberComparator>());
-                    m_comparison =
-                        new ConditionComparisonNumber(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyAsset::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyAsset>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandAssetBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyAsset>());
-                        auto rightComparand =
-                            new ConditionComparandAssetBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyAsset>());
-                        m_comparison =
-                            new ConditionComparisonUint32(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueAssetComparator>())
-                {
-                    auto leftComparand = new ConditionComparandAssetBindable(
-                        leftBindableProperty->as<BindablePropertyAsset>());
-                    auto rightComparand = new ConditionComparandAssetValue(
-                        rightComparator()
-                            ->as<TransitionValueAssetComparator>());
-                    m_comparison =
-                        new ConditionComparisonUint32(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-                break;
-            }
-            case BindablePropertyViewModel::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyViewModel>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandViewModelBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyViewModel>());
-                        auto rightComparand =
-                            new ConditionComparandViewModelBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyViewModel>());
-                        m_comparison =
-                            new ConditionComparisonViewModel(leftComparand,
-                                                             rightComparand,
-                                                             operation(op()));
-                        return;
-                    }
-                }
-                break;
-            }
-            case BindablePropertyArtboard::typeKey:
-            {
-                if (rightComparator()
-                        ->is<TransitionPropertyViewModelComparator>())
-                {
-                    auto rightBindableProperty =
-                        rightComparator()
-                            ->as<TransitionPropertyViewModelComparator>()
-                            ->bindableProperty();
-                    if (rightBindableProperty == nullptr)
-                    {
-                        break;
-                    }
-                    if (rightBindableProperty->is<BindablePropertyArtboard>())
-                    {
-                        auto leftComparand =
-                            new ConditionComparandArtboardBindable(
-                                leftBindableProperty
-                                    ->as<BindablePropertyArtboard>());
-                        auto rightComparand =
-                            new ConditionComparandArtboardBindable(
-                                rightBindableProperty
-                                    ->as<BindablePropertyArtboard>());
-                        m_comparison =
-                            new ConditionComparisonUint32(leftComparand,
-                                                          rightComparand,
-                                                          operation(op()));
-                        return;
-                    }
-                }
-                else if (rightComparator()
-                             ->is<TransitionValueArtboardComparator>())
-                {
-                    auto leftComparand = new ConditionComparandArtboardBindable(
-                        leftBindableProperty->as<BindablePropertyArtboard>());
-                    auto rightComparand = new ConditionComparandArtboardValue(
-                        rightComparator()
-                            ->as<TransitionValueArtboardComparator>());
-                    m_comparison =
-                        new ConditionComparisonUint32(leftComparand,
-                                                      rightComparand,
-                                                      operation(op()));
-                    return;
-                }
-                break;
-            }
-            default:
-                break;
-        }
         m_comparison = new ConditionComparisonNone();
+        return;
     }
+
+    // Asymmetric: value trigger on the right uses ConditionComparisonSelf with
+    // a VM trigger on the left (not uint32 vs a value comparand).
+    if (left->is<TransitionPropertyViewModelComparator>() &&
+        right->is<TransitionValueTriggerComparator>())
+    {
+        auto* lbp = left->as<TransitionPropertyViewModelComparator>()
+                        ->bindableProperty();
+        if (lbp != nullptr && lbp->is<BindablePropertyTrigger>())
+        {
+            m_comparison = new ConditionComparisonSelf(lbp);
+            return;
+        }
+    }
+
+    std::vector<ComponentComparandKind> leftKinds;
+    std::vector<ComponentComparandKind> rightKinds;
+    appendComparableKinds(left, ComparatorSide::Left, leftKinds);
+    appendComparableKinds(right, ComparatorSide::Right, rightKinds);
+
+    ComponentComparandKind lk{};
+    ComponentComparandKind rk{};
+    if (!intersectCompatibleKinds(leftKinds, rightKinds, &lk, &rk))
+    {
+        m_comparison = new ConditionComparisonNone();
+        return;
+    }
+
+    ConditionOperation* condOp = operation(op());
+    ConditionComparison* cmp = nullptr;
+    if (buildComparandsFromIntersect(left, right, lk, rk, condOp, &cmp))
+    {
+        m_comparison = cmp;
+        return;
+    }
+    delete condOp;
+    m_comparison = new ConditionComparisonNone();
+}
+
+ConditionComparandComponentCoreNumber::ConditionComparandComponentCoreNumber(
+    TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+float ConditionComparandComponentCoreNumber::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    if (target == nullptr)
+    {
+        return 0.0f;
+    }
+    return CoreRegistry::getDouble(target, (int)m_comparator->propertyKey());
+}
+
+ConditionComparandComponentCoreUintAsNumber::
+    ConditionComparandComponentCoreUintAsNumber(
+        TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+float ConditionComparandComponentCoreUintAsNumber::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    if (target == nullptr)
+    {
+        return 0.0f;
+    }
+    return (float)CoreRegistry::getUint(target,
+                                        (int)m_comparator->propertyKey());
+}
+
+ConditionComparandComponentCoreBoolean::ConditionComparandComponentCoreBoolean(
+    TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+bool ConditionComparandComponentCoreBoolean::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    if (target == nullptr)
+    {
+        return false;
+    }
+    return CoreRegistry::getBool(target, (int)m_comparator->propertyKey());
+}
+
+ConditionComparandComponentCoreString::ConditionComparandComponentCoreString(
+    TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+std::string ConditionComparandComponentCoreString::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    if (target == nullptr)
+    {
+        return std::string{};
+    }
+    return CoreRegistry::getString(target, (int)m_comparator->propertyKey());
+}
+
+ConditionComparandComponentCoreColor::ConditionComparandComponentCoreColor(
+    TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+int ConditionComparandComponentCoreColor::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    if (target == nullptr)
+    {
+        return 0;
+    }
+    return CoreRegistry::getColor(target, (int)m_comparator->propertyKey());
+}
+
+ConditionComparandComponentCoreUint::ConditionComparandComponentCoreUint(
+    TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+uint32_t ConditionComparandComponentCoreUint::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    if (target == nullptr)
+    {
+        return 0;
+    }
+    return CoreRegistry::getUint(target, (int)m_comparator->propertyKey());
 }
 
 bool ConditionComparison::compareNumbers(float left, float right)
