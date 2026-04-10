@@ -379,6 +379,7 @@ int main(int argc, const char* argv[])
     int pngThreads = 2;
     bool wantVulkanSynchronizationValidation = false;
 
+    bool onlyUbershaders = false;
     for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "--test_harness") == 0)
@@ -433,6 +434,11 @@ int main(int argc, const char* argv[])
             verbose = true;
             continue;
         }
+        if (is_arg(argv[i], "--only_ubershaders", "-u"))
+        {
+            onlyUbershaders = true;
+            continue;
+        }
         if (sscanf(argv[i], "-p%d", &pngThreads) == 1)
         {
             pngThreads = std::max(pngThreads, 1);
@@ -445,6 +451,12 @@ int main(int argc, const char* argv[])
     void* platformWindow = nullptr;
     backendParams.wantVulkanSynchronizationValidation =
         wantVulkanSynchronizationValidation;
+
+    // By default we want the gms to use synchronously compiled
+    // shaders/pipleines, in an attempt at determinism.
+    backendParams.shaderCompilationMode =
+        onlyUbershaders ? rive::gpu::ShaderCompilationMode::onlyUbershaders
+                        : rive::gpu::ShaderCompilationMode::alwaysSynchronous;
 
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
     // Make sure the testing harness always gets initialized on Android so we

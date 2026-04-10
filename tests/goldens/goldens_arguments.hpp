@@ -91,6 +91,10 @@ public:
                                         "number of PNG encode threads",
                                         {'p', "png_threads"},
                                         2);
+        args::Flag onlyUbershaders(optional,
+                                   "only_ubershaders",
+                                   "Use only ubershaders (where supported)",
+                                   {'u', "only_ubershaders"});
 
         args::CompletionFlag completion(*m_parser, {"complete"});
         try
@@ -138,6 +142,7 @@ public:
         m_rows = std::max(args::get(rows), 1);
         m_cols = std::max(args::get(cols), 1);
         m_pngThreads = std::max(args::get(pngThreads), 1);
+        m_onlyUbershaders = args::get(onlyUbershaders);
     }
 
     const std::string& testHarness() const { return m_testHarness; }
@@ -153,6 +158,7 @@ public:
     int rows() const { return m_rows; }
     int cols() const { return m_cols; }
     int pngThreads() const { return m_pngThreads; }
+    bool onlyUbershaders() const { return m_onlyUbershaders; }
 
 private:
     std::unique_ptr<args::ArgumentParser> m_parser;
@@ -171,5 +177,6 @@ private:
     int m_rows;
     int m_cols;
     int m_pngThreads;
+    bool m_onlyUbershaders;
 };
 #endif

@@ -259,6 +259,14 @@ int main(int argc, const char* argv[])
                 ? TestingWindow::Backend::gl
                 : TestingWindow::ParseBackend(s_args.backend().c_str(),
                                               &backendParams);
+
+        // For determinism, default to always using synchronously-compiled
+        // shaders
+        backendParams.shaderCompilationMode =
+            s_args.onlyUbershaders()
+                ? rive::gpu::ShaderCompilationMode::onlyUbershaders
+                : rive::gpu::ShaderCompilationMode::alwaysSynchronous;
+
         auto visibility = s_args.headless()
                               ? TestingWindow::Visibility::headless
                               : TestingWindow::Visibility::window;

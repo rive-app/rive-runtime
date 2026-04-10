@@ -23,7 +23,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
             m_backendParams(backendParams)
         {
             m_contextOptions.shaderCompilationMode =
-                rive::gpu::ShaderCompilationMode::alwaysSynchronous;
+                backendParams.shaderCompilationMode;
             if (m_backendParams.msaa)
             {
                 m_contextOptions.disablePixelLocalStorage = true;

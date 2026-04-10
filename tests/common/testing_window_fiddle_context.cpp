@@ -267,7 +267,7 @@ public:
 
         FiddleContextOptions fiddleOptions = {
             .retinaDisplay = visibility == Visibility::fullscreen,
-            .shaderCompilationMode = ShaderCompilationMode::alwaysSynchronous,
+            .shaderCompilationMode = backendParams.shaderCompilationMode,
             .enableReadPixels = true,
             .disableRasterOrdering = backendParams.atomic,
             .coreFeaturesOnly = backendParams.core,

@@ -64,8 +64,7 @@ public:
             m_instance->getVkGetInstanceProcAddrPtr(),
             {
                 .forceAtomicMode = backendParams.atomic,
-                .shaderCompilationMode =
-                    ShaderCompilationMode::alwaysSynchronous,
+                .shaderCompilationMode = backendParams.shaderCompilationMode,
             });
     }
 

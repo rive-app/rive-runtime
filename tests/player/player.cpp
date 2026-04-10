@@ -496,6 +496,7 @@ int main(int argc, const char* argv[])
 #endif
     auto visibility = TestingWindow::Visibility::fullscreen;
     TestingWindow::BackendParams backendParams;
+    bool onlyUbershaders = false;
 
     for (int i = 0; i < argc; ++i)
     {
@@ -526,6 +527,11 @@ int main(int argc, const char* argv[])
                 key_pressed(*k);
             }
         }
+        else if (strcmp(argv[i], "--only_ubershaders") == 0 ||
+                 strcmp(argv[i], "-u") == 0)
+        {
+            onlyUbershaders = true;
+        }
         else if (argv[i][0] == '-' &&
                  argv[i][1] == 'k') // "-k1234asdf" without a space.
         {
@@ -551,6 +557,12 @@ int main(int argc, const char* argv[])
                 std::vector<uint8_t>(std::istreambuf_iterator<char>(rivStream),
                                      {});
         }
+    }
+
+    if (onlyUbershaders)
+    {
+        backendParams.shaderCompilationMode =
+            rive::gpu::ShaderCompilationMode::onlyUbershaders;
     }
 
     TestingWindow::Init(backend,

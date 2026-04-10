@@ -7,6 +7,7 @@
 
 #include "common/offscreen_render_target.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/shader_compilation_mode.hpp"
 #include "rive/refcnt.hpp"
 #include <memory>
 #include <vector>
@@ -84,6 +85,9 @@ public:
         bool disableValidationLayers = false;
         bool disableDebugCallbacks = false;
         bool wantVulkanSynchronizationValidation = false;
+
+        rive::gpu::ShaderCompilationMode shaderCompilationMode =
+            rive::gpu::ShaderCompilationMode::standard;
 
         ANGLERenderer angleRenderer =
 #ifdef __APPLE__

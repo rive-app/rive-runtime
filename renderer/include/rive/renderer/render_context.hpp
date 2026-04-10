@@ -9,6 +9,7 @@
 #include "rive/renderer/rive_render_factory.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/render_target.hpp"
+#include "rive/renderer/shader_compilation_mode.hpp"
 #include "rive/renderer/sk_rectanizer_skyline.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/color.hpp"
@@ -36,16 +37,6 @@ class Draw;
 class Gradient;
 class RenderContextImpl;
 class PathDraw;
-
-enum class ShaderCompilationMode
-{
-    allowAsynchronous,
-    alwaysSynchronous,
-    onlyUbershaders,
-
-    // The default mode is to allow asynchronous compilation where available.
-    standard = allowAsynchronous,
-};
 
 // Various types of ordered dithering we can add to reduce banding
 // https://en.wikipedia.org/wiki/Ordered_dithering

@@ -362,8 +362,7 @@ private:
             m_instance->getVkGetInstanceProcAddrPtr(),
             {
                 .forceAtomicMode = m_backendParams.atomic,
-                .shaderCompilationMode =
-                    ShaderCompilationMode::alwaysSynchronous,
+                .shaderCompilationMode = m_backendParams.shaderCompilationMode,
             });
 
         VkSurfaceCapabilitiesKHR windowCapabilities;

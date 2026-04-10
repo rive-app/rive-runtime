@@ -22,7 +22,7 @@ public:
         // Turn on synchronous shader compilations to ensure deterministic
         // rendering and to make sure we test every unique shader.
         metalOptions.shaderCompilationMode =
-            ShaderCompilationMode::alwaysSynchronous;
+            backendParams.shaderCompilationMode;
         metalOptions.disableFramebufferReads = backendParams.atomic;
         m_renderContext =
             RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
