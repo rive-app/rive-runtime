@@ -2,15 +2,20 @@
 #define _RIVE_TEXT_INPUT_HPP_
 
 #include "rive/generated/text/text_input_base.hpp"
+#include "rive/advancing_component.hpp"
 #include "rive/text/raw_text_input.hpp"
 #include "rive/text/text_interface.hpp"
 #include "rive/input/focusable.hpp"
+#include <cmath>
 
 namespace rive
 {
 class TextStyle;
 class ScrollConstraint;
-class TextInput : public TextInputBase, public TextInterface, public Focusable
+class TextInput : public TextInputBase,
+                  public TextInterface,
+                  public Focusable,
+                  public AdvancingComponent
 {
 public:
     void draw(Renderer* renderer) override;
@@ -63,6 +68,9 @@ public:
 
     /// Advance edge scrolling during drag. Returns true if still scrolling.
     bool advanceDrag(float elapsedSeconds);
+    bool advanceComponent(float elapsedSeconds,
+                          AdvanceFlags flags = AdvanceFlags::Animate |
+                                               AdvanceFlags::NewFrame) override;
 
     /// Whether currently dragging (for hit test to avoid interference).
     bool isDragging() const { return m_isDragging; }
@@ -70,11 +78,19 @@ public:
 protected:
     void textChanged() override;
     void selectionRadiusChanged() override;
+    void multilineChanged() override;
 
 private:
     /// Convert a world position to local text input coordinates.
     /// Handles viewport clamping and auto-scroll for scroll constraints.
-    bool worldToLocalWithViewport(Vec2D worldPosition, Vec2D& outLocal);
+    bool worldToLocalWithViewport(Vec2D worldPosition,
+                                  Vec2D& outLocal,
+                                  bool enableAutoScroll);
+
+    float edgeScrollSpeedForDistance(float distanceFromEdge) const;
+    float edgeActivationDistance(float position, float edgeStart) const;
+
+    void updateMultiline();
 
     AABB m_worldBounds;
     TextStyle* m_textStyle = nullptr;
@@ -82,9 +98,14 @@ private:
 
     /// Whether the user is currently dragging to select text.
     bool m_isDragging = false;
+    Vec2D m_lastDragWorldPosition = Vec2D(NAN, NAN);
+
+    /// Scroll velocity for edge scrolling during drag in X.
+    float m_scrollX = 0.0f;
 
     /// Scroll velocity for edge scrolling during drag.
     float m_scrollY = 0.0f;
+    float m_layoutWidth = NAN;
 
 #ifdef WITH_RIVE_TEXT
     RawTextInput m_rawTextInput;

@@ -922,7 +922,7 @@ AABB RawTextInput::measure(float maxWidth, float maxHeight)
         m_textRun.unicharCount = (uint32_t)m_text.size();
         m_measuringShape->shape(m_text,
                                 Span<TextRun>(&m_textRun, 1),
-                                TextSizing::autoHeight,
+                                m_sizing,
                                 maxWidth,
                                 maxHeight,
                                 m_align,

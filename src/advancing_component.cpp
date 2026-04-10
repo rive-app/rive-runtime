@@ -10,6 +10,7 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
+#include "rive/text/text_input.hpp"
 
 using namespace rive;
 
@@ -29,6 +30,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<ArtboardComponentList>();
         case ScrollConstraint::typeKey:
             return component->as<ScrollConstraint>();
+        case TextInputBase::typeKey:
+            return component->as<TextInput>();
         case ScriptedDataConverter::typeKey:
             return component->as<ScriptedDataConverter>();
         case ScriptedDrawable::typeKey:

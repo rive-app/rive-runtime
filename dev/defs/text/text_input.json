@@ -36,6 +36,16 @@
       "description": "An edit time property used to track the height of the field in the inspector",
       "runtime": false,
       "coop": false
+    },
+    "multiline": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 979,
+        "string": "multiline"
+      },
+      "description": "Whether the text input is single line or multiline",
+      "bindable": true
     }
   }
 }

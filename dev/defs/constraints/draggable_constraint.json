@@ -10,11 +10,13 @@
     "directionValue": {
       "type": "uint",
       "initialValue": "1",
+      "animates": true,
       "key": {
         "int": 722,
         "string": "directionvalue"
       },
-      "description": "Direction to scroll bar horizontal|vertical|all"
+      "description": "Direction to scroll bar horizontal|vertical|all",
+      "bindable": true
     }
   }
 }

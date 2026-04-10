@@ -1,6 +1,7 @@
 #ifndef _RIVE_TEXT_INPUT_BASE_HPP_
 #define _RIVE_TEXT_INPUT_BASE_HPP_
 #include <string>
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/drawable.hpp"
@@ -37,10 +38,12 @@ public:
 
     static const uint16_t textPropertyKey = 817;
     static const uint16_t selectionRadiusPropertyKey = 818;
+    static const uint16_t multilinePropertyKey = 979;
 
 protected:
     std::string m_Text = "";
     float m_SelectionRadius = 5.0f;
+    bool m_Multiline = true;
 
 public:
     inline const std::string& text() const { return m_Text; }
@@ -65,11 +68,23 @@ public:
         selectionRadiusChanged();
     }
 
+    inline bool multiline() const { return m_Multiline; }
+    void multiline(bool value)
+    {
+        if (m_Multiline == value)
+        {
+            return;
+        }
+        m_Multiline = value;
+        multilineChanged();
+    }
+
     Core* clone() const override;
     void copy(const TextInputBase& object)
     {
         m_Text = object.m_Text;
         m_SelectionRadius = object.m_SelectionRadius;
+        m_Multiline = object.m_Multiline;
         Drawable::copy(object);
     }
 
@@ -83,6 +98,9 @@ public:
             case selectionRadiusPropertyKey:
                 m_SelectionRadius = CoreDoubleType::deserialize(reader);
                 return true;
+            case multilinePropertyKey:
+                m_Multiline = CoreBoolType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -90,6 +108,7 @@ public:
 protected:
     virtual void textChanged() {}
     virtual void selectionRadiusChanged() {}
+    virtual void multilineChanged() {}
 };
 } // namespace rive
 

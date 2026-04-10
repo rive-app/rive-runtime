@@ -236,7 +236,13 @@ void FocusData::scrollConstraintToShowBounds(ScrollConstraint* constraint,
     // Calculate horizontal scroll adjustment.
     if (constraint->constrainsHorizontal())
     {
-        if (viewportLeft < 0)
+        float elementWidth = viewportRight - viewportLeft;
+        if (elementWidth > viewportWidth)
+        {
+            // Oversized element: keep the left edge visible.
+            deltaX = -viewportLeft;
+        }
+        else if (viewportLeft < 0)
         {
             // Element is to the left of viewport, scroll right (increase
             // offset)
@@ -253,7 +259,13 @@ void FocusData::scrollConstraintToShowBounds(ScrollConstraint* constraint,
     // Calculate vertical scroll adjustment
     if (constraint->constrainsVertical())
     {
-        if (viewportTop < 0)
+        float elementHeight = viewportBottom - viewportTop;
+        if (elementHeight > viewportHeight)
+        {
+            // Oversized element: keep the top edge visible.
+            deltaY = -viewportTop;
+        }
+        else if (viewportTop < 0)
         {
             // Element is above viewport, scroll up (increase offset)
             deltaY = -viewportTop;

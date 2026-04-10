@@ -1887,6 +1887,9 @@ public:
             case TextFollowPathModifierBase::orientPropertyKey:
                 object->as<TextFollowPathModifierBase>()->orient(value);
                 break;
+            case TextInputBase::multilinePropertyKey:
+                object->as<TextInputBase>()->multiline(value);
+                break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
                 break;
@@ -3317,6 +3320,8 @@ public:
                 return object->as<TextFollowPathModifierBase>()->radial();
             case TextFollowPathModifierBase::orientPropertyKey:
                 return object->as<TextFollowPathModifierBase>()->orient();
+            case TextInputBase::multilinePropertyKey:
+                return object->as<TextInputBase>()->multiline();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
             case ScriptAssetBase::isModulePropertyKey:
@@ -4107,6 +4112,7 @@ public:
             case TextModifierRangeBase::clampPropertyKey:
             case TextFollowPathModifierBase::radialPropertyKey:
             case TextFollowPathModifierBase::orientPropertyKey:
+            case TextInputBase::multilinePropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
             case ScriptAssetBase::isModulePropertyKey:
                 return CoreBoolType::id;
@@ -4984,6 +4990,8 @@ public:
                 return object->is<TextFollowPathModifierBase>();
             case TextFollowPathModifierBase::orientPropertyKey:
                 return object->is<TextFollowPathModifierBase>();
+            case TextInputBase::multilinePropertyKey:
+                return object->is<TextInputBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();
             case ScriptAssetBase::isModulePropertyKey:

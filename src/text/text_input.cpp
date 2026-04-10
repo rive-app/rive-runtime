@@ -5,6 +5,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include <algorithm>
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
@@ -52,6 +53,8 @@ void TextInput::selectionRadiusChanged()
 #endif
 }
 
+void TextInput::multilineChanged() { updateMultiline(); }
+
 void TextInput::markPaintDirty() { addDirt(ComponentDirt::Paint); }
 
 void TextInput::markShapeDirty() { addDirt(ComponentDirt::TextShape); }
@@ -95,6 +98,7 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
             }
         }
     }
+    updateMultiline();
     return m_textStyle == nullptr ? StatusCode::MissingObject : StatusCode::Ok;
 }
 
@@ -125,14 +129,19 @@ void TextInput::update(ComponentDirt value)
                 child->invalidateStrokeEffects();
             }
         }
-        // Skip scroll adjustment during drag - edge scrolling handles it
-        if (m_scrollConstraint != nullptr && !m_isDragging)
+        // Skip scroll adjustment during drag - edge scrolling handles it.
+        if (m_scrollX == 0.0f && m_scrollY == 0.0f &&
+            m_scrollConstraint != nullptr && !m_isDragging)
         {
             CursorVisualPosition cursorPosition =
                 m_rawTextInput.cursorVisualPosition();
             float viewportWidth = m_scrollConstraint->viewportWidth();
             float viewportHeight = m_scrollConstraint->viewportHeight();
             const float cursorWidth = 1.0f;
+            bool useHorizontalScroll =
+                !multiline() && m_scrollConstraint->constrainsHorizontal();
+            bool useVerticalScroll =
+                multiline() && m_scrollConstraint->constrainsVertical();
 
             float viewportX =
                 cursorPosition.x() + m_scrollConstraint->scrollOffsetX();
@@ -141,7 +150,7 @@ void TextInput::update(ComponentDirt value)
             float viewportBottom =
                 cursorPosition.bottom() + m_scrollConstraint->scrollOffsetY();
 
-            if (viewportX < 0.0f)
+            if (useHorizontalScroll && viewportX < 0.0f)
             {
                 m_scrollConstraint->stopPhysics();
 
@@ -149,7 +158,8 @@ void TextInput::update(ComponentDirt value)
                     m_scrollConstraint->scrollOffsetX() - viewportX;
                 m_scrollConstraint->scrollOffsetX(scrollOffset);
             }
-            else if (viewportX > viewportWidth - cursorWidth)
+            else if (useHorizontalScroll &&
+                     viewportX > viewportWidth - cursorWidth)
             {
                 m_scrollConstraint->stopPhysics();
 
@@ -158,14 +168,14 @@ void TextInput::update(ComponentDirt value)
                 m_scrollConstraint->scrollOffsetX(scrollOffset);
             }
 
-            if (viewportTop < 0.0f)
+            if (useVerticalScroll && viewportTop < 0.0f)
             {
                 m_scrollConstraint->stopPhysics();
                 float scrollOffset =
                     m_scrollConstraint->scrollOffsetY() - viewportTop;
                 m_scrollConstraint->scrollOffsetY(scrollOffset);
             }
-            else if (viewportBottom > viewportHeight)
+            else if (useVerticalScroll && viewportBottom > viewportHeight)
             {
                 m_scrollConstraint->stopPhysics();
                 float scrollOffset = m_scrollConstraint->scrollOffsetY() -
@@ -201,12 +211,8 @@ void TextInput::controlSize(Vec2D size,
                             LayoutScaleType heightScaleType,
                             LayoutDirection direction)
 {
-#ifdef WITH_RIVE_TEXT
-    m_rawTextInput.maxWidth(size.x);
-    m_rawTextInput.sizing(TextSizing::autoHeight);
-
-    addDirt(ComponentDirt::TextShape);
-#endif
+    m_layoutWidth = size.x;
+    updateMultiline();
 }
 
 #ifdef WITH_RIVE_TEXT
@@ -246,16 +252,46 @@ static KeyModifiers systemModifier()
 
 #endif
 
+void TextInput::updateMultiline()
+{
+#ifdef WITH_RIVE_TEXT
+    if (multiline())
+    {
+        m_rawTextInput.maxWidth(m_layoutWidth);
+        m_rawTextInput.sizing(TextSizing::autoHeight);
+    }
+    else
+    {
+        m_rawTextInput.maxWidth(0);
+        m_rawTextInput.sizing(TextSizing::autoWidth);
+    }
+
+    if (m_scrollConstraint != nullptr)
+    {
+        if (multiline() && m_scrollConstraint->scrollOffsetX() != 0.0f)
+        {
+            m_scrollConstraint->stopPhysics();
+            m_scrollConstraint->scrollOffsetX(0.0f);
+        }
+        else if (!multiline() && m_scrollConstraint->scrollOffsetY() != 0.0f)
+        {
+            m_scrollConstraint->stopPhysics();
+            m_scrollConstraint->scrollOffsetY(0.0f);
+        }
+    }
+
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutNodeDirty();
+#endif
+    addDirt(ComponentDirt::TextShape);
+#endif
+}
+
 bool TextInput::keyInput(Key value,
                          KeyModifiers modifiers,
                          bool isPressed,
                          bool isRepeat)
 {
-    fprintf(stderr,
-            "[TextInput::keyInput] this=%p, key=%d, isPressed=%d\n",
-            (void*)this,
-            (int)value,
-            isPressed);
 #ifdef WITH_RIVE_TEXT
     if (isPressed)
     {
@@ -377,8 +413,26 @@ bool TextInput::worldBounds(AABB& outBounds)
     return true;
 }
 
-bool TextInput::worldToLocalWithViewport(Vec2D worldPosition, Vec2D& outLocal)
+float TextInput::edgeScrollSpeedForDistance(float distanceFromEdge) const
 {
+    static constexpr float kEdgeScrollBaseSpeed = 45.0f;
+    static constexpr float kEdgeScrollMaxSpeed = 400.0f;
+    static constexpr float kEdgeScrollSpeedRamp = 4.0f;
+    float speed =
+        kEdgeScrollBaseSpeed + distanceFromEdge * kEdgeScrollSpeedRamp;
+    return std::max(kEdgeScrollBaseSpeed, std::min(kEdgeScrollMaxSpeed, speed));
+}
+
+float TextInput::edgeActivationDistance(float position, float edgeStart) const
+{
+    return position >= edgeStart ? 0.0f : edgeStart - position;
+}
+
+bool TextInput::worldToLocalWithViewport(Vec2D worldPosition,
+                                         Vec2D& outLocal,
+                                         bool enableAutoScroll)
+{
+    m_scrollX = 0.0f;
     m_scrollY = 0.0f;
 
     // Get the inverse of the world transform to convert to local coordinates
@@ -391,38 +445,75 @@ bool TextInput::worldToLocalWithViewport(Vec2D worldPosition, Vec2D& outLocal)
     Vec2D localPos = inverseWorld * worldPosition;
 
     // If we have a scroll constraint, handle viewport clamping and edge
-    // detection
+    // detection.
     if (m_scrollConstraint != nullptr)
     {
+        float viewportWidth = m_scrollConstraint->viewportWidth();
         float viewportHeight = m_scrollConstraint->viewportHeight();
+        float scrollOffsetX = m_scrollConstraint->scrollOffsetX();
         float scrollOffsetY = m_scrollConstraint->scrollOffsetY();
-
-        // Convert to viewport-relative coordinates
-        float viewportY = localPos.y + scrollOffsetY;
-
-        // Edge detection for auto-scrolling
         const float edgeThreshold = 20.0f;
-        const float scrollSpeed = 30.0f;
+        bool useHorizontalScroll =
+            !multiline() && m_scrollConstraint->constrainsHorizontal();
+        bool useVerticalScroll =
+            multiline() && m_scrollConstraint->constrainsVertical();
 
-        if (viewportY < edgeThreshold)
+        if (useHorizontalScroll)
         {
-            // Near top edge - scroll up
-            m_scrollY = scrollSpeed;
-        }
-        else if (viewportY > viewportHeight - edgeThreshold)
-        {
-            // Near bottom edge - scroll down
-            m_scrollY = -scrollSpeed;
+            // Convert to viewport-relative coordinates.
+            float viewportX = localPos.x + scrollOffsetX;
+            float leftDistance =
+                edgeActivationDistance(viewportX, edgeThreshold);
+            float rightDistance =
+                edgeActivationDistance(viewportWidth - viewportX,
+                                       edgeThreshold);
+
+            // Edge detection for auto-scrolling.
+            if (enableAutoScroll && leftDistance > 0.0f)
+            {
+                m_scrollX = edgeScrollSpeedForDistance(leftDistance);
+                if (viewportX < 0.0f)
+                {
+                    localPos.x = -scrollOffsetX;
+                }
+            }
+            else if (enableAutoScroll && rightDistance > 0.0f)
+            {
+                m_scrollX = -edgeScrollSpeedForDistance(rightDistance);
+                if (viewportX > viewportWidth)
+                {
+                    localPos.x = viewportWidth - scrollOffsetX;
+                }
+            }
         }
 
-        // Clamp to viewport bounds for cursor placement
-        if (viewportY < 0.0f)
+        if (useVerticalScroll)
         {
-            localPos.y = -scrollOffsetY;
-        }
-        else if (viewportY > viewportHeight)
-        {
-            localPos.y = viewportHeight - scrollOffsetY;
+            // Convert to viewport-relative coordinates.
+            float viewportY = localPos.y + scrollOffsetY;
+            float topDistance =
+                edgeActivationDistance(viewportY, edgeThreshold);
+            float bottomDistance =
+                edgeActivationDistance(viewportHeight - viewportY,
+                                       edgeThreshold);
+
+            // Edge detection for auto-scrolling.
+            if (enableAutoScroll && topDistance > 0.0f)
+            {
+                m_scrollY = edgeScrollSpeedForDistance(topDistance);
+                if (viewportY < 0.0f)
+                {
+                    localPos.y = -scrollOffsetY;
+                }
+            }
+            else if (enableAutoScroll && bottomDistance > 0.0f)
+            {
+                m_scrollY = -edgeScrollSpeedForDistance(bottomDistance);
+                if (viewportY > viewportHeight)
+                {
+                    localPos.y = viewportHeight - scrollOffsetY;
+                }
+            }
         }
     }
 
@@ -434,9 +525,10 @@ void TextInput::startDrag(Vec2D worldPosition)
 {
 #ifdef WITH_RIVE_TEXT
     m_isDragging = true;
+    m_lastDragWorldPosition = worldPosition;
 
     Vec2D localPos;
-    if (!worldToLocalWithViewport(worldPosition, localPos))
+    if (!worldToLocalWithViewport(worldPosition, localPos, false))
     {
         return;
     }
@@ -451,8 +543,10 @@ void TextInput::startDrag(Vec2D worldPosition)
 void TextInput::drag(Vec2D worldPosition)
 {
 #ifdef WITH_RIVE_TEXT
+    m_lastDragWorldPosition = worldPosition;
+
     Vec2D localPos;
-    if (!worldToLocalWithViewport(worldPosition, localPos))
+    if (!worldToLocalWithViewport(worldPosition, localPos, true))
     {
         return;
     }
@@ -465,27 +559,74 @@ void TextInput::drag(Vec2D worldPosition)
 void TextInput::endDrag(Vec2D worldPosition)
 {
     m_isDragging = false;
+    m_lastDragWorldPosition = Vec2D(NAN, NAN);
+    m_scrollX = 0.0f;
     m_scrollY = 0.0f;
 }
 
 bool TextInput::advanceDrag(float elapsedSeconds)
 {
 #ifdef WITH_RIVE_TEXT
-    if (m_scrollY == 0.0f || m_scrollConstraint == nullptr)
+    if (!m_isDragging)
+    {
+        m_scrollX = 0.0f;
+        m_scrollY = 0.0f;
+        return false;
+    }
+
+    if ((m_scrollX == 0.0f && m_scrollY == 0.0f) ||
+        m_scrollConstraint == nullptr)
     {
         return false;
     }
 
-    // Apply the scroll delta
-    float scrollDelta = m_scrollY * elapsedSeconds;
-    float newScrollOffset = m_scrollConstraint->scrollOffsetY() + scrollDelta;
-
     m_scrollConstraint->stopPhysics();
-    m_scrollConstraint->scrollOffsetY(newScrollOffset);
+    if (m_scrollX != 0.0f)
+    {
+        float scrollDeltaX = m_scrollX * elapsedSeconds;
+        float newScrollOffsetX =
+            m_scrollConstraint->scrollOffsetX() + scrollDeltaX;
+        if (!m_scrollConstraint->infinite())
+        {
+            newScrollOffsetX = std::max(m_scrollConstraint->maxOffsetX(),
+                                        std::min(0.0f, newScrollOffsetX));
+        }
+        m_scrollConstraint->scrollOffsetX(newScrollOffsetX);
+    }
+    if (m_scrollY != 0.0f)
+    {
+        float scrollDeltaY = m_scrollY * elapsedSeconds;
+        float newScrollOffsetY =
+            m_scrollConstraint->scrollOffsetY() + scrollDeltaY;
+        if (!m_scrollConstraint->infinite())
+        {
+            newScrollOffsetY = std::max(m_scrollConstraint->maxOffsetY(),
+                                        std::min(0.0f, newScrollOffsetY));
+        }
+        m_scrollConstraint->scrollOffsetY(newScrollOffsetY);
+    }
+
+    // Keep selection/caret in sync while edge-scrolling even if pointer isn't
+    // moving.
+    if (std::isfinite(m_lastDragWorldPosition.x) &&
+        std::isfinite(m_lastDragWorldPosition.y))
+    {
+        Vec2D localPos;
+        if (worldToLocalWithViewport(m_lastDragWorldPosition, localPos, true))
+        {
+            m_rawTextInput.moveCursorTo(localPos, true);
+            markPaintDirty();
+        }
+    }
 
     // Continue scrolling while still dragging
     return m_isDragging;
 #else
     return false;
 #endif
+}
+
+bool TextInput::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
+{
+    return advanceDrag(elapsedSeconds);
 }
