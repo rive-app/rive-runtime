@@ -5,7 +5,6 @@ on:
 
 jobs:
   build-linux:
-    if: false # Temporarily disable Linux tests until we can fix the build issues
     runs-on: ubuntu-latest
 
     strategy:
@@ -21,11 +20,8 @@ jobs:
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
-      - name: Build
-        run: |
-          ./build.sh clean
-          ./build.sh
-          ./build.sh release
+      - name: Install C++ dependencies
+        run: sudo apt update && sudo apt-get -y install build-essential clang libclang-rt-dev g++ llvm-dev uuid-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev freeglut3-dev zlib1g-dev
 
       - name: Tests
         run: |
