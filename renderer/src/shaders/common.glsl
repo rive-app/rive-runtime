@@ -215,11 +215,32 @@ INLINE half3 unmultiply_rgb(half4 premul)
     return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
 }
 
-INLINE half min_value(half4 min4)
+INLINE half min_component(half2 min2) { return min(min2.x, min2.y); }
+
+INLINE half min_component(half3 min3)
+{
+    return min(min_component(min3.xy), min3.z);
+}
+
+INLINE half min_component(half4 min4)
 {
     half2 min2 = min(min4.xy, min4.zw);
     half min1 = min(min2.x, min2.y);
     return min1;
+}
+
+INLINE half max_component(half2 max2) { return max(max2.x, max2.y); }
+
+INLINE half max_component(half3 max3)
+{
+    return max(max_component(max3.xy), max3.z);
+}
+
+INLINE half max_component(half4 max4)
+{
+    half2 max2 = max(max4.xy, max4.zw);
+    half max1 = max(max2.x, max2.y);
+    return max1;
 }
 
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
@@ -290,7 +311,7 @@ INLINE half interleaved_gradient_noise(float2 fragCoord, half scale, half bias)
 }
 
 #if 0
-// Bayer 4x4 and Bayer 2x2 variants included for reference, 
+// Bayer 4x4 and Bayer 2x2 variants included for reference,
 // but not currently used.
 INLINE half bayer4x4f(float2 fragCoord, float scale, float bias)
 {

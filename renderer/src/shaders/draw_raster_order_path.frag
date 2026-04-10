@@ -150,7 +150,8 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_CLIP_RECT
         if (@ENABLE_CLIP_RECT)
         {
-            half clipRectCoverage = min_value(cast_float4_to_half4(v_clipRect));
+            half clipRectCoverage =
+                min_component(cast_float4_to_half4(v_clipRect));
             coverage = clamp(clipRectCoverage, make_half(.0), coverage);
         }
 #endif // ENABLE_CLIP_RECT

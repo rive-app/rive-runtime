@@ -79,6 +79,10 @@ layout(
 
 #ifdef @ENABLE_ADVANCED_BLEND
 #ifdef @ENABLE_HSL_BLEND_MODES
+// Note: the following routines are mathematically equivalent to those in
+// https://registry.khronos.org/OpenGL/extensions/KHR/KHR_blend_equation_advanced.txt
+// but have been rearranged to be more efficient.
+
 // When using one of the HSL blend equations in table X.2 as the blend equation,
 // the blend coefficients are effectively obtained by converting both the
 // non-premultiplied source and destination colors to the HSL (hue, saturation,
@@ -87,58 +91,63 @@ layout(
 // and then converting the result back to RGB. The HSL blend equations are only
 // well defined when the values of the input color components are in the range
 // [0..1].
-half minv3(half3 c) { return min(min(c.r, c.g), c.b); }
-half maxv3(half3 c) { return max(max(c.r, c.g), c.b); }
-half lumv3(half3 c) { return dot(c, make_half3(.30, .59, .11)); }
-half satv3(half3 c) { return maxv3(c) - minv3(c); }
+half lum_from_rgb(half3 c) { return dot(c, make_half3(.30, .59, .11)); }
 
-// If any color components are outside [0,1], adjust the color to get the
-// components in range.
-half3 clip_color(half3 color)
+// Take the base RGB color and override its luminosity with that of another
+// RGB color (lumColor).
+half3 set_lum(half3 baseColor, half3 lumColor)
 {
-    half lum = lumv3(color);
-    half mincol = minv3(color);
-    half maxcol = maxv3(color);
-    if (mincol < .0)
-        color = lum + ((color - lum) * lum) / (lum - mincol);
-    if (maxcol > 1.)
-        color = lum + ((color - lum) * (1. - lum)) / (maxcol - lum);
-    return color;
+    half lumTarget = lum_from_rgb(lumColor);
+
+    // Bias the color such that its original luminance is now the 0 point.
+    half3 biased = baseColor - lum_from_rgb(baseColor);
+
+    // Now we potentially need to rescale the color to get it to fit within
+    // 0..1. Effectively to keep the relative luminance, we may need to squish
+    // the rgb range so it still fits.
+
+    //  Calculate the scale values necessary to push the min or max component
+    //  back into range. One is for if the luminance pushes the rgb values
+    //  negative (pushing min component back into range), the other for if they
+    //  go above 1.0 (pushing max component).
+    half2 scales =
+        make_half2(lumTarget, 1.0 - lumTarget) /
+        max(make_half2(EPSILON_FP16_NON_DENORM),
+            make_half2(-min_component(biased), max_component(biased)));
+
+    // Take the minimum scale of the above (but nothing larger than 1, since we
+    // only ever want to scale *down* the range)
+    half satScale = min(make_half(1.0), min(scales.x, scales.y));
+
+    // Now we can apply the scale to get the rgb range right, then re-bias it
+    // back into the correct place (at the new luminance)
+    return biased * satScale + lumTarget;
 }
 
-// Take the base RGB color <cbase> and override its luminosity with that of the
-// RGB color <clum>.
-half3 set_lum(half3 cbase, half3 clum)
+// Take the hue from hueColor, the saturation from satColor, and the luminance
+// from lumColor and combine them into one resulting color.
+half3 set_lum_sat(half3 hueColor, half3 satColor, half3 lumColor)
 {
-    half lbase = lumv3(cbase);
-    half llum = lumv3(clum);
-    half ldiff = llum - lbase;
-    half3 color = cbase + make_half3(ldiff);
-    return clip_color(color);
-}
+    // The saturation of a color is the difference between its max and min
+    // components.
+    float satTarget = max_component(satColor) - min_component(satColor);
 
-// Take the base RGB color <cbase> and override its saturation with that of the
-// RGB color <csat>. The override the luminosity of the result with that of the
-// RGB color <clum>.
-half3 set_lum_sat(half3 cbase, half3 csat, half3 clum)
-{
-    half minbase = minv3(cbase);
-    half sbase = satv3(cbase);
-    half ssat = satv3(csat);
-    half3 color;
-    if (sbase > .0)
-    {
-        // Equivalent (modulo rounding errors) to setting the smallest (R,G,B)
-        // component to 0, the largest to <ssat>, and interpolating the "middle"
-        // component based on its original value relative to the
-        // smallest/largest.
-        color = (cbase - minbase) * ssat / sbase;
-    }
-    else
-    {
-        color = make_half3(.0);
-    }
-    return set_lum(color, clum);
+    // Bias the hue color so its min component is 0 (this is not *strictly*
+    // required but it simplifies the saturation calculation and matches the
+    // canonical math).
+    hueColor -= min_component(hueColor);
+
+    // Because of that bias, the minimum component is now 0, so the saturation
+    // is just the max component.
+    float satSource = max_component(hueColor);
+
+    // Rescale hueColor to have the new saturation. If satSource == 0, then
+    // hueColor == {0, 0, 0}, so do a max on the denominator to avoid a divide
+    // by 0.
+    float scale = satTarget / max(EPSILON_FP16_NON_DENORM, satSource);
+
+    // Now apply the luminance from lumColor to the rescaled color.
+    return set_lum(hueColor * scale, lumColor);
 }
 #endif // ENABLE_HSL_BLEND_MODES
 

@@ -60,7 +60,7 @@ PLS_MAIN(@drawFragmentMain)
         // Calculate the clip rect before entering the interlock.
         if (@ENABLE_CLIP_RECT)
         {
-            half clipRectMin = min_value(cast_float4_to_half4(v_clipRect));
+            half clipRectMin = min_component(cast_float4_to_half4(v_clipRect));
             maxCoverage = min(clipRectMin, maxCoverage);
         }
 #endif

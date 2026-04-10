@@ -43,6 +43,7 @@ inline half3 make_half3(half x, half y, half z) { return {x, y, z}; }
 inline half3 make_half3(half x) { return {x, x, x}; }
 inline half2 make_half2(half x, half y) { return {x, y}; }
 inline half2 make_half2(half x) { return {x, x}; }
+inline half make_half(float x) { return x; }
 
 using half2x3 = std::array<half3, 2>;
 inline half2x3 make_half2x3(half3 c0, half3 c1) { return {c0, c1}; }

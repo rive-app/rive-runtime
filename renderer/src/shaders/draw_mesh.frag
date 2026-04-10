@@ -99,7 +99,7 @@ PLS_MAIN(@drawFragmentMain)
     if (@ENABLE_CLIP_RECT)
     {
         half clipRectCoverage =
-            max(min_value(cast_float4_to_half4(v_clipRect)), make_half(.0));
+            max(min_component(cast_float4_to_half4(v_clipRect)), make_half(.0));
         coverage = min(clipRectCoverage, coverage);
     }
 #endif
