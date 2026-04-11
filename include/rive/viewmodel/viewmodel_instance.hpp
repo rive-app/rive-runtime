@@ -43,7 +43,7 @@ public:
                                 rcp<ViewModelInstance> value);
     bool replaceViewModelByProperty(ViewModelInstanceViewModel*,
                                     rcp<ViewModelInstance> value);
-    std::vector<rcp<ViewModelInstanceValue>> propertyValues();
+    const std::vector<rcp<ViewModelInstanceValue>>& propertyValues();
     ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
                                              size_t index);
     ViewModelInstanceValue* symbol(int coreType);

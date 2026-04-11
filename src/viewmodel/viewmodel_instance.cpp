@@ -186,7 +186,8 @@ void ViewModelInstance::setRoot(rcp<ViewModelInstance> value)
     }
 }
 
-std::vector<rcp<ViewModelInstanceValue>> ViewModelInstance::propertyValues()
+const std::vector<rcp<ViewModelInstanceValue>>& ViewModelInstance::
+    propertyValues()
 {
     return m_PropertyValues;
 }
