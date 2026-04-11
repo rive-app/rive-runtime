@@ -228,11 +228,11 @@ TEST_CASE("Setting a bindable artboard clears stale bound instance",
 
     runtimeArtboard->value(sourceA);
     runtimeArtboard->viewModelInstance(vmi);
-    REQUIRE(vmiArtboard->viewModelInstance() != nullptr);
+    REQUIRE(vmiArtboard->boundViewModelInstance() != nullptr);
 
     // Runtime assignment should clear any previously bound VMI.
     runtimeArtboard->value(sourceB);
-    CHECK(vmiArtboard->viewModelInstance() == nullptr);
+    CHECK(vmiArtboard->boundViewModelInstance() == nullptr);
 }
 
 TEST_CASE("Test default data binding artboard from different source",
@@ -390,4 +390,53 @@ TEST_CASE("Data bind external artboard with no initial source artboard",
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("databind_external_artboard_main"));
+}
+
+TEST_CASE("Data bound artboard with view model instance resets its properties",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/bindable_artboard_nesty.riv", &silver);
+    auto file2 = ReadRiveFile("assets/bindable_artboard_child.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+    auto artboardProp =
+        vmi->propertyValue("someArtboard")->as<ViewModelInstanceArtboard>();
+    auto insertedArtboard = file2->bindableArtboardNamed("Artboard");
+    auto viewModelRenamed = file2->viewModel("ViewModelRenamed");
+    auto viewModelRenamedInstance = viewModelRenamed->createInstance();
+    artboardProp->asset(insertedArtboard);
+    artboardProp->boundViewModelInstance(viewModelRenamedInstance);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250, 250));
+    stateMachine->pointerUp(rive::Vec2D(250, 250));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(0.5f / 0.1f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+    }
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(250, 250));
+    stateMachine->pointerUp(rive::Vec2D(250, 250));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("bindable_artboard_nesty"));
 }

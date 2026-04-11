@@ -12,7 +12,7 @@ void ViewModelInstanceArtboardRuntime::value(
     // Runtime rebinding should clear any previously bound instance so switching
     // to a new artboard without a VMI will not accidentally keep using stale
     // data.
-    artboardValue->viewModelInstance(nullptr);
+    artboardValue->boundViewModelInstance(nullptr);
     artboardValue->asset(bindableArtboard);
 }
 
@@ -20,7 +20,7 @@ void ViewModelInstanceArtboardRuntime::viewModelInstance(
     rcp<ViewModelInstance> viewModelInstance)
 {
     m_viewModelInstanceValue->as<ViewModelInstanceArtboard>()
-        ->viewModelInstance(viewModelInstance);
+        ->boundViewModelInstance(viewModelInstance);
 }
 
 #ifdef TESTING

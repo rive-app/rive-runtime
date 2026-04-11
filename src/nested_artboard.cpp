@@ -128,10 +128,10 @@ void NestedArtboard::updateArtboard(
                 nestedStateMachine)); // take ownership
         }
         referencedArtboard(artboardInstance.release());
-        if (viewModelInstanceArtboard->viewModelInstance())
+        if (viewModelInstanceArtboard->boundViewModelInstance())
         {
             bindViewModelInstance(
-                viewModelInstanceArtboard->viewModelInstance(),
+                viewModelInstanceArtboard->boundViewModelInstance(),
                 m_dataContext);
         }
         else if (m_dataContext != nullptr && m_viewModelInstance == nullptr)

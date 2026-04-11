@@ -33,7 +33,18 @@ void ViewModelInstanceArtboard::applyValue(DataValueInteger* dataValue)
     propertyValue(dataValue->value());
 }
 
-void ViewModelInstanceArtboard::viewModelInstance(rcp<ViewModelInstance> value)
+void ViewModelInstanceArtboard::boundViewModelInstance(
+    rcp<ViewModelInstance> value)
 {
-    m_viewModelInstance = value;
+    m_boundViewModelInstance = value;
+}
+
+void ViewModelInstanceArtboard::advanced()
+{
+    if (m_boundViewModelInstance != nullptr)
+    {
+        m_boundViewModelInstance->advanced();
+    }
+
+    ViewModelInstanceValue::advanced();
 }

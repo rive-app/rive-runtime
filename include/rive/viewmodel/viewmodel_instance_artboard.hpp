@@ -18,14 +18,18 @@ protected:
 
 public:
     void asset(rcp<BindableArtboard> value);
-    void viewModelInstance(rcp<ViewModelInstance> value);
+    void boundViewModelInstance(rcp<ViewModelInstance> value);
     rcp<BindableArtboard> asset() { return m_bindableArtboard; }
     void applyValue(DataValueInteger*);
-    rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
+    rcp<ViewModelInstance> boundViewModelInstance()
+    {
+        return m_boundViewModelInstance;
+    }
+    void advanced() override;
 
 private:
     rcp<BindableArtboard> m_bindableArtboard = nullptr;
-    rcp<ViewModelInstance> m_viewModelInstance = nullptr;
+    rcp<ViewModelInstance> m_boundViewModelInstance = nullptr;
 #ifdef WITH_RIVE_TOOLS
 public:
     void onChanged(ViewModelArtboardChanged callback)
