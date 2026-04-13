@@ -290,6 +290,37 @@ void VulkanFrameSynchronizer::queueImageCopy(
 VkResult VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
     std::vector<uint8_t>* outPixels)
 {
+    MappedPixelRead read;
+    VK_RETURN_RESULT_ON_ERROR(waitForPixelRead(&read));
+
+    outPixels->resize(read.width * read.height * 4);
+    assert(m_pixelReadBuffer->info().size >= outPixels->size());
+
+    for (auto y = 0u; y < read.height; y++)
+    {
+        // Copy the given row (the destination is flipped vertically vs the
+        // source so read the source the other way around)
+        auto src = read.data + read.strideBytes * (read.height - 1 - y);
+        uint8_t* dst = &outPixels->at(y * read.strideBytes);
+        memcpy(dst, src, read.strideBytes);
+
+        if (read.format == VK_FORMAT_B8G8R8A8_UNORM)
+        {
+            // Need to swap BGRA -> RGBA
+            for (auto x = 0u; x < read.strideBytes; x += 4)
+            {
+                std::swap(dst[x], dst[x + 2]);
+            }
+        }
+    }
+
+    finishPixelRead();
+    return VK_SUCCESS;
+}
+
+VkResult VulkanFrameSynchronizer::waitForPixelRead(MappedPixelRead* outRead)
+{
+    assert(outRead != nullptr);
     assert(m_pixelReadState != PixelReadState::None &&
            "Pixels from image copy requested without one submitted");
     assert(m_pixelReadState != PixelReadState::Queued &&
@@ -305,30 +336,22 @@ VkResult VulkanFrameSynchronizer::getPixelsFromLastImageCopy(
     // Make the texture data available to the CPU
     m_pixelReadBuffer->invalidateContents();
 
-    outPixels->resize(m_pixelReadWidth * m_pixelReadHeight * 4);
-    assert(m_pixelReadBuffer->info().size >= outPixels->size());
+    outRead->data = static_cast<const uint8_t*>(m_pixelReadBuffer->contents());
+    outRead->width = m_pixelReadWidth;
+    outRead->height = m_pixelReadHeight;
+    outRead->strideBytes = m_pixelReadWidth * 4;
+    outRead->format = m_pixelReadFormat;
 
-    for (auto y = 0u; y < m_pixelReadHeight; y++)
-    {
-        // Copy the given row (the destination is flipped vertically vs the
-        // source so read the source the other way around)
-        auto src = static_cast<const uint8_t*>(m_pixelReadBuffer->contents()) +
-                   m_pixelReadWidth * 4 * (m_pixelReadHeight - 1 - y);
-        uint8_t* dst = &outPixels->at(y * m_pixelReadWidth * 4);
-        memcpy(dst, src, m_pixelReadWidth * 4);
-
-        if (m_pixelReadFormat == VK_FORMAT_B8G8R8A8_UNORM)
-        {
-            // Need to swap BGRA -> RGBA
-            for (auto x = 0u; x < m_pixelReadWidth * 4; x += 4)
-            {
-                std::swap(dst[x], dst[x + 2]);
-            }
-        }
-    }
-
-    m_pixelReadState = PixelReadState::None;
     return VK_SUCCESS;
+}
+
+void VulkanFrameSynchronizer::finishPixelRead()
+{
+    assert(m_pixelReadState != PixelReadState::None &&
+           "Pixels from image copy requested without one submitted");
+    assert(m_pixelReadState != PixelReadState::Queued &&
+           "Pixels from image copy requested before endFrame was called");
+    m_pixelReadState = PixelReadState::None;
 }
 
 VkResult VulkanFrameSynchronizer::createSemaphore(VkSemaphore* outSemaphore)

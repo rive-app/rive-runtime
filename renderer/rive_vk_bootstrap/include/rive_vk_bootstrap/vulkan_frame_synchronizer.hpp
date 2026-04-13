@@ -39,6 +39,22 @@ public:
     [[nodiscard]] VkResult getPixelsFromLastImageCopy(
         std::vector<uint8_t>* outPixels);
 
+    // Zero-copy pixel readback: waits for the GPU fence and returns a pointer
+    // directly into the mapped Vulkan buffer. The pointer is valid until the
+    // next call to submitRender / beginFrame that reuses the same in-flight
+    // slot. Caller must call finishPixelRead() when done.
+    struct MappedPixelRead
+    {
+        const uint8_t* data;
+        uint32_t width;
+        uint32_t height;
+        uint32_t strideBytes;
+        VkFormat format;
+    };
+
+    [[nodiscard]] VkResult waitForPixelRead(MappedPixelRead* outRead);
+    void finishPixelRead();
+
 protected:
     struct Options
     {
