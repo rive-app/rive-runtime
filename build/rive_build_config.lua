@@ -537,6 +537,19 @@ if _OPTIONS['for_android'] then
         '-no-canonical-prefixes',
     })
 
+    -- Avoid native ELF TLS on 32-bit ARM. Android's linker on API < 29 cannot
+    -- resolve R_ARM_TLS_DTPMOD32 relocations (type 17), causing dlopen to fail
+    -- with "unknown reloc type 17" on armeabi-v7a devices running Android 7-9.
+    -- 1. -femulated-tls: converts C++ thread_local to emulated TLS calls.
+    -- 2. -DTLS=: overrides libhydrogen's __thread macro so hydro_random_context
+    --    becomes a plain static (safe: Rive scripting is single-threaded).
+    filter('options:arch=arm')
+    do
+        buildoptions({ '-femulated-tls' })
+        defines({ 'TLS=' })
+    end
+    filter({})
+
     linkoptions({
         '--sysroot=' .. ndk_toolchain .. '/sysroot',
         '-fdata-sections',
