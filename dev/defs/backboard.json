@@ -523,6 +523,7 @@
         "string": "databinddesignactive"
       },
       "description": "If enabled, data bind will be applied.",
+      "journal": false,
       "runtime": false,
       "coop": false
     },
