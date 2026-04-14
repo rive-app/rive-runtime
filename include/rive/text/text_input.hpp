@@ -90,9 +90,14 @@ private:
     float edgeScrollSpeedForDistance(float distanceFromEdge) const;
     float edgeActivationDistance(float position, float edgeStart) const;
 
-    void updateMultiline();
+    void updateMultiline(bool syncDisplayedText = false);
+    static std::string strippedLineBreaks(const std::string& text);
+    std::string displayedText() const;
+    void syncDisplayedTextFromSource(bool preserveCursor);
+    void syncSourceTextFromRaw();
 
     AABB m_worldBounds;
+    std::string m_sourceText;
     TextStyle* m_textStyle = nullptr;
     ScrollConstraint* m_scrollConstraint = nullptr;
 

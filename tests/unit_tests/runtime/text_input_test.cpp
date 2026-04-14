@@ -279,6 +279,52 @@ TEST_CASE("text input textInput method inserts text", "[text_input]")
     CHECK(textInput->rawTextInput()->text() == "hello world");
 }
 
+TEST_CASE("text input multiline toggles line breaks in displayed text",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->text("line1\nline2");
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->text() == "line1\nline2");
+
+    textInput->multiline(false);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->text() == "line1 line2");
+
+    textInput->multiline(true);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->text() == "line1\nline2");
+}
+
+TEST_CASE("text input strips inserted line breaks when single line",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->text("");
+    textInput->multiline(false);
+    artboard->advance(0.0f);
+
+    bool handled = textInput->textInput("a\nb\r\nc\rd");
+    CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->text() == "a b c d");
+
+    textInput->multiline(true);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->text() == "a b c d");
+}
+
 TEST_CASE("text input selectionRadiusChanged updates raw text input",
           "[text_input]")
 {

@@ -815,6 +815,21 @@ void RawTextInput::text(std::string value)
     captureJournalEntry(startingCursor);
 }
 
+void RawTextInput::textPreserveCursor(std::string value)
+{
+    Cursor startingCursor = m_cursor;
+    m_idealCursorX = -1.0f;
+    setTextPrivate(value);
+    uint32_t maxIndex = static_cast<uint32_t>(length());
+    CursorPosition start(
+        std::min(startingCursor.start().codePointIndex(), maxIndex));
+    CursorPosition end(
+        std::min(startingCursor.end().codePointIndex(), maxIndex));
+    m_cursor = Cursor(start, end);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+    captureJournalEntry(startingCursor);
+}
+
 size_t RawTextInput::length() const
 {
     if (empty())

@@ -113,6 +113,7 @@ public:
 
     std::string text() const;
     void text(std::string value);
+    void textPreserveCursor(std::string value);
     // Length of the input text.
     size_t length() const;
 

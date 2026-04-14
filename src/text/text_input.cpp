@@ -42,9 +42,11 @@ bool TextInput::hitTestPoint(const Vec2D& position,
 
 void TextInput::textChanged()
 {
+    m_sourceText = m_Text;
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.text(m_Text);
+    syncDisplayedTextFromSource(false);
 #endif
+    markShapeDirty();
 }
 void TextInput::selectionRadiusChanged()
 {
@@ -53,7 +55,7 @@ void TextInput::selectionRadiusChanged()
 #endif
 }
 
-void TextInput::multilineChanged() { updateMultiline(); }
+void TextInput::multilineChanged() { updateMultiline(true); }
 
 void TextInput::markPaintDirty() { addDirt(ComponentDirt::Paint); }
 
@@ -73,13 +75,14 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
     Super::onAddedClean(context);
 
     m_textStyle = children<TextStyle>().first();
+    m_sourceText = m_Text;
 
 #ifdef WITH_RIVE_TEXT
     if (m_textStyle != nullptr && m_textStyle->font() != nullptr)
     {
         m_rawTextInput.font(m_textStyle->font());
     }
-    m_rawTextInput.text(m_Text);
+    syncDisplayedTextFromSource(false);
 #endif
 
     if (parent() != nullptr)
@@ -215,6 +218,71 @@ void TextInput::controlSize(Vec2D size,
     updateMultiline();
 }
 
+std::string TextInput::strippedLineBreaks(const std::string& text)
+{
+    std::string stripped;
+    stripped.reserve(text.size());
+    bool inLineBreak = false;
+    for (char c : text)
+    {
+        if (c == '\n' || c == '\r')
+        {
+            if (!inLineBreak)
+            {
+                stripped.push_back(' ');
+                inLineBreak = true;
+            }
+        }
+        else
+        {
+            stripped.push_back(c);
+            inLineBreak = false;
+        }
+    }
+    return stripped;
+}
+
+std::string TextInput::displayedText() const
+{
+    return multiline() ? m_sourceText : strippedLineBreaks(m_sourceText);
+}
+
+void TextInput::syncDisplayedTextFromSource(bool preserveCursor)
+{
+#ifdef WITH_RIVE_TEXT
+    std::string nextDisplayText = displayedText();
+    if (m_rawTextInput.text() == nextDisplayText)
+    {
+        return;
+    }
+    if (preserveCursor)
+    {
+        m_rawTextInput.textPreserveCursor(nextDisplayText);
+    }
+    else
+    {
+        m_rawTextInput.text(nextDisplayText);
+    }
+#endif
+}
+
+void TextInput::syncSourceTextFromRaw()
+{
+#ifdef WITH_RIVE_TEXT
+    std::string rawText = m_rawTextInput.text();
+    if (!multiline())
+    {
+        std::string singleLineText = strippedLineBreaks(rawText);
+        if (singleLineText != rawText)
+        {
+            m_rawTextInput.textPreserveCursor(singleLineText);
+            rawText = std::move(singleLineText);
+        }
+    }
+    m_sourceText = std::move(rawText);
+#endif
+}
+
 #ifdef WITH_RIVE_TEXT
 static CursorBoundary cursorBoundary(KeyModifiers modifiers)
 {
@@ -252,7 +320,7 @@ static KeyModifiers systemModifier()
 
 #endif
 
-void TextInput::updateMultiline()
+void TextInput::updateMultiline(bool syncDisplayedText)
 {
 #ifdef WITH_RIVE_TEXT
     if (multiline())
@@ -280,6 +348,11 @@ void TextInput::updateMultiline()
         }
     }
 
+    if (syncDisplayedText)
+    {
+        syncDisplayedTextFromSource(true);
+    }
+
 #ifdef WITH_RIVE_LAYOUT
     markLayoutNodeDirty();
 #endif
@@ -303,22 +376,26 @@ bool TextInput::keyInput(Key value,
                     (systemModifier() | KeyModifiers::shift))
                 {
                     m_rawTextInput.redo();
+                    syncSourceTextFromRaw();
                     markShapeDirty();
                     return true;
                 }
                 else if ((modifiers & systemModifier()) != KeyModifiers::none)
                 {
                     m_rawTextInput.undo();
+                    syncSourceTextFromRaw();
                     markShapeDirty();
                     return true;
                 }
                 break;
             case Key::backspace:
                 m_rawTextInput.backspace(-1);
+                syncSourceTextFromRaw();
                 markShapeDirty();
                 return true;
             case Key::deleteKey:
                 m_rawTextInput.backspace(1);
+                syncSourceTextFromRaw();
                 markShapeDirty();
                 return true;
             case Key::left:
@@ -354,7 +431,13 @@ bool TextInput::keyInput(Key value,
 bool TextInput::textInput(const std::string& text)
 {
 #ifdef WITH_RIVE_TEXT
-    m_rawTextInput.insert(text);
+    std::string textToInsert = multiline() ? text : strippedLineBreaks(text);
+    if (textToInsert.empty())
+    {
+        return true;
+    }
+    m_rawTextInput.insert(textToInsert);
+    syncSourceTextFromRaw();
     markShapeDirty();
 #endif
     return true;
