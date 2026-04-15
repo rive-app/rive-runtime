@@ -221,6 +221,8 @@ static wgpu::ShaderModule compile_shader_module_spirv(wgpu::Device device,
 
 #include "generated/shaders/glsl.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
+#include "generated/shaders/image_draw_uniforms.glsl.hpp"
+#include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
@@ -449,6 +451,7 @@ public:
             glsl << "#define " << GLSL_POST_INVERT_Y << " true\n";
             glsl << glsl::glsl << "\n";
             glsl << glsl::constants << "\n";
+            glsl << glsl::flush_uniforms << '\n';
             glsl << glsl::common << "\n";
             glsl << glsl::color_ramp << "\n";
 
@@ -592,6 +595,7 @@ public:
             glsl << "#define " << GLSL_POST_INVERT_Y << " true\n";
             glsl << glsl::glsl << "\n";
             glsl << glsl::constants << "\n";
+            glsl << glsl::flush_uniforms << "\n";
             glsl << glsl::common << "\n";
             glsl << glsl::bezier_utils << "\n";
             glsl << glsl::tessellate << "\n";
@@ -757,6 +761,7 @@ public:
             }
             glsl << glsl::glsl << '\n';
             glsl << glsl::constants << '\n';
+            glsl << glsl::flush_uniforms << '\n';
             glsl << glsl::common << '\n';
             glsl << glsl::draw_path_common << '\n';
             glsl << glsl::render_atlas << '\n';
@@ -1022,6 +1027,7 @@ public:
             }
             glsl << gpu::glsl::glsl << '\n';
             glsl << gpu::glsl::constants << '\n';
+            glsl << glsl::flush_uniforms << '\n';
             glsl << gpu::glsl::common << '\n';
             if (enums::is_flag_set(shaderFeatures,
                                    ShaderFeatures::ENABLE_ADVANCED_BLEND))
@@ -1063,6 +1069,7 @@ public:
                     glsl << gpu::glsl::draw_mesh_frag << '\n';
                     break;
                 case DrawType::imageMesh:
+                    glsl << gpu::glsl::image_draw_uniforms << '\n';
                     glsl << gpu::glsl::draw_image_mesh_vert << '\n';
                     glsl << gpu::glsl::draw_mesh_frag << '\n';
                     break;

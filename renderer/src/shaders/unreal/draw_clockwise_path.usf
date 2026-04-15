@@ -6,6 +6,9 @@
 #include "/Engine/Public/Platform.ush"
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
 #include "/Engine/Private/Common.ush"
+#else
+#include "flush_uniforms.minified.ush"
+#include "image_draw_uniforms.minified.ush"
 #endif
 
 #include "glsl.minified.glsl"

@@ -4,5 +4,6 @@
 #define USE_FILTERING
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
+#include "flush_uniforms.minified.glsl"
 #include "common.minified.glsl"
 #include "blit_texture_as_draw.minified.glsl"

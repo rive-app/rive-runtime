@@ -3,11 +3,15 @@
 #define ENABLE_FEATHER
 #define ATLAS_FEATHERED_STROKE
 
+#include "Generated/rhi.minified.ush"
+
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
 #include "/Engine/Private/Common.ush"
+#else
+#include "flush_uniforms.minified.ush"
+#include "image_draw_uniforms.minified.ush"
 #endif
 
-#include "Generated/rhi.minified.ush"
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/draw_path_common.minified.ush"

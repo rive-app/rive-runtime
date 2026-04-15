@@ -6,6 +6,10 @@
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"
+#include "flush_uniforms.minified.glsl"
+#ifdef DRAW_IMAGE
+#include "image_draw_uniforms.minified.glsl"
+#endif
 #include "common.minified.glsl"
 #include "advanced_blend.minified.glsl"
 #include "draw_path_common.minified.glsl"

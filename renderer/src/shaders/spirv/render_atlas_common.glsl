@@ -5,6 +5,7 @@
 #define ENABLE_FEATHER true
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
+#include "flush_uniforms.minified.glsl"
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "render_atlas.minified.glsl"

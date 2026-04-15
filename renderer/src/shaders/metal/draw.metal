@@ -9,6 +9,9 @@
 #include "metal.minified.glsl"
 #include "constants.minified.glsl"
 #define DRAW_IMAGE
+
+#include "flush_uniforms.minified.glsl"
+#include "image_draw_uniforms.minified.glsl"
 #include "common.minified.glsl"
 #undef DRAW_IMAGE
 #define DRAW_PATH

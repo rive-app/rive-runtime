@@ -3,17 +3,20 @@
 #define DRAW_IMAGE_MESH 1
 #define RENDER_MODE_MSAA 1
 
-#include "/Engine/Public/Platform.ush"
-#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
-#include "/Engine/Private/Common.ush"
-#endif
-
 #if ENABLE_CLIP_RECT
 #define NEEDS_CLIP_DISTANCE 1
 #endif
 
 #include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"
+
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Private/Common.ush"
+#else
+#include "flush_uniforms.minified.ush"
+#include "image_draw_uniforms.minified.ush"
+#endif
+
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"

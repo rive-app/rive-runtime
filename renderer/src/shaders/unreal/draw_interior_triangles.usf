@@ -2,13 +2,16 @@
 #define OPTIONALLY_FLAT flat
 #define DRAW_INTERIOR_TRIANGLES
 
-#include "/Engine/Public/Platform.ush"
-#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
-#include "/Engine/Private/Common.ush"
-#endif
-
 #include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"
+
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Private/Common.ush"
+#else
+#include "flush_uniforms.minified.ush"
+#include "image_draw_uniforms.minified.ush"
+#endif
+
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/draw_path_common.minified.ush"

@@ -16,6 +16,8 @@
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
+#include "generated/shaders/image_draw_uniforms.glsl.hpp"
+#include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
@@ -206,6 +208,7 @@ RenderContextGLImpl::RenderContextGLImpl(
     }
 
     const char* colorRampSources[] = {glsl::constants,
+                                      glsl::flush_uniforms,
                                       glsl::common,
                                       glsl::color_ramp};
     m_colorRampProgram.compileAndAttachShader(GL_VERTEX_SHADER,
@@ -264,6 +267,7 @@ RenderContextGLImpl::RenderContextGLImpl(
                                         featherTextureFilter);
 
     const char* tessellateSources[] = {glsl::constants,
+                                       glsl::flush_uniforms,
                                        glsl::common,
                                        glsl::bezier_utils,
                                        glsl::tessellate};
@@ -472,6 +476,7 @@ void RenderContextGLImpl::buildAtlasRenderPipelines()
     }
 
     const char* atlasSources[] = {glsl::constants,
+                                  glsl::flush_uniforms,
                                   glsl::common,
                                   glsl::draw_path_common,
                                   glsl::render_atlas};
@@ -536,6 +541,7 @@ void RenderContextGLImpl::buildAtlasRenderPipelines()
         }
 
         const char* atlasResolveSources[] = {glsl::constants,
+                                             glsl::flush_uniforms,
                                              glsl::common,
                                              glsl::resolve_atlas};
         m_atlasResolveProgram = glutils::Program();
@@ -1334,6 +1340,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
         sources.push_back("#define " GLSL_OPTIONALLY_FLAT " flat\n");
     }
     sources.push_back(glsl::constants);
+    sources.push_back(glsl::flush_uniforms);
     sources.push_back(glsl::common);
     if (shaderType == GL_FRAGMENT_SHADER &&
         enums::is_flag_set(shaderFeatures,
@@ -1368,6 +1375,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
                 case gpu::DrawType::imageMesh:
+                    sources.push_back(gpu::glsl::image_draw_uniforms);
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
@@ -1415,6 +1423,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_msaa_object_frag);
                     break;
                 case gpu::DrawType::imageMesh:
+                    sources.push_back(glsl::image_draw_uniforms);
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
                     sources.push_back(gpu::glsl::draw_msaa_object_frag);
                     break;
@@ -2671,6 +2680,7 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
     if (m_blitAsDrawProgram == 0)
     {
         const char* blitSources[] = {glsl::constants,
+                                     glsl::flush_uniforms,
                                      glsl::common,
                                      glsl::blit_texture_as_draw};
         m_blitAsDrawProgram = glutils::Program();

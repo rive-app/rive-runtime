@@ -266,43 +266,6 @@ INLINE half safe_clamp_for_mali(half x, half lo, half hi)
     return clamp(x, lo, hi);
 }
 
-#ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
-UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @FlushUniforms)
-float gradInverseViewportY;
-float tessInverseViewportY;
-float renderTargetInverseViewportX;
-float renderTargetInverseViewportY;
-uint renderTargetWidth;
-uint renderTargetHeight;
-uint colorClearValue;           // Only used if clears are implemented as draws.
-uint coverageClearValue;        // Only used if clears are implemented as draws.
-int4 renderTargetUpdateBounds;  // drawBounds, or renderTargetBounds if there is
-                                // a clear. (LTRB.)
-float2 atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
-float2 atlasContentInverseViewport; // 2 / atlasContentBounds
-uint coverageBufferPrefix;
-// GLSL doesn't appear to provide a lightweight, region-local barrier for memory
-// ordering outside of memoryBarrier*(), which have severe consequences for
-// tiling. When we are already relying on other API level barriers and only need
-// to guard against instruction reordering, we can multiply by a tiny epsilon
-// instead, and introduce artifical dependencies that enforce ordering but don't
-// actually have an effect on the final outcome.
-float epsilonForPseudoMemoryBarrier;
-// Spacing between adjacent path IDs (1 if IEEE compliant).
-uint pathIDGranularity;
-float vertexDiscardValue;
-float mipMapLODBias;
-uint maxPathId;
-float ditherScale;
-float ditherBias;
-// Amount by which to multiply a computed dither value when storing as RGB10 (as
-// opposed to writing it out to the framebuffer).
-float ditherConversionToRGB10;
-// Debugging.
-uint wireframeEnabled;
-UNIFORM_BLOCK_END(uniforms)
-#endif
-
 INLINE half interleaved_gradient_noise(float2 fragCoord, half scale, half bias)
 {
     half v1 = fract(0.06711056 * fragCoord.x + 0.00583715 * fragCoord.y);
@@ -471,24 +434,6 @@ INLINE half4 gamma_to_linear(half4 color)
 }
 #endif // NEEDS_GAMMA_CORRECTION
 #endif // FRAGMENT
-
-#ifdef @DRAW_IMAGE
-#ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
-UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)
-float4 viewMatrix;
-float2 translate;
-float opacity;
-float padding;
-// clipRectInverseMatrix transforms from pixel coordinates to a space where the
-// clipRect is the normalized rectangle: [-1, -1, 1, 1].
-float4 clipRectInverseMatrix;
-float2 clipRectInverseTranslate;
-uint clipID;
-uint blendMode;
-uint zIndex;
-UNIFORM_BLOCK_END(imageDrawUniforms)
-#endif
-#endif
 
 // The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
