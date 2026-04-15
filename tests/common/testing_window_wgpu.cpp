@@ -275,7 +275,9 @@ public:
     {
         wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
         m_renderContext->flush({
-            .renderTarget = m_renderTarget.get(),
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
             .externalCommandBuffer = encoder.Get(),
         });
         wgpu::CommandBuffer commands = encoder.Finish();

@@ -38,8 +38,17 @@ public:
         auto originalFrameDescriptor = renderContext->frameDescriptor();
         TestingWindow::Get()->flushPLSContext();
 
-        // Begin a new frame targeting the canvas.
+        // Begin a new frame targeting the canvas. Declare the frame
+        // dimensions explicitly so Rive sizes its PLS buffers for the
+        // canvas render target we are about to flush into. Without this,
+        // backends whose main frame descriptor is larger than the canvas
+        // (e.g. wagyu where the surface exceeds the GM size) trip the
+        // flushResources.renderTarget->width() ==
+        // m_frameDescriptor.renderTargetWidth assertion in
+        // RenderContext::flush.
         auto canvasFrameDescriptor = originalFrameDescriptor;
+        canvasFrameDescriptor.renderTargetWidth = canvas->width();
+        canvasFrameDescriptor.renderTargetHeight = canvas->height();
         canvasFrameDescriptor.clearColor = 0xff0000ff; // blue
         renderContext->beginFrame(std::move(canvasFrameDescriptor));
 
@@ -111,6 +120,8 @@ public:
             TestingWindow::Get()->flushPLSContext();
 
             auto canvasFD = originalFrameDescriptor;
+            canvasFD.renderTargetWidth = m_canvas->width();
+            canvasFD.renderTargetHeight = m_canvas->height();
             canvasFD.clearColor = 0xff0000ff; // blue
             renderContext->beginFrame(std::move(canvasFD));
             RiveRenderer renderer(renderContext);

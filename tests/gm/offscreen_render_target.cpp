@@ -49,8 +49,18 @@ public:
             auto originalFrameDescriptor = renderContext->frameDescriptor();
             TestingWindow::Get()->flushPLSContext();
 
-            // Draw to the offscreen texture.
+            // Draw to the offscreen texture. Declare the frame dimensions
+            // explicitly so Rive sizes its PLS buffers for the 256x256
+            // offscreen render target we are about to flush into — otherwise,
+            // on backends where the testing window's main frame descriptor is
+            // larger than the logical GM size (e.g. wagyu where the surface
+            // exceeds 256x256), the later flushPLSContext(renderImageTarget)
+            // call trips the flushResources.renderTarget->width() ==
+            // m_frameDescriptor.renderTargetWidth assertion in
+            // RenderContext::flush.
             auto textureFrameDescriptor = originalFrameDescriptor;
+            textureFrameDescriptor.renderTargetWidth = 256;
+            textureFrameDescriptor.renderTargetHeight = 256;
             textureFrameDescriptor.clearColor = m_clearColor;
             renderContext->beginFrame(std::move(textureFrameDescriptor));
             RiveRenderer renderer(renderContext);
