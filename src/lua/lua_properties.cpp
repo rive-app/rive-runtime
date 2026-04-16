@@ -14,7 +14,6 @@
 #include "rive/scripted/scripted_object.hpp"
 
 #include <math.h>
-#include <stdio.h>
 
 using namespace rive;
 
@@ -142,6 +141,13 @@ ScriptedProperty::ScriptedProperty(lua_State* L,
         {
             m_owner->addTrackedScriptedProperty(this);
         }
+#ifdef WITH_RIVE_TOOLS
+        else
+        {
+            context->trackOrphanScriptedProperty(this);
+            m_orphanContext = context;
+        }
+#endif
     }
 }
 
@@ -158,6 +164,13 @@ void ScriptedProperty::dispose()
         m_owner->removeTrackedScriptedProperty(this);
         m_owner = nullptr;
     }
+#ifdef WITH_RIVE_TOOLS
+    if (m_orphanContext != nullptr)
+    {
+        m_orphanContext->untrackOrphanScriptedProperty(this);
+        m_orphanContext = nullptr;
+    }
+#endif
 
     if (m_instanceValue != nullptr)
     {

@@ -694,10 +694,33 @@ lua_State* File::scriptingState()
 
 void File::setScriptingVM(rcp<ScriptingVM> vm)
 {
+#if defined(WITH_RIVE_TOOLS)
+    if (m_scriptingVM != nullptr)
+    {
+        ScriptingContext* context = m_scriptingVM->context();
+        if (context != nullptr)
+        {
+            context->disposeOrphanScriptedProperties();
+        }
+    }
+#endif
     m_scriptingVM = std::move(vm);
 }
 
-void File::cleanupScriptingVM() { m_scriptingVM = nullptr; }
+void File::cleanupScriptingVM()
+{
+#if defined(WITH_RIVE_TOOLS)
+    if (m_scriptingVM != nullptr)
+    {
+        ScriptingContext* context = m_scriptingVM->context();
+        if (context != nullptr)
+        {
+            context->disposeOrphanScriptedProperties();
+        }
+    }
+#endif
+    m_scriptingVM = nullptr;
+}
 #endif
 
 Artboard* File::artboard(std::string name) const

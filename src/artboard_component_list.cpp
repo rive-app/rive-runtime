@@ -757,8 +757,10 @@ void ArtboardComponentList::updateArtboardsWorldTransform()
             {
                 auto bounds = useLayout ? artboard->layoutBounds()
                                         : artboard->worldBounds();
+                auto origin = useLayout ? artboard->origin() : Vec2D();
                 m_artboardTransforms[artboard] =
-                    Mat2D::fromTranslate(bounds.left(), bounds.top());
+                    Mat2D::fromTranslate(bounds.left() - origin.x,
+                                         bounds.top() - origin.y);
             }
         }
     }
@@ -1299,8 +1301,10 @@ void ArtboardComponentList::setVirtualizablePosition(int index, Vec2D position)
     auto artboard = this->artboardInstance(index);
     if (artboard != nullptr)
     {
+        auto useLayout = layoutParent() != nullptr;
+        auto origin = useLayout ? artboard->origin() : Vec2D();
         m_artboardTransforms[artboard] =
-            Mat2D::fromTranslate(position.x, position.y);
+            Mat2D::fromTranslate(position.x - origin.x, position.y - origin.y);
     }
 }
 

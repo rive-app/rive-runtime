@@ -423,6 +423,12 @@ ScriptingVM::~ScriptingVM() { lua_close(m_state); }
 
 void ScriptingVM::replaceContext(std::unique_ptr<ScriptingContext> newContext)
 {
+#ifdef WITH_RIVE_TOOLS
+    if (m_ownedContext != nullptr)
+    {
+        m_ownedContext->disposeOrphanScriptedProperties();
+    }
+#endif
     m_ownedContext = std::move(newContext);
     lua_setthreaddata(m_state, m_ownedContext.get());
 }
@@ -778,6 +784,35 @@ void ScriptingContext::clearGeneratorRefs() { m_assetGeneratorRefs.clear(); }
 bool ScriptingContext::hasGeneratorRef(uint32_t assetId) const
 {
     return m_assetGeneratorRefs.find(assetId) != m_assetGeneratorRefs.end();
+}
+
+void ScriptingContext::trackOrphanScriptedProperty(ScriptedProperty* property)
+{
+    if (property != nullptr)
+    {
+        m_orphanScriptedProperties.push_back(property);
+    }
+}
+
+void ScriptingContext::untrackOrphanScriptedProperty(ScriptedProperty* property)
+{
+    auto it = std::remove(m_orphanScriptedProperties.begin(),
+                          m_orphanScriptedProperties.end(),
+                          property);
+    m_orphanScriptedProperties.erase(it, m_orphanScriptedProperties.end());
+}
+
+void ScriptingContext::disposeOrphanScriptedProperties()
+{
+    auto orphans = m_orphanScriptedProperties;
+    for (ScriptedProperty* property : orphans)
+    {
+        if (property != nullptr)
+        {
+            property->dispose();
+        }
+    }
+    m_orphanScriptedProperties.clear();
 }
 #endif
 

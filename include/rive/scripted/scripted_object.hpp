@@ -10,7 +10,6 @@
 #include "rive/lua/scripting_vm.hpp"
 #endif
 #include <algorithm>
-#include <stdio.h>
 #include <vector>
 
 namespace rive

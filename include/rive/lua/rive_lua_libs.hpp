@@ -711,6 +711,9 @@ public:
 private:
     std::vector<ScriptedListener> m_listeners;
     ScriptedObject* m_owner = nullptr;
+#ifdef WITH_RIVE_TOOLS
+    ScriptingContext* m_orphanContext = nullptr;
+#endif
     bool m_disposed = false;
 
 protected:
@@ -1011,6 +1014,7 @@ private:
     // the runtime file.
     std::unordered_map<uint32_t, int> m_assetGeneratorRefs;
     bool m_isPlaying = false;
+    std::vector<ScriptedProperty*> m_orphanScriptedProperties;
 
 public:
     void setGeneratorRef(uint32_t assetId, int ref);
@@ -1019,6 +1023,9 @@ public:
     bool hasGeneratorRef(uint32_t assetId) const;
     void isPlaying(bool value) { m_isPlaying = value; }
     bool isPlaying() const { return m_isPlaying; }
+    void trackOrphanScriptedProperty(ScriptedProperty* property);
+    void untrackOrphanScriptedProperty(ScriptedProperty* property);
+    void disposeOrphanScriptedProperties();
 #endif
 };
 
