@@ -1164,7 +1164,8 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
             glFramebufferTexturePixelLocalStorageANGLE(0,
                                                        m_atlasRenderTexture,
                                                        0,
-                                                       0);
+                                                       0,
+                                                       GL_NONE);
             glFramebufferTexture2D(GL_FRAMEBUFFER,
                                    GL_COLOR_ATTACHMENT0,
                                    GL_TEXTURE_2D,
@@ -3126,23 +3127,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             // It's possible we have some barriers wrong, but a fallback this
             // deep isn't a priority right now on GL.
             capabilities.OES_shader_image_atomic = false;
-        }
-    }
-
-    if (capabilities.ANGLE_shader_pixel_local_storage ||
-        capabilities.ANGLE_shader_pixel_local_storage_coherent)
-    {
-        // ANGLE_shader_pixel_local_storage enum values had a breaking change in
-        // early 2025. Disable the extension if we can't verify that we're
-        // running on the latest spec.
-        if (!glutils::validate_pixel_local_storage_angle())
-        {
-            fprintf(stderr,
-                    "WARNING: detected an old version of "
-                    "ANGLE_shader_pixel_local_storage. Disabling the "
-                    "extension. Please update your drivers.\n");
-            capabilities.ANGLE_shader_pixel_local_storage =
-                capabilities.ANGLE_shader_pixel_local_storage_coherent = false;
         }
     }
 

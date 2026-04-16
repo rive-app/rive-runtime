@@ -93,17 +93,20 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(
         glFramebufferTexturePixelLocalStorageANGLE(COLOR_PLANE_IDX,
                                                    m_externalTextureID,
                                                    0,
-                                                   0);
+                                                   0,
+                                                   GL_NONE);
         glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX,
                                                    m_webglPLSBackingR32UI,
                                                    0,
-                                                   0);
+                                                   0,
+                                                   GL_NONE);
         if (!capabilities.avoidTexture2DArrayWithWebGLPLS)
         {
             glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX,
                                                        m_webglPLSBackingR32UI,
                                                        0,
-                                                       1);
+                                                       1,
+                                                       GL_NONE);
         }
         else
         {
@@ -111,12 +114,14 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(
                 CLIP_PLANE_IDX,
                 m_webglPLSBackingR32UIFallback,
                 0,
-                0);
+                0,
+                GL_NONE);
         }
         glFramebufferTexturePixelLocalStorageANGLE(SCRATCH_COLOR_PLANE_IDX,
                                                    m_webglPLSBackingRGBA8,
                                                    0,
-                                                   0);
+                                                   0,
+                                                   GL_NONE);
         m_webglPLSBindingsDirty = false;
     }
 #endif

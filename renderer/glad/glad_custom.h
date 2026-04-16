@@ -42,7 +42,7 @@ GLAPI int GLAD_GL_ANGLE_shader_pixel_local_storage_coherent;
 typedef void (GLAD_API_PTR* PFNGLFRAMEBUFFERMEMORYLESSPIXELLOCALSTORAGEANGLEPROC) (GLint plane, GLenum internalformat);
 GLAPI PFNGLFRAMEBUFFERMEMORYLESSPIXELLOCALSTORAGEANGLEPROC glad_glFramebufferMemorylessPixelLocalStorageANGLE;
 #define glFramebufferMemorylessPixelLocalStorageANGLE glad_glFramebufferMemorylessPixelLocalStorageANGLE
-typedef void (GLAD_API_PTR* PFNGLFRAMEBUFFERTEXTUREPIXELLOCALSTORAGEANGLEPROC) (GLint plane, GLuint backingtexture, GLint level, GLint layer);
+typedef void (GLAD_API_PTR* PFNGLFRAMEBUFFERTEXTUREPIXELLOCALSTORAGEANGLEPROC) (GLint plane, GLuint backingtexture, GLint level, GLint layer, GLenum usage);
 GLAPI PFNGLFRAMEBUFFERTEXTUREPIXELLOCALSTORAGEANGLEPROC glad_glFramebufferTexturePixelLocalStorageANGLE;
 #define glFramebufferTexturePixelLocalStorageANGLE glad_glFramebufferTexturePixelLocalStorageANGLE
 typedef void (GLAD_API_PTR* PFNGLFRAMEBUFFERPIXELLOCALCLEARVALUEFVANGLEPROC) (GLint plane, const GLfloat value[4]);

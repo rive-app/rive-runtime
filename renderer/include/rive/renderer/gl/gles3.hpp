@@ -55,7 +55,8 @@ extern bool webgl_shader_pixel_local_storage_is_coherent();
 extern void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                        GLuint backingtexture,
                                                        GLint level,
-                                                       GLint layer);
+                                                       GLint layer,
+                                                       GLenum usage);
 extern void glFramebufferPixelLocalClearValuefvANGLE(GLint plane,
                                                      const GLfloat value[4]);
 extern void glBeginPixelLocalStorageANGLE(GLsizei n, const GLenum loadops[]);
