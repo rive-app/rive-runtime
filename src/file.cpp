@@ -65,6 +65,7 @@
 #include "rive/data_bind/converters/data_converter_number_to_list.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
+#include "rive/assets/blob_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
@@ -328,6 +329,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case ImageAsset::typeKey:
                 case FontAsset::typeKey:
                 case AudioAsset::typeKey:
+                case BlobAsset::typeKey:
                 case ScriptAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
@@ -458,6 +460,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
             case AudioAsset::typeKey:
+            case BlobAsset::typeKey:
                 stackObject =
                     std::make_unique<FileAssetImporter>(object->as<FileAsset>(),
                                                         m_assetLoader,
