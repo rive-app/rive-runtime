@@ -26,6 +26,8 @@ public:
     rcp<ViewModelInstanceListItem> pop();
     rcp<ViewModelInstanceListItem> shift();
     void removeAllItems();
+    void removeAllItemsWithViewModelInstance(
+        ViewModelInstance* viewModelInstance);
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
     Core* clone() const override;
     void advanced() override;

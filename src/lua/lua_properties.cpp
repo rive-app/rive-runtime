@@ -628,7 +628,60 @@ static int property_namecall_atom(lua_State* L,
             auto listItem = make_rcp<ViewModelInstanceListItem>();
 
             listItem->viewModelInstance(copy);
-            list->addItemAt(listItem, index);
+            list->addItemAt(listItem, index - 1);
+            return 0;
+        }
+
+        case (int)LuaAtoms::remove:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto* vmUser = static_cast<ScriptedViewModel*>(
+                lua_touserdatatagged(L, 2, ScriptedViewModel::luaTag));
+            if (vmUser != nullptr)
+            {
+                auto vmi = vmUser->viewModelInstance();
+                if (vmi)
+                {
+                    for (const auto& item : list->listItems())
+                    {
+                        if (item->viewModelInstance() == vmi)
+                        {
+                            list->removeItem(item);
+                            break;
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+
+        case (int)LuaAtoms::removeAt:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            const lua_Integer luaIndex = luaL_checkinteger(L, 2);
+            const size_t count = list->listItems().size();
+            if (luaIndex < 1 ||
+                static_cast<uint64_t>(luaIndex) > static_cast<uint64_t>(count))
+            {
+                luaL_error(L, "removeAt index out of range");
+            }
+            list->removeItem(static_cast<int>(luaIndex - 1));
+            return 0;
+        }
+
+        case (int)LuaAtoms::removeAllOf:
+        {
+            auto list = property->instanceValue()->as<ViewModelInstanceList>();
+            auto* vmUser = static_cast<ScriptedViewModel*>(
+                lua_touserdatatagged(L, 2, ScriptedViewModel::luaTag));
+            if (vmUser != nullptr)
+            {
+                auto vmi = vmUser->viewModelInstance();
+                if (vmi)
+                {
+                    list->removeAllItemsWithViewModelInstance(vmi.get());
+                }
+            }
             return 0;
         }
 

@@ -303,6 +303,45 @@ end
     CHECK(vm.console[12] == "y changed to: 23");
 }
 
+TEST_CASE("ViewModelInstanceList removes every row for one instance",
+          "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/scripted_graph.riv");
+
+    auto artboard = file->artboard("Artboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    auto pointsProperty = viewModelInstance->propertyValue("points");
+    REQUIRE(pointsProperty != nullptr);
+    auto list = pointsProperty->as<ViewModelInstanceList>();
+
+    const size_t initialCount = list->listItems().size();
+    REQUIRE(initialCount >= 2);
+
+    auto& targetItem = list->listItems()[0];
+    ViewModelInstance* shared = targetItem->viewModelInstance().get();
+    REQUIRE(shared != nullptr);
+
+    auto duplicateRow = make_rcp<ViewModelInstanceListItem>();
+    duplicateRow->viewModelInstance(ref_rcp(shared));
+    list->addItem(duplicateRow);
+
+    REQUIRE(list->listItems().size() == initialCount + 1);
+
+    list->removeAllItemsWithViewModelInstance(shared);
+
+    CHECK(list->listItems().size() == initialCount - 1);
+    for (const auto& item : list->listItems())
+    {
+        CHECK(item->viewModelInstance().get() != shared);
+    }
+}
+
 TEST_CASE("scripted color can be passed to luau", "[scripting_properties]")
 {
     auto file = ReadRiveFile("assets/scripted_color.riv");
@@ -619,4 +658,37 @@ TEST_CASE("Replace a view model property value from a script", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("replace_view_model"));
+}
+
+TEST_CASE("Scripts can remove items from lists", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/remove_from_list.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 10;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("remove_from_list"));
 }

@@ -48,7 +48,7 @@ void ViewModelInstanceList::addItem(rcp<ViewModelInstanceListItem> item)
 bool ViewModelInstanceList::addItemAt(rcp<ViewModelInstanceListItem> item,
                                       int index)
 {
-    if (index <= m_ListItems.size())
+    if (index >= 0 && index <= m_ListItems.size())
     {
         m_ListItems.insert(m_ListItems.begin() + index, item);
 
@@ -139,6 +139,34 @@ void ViewModelInstanceList::removeAllItems()
             }
         }
         m_ListItems.clear();
+        propertyValueChanged();
+    }
+}
+
+void ViewModelInstanceList::removeAllItemsWithViewModelInstance(
+    ViewModelInstance* viewModelInstance)
+{
+    if (viewModelInstance == nullptr || m_ListItems.empty())
+    {
+        return;
+    }
+
+    bool changed = false;
+    for (auto it = m_ListItems.begin(); it != m_ListItems.end();)
+    {
+        if ((*it)->viewModelInstance().get() == viewModelInstance)
+        {
+            (*it)->viewModelInstance()->removeParent(parentViewModelInstance());
+            it = m_ListItems.erase(it);
+            changed = true;
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    if (changed)
+    {
         propertyValueChanged();
     }
 }

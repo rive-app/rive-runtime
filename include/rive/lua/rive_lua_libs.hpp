@@ -287,6 +287,9 @@ enum class LuaAtoms : int16_t
     deviceId,
     buttonMask,
     axis0,
+    remove,
+    removeAt,
+    removeAllOf,
 };
 
 struct ScriptedMat2D

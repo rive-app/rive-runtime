@@ -841,6 +841,10 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
     imageColor *= imageCoverage * cast_float_to_half(imageDrawUniforms.opacity);
 
+#if defined(@NEEDS_GAMMA_CORRECTION)
+    imageColor = gamma_to_linear(imageColor);
+#endif
+
     // Leverage the property that premultiplied src-over blending is associative
     // and blend the imageColor and fragColorOut before passing them on to the
     // blending pipeline.
