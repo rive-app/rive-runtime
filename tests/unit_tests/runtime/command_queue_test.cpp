@@ -3718,6 +3718,189 @@ TEST_CASE("fileLoadedCallback", "[CommandQueue]")
     serverThread.join();
 }
 
+class ArtboardInstantiatedListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onArtboardInstantiated(const FileHandle fileHandle,
+                                        uint64_t requestId,
+                                        ArtboardHandle artboardHandle) override
+    {
+        CHECK(fileHandle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(artboardHandle == m_artboardHandle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0;
+    FileHandle m_handle = RIVE_NULL_HANDLE;
+    ArtboardHandle m_artboardHandle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("artboardInstantiatedCallback", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/two_artboards.riv", std::ios::binary);
+
+    ArtboardInstantiatedListener fileListener;
+
+    fileListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    fileListener.m_artboardHandle =
+        commandQueue->instantiateArtboardNamed(fileListener.m_handle, "One");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_hasCallback);
+
+    // Bad artboard name should not trigger the callback.
+    ArtboardInstantiatedListener badListener;
+
+    std::ifstream stream2("assets/two_artboards.riv", std::ios::binary);
+    badListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &badListener);
+
+    commandQueue->instantiateArtboardNamed(badListener.m_handle, "Blah");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!badListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class StateMachineInstantiatedListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onStateMachineInstantiated(
+        const ArtboardHandle artboardHandle,
+        uint64_t requestId,
+        StateMachineHandle stateMachineHandle) override
+    {
+        CHECK(artboardHandle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(stateMachineHandle == m_stateMachineHandle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0;
+    ArtboardHandle m_handle = RIVE_NULL_HANDLE;
+    StateMachineHandle m_stateMachineHandle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("stateMachineInstantiatedCallback", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/multiple_state_machines.riv",
+                         std::ios::binary);
+
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    StateMachineInstantiatedListener artboardListener;
+
+    artboardListener.m_handle =
+        commandQueue->instantiateDefaultArtboard(fileHandle, &artboardListener);
+
+    artboardListener.m_stateMachineHandle =
+        commandQueue->instantiateStateMachineNamed(artboardListener.m_handle,
+                                                   "one");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(artboardListener.m_hasCallback);
+
+    // Bad state machine name should not trigger the callback.
+    StateMachineInstantiatedListener badListener;
+
+    badListener.m_handle =
+        commandQueue->instantiateDefaultArtboard(fileHandle, &badListener);
+
+    commandQueue->instantiateStateMachineNamed(badListener.m_handle,
+                                               "blahblahblah");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!badListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class ViewModelInstanceInstantiatedListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onViewModelInstanceInstantiated(
+        const FileHandle fileHandle,
+        uint64_t requestId,
+        ViewModelInstanceHandle viewModelInstanceHandle) override
+    {
+        CHECK(fileHandle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(viewModelInstanceHandle == m_viewModelInstanceHandle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0;
+    FileHandle m_handle = RIVE_NULL_HANDLE;
+    ViewModelInstanceHandle m_viewModelInstanceHandle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("viewModelInstanceInstantiatedCallback", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+
+    ViewModelInstanceInstantiatedListener fileListener;
+
+    fileListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    fileListener.m_viewModelInstanceHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileListener.m_handle,
+                                                        "Test All",
+                                                        "Test Alternate");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_hasCallback);
+
+    // Bad view model instance name should not trigger the callback.
+    ViewModelInstanceInstantiatedListener badListener;
+
+    std::ifstream stream2("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    badListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &badListener);
+
+    commandQueue->instantiateViewModelInstanceNamed(badListener.m_handle,
+                                                    "Test All",
+                                                    "Blah");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!badListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class DecodedImageListener : public CommandQueue::RenderImageListener
 {
 public:
@@ -4246,6 +4429,16 @@ public:
 
     DEFINE_TEST_CALLBACK(onFileDeleted, FileHandle, 7);
     DEFINE_TEST_CALLBACK(onFileLoaded, FileHandle, 1);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onArtboardInstantiated,
+                                   FileHandle,
+                                   0,
+                                   ArtboardHandle,
+                                   artboardHandle);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelInstanceInstantiated,
+                                   FileHandle,
+                                   0,
+                                   ViewModelInstanceHandle,
+                                   viewModelInstanceHandle);
     DEFINE_TEST_CALLBACK_ONE_PARAM(onArtboardsListed,
                                    FileHandle,
                                    2,
@@ -4279,6 +4472,8 @@ public:
                                    enums);
 
     FileHandle m_handle;
+    ArtboardHandle m_artboardHandle;
+    ViewModelInstanceHandle m_viewModelInstanceHandle;
     std::array<std::string, 4> m_artboardNames = {"Test Artboard",
                                                   "Test Transitions",
                                                   "Test Observation",
@@ -4373,6 +4568,11 @@ public:
     {}
 
     DEFINE_TEST_CALLBACK(onArtboardDeleted, ArtboardHandle, 12);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onStateMachineInstantiated,
+                                   ArtboardHandle,
+                                   0,
+                                   StateMachineHandle,
+                                   stateMachineHandle);
     DEFINE_TEST_CALLBACK_ONE_PARAM(onStateMachinesListed,
                                    ArtboardHandle,
                                    11,
@@ -4387,6 +4587,7 @@ public:
                                    instanceName);
 
     ArtboardHandle m_handle;
+    StateMachineHandle m_stateMachineHandle;
     std::array<std::string, 1> m_stateMachineNames = {"SM"};
     std::string m_viewModelName = "Test All";
     std::string m_instanceName = "Test Default";
@@ -4494,7 +4695,10 @@ TEST_CASE("global Listener", "[CommandQueue]")
         std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
 
     globalFileListener.m_handle = fileHandle;
+    globalFileListener.m_artboardHandle = artboardHandle;
+    globalFileListener.m_viewModelInstanceHandle = viewModel;
     globalArtboardListener.m_handle = artboardHandle;
+    globalArtboardListener.m_stateMachineHandle = stateMachineHandle;
     globalStateMachineListener.m_handle = stateMachineHandle;
     globalViewModelInstanceListener.m_handle = viewModel;
     globalRenderImageListener.m_handle = renderImage;
@@ -4540,10 +4744,13 @@ TEST_CASE("global Listener", "[CommandQueue]")
                    onViewModelInstanceViewModelNameReceived);
 
     CHECK_CALLBACK(globalArtboardListener, onArtboardDeleted);
+    CHECK_CALLBACK(globalArtboardListener, onStateMachineInstantiated);
     CHECK_CALLBACK(globalArtboardListener, onStateMachinesListed);
 
     CHECK_CALLBACK(globalFileListener, onFileDeleted);
     CHECK_CALLBACK(globalFileListener, onFileLoaded);
+    CHECK_CALLBACK(globalFileListener, onArtboardInstantiated);
+    CHECK_CALLBACK(globalFileListener, onViewModelInstanceInstantiated);
     CHECK_CALLBACK(globalFileListener, onArtboardsListed);
     CHECK_CALLBACK(globalFileListener, onViewModelsListed);
     CHECK_CALLBACK(globalFileListener, onViewModelEnumsListed);

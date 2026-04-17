@@ -1435,6 +1435,83 @@ void CommandQueue::processMessages()
                 break;
             }
 
+            case Message::artboardInstantiated:
+            {
+                FileHandle fileHandle;
+                ArtboardHandle handle;
+                uint64_t requestId;
+                m_messageStream >> fileHandle;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalFileListener)
+                {
+                    m_globalFileListener->onArtboardInstantiated(fileHandle,
+                                                                 requestId,
+                                                                 handle);
+                }
+                auto itr = m_fileListeners.find(fileHandle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onArtboardInstantiated(fileHandle,
+                                                        requestId,
+                                                        handle);
+                }
+                break;
+            }
+
+            case Message::stateMachineInstantiated:
+            {
+                ArtboardHandle artboardHandle;
+                StateMachineHandle handle;
+                uint64_t requestId;
+                m_messageStream >> artboardHandle;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalArtboardListener)
+                {
+                    m_globalArtboardListener->onStateMachineInstantiated(
+                        artboardHandle,
+                        requestId,
+                        handle);
+                }
+                auto itr = m_artboardListeners.find(artboardHandle);
+                if (itr != m_artboardListeners.end())
+                {
+                    itr->second->onStateMachineInstantiated(artboardHandle,
+                                                            requestId,
+                                                            handle);
+                }
+                break;
+            }
+
+            case Message::viewModelInstanceInstantiated:
+            {
+                FileHandle fileHandle;
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                m_messageStream >> fileHandle;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalFileListener)
+                {
+                    m_globalFileListener->onViewModelInstanceInstantiated(
+                        fileHandle,
+                        requestId,
+                        handle);
+                }
+                auto itr = m_fileListeners.find(fileHandle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onViewModelInstanceInstantiated(fileHandle,
+                                                                 requestId,
+                                                                 handle);
+                }
+                break;
+            }
+
             case Message::fileDeleted:
             {
                 FileHandle handle;

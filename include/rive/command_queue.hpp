@@ -112,6 +112,16 @@ public:
 
         virtual void onFileLoaded(const FileHandle, uint64_t requestId) {}
 
+        virtual void onArtboardInstantiated(const FileHandle,
+                                            uint64_t requestId,
+                                            ArtboardHandle)
+        {}
+
+        virtual void onViewModelInstanceInstantiated(const FileHandle,
+                                                     uint64_t requestId,
+                                                     ViewModelInstanceHandle)
+        {}
+
         virtual void onArtboardsListed(const FileHandle,
                                        uint64_t requestId,
                                        std::vector<std::string> artboardNames)
@@ -217,6 +227,11 @@ public:
         {}
 
         virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId)
+        {}
+
+        virtual void onStateMachineInstantiated(const ArtboardHandle,
+                                                uint64_t requestId,
+                                                StateMachineHandle)
         {}
 
         virtual void onStateMachinesListed(
@@ -853,6 +868,9 @@ private:
         viewModelListSizeReceived,
         fileLoaded,
         fileDeleted,
+        artboardInstantiated,
+        stateMachineInstantiated,
+        viewModelInstanceInstantiated,
         imageDecoded,
         imageDeleted,
         audioDecoded,

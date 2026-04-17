@@ -862,6 +862,14 @@ bool CommandServer::processCommands()
                     {
                         m_artboardDependencies[handle] = {};
                         m_artboards[handle] = std::move(artboard);
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream
+                            << CommandQueue::Message::artboardInstantiated;
+                        messageStream << fileHandle;
+                        messageStream << handle;
+                        messageStream << requestId;
                     }
                     else
                     {
@@ -1119,6 +1127,14 @@ bool CommandServer::processCommands()
                         if (instance)
                         {
                             m_viewModels[viewHandle] = std::move(instance);
+
+                            std::unique_lock<std::mutex> messageLock(
+                                m_commandQueue->m_messageMutex);
+                            messageStream << CommandQueue::Message::
+                                    viewModelInstanceInstantiated;
+                            messageStream << fileHandle;
+                            messageStream << viewHandle;
+                            messageStream << requestId;
                         }
                     }
                 }
@@ -1523,6 +1539,14 @@ bool CommandServer::processCommands()
                                m_artboardDependencies.end());
                         m_artboardDependencies[artboardHandle].push_back(
                             handle);
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream
+                            << CommandQueue::Message::stateMachineInstantiated;
+                        messageStream << artboardHandle;
+                        messageStream << handle;
+                        messageStream << requestId;
                     }
                     else
                     {
