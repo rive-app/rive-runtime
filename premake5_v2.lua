@@ -169,6 +169,24 @@ do
         -- at runtime we only need signature verification
         defines({ 'HYDRO_SIGN_VERIFY_ONLY' })
     end
+    filter({
+        'options:with_rive_scripting',
+        'options:config=release',
+        'system:android',
+        'options:arch=arm',
+        'files:**/libhydrogen.c'
+    })
+    do
+        -- Android ARMv7 devices running API < 29 cannot load ELF TLS relocations
+        -- (e.g. R_ARM_TLS_*). In release builds with scripting, libhydrogen.c can
+        -- introduce these TLS relocations (through `__thread` for RNG) when LTO
+        -- is enabled, which then fails to link at runtime (`unknown reloc type 17`).
+
+        -- We want to keep global LTO for performance, but compile only this
+        -- translation unit without LTO, forcing emulated TLS so that the final
+        -- ARMv7 librive-android.so does not include unsupported ELF TLS relocations.
+        buildoptions({'-fno-lto', '-femulated-tls'})
+    end
 end
 
 newoption({
