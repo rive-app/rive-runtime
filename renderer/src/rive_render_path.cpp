@@ -79,10 +79,10 @@ void RiveRenderPath::close()
     m_dirt = kAllDirt;
 }
 
-void RiveRenderPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
+void RiveRenderPath::addRenderPath(const RenderPath* path, const Mat2D& matrix)
 {
     assert(m_rawPathMutationLockCount == 0);
-    RiveRenderPath* riveRenderPath = static_cast<RiveRenderPath*>(path);
+    auto riveRenderPath = static_cast<const RiveRenderPath*>(path);
 
     bool isIdentity = matrix == Mat2D();
     RawPath::Iter transformedPathIter =
@@ -96,10 +96,10 @@ void RiveRenderPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
     m_dirt = kAllDirt;
 }
 
-void RiveRenderPath::addRenderPathBackwards(RenderPath* path,
+void RiveRenderPath::addRenderPathBackwards(const RenderPath* path,
                                             const Mat2D& transform)
 {
-    RiveRenderPath* riveRenderPath = static_cast<RiveRenderPath*>(path);
+    auto riveRenderPath = static_cast<const RiveRenderPath*>(path);
     RawPath::Iter transformedPathIter =
         m_rawPath.addPathBackwards(riveRenderPath->m_rawPath, &transform);
     if (transform != Mat2D())

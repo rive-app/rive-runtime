@@ -601,7 +601,9 @@ class Minifier:
                 CHAR_COUNT_PER_LINE = 12
                 if (out_ch_count % CHAR_COUNT_PER_LINE) == 0:
                     out.write('\n   ')
-            out.write('\n};\n')
+            # Null-terminate so the array is a valid C-string when passed to
+            # APIs like ostream::operator<<(const char*), which read until '\0'.
+            out.write(" '\\0'\n};\n")
         else:
             # For non-MSVC outputs just output as a raw string
             out.write(f'const char {cpp_name}[] = R"===(')

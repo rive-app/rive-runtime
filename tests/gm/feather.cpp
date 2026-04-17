@@ -118,7 +118,7 @@ protected:
     public:
         Shape() : m_path(FillRule::clockwise) {}
 
-        RenderPath* renderPath() override { return m_path.get(); }
+        RenderPath* renderPath() const override { return m_path.get(); }
         void rewind() override { m_path = Path(); }
         void fillRule(FillRule value) override { m_path->fillRule(value); }
         void moveTo(float x, float y) override
@@ -142,9 +142,10 @@ protected:
             m_path->close();
             m_pen = m_begin;
         }
-        void addRenderPath(RenderPath* path, const Mat2D& transform) override
+        void addRenderPath(const RenderPath* path,
+                           const Mat2D& transform) override
         {
-            auto shape = static_cast<Shape*>(path);
+            auto shape = static_cast<const Shape*>(path);
             m_path->addRenderPath(shape->renderPath(), transform);
             m_pen = shape->m_pen;
             m_begin = shape->m_begin;

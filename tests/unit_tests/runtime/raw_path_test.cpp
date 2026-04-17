@@ -482,3 +482,142 @@ TEST_CASE("prune-empty-segments", "[rawpath]")
         }
     }
 }
+
+TEST_CASE("addPathBackwards", "[rawpath]")
+{
+    const auto validatePathVerbPointCounts = [](const RawPath& path) {
+        size_t ptCount = 0;
+        for (auto [verb, pts] : path)
+        {
+            switch (verb)
+            {
+                case PathVerb::move:
+                    ++ptCount;
+                    break;
+                case PathVerb::line:
+                    ++ptCount;
+                    break;
+                case PathVerb::quad:
+                    ptCount += 2;
+                    break;
+                case PathVerb::cubic:
+                    ptCount += 3;
+                    break;
+                case PathVerb::close:
+                    break;
+            }
+        }
+        return ptCount == path.points().count();
+    };
+
+    const auto checkPathReversal = [=](const RawPath& path) {
+        RawPath forwards;
+        forwards.addPath(path);
+        validatePathVerbPointCounts(forwards);
+        CHECK(forwards == path);
+
+        RawPath backwards;
+        backwards.addPathBackwards(path);
+        CHECK(backwards.verbs().size() == path.verbs().size());
+        CHECK(backwards.points().size() == path.points().size());
+        validatePathVerbPointCounts(backwards);
+
+        RawPath backwardsBackwards;
+        backwardsBackwards.addPathBackwards(backwards);
+        validatePathVerbPointCounts(backwardsBackwards);
+        CHECK(backwardsBackwards == path);
+        CHECK(backwardsBackwards == forwards);
+    };
+
+    {
+        // Empty path.
+        RawPath path;
+        checkPathReversal(path);
+
+        path.moveTo(0, 0);
+        checkPathReversal(path);
+
+        path.moveTo(0, 0);
+        checkPathReversal(path);
+
+        path.moveTo(10, 10);
+        checkPathReversal(path);
+
+        path.close();
+        checkPathReversal(path);
+    }
+
+    {
+        // Implicit moveTo.
+        RawPath path;
+        path.lineTo(1, 2);
+        checkPathReversal(path);
+
+        path.close();
+        path.lineTo(3, 4);
+        checkPathReversal(path);
+    }
+
+    {
+        // Double close.
+        RawPath path;
+        path.lineTo(1, 2);
+        path.close();
+        path.close();
+        path.close();
+        path.close();
+        path.close();
+        path.lineTo(3, 4);
+        path.close();
+        path.close();
+        path.close();
+        path.close();
+        checkPathReversal(path);
+    }
+
+    {
+        // Complex path.
+        RawPath path;
+        path.moveTo(0, 0);
+        path.lineTo(32, 84);
+        path.lineTo(36, 76);
+        path.close();
+        path.moveTo(0, 0);
+        path.cubicTo(1, 57, 32, 10, 33, 86);
+        path.lineTo(20, 99);
+        // Double moveTo tests an empty contour!
+        path.close();
+        path.moveTo(22, 59);
+        path.moveTo(62, 76);
+        path.cubicTo(74, 39, 50, 35, 60, 26);
+        path.moveTo(26, 46);
+        path.lineTo(58, 76);
+        path.lineTo(93, 76);
+        path.close();
+        path.moveTo(36, 74);
+        path.lineTo(3, 22);
+        path.moveTo(48, 47);
+        path.moveTo(47, 48);
+        path.lineTo(18, 94);
+        path.cubicTo(35, 87, 73, 1, 74, 7);
+        path.moveTo(6, 50);
+        // Double close!
+        path.close();
+        path.close();
+        // Ensure an implicit moveTo will be inserted here, which is what
+        // makes the reversal work.
+        path.lineTo(13, 97);
+        path.cubicTo(31, 26, 72, 94, 69, 32);
+        path.moveTo(80, 77);
+        path.cubicTo(40, 23, 34, 34, 77, 41);
+        path.cubicTo(58, 64, 26, 42, 28, 4);
+        path.close();
+        path.moveTo(80, 77);
+        path.lineTo(20, 22);
+        path.lineTo(75, 26);
+        path.lineTo(88, 92);
+        path.cubicTo(27, 7, 23, 84, 7, 89);
+        path.close();
+        checkPathReversal(path);
+    }
+}

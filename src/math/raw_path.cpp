@@ -280,76 +280,72 @@ RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
 
 RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
 {
-    size_t initialVerbCount = m_Verbs.size();
-    size_t initialPointCount = m_Points.size();
-    if (!src.m_Verbs.empty())
+    if (src.empty())
     {
-        bool isClosed = src.m_Verbs.back() == PathVerb::close;
-
-        auto reversePointIterator = src.m_Points.rbegin();
-        // Move to first point
-        m_Verbs.emplace_back(PathVerb::move);
-        addPoints(reversePointIterator, 1, mat);
-
-        auto reverseVerbIterator = src.m_Verbs.rbegin();
-        if (isClosed)
-        {
-            reverseVerbIterator++;
-        }
-
-        bool hasPendingMoveCommand = false;
-
-        for (; reverseVerbIterator != src.m_Verbs.rend() - 1;
-             reverseVerbIterator++)
-        {
-            PathVerb verb = *reverseVerbIterator;
-            // For paths that have multiple segments (like in certain font
-            // glyphs), we need to flip the intermediate move verbs with the
-            // previous close path. So we hold on to it and add it after the
-            // next close call.
-            if (verb == PathVerb::move)
-            {
-                hasPendingMoveCommand = true;
-            }
-            else
-            {
-                if (hasPendingMoveCommand && verb != PathVerb::close)
-                {
-                    m_Verbs.emplace_back(PathVerb::move);
-                    hasPendingMoveCommand = false;
-                }
-                m_Verbs.emplace_back(verb);
-                if (hasPendingMoveCommand && verb == PathVerb::close)
-                {
-                    m_Verbs.emplace_back(PathVerb::move);
-                    hasPendingMoveCommand = false;
-                }
-            }
-            switch (verb)
-            {
-                case PathVerb::cubic:
-                    addPoints(reversePointIterator, 3, mat);
-                    break;
-                case PathVerb::quad:
-                    addPoints(reversePointIterator, 2, mat);
-                    break;
-                case PathVerb::line:
-                case PathVerb::move:
-                    addPoints(reversePointIterator, 1, mat);
-                    break;
-                default:
-                    break;
-            }
-        }
-        // This should never be the case, but if for some reason a path ends
-        // with a move command, we add it to the list of verbs to ensure the
-        // path matches with the number of points
-        if (hasPendingMoveCommand)
-        {
-            m_Verbs.emplace_back(PathVerb::move);
-        }
-        m_Verbs.emplace_back(PathVerb::close);
+        return end();
     }
+
+    // To reverse a path's points, we just add them in reverse order.
+    size_t initialPointCount = m_Points.size();
+    m_Points.reserve(initialPointCount + src.m_Points.size());
+    for (auto it = src.m_Points.rbegin(); it != src.m_Points.rend(); ++it)
+    {
+        m_Points.push_back(*it);
+    }
+
+    // To reverse a path's verbs, we have to swap sides of the moveTo and close
+    // (if any) verbs.
+    size_t initialVerbCount = m_Verbs.size();
+    m_Verbs.reserve(initialVerbCount + src.m_Verbs.size());
+    assert(!src.m_Verbs.empty());
+    assert(src.m_Verbs[0] == PathVerb::move);
+    m_Verbs.push_back(PathVerb::move); // Swap moves from one side of the
+                                       // contour to the other.
+    bool closed = false;
+    for (auto it = src.m_Verbs.rbegin();; ++it)
+    {
+        PathVerb verb = *it;
+        if (verb == PathVerb::close)
+        {
+            // RawPath guarantees that a single contour will never have more
+            // than one close (by injecting implicit moveTos when needed).
+            assert(!closed);
+            closed = true; // Move the close to the other side of the contour.
+            assert(it + 1 != src.m_Verbs.rend());
+            continue;
+        }
+        if (verb == PathVerb::move && closed)
+        {
+            // Time to apply the deferred close verb.
+            m_Verbs.push_back(PathVerb::close);
+            closed = false;
+        }
+        if (it + 1 != src.m_Verbs.rend())
+        {
+            m_Verbs.push_back(verb);
+        }
+        else
+        {
+            // Skip the intitial move; it got replaced by an initial move on
+            // the other side of the path.
+            assert(verb == PathVerb::move);
+            break;
+        }
+    }
+    assert(!closed); // Make sure we didn't miss a close verb.
+    assert(m_Verbs.size() == initialVerbCount + src.m_Verbs.size());
+    assert(m_Points.size() == initialPointCount + src.m_Points.size());
+
+    if (mat != nullptr)
+    {
+        // Don't share newlyAddedPoints with the below return since
+        // pruneEmptySegments may invalidate it.
+        Vec2D* newlyAddedPoints = m_Points.data() + initialPointCount;
+        mat->mapPoints(newlyAddedPoints, newlyAddedPoints, src.m_Points.size());
+        pruneEmptySegments(
+            {m_Verbs.data() + initialVerbCount, newlyAddedPoints});
+    }
+
     return Iter{m_Verbs.data() + initialVerbCount,
                 m_Points.data() + initialPointCount};
 }

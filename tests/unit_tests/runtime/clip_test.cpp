@@ -42,7 +42,7 @@ public:
     void fillRule(rive::FillRule value) override {}
     void addPath(rive::CommandPath* path, const rive::Mat2D& transform) override
     {}
-    void addRenderPath(rive::RenderPath* path,
+    void addRenderPath(const rive::RenderPath* path,
                        const rive::Mat2D& transform) override
     {}
     void addRawPath(const rive::RawPath& path) override

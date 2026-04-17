@@ -151,10 +151,12 @@ public:
     }
 
     void rewind() override { m_path.reset(CGPathCreateMutable()); }
-    void addRenderPath(RenderPath* path, const Mat2D& mx) override
+    void addRenderPath(const RenderPath* path, const Mat2D& mx) override
     {
         auto transform = convert(mx);
-        CGPathAddPath(m_path, &transform, ((CGRenderPath*)path)->path());
+        CGPathAddPath(m_path,
+                      &transform,
+                      static_cast<const CGRenderPath*>(path)->path());
     }
     void fillRule(FillRule value) override
     {

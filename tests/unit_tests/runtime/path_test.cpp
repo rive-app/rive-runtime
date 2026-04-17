@@ -74,7 +74,7 @@ public:
                                               0.0f,
                                               0.0f});
     }
-    void addRenderPath(rive::RenderPath* path,
+    void addRenderPath(const rive::RenderPath* path,
                        const rive::Mat2D& transform) override
     {}
 

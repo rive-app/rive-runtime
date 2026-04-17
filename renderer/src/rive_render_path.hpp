@@ -29,8 +29,8 @@ public:
     {
         addRenderPath(p->renderPath(), m);
     }
-    void addRenderPath(RenderPath* path, const Mat2D& matrix) override;
-    void addRenderPathBackwards(RenderPath* path,
+    void addRenderPath(const RenderPath* path, const Mat2D& matrix) override;
+    void addRenderPathBackwards(const RenderPath* path,
                                 const Mat2D& transform) override;
     void addRawPath(const RawPath& path) override;
     const RawPath& getRawPath() const { return m_rawPath; }

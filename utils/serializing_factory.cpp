@@ -320,7 +320,7 @@ public:
     {
         RIVE_UNREACHABLE();
     }
-    void addRenderPath(RenderPath* path, const Mat2D& transform) override
+    void addRenderPath(const RenderPath* path, const Mat2D& transform) override
     {
         RIVE_UNREACHABLE();
     }

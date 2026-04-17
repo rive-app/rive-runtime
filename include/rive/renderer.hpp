@@ -186,8 +186,9 @@ public:
         addRenderPath(path->renderPath(), transform);
     }
 
-    virtual void addRenderPath(RenderPath* path, const Mat2D& transform) = 0;
-    virtual void addRenderPathBackwards(RenderPath* path,
+    virtual void addRenderPath(const RenderPath* path,
+                               const Mat2D& transform) = 0;
+    virtual void addRenderPathBackwards(const RenderPath* path,
                                         const Mat2D& transform)
     {
         // No-op on non rive renderer.
