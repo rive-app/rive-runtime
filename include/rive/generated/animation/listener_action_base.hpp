@@ -1,6 +1,7 @@
 #ifndef _RIVE_LISTENER_ACTION_BASE_HPP_
 #define _RIVE_LISTENER_ACTION_BASE_HPP_
 #include "rive/core.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 class ListenerActionBase : public Core
@@ -26,14 +27,38 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    void copy(const ListenerActionBase& object) {}
+    static const uint16_t flagsPropertyKey = 980;
+
+protected:
+    uint32_t m_Flags = 0;
+
+public:
+    inline uint32_t flags() const { return m_Flags; }
+    void flags(uint32_t value)
+    {
+        if (m_Flags == value)
+        {
+            return;
+        }
+        m_Flags = value;
+        flagsChanged();
+    }
+
+    void copy(const ListenerActionBase& object) { m_Flags = object.m_Flags; }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
     {
+        switch (propertyKey)
+        {
+            case flagsPropertyKey:
+                m_Flags = CoreUintType::deserialize(reader);
+                return true;
+        }
         return false;
     }
 
 protected:
+    virtual void flagsChanged() {}
 };
 } // namespace rive
 

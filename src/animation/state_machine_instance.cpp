@@ -158,6 +158,8 @@ public:
                 clearAnimationReset();
                 fireEvents(StateMachineFireOccurance::atEnd,
                            m_transition->events());
+                performListenerActions(StateMachineFireOccurance::atEnd,
+                                       m_transition->listenerActions());
             }
         }
         else
@@ -284,6 +286,20 @@ public:
         }
     }
 
+    void performListenerActions(
+        StateMachineFireOccurance occurs,
+        const std::vector<std::unique_ptr<ListenerAction>>& listenerActions)
+    {
+        for (const auto& action : listenerActions)
+        {
+            if (action->matchesScheduledOccurrence(occurs))
+            {
+                action->perform(m_stateMachineInstance,
+                                ListenerInvocation::none());
+            }
+        }
+    }
+
     bool canChangeState(const LayerState* stateTo)
     {
         return !(
@@ -293,12 +309,12 @@ public:
 
     double randomValue() { return RandomProvider::generateRandomFloat(); }
 
-    bool changeState(const LayerState* stateTo)
+    void changeState(const LayerState* stateTo)
     {
         if ((m_currentState == nullptr ? nullptr : m_currentState->state()) ==
             stateTo)
         {
-            return false;
+            return;
         }
 
         // Fire end events for the state we're changing from.
@@ -306,6 +322,8 @@ public:
         {
             fireEvents(StateMachineFireOccurance::atEnd,
                        m_currentState->state()->events());
+            performListenerActions(StateMachineFireOccurance::atEnd,
+                                   m_currentState->state()->listenerActions());
         }
 
         m_currentState =
@@ -318,8 +336,10 @@ public:
         {
             fireEvents(StateMachineFireOccurance::atStart,
                        m_currentState->state()->events());
+            performListenerActions(StateMachineFireOccurance::atStart,
+                                   m_currentState->state()->listenerActions());
         }
-        return true;
+        return;
     }
 
     StateTransition* findRandomTransition(StateInstance* stateFromInstance)
@@ -459,11 +479,15 @@ public:
                     StateTransitionBase::durationPropertyKey);
             fireEvents(StateMachineFireOccurance::atStart,
                        transition->events());
+            performListenerActions(StateMachineFireOccurance::atStart,
+                                   transition->listenerActions());
             if (resolvedDuration() == 0)
             {
                 m_transitionCompleted = true;
                 fireEvents(StateMachineFireOccurance::atEnd,
                            transition->events());
+                performListenerActions(StateMachineFireOccurance::atEnd,
+                                       transition->listenerActions());
             }
             else
             {

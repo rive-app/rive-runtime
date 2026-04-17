@@ -1212,6 +1212,9 @@ public:
                 object->as<ArtboardComponentListOverrideBase>()
                     ->instanceHeightScaleType(value);
                 break;
+            case ListenerActionBase::flagsPropertyKey:
+                object->as<ListenerActionBase>()->flags(value);
+                break;
             case ListenerFireEventBase::eventIdPropertyKey:
                 object->as<ListenerFireEventBase>()->eventId(value);
                 break;
@@ -2840,6 +2843,8 @@ public:
                 instanceHeightScaleTypePropertyKey:
                 return object->as<ArtboardComponentListOverrideBase>()
                     ->instanceHeightScaleType();
+            case ListenerActionBase::flagsPropertyKey:
+                return object->as<ListenerActionBase>()->flags();
             case ListenerFireEventBase::eventIdPropertyKey:
                 return object->as<ListenerFireEventBase>()->eventId();
             case LayerStateBase::flagsPropertyKey:
@@ -3894,6 +3899,7 @@ public:
                 instanceWidthScaleTypePropertyKey:
             case ArtboardComponentListOverrideBase::
                 instanceHeightScaleTypePropertyKey:
+            case ListenerActionBase::flagsPropertyKey:
             case ListenerFireEventBase::eventIdPropertyKey:
             case LayerStateBase::flagsPropertyKey:
             case StateMachineFireActionBase::occursValuePropertyKey:
@@ -4562,6 +4568,8 @@ public:
             case ArtboardComponentListOverrideBase::
                 instanceHeightScaleTypePropertyKey:
                 return object->is<ArtboardComponentListOverrideBase>();
+            case ListenerActionBase::flagsPropertyKey:
+                return object->is<ListenerActionBase>();
             case ListenerFireEventBase::eventIdPropertyKey:
                 return object->is<ListenerFireEventBase>();
             case LayerStateBase::flagsPropertyKey:

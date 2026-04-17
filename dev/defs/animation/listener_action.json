@@ -15,8 +15,18 @@
         "int": 226,
         "string": "listenerId"
       },
-      "description": "Identifier used to track the StateMachineListener this result belongs to.",
+      "parentable": 1,
+      "description": "Id of the StateMachineListener or StateMachineLayerComponent this action belongs to.",
       "runtime": false
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 980,
+        "string": "flags"
+      },
+      "description": "Layer-scheduled listener actions: bit 0 selects phase (0 = atStart, 1 = atEnd, matching StateMachineFireOccurance). Other bits reserved. Ignored for listener-only actions."
     },
     "order": {
       "type": "FractionalIndex",

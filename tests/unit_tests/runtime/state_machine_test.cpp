@@ -913,3 +913,49 @@ TEST_CASE("Component based transition conditions with other props", "[silver]")
 
     CHECK(silver.matches("component_based_conditions-Artboard2"));
 }
+
+TEST_CASE("Transitions and state layers can trigger actions", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/transition_actions.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.5f / 0.5f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.5f);
+        artboard->draw(renderer.get());
+    }
+
+    stateMachine->pointerDown(Vec2D(250.0f, 250.0f));
+    stateMachine->pointerUp(Vec2D(250.0f, 250.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.5f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("transition_actions"));
+}
