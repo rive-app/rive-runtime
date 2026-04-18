@@ -218,7 +218,7 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::msaaMidpointFanPathsStencil:
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
-            case DrawType::msaaStencilClipReset:
+            case DrawType::clipReset:
                 RIVE_UNREACHABLE();
         }
 
@@ -262,7 +262,7 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::msaaMidpointFanPathsStencil:
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
-                case DrawType::msaaStencilClipReset:
+                case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                 case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();

@@ -110,9 +110,9 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_interior_triangles.frag.spirv",
         riveSpirvPath /
             "draw_clockwise_interior_triangles.fixedcolor_frag.spirv",
-        riveSpirvPath / "draw_clockwise_interior_triangles_clip.frag.spirv",
+        riveSpirvPath / "draw_clockwise_clip_interior_triangles.frag.spirv",
         riveSpirvPath /
-            "draw_clockwise_interior_triangles_clip.fixedcolor_frag.spirv",
+            "draw_clockwise_clip_interior_triangles.fixedcolor_frag.spirv",
         riveSpirvPath / "draw_clockwise_atlas_blit.vert.spirv",
         riveSpirvPath / "draw_clockwise_atlas_blit.frag.spirv",
         riveSpirvPath / "draw_clockwise_atlas_blit.fixedcolor_frag.spirv",
@@ -124,14 +124,22 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_atomic_path.vert.spirv",
         riveSpirvPath / "draw_clockwise_atomic_path.frag.spirv",
         riveSpirvPath / "draw_clockwise_atomic_path.fixedcolor_frag.spirv",
-        riveSpirvPath /
-            "draw_clockwise_atomic_path_borrowed_coverage.frag.spirv",
+        riveSpirvPath / "draw_clockwise_atomic_clip.frag.spirv",
+        riveSpirvPath / "draw_clockwise_atomic_clip.fixedcolor_frag.spirv",
+        riveSpirvPath / "draw_clockwise_atomic_borrowed_coverage.frag.spirv",
         riveSpirvPath / "draw_clockwise_atomic_interior_triangles.vert.spirv",
         riveSpirvPath / "draw_clockwise_atomic_interior_triangles.frag.spirv",
         riveSpirvPath /
             "draw_clockwise_atomic_interior_triangles.fixedcolor_frag.spirv",
         riveSpirvPath /
-            "draw_clockwise_atomic_interior_triangles_borrowed_coverage.frag.spirv",
+            "draw_clockwise_atomic_clip_interior_triangles.frag.spirv",
+        riveSpirvPath /
+            "draw_clockwise_atomic_clip_interior_triangles.fixedcolor_frag.spirv",
+        riveSpirvPath /
+            "draw_clockwise_atomic_borrowed_coverage_interior_triangles.frag.spirv",
+        riveSpirvPath / "clear_clockwise_atomic_clip.vert.spirv",
+        riveSpirvPath / "clear_clockwise_atomic_clip.frag.spirv",
+        riveSpirvPath / "clear_clockwise_atomic_clip.fixedcolor_frag.spirv",
         riveSpirvPath / "draw_clockwise_atomic_atlas_blit.vert.spirv",
         riveSpirvPath / "draw_clockwise_atomic_atlas_blit.frag.spirv",
         riveSpirvPath /
@@ -140,6 +148,9 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_atomic_image_mesh.frag.spirv",
         riveSpirvPath /
             "draw_clockwise_atomic_image_mesh.fixedcolor_frag.spirv",
+        riveSpirvPath / "init_clockwise_atomic_workaround.frag.spirv",
+        riveSpirvPath /
+            "init_clockwise_atomic_workaround.fixedcolor_frag.spirv",
 
         riveSpirvPath / "draw_msaa_path.vert.spirv",
         riveSpirvPath / "draw_msaa_path.noclipdistance_vert.spirv",

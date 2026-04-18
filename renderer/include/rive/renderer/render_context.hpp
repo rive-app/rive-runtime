@@ -32,7 +32,7 @@ class GradientLibrary;
 class IntersectionBoard;
 class ImageMeshDraw;
 class ImageRectDraw;
-class StencilClipReset;
+class ClipReset;
 class Draw;
 class Gradient;
 class RenderContextImpl;
@@ -310,7 +310,7 @@ private:
     friend class PathDraw;
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
-    friend class StencilClipReset;
+    friend class ClipReset;
     friend class ::PushRetrofittedTrianglesGMDraw; // For testing.
     friend class ::RenderContextTest;              // For testing.
 
@@ -691,6 +691,10 @@ private:
         // contour ID that is guaranteed to not be the same ID as any neighbors.
         void pushPaddingVertices(uint32_t count, uint32_t tessLocation);
 
+        // Schedules barriers that will be issued immediately before the next
+        // draw.
+        void pushBarriers(BarrierFlags);
+
         // Pushes a "midpointFanPatches" draw to the list. Path, contour, and
         // cubic data are pushed separately.
         //
@@ -737,15 +741,13 @@ private:
         // Pushes an "imageMesh" draw to the list.
         void pushImageMeshDraw(ImageMeshDraw*);
 
-        // Pushes a "stencilClipReset" draw to the list.
-        void pushStencilClipResetDraw(StencilClipReset*);
+        // Pushes a "clipReset" draw to the list.
+        void pushClipResetDraw(ClipReset*);
 
     private:
         friend class TessellationWriter;
 
         ClipInfo& getWritableClipInfo(uint32_t clipID);
-
-        void scheduleBarriersForNextDraw(BarrierFlags);
 
         // Either appends a new drawBatch to m_drawList or merges into
         // m_drawList.tail(). Updates the batch's ShaderFeatures according to

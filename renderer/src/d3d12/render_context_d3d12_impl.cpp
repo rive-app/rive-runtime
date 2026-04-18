@@ -1711,7 +1711,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::msaaMidpointFanPathsStencil:
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
-            case DrawType::msaaStencilClipReset:
+            case DrawType::clipReset:
             case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
         }

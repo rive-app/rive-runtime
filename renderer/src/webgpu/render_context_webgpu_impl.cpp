@@ -997,7 +997,7 @@ public:
                 case DrawType::msaaMidpointFanPathsStencil:
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
-                case DrawType::msaaStencilClipReset:
+                case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                 case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
@@ -1081,7 +1081,7 @@ public:
                 case DrawType::msaaMidpointFanPathsStencil:
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
-                case DrawType::msaaStencilClipReset:
+                case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                 case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
@@ -1140,7 +1140,7 @@ public:
                             : make_span(spirv::draw_msaa_path_webgpu_frag);
                     break;
 
-                case DrawType::msaaStencilClipReset:
+                case DrawType::clipReset:
                     vertCode = make_span(spirv::draw_msaa_stencil_vert);
                     fragCode = make_span(spirv::draw_msaa_stencil_frag);
                     break;
@@ -2546,7 +2546,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             topology = WGPUPrimitiveTopology_TriangleList;
             break;
         }
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
         {
@@ -3622,7 +3622,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case DrawType::msaaStencilClipReset:
+            case DrawType::clipReset:
             case DrawType::interiorTriangulation:
             case DrawType::atlasBlit:
             {

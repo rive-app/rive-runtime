@@ -13,4 +13,4 @@
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
 #include "draw_path.minified.vert"
-#include "draw_clockwise_atomic_path_borrowed_coverage.minified.frag"
+#include "draw_clockwise_atomic_clip.minified.frag"

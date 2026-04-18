@@ -108,14 +108,20 @@ PLS_MAIN(@drawFragmentMain)
     PLS_INTERLOCK_BEGIN;
 #endif
 
-#if defined(@ENABLE_CLIPPING) && !defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
+#if defined(@ENABLE_CLIPPING)
     if (@ENABLE_CLIPPING && v_clipID != .0)
     {
+        half clipCoverage;
+#ifndef @RENDER_MODE_CLOCKWISE_ATOMIC
         half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
         half clipContentID = clipData.g;
-        half clipCoverage =
+        clipCoverage =
             max(clipContentID == v_clipID ? clipData.r : make_half(.0),
                 make_half(.0));
+#else
+        clipCoverage = PLS_LOAD4F(clipBuffer).r;
+#endif
+        clipCoverage = max(clipCoverage, make_half(.0));
         coverage = min(coverage, clipCoverage);
     }
 #endif

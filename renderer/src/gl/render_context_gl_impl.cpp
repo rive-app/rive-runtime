@@ -70,7 +70,7 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::imageMesh:
         case gpu::DrawType::interiorTriangulation:
         case gpu::DrawType::atlasBlit:
-        case gpu::DrawType::msaaStencilClipReset:
+        case gpu::DrawType::clipReset:
         case gpu::DrawType::renderPassInitialize:
         case gpu::DrawType::renderPassResolve:
             return false;
@@ -1298,7 +1298,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
             }
             defines.push_back(GLSL_DRAW_PATH);
             break;
-        case gpu::DrawType::msaaStencilClipReset:
+        case gpu::DrawType::clipReset:
             break;
         case gpu::DrawType::interiorTriangulation:
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
@@ -1388,7 +1388,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::msaaMidpointFanPathsStencil:
                 case gpu::DrawType::msaaMidpointFanPathsCover:
                 case gpu::DrawType::msaaOuterCubics:
-                case gpu::DrawType::msaaStencilClipReset:
+                case gpu::DrawType::clipReset:
                 case gpu::DrawType::renderPassInitialize:
                 case gpu::DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
@@ -1415,7 +1415,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_path_vert);
                     sources.push_back(gpu::glsl::draw_msaa_object_frag);
                     break;
-                case gpu::DrawType::msaaStencilClipReset:
+                case gpu::DrawType::clipReset:
                     sources.push_back(gpu::glsl::stencil_draw);
                     break;
                 case gpu::DrawType::atlasBlit:
@@ -2456,7 +2456,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case gpu::DrawType::msaaStencilClipReset:
+            case gpu::DrawType::clipReset:
             {
                 m_state->bindVAO(m_trianglesVAO);
                 glDrawArrays(GL_TRIANGLES,

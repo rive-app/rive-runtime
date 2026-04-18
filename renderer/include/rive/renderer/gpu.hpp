@@ -658,8 +658,8 @@ enum class DrawType : uint8_t
     // type is included in order to support the "retrofittedcubictriangles" GM.
     msaaOuterCubics,
 
-    // Clear or intersect (based on DrawContents) the stencil clip bit.
-    msaaStencilClipReset,
+    // Clear or intersect (based on DrawContents) the clip value.
+    clipReset,
 
     // Clear/init render pass data with a fullscreen draw when we can't do it
     // with existing clear/load APIs. (e.g., for pixel local storage in buffers
@@ -693,7 +693,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
             return false;
@@ -727,7 +727,7 @@ constexpr static uint32_t PatchIndexCount(DrawType drawType)
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
@@ -759,7 +759,7 @@ constexpr static uint32_t PatchBaseIndex(DrawType drawType)
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
@@ -852,13 +852,13 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case InterlockMode::clockwise:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_EVEN_ODD;
         case InterlockMode::clockwiseAtomic:
-            // TODO: shader features aren't fully implemented yet in
-            // clockwiseAtomic mode.
-            return ShaderFeatures::ENABLE_CLIP_RECT |
-                   ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                   ShaderFeatures::ENABLE_HSL_BLEND_MODES |
-                   ShaderFeatures::ENABLE_FEATHER |
-                   ShaderFeatures::ENABLE_DITHER;
+            return kAllShaderFeatures &
+                   // clockwiseAtomic never supports even/odd fill rule.
+                   ~ShaderFeatures::ENABLE_EVEN_ODD &
+                   // clockwiseAtomic requires special blend state for nested
+                   // clip updates, so they need their own draw anyway and the
+                   // ENABLE_NESTED_CLIPPING feature isn't necessary.
+                   ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
         case InterlockMode::msaa:
             return ShaderFeatures::ENABLE_CLIP_RECT |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND |
@@ -885,8 +885,14 @@ enum class ShaderMiscFlags : uint32_t
     // get filled.
     clockwiseFill = 1 << 1,
 
-    // This shader only renders to the clip buffer. It doesn't output color.
+    // clockwise and clockwiseAtomic only: This is a specialized shader that
+    // only renders to the clip buffer. It doesn't output color.
     clipUpdateOnly = 1 << 2,
+
+    // clockwiseAtomic only: This is a specialized shader that only subtracts
+    // coverage from the existing clip contents (i.e., nested clip updates).
+    // It doesn't output color.
+    nestedClipUpdateOnly = 1 << 3,
 
     // clockwise and clockwiseAtomic modes only. This shader renders a pass that
     // only subtracts (counterclockwise) borrowed coverage from the coverage
@@ -894,16 +900,16 @@ enum class ShaderMiscFlags : uint32_t
     // If drawing interior triangulations, every fragment will be the first of
     // the path at its pixel, so it can blindly overwrite coverage without
     // reading the buffer and subtracting.
-    borrowedCoveragePass = 1 << 3,
+    borrowedCoveragePass = 1 << 4,
 
     // DrawType::renderPassInitialize only. Also store the color clear value to
     // PLS when drawing a clear, in addition to clearing the other PLS planes.
-    storeColorClear = 1 << 4,
+    storeColorClear = 1 << 5,
 
     // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
     // contents from BGRA to RGBA. (For when this data had to get copied from a
     // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 5,
+    swizzleColorBGRAToRGBA = 1 << 6,
 
     // DrawType::renderPassResolve only. Optimization for when rendering to an
     // offscreen texture.
@@ -911,7 +917,7 @@ enum class ShaderMiscFlags : uint32_t
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 6,
+    coalescedResolveAndTransfer = 1 << 7,
 };
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
@@ -949,7 +955,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::msaaOuterCubics:
             mask = kAllShaderFeatures;
             break;
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
             mask = ShaderFeatures::ENABLE_DITHER;
             break;
         case DrawType::renderPassInitialize:
@@ -1900,7 +1906,8 @@ enum class BlendEquation : uint8_t
     // Core hardware blend equations supported on all platforms.
     srcOver = static_cast<int>(rive::BlendMode::srcOver),
     plus = srcOver + 1,
-    max = plus + 1,
+    min = srcOver + 2,
+    max = srcOver + 3,
 
     // "Advanced" hardware blend equations.
     // PlatformFeatures::supportsKHRBlendEquations is required.

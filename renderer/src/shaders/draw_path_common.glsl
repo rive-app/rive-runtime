@@ -860,10 +860,24 @@ INLINE half incremental_clockwise_coverage(half c0, half c1, half paintAlpha)
     return (c1 - c0) / max(1. - c0 * paintAlpha, EPSILON_FP16_NON_DENORM);
 }
 
+#ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
+
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+#define CLOCKWISE_ATOMIC_PLS_MAIN PLS_FRAG_COLOR_MAIN
+#define EMIT_CLOCKWISE_ATOMIC_PLS(FRAG_COLOR)                                  \
+    _fragColor = FRAG_COLOR;                                                   \
+    EMIT_PLS_AND_FRAG_COLOR
+#else
+#define CLOCKWISE_ATOMIC_PLS_MAIN PLS_MAIN
+#define EMIT_CLOCKWISE_ATOMIC_PLS(FRAG_COLOR)                                  \
+    PLS_STORE4F(colorBuffer, FRAG_COLOR);                                      \
+    EMIT_PLS;
+#endif
+
 // Converts an x,y image coordinate into a buffer index, swizzling into 32x32
 // tiles for better cache performance.
 // imageWidth must be a multiple of 32.
-uint swizzle_buffer_idx_32x32(uint2 imageCoord, uint imageWidth)
+INLINE uint swizzle_buffer_idx_32x32(uint2 imageCoord, uint imageWidth)
 {
     uint idx = (imageCoord.y >> 5u) * (imageWidth << 5u) +
                (imageCoord.x >> 5u) * (32u << 5u);
@@ -874,3 +888,22 @@ uint swizzle_buffer_idx_32x32(uint2 imageCoord, uint imageWidth)
     idx += (imageCoord.y & 0x3u) * 4u + (imageCoord.x & 0x3u);
     return idx;
 }
+
+// Extracts coverage from its fixed-point encoding in a coverage buffer value.
+INLINE half clockwise_atomic_fixed_to_coverage(uint coverageFixed)
+{
+    return cast_int_to_half(int((coverageFixed & CLOCKWISE_COVERAGE_MASK) -
+                                CLOCKWISE_FILL_ZERO_VALUE)) *
+           CLOCKWISE_COVERAGE_INVERSE_PRECISION;
+}
+
+// Converts a coverage to a fixed point delta that may be added to a coverage
+// buffer value.
+// NOTE: This is not the same as converting it to a plain coverage value, since
+// those must be biased by CLOCKWISE_FILL_ZERO_VALUE.
+INLINE uint clockwise_atomic_coverage_delta_to_fixed(half coverage)
+{
+    return uint(coverage * CLOCKWISE_COVERAGE_PRECISION + .5);
+}
+
+#endif // @RENDER_MODE_CLOCKWISE_ATOMIC

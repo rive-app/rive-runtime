@@ -33,7 +33,7 @@ void main()
     // Try to apply borrowedCoverage, assuming the existing coverage value
     // is zero.
     uint borrowedCoverageFixed =
-        uint(abs(fragCoverage) * CLOCKWISE_COVERAGE_PRECISION + .5);
+        clockwise_atomic_coverage_delta_to_fixed(abs(fragCoverage));
     uint targetCoverageValue =
         uniforms.coverageBufferPrefix |
         (CLOCKWISE_FILL_ZERO_VALUE - borrowedCoverageFixed);

@@ -73,6 +73,8 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::interiorTriangulation,
                 DrawType::atlasBlit,
                 DrawType::imageMesh,
+                DrawType::clipReset,
+                DrawType::renderPassInitialize,
             };
             return make_span(types);
         }
@@ -88,7 +90,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::msaaMidpointFanPathsStencil,
                 DrawType::msaaMidpointFanPathsCover,
                 DrawType::msaaOuterCubics,
-                DrawType::msaaStencilClipReset,
+                DrawType::clipReset,
                 DrawType::renderPassInitialize,
                 DrawType::renderPassResolve,
             };
@@ -111,23 +113,28 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-            switch (mode)
+        case DrawType::clipReset:
+            // Clockwise modes introduce borrowed coverage and dedicated clip
+            // draws for paths.
+            if (mode == InterlockMode::clockwise ||
+                mode == InterlockMode::clockwiseAtomic)
             {
-                case InterlockMode::rasterOrdering:
-                    break;
-
-                case InterlockMode::clockwise:
-                    outFlags |= ShaderMiscFlags::borrowedCoveragePass |
-                                ShaderMiscFlags::clipUpdateOnly;
-                    break;
-
-                case InterlockMode::clockwiseAtomic:
+                if (drawType == DrawType::interiorTriangulation ||
+                    mode == InterlockMode::clockwiseAtomic)
+                {
                     outFlags |= ShaderMiscFlags::borrowedCoveragePass;
-                    break;
+                }
 
-                case InterlockMode::atomics:
-                case InterlockMode::msaa:
-                    break;
+                // midpointFanCenterAAPatches is only used for feathers, and
+                // feathers are never clips.
+                if (drawType != DrawType::midpointFanCenterAAPatches)
+                {
+                    outFlags |= ShaderMiscFlags::clipUpdateOnly;
+                    if (mode == InterlockMode::clockwiseAtomic)
+                    {
+                        outFlags |= ShaderMiscFlags::nestedClipUpdateOnly;
+                    }
+                }
             }
             break;
 
@@ -155,7 +162,6 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
-        case DrawType::msaaStencilClipReset:
             break;
     }
 
@@ -186,6 +192,9 @@ void ForEachUbershaderPermutation(
     const bool allowRenderPassInitialize =
         (interlockMode == InterlockMode::atomics &&
          platformFeatures.atomicPLSInitNeedsDraw) ||
+        (interlockMode == InterlockMode::clockwiseAtomic &&
+         platformFeatures
+             .clockwiseAtomicBorrowedCoverageBarrierNeedsRenderPassInit) ||
         (interlockMode == InterlockMode::msaa &&
          platformFeatures.msaaColorPreserveNeedsDraw);
 
@@ -221,6 +230,31 @@ void ForEachUbershaderPermutation(
                     break;
 
                 case InterlockMode::clockwiseAtomic:
+                    if (enums::is_flag_set(
+                            curMiscFlags,
+                            ShaderMiscFlags::borrowedCoveragePass))
+                    {
+                        // Borrowed coverage clockwiseAtomic passes always set
+                        // fixedFunctionColorOutput because they never read (or
+                        // even write, for that matter) the color buffer.
+                        if (!enums::is_flag_set(
+                                curMiscFlags,
+                                ShaderMiscFlags::fixedFunctionColorOutput))
+                        {
+                            continue;
+                        }
+                        // Borrowed coverage clockwiseAtomic passes never update
+                        // clip.
+                        if (enums::any_flag_set(
+                                curMiscFlags,
+                                ShaderMiscFlags::clipUpdateOnly |
+                                    ShaderMiscFlags::nestedClipUpdateOnly))
+                        {
+                            continue;
+                        }
+                    }
+                    break;
+
                 case InterlockMode::rasterOrdering:
                 case InterlockMode::clockwise:
                 case InterlockMode::msaa:
@@ -313,8 +347,9 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::imageMesh:
             drawTypeKey = 4;
             break;
-        case DrawType::msaaStencilClipReset:
-            assert(interlockMode == InterlockMode::msaa);
+        case DrawType::clipReset:
+            assert(interlockMode == InterlockMode::clockwiseAtomic ||
+                   interlockMode == InterlockMode::msaa);
             drawTypeKey = 7;
             break;
         case DrawType::renderPassInitialize:
@@ -1051,7 +1086,7 @@ DepthState get_depth_state(InterlockMode interlockMode,
         case DrawType::outerCurvePatches:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
             return {.depthTestEnabled = true, .depthWriteEnabled = false};
             break;
 
@@ -1166,7 +1201,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
                     DrawContents::clipUpdate,
                     areDrawContentsValid};
 
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
             return {
                 ((drawContents & kNestedClipUpdateMask) ==
                  kNestedClipUpdateMask)
@@ -1380,7 +1415,6 @@ static void get_stencil_settings(InterlockMode interlockMode,
                 .compareOp = StencilCompareOp::less,
             };
             pipelineState->stencilDoubleSided = false;
-
             break;
 
         case StencilType::clipReset:
@@ -1410,7 +1444,7 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::atlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFans:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
             return CullFace::counterclockwise;
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanStencilReset:
@@ -1452,17 +1486,53 @@ static BlendEquation get_blend_equation(
                                             : BlendEquation::none;
 
         case InterlockMode::clockwiseAtomic:
-            if (enums::is_flag_set(
-                    shaderMiscFlags,
-                    gpu::ShaderMiscFlags::borrowedCoveragePass) ||
-                drawType == DrawType::renderPassInitialize)
+            if (drawType == DrawType::renderPassInitialize)
             {
+                // This draw is a seeming workaround for Qualcomm. Basically,
+                // input attachment reads of the clip and color buffers don't
+                // work unless we first draw these buffers into themselves
+                // between borrowed coverage and the main subpass.
+                return fixedFunctionColorOutput
+                           // When using fixedFunctionColorOutput, this
+                           // workaround doesn't apply to the color buffer, but
+                           // we still need to make sure the existing color
+                           // content doesn't change. To do this, we use srcOver
+                           // blend and emit a color of 0.
+                           ? BlendEquation::srcOver
+                           // Otherwise, the workaround draws both color and
+                           // clip into themselves. Blend needs to be disabled
+                           // in this case because the existing color value
+                           // might have transparency.
+                           : BlendEquation::none;
+            }
+            else if (enums::is_flag_set(
+                         shaderMiscFlags,
+                         gpu::ShaderMiscFlags::borrowedCoveragePass))
+            {
+                // Borrowed coverage passes don't emit color. They only update
+                // the coverage buffer.
                 return BlendEquation::none;
+            }
+            else if (enums::is_flag_set(
+                         shaderMiscFlags,
+                         gpu::ShaderMiscFlags::nestedClipUpdateOnly))
+            {
+                // The coverage of two intersecting clips is
+                // "min(clipCoverageA, clipCoverageB)".
+                return BlendEquation::min;
+            }
+            else if (enums::is_flag_set(shaderMiscFlags,
+                                        gpu::ShaderMiscFlags::clipUpdateOnly) &&
+                     drawType != gpu::DrawType::clipReset)
+            {
+                // clockwiseAtomic clips render coverage count directly to the
+                // clip buffer.
+                return BlendEquation::plus;
             }
             else
             {
-                // clockwiseAtomic uses src-over to accumulate coverage, even
-                // with advanced blend.
+                // For normal paths, clockwiseAtomic uses src-over to accumulate
+                // coverage, even with advanced blend.
                 return BlendEquation::srcOver;
             }
 
@@ -1532,7 +1602,7 @@ bool get_color_write_enable(DrawType drawType,
             return true;
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
             return false;
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
@@ -1687,8 +1757,12 @@ PipelineState get_pipeline_state(DrawType drawType,
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
-        case DrawType::msaaStencilClipReset:
             assert(interlockMode == InterlockMode::msaa);
+            break;
+
+        case DrawType::clipReset:
+            assert(interlockMode == InterlockMode::clockwiseAtomic ||
+                   interlockMode == InterlockMode::msaa);
             break;
     }
 #endif

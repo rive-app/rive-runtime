@@ -109,7 +109,7 @@ static std::string build_shader(DrawType drawType,
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::clipReset:
         case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
@@ -156,7 +156,7 @@ static std::string build_shader(DrawType drawType,
             case DrawType::msaaMidpointFanPathsStencil:
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
-            case DrawType::msaaStencilClipReset:
+            case DrawType::clipReset:
             case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
         }

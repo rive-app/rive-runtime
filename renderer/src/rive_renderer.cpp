@@ -299,13 +299,6 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 
 void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 {
-    if (m_context->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
-    {
-        // Just discard clip paths in clockwiseAtomic mode for now.
-        // TODO: Implement path clipping in clockwiseAtomic mode.
-        return;
-    }
-
     RIVE_PROF_SCOPE()
     if (path->getBounds().isEmptyOrNaN())
     {
@@ -523,6 +516,65 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
             "are too complex.\n");
 }
 
+// Used by clipping in clockwiseAtomic mode.
+//
+// Returns the inverse of a path, meaning, regions that were filled in the old
+// path are now empty, and empty regions in the old path are now filled.
+//
+// NOTE: A true inverse path would expand infinitely in all directions, but this
+// function limits it by the provided "bounds".
+//
+// NOTE: The returned path is always clockwise, even if the given path was not.
+// If the given path is not clockwise, we attempt to convert it to clockwise
+// based on its dominant winding direction. This may or may not be accurate.
+rcp<RiveRenderPath> invert_clockwise_path(const RiveRenderPath* path,
+                                          FillRule pathFillRule,
+                                          const Mat2D& viewMatrix,
+                                          IAABB bounds)
+{
+    auto inversePath = make_rcp<RiveRenderPath>();
+    inversePath->fillRule(FillRule::clockwise);
+    Mat2D viewInverseMatrix;
+    if (viewMatrix.invert(&viewInverseMatrix))
+    {
+        // Add the pre-viewMatrix "bounds" rect to the new path.
+        std::array<Vec2D, 4> boundsVertices = {
+            Vec2D(bounds.left, bounds.top),
+            Vec2D(bounds.right, bounds.top),
+            Vec2D(bounds.right, bounds.bottom),
+            Vec2D(bounds.left, bounds.bottom),
+        };
+        viewInverseMatrix.mapPoints(boundsVertices.data(),
+                                    boundsVertices.data(),
+                                    4);
+        inversePath->move(boundsVertices[0]);
+        if (const float viewMatrixDeterminant =
+                viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1];
+            viewMatrixDeterminant >= 0)
+        {
+            inversePath->line(boundsVertices[1]);
+            inversePath->line(boundsVertices[2]);
+            inversePath->line(boundsVertices[3]);
+        }
+        else
+        {
+            inversePath->line(boundsVertices[3]);
+            inversePath->line(boundsVertices[2]);
+            inversePath->line(boundsVertices[1]);
+        }
+        // Subtract the given path out of the bounds rect.
+        if (pathFillRule == FillRule::clockwise || path->getCoarseArea() >= 0)
+        {
+            inversePath->addRenderPathBackwards(path, Mat2D());
+        }
+        else
+        {
+            inversePath->addRenderPath(path, Mat2D());
+        }
+    }
+    return inversePath;
+}
+
 RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 {
     RIVE_PROF_SCOPE()
@@ -560,18 +612,20 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         clipIdxCurrentlyInClipBuffer == -1
             ? 0 // The next clip to be drawn is not nested.
             : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
-    if (m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
+    if (m_context->frameInterlockMode() ==
+            gpu::InterlockMode::clockwiseAtomic ||
+        m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
         if (lastClipID == 0 && m_context->getClipContentID() != 0)
         {
             // Time for a new stencil clip! Erase the clip currently in the
             // stencil buffer before we draw the new one.
             auto stencilClipClear =
-                gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
+                gpu::DrawUniquePtr(m_context->make<gpu::ClipReset>(
                     m_context,
                     m_context->getClipContentID(),
                     gpu::DrawContents::none,
-                    gpu::StencilClipReset::ResetAction::clearPreviousClip));
+                    gpu::ClipReset::ResetAction::clearPreviousClip));
             if (!m_context->isOutsideCurrentFrame(
                     stencilClipClear->pixelBounds()))
             {
@@ -589,11 +643,27 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         RiveRenderPaint clipUpdatePaint;
         clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
 
+        rcp clipPath = clip.path;
+        FillRule clipFillRule = clip.fillRule;
+        if (m_context->frameInterlockMode() ==
+                gpu::InterlockMode::clockwiseAtomic &&
+            lastClipID != 0)
+        {
+            // clockwiseAtomic implements nested clips by erasing the inverse
+            // of the inner path from the outer clip.
+            clipPath = invert_clockwise_path(
+                clipPath.get(),
+                clipFillRule,
+                clip.matrix,
+                m_context->getClipContentBounds(lastClipID));
+            clipFillRule = FillRule::clockwise;
+        }
+
         gpu::DrawUniquePtr clipDraw =
             gpu::PathDraw::Make(m_context,
                                 clip.matrix,
-                                clip.path,
-                                clip.fillRule,
+                                std::move(clipPath),
+                                clipFillRule,
                                 &clipUpdatePaint,
                                 1.0f, // no opacity modulation for clips
                                 &m_scratchPath);
@@ -632,12 +702,11 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                 // which involves erasing the region of the current clip in the
                 // stencil buffer that is outside the the one we just drew.
                 auto stencilClipIntersect =
-                    gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
+                    gpu::DrawUniquePtr(m_context->make<gpu::ClipReset>(
                         m_context,
                         lastClipID,
                         clipDrawContents,
-                        gpu::StencilClipReset::ResetAction::
-                            intersectPreviousClip));
+                        gpu::ClipReset::ResetAction::intersectPreviousClip));
                 if (!m_context->isOutsideCurrentFrame(
                         stencilClipIntersect->pixelBounds()))
                 {

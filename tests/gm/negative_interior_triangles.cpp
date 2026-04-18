@@ -32,43 +32,56 @@ static void draw_test(Renderer* renderer, bool asClip)
     }
     renderer->clipPath(checkerboard.detach());
 
-    Path path;
-    path->fillRule(FillRule::clockwise);
-    // Add a negative rectangle.
-    path->addRect(SIZE, 0, -SIZE, SIZE);
+    for (bool negativeDeterminant : {false, true})
+    {
+        AutoRestore ar(renderer, true);
+        if (negativeDeterminant)
+        {
+            renderer->translate(SIZE - 7, 207);
+            renderer->scale(-1, 1);
+        }
+        else
+        {
+            renderer->translate(29, -100);
+        }
 
-    // The first path will be completely erased by the negative rectangle. It
-    // will only show if we draw it over itself twice.
-    for (float x : {SIZE / 2.f, .0f, SIZE / 2.f})
-    {
-        path->moveTo(x + 50, SIZE / 2.5f);
-        path->cubicTo(x + 50,
-                      0,
-                      x + SIZE / 2.f - 50,
-                      0,
-                      x + SIZE / 2.f - 50,
-                      SIZE / 2.5f);
-        path->cubicTo(x + SIZE / 2.f - 50,
-                      SIZE,
-                      x + 50,
-                      SIZE,
-                      x + 50,
-                      SIZE / 2.5f);
-    }
+        Path path;
+        path->fillRule(FillRule::clockwise);
+        // Add a negative rectangle.
+        path->addRect(SIZE, 0, -SIZE, SIZE);
 
-    if (asClip)
-    {
-        Paint red;
-        red->color(0xffff0000);
-        renderer->clipPath(path.get());
-        renderer->drawPath(PathBuilder::Rect({0, 0, SIZE, SIZE}).get(),
-                           red.get());
-    }
-    else
-    {
-        Paint magenta;
-        magenta->color(0xffff00ff);
-        renderer->drawPath(path.get(), magenta.get());
+        // The first path will be completely erased by the negative rectangle.
+        // It will only show if we draw it over itself twice.
+        for (float x : {SIZE / 2.f, .0f, SIZE / 2.f})
+        {
+            path->moveTo(x + 50, SIZE / 2.5f);
+            path->cubicTo(x + 50,
+                          0,
+                          x + SIZE / 2.f - 50,
+                          0,
+                          x + SIZE / 2.f - 50,
+                          SIZE / 2.5f);
+            path->cubicTo(x + SIZE / 2.f - 50,
+                          SIZE,
+                          x + 50,
+                          SIZE,
+                          x + 50,
+                          SIZE / 2.5f);
+        }
+
+        Paint paint;
+        if (asClip)
+        {
+            paint->color(negativeDeterminant ? 0xd0900000 : 0xffff0000);
+            renderer->clipPath(path.get());
+            renderer->drawPath(PathBuilder::Rect({0, 0, SIZE, SIZE}).get(),
+                               paint.get());
+        }
+        else
+        {
+            paint->color(negativeDeterminant ? 0xc0700070 : 0xffff00ff);
+            renderer->drawPath(path.get(), paint.get());
+        }
     }
 }
 

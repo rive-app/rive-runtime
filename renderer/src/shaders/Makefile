@@ -167,13 +167,17 @@ SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/draw_clockwise_path.main \
     spirv/draw_clockwise_clip.main \
     spirv/draw_clockwise_interior_triangles.main \
-    spirv/draw_clockwise_interior_triangles_clip.main \
+    spirv/draw_clockwise_clip_interior_triangles.main \
     spirv/draw_clockwise_atlas_blit.main \
     spirv/draw_clockwise_image_mesh.main \
     spirv/draw_clockwise_atomic_path.main \
     spirv/draw_clockwise_atomic_interior_triangles.main \
     spirv/draw_clockwise_atomic_atlas_blit.main \
     spirv/draw_clockwise_atomic_image_mesh.main \
+    spirv/init_clockwise_atomic_workaround.frag \
+    spirv/draw_clockwise_atomic_clip.frag \
+    spirv/draw_clockwise_atomic_clip_interior_triangles.frag \
+    spirv/clear_clockwise_atomic_clip.main \
     spirv/draw_msaa_atlas_blit.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_path.main \

@@ -4,7 +4,6 @@
 
 #include "rive/math/bitwise.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
-#include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "shaders/constants.glsl"
 #include "draw_pipeline_layout_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"

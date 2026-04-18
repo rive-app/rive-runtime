@@ -61,8 +61,8 @@ namespace embedded
 #include "generated/shaders/spirv/draw_clockwise_interior_triangles.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_interior_triangles.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_interior_triangles.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_clockwise_interior_triangles_clip.frag.h"
-#include "generated/shaders/spirv/draw_clockwise_interior_triangles_clip.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_clockwise_clip_interior_triangles.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_clip_interior_triangles.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atlas_blit.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_atlas_blit.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atlas_blit.fixedcolor_frag.h"
@@ -75,17 +75,26 @@ namespace embedded
 #include "generated/shaders/spirv/draw_clockwise_atomic_path.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_path.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_path.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_clockwise_atomic_path_borrowed_coverage.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atomic_borrowed_coverage.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atomic_clip.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atomic_clip.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_interior_triangles.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_interior_triangles.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_interior_triangles.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_clockwise_atomic_interior_triangles_borrowed_coverage.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atomic_borrowed_coverage_interior_triangles.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atomic_clip_interior_triangles.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atomic_clip_interior_triangles.fixedcolor_frag.h"
+#include "generated/shaders/spirv/clear_clockwise_atomic_clip.vert.h"
+#include "generated/shaders/spirv/clear_clockwise_atomic_clip.frag.h"
+#include "generated/shaders/spirv/clear_clockwise_atomic_clip.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_atlas_blit.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_atlas_blit.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_atlas_blit.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_image_mesh.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_image_mesh.fixedcolor_frag.h"
+#include "generated/shaders/spirv/init_clockwise_atomic_workaround.frag.h"
+#include "generated/shaders/spirv/init_clockwise_atomic_workaround.fixedcolor_frag.h"
 
 // InterlockMode::msaa shaders.
 #include "generated/shaders/spirv/draw_msaa_path.vert.h"
@@ -204,11 +213,11 @@ rive::Span<const uint32_t> draw_clockwise_interior_triangles_frag =
 rive::Span<const uint32_t> draw_clockwise_interior_triangles_fixedcolor_frag =
     rive::make_span(
         embedded::draw_clockwise_interior_triangles_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_interior_triangles_clip_frag =
-    rive::make_span(embedded::draw_clockwise_interior_triangles_clip_frag);
+rive::Span<const uint32_t> draw_clockwise_clip_interior_triangles_frag =
+    rive::make_span(embedded::draw_clockwise_clip_interior_triangles_frag);
 rive::Span<const uint32_t>
-    draw_clockwise_interior_triangles_clip_fixedcolor_frag = rive::make_span(
-        embedded::draw_clockwise_interior_triangles_clip_fixedcolor_frag);
+    draw_clockwise_clip_interior_triangles_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_clip_interior_triangles_fixedcolor_frag);
 rive::Span<const uint32_t> draw_clockwise_atlas_blit_vert =
     rive::make_span(embedded::draw_clockwise_atlas_blit_vert);
 rive::Span<const uint32_t> draw_clockwise_atlas_blit_frag =
@@ -230,9 +239,12 @@ rive::Span<const uint32_t> draw_clockwise_atomic_path_frag =
     rive::make_span(embedded::draw_clockwise_atomic_path_frag);
 rive::Span<const uint32_t> draw_clockwise_atomic_path_fixedcolor_frag =
     rive::make_span(embedded::draw_clockwise_atomic_path_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_path_borrowed_coverage_frag =
-    rive::make_span(
-        embedded::draw_clockwise_atomic_path_borrowed_coverage_frag);
+rive::Span<const uint32_t> draw_clockwise_atomic_clip_frag =
+    rive::make_span(embedded::draw_clockwise_atomic_clip_frag);
+rive::Span<const uint32_t> draw_clockwise_atomic_clip_fixedcolor_frag =
+    rive::make_span(embedded::draw_clockwise_atomic_clip_fixedcolor_frag);
+rive::Span<const uint32_t> draw_clockwise_atomic_borrowed_coverage_frag =
+    rive::make_span(embedded::draw_clockwise_atomic_borrowed_coverage_frag);
 rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_vert =
     rive::make_span(embedded::draw_clockwise_atomic_interior_triangles_vert);
 rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_frag =
@@ -240,11 +252,25 @@ rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_frag =
 rive::Span<const uint32_t>
     draw_clockwise_atomic_interior_triangles_fixedcolor_frag = rive::make_span(
         embedded::draw_clockwise_atomic_interior_triangles_fixedcolor_frag);
+rive::Span<const uint32_t> draw_clockwise_atomic_clip_interior_triangles_frag =
+    rive::make_span(
+        embedded::draw_clockwise_atomic_clip_interior_triangles_frag);
 rive::Span<const uint32_t>
-    draw_clockwise_atomic_interior_triangles_borrowed_coverage_frag =
+    draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag =
         rive::make_span(
             embedded::
-                draw_clockwise_atomic_interior_triangles_borrowed_coverage_frag);
+                draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag =
+        rive::make_span(
+            embedded::
+                draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag);
+rive::Span<const uint32_t> clear_clockwise_atomic_clip_vert =
+    rive::make_span(embedded::clear_clockwise_atomic_clip_vert);
+rive::Span<const uint32_t> clear_clockwise_atomic_clip_frag =
+    rive::make_span(embedded::clear_clockwise_atomic_clip_frag);
+rive::Span<const uint32_t> clear_clockwise_atomic_clip_fixedcolor_frag =
+    rive::make_span(embedded::clear_clockwise_atomic_clip_fixedcolor_frag);
 rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_vert =
     rive::make_span(embedded::draw_clockwise_atomic_atlas_blit_vert);
 rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_frag =
@@ -257,6 +283,10 @@ rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_frag =
     rive::make_span(embedded::draw_clockwise_atomic_image_mesh_frag);
 rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_fixedcolor_frag =
     rive::make_span(embedded::draw_clockwise_atomic_image_mesh_fixedcolor_frag);
+rive::Span<const uint32_t> init_clockwise_atomic_workaround_frag =
+    rive::make_span(embedded::init_clockwise_atomic_workaround_frag);
+rive::Span<const uint32_t> init_clockwise_atomic_workaround_fixedcolor_frag =
+    rive::make_span(embedded::init_clockwise_atomic_workaround_fixedcolor_frag);
 
 // InterlockMode::msaa shaders.
 rive::Span<const uint32_t> draw_msaa_path_vert =
@@ -357,8 +387,8 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_interior_triangles_fixedcolor_frag =
         readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_clip_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_clip_fixedcolor_frag =
+    spirv::draw_clockwise_clip_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_clip_interior_triangles_fixedcolor_frag =
         readNextBytecodeSpan();
     spirv::draw_clockwise_atlas_blit_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_atlas_blit_frag = readNextBytecodeSpan();
@@ -371,7 +401,9 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_clockwise_atomic_path_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_path_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_path_borrowed_coverage_frag =
+    spirv::draw_clockwise_atomic_clip_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_borrowed_coverage_frag =
         readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_interior_triangles_vert =
         readNextBytecodeSpan();
@@ -379,14 +411,26 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
         readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_interior_triangles_fixedcolor_frag =
         readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_interior_triangles_borrowed_coverage_frag =
-        spirv::draw_clockwise_atomic_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_clip_interior_triangles_frag =
+        readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag =
+        readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag =
+        readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::clear_clockwise_atomic_clip_vert = readNextBytecodeSpan();
+    spirv::clear_clockwise_atomic_clip_frag = readNextBytecodeSpan();
+    spirv::clear_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_atomic_atlas_blit_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_atlas_blit_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_atlas_blit_fixedcolor_frag =
         readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_image_mesh_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_image_mesh_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_image_mesh_fixedcolor_frag =
+        readNextBytecodeSpan();
+    spirv::init_clockwise_atomic_workaround_frag = readNextBytecodeSpan();
+    spirv::init_clockwise_atomic_workaround_fixedcolor_frag =
         readNextBytecodeSpan();
 
     spirv::draw_msaa_path_vert = readNextBytecodeSpan();

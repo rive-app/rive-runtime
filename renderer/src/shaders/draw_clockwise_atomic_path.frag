@@ -38,7 +38,7 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
 
     half X;
     uint fragCoverageFixed =
-        uint(abs(fragCoverage) * CLOCKWISE_COVERAGE_PRECISION + .5);
+        clockwise_atomic_coverage_delta_to_fixed(abs(fragCoverage));
     preexistingCoverageValue = STORAGE_BUFFER_ATOMIC_MAX(
         coverageBuffer,
         coverageIndex,
@@ -90,7 +90,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
 {
     half X = .0; // Amount by which to multiply paintAlpha.
     uint fragCoverageRemainingFixed =
-        uint(abs(fragCoverageRemaining) * CLOCKWISE_COVERAGE_PRECISION + .5);
+        clockwise_atomic_coverage_delta_to_fixed(abs(fragCoverageRemaining));
 
     preexistingCoverageValue =
         STORAGE_BUFFER_LOAD(coverageBuffer, coverageIndex);
@@ -179,10 +179,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
             STORAGE_BUFFER_ATOMIC_ADD(coverageBuffer,
                                       coverageIndex,
                                       fragCoverageRemainingFixed);
-        half c0 =
-            cast_int_to_half(int((coverageBeforeAdd & CLOCKWISE_COVERAGE_MASK) -
-                                 CLOCKWISE_FILL_ZERO_VALUE)) *
-            CLOCKWISE_COVERAGE_INVERSE_PRECISION;
+        half c0 = clockwise_atomic_fixed_to_coverage(coverageBeforeAdd);
         half c1 = c0 + fragCoverageRemaining;
         c0 = clamp(c0, .0, 1.);
         c1 = clamp(c1, .0, 1.);
@@ -198,11 +195,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
     paintAlpha *= X;
 }
 
-#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
-PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
-#else
-PLS_MAIN(@drawFragmentMain)
-#endif
+CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -261,20 +254,32 @@ PLS_MAIN(@drawFragmentMain)
         v_coveragePlacement.x +
         swizzle_buffer_idx_32x32(uint2(coverageCoord), coveragePitch);
 
+    half maxCoverage = 1.;
+
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
         half clipRectMin = min_component(cast_float4_to_half4(v_clipRect));
-        fragCoverage = min(fragCoverage, clipRectMin);
+        maxCoverage = min(clipRectMin, maxCoverage);
     }
 #endif
+
+#ifdef @ENABLE_CLIPPING
+    if (@ENABLE_CLIPPING && v_clipIDs.x != .0)
+    {
+        half clip = PLS_LOAD4F(clipBuffer).r;
+        maxCoverage = min(clip, maxCoverage);
+    }
+#endif
+
+    maxCoverage = max(maxCoverage, .0);
+    fragCoverage = clamp(fragCoverage, .0, maxCoverage);
 
     uint preexistingCoverageValue;
     float newCoverage;
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))
     {
-        fragCoverage = clamp(fragCoverage, .0, 1.);
         apply_stroke_coverage(paintColor.a,
                               fragCoverage,
                               coverageIndex,
@@ -368,14 +373,7 @@ PLS_MAIN(@drawFragmentMain)
     // Since blend is enabled, storing 0 to the clip will ensure it remains
     // unchanged.
     PLS_STORE4F(clipBuffer, make_half4(.0));
-
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-    PLS_STORE4F(colorBuffer, paintColor);
-    EMIT_PLS;
-#else
-    _fragColor = paintColor;
-    EMIT_PLS_AND_FRAG_COLOR
-#endif
+    EMIT_CLOCKWISE_ATOMIC_PLS(paintColor);
 }
 
 #endif // FRAGMENT

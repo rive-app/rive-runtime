@@ -243,6 +243,18 @@ void GLState::setBlendEquation(gpu::BlendEquation blendEquation)
             glBlendEquation(GL_FUNC_ADD);
             glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
             break;
+        case gpu::BlendEquation::plus:
+            glBlendEquation(GL_FUNC_ADD);
+            glBlendFunc(GL_ONE, GL_ONE);
+            break;
+        case gpu::BlendEquation::min:
+            glBlendEquation(GL_MIN);
+            glBlendFunc(GL_ONE, GL_ONE);
+            break;
+        case gpu::BlendEquation::max:
+            glBlendEquation(GL_MAX);
+            glBlendFunc(GL_ONE, GL_ONE);
+            break;
         case gpu::BlendEquation::screen:
             glBlendEquation(GL_SCREEN_KHR);
             break;
@@ -287,14 +299,6 @@ void GLState::setBlendEquation(gpu::BlendEquation blendEquation)
             break;
         case gpu::BlendEquation::luminosity:
             glBlendEquation(GL_HSL_LUMINOSITY_KHR);
-            break;
-        case gpu::BlendEquation::plus:
-            glBlendEquation(GL_FUNC_ADD);
-            glBlendFunc(GL_ONE, GL_ONE);
-            break;
-        case gpu::BlendEquation::max:
-            glBlendEquation(GL_MAX);
-            glBlendFunc(GL_ONE, GL_ONE);
             break;
     }
     m_blendEquation = blendEquation;

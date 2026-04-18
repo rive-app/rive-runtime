@@ -16,8 +16,9 @@
 
 namespace rive::gpu
 {
-constexpr static VkAttachmentLoadOp vk_load_op(gpu::LoadAction loadAction,
-                                               gpu::InterlockMode interlockMode)
+constexpr static VkAttachmentLoadOp vk_color_load_op(
+    gpu::LoadAction loadAction,
+    gpu::InterlockMode interlockMode)
 {
     switch (loadAction)
     {
@@ -240,7 +241,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         attachments.push_back({
             .format = renderTargetFormat,
             .samples = msaaSampleCount,
-            .loadOp = vk_load_op(loadAction, interlockMode),
+            .loadOp = vk_color_load_op(loadAction, interlockMode),
             .storeOp = (enums::any_flag_set(
                             renderPassOptions,
                             RenderPassOptionsVulkan::manuallyResolved |
@@ -280,33 +281,30 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         assert(attachments.size() == CLIP_PLANE_IDX);
         assert(colorAttachmentRefs.size() == CLIP_PLANE_IDX);
         attachments.push_back({
-            // The clip buffer is encoded as RGBA8 in atomic mode so we can
-            // block writes by emitting alpha=0.
-            .format = (interlockMode == gpu::InterlockMode::atomics ||
-                       interlockMode == gpu::InterlockMode::clockwiseAtomic)
-                          ? VK_FORMAT_R8G8B8A8_UNORM
+            .format =
+                (interlockMode == gpu::InterlockMode::atomics)
+                    // The clip buffer is encoded as RGBA8 in atomic mode so we
+                    // can block writes by emitting alpha=0.
+                    ? VK_FORMAT_R8G8B8A8_UNORM
+                    : (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+                          ? VK_FORMAT_R16_SFLOAT
                           : VK_FORMAT_R32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = (interlockMode == gpu::InterlockMode::rasterOrdering &&
-                       enums::is_flag_set(
-                           renderPassOptions,
-                           RenderPassOptionsVulkan::rasterOrderingResume))
+            .loadOp = enums::is_flag_set(
+                          renderPassOptions,
+                          RenderPassOptionsVulkan::rasterOrderingResume)
                           ? VK_ATTACHMENT_LOAD_OP_LOAD
                           : VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp =
-                (interlockMode == gpu::InterlockMode::rasterOrdering &&
-                 enums::is_flag_set(
-                     renderPassOptions,
-                     RenderPassOptionsVulkan::rasterOrderingInterruptible))
-                    ? VK_ATTACHMENT_STORE_OP_STORE
-                    : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout =
-                (interlockMode == gpu::InterlockMode::rasterOrdering &&
-                 enums::is_flag_set(
-                     renderPassOptions,
-                     RenderPassOptionsVulkan::rasterOrderingResume))
-                    ? VK_IMAGE_LAYOUT_GENERAL
-                    : VK_IMAGE_LAYOUT_UNDEFINED,
+            .storeOp = enums::is_flag_set(
+                           renderPassOptions,
+                           RenderPassOptionsVulkan::rasterOrderingInterruptible)
+                           ? VK_ATTACHMENT_STORE_OP_STORE
+                           : VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = enums::is_flag_set(
+                                 renderPassOptions,
+                                 RenderPassOptionsVulkan::rasterOrderingResume)
+                                 ? VK_IMAGE_LAYOUT_GENERAL
+                                 : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
         colorAttachmentRefs.push_back({
@@ -680,61 +678,6 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         // Finally, the standard color dependency from subpass 0 -> subpass 1
         addStandardColorDependencyToNextSubpass(subpassDescs.size());
     }
-    else if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
-    {
-        // Borrowed coverage subpass. (This only writes to the coverage buffer,
-        // not color attachments.)
-        subpassDescs.push_back({
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = 0,
-            .colorAttachmentCount = 0,
-        });
-
-        // Supbass 0 needs to wait for prior reads/writes to the coverage buffer
-        // before writing the borrowed coverage.
-        subpassDeps.push_back({
-            .srcSubpass = VK_SUBPASS_EXTERNAL,
-            .dstSubpass = 0,
-            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            .dependencyFlags = 0,
-        });
-
-        // Supbass 1 (the main subpass) needs to wait for subpass 0 to finish
-        // generating borrowed coverage before beginning.
-        subpassDeps.push_back({
-            .srcSubpass = 0,
-            .dstSubpass = 1,
-            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        });
-
-        // Supbass 1 also needs to wait for prior reads/writes to the color
-        // attachments before rendering the scene.
-        subpassDeps.push_back({
-            .srcSubpass = VK_SUBPASS_EXTERNAL,
-            .dstSubpass = 1,
-            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = VK_ACCESS_NONE,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = 0,
-        });
-        if (!enums::is_flag_set(
-                renderPassOptions,
-                RenderPassOptionsVulkan::fixedFunctionColorOutput))
-        {
-            subpassDeps.back().dstStageMask |=
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            subpassDeps.back().dstAccessMask |=
-                VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-        }
-    }
     else
     {
         // Without the extra color-load subpass we need an external dependency
@@ -752,6 +695,32 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         }
         subpassDeps.push_back(externalInDep);
+    }
+
+    if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // Borrowed coverage subpass. (This only writes to the coverage buffer,
+        // not color attachments.)
+        subpassDescs.push_back({
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            // Even though we don't write to attachments in the borrowed
+            // coverage subpass, we need to include them because it's subpass 0
+            // and they get loaded/cleared.
+            .colorAttachmentCount = colorAttachmentRefs.size(),
+            .pColorAttachments = colorAttachmentRefs.data(),
+        });
+
+        // Add an input attachment dependency between borrowed coverage and the
+        // main subpass because the clear of clip and color occur in subpass 0.
+        //
+        // Furthermore, *don't* add SHADER_READ/SHADER_WRITE dependencies, even
+        // though that's what we're doing with the coverage buffer. Since the
+        // coverage buffer is atomic and we only access pixel-local locations in
+        // it, all we need is the pipeline stage barrier plus
+        // VK_DEPENDENCY_BY_REGION_BIT. SHADER_READ/SHADER_WRITE have
+        // catastrophic effects on performance for tilers since they cause a
+        // flush.
+        addStandardColorDependencyToNextSubpass(subpassDescs.size());
     }
 
     // Main subpass.
@@ -784,8 +753,8 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     if ((interlockMode == gpu::InterlockMode::rasterOrdering &&
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||
-        ((interlockMode == gpu::InterlockMode::clockwiseAtomic ||
-          interlockMode == gpu::InterlockMode::msaa) &&
+        interlockMode == gpu::InterlockMode::clockwiseAtomic ||
+        (interlockMode == gpu::InterlockMode::msaa &&
          !enums::is_flag_set(
              renderPassOptions,
              RenderPassOptionsVulkan::fixedFunctionColorOutput)))

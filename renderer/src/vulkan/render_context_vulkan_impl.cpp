@@ -1183,6 +1183,7 @@ void RenderContextVulkanImpl::resizeTransientPLSBacking(uint32_t width,
     m_plsTransientClipView.reset();
     m_plsTransientScratchColorTexture.reset();
     m_plsBlendStorageTexture_RGB10_A2.reset();
+    m_plsTransientClipTexture_R16F.reset();
     m_plsOffscreenColorTexture.reset();
 }
 
@@ -1334,6 +1335,22 @@ vkutil::Texture2D* RenderContextVulkanImpl::plsBlendStorageTexture_RGB10_A2()
     }
 
     return m_plsBlendStorageTexture_RGB10_A2.get();
+}
+
+vkutil::Texture2D* RenderContextVulkanImpl::plsTransientClipTexture_R16F()
+{
+    if (m_plsTransientClipTexture_R16F == nullptr)
+    {
+        m_plsTransientClipTexture_R16F = m_vk->makeTexture2D(
+            {
+                .format = VK_FORMAT_R16_SFLOAT,
+                .extent = m_plsExtent,
+                .usage = m_plsTransientUsageFlags,
+            },
+            "plsTransientClipTexture_R16F");
+    }
+
+    return m_plsTransientClipTexture_R16F.get();
 }
 
 vkutil::Texture2D* RenderContextVulkanImpl::accessPLSOffscreenColorTexture(
@@ -1736,7 +1753,6 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
             break;
 
         case gpu::InterlockMode::atomics:
-        case gpu::InterlockMode::clockwiseAtomic:
             assert(framebufferViews.size() == CLIP_PLANE_IDX);
             framebufferViews.push_back(
                 m_impl->plsTransientScratchColorTexture()->vkImageView());
@@ -1769,6 +1785,13 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
 
         case gpu::InterlockMode::clockwise:
             // clockwise uses storage textures exclusively instead of MRT.
+            break;
+
+        case gpu::InterlockMode::clockwiseAtomic:
+            assert(framebufferViews.size() == CLIP_PLANE_IDX);
+            framebufferViews.push_back(
+                m_impl->plsTransientClipTexture_R16F()->vkImageView());
+            clearValues.push_back({});
             break;
 
         case gpu::InterlockMode::msaa:
@@ -1965,7 +1988,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaMidpointFanPathsCover:
                 pendingTessPatchCount += batch.elementCount;
                 break;
-            case DrawType::msaaStencilClipReset:
+            case DrawType::clipReset:
             case DrawType::interiorTriangulation:
             case DrawType::atlasBlit:
             case DrawType::imageRect:
@@ -2961,10 +2984,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 },
                 {{
                     .imageView =
-                        (desc.interlockMode == gpu::InterlockMode::atomics ||
-                         desc.interlockMode ==
-                             gpu::InterlockMode::clockwiseAtomic)
+                        (desc.interlockMode == gpu::InterlockMode::atomics)
                             ? plsTransientScratchColorTexture()->vkImageView()
+                        : (desc.interlockMode ==
+                           gpu::InterlockMode::clockwiseAtomic)
+                            ? plsTransientClipTexture_R16F()->vkImageView()
                             : *plsTransientClipView(),
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
@@ -3266,16 +3290,21 @@ void RenderContextVulkanImpl::submitDrawList(
                                 BarrierFlags::plsAtomic |
                                     BarrierFlags::dstBlend))
         {
-            // Wait for color attachment writes to complete before we read the
-            // input attachments again.
             assert(desc.interlockMode == gpu::InterlockMode::atomics ||
                    (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic &&
-                    !desc.fixedFunctionColorOutput) ||
+                    (!desc.fixedFunctionColorOutput ||
+                     enums::is_flag_set(batch.barriers,
+                                        BarrierFlags::plsAtomic))) ||
                    (desc.interlockMode == gpu::InterlockMode::msaa &&
                     (!desc.fixedFunctionColorOutput ||
                      // The MSAA init also reads the framebuffer.
                      batch.drawType == gpu::DrawType::renderPassInitialize)));
+            assert(!enums::is_flag_set(
+                batch.shaderMiscFlags,
+                gpu::ShaderMiscFlags::borrowedCoveragePass));
             assert(drawType != gpu::DrawType::renderPassResolve);
+            // Wait for color attachment writes to complete before we read the
+            // input attachments again.
             m_vk->memoryBarrier(
                 commandBuffer,
                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -3362,7 +3391,7 @@ void RenderContextVulkanImpl::submitDrawList(
                 break;
             }
 
-            case DrawType::msaaStencilClipReset:
+            case DrawType::clipReset:
             case DrawType::interiorTriangulation:
             case DrawType::atlasBlit:
             {
@@ -3491,7 +3520,7 @@ void RenderContextVulkanImpl::submitDrawList(
     }
 
     assert(pendingTessPatchCount == 0);
-}
+} // namespace rive::gpu
 
 void RenderContextVulkanImpl::postFlush(const RenderContext::FlushResources&)
 {
