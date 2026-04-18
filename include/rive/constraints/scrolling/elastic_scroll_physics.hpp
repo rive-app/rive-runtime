@@ -1,6 +1,7 @@
 #ifndef _RIVE_ELASTIC_SCROLL_PHYSICS_HPP_
 #define _RIVE_ELASTIC_SCROLL_PHYSICS_HPP_
 #include "rive/generated/constraints/scrolling/elastic_scroll_physics_base.hpp"
+#include <memory>
 #include <stdio.h>
 namespace rive
 {
@@ -49,11 +50,10 @@ public:
 class ElasticScrollPhysics : public ElasticScrollPhysicsBase
 {
 private:
-    ElasticScrollPhysicsHelper* m_physicsX;
-    ElasticScrollPhysicsHelper* m_physicsY;
+    std::unique_ptr<ElasticScrollPhysicsHelper> m_physicsX;
+    std::unique_ptr<ElasticScrollPhysicsHelper> m_physicsY;
 
 public:
-    ~ElasticScrollPhysics();
     bool enabled() override
     {
         return m_physicsX != nullptr || m_physicsY != nullptr;

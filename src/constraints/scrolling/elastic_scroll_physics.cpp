@@ -3,12 +3,6 @@
 
 using namespace rive;
 
-ElasticScrollPhysics::~ElasticScrollPhysics()
-{
-    delete m_physicsX;
-    delete m_physicsY;
-}
-
 Vec2D ElasticScrollPhysics::advance(float elapsedSeconds)
 {
     float advanceX =
@@ -83,24 +77,26 @@ void ElasticScrollPhysics::prepare(DraggableConstraintDirection dir)
     if (dir == DraggableConstraintDirection::horizontal ||
         dir == DraggableConstraintDirection::all)
     {
-        m_physicsX = new ElasticScrollPhysicsHelper(friction(),
-                                                    speedMultiplier(),
-                                                    elasticFactor());
+        m_physicsX =
+            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
+                                                         speedMultiplier(),
+                                                         elasticFactor());
     }
     if (dir == DraggableConstraintDirection::vertical ||
         dir == DraggableConstraintDirection::all)
     {
-        m_physicsY = new ElasticScrollPhysicsHelper(friction(),
-                                                    speedMultiplier(),
-                                                    elasticFactor());
+        m_physicsY =
+            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
+                                                         speedMultiplier(),
+                                                         elasticFactor());
     }
 }
 
 void ElasticScrollPhysics::reset()
 {
     Super::reset();
-    m_physicsX = nullptr;
-    m_physicsY = nullptr;
+    m_physicsX.reset();
+    m_physicsY.reset();
 }
 
 float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
@@ -258,15 +254,17 @@ void ElasticScrollPhysics::scrollToPosition(Vec2D current,
     // Create physics helpers if needed
     if (horizontal && m_physicsX == nullptr)
     {
-        m_physicsX = new ElasticScrollPhysicsHelper(friction(),
-                                                    speedMultiplier(),
-                                                    elasticFactor());
+        m_physicsX =
+            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
+                                                         speedMultiplier(),
+                                                         elasticFactor());
     }
     if (vertical && m_physicsY == nullptr)
     {
-        m_physicsY = new ElasticScrollPhysicsHelper(friction(),
-                                                    speedMultiplier(),
-                                                    elasticFactor());
+        m_physicsY =
+            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
+                                                         speedMultiplier(),
+                                                         elasticFactor());
     }
 
     // Initiate settling animation
