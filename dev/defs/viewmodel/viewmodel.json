@@ -5,6 +5,9 @@
     "string": "viewmodel"
   },
   "extends": "viewmodel/viewmodel_component.json",
+  "mixins": [
+    "publishable.json"
+  ],
   "properties": {
     "viewModelOrder": {
       "type": "FractionalIndex",
@@ -13,7 +16,7 @@
         "int": 563,
         "string": "viewmodelorder"
       },
-      "description": "Order value for sorting View Models.",
+      "description": "Order value for sorting View Models. NOTE: This value is used in the former subdivided data panel. The updated panel uses a unified order value via the ParentableDataItem mixin.",
       "runtime": false
     },
     "defaultInstanceId": {
@@ -40,6 +43,16 @@
       "description": "The selected inspector instance. Saves to local editor properties.",
       "runtime": false,
       "coop": false
+    },
+    "viewModelType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 981,
+        "string": "viewmodeltype"
+      },
+      "description": "Indentifies view models that have special uses, like text input view models",
+      "runtime": false
     }
   }
 }

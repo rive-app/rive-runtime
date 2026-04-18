@@ -325,6 +325,41 @@ TEST_CASE("text input strips inserted line breaks when single line",
     CHECK(textInput->rawTextInput()->text() == "a b c d");
 }
 
+TEST_CASE("text input keyInput handles enter key", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->text("hello");
+    textInput->multiline(true);
+    textInput->rawTextInput()->cursor(
+        Cursor::collapsed(CursorPosition(3))); // "hel|lo"
+    artboard->advance(0.0f);
+
+    // Enter inserts a newline at the cursor in multiline mode.
+    bool handled =
+        textInput->keyInput(Key::enter, KeyModifiers::none, true, false);
+    CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->text() == "hel\nlo");
+    CHECK(textInput->text() == "hel\nlo");
+
+    // Enter is not handled and does not mutate text in single-line mode.
+    textInput->text("hello");
+    textInput->multiline(false);
+    textInput->rawTextInput()->cursor(
+        Cursor::collapsed(CursorPosition(3))); // "hel|lo"
+    artboard->advance(0.0f);
+
+    handled = textInput->keyInput(Key::enter, KeyModifiers::none, true, false);
+    CHECK(handled == false);
+    CHECK(textInput->rawTextInput()->text() == "hello");
+    CHECK(textInput->text() == "hello");
+}
+
 TEST_CASE("text input selectionRadiusChanged updates raw text input",
           "[text_input]")
 {

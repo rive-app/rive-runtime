@@ -46,12 +46,16 @@ void TextInput::textChanged()
 #ifdef WITH_RIVE_TEXT
     syncDisplayedTextFromSource(false);
 #endif
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutNodeDirty();
+#endif
     markShapeDirty();
 }
 void TextInput::selectionRadiusChanged()
 {
 #ifdef WITH_RIVE_TEXT
     m_rawTextInput.selectionCornerRadius(selectionRadius());
+    markShapeDirty();
 #endif
 }
 
@@ -81,6 +85,7 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
     if (m_textStyle != nullptr && m_textStyle->font() != nullptr)
     {
         m_rawTextInput.font(m_textStyle->font());
+        m_rawTextInput.fontSize(m_textStyle->fontSize());
     }
     syncDisplayedTextFromSource(false);
 #endif
@@ -112,6 +117,7 @@ void TextInput::update(ComponentDirt value)
     if (hasDirt(value, ComponentDirt::Paint | ComponentDirt::TextShape))
     {
         Factory* factory = artboard()->factory();
+        m_rawTextInput.fontSize(m_textStyle->fontSize());
         RawTextInput::Flags changed = m_rawTextInput.update(factory);
         if (enums::is_flag_set(changed, RawTextInput::Flags::shapeDirty))
         {
@@ -280,6 +286,7 @@ void TextInput::syncSourceTextFromRaw()
         }
     }
     m_sourceText = std::move(rawText);
+    text(m_sourceText);
 #endif
 }
 
@@ -420,6 +427,15 @@ bool TextInput::keyInput(Key value,
                                           KeyModifiers::none);
                 markPaintDirty();
                 return true;
+            case Key::enter:
+                if (!multiline())
+                {
+                    return false;
+                }
+                m_rawTextInput.insert("\n");
+                syncSourceTextFromRaw();
+                markPaintDirty();
+                return true;
             default:
                 return false;
         }
@@ -428,10 +444,10 @@ bool TextInput::keyInput(Key value,
     return false;
 }
 
-bool TextInput::textInput(const std::string& text)
+bool TextInput::textInput(const std::string& value)
 {
 #ifdef WITH_RIVE_TEXT
-    std::string textToInsert = multiline() ? text : strippedLineBreaks(text);
+    std::string textToInsert = multiline() ? value : strippedLineBreaks(value);
     if (textToInsert.empty())
     {
         return true;
