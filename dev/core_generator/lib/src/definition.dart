@@ -39,7 +39,9 @@ class Definition {
       properties.where((property) => property.getExportType().storesData);
   Iterable<Property> get storedPropertiesNoPassthrough =>
       properties.where((property) =>
-          property.getExportType().storesData && !property.isPassthrough);
+          property.getExportType().storesData &&
+          !property.isPassthrough &&
+          !property.isBitmaskPassthrough);
 
   Definition? _extensionOf;
   Definition? _rawExtensionOf;
@@ -120,7 +122,67 @@ class Definition {
         }
       }
     }
+    _validateBitmaskPassthroughs();
   }
+
+  void _validateBitmaskPassthroughs() {
+    for (final p in _properties) {
+      if (!p.isBitmaskPassthrough) {
+        continue;
+      }
+      if (p.isPassthrough) {
+        color(
+          '${p.name}: cannot use passthrough with passthroughForBitmask.',
+          front: Styles.RED,
+        );
+      }
+      if (p.type.name != 'bool') {
+        color(
+          '${p.name}: passthroughForBitmask requires bool.',
+          front: Styles.RED,
+        );
+      }
+      Property? target;
+      for (final q in _properties) {
+        if (q.name == p.passthroughForBitmask) {
+          target = q;
+          break;
+        }
+      }
+      if (target == null) {
+        color(
+          '${p.name}: passthroughForBitmask "${p.passthroughForBitmask}" '
+          'not found.',
+          front: Styles.RED,
+        );
+        continue;
+      }
+      if (target.type.name != 'uint') {
+        color(
+          '${p.name}: passthroughForBitmask target must be uint.',
+          front: Styles.RED,
+        );
+        continue;
+      }
+      if (target.isEncoded || target.isPassthrough) {
+        color(
+          '${p.name}: invalid passthroughForBitmask target.',
+          front: Styles.RED,
+        );
+        continue;
+      }
+      final bit = p.passthroughBit!;
+      if (bit < 0 || bit > 31) {
+        color(
+          '${p.name}: passthroughBit must be 0..31.',
+          front: Styles.RED,
+        );
+        continue;
+      }
+      p.bitmaskTargetProperty = target;
+    }
+  }
+
   String get localFilename => _filename.indexOf(defsPath) == 0
       ? _filename.substring(defsPath.length)
       : _filename;
@@ -203,6 +265,14 @@ class Definition {
               'static const uint16_t ${altKey.stringValue}PropertyKey = '
               '${altKey.intValue};');
         }
+        // Bitmask passthrough bools also expose the authoritative bit mask
+        // as a compile-time constant. Mirrors the Dart generator's
+        // `${name}Bitmask` so adapters on both sides consume the same
+        // single source of truth (the JSON's passthroughBit).
+        if (property.isBitmaskPassthrough) {
+          code.writeln('static const uint32_t ${property.name}Bitmask = '
+              '1u << ${property.passthroughBit};');
+        }
         if (property.isWithRiveToolsOnly) {
           addPreprocessorEnd(code);
           code.writeln('\n');
@@ -216,7 +286,8 @@ class Definition {
       for (final property in properties) {
         if (property.isEncoded ||
             !property.getExportType().storesData ||
-            property.isPassthrough) {
+            property.isPassthrough ||
+            property.isBitmaskPassthrough) {
           // Encoded properties don't store data, it's up to the implementation
           // to decode and store what it needs.
           continue;
@@ -250,6 +321,9 @@ class Definition {
         if (property.isWithRiveToolsOnly) {
           addPreprocessorStart(code, withRiveToolsPreprocessor);
         }
+        if (property.isBitmaskPassthrough) {
+          continue;
+        }
         if (!property.getExportType().storesData) {
           code.writeln((property.isSetOverride ? '' : 'virtual ') +
               'void ${property.name}' +
@@ -272,9 +346,9 @@ class Definition {
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
         } else if (property.isPassthrough) {
-          code.writeln('virtual void '
-              'set${property.capitalizedName}(${property.type.cppGetterName} value) '
-              '= 0;');
+          code.writeln(
+              'virtual void set${property.capitalizedName}('
+              '${property.type.cppGetterName} value) = 0;');
           code.writeln(
               'virtual ${property.type.cppGetterName} ${property.name}() '
               '= 0;');
@@ -379,6 +453,9 @@ class Definition {
     code.writeln('protected:');
     if (storedProperties.isNotEmpty) {
       for (final property in storedProperties) {
+        if (property.isBitmaskPassthrough) {
+          continue;
+        }
         if (property.isWithRiveToolsOnly) {
           addPreprocessorStart(code, withRiveToolsPreprocessor);
         }
@@ -562,17 +639,48 @@ class Definition {
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }
-          ctxCode.writeln('case ${property.definition.name}Base'
-              '::${property.name}PropertyKey:');
-          if (property.key != null) {
-            for (final altKey in property.key!.alternates) {
-              ctxCode.writeln('case ${property.definition.name}Base'
-                  '::${altKey.stringValue}PropertyKey:');
+          if (property.isBitmaskPassthrough) {
+            final mask = property.bitmaskTargetProperty!.name;
+            final bit = property.passthroughBit!;
+            final maskType = property.bitmaskTargetProperty!.type.cppName;
+            final defName = property.definition.name;
+            ctxCode.writeln('case ${defName}Base'
+                '::${property.name}PropertyKey:');
+            if (property.key != null) {
+              for (final altKey in property.key!.alternates) {
+                ctxCode.writeln('case ${defName}Base'
+                    '::${altKey.stringValue}PropertyKey:');
+              }
             }
+            ctxCode.writeln('{');
+            ctxCode.writeln(
+                'auto* _o = object->as<${defName}Base>();');
+            ctxCode.writeln('if (_o) {');
+            ctxCode.writeln(
+                'const $maskType _cur = _o->$mask();');
+            ctxCode.writeln(
+                'const $maskType _bm = static_cast<$maskType>(1u << $bit);');
+            ctxCode.writeln(
+                'const $maskType _next = static_cast<$maskType>(('
+                '_cur & ~_bm) | (value ? _bm : static_cast<$maskType>(0)));');
+            ctxCode.writeln(
+                'if (_cur != _next) { _o->$mask(_next); }');
+            ctxCode.writeln('}');
+            ctxCode.writeln('break;');
+            ctxCode.writeln('}');
+          } else {
+            ctxCode.writeln('case ${property.definition.name}Base'
+                '::${property.name}PropertyKey:');
+            if (property.key != null) {
+              for (final altKey in property.key!.alternates) {
+                ctxCode.writeln('case ${property.definition.name}Base'
+                    '::${altKey.stringValue}PropertyKey:');
+              }
+            }
+            ctxCode.writeln('object->as<${property.definition.name}Base>()->'
+                '${property.name}(value);');
+            ctxCode.writeln('break;');
           }
-          ctxCode.writeln('object->as<${property.definition.name}Base>()->'
-              '${property.name}(value);');
-          ctxCode.writeln('break;');
           if (property.isWithRiveToolsOnly) {
             addPreprocessorEnd(ctxCode);
           }
@@ -591,6 +699,9 @@ class Definition {
       var properties = getSetFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
+          if (property.isBitmaskPassthrough) {
+            continue;
+          }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }
@@ -623,6 +734,9 @@ class Definition {
       var properties = usedFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
+          if (property.isBitmaskPassthrough) {
+            continue;
+          }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }

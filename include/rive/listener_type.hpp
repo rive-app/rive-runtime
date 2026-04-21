@@ -20,6 +20,9 @@ enum class ListenerType : int
     focus = 13,
     blur = 14,
     keyboard = 15,
+    semanticTap = 16,
+    semanticIncrease = 17,
+    semanticDecrease = 18,
 };
 }
 #endif

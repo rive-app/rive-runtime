@@ -50,6 +50,7 @@ public:
     ArtboardInstance* artboardInstance(int index = 0) override;
     StateMachineInstance* stateMachineInstance(int index = 0);
     bool worldToLocal(Vec2D world, Vec2D* local, int index);
+    bool collapse(bool value) override;
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;

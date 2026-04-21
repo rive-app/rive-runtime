@@ -21,6 +21,7 @@
 #include "rive/typed_children.hpp"
 #include "rive/virtualizing_component.hpp"
 #include "rive/input/focus_node.hpp"
+#include "rive/semantic/semantic_node.hpp"
 
 #include <queue>
 #include <unordered_set>
@@ -53,6 +54,8 @@ class DataBind;
 class DataBindContainer;
 class ScriptedObject;
 class FocusManager;
+class SemanticManager;
+class SemanticNode;
 
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);
@@ -106,6 +109,8 @@ private:
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
     FocusManager* m_activeFocusManager = nullptr;
+    SemanticManager* m_activeSemanticManager = nullptr;
+    rcp<SemanticNode> m_semanticBoundaryNode;
 #ifdef WITH_RIVE_TOOLS
     rcp<FocusNode> m_externalParentFocusNode;
 #endif
@@ -190,6 +195,40 @@ public:
     /// destroyed or recycled to prevent use-after-free when the FocusManager
     /// still holds references to FocusNodes pointing to deleted FocusData.
     void cleanupFocusTree();
+
+    /// Set the active SemanticManager for this artboard. The SemanticManager is
+    /// typically owned by a StateMachineInstance.
+    void setActiveSemanticManager(SemanticManager* manager)
+    {
+        m_activeSemanticManager = manager;
+    }
+    /// Get the active SemanticManager for this artboard.
+    SemanticManager* semanticManager() const { return m_activeSemanticManager; }
+
+    /// Build the semantic tree for this artboard, registering all SemanticData
+    /// nodes with the given SemanticManager.
+    void buildSemanticTree(SemanticManager* semanticManager,
+                           rcp<SemanticNode> parentSemanticNode = nullptr);
+
+    /// Clean up the semantic tree for this artboard, removing all SemanticData
+    /// nodes from the SemanticManager.
+    void cleanupSemanticTree();
+
+    // Semantic-only collapse for this artboard's semantic nodes.
+    // When collapsing, walks the boundary's semantic subtree (O(K) semantic
+    // nodes). When uncollapsing, falls back to m_Objects because
+    // SemanticData::collapse(false) re-parents nodes outside the boundary.
+    void collapseSemanticBoundary(bool value);
+
+    /// Mark bounds dirty for all semantic nodes under this artboard's
+    /// boundary node. Called when the host transform changes.
+    void markSemanticBoundaryTransformDirty();
+
+    /// Get the semantic boundary node for this artboard (null for root).
+    rcp<SemanticNode> semanticBoundaryNode() const
+    {
+        return m_semanticBoundaryNode;
+    }
 
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override

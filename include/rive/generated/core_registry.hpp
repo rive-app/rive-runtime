@@ -230,6 +230,7 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
+#include "rive/semantic/semantic_data.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/contour_mesh_vertex.hpp"
 #include "rive/shapes/cubic_asymmetric_vertex.hpp"
@@ -707,6 +708,8 @@ public:
                 return new Backboard();
             case OpenUrlEventBase::typeKey:
                 return new OpenUrlEvent();
+            case SemanticDataBase::typeKey:
+                return new SemanticData();
             case CustomPropertyStringBase::typeKey:
                 return new CustomPropertyString();
             case ScriptInputStringBase::typeKey:
@@ -1450,6 +1453,18 @@ public:
             case OpenUrlEventBase::targetValuePropertyKey:
                 object->as<OpenUrlEventBase>()->targetValue(value);
                 break;
+            case SemanticDataBase::rolePropertyKey:
+                object->as<SemanticDataBase>()->role(value);
+                break;
+            case SemanticDataBase::headingLevelPropertyKey:
+                object->as<SemanticDataBase>()->headingLevel(value);
+                break;
+            case SemanticDataBase::traitFlagsPropertyKey:
+                object->as<SemanticDataBase>()->traitFlags(value);
+                break;
+            case SemanticDataBase::stateFlagsPropertyKey:
+                object->as<SemanticDataBase>()->stateFlags(value);
+                break;
             case BindablePropertyIdBase::propertyValuePropertyKey:
                 object->as<BindablePropertyIdBase>()->propertyValue(value);
                 break;
@@ -1682,6 +1697,15 @@ public:
             case OpenUrlEventBase::urlPropertyKey:
                 object->as<OpenUrlEventBase>()->url(value);
                 break;
+            case SemanticDataBase::labelPropertyKey:
+                object->as<SemanticDataBase>()->label(value);
+                break;
+            case SemanticDataBase::valuePropertyKey:
+                object->as<SemanticDataBase>()->value(value);
+                break;
+            case SemanticDataBase::hintPropertyKey:
+                object->as<SemanticDataBase>()->hint(value);
+                break;
             case CustomPropertyStringBase::propertyValuePropertyKey:
                 object->as<CustomPropertyStringBase>()->propertyValue(value);
                 break;
@@ -1875,6 +1899,363 @@ public:
             case ArtboardBase::isStatefulPropertyKey:
                 object->as<ArtboardBase>()->isStateful(value);
                 break;
+            case SemanticDataBase::isExpandablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 0);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isSelectablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 1);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isCheckablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 2);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isToggleablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 3);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isRequirablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 4);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isEnablablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 5);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isFocusablePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->traitFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 6);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->traitFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isExpandedPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 0);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isSelectedPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 1);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isCheckedPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 2);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isMixedPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 3);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isToggledPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 4);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isRequiredPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 5);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isDisabledPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 6);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isFocusedPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 7);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isHiddenPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 8);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isLiveRegionPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 9);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isReadOnlyPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 10);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isModalPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 11);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isObscuredPropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 12);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
+            case SemanticDataBase::isMultilinePropertyKey:
+            {
+                auto* _o = object->as<SemanticDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->stateFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 13);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->stateFlags(_next);
+                    }
+                }
+                break;
+            }
             case DataBindPathBase::isRelativePropertyKey:
                 object->as<DataBindPathBase>()->isRelative(value);
                 break;
@@ -3008,6 +3389,14 @@ public:
                 return object->as<JoystickBase>()->handleSourceId();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->as<OpenUrlEventBase>()->targetValue();
+            case SemanticDataBase::rolePropertyKey:
+                return object->as<SemanticDataBase>()->role();
+            case SemanticDataBase::headingLevelPropertyKey:
+                return object->as<SemanticDataBase>()->headingLevel();
+            case SemanticDataBase::traitFlagsPropertyKey:
+                return object->as<SemanticDataBase>()->traitFlags();
+            case SemanticDataBase::stateFlagsPropertyKey:
+                return object->as<SemanticDataBase>()->stateFlags();
             case BindablePropertyIdBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyIdBase>()->propertyValue();
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
@@ -3173,6 +3562,12 @@ public:
                     ->value();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->as<OpenUrlEventBase>()->url();
+            case SemanticDataBase::labelPropertyKey:
+                return object->as<SemanticDataBase>()->label();
+            case SemanticDataBase::valuePropertyKey:
+                return object->as<SemanticDataBase>()->value();
+            case SemanticDataBase::hintPropertyKey:
+                return object->as<SemanticDataBase>()->hint();
             case CustomPropertyStringBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyStringBase>()->propertyValue();
             case DataConverterStringPadBase::textPropertyKey:
@@ -3977,6 +4372,10 @@ public:
             case JoystickBase::joystickFlagsPropertyKey:
             case JoystickBase::handleSourceIdPropertyKey:
             case OpenUrlEventBase::targetValuePropertyKey:
+            case SemanticDataBase::rolePropertyKey:
+            case SemanticDataBase::headingLevelPropertyKey:
+            case SemanticDataBase::traitFlagsPropertyKey:
+            case SemanticDataBase::stateFlagsPropertyKey:
             case BindablePropertyIdBase::propertyValuePropertyKey:
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
@@ -4052,6 +4451,9 @@ public:
             case KeyFrameStringBase::valuePropertyKey:
             case TransitionValueStringComparatorBase::valuePropertyKey:
             case OpenUrlEventBase::urlPropertyKey:
+            case SemanticDataBase::labelPropertyKey:
+            case SemanticDataBase::valuePropertyKey:
+            case SemanticDataBase::hintPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
             case DataConverterStringPadBase::textPropertyKey:
             case DataConverterToStringBase::colorFormatPropertyKey:
@@ -4722,6 +5124,14 @@ public:
                 return object->is<JoystickBase>();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->is<OpenUrlEventBase>();
+            case SemanticDataBase::rolePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::headingLevelPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::traitFlagsPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::stateFlagsPropertyKey:
+                return object->is<SemanticDataBase>();
             case BindablePropertyIdBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyIdBase>();
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
@@ -4870,6 +5280,12 @@ public:
                 return object->is<TransitionValueStringComparatorBase>();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->is<OpenUrlEventBase>();
+            case SemanticDataBase::labelPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::valuePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::hintPropertyKey:
+                return object->is<SemanticDataBase>();
             case CustomPropertyStringBase::propertyValuePropertyKey:
                 return object->is<CustomPropertyStringBase>();
             case DataConverterStringPadBase::textPropertyKey:
@@ -4988,6 +5404,48 @@ public:
                 return object->is<LayoutComponentBase>();
             case ArtboardBase::isStatefulPropertyKey:
                 return object->is<ArtboardBase>();
+            case SemanticDataBase::isExpandablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isSelectablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isCheckablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isToggleablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isRequirablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isEnablablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isFocusablePropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isExpandedPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isSelectedPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isCheckedPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isMixedPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isToggledPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isRequiredPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isDisabledPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isFocusedPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isHiddenPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isLiveRegionPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isReadOnlyPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isModalPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isObscuredPropertyKey:
+                return object->is<SemanticDataBase>();
+            case SemanticDataBase::isMultilinePropertyKey:
+                return object->is<SemanticDataBase>();
             case DataBindPathBase::isRelativePropertyKey:
                 return object->is<DataBindPathBase>();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:

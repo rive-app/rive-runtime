@@ -1,4 +1,5 @@
 #include "rive/animation/listener_invocation.hpp"
+#include "rive/animation/semantic_listener_group.hpp"
 
 #include <string>
 #include <utility>
@@ -79,4 +80,13 @@ ListenerInvocation ListenerInvocation::gamepad(int deviceId,
     g.buttonMask = buttonMask;
     g.axis0 = axis0;
     return ListenerInvocation(ListenerInvocationStorage(std::move(g)));
+}
+
+ListenerInvocation ListenerInvocation::semantic(SemanticListenerGroup* group,
+                                                SemanticActionType actionType)
+{
+    SemanticInvocation s;
+    s.group = group;
+    s.actionType = actionType;
+    return ListenerInvocation(ListenerInvocationStorage(std::move(s)));
 }

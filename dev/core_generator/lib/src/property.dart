@@ -23,8 +23,14 @@ class Property {
   bool isEncoded = false;
   bool isBindable = false;
   bool isPassthrough = false;
+  String? passthroughForBitmask;
+  int? passthroughBit;
+  Property? bitmaskTargetProperty;
   bool isPureVirtual = false;
   FieldType? typeRuntime;
+
+  bool get isBitmaskPassthrough =>
+      passthroughForBitmask != null && passthroughBit != null;
 
   static Property? make(
       Definition type, String name, Map<String, dynamic> data) {
@@ -108,6 +114,14 @@ class Property {
     dynamic p = data['passthrough'];
     if (p is bool) {
       isPassthrough = p;
+    }
+    dynamic pfb = data['passthroughForBitmask'];
+    if (pfb is String) {
+      passthroughForBitmask = pfb;
+    }
+    dynamic pbit = data['passthroughBit'];
+    if (pbit is int) {
+      passthroughBit = pbit;
     }
     dynamic pv = data['pureVirtual'];
     if (pv is bool) {

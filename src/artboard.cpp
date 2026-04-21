@@ -4,6 +4,9 @@
 #include "rive/backboard.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "rive/semantic/semantic_data.hpp"
+#include "rive/semantic/semantic_manager.hpp"
+#include "rive/semantic/semantic_node.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/custom_property_trigger.hpp"
@@ -1978,6 +1981,254 @@ rcp<FocusNode> Artboard::externalParentFocusNode() const
 
 void Artboard::collapseSingle(bool value) { Component::collapse(value); }
 #endif
+
+// Builds the semantic tree for this artboard. Iterates all objects,
+// registers each SemanticData's SemanticNode with the manager, then
+// propagates to nested artboards using findClosestSemanticNode() for
+// parent resolution across artboard boundaries.
+//
+// For nested artboards (those with a host), a boundary SemanticNode is
+// created and inserted as the parent of all semantic nodes within this
+// artboard. Boundary nodes are structural-only — skipped during
+// flattening — but enable better subtree collapse/uncollapse and
+// targeted bounds dirtying when the host transform changes.
+void Artboard::buildSemanticTree(SemanticManager* semanticManager,
+                                 rcp<SemanticNode> parentSemanticNode)
+{
+    if (semanticManager == nullptr)
+    {
+        return;
+    }
+
+    // Store reference to the active semantic manager
+    setActiveSemanticManager(semanticManager);
+
+    // For nested artboards, create a boundary node that acts as the
+    // structural root of this artboard's semantic subtree.
+    rcp<SemanticNode> effectiveParent = parentSemanticNode;
+    if (host() != nullptr)
+    {
+        if (m_semanticBoundaryNode == nullptr)
+        {
+            // Id is assigned by the SemanticManager on addChild() below.
+            m_semanticBoundaryNode = rcp<SemanticNode>(new SemanticNode());
+            m_semanticBoundaryNode->isBoundaryNode(true);
+            // coreOwner points to the host component so we can check
+            // its visibility/transform during refresh.
+            auto* hostComp = host()->hostComponent();
+            m_semanticBoundaryNode->coreOwner(hostComp);
+        }
+        semanticManager->addChild(parentSemanticNode, m_semanticBoundaryNode);
+        effectiveParent = m_semanticBoundaryNode;
+    }
+
+    // Register all SemanticData in this artboard
+    for (auto* obj : m_Objects)
+    {
+        if (obj != nullptr && obj->is<SemanticData>())
+        {
+            auto* sd = obj->as<SemanticData>();
+            auto* localParent = sd->findParentSemanticData();
+
+            rcp<SemanticNode> parentNode = localParent != nullptr
+                                               ? localParent->semanticNode()
+                                               : effectiveParent;
+
+            semanticManager->addChild(parentNode, sd->semanticNode());
+            sd->syncSemanticTreeVisibility();
+        }
+    }
+
+    // Propagate semantic registration to nested artboards that might have been
+    // created before this artboard's semanticManager was available.
+    //
+    // We check if the nested artboard's semanticManager is DIFFERENT from ours.
+    // If it is, that means it created its own internal semanticManager when it
+    // should be sharing the parent's. We rebuild its semantic tree with the
+    // correct shared semanticManager.
+
+    // Handle NestedArtboard instances
+    for (auto* nestedArtboardHost : m_NestedArtboards)
+    {
+        // Find closest semantic node (handles artboard boundaries)
+        auto hostParentNode =
+            SemanticData::findClosestSemanticNode(nestedArtboardHost);
+        if (hostParentNode == nullptr)
+        {
+            hostParentNode = effectiveParent;
+        }
+
+        auto* nestedArtboard = nestedArtboardHost->artboardInstance(0);
+        if (nestedArtboard != nullptr &&
+            nestedArtboard->semanticManager() != semanticManager)
+        {
+            // Clean up old semantic tree if it exists (with wrong
+            // semanticManager)
+            nestedArtboard->cleanupSemanticTree();
+            nestedArtboard->buildSemanticTree(semanticManager, hostParentNode);
+        }
+    }
+
+    // Handle ArtboardComponentList instances
+    for (auto* componentList : m_ComponentLists)
+    {
+        // Find closest semantic node (handles artboard boundaries)
+        auto hostParentNode =
+            SemanticData::findClosestSemanticNode(componentList);
+        if (hostParentNode == nullptr)
+        {
+            hostParentNode = effectiveParent;
+        }
+
+        for (size_t i = 0; i < componentList->artboardCount(); i++)
+        {
+            auto* nestedArtboard =
+                componentList->artboardInstance(static_cast<int>(i));
+            if (nestedArtboard != nullptr &&
+                nestedArtboard->semanticManager() != semanticManager)
+            {
+                // Clean up old semantic tree if it exists (with wrong
+                // semanticManager)
+                nestedArtboard->cleanupSemanticTree();
+                nestedArtboard->buildSemanticTree(semanticManager,
+                                                  hostParentNode);
+            }
+        }
+    }
+}
+
+void Artboard::cleanupSemanticTree()
+{
+    if (m_activeSemanticManager == nullptr)
+    {
+        return;
+    }
+
+    // Propagate cleanup to nested artboards that share our SemanticManager.
+    // Done FIRST so their boundary nodes are removed before we remove ours.
+    for (auto* nestedArtboardHost : m_NestedArtboards)
+    {
+        auto* nestedArtboard = nestedArtboardHost->artboardInstance(0);
+        if (nestedArtboard != nullptr &&
+            nestedArtboard->semanticManager() == m_activeSemanticManager)
+        {
+            nestedArtboard->cleanupSemanticTree();
+        }
+    }
+
+    // Propagate cleanup to ArtboardComponentList items
+    for (auto* componentList : m_ComponentLists)
+    {
+        for (size_t i = 0; i < componentList->artboardCount(); i++)
+        {
+            auto* nestedArtboard =
+                componentList->artboardInstance(static_cast<int>(i));
+            if (nestedArtboard != nullptr &&
+                nestedArtboard->semanticManager() == m_activeSemanticManager)
+            {
+                nestedArtboard->cleanupSemanticTree();
+            }
+        }
+    }
+
+    // Remove all SemanticData's SemanticNodes from the SemanticManager.
+    // Use hasSemanticNode() to avoid lazy-creating a node during cleanup.
+    for (auto* obj : m_Objects)
+    {
+        if (obj != nullptr && obj->is<SemanticData>())
+        {
+            auto* sd = obj->as<SemanticData>();
+            if (!sd->hasSemanticNode())
+            {
+                continue;
+            }
+            auto node = sd->semanticNode();
+            if (node != nullptr && node->manager() == m_activeSemanticManager)
+            {
+                m_activeSemanticManager->removeChild(node);
+            }
+        }
+    }
+
+    // Remove the boundary node for this artboard (if any).
+    if (m_semanticBoundaryNode != nullptr &&
+        m_semanticBoundaryNode->manager() == m_activeSemanticManager)
+    {
+        m_activeSemanticManager->removeChild(m_semanticBoundaryNode);
+    }
+    m_semanticBoundaryNode = nullptr;
+
+    // Clear the active semantic manager reference
+    m_activeSemanticManager = nullptr;
+}
+
+// Walk the semantic subtree under a boundary node and collapse each
+// SemanticData directly via the back-pointer. O(K) where K = semantic
+// nodes under this boundary.
+static void collapseBoundarySubtree(SemanticNode* node, bool value)
+{
+    // Copy children before iterating — collapse(true) calls
+    // removeChild which mutates the original vector.
+    std::vector<rcp<SemanticNode>> children(node->children());
+    for (const auto& child : children)
+    {
+        auto* sd = child->semanticData();
+        if (sd != nullptr && sd->isCollapsed() != value)
+        {
+            sd->collapse(value);
+        }
+        collapseBoundarySubtree(child.get(), value);
+    }
+}
+
+// Semantic-only collapse for this artboard's semantic nodes.
+// When collapsing, walks the boundary's semantic subtree (O(K) semantic
+// nodes). When uncollapsing, falls back to m_Objects because
+// SemanticData::collapse(false) re-parents nodes outside the boundary.
+void Artboard::collapseSemanticBoundary(bool value)
+{
+    if (m_activeSemanticManager == nullptr)
+    {
+        return;
+    }
+    if (value && m_semanticBoundaryNode != nullptr)
+    {
+        // Fast path: walk the boundary tree.
+        collapseBoundarySubtree(m_semanticBoundaryNode.get(), true);
+    }
+    else
+    {
+        // Uncollapse or no boundary: scan artboard objects.
+        for (auto* obj : m_Objects)
+        {
+            if (obj != nullptr && obj->is<SemanticData>())
+            {
+                auto* sd = obj->as<SemanticData>();
+                if (sd->isCollapsed() != value)
+                {
+                    sd->collapse(value);
+                }
+            }
+        }
+    }
+
+    if (!value)
+    {
+        markSemanticBoundaryTransformDirty();
+    }
+}
+
+// Recursively mark all semantic nodes under the boundary as bounds-dirty.
+// Called when the host transform changes so bounds are recalculated in
+// root artboard space.
+void Artboard::markSemanticBoundaryTransformDirty()
+{
+    if (m_semanticBoundaryNode == nullptr || m_activeSemanticManager == nullptr)
+    {
+        return;
+    }
+    m_activeSemanticManager->markBoundaryDirty(m_semanticBoundaryNode->id());
+}
 
 std::string Artboard::stateMachineNameAt(size_t index) const
 {

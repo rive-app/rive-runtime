@@ -310,6 +310,15 @@ void NestedArtboard::update(ComponentDirt value)
     {
         return;
     }
+    if (hasDirt(value, ComponentDirt::WorldTransform))
+    {
+        // Mark semantic bounds dirty for nodes inside the nested artboard.
+        // Their root-space bounds depend on the host's world transform.
+        if (m_Instance != nullptr)
+        {
+            m_Instance->markSemanticBoundaryTransformDirty();
+        }
+    }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
         m_referencedArtboard->opacity(renderOpacity());
@@ -321,6 +330,24 @@ void NestedArtboard::update(ComponentDirt value)
         // animations/statemachines can re-add it.
         m_referencedArtboard->updatePass(false);
     }
+}
+
+bool NestedArtboard::collapse(bool value)
+{
+    if (!Super::collapse(value))
+    {
+        return false;
+    }
+
+    auto* nestedInstance = artboardInstance();
+    if (nestedInstance == nullptr)
+    {
+        return true;
+    }
+    // Semantic-only collapse via the artboard boundary node. Only touches
+    // SemanticData nodes — non-semantic components stay untouched.
+    nestedInstance->collapseSemanticBoundary(value);
+    return true;
 }
 
 bool NestedArtboard::hasNestedStateMachines() const

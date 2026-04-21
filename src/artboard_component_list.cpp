@@ -20,6 +20,7 @@
 #include "rive/generated/viewmodel/viewmodel_instance_viewmodel_base.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "rive/semantic/semantic_manager.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -31,6 +32,7 @@
 #include "rive/world_transform_component.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/artboard_list_map_rule.hpp"
+#include "rive/semantic/semantic_data.hpp"
 
 using namespace rive;
 
@@ -76,8 +78,37 @@ private:
 ArtboardComponentList::ArtboardComponentList() {}
 ArtboardComponentList::~ArtboardComponentList() { clear(); }
 
+bool ArtboardComponentList::collapse(bool value)
+{
+    if (!Super::collapse(value))
+    {
+        return false;
+    }
+
+    // Semantic-only collapse via the artboard boundary node. Only touches
+    // SemanticData nodes — non-semantic components stay untouched.
+    for (size_t i = 0; i < artboardCount(); i++)
+    {
+        auto* nestedArtboard = artboardInstance(static_cast<int>(i));
+        if (nestedArtboard != nullptr)
+        {
+            nestedArtboard->collapseSemanticBoundary(value);
+        }
+    }
+    return true;
+}
+
 void ArtboardComponentList::clear()
 {
+    // Clean up semantic trees before destroying artboards/state machines.
+    for (auto& artboard : m_artboardInstancesMap)
+    {
+        if (artboard.second != nullptr)
+        {
+            artboard.second->cleanupSemanticTree();
+        }
+    }
+
     clearDrawIndexListeners();
     invalidateOrderedListIndicesCache();
     // Clean up focus trees FIRST to prevent use-after-free when the
@@ -365,6 +396,17 @@ void ArtboardComponentList::linkStateMachineToArtboard(
 
             // Build list item's focus tree under parent
             artboardInstance->buildFocusTree(parentFM, parentNode);
+        }
+
+        // Share parent artboard's semantic manager and build semantic tree
+        // for list item. Without this, dynamically created list item
+        // artboards would not contribute semantic nodes to the parent's
+        // unified tree.
+        if (parentArtboard != nullptr &&
+            parentArtboard->semanticManager() != nullptr)
+        {
+            auto* parentSM = parentArtboard->semanticManager();
+            stateMachineInstance->setExternalSemanticManager(parentSM);
         }
     }
 }
@@ -929,6 +971,20 @@ void ArtboardComponentList::update(ComponentDirt value)
         return;
     }
 
+    if (hasDirt(value, ComponentDirt::WorldTransform))
+    {
+        // Mark semantic bounds dirty for nodes inside each list item
+        // artboard. Their root-space bounds depend on the host's
+        // world transform.
+        for (int i = 0; i < artboardCount(); i++)
+        {
+            auto artboard = artboardInstance(i);
+            if (artboard != nullptr)
+            {
+                artboard->markSemanticBoundaryTransformDirty();
+            }
+        }
+    }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
         for (int i = 0; i < artboardCount(); i++)
@@ -1273,6 +1329,11 @@ void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
     auto itr = m_artboardInstancesMap.find(item);
     if (itr != m_artboardInstancesMap.end())
     {
+        // Clean up semantic tree before destroying the artboard.
+        if (itr->second != nullptr)
+        {
+            itr->second->cleanupSemanticTree();
+        }
         // Clean up focus tree before destroying the artboard to prevent
         // use-after-free when the FocusManager still holds references
         // to FocusNodes pointing to FocusData in this artboard.

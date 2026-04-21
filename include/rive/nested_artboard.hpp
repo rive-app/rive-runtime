@@ -75,6 +75,7 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
+    bool collapse(bool value) override;
     void update(ComponentDirt value) override;
 
     bool hasNestedStateMachines() const;

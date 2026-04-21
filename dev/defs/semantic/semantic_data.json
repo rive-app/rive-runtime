@@ -1,0 +1,309 @@
+{
+  "name": "SemanticData",
+  "key": {
+    "int": 668,
+    "string": "semanticdata"
+  },
+  "extends": "component.json",
+  "properties": {
+    "role": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 982,
+        "string": "role"
+      },
+      "description": "Semantic role (0=none, 1=button, 2=link, etc)"
+    },
+    "label": {
+      "type": "String",
+      "initialValue": "''",
+      "animates": true,
+      "key": {
+        "int": 983,
+        "string": "label"
+      },
+      "description": "Accessible label text",
+      "bindable": true
+    },
+    "value": {
+      "type": "String",
+      "initialValue": "''",
+      "animates": true,
+      "key": {
+        "int": 984,
+        "string": "semanticvalue"
+      },
+      "description": "Current value text for screen readers (slider percentage, text field content, etc)",
+      "bindable": true
+    },
+    "hint": {
+      "type": "String",
+      "initialValue": "''",
+      "animates": true,
+      "key": {
+        "int": 985,
+        "string": "semantichint"
+      },
+      "description": "Usage instruction or placeholder text for screen readers",
+      "bindable": true
+    },
+    "headingLevel": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 986,
+        "string": "headinglevel"
+      },
+      "description": "Heading level 1-6 (0 = not a heading)"
+    },
+    "traitFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 987,
+        "string": "traitflags"
+      },
+      "description": "Bitmask declaring node capabilities (expandable, selectable, etc). Traits gate which state flags are meaningful."
+    },
+    "stateFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 988,
+        "string": "stateflags"
+      },
+      "description": "Bitmask of current semantic state values. Trait-gated states (bits 0-7) are only meaningful when their corresponding trait is set."
+    },
+    "isExpandable": {
+      "type": "bool",
+      "key": {
+        "int": 989,
+        "string": "isexpandable"
+      },
+      "description": "Trait: node can be expanded/collapsed",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 0
+    },
+    "isSelectable": {
+      "type": "bool",
+      "key": {
+        "int": 990,
+        "string": "isselectable"
+      },
+      "description": "Trait: node can be selected/unselected",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 1
+    },
+    "isCheckable": {
+      "type": "bool",
+      "key": {
+        "int": 991,
+        "string": "ischeckable"
+      },
+      "description": "Trait: node can be checked/unchecked",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 2
+    },
+    "isToggleable": {
+      "type": "bool",
+      "key": {
+        "int": 992,
+        "string": "istoggleable"
+      },
+      "description": "Trait: node can be toggled on/off",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 3
+    },
+    "isRequirable": {
+      "type": "bool",
+      "key": {
+        "int": 993,
+        "string": "isrequirable"
+      },
+      "description": "Trait: node can be required/optional",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 4
+    },
+    "isEnablable": {
+      "type": "bool",
+      "key": {
+        "int": 994,
+        "string": "isenablable"
+      },
+      "description": "Trait: node has enabled/disabled concept",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 5
+    },
+    "isFocusable": {
+      "type": "bool",
+      "key": {
+        "int": 995,
+        "string": "isfocusable"
+      },
+      "description": "Trait: node can receive focus",
+      "passthroughForBitmask": "traitFlags",
+      "passthroughBit": 6
+    },
+    "isExpanded": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 996,
+        "string": "isexpanded"
+      },
+      "description": "State: node is currently expanded (gated by Expandable trait)",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 0
+    },
+    "isSelected": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 997,
+        "string": "isselected"
+      },
+      "description": "State: node is currently selected (gated by Selectable trait)",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 1
+    },
+    "isChecked": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 998,
+        "string": "ischecked"
+      },
+      "description": "State: node is currently checked (gated by Checkable trait). When isMixed is also true, Mixed takes precedence — the node is reported as indeterminate, not checked.",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 2
+    },
+    "isMixed": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 999,
+        "string": "ismixed"
+      },
+      "description": "State: checkbox is in indeterminate/mixed state (gated by Checkable trait). Mixed takes precedence over isChecked when both are set.",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 3
+    },
+    "isToggled": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 1000,
+        "string": "istoggled"
+      },
+      "description": "State: toggle is in the on position (gated by Toggleable trait)",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 4
+    },
+    "isRequired": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 1001,
+        "string": "isrequired"
+      },
+      "description": "State: field is required (gated by Requirable trait)",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 5
+    },
+    "isDisabled": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 1002,
+        "string": "isdisabled"
+      },
+      "description": "State: node is disabled (gated by Enablable trait)",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 6
+    },
+    "isFocused": {
+      "type": "bool",
+      "key": {
+        "int": 1003,
+        "string": "isfocused"
+      },
+      "description": "State: node currently has focus (gated by Focusable trait, runtime-driven)",
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 7
+    },
+    "isHidden": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 1004,
+        "string": "ishidden"
+      },
+      "description": "State: node is hidden from accessibility tree",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 8
+    },
+    "isLiveRegion": {
+      "type": "bool",
+      "key": {
+        "int": 1005,
+        "string": "isliveregion"
+      },
+      "description": "State: label changes trigger screen reader announcements",
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 9
+    },
+    "isReadOnly": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 1006,
+        "string": "isreadonly"
+      },
+      "description": "State: text field is read-only",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 10
+    },
+    "isModal": {
+      "type": "bool",
+      "key": {
+        "int": 1007,
+        "string": "ismodal"
+      },
+      "description": "State: dialog traps focus within",
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 11
+    },
+    "isObscured": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 1008,
+        "string": "isobscured"
+      },
+      "description": "State: text field content is hidden (password)",
+      "bindable": true,
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 12
+    },
+    "isMultiline": {
+      "type": "bool",
+      "key": {
+        "int": 1009,
+        "string": "ismultiline"
+      },
+      "description": "State: text field is multi-line",
+      "passthroughForBitmask": "stateFlags",
+      "passthroughBit": 13
+    }
+  }
+}

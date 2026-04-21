@@ -13,12 +13,27 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
 #include "rive/parent_traversal.hpp"
+#include "rive/semantic/semantic_data.hpp"
+#include "rive/semantic/semantic_state.hpp"
 #include "rive/text/text_input.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/world_transform_component.hpp"
 #include <algorithm>
 
 using namespace rive;
+
+namespace
+{
+SemanticData* findSiblingSemanticData(Component* self)
+{
+    auto* parentNode = self->parent();
+    if (parentNode == nullptr || !parentNode->is<Node>())
+    {
+        return nullptr;
+    }
+    return parentNode->as<Node>()->firstChild<SemanticData>();
+}
+} // namespace
 
 FocusData::~FocusData()
 {
@@ -297,6 +312,13 @@ void FocusData::focused()
     {
         listener->onFocused();
     }
+
+    // Sync focus state to sibling SemanticData (if any)
+    auto* sibling = findSiblingSemanticData(this);
+    if (sibling != nullptr)
+    {
+        sibling->setFocusedState(true);
+    }
 }
 
 void FocusData::blurred()
@@ -304,6 +326,13 @@ void FocusData::blurred()
     for (auto* listener : m_focusListeners)
     {
         listener->onBlurred();
+    }
+
+    // Sync focus state to sibling SemanticData (if any)
+    auto* sibling = findSiblingSemanticData(this);
+    if (sibling != nullptr)
+    {
+        sibling->setFocusedState(false);
     }
 }
 

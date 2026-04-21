@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include "rive/animation/keyboard_listener_group.hpp"
+#include "rive/animation/semantic_listener_group.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_instance.hpp"
 #include "rive/animation/state_transition.hpp"
@@ -18,6 +19,7 @@
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "rive/semantic/semantic_manager.hpp"
 
 namespace rive
 {
@@ -219,6 +221,14 @@ public:
     /// Queue a focus event for deferred execution during advance().
     void queueFocusEvent(FocusListenerGroup* group, bool isFocus);
 
+    /// Queue a semantic event for deferred execution during advance().
+    void queueSemanticEvent(SemanticListenerGroup* group,
+                            SemanticActionType actionType);
+
+    /// Fire a semantic action on the SemanticData with the given node ID.
+    void fireSemanticAction(uint32_t semanticNodeId,
+                            SemanticActionType actionType);
+
     /// Get the focus manager for this state machine instance.
     /// Returns the external focus manager if set, otherwise the internal one.
     FocusManager* focusManager()
@@ -246,6 +256,26 @@ public:
 
     /// Set focus to a specific FocusData's node.
     void setFocus(FocusData* focusData);
+
+    /// Get the semantic manager for this state machine instance.
+    /// Returns the external manager if set, otherwise the internal one.
+    /// Returns nullptr if semantics has not been enabled.
+    SemanticManager* semanticManager() const
+    {
+        return m_externalSemanticManager ? m_externalSemanticManager
+                                         : m_semanticManager.get();
+    }
+
+    /// Enable semantics for this state machine instance. Creates the
+    /// internal SemanticManager (if no external one was set) and builds
+    /// the semantic tree. This is a no-op if semantics is already enabled.
+    void enableSemantics();
+
+    /// Set an external semantic manager to use instead of the internal one.
+    /// Used when a nested artboard should share the parent's semantic tree.
+    /// Rebuilds the semantic tree with the new manager if already built.
+    void setExternalSemanticManager(SemanticManager* manager);
+
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)
@@ -304,6 +334,10 @@ private:
     std::vector<std::unique_ptr<KeyboardListenerGroup>>
         m_keyboardListenerGroups;
 
+    // Semantic management
+    std::unique_ptr<SemanticManager> m_semanticManager;
+    SemanticManager* m_externalSemanticManager = nullptr;
+
     // Queued focus events for deferred processing
     struct QueuedFocusEvent
     {
@@ -312,6 +346,17 @@ private:
     };
     std::vector<QueuedFocusEvent> m_queuedFocusEvents;
     void processFocusEvents();
+
+    // Semantic listener groups and queued events
+    std::vector<std::unique_ptr<SemanticListenerGroup>>
+        m_semanticListenerGroups;
+    struct QueuedSemanticEvent
+    {
+        SemanticListenerGroup* group;
+        SemanticActionType actionType;
+    };
+    std::vector<QueuedSemanticEvent> m_queuedSemanticEvents;
+    void processSemanticEvents();
 
 #ifdef WITH_RIVE_TOOLS
 public:
