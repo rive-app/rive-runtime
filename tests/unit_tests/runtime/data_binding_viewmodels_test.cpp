@@ -50,3 +50,27 @@ TEST_CASE(
 
     CHECK(silver.matches("databind_viewmodel"));
 }
+
+TEST_CASE("Stateful component is bound before binding the view model instance",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/unbound_stateful_component.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("unbound_stateful_component"));
+}

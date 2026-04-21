@@ -47,7 +47,12 @@ protected:
 private:
     void clearNestedAnimations();
     float m_cumulatedSeconds = 0;
+    bool m_hasPendingStatefulBinding = false;
     void nest(Artboard* artboard);
+    bool tryScheduleBindStateful();
+    void bindStateful();
+    void bindArtboardInstance(rcp<ViewModelInstance> instance,
+                              rcp<DataContext> parent);
 
 public:
     NestedArtboard();

@@ -78,6 +78,37 @@ void NestedArtboard::nest(Artboard* artboard)
     m_referencedArtboard->host(this);
 }
 
+bool NestedArtboard::tryScheduleBindStateful()
+{
+
+    if (m_statefulViewModelInstance != nullptr && artboardInstance())
+    {
+        m_hasPendingStatefulBinding = true;
+        return true;
+    }
+    return false;
+}
+
+void NestedArtboard::bindStateful()
+{
+    m_hasPendingStatefulBinding = false;
+    bindArtboardInstance(m_statefulViewModelInstance, m_dataContext);
+}
+
+void NestedArtboard::bindArtboardInstance(rcp<ViewModelInstance> instance,
+                                          rcp<DataContext> parent)
+{
+    artboardInstance()->bindViewModelInstance(instance, parent);
+    for (auto& animation : m_NestedAnimations)
+    {
+        if (animation->is<NestedStateMachine>())
+        {
+            animation->as<NestedStateMachine>()->dataContext(
+                artboardInstance()->dataContext());
+        }
+    }
+}
+
 void NestedArtboard::clearNestedAnimations()
 {
     for (auto& animation : m_NestedAnimations)
@@ -133,6 +164,10 @@ void NestedArtboard::updateArtboard(
             bindViewModelInstance(
                 viewModelInstanceArtboard->boundViewModelInstance(),
                 m_dataContext);
+        }
+        else if (tryScheduleBindStateful())
+        {
+            bindStateful();
         }
         else if (m_dataContext != nullptr && m_viewModelInstance == nullptr)
         {
@@ -263,6 +298,7 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
             break;
         }
     }
+    tryScheduleBindStateful();
 
     return Super::onAddedClean(context);
 }
@@ -416,19 +452,8 @@ void NestedArtboard::internalDataContext(rcp<DataContext> value)
     {
         // If we have a stateful ViewModelInstance, bind it to the artboard
         // instance.
-        if (m_statefulViewModelInstance != nullptr)
+        if (tryScheduleBindStateful())
         {
-            artboardInstance()->bindViewModelInstance(
-                m_statefulViewModelInstance,
-                value);
-            for (auto& animation : m_NestedAnimations)
-            {
-                if (animation->is<NestedStateMachine>())
-                {
-                    animation->as<NestedStateMachine>()->dataContext(
-                        artboardInstance()->dataContext());
-                }
-            }
             return;
         }
 
@@ -506,15 +531,7 @@ void NestedArtboard::bindViewModelInstance(
         auto instanceToBind = m_statefulViewModelInstance != nullptr
                                   ? m_statefulViewModelInstance
                                   : viewModelInstance;
-        artboardInstance()->bindViewModelInstance(instanceToBind, parent);
-        for (auto& animation : m_NestedAnimations)
-        {
-            if (animation->is<NestedStateMachine>())
-            {
-                animation->as<NestedStateMachine>()->dataContext(
-                    artboardInstance()->dataContext());
-            }
-        }
+        bindArtboardInstance(instanceToBind, parent);
     }
 }
 
@@ -545,6 +562,10 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     if (m_referencedArtboard == nullptr || isCollapsed() || isPaused())
     {
         return false;
+    }
+    if (m_hasPendingStatefulBinding)
+    {
+        bindStateful();
     }
     bool keepGoing = false;
     bool advanceNested =
@@ -628,4 +649,5 @@ void NestedArtboard::referencedArtboard(Artboard* artboard)
     assert(artboard != nullptr);
     ArtboardReferencer::referencedArtboard(artboard);
     nest(artboard);
+    tryScheduleBindStateful();
 }
