@@ -611,6 +611,10 @@ void NestedArtboard::reset()
     {
         m_referencedArtboard->reset();
     }
+    if (m_statefulViewModelInstance != nullptr)
+    {
+        m_statefulViewModelInstance->advanced();
+    }
 }
 
 void NestedArtboard::file(File* value) { m_file = value; }

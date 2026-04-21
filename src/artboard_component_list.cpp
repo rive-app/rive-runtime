@@ -559,6 +559,7 @@ void ArtboardComponentList::reset()
 {
     for (auto& item : m_listItems)
     {
+        auto itr = m_artboardInstancesMap.find(item);
         if (m_shouldResetInstances)
         {
             auto viewModelInstance = item->viewModelInstance();
@@ -566,8 +567,20 @@ void ArtboardComponentList::reset()
             {
                 viewModelInstance->advanced();
             }
+            if (itr != m_artboardInstancesMap.end() && itr->second != nullptr)
+            {
+                auto dataContext = itr->second->dataContext();
+                if (dataContext != nullptr)
+                {
+                    auto boundInstance = dataContext->viewModelInstance();
+                    if (boundInstance != nullptr &&
+                        boundInstance != viewModelInstance)
+                    {
+                        boundInstance->advanced();
+                    }
+                }
+            }
         }
-        auto itr = m_artboardInstancesMap.find(item);
         if (itr != m_artboardInstancesMap.end())
         {
             itr->second->reset();

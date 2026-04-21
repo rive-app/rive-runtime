@@ -10,6 +10,13 @@ class StateMachineInstance;
 class ListenerAction : public ListenerActionBase
 {
 public:
+    enum class ParentKind : uint32_t
+    {
+        Listener = 0,
+        Transition = 1,
+        State = 2,
+    };
+
     StatusCode import(ImportStack& importStack) override;
     virtual void perform(StateMachineInstance* stateMachineInstance,
                          const ListenerInvocation& invocation) const = 0;
@@ -19,6 +26,14 @@ public:
     bool matchesScheduledOccurrence(StateMachineFireOccurance occurs) const
     {
         return (flags() & 1u) == static_cast<uint32_t>(occurs);
+    }
+
+    ParentKind parentKind() const
+    {
+        auto raw = (flags() >> 1) & 0x3u;
+        return raw <= static_cast<uint32_t>(ParentKind::State)
+                   ? static_cast<ParentKind>(raw)
+                   : ParentKind::Listener;
     }
 };
 } // namespace rive
