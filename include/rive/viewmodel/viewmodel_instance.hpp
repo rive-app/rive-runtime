@@ -8,6 +8,8 @@
 #include "rive/refcnt.hpp"
 #include <cstdint>
 #include <stdio.h>
+#include <unordered_map>
+#include <vector>
 namespace rive
 {
 class ViewModel;
@@ -19,6 +21,7 @@ private:
     std::vector<rcp<ViewModelInstanceValue>> m_PropertyValues;
     std::vector<ViewModelInstance*> m_parents;
     std::vector<DataBindContainer*> m_dependents;
+    std::unordered_map<SymbolType, ViewModelInstanceValue*> m_propertySymbols;
     ViewModel* m_ViewModel;
     void rebindDependents();
     void rebindProperties();
@@ -39,6 +42,8 @@ public:
     ViewModelInstanceValue* propertyValue(const uint32_t id);
     ViewModelInstanceValue* propertyValue(const std::string& name);
     ViewModelInstanceValue* propertyValue(const SymbolType symbolType);
+    void propertyValue(const SymbolType symbolType,
+                       ViewModelInstanceValue* value);
     bool replaceViewModelByName(const std::string& name,
                                 rcp<ViewModelInstance> value);
     bool replaceViewModelByProperty(ViewModelInstanceViewModel*,

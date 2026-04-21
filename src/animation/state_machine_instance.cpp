@@ -980,8 +980,10 @@ public:
         {
             return false;
         }
-        for (int i = (int)componentList->artboardCount(); i >= 0; i--)
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
         {
+            const int i = *it;
             Vec2D listPosition;
             if (!componentList->worldToLocal(position, &listPosition, i))
             {
@@ -1009,8 +1011,10 @@ public:
         {
             return hitResult;
         }
-        for (int i = (int)componentList->artboardCount(); i >= 0; i--)
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
         {
+            const int i = *it;
             Vec2D listPosition;
             bool hit = componentList->worldToLocal(position, &listPosition, i);
             if (!hit)

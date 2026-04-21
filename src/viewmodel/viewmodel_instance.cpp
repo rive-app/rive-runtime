@@ -53,6 +53,13 @@ void ViewModelInstance::addValue(ViewModelInstanceValue* value)
     {
         value->viewModelInstance(this);
     }
+    if (value->viewModelProperty() != nullptr &&
+        (SymbolType)value->viewModelProperty()->symbolTypeValue() !=
+            SymbolType::none)
+    {
+        propertyValue((SymbolType)value->viewModelProperty()->symbolTypeValue(),
+                      value);
+    }
     m_PropertyValues.push_back(rcp<ViewModelInstanceValue>(value));
 }
 
@@ -125,19 +132,23 @@ bool ViewModelInstance::replaceViewModelByProperty(
     return false;
 }
 
+void ViewModelInstance::propertyValue(const SymbolType symbolType,
+                                      ViewModelInstanceValue* value)
+{
+    if (symbolType != SymbolType::none)
+    {
+        m_propertySymbols[symbolType] = value;
+    }
+}
+
 ViewModelInstanceValue* ViewModelInstance::propertyValue(
     const SymbolType symbolType)
 {
-    auto viewModelProperty = viewModel()->property(symbolType);
-    if (viewModelProperty != nullptr)
+
+    auto propertyIt = m_propertySymbols.find(symbolType);
+    if (propertyIt != m_propertySymbols.end())
     {
-        for (auto value : m_PropertyValues)
-        {
-            if (value->viewModelProperty() == viewModelProperty)
-            {
-                return value.get();
-            }
-        }
+        return propertyIt->second;
     }
     return nullptr;
 }
@@ -145,15 +156,12 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
 ViewModelInstanceValue* ViewModelInstance::propertyValue(
     const std::string& name)
 {
-    auto viewModelProperty = viewModel()->property(name);
-    if (viewModelProperty != nullptr)
+    for (auto value : m_PropertyValues)
     {
-        for (auto value : m_PropertyValues)
+        if (value->viewModelProperty() &&
+            value->viewModelProperty()->name() == name)
         {
-            if (value->viewModelProperty() == viewModelProperty)
-            {
-                return value.get();
-            }
+            return value.get();
         }
     }
     return nullptr;

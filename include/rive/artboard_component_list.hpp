@@ -13,14 +13,18 @@
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/viewmodel/symbol_type.hpp"
 #include "rive/virtualizing_component.hpp"
+#include <memory>
 #include <stdio.h>
 #include <unordered_map>
+#include <vector>
 namespace rive
 {
 class LayoutComponent;
 class ScrollConstraint;
 class ArtboardListMapRule;
+class ArtboardListDrawIndexDependent;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
@@ -104,6 +108,7 @@ public:
     {
         m_visibleStartIndex = start;
         m_visibleEndIndex = end;
+        invalidateOrderedListIndicesCache();
     }
     void shouldResetInstances(bool value) { m_shouldResetInstances = value; }
     void setVirtualizablePosition(int index, Vec2D position) override;
@@ -127,6 +132,16 @@ public:
     const Mat2D& listTransform() override;
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;
     void addMapRule(ArtboardListMapRule*);
+
+    /// Rebuilds the ordered-list cache when invalid (list, visibility, or
+    /// drawIndex sort inputs changed).
+    void ensureOrderedListIndices();
+    /// Paint / scroll order indices; uses drawIndex sorting when any list
+    /// item's view model defines SymbolType::drawIndex. Hit-test top-first by
+    /// iterating this vector in reverse. Do not retain references across
+    /// mutations that invalidate the cache.
+    const std::vector<int>& orderedListIndices();
+    void invalidateOrderedListIndicesCache();
 
 private:
     void updateArtboardsWorldTransform();
@@ -193,6 +208,21 @@ private:
     bool m_shouldResetInstances = false;
     bool listsAreEqual(std::vector<rcp<ViewModelInstanceListItem>>* list,
                        std::vector<rcp<ViewModelInstanceListItem>>* compared);
+
+    void recomputeListUsesDrawIndexSort();
+    float listItemDrawIndex(int index) const;
+    void clearDrawIndexListeners();
+    void syncDrawIndexListeners();
+    void removeDrawIndexListenerForItem(
+        const rcp<ViewModelInstanceListItem>& listItem);
+
+    bool m_listUsesDrawIndexSort = false;
+    bool m_orderedListIndicesCacheValid = false;
+    /// Always paint / scroll order (ascending drawIndex when enabled).
+    std::vector<int> m_cachedOrderedListIndices;
+    std::unordered_map<rcp<ViewModelInstanceListItem>,
+                       std::unique_ptr<ArtboardListDrawIndexDependent>>
+        m_drawIndexDependents;
 };
 } // namespace rive
 

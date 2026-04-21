@@ -15,6 +15,7 @@
 #include "rive_testing.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <vector>
 
 TEST_CASE("Component List Artboard Count", "[component_list]")
 {
@@ -1034,4 +1035,154 @@ TEST_CASE("Artboard lists with child artboard origin offset", "[silver]")
     }
 
     CHECK(silver.matches("component_list_child_origin"));
+}
+
+TEST_CASE("Component list orderedListIndices default order", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_1.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    artboard->advance(0.0f);
+
+    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    const int n = static_cast<int>(list->artboardCount());
+    REQUIRE(n > 0);
+
+    const auto& paintOrder = list->orderedListIndices();
+    REQUIRE(static_cast<int>(paintOrder.size()) == n);
+    for (int i = 0; i < n; i++)
+    {
+        REQUIRE(paintOrder[static_cast<size_t>(i)] == i);
+    }
+
+    int hitIndex = 0;
+    for (auto it = paintOrder.rbegin(); it != paintOrder.rend(); ++it)
+    {
+        REQUIRE(*it == n - 1 - hitIndex);
+        hitIndex++;
+    }
+}
+
+TEST_CASE("Draw index overrides draw order", "[silver]")
+{
+    // There are 10 children with height 50 and a negative gap of -10
+    // Total height is 410 (= 500 - 10 * 9)
+    // List is virtualized and using a carousel
+    // Hierarchy List with draw index:
+    // -> Blue | 5
+    // -> Orange | 1
+    // -> Magenta | 5
+    // -> Cyan | 0
+    // -> Yellow | -1
+    // -> White | none
+    // -> Green | 0
+    // -> Gray | none
+    // -> Red | -1
+    // -> Black | none
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/draw_index_list.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    double posY = 90.0f;
+
+    stateMachine->pointerDown(rive::Vec2D(30.0f, posY));
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Do a full loop to ensure positions are correct
+    int frames = 41;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        stateMachine->pointerMove(rive::Vec2D(30.0f, posY));
+        posY -= 10;
+    }
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    stateMachine->pointerUp(rive::Vec2D(30.0f, posY));
+
+    // Click in overlap between Blue and Orange is taken by Orange
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click in Orange is taken by Orange
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 51.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 51.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click in overlap between Magenta and Orange is taken by Magenta
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 91.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 91.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Scroll 80px up
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(30.0f, 90.0f));
+    stateMachine->pointerMove(rive::Vec2D(30.0f, 10.0f));
+    stateMachine->pointerUp(rive::Vec2D(30.0f, 10.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click in overlap between Magenta and Cyan is taken by Magenta
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click in overlap between Cyan and Yellow is taken by Cyan
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 85.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 85.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Scroll 80px up
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(30.0f, 90.0f));
+    stateMachine->pointerMove(rive::Vec2D(30.0f, 10.0f));
+    stateMachine->pointerUp(rive::Vec2D(30.0f, 10.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Click in overlap between Yellow and White is taken by White
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("draw_index_list"));
 }

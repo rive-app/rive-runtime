@@ -20,6 +20,7 @@ enum class SymbolType : unsigned char
     textStyle = 13,
     textContent = 14,
     itemIndex = 15, // Not used, added to match dart side
+    drawIndex = 16,
 };
 }
 #endif

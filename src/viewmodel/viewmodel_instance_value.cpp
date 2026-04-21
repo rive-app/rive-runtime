@@ -63,6 +63,13 @@ bool ViewModelInstanceValue::hasChanged()
 void ViewModelInstanceValue::viewModelProperty(ViewModelProperty* value)
 {
     m_ViewModelProperty = value;
+    if (m_viewModelInstance != nullptr && m_ViewModelProperty != nullptr &&
+        (SymbolType)m_ViewModelProperty->symbolTypeValue() != SymbolType::none)
+    {
+        m_viewModelInstance->propertyValue(
+            (SymbolType)m_ViewModelProperty->symbolTypeValue(),
+            this);
+    }
 }
 ViewModelProperty* ViewModelInstanceValue::viewModelProperty()
 {
