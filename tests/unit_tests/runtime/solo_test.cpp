@@ -7,6 +7,8 @@
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include "rive_file_reader.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "utils/serializing_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
@@ -314,4 +316,43 @@ TEST_CASE("hit test on nested artboards in solos", "[solo]")
     REQUIRE(activeRectFillSolidColor->colorValue() == red_color);
     // And the inactive artboard should have stayed green
     REQUIRE(inactiveRectFillSolidColor->colorValue() == green_color);
+}
+
+TEST_CASE("Data bound solos with enums work in both directions", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/databind_solo_to_enum.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+    REQUIRE(vmi->propertyValue("enuToSource") != nullptr);
+    auto enuToSourceProp =
+        vmi->propertyValue("enuToSource")->as<rive::ViewModelInstanceEnum>();
+    CHECK(enuToSourceProp->propertyValue() == 3);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(425.0f, 70.0f));
+    stateMachine->pointerUp(rive::Vec2D(425.0f, 70.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(enuToSourceProp->propertyValue() == 5);
+
+    CHECK(silver.matches("databind_solo_to_enum"));
 }

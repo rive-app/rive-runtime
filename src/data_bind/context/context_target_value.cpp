@@ -50,6 +50,10 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
                 {
                     m_targetValue = new DataValueNumber();
                 }
+                else if (dataBind->sourceOutputType() == DataType::enumType)
+                {
+                    m_targetValue = new DataValueInteger();
+                }
             }
             else if (dataBind->source() != nullptr &&
                      dataBind->source()->coreType() ==
@@ -119,6 +123,30 @@ bool DataBindContextTargetValue::syncTargetValue()
                 {
                     auto value = target->getActiveChildIndex();
                     return updateValue<DataValueInteger, int>(value);
+                }
+                else if (m_dataBind->sourceOutputType() == DataType::enumType)
+                {
+                    auto activeChildName = target->getActiveChildName();
+                    if (m_dataBind->source() &&
+                        m_dataBind->source()->is<ViewModelInstanceEnum>())
+                    {
+                        auto viewModelInstanceEnum =
+                            m_dataBind->source()->as<ViewModelInstanceEnum>();
+                        if (viewModelInstanceEnum->viewModelProperty())
+                        {
+                            auto enumProperty =
+                                viewModelInstanceEnum->viewModelProperty()
+                                    ->as<ViewModelPropertyEnum>();
+                            if (enumProperty && enumProperty->dataEnum())
+                            {
+                                auto dataEnum = enumProperty->dataEnum();
+                                auto index =
+                                    dataEnum->valueIndex(activeChildName);
+                                return updateValue<DataValueInteger, int>(
+                                    index);
+                            }
+                        }
+                    }
                 }
             }
             else if (m_dataBind->target()->coreType() ==
