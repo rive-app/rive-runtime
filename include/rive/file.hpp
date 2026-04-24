@@ -188,6 +188,7 @@ public:
             instancesMap) const;
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
+    void completeViewModelProperties(ViewModelInstance* viewModelInstance);
     const std::vector<DataEnum*>& enums() const;
     rcp<FileAsset> asset(size_t index);
 

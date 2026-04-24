@@ -49,6 +49,7 @@ public:
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
+    bool advance(float elapsedSeconds) override;
     StatusCode import(ImportStack& importStack) override;
     void addProperty(CustomProperty* prop) override;
     Core* clone() const override;

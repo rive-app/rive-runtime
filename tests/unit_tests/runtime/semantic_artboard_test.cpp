@@ -364,6 +364,96 @@ TEST_CASE(
 // enableSemantics idempotence under data-bound content.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// data_binding_lists_items.riv — parent artboard with an
+// ArtboardComponentList authored under a SemanticData of role=list. The list
+// items are hosted artboards whose state machines are created dynamically
+// (after the parent's initial buildSemanticTree). These items carry their
+// own listItem-role SemanticData and must land under the enclosing list-role
+// node, otherwise their boundary becomes a root and the flattened parentId
+// for listItems drops to -1 — violating the platform-side invariant that
+// listItem roles live under a list role.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+static bool hasAncestorWithRole(const SemanticNode* node, SemanticRole role)
+{
+    const auto asU = static_cast<uint32_t>(role);
+    auto* current = node != nullptr ? node->parent() : nullptr;
+    while (current != nullptr)
+    {
+        if (current->role() == asU)
+        {
+            return true;
+        }
+        current = current->parent();
+    }
+    return false;
+}
+
+} // namespace
+
+TEST_CASE("Dynamic list item artboards parent listItem nodes under the "
+          "enclosing list role",
+          "[semantics][artboard]")
+{
+    auto f = loadFixture("assets/semantic/data_binding_lists_items.riv");
+    REQUIRE(f.sm != nullptr);
+    auto* mgr = f.sm->semanticManager();
+    REQUIRE(mgr != nullptr);
+
+    const auto diff = mgr->drainDiff();
+
+    // Collect every list and listItem node that the manager emitted.
+    std::vector<uint32_t> listIds;
+    std::vector<uint32_t> listItemIds;
+    for (const auto& n : diff.added)
+    {
+        if (n.role == static_cast<uint32_t>(SemanticRole::list))
+        {
+            listIds.push_back(n.id);
+        }
+        else if (n.role == static_cast<uint32_t>(SemanticRole::listItem))
+        {
+            listItemIds.push_back(n.id);
+        }
+    }
+
+    REQUIRE(listIds.size() == 1);
+    REQUIRE_FALSE(listItemIds.empty());
+
+    // (1) In the flattened diff, every listItem's parentId must resolve to
+    //     the list-role node — not -1 (root) and not a non-list sibling.
+    //     Boundary nodes between the listItem and the list get skipped
+    //     during flatten, so the parentId lands directly on the list id.
+    std::unordered_map<uint32_t, int32_t> parentById;
+    for (const auto& n : diff.added)
+    {
+        parentById[n.id] = n.parentId;
+    }
+    const uint32_t listId = listIds.front();
+    for (auto id : listItemIds)
+    {
+        CAPTURE(id);
+        REQUIRE(parentById.count(id) == 1);
+        CHECK(parentById[id] == static_cast<int32_t>(listId));
+    }
+
+    // (2) Cross-check against the in-memory SemanticNode tree: each
+    //     listItem must have a list-role ancestor reachable via parent()
+    //     pointers. This catches regressions where the diff happens to
+    //     look right but the underlying tree is misparented.
+    for (auto id : listItemIds)
+    {
+        CAPTURE(id);
+        auto* node = mgr->nodeById(id);
+        REQUIRE(node != nullptr);
+        CHECK(hasAncestorWithRole(node, SemanticRole::list));
+    }
+}
+
 TEST_CASE("enableSemantics called twice doesn't duplicate list-item SD entries",
           "[semantics][artboard]")
 {

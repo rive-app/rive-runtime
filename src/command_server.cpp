@@ -1008,6 +1008,16 @@ bool CommandServer::processCommands()
                         {
                             viewModel = file->defaultArtboardViewModel(
                                 artboardInstance);
+                            if (viewModel == nullptr)
+                            {
+                                ErrorReporter<FileHandle>(
+                                    this,
+                                    fileHandle,
+                                    requestId,
+                                    CommandQueue::Message::fileError)
+                                    << "No view model found for artboard "
+                                    << artboardHandle;
+                            }
                         }
                         else
                         {

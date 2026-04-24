@@ -30,29 +30,19 @@ public:
                           StateMachineInstance* stateMachineInstance);
     ~SemanticListenerGroup() override;
 
-    /// Get the listener this group is managing.
     const StateMachineListener* listener() const { return m_listener; }
-
-    /// Get the SemanticData this group is attached to.
     SemanticData* semanticData() const { return m_semanticData; }
 
-    /// Check which listener types are active.
-    bool isTapListener() const { return m_isTapListener; }
-    bool isIncreaseListener() const { return m_isIncreaseListener; }
-    bool isDecreaseListener() const { return m_isDecreaseListener; }
-
-    // SemanticListener interface
     void onSemanticTap() override;
     void onSemanticIncrease() override;
     void onSemanticDecrease() override;
 
 private:
+    void queueIfListening(SemanticActionType actionType);
+
     SemanticData* m_semanticData;
     const StateMachineListener* m_listener;
     StateMachineInstance* m_stateMachineInstance;
-    bool m_isTapListener;
-    bool m_isIncreaseListener;
-    bool m_isDecreaseListener;
 };
 
 } // namespace rive

@@ -1,4 +1,5 @@
 #include "rive/animation/semantic_listener_group.hpp"
+#include "rive/animation/listener_types/listener_input_type_semantic.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/semantic/semantic_data.hpp"
@@ -11,13 +12,7 @@ SemanticListenerGroup::SemanticListenerGroup(
     StateMachineInstance* stateMachineInstance) :
     m_semanticData(semanticData),
     m_listener(listener),
-    m_stateMachineInstance(stateMachineInstance),
-    m_isTapListener(listener != nullptr &&
-                    listener->hasListener(ListenerType::semanticTap)),
-    m_isIncreaseListener(listener != nullptr &&
-                         listener->hasListener(ListenerType::semanticIncrease)),
-    m_isDecreaseListener(listener != nullptr &&
-                         listener->hasListener(ListenerType::semanticDecrease))
+    m_stateMachineInstance(stateMachineInstance)
 {
     if (m_semanticData != nullptr)
     {
@@ -33,31 +28,27 @@ SemanticListenerGroup::~SemanticListenerGroup()
     }
 }
 
+void SemanticListenerGroup::queueIfListening(SemanticActionType actionType)
+{
+    if (m_listener != nullptr &&
+        ListenerInputTypeSemantic::semanticListenerConstraintsMet(m_listener,
+                                                                  actionType))
+    {
+        m_stateMachineInstance->queueSemanticEvent(this, actionType);
+    }
+}
+
 void SemanticListenerGroup::onSemanticTap()
 {
-    if (m_isTapListener)
-    {
-        m_stateMachineInstance->queueSemanticEvent(this,
-                                                   SemanticActionType::tap);
-    }
+    queueIfListening(SemanticActionType::tap);
 }
 
 void SemanticListenerGroup::onSemanticIncrease()
 {
-    if (m_isIncreaseListener)
-    {
-        m_stateMachineInstance->queueSemanticEvent(
-            this,
-            SemanticActionType::increase);
-    }
+    queueIfListening(SemanticActionType::increase);
 }
 
 void SemanticListenerGroup::onSemanticDecrease()
 {
-    if (m_isDecreaseListener)
-    {
-        m_stateMachineInstance->queueSemanticEvent(
-            this,
-            SemanticActionType::decrease);
-    }
+    queueIfListening(SemanticActionType::decrease);
 }

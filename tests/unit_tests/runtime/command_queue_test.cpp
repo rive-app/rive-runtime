@@ -2800,6 +2800,29 @@ TEST_CASE("file Error Messages", "[CommandQueue]")
     commandQueue->processMessages();
     CHECK(badFileListener.m_receivedErrors == 3);
 
+    // Artboard with no view model should produce errors for all
+    // artboard-based VMI instantiation commands.
+    TestFileErrorListener noVMListener;
+    std::ifstream noVMStream("assets/entry.riv", std::ios::binary);
+    noVMListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(noVMStream), {}),
+        &noVMListener);
+
+    auto noVMArtboard =
+        commandQueue->instantiateDefaultArtboard(noVMListener.m_handle);
+
+    commandQueue->instantiateBlankViewModelInstance(noVMListener.m_handle,
+                                                    noVMArtboard);
+    commandQueue->instantiateDefaultViewModelInstance(noVMListener.m_handle,
+                                                      noVMArtboard);
+    commandQueue->instantiateViewModelInstanceNamed(noVMListener.m_handle,
+                                                    noVMArtboard,
+                                                    "Nonexistent");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+    CHECK(noVMListener.m_receivedErrors == 3);
+
     commandQueue->disconnect();
     serverThread.join();
 }

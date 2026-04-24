@@ -295,6 +295,8 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
             // with ref count 1 from construction. The rcp constructor takes
             // this ref without adding another. NestedArtboard now owns the VMI.
             m_statefulViewModelInstance = rcp<ViewModelInstance>(vmi);
+            m_file->completeViewModelProperties(
+                m_statefulViewModelInstance.get());
             break;
         }
     }

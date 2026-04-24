@@ -1,6 +1,7 @@
 #ifndef _RIVE_LISTENER_INVOCATION_HPP_
 #define _RIVE_LISTENER_INVOCATION_HPP_
 
+#include "rive/animation/semantic_listener_group.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/math/vec2d.hpp"
@@ -15,9 +16,6 @@ namespace rive
 class Event;
 class FocusListenerGroup;
 class ListenerViewModel;
-class SemanticListenerGroup;
-enum class SemanticActionType : uint8_t;
-
 /// Discriminator for what triggered a listener's actions. Not to be confused
 /// with `rive::Event` (file/timeline event objects).
 enum class ListenerInvocationKind : uint8_t

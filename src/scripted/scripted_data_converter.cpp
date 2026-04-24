@@ -185,15 +185,26 @@ void ScriptedDataConverter::bindFromContext(DataContext* dataContext,
 bool ScriptedDataConverter::advanceComponent(float elapsedSeconds,
                                              AdvanceFlags flags)
 {
-    if (elapsedSeconds == 0)
-    {
-        return false;
-    }
     if (!enums::is_flag_set(flags, AdvanceFlags::AdvanceNested))
     {
         elapsedSeconds = 0;
     }
-    return scriptAdvance(elapsedSeconds);
+    return advance(elapsedSeconds);
+}
+
+bool ScriptedDataConverter::advance(float elapsedSeconds)
+{
+
+    if (elapsedSeconds == 0)
+    {
+        return false;
+    }
+    auto needsAdvance = scriptAdvance(elapsedSeconds);
+    if (needsAdvance)
+    {
+        markConverterDirty();
+    }
+    return needsAdvance;
 }
 
 void ScriptedDataConverter::addProperty(CustomProperty* prop)

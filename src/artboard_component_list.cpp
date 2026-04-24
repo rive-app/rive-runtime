@@ -399,14 +399,14 @@ void ArtboardComponentList::linkStateMachineToArtboard(
         }
 
         // Share parent artboard's semantic manager and build semantic tree
-        // for list item. Without this, dynamically created list item
-        // artboards would not contribute semantic nodes to the parent's
-        // unified tree.
+        // reparented under the enclosing SemanticData.
         if (parentArtboard != nullptr &&
             parentArtboard->semanticManager() != nullptr)
         {
             auto* parentSM = parentArtboard->semanticManager();
-            stateMachineInstance->setExternalSemanticManager(parentSM);
+            auto parentNode = SemanticData::findClosestSemanticNode(this);
+            stateMachineInstance->setExternalSemanticManager(parentSM,
+                                                             parentNode);
         }
     }
 }
@@ -1261,7 +1261,7 @@ void ArtboardComponentList::bindArtboard(
                 {
                     auto copy = rcp<ViewModelInstance>(
                         listItemInstance->clone()->as<ViewModelInstance>());
-                    m_file->completeViewModelInstance(copy);
+                    m_file->completeViewModelProperties(copy.get());
 #ifdef WITH_RIVE_TOOLS
                     if (copy)
                     {

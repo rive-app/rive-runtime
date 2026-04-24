@@ -7,7 +7,9 @@
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/generated/animation/listener_types/listener_input_type_semantic_base.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/animation/listener_types/listener_input_type_semantic.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/importers/bindable_property_importer.hpp"
@@ -33,6 +35,7 @@
 #include "rive/importers/state_machine_layer_component_importer.hpp"
 #include "rive/importers/transition_viewmodel_condition_importer.hpp"
 #include "rive/importers/listener_input_type_keyboard_importer.hpp"
+#include "rive/importers/listener_input_type_semantic_importer.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/importers/viewmodel_instance_list_importer.hpp"
@@ -473,6 +476,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         object->as<ListenerInputTypeKeyboard>());
                 stackType = ListenerInputTypeKeyboardBase::typeKey;
                 break;
+            case ListenerInputTypeSemanticBase::typeKey:
+                stackObject =
+                    std::make_unique<ListenerInputTypeSemanticImporter>(
+                        object->as<ListenerInputTypeSemantic>());
+                stackType = ListenerInputTypeSemanticBase::typeKey;
+                break;
 #ifdef WITH_RIVE_SCRIPTING
             case ScriptAsset::typeKey:
             {
@@ -877,6 +886,49 @@ void File::completeViewModelInstance(
                     {
                         listItem->viewModelInstance(itr->second);
                     }
+                }
+            }
+        }
+        value->viewModelProperty(
+            viewModel->property(value->viewModelPropertyId()));
+    }
+}
+
+void File::completeViewModelProperties(ViewModelInstance* viewModelInstance)
+{
+    auto viewModel = m_ViewModels[viewModelInstance->viewModelId()];
+    auto propertyValues = viewModelInstance->propertyValues();
+    for (auto& value : propertyValues)
+    {
+        if (value->is<ViewModelInstanceViewModel>())
+        {
+            auto property = viewModel->property(value->viewModelPropertyId());
+            if (property->is<ViewModelPropertyViewModel>())
+            {
+                auto valueViewModel = value->as<ViewModelInstanceViewModel>();
+                auto propertViewModel =
+                    property->as<ViewModelPropertyViewModel>();
+                auto viewModelReference =
+                    m_ViewModels[propertViewModel->viewModelReferenceId()];
+                auto viewModelReferenceInstance = viewModelReference->instance(
+                    valueViewModel->propertyValue());
+                if (viewModelReferenceInstance != nullptr)
+                {
+                    completeViewModelProperties(viewModelReferenceInstance);
+                }
+            }
+        }
+        else if (value->is<ViewModelInstanceList>())
+        {
+            auto viewModelList = value->as<ViewModelInstanceList>();
+            for (auto& listItem : viewModelList->listItems())
+            {
+                auto viewModel = m_ViewModels[listItem->viewModelId()];
+                auto viewModelListItemInstance =
+                    viewModel->instance(listItem->viewModelInstanceId());
+                if (viewModelListItemInstance != nullptr)
+                {
+                    completeViewModelProperties(viewModelListItemInstance);
                 }
             }
         }

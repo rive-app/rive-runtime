@@ -249,37 +249,44 @@ void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
     scrollOffsetY(offsetY() + delta.y);
 }
 
-void ScrollConstraint::runPhysics()
+std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
 {
-    m_isDragging = false;
     std::vector<Vec2D> snappingPoints;
-    if (snap())
+    if (content() == nullptr)
     {
-        for (auto child : content()->children())
+        return snappingPoints;
+    }
+    for (auto child : content()->children())
+    {
+        auto c = LayoutNodeProvider::from(child);
+        if (c != nullptr)
         {
-            auto c = LayoutNodeProvider::from(child);
-            if (c != nullptr)
+            size_t count = c->numLayoutNodes();
+            for (int j = 0; j < count; j++)
             {
-                size_t count = c->numLayoutNodes();
-                for (int j = 0; j < count; j++)
+                auto bounds = c->layoutBoundsForNode(j);
+                if (isBoundsCollapsed(bounds))
                 {
-                    auto bounds = c->layoutBoundsForNode(j);
-                    if (isBoundsCollapsed(bounds))
-                    {
-                        continue;
-                    }
-                    snappingPoints.push_back(
-                        Vec2D(bounds.left(), bounds.top()));
+                    continue;
                 }
+                snappingPoints.push_back(Vec2D(bounds.left(), bounds.top()));
             }
         }
     }
+    return snappingPoints;
+}
+
+void ScrollConstraint::runPhysics()
+{
+    m_isDragging = false;
+    std::vector<Vec2D> snappingPoints =
+        snap() ? collectSnapPoints() : std::vector<Vec2D>();
     if (m_physics != nullptr)
     {
         m_physics->run(Vec2D(maxOffsetX(), maxOffsetY()),
                        Vec2D(minOffsetX(), minOffsetY()),
                        Vec2D(offsetX(), offsetY()),
-                       snap() ? snappingPoints : std::vector<Vec2D>(),
+                       snappingPoints,
                        mainAxisIsColumn() ? contentHeight() : contentWidth(),
                        mainAxisIsColumn() ? viewportHeight() : viewportWidth());
     }
@@ -604,6 +611,60 @@ void ScrollConstraint::scrollToPosition(float targetX, float targetY)
                                 rangeMax,
                                 constrainsHorizontal(),
                                 constrainsVertical());
+}
+
+static float nearestSnapInDirection(float current,
+                                    float target,
+                                    const std::vector<Vec2D>& snapPoints,
+                                    bool useX)
+{
+    if (current == target)
+    {
+        return target;
+    }
+    bool scrollingNegative = target < current;
+    float best = target;
+    bool found = false;
+    float bestDist = 0.0f;
+    for (const auto& p : snapPoints)
+    {
+        float c = useX ? -p.x : -p.y;
+        if (scrollingNegative ? c > target : c < target)
+        {
+            continue;
+        }
+        float d = scrollingNegative ? target - c : c - target;
+        if (!found || d < bestDist)
+        {
+            bestDist = d;
+            best = c;
+            found = true;
+        }
+    }
+    return found ? best : target;
+}
+
+Vec2D ScrollConstraint::nearestSnapOffsetInDirection(Vec2D current,
+                                                     Vec2D target)
+{
+    if (!snap())
+    {
+        return target;
+    }
+    auto snapPoints = collectSnapPoints();
+    if (snapPoints.empty())
+    {
+        return target;
+    }
+    float snappedX =
+        constrainsHorizontal()
+            ? nearestSnapInDirection(current.x, target.x, snapPoints, true)
+            : target.x;
+    float snappedY =
+        constrainsVertical()
+            ? nearestSnapInDirection(current.y, target.y, snapPoints, false)
+            : target.y;
+    return Vec2D(snappedX, snappedY);
 }
 
 float ScrollConstraint::effectiveScrollOffsetX()

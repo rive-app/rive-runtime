@@ -1396,6 +1396,10 @@ RenderContextGLImpl::DrawShader::DrawShader(
             break;
 
         case gpu::InterlockMode::atomics:
+            if (gpu::DrawTypeIsImageDraw(drawType))
+            {
+                sources.push_back(gpu::glsl::image_draw_uniforms);
+            }
             sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;

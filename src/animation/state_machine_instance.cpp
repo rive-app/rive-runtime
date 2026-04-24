@@ -926,9 +926,7 @@ public:
                         case ListenerType::focus:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
-                        case ListenerType::semanticTap:
-                        case ListenerType::semanticIncrease:
-                        case ListenerType::semanticDecrease:
+                        case ListenerType::semanticAction:
                             break;
                     }
                 }
@@ -955,9 +953,7 @@ public:
                         case ListenerType::focus:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
-                        case ListenerType::semanticTap:
-                        case ListenerType::semanticIncrease:
-                        case ListenerType::semanticDecrease:
+                        case ListenerType::semanticAction:
                             break;
                     }
                 }
@@ -1076,9 +1072,7 @@ public:
                         case ListenerType::focus:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
-                        case ListenerType::semanticTap:
-                        case ListenerType::semanticIncrease:
-                        case ListenerType::semanticDecrease:
+                        case ListenerType::semanticAction:
                             break;
                     }
                 }
@@ -1104,9 +1098,7 @@ public:
                         case ListenerType::focus:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
-                        case ListenerType::semanticTap:
-                        case ListenerType::semanticIncrease:
-                        case ListenerType::semanticDecrease:
+                        case ListenerType::semanticAction:
                             break;
                     }
                 }
@@ -1757,9 +1749,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         // than pointer events. The editor enforces that the listener's
         // target Node owns a SemanticData child directly; no ancestor
         // walk is performed here.
-        if (listener->hasListener(ListenerType::semanticTap) ||
-            listener->hasListener(ListenerType::semanticIncrease) ||
-            listener->hasListener(ListenerType::semanticDecrease))
+        if (listener->hasListener(ListenerType::semanticAction))
         {
             auto target = m_artboardInstance->resolve(listener->targetId());
             if (target != nullptr && target->is<Node>())
@@ -2191,7 +2181,9 @@ void StateMachineInstance::enableSemantics()
     }
 }
 
-void StateMachineInstance::setExternalSemanticManager(SemanticManager* manager)
+void StateMachineInstance::setExternalSemanticManager(
+    SemanticManager* manager,
+    rcp<SemanticNode> parentNode)
 {
     if (m_externalSemanticManager == manager)
     {
@@ -2211,7 +2203,7 @@ void StateMachineInstance::setExternalSemanticManager(SemanticManager* manager)
     // manager if set, or the internal one if null.
     if (m_artboardInstance != nullptr)
     {
-        m_artboardInstance->buildSemanticTree(semanticManager(), nullptr);
+        m_artboardInstance->buildSemanticTree(semanticManager(), parentNode);
     }
 }
 

@@ -185,9 +185,12 @@ DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
     else if (input->is<DataValueEnum>())
     {
         auto dataEnum = input->as<DataValueEnum>()->dataEnum();
-        auto index = input->as<DataValueEnum>()->value();
-        auto enumValue = dataEnum->value(index);
-        m_output.value(enumValue);
+        if (dataEnum)
+        {
+            auto index = input->as<DataValueEnum>()->value();
+            auto enumValue = dataEnum->value(index);
+            m_output.value(enumValue);
+        }
     }
     else if (input->is<DataValueString>())
     {

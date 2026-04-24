@@ -1,0 +1,19 @@
+{
+  "name": "SemanticInput",
+  "key": {
+    "int": 670,
+    "string": "semanticinput"
+  },
+  "extends": "inputs/user_input.json",
+  "properties": {
+    "actionType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1010,
+        "string": "actiontype"
+      },
+      "description": "Semantic action to listen for (tap, increase, decrease); matches SemanticActionType"
+    }
+  }
+}

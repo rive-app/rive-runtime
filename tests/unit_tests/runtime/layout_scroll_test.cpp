@@ -168,3 +168,55 @@ TEST_CASE("ScrollConstraint list", "[layoutscroll]")
     REQUIRE(scroll->viewportHeight() == 500.0f);
     REQUIRE(scroll->maxOffsetY() == -460.0f);
 }
+
+TEST_CASE("ScrollConstraint nearestSnapOffsetInDirection", "[layoutscroll]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+    auto artboard = file->artboard()->instance();
+    artboard->advance(0.0f);
+
+    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+    REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // Confirm fixture: index→offset step is 110, so snap offsets are
+    // 0, -110, -220, -330, -440, -550.
+    scroll->setScrollIndex(2);
+    REQUIRE(scroll->offsetY() == -220.0f);
+
+    // Snap disabled: target returned unchanged on both axes.
+    REQUIRE(scroll->snap() == false);
+    rive::Vec2D passthrough =
+        scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, 0.0f),
+                                             rive::Vec2D(42.0f, -150.0f));
+    REQUIRE(passthrough.x == 42.0f);
+    REQUIRE(passthrough.y == -150.0f);
+
+    scroll->snap(true);
+
+    // Scrolling forward (target more negative): pick closest snap ≤ target.
+    // target=-150 → candidates {-220,-330,-440,-550} → nearest is -220.
+    rive::Vec2D forward =
+        scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, 0.0f),
+                                             rive::Vec2D(0.0f, -150.0f));
+    REQUIRE(forward.y == -220.0f);
+
+    // Scrolling back (target less negative): pick closest snap ≥ target.
+    // target=-150 → candidates {0,-110} → nearest is -110.
+    rive::Vec2D backward =
+        scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, -500.0f),
+                                             rive::Vec2D(0.0f, -150.0f));
+    REQUIRE(backward.y == -110.0f);
+
+    // current == target: returned unchanged (no direction to search).
+    rive::Vec2D noop =
+        scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, -330.0f),
+                                             rive::Vec2D(0.0f, -330.0f));
+    REQUIRE(noop.y == -330.0f);
+
+    // Target already on a snap: stays on the same snap.
+    rive::Vec2D onSnap =
+        scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, 0.0f),
+                                             rive::Vec2D(0.0f, -220.0f));
+    REQUIRE(onSnap.y == -220.0f);
+}

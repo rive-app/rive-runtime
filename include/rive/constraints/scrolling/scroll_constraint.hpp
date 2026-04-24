@@ -35,6 +35,7 @@ private:
     float maxOffsetXForPercent();
     float maxOffsetYForPercent();
     bool isBoundsCollapsed(AABB bounds);
+    std::vector<Vec2D> collectSnapPoints();
 
 public:
     ~ScrollConstraint();
@@ -108,6 +109,13 @@ public:
     /// Animate scroll to the target position using the physics settling
     /// animation.
     void scrollToPosition(float targetX, float targetY);
+
+    /// Given a target offset reached by scrolling from current, return the
+    /// nearest snap offset in the direction of travel, or target unchanged
+    /// if snap() is false, no snap points exist, or none lie in the scroll
+    /// direction. The returned snap is at least as far as target — so an
+    /// element brought into view by target stays in view.
+    Vec2D nearestSnapOffsetInDirection(Vec2D current, Vec2D target);
 
     /// Get the effective scroll offset X (target if animating, current
     /// otherwise). Use this to check element visibility during rapid focus

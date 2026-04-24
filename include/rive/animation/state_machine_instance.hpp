@@ -274,7 +274,10 @@ public:
     /// Set an external semantic manager to use instead of the internal one.
     /// Used when a nested artboard should share the parent's semantic tree.
     /// Rebuilds the semantic tree with the new manager if already built.
-    void setExternalSemanticManager(SemanticManager* manager);
+    /// @param parentNode If provided, the rebuilt tree is attached under it;
+    /// nullptr attaches at the manager root.
+    void setExternalSemanticManager(SemanticManager* manager,
+                                    rcp<SemanticNode> parentNode = nullptr);
 
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };

@@ -1,0 +1,8 @@
+{
+  "name": "ListenerInputTypeSemantic",
+  "key": {
+    "int": 669,
+    "string": "listenerinputtypesemantic"
+  },
+  "extends": "animation/listener_types/listener_input_type.json"
+}

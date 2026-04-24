@@ -296,9 +296,11 @@ void FocusData::scrollConstraintToShowBounds(ScrollConstraint* constraint,
     if (deltaX != 0 || deltaY != 0)
     {
         // Add delta to effective scroll offset to get target position.
-        float targetX = effectiveScrollX + deltaX;
-        float targetY = effectiveScrollY + deltaY;
-        constraint->scrollToPosition(targetX, targetY);
+        Vec2D current(effectiveScrollX, effectiveScrollY);
+        Vec2D target(effectiveScrollX + deltaX, effectiveScrollY + deltaY);
+        Vec2D snapped =
+            constraint->nearestSnapOffsetInDirection(current, target);
+        constraint->scrollToPosition(snapped.x, snapped.y);
     }
 }
 
