@@ -32,12 +32,7 @@ static bool tryNodeWorldBounds(Node* node, AABB& outBounds)
     return true;
 }
 
-// Map a world-space AABB through the artboard's rootTransform into root
-// (parent-artboard) space. rootTransform can include rotation/shear (nested
-// artboards with rotated hosts), so all four corners must be mapped and
-// re-enclosed — mapping only min/max leaves the other two corners outside
-// the resulting rect under rotation.
-static AABB rootTransformAABB(Artboard* ab, const AABB& bounds)
+AABB SemanticProvider::rootTransformAABB(Artboard* ab, const AABB& bounds)
 {
     AABB out = AABB::forExpansion();
     AABB::expandTo(out, ab->rootTransform({bounds.minX, bounds.minY}));

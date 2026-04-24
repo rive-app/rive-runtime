@@ -10,6 +10,7 @@
 
 namespace rive
 {
+class Artboard;
 class Core;
 class SemanticManager;
 
@@ -89,6 +90,12 @@ public:
     bool isBoundaryNode() const { return m_isBoundaryNode; }
     void isBoundaryNode(bool value) { m_isBoundaryNode = value; }
 
+    /// For boundary nodes, the nested Artboard whose region this boundary
+    /// represents. The boundary's bounds are the artboard's rect mapped
+    /// through its rootTransform into root space.
+    Artboard* boundaryArtboard() const { return m_boundaryArtboard; }
+    void boundaryArtboard(Artboard* value) { m_boundaryArtboard = value; }
+
     /// Back-pointer to the SemanticData that owns this node. Null for
     /// boundary nodes. Used for direct collapse without walking the
     /// component hierarchy.
@@ -123,6 +130,7 @@ private:
     SemanticManager* m_manager = nullptr;
     bool m_isBoundaryNode = false;
     class SemanticData* m_semanticData = nullptr;
+    Artboard* m_boundaryArtboard = nullptr;
 };
 } // namespace rive
 

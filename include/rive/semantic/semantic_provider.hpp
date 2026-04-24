@@ -7,6 +7,7 @@
 
 namespace rive
 {
+class Artboard;
 class Component;
 
 struct ResolvedSemanticData
@@ -25,6 +26,10 @@ public:
     static ResolvedSemanticData resolveSemanticData(Component* component);
     // Compute bounds in root artboard space.
     static AABB semanticBounds(Component* component);
+    // Map an AABB in the given artboard's space through its rootTransform
+    // to the outermost artboard's space. All four corners are mapped and
+    // re-enclosed so rotation/shear in nested hosts is handled correctly.
+    static AABB rootTransformAABB(Artboard* ab, const AABB& bounds);
 };
 } // namespace rive
 

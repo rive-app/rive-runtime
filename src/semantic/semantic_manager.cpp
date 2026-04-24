@@ -2,7 +2,6 @@
 
 #include "rive/artboard.hpp"
 #include "rive/component.hpp"
-#include "rive/node.hpp"
 #include "rive/semantic/semantic_data.hpp"
 #include "rive/semantic/semantic_node.hpp"
 #include "rive/semantic/semantic_provider.hpp"
@@ -356,91 +355,6 @@ static bool childrenInVisualOrder(
     return true;
 }
 
-// Single post-order walk that:
-//   1. Computes container bounds for nodes that have no drawable geometry
-//      of their own (boundary nodes always; leaf nodes with empty/NaN
-//      self-bounds).
-//   2. Records (on the incremental path) which of those container bounds
-//      actually changed vs. the last snapshot.
-//   3. Optionally checks whether each parent's children are still in
-//      visual order — relevant only when we might take the incremental
-//      diff path and need to detect re-sorts from bounds-only changes.
-//
-// Merging the three jobs into one walk replaces two full-tree passes
-// plus a pre-built postOrder vector. Bounds are still resolved
-// bottom-up because children recurse before the parent does its merge.
-static void reconcileBoundsAndCheckOrder(
-    const rcp<SemanticNode>& node,
-    bool reorderCheckEnabled,
-    bool& needsReorder,
-    std::vector<uint32_t>& containerBoundsChangedIds,
-    const std::unordered_map<uint32_t, size_t>& snapshotIndex,
-    const std::vector<SemanticsDiffNode>& lastFlatSnapshot)
-{
-    // Depth-first: process children first so their bounds are settled
-    // before a parent tries to merge them.
-    for (const auto& child : node->children())
-    {
-        reconcileBoundsAndCheckOrder(child,
-                                     reorderCheckEnabled,
-                                     needsReorder,
-                                     containerBoundsChangedIds,
-                                     snapshotIndex,
-                                     lastFlatSnapshot);
-    }
-
-    // Container bounds computation. Non-boundary nodes that already have
-    // valid explicit bounds keep them; boundary nodes are container-derived
-    // and must always recompute.
-    const auto selfBounds = node->bounds();
-    if (node->isBoundaryNode() || selfBounds.isEmptyOrNaN())
-    {
-        AABB merged = AABB::forExpansion();
-        bool hasChildBounds = false;
-        for (const auto& child : node->children())
-        {
-            const auto childBounds = child->bounds();
-            if (childBounds.isEmptyOrNaN())
-            {
-                continue;
-            }
-            merged.expand(childBounds);
-            hasChildBounds = true;
-        }
-
-        if (hasChildBounds)
-        {
-            // On the incremental path, record this node only if its computed
-            // bounds actually differ from the snapshot. Avoids no-op
-            // updatedGeometry entries.
-            if (!snapshotIndex.empty())
-            {
-                auto idxIt = snapshotIndex.find(node->id());
-                if (idxIt != snapshotIndex.end())
-                {
-                    const auto& snap = lastFlatSnapshot[idxIt->second];
-                    if (snap.minX != merged.minX || snap.minY != merged.minY ||
-                        snap.maxX != merged.maxX || snap.maxY != merged.maxY)
-                    {
-                        containerBoundsChangedIds.push_back(node->id());
-                    }
-                }
-            }
-            node->bounds(merged);
-        }
-    }
-
-    // Visual-order check. Runs once the node's children's bounds are final
-    // (true by construction — post-order). Short-circuits once we know a
-    // reorder is needed; we still keep walking the tree so the bounds work
-    // completes, but skip the compare.
-    if (reorderCheckEnabled && !needsReorder && node->children().size() > 1 &&
-        !childrenInVisualOrder(node->children()))
-    {
-        needsReorder = true;
-    }
-}
-
 // Compares two flat snapshots (current vs. previous) and produces a
 // SemanticsDiff with added, removed, moved, updatedSemantic,
 // updatedGeometry, and childrenUpdated arrays.
@@ -720,9 +634,10 @@ void SemanticManager::markBoundaryDirty(uint32_t boundaryNodeId)
     markDirty(SemanticDirt::Bounds);
 }
 
-// Re-read bounds from the scene graph for all non-boundary nodes in the
-// subtree rooted at `node`. Updates the SemanticNode bounds and marks
-// them bounds-dirty if changed.
+// Re-read bounds for every node in the subtree rooted at `node`:
+// boundary nodes get their artboard rect mapped through rootTransform,
+// non-boundary nodes get their component's semanticBounds(). Each node
+// whose bounds actually changed is inserted into m_dirtyBoundsNodes.
 void SemanticManager::reconcileBoundsForSubtree(SemanticNode* node)
 {
     if (node == nullptr)
@@ -730,9 +645,21 @@ void SemanticManager::reconcileBoundsForSubtree(SemanticNode* node)
         return;
     }
 
-    // Skip boundary nodes themselves (they have no drawable bounds), but
-    // recurse into their children.
-    if (!node->isBoundaryNode())
+    if (node->isBoundaryNode())
+    {
+        if (auto* ab = node->boundaryArtboard())
+        {
+            const AABB newBounds = SemanticProvider::rootTransformAABB(
+                ab,
+                AABB::fromLTWH(0.0f, 0.0f, ab->width(), ab->height()));
+            if (newBounds != node->bounds())
+            {
+                node->bounds(newBounds);
+                m_dirtyBoundsNodes.insert(node->id());
+            }
+        }
+    }
+    else
     {
         auto* coreOwner = node->coreOwner();
         if (coreOwner != nullptr && coreOwner->is<Component>())
@@ -868,34 +795,17 @@ void SemanticManager::removeChild(rcp<SemanticNode> node)
     markDirty(SemanticDirt::Structure);
 }
 
-// Rebuilds the m_snapshotIndexById lookup map from the current flat
-// snapshot so the incremental patch path can find entries in O(1).
-void SemanticManager::rebuildSnapshotIndex()
-{
-    m_snapshotIndexById.clear();
-    m_snapshotIndexById.reserve(m_lastFlatSnapshot.size());
-    for (size_t i = 0; i < m_lastFlatSnapshot.size(); i++)
-    {
-        m_snapshotIndexById[m_lastFlatSnapshot[i].id] = i;
-    }
-}
-
 // Incremental bounds patch for a single dirty node. Compares live bounds
 // to the snapshot; if different, updates in-place and emits updatedGeometry.
-void SemanticManager::patchBoundsNode(uint32_t id, SemanticsDiff& diff)
+void SemanticManager::patchBoundsNode(SemanticsDiffNode& entry,
+                                      SemanticsDiff& diff)
 {
-    auto idxIt = m_snapshotIndexById.find(id);
-    if (idxIt == m_snapshotIndexById.end())
-    {
-        return;
-    }
-    auto nodeIt = m_nodesById.find(id);
+    auto nodeIt = m_nodesById.find(entry.id);
     if (nodeIt == m_nodesById.end())
     {
         return;
     }
     const auto b = nodeIt->second->bounds();
-    auto& entry = m_lastFlatSnapshot[idxIt->second];
 
     // Only emit an update if bounds actually changed. This avoids no-op
     // diffs when a node is marked dirty but its bounds haven't moved
@@ -916,23 +826,18 @@ void SemanticManager::patchBoundsNode(uint32_t id, SemanticsDiff& diff)
 // stateFlags, and traitFlags to the snapshot; if different, updates in-place
 // and emits updatedSemantic. This is how animation/data-binding changes to
 // stateFlags (e.g. "Selected" toggling) propagate to the platform layer.
-void SemanticManager::patchContentNode(uint32_t id, SemanticsDiff& diff)
+void SemanticManager::patchContentNode(SemanticsDiffNode& entry,
+                                       SemanticsDiff& diff)
 {
-    auto idxIt = m_snapshotIndexById.find(id);
-    if (idxIt == m_snapshotIndexById.end())
-    {
-        return;
-    }
-    auto nodeIt = m_nodesById.find(id);
+    auto nodeIt = m_nodesById.find(entry.id);
     if (nodeIt == m_nodesById.end())
     {
         return;
     }
     const auto& node = nodeIt->second;
-    auto& entry = m_lastFlatSnapshot[idxIt->second];
 
     // Use derived label if this node has one, otherwise the canonical label.
-    auto derivedIt = m_derivedLabels.find(id);
+    auto derivedIt = m_derivedLabels.find(entry.id);
     const std::string& effectiveLabel = (derivedIt != m_derivedLabels.end())
                                             ? derivedIt->second
                                             : node->label();
@@ -999,51 +904,54 @@ void SemanticManager::refresh()
     }
 
     // -------------------------------------------------------------------------
-    // Post-order container bounds fallback.
+    // Visual-order check.
     //
-    // Container nodes (e.g. groups, tabLists) often have no drawable geometry
-    // of their own — their bounds are empty/NaN from SemanticProvider. For
-    // accessibility, they need bounds that enclose their children so the
-    // platform can render focus indicators and hit-test regions.
+    // Screen-reader traversal order is visual (top-to-bottom, left-to-right).
+    // If a node's bounds changed, its parent's children may have moved past
+    // each other and need re-sorting via the full re-flatten path.
     //
-    // We compute these bottom-up (post-order) so that leaf bounds are resolved
-    // before parents try to merge them. Only nodes with empty/NaN self-bounds
-    // get container bounds — drawable nodes keep their own bounds.
-    //
-    // On the incremental path, we also track which container nodes had their
-    // computed bounds change (vs. the snapshot) so patchBoundsNode can emit
-    // updatedGeometry entries for them without a full re-flatten.
+    // Only relevant on the incremental path: the full re-flatten always
+    // re-sorts children from scratch. Only checks at parents whose direct
+    // children actually had a bounds change — parents with no dirty child
+    // can't have reordered.
     // -------------------------------------------------------------------------
     bool needsReorder = false;
-    std::vector<uint32_t> containerBoundsChangedIds;
-    // Run when bounds changed OR when structure changed. Structure changes
-    // add new nodes whose leaf bounds were set during creation (before the
-    // manager was assigned), so boundsDirty may not be set even though
-    // boundary nodes need their container bounds computed for sorting.
-    if (boundsDirty || structureDirty)
+    if (boundsDirty && !structureDirty && !m_lastFlatSnapshot.empty())
     {
-        // The visual-order check is only meaningful when we'd otherwise
-        // take the incremental path. Under structureDirty (or on first
-        // frame) the full re-flatten re-sorts children anyway, so the
-        // check is redundant and we skip it.
-        const bool reorderCheckEnabled =
-            !structureDirty && !m_lastFlatSnapshot.empty();
+        std::unordered_set<SemanticNode*> parentsToCheck;
+        bool anyRootMoved = false;
 
-        for (const auto& root : m_roots)
+        for (uint32_t id : m_dirtyBoundsNodes)
         {
-            reconcileBoundsAndCheckOrder(root,
-                                         reorderCheckEnabled,
-                                         needsReorder,
-                                         containerBoundsChangedIds,
-                                         m_snapshotIndexById,
-                                         m_lastFlatSnapshot);
+            auto it = m_nodesById.find(id);
+            if (it == m_nodesById.end())
+            {
+                continue;
+            }
+            SemanticNode* parent = it->second->parent();
+            if (parent != nullptr)
+            {
+                parentsToCheck.insert(parent);
+            }
+            else
+            {
+                anyRootMoved = true;
+            }
         }
 
-        // Root-level order check is not covered by the recursion (roots
-        // have no parent to iterate from), so handle it here.
-        if (reorderCheckEnabled && !needsReorder && m_roots.size() > 1)
+        for (auto* parent : parentsToCheck)
         {
-            needsReorder = !childrenInVisualOrder(m_roots);
+            if (parent->children().size() > 1 &&
+                !childrenInVisualOrder(parent->children()))
+            {
+                needsReorder = true;
+                break;
+            }
+        }
+        if (!needsReorder && anyRootMoved && m_roots.size() > 1 &&
+            !childrenInVisualOrder(m_roots))
+        {
+            needsReorder = true;
         }
     }
 
@@ -1104,50 +1012,29 @@ void SemanticManager::refresh()
             m_version++;
             m_lastDiff = std::move(nextDiff);
             m_lastFlatSnapshot = std::move(currentFlat);
-            rebuildSnapshotIndex();
         }
     }
     else
     {
         // INCREMENTAL PATCH PATH.
-        // Only bounds and/or content changed — no structural changes. Patch
-        // m_lastFlatSnapshot in-place for each dirty node and emit a minimal
-        // diff. This avoids the O(N) tree walk + comparison, instead doing
-        // O(K) work where K = number of dirty nodes.
+        // Only bounds and/or content changed — no structural changes.
+        // Iterate m_lastFlatSnapshot, which is already in tree pre-order;
+        // for each entry whose id is in the bounds- or content-dirty set,
+        // patch the entry in place and emit a diff record. Iterating the
+        // dirty sets directly would emit in hash-bucket order, which does
+        // not track tree structure; consumers expect diff records in tree
+        // pre-order, so the snapshot drives iteration and the sets are
+        // used only for O(1) membership checks.
         //
-        // The snapshot index provides O(1) lookup from id to the
-        // snapshot array slot, enabling in-place updates.
+        // This path skips the structural tree walk, child re-sort, label
+        // re-derivation, and flat-vs-flat comparison that the full
+        // re-flatten path performs.
         SemanticsDiff nextDiff;
         nextDiff.frameNumber = Artboard::frameId();
 
-        // Patch bounds-dirty and content-dirty nodes in tree pre-order by
-        // walking the last flat snapshot. The dirty sets are used for O(1)
-        // membership checks only — iterating them directly would produce
-        // hash-order output that varies frame-to-frame.
-        //
-        // containerBoundsChangedIds is produced by the post-order walk above
-        // and is merged into the bounds-dirty set so container updates emit
-        // alongside the regular bounds updates in tree order.
         if (boundsDirty || contentDirty)
         {
-            // Only build the merged bounds-dirty set when container bounds
-            // actually changed. In the common case (no boundary/container
-            // bounds recomputed) we can fall back to the single
-            // m_dirtyBoundsNodes set and skip the merge allocation.
-            const bool needsBoundsUnion =
-                boundsDirty && !containerBoundsChangedIds.empty();
-            std::unordered_set<uint32_t> boundsDirtyUnion;
-            if (needsBoundsUnion)
-            {
-                boundsDirtyUnion.reserve(m_dirtyBoundsNodes.size() +
-                                         containerBoundsChangedIds.size());
-                boundsDirtyUnion.insert(m_dirtyBoundsNodes.begin(),
-                                        m_dirtyBoundsNodes.end());
-                boundsDirtyUnion.insert(containerBoundsChangedIds.begin(),
-                                        containerBoundsChangedIds.end());
-                nextDiff.updatedGeometry.reserve(boundsDirtyUnion.size());
-            }
-            else if (boundsDirty)
+            if (boundsDirty)
             {
                 nextDiff.updatedGeometry.reserve(m_dirtyBoundsNodes.size());
             }
@@ -1156,17 +1043,15 @@ void SemanticManager::refresh()
                 nextDiff.updatedSemantic.reserve(m_dirtyContentNodes.size());
             }
 
-            for (const auto& entry : m_lastFlatSnapshot)
+            for (auto& entry : m_lastFlatSnapshot)
             {
-                if (boundsDirty &&
-                    (needsBoundsUnion ? boundsDirtyUnion.count(entry.id)
-                                      : m_dirtyBoundsNodes.count(entry.id)))
+                if (boundsDirty && m_dirtyBoundsNodes.count(entry.id))
                 {
-                    patchBoundsNode(entry.id, nextDiff);
+                    patchBoundsNode(entry, nextDiff);
                 }
                 if (contentDirty && m_dirtyContentNodes.count(entry.id))
                 {
-                    patchContentNode(entry.id, nextDiff);
+                    patchContentNode(entry, nextDiff);
                 }
             }
         }
@@ -1219,11 +1104,6 @@ bool SemanticManager::requestFocus(uint32_t semanticNodeId)
     {
         return false;
     }
-    auto* owner = semanticNode->coreOwner();
-    if (owner == nullptr || !owner->is<Node>())
-    {
-        return false;
-    }
-    auto* data = owner->as<Node>()->firstChild<SemanticData>();
+    auto* data = semanticNode->semanticData();
     return data != nullptr && data->requestFocus();
 }

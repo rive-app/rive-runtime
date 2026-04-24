@@ -619,31 +619,36 @@ TEST_CASE("empty bounds nodes preserve insertion order",
     CHECK(cu->childIds[2] == 3);
 }
 
-TEST_CASE("boundary node children reorder when leaf bounds swap",
+TEST_CASE("boundary node children reorder when boundary bounds swap",
           "[semantics][ordering]")
 {
     // Simulates a data-binding list: a parent with boundary nodes (one
-    // per nested artboard), each containing a leaf semantic node. When
-    // list items swap positions, the leaf bounds change. Boundary node
-    // container bounds must be recomputed so the ordering check detects
-    // the swap.
+    // per nested artboard), each containing a leaf semantic node. In real
+    // usage, an item swap re-positions each item's nested artboard via
+    // the host's transform, which causes the boundary's own bounds to
+    // change (the boundary rect is the nested artboard's slot). The
+    // ordering check must detect the swap from the boundary bounds alone.
     SemanticManager mgr;
 
     auto listNode = makeNode(1, SemanticRole::list, "menu");
     listNode->bounds(AABB(0, 0, 200, 300));
 
-    // Boundary nodes mimic nested-artboard boundaries. They have no
-    // SemanticData, so their bounds are purely container-derived.
+    // Boundary nodes mimic nested-artboard boundaries. Their bounds are
+    // set directly here to stand in for the artboard-rect derivation that
+    // the semantic manager performs against a real nested Artboard.
     auto boundary0 = rcp<SemanticNode>(new SemanticNode(100));
     boundary0->isBoundaryNode(true);
+    boundary0->bounds(AABB(0, 0, 200, 50)); // top
     auto boundary1 = rcp<SemanticNode>(new SemanticNode(101));
     boundary1->isBoundaryNode(true);
+    boundary1->bounds(AABB(0, 100, 200, 150)); // bottom
 
-    // Leaf nodes inside each boundary (the actual semantic content).
+    // Leaf nodes inside each boundary (the actual semantic content). The
+    // inner items share their boundary's vertical position.
     auto item0 = makeNode(2, SemanticRole::listItem, "Item A");
-    item0->bounds(AABB(0, 0, 200, 50)); // top
+    item0->bounds(AABB(0, 0, 200, 50));
     auto item1 = makeNode(3, SemanticRole::listItem, "Item B");
-    item1->bounds(AABB(0, 100, 200, 150)); // bottom
+    item1->bounds(AABB(0, 100, 200, 150));
 
     mgr.addChild(nullptr, listNode);
     mgr.addChild(listNode, boundary0);
@@ -659,17 +664,22 @@ TEST_CASE("boundary node children reorder when leaf bounds swap",
     CHECK(cu1->childIds[0] == 2); // Item A
     CHECK(cu1->childIds[1] == 3); // Item B
 
-    // Simulate list swap: Item A moves to bottom, Item B to top.
-    item0->bounds(AABB(0, 100, 200, 150)); // was top, now bottom
-    item1->bounds(AABB(0, 0, 200, 50));    // was bottom, now top
+    // Simulate list swap by moving the boundary rectangles (the slots
+    // the nested artboards occupy in the parent) and their inner leaves.
+    boundary0->bounds(AABB(0, 100, 200, 150));
+    boundary1->bounds(AABB(0, 0, 200, 50));
+    item0->bounds(AABB(0, 100, 200, 150));
+    item1->bounds(AABB(0, 0, 200, 50));
+    mgr.markNodeDirty(100, SemanticDirt::Bounds);
+    mgr.markNodeDirty(101, SemanticDirt::Bounds);
     mgr.markNodeDirty(2, SemanticDirt::Bounds);
     mgr.markNodeDirty(3, SemanticDirt::Bounds);
 
     auto diff2 = mgr.drainDiff();
 
-    // Boundary container bounds must have been recomputed from the
-    // updated leaf bounds. The ordering check should detect the swap
-    // and the re-flatten should produce B before A.
+    // The ordering check should see that boundary0 and boundary1 (the
+    // parent's direct children) swapped, triggering a re-flatten that
+    // produces B before A.
     auto* cu2 = findChildrenUpdate(diff2, 1);
     REQUIRE(cu2 != nullptr);
     REQUIRE(cu2->childIds.size() == 2);

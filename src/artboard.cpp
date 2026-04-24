@@ -2013,12 +2013,14 @@ void Artboard::buildSemanticTree(SemanticManager* semanticManager,
             // Id is assigned by the SemanticManager on addChild() below.
             m_semanticBoundaryNode = rcp<SemanticNode>(new SemanticNode());
             m_semanticBoundaryNode->isBoundaryNode(true);
-            // coreOwner points to the host component so we can check
-            // its visibility/transform during refresh.
-            auto* hostComp = host()->hostComponent();
-            m_semanticBoundaryNode->coreOwner(hostComp);
+            m_semanticBoundaryNode->boundaryArtboard(this);
         }
         semanticManager->addChild(parentSemanticNode, m_semanticBoundaryNode);
+        // Seed the boundary as dirty so the first drainDiff() resolves its
+        // bounds from the artboard rect even when semantics are enabled on
+        // an already-settled scene (no subsequent WorldTransform dirt to
+        // trigger this via the normal update cycle).
+        markSemanticBoundaryTransformDirty();
         effectiveParent = m_semanticBoundaryNode;
     }
 

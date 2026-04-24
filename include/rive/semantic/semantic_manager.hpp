@@ -58,9 +58,8 @@ public:
 private:
     void refresh();
     SemanticsDiff consumeDiff();
-    void rebuildSnapshotIndex();
-    void patchBoundsNode(uint32_t id, SemanticsDiff& diff);
-    void patchContentNode(uint32_t id, SemanticsDiff& diff);
+    void patchBoundsNode(SemanticsDiffNode& entry, SemanticsDiff& diff);
+    void patchContentNode(SemanticsDiffNode& entry, SemanticsDiff& diff);
     void reconcileBoundsForSubtree(SemanticNode* node);
 
     // Sorts children of every node in the given forest by visual position
@@ -78,8 +77,6 @@ private:
     SemanticDirt m_dirt = SemanticDirt::All;
     SemanticsDiff m_lastDiff;
     std::vector<SemanticsDiffNode> m_lastFlatSnapshot;
-    // O(1) lookup: id → index into m_lastFlatSnapshot.
-    std::unordered_map<uint32_t, size_t> m_snapshotIndexById;
     uint64_t m_version = 0;
     // Next id for auto-assignment; starts at 1 so 0 can remain an
     // "unassigned" sentinel. Scoped per-manager so two unrelated managers
