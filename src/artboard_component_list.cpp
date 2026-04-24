@@ -1496,6 +1496,10 @@ void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)
         m_propertyRecordersMap[artboard] = std::move(propertyRecorder);
         for (auto& nestedArtboard : artboard->nestedArtboards())
         {
+            if (nestedArtboard == nullptr)
+            {
+                continue;
+            }
             auto sourceArtboard = nestedArtboard->sourceArtboard();
             createArtboardRecorders(sourceArtboard);
         }
@@ -1505,16 +1509,31 @@ void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)
 void ArtboardComponentList::applyRecorders(Artboard* artboard,
                                            const Artboard* sourceArtboard)
 {
+    if (artboard == nullptr)
+    {
+        return;
+    }
     auto sourcedArtboardIt = m_propertyRecordersMap.find(sourceArtboard);
     if (sourcedArtboardIt != m_propertyRecordersMap.end())
     {
         auto propertyRecorder = sourcedArtboardIt->second.get();
-        propertyRecorder->apply(artboard);
+        if (propertyRecorder != nullptr)
+        {
+            propertyRecorder->apply(artboard);
+        }
     }
     for (auto& nestedArtboard : artboard->nestedArtboards())
     {
-        applyRecorders(nestedArtboard->sourceArtboard(),
-                       nestedArtboard->sourceArtboard()->artboardSource());
+        if (nestedArtboard == nullptr)
+        {
+            continue;
+        }
+        auto nestedInstance = nestedArtboard->sourceArtboard();
+        if (nestedInstance == nullptr)
+        {
+            continue;
+        }
+        applyRecorders(nestedInstance, nestedInstance->artboardSource());
     }
 }
 
@@ -1522,8 +1541,16 @@ void ArtboardComponentList::applyRecorders(
     StateMachineInstance* stateMachineInstance,
     const Artboard* sourceArtboard)
 {
-    auto propertyRecorder = m_propertyRecordersMap[sourceArtboard].get();
-    propertyRecorder->apply(stateMachineInstance);
+    auto it = m_propertyRecordersMap.find(sourceArtboard);
+    if (it == m_propertyRecordersMap.end())
+    {
+        return;
+    }
+    auto propertyRecorder = it->second.get();
+    if (propertyRecorder != nullptr)
+    {
+        propertyRecorder->apply(stateMachineInstance);
+    }
 }
 
 void ArtboardComponentList::addVirtualizable(int index)
