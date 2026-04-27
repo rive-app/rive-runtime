@@ -4788,6 +4788,104 @@ TEST_CASE("global Listener", "[CommandQueue]")
     serverThread.join();
 }
 
+TEST_CASE("requestViewModelInstanceListClear", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    // Listener to verify onViewModelListCleared is delivered.
+    class ListClearListener : public CommandQueue::ViewModelInstanceListener
+    {
+    public:
+        ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
+        uint64_t m_requestId = 0;
+        std::string m_path;
+        bool m_hasCallback = false;
+
+        virtual void onViewModelListCleared(
+            const ViewModelInstanceHandle handle,
+            uint64_t requestId,
+            std::string path) override
+        {
+            CHECK(handle == m_handle);
+            CHECK(requestId == m_requestId);
+            CHECK(path == m_path);
+            m_hasCallback = true;
+        }
+    };
+
+    ListClearListener listener;
+    listener.m_path = "Test List";
+    listener.m_requestId = 0x42;
+
+    // Instantiate the view model and register the listener with it.
+    auto vmHandle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &listener);
+    listener.m_handle = vmHandle;
+
+    // Create one list item and append it to the "Test List" property.
+    auto nested1 =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle,
+                                                        "ListViewModel");
+
+    commandQueue->appendViewModelInstanceListViewModel(vmHandle,
+                                                       "Test List",
+                                                       nested1);
+
+    // Wait for the server to process the appended item and verify size >= 1.
+    wait_for_server(commandQueue.get());
+    commandQueue->runOnce([vmHandle](CommandServer* server) {
+        auto instance = server->getViewModelInstance(vmHandle);
+        CHECK(instance != nullptr);
+        auto list = instance->propertyList("Test List");
+        CHECK(list != nullptr);
+        CHECK(list->size() >= 1);
+    });
+
+    // Request the server to clear the list (listener request id = 0x42).
+    commandQueue->requestViewModelInstanceListClear(vmHandle,
+                                                    "Test List",
+                                                    listener.m_requestId);
+
+    // Wait for the server to process the clear, process messages and verify the
+    // listener was called.
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+    CHECK(listener.m_hasCallback);
+
+    // Verify the list is empty on the server side.
+    commandQueue->runOnce([vmHandle](CommandServer* server) {
+        auto instance = server->getViewModelInstance(vmHandle);
+        CHECK(instance != nullptr);
+        auto list = instance->propertyList("Test List");
+        CHECK(list != nullptr);
+        CHECK(list->size() == 0);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    auto badVM =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle, "Bad");
+
+    // Request the server to clear a bad view model handle.
+    commandQueue->requestViewModelInstanceListClear(badVM, "Test List", 0x42);
+
+    // Request the server to clear a bad property.
+    commandQueue->requestViewModelInstanceListClear(vmHandle, "Bad", 0x42);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 // StateMachines depend on Artboards and Artboards depend on Files.
 // So if an artboard gets deleted so should the statemachines assosiated with
 // it. If a file is deleted so should artboards and therefore statemachines.

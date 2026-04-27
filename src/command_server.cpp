@@ -2694,6 +2694,55 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::clearViewModelList:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                std::string path;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> path;
+                lock.unlock();
+
+                if (auto viewModel = getViewModelInstance(handle))
+                {
+                    if (auto property = viewModel->propertyList(path))
+                    {
+                        property->removeAllInstances();
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream
+                            << CommandQueue::Message::viewModelListCleared;
+                        messageStream << handle;
+                        messageStream << requestId;
+                        m_commandQueue->m_messageNames << path;
+                        messageLock.unlock();
+                    }
+                    else
+                    {
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::viewModelError)
+                            << "failed to get list at path " << path
+                            << " when clearing list";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to get view model " << handle
+                        << " when clearing list";
+                }
+                break;
+            }
+
             case CommandQueue::Command::pointerMove:
             {
                 StateMachineHandle handle;

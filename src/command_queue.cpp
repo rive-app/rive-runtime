@@ -1007,6 +1007,18 @@ void CommandQueue::requestViewModelInstanceListSize(
     m_names << path;
 }
 
+void CommandQueue::requestViewModelInstanceListClear(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::clearViewModelList;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
 void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
                                             uint64_t requestId)
 {
@@ -1415,6 +1427,32 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+
+            case Message::viewModelListCleared:
+            {
+                ViewModelInstanceHandle handle;
+                std::string path;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageNames >> path;
+                lock.unlock();
+                if (m_globalViewModelListener)
+                {
+                    m_globalViewModelListener->onViewModelListCleared(handle,
+                                                                      requestId,
+                                                                      path);
+                }
+
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelListCleared(handle,
+                                                        requestId,
+                                                        std::move(path));
+                }
+            }
+            break;
 
             case Message::fileLoaded:
             {

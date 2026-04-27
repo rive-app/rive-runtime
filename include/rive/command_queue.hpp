@@ -289,6 +289,11 @@ public:
                                                  std::string path,
                                                  size_t size)
         {}
+
+        virtual void onViewModelListCleared(const ViewModelInstanceHandle,
+                                            uint64_t requestId,
+                                            std::string path)
+        {}
     };
 
     class StateMachineListener
@@ -653,6 +658,10 @@ public:
                                           std::string path,
                                           uint64_t requestId = 0);
 
+    void requestViewModelInstanceListClear(ViewModelInstanceHandle,
+                                           std::string path,
+                                           uint64_t requestId = 0);
+
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
     void requestDefaultViewModelInfo(ArtboardHandle,
                                      FileHandle,
@@ -849,7 +858,8 @@ private:
         listViewModelProperties,
         listViewModelPropertyValue,
         getViewModelInstanceViewModelName,
-        getViewModelListSize
+        getViewModelListSize,
+        clearViewModelList
     };
 
     enum class Message
@@ -866,6 +876,7 @@ private:
         viewModelPropertiesListed,
         viewModelPropertyValueReceived,
         viewModelListSizeReceived,
+        viewModelListCleared,
         fileLoaded,
         fileDeleted,
         artboardInstantiated,
