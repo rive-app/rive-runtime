@@ -15,6 +15,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 #include "rive/renderer/d3d/d3d_utils.hpp"
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include <dxgi1_6.h>
+#include <vector>
 
 #define GLFW_INCLUDE_NONE
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -23,6 +24,48 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 
 using namespace rive;
 using namespace rive::gpu;
+
+// Drain the D3D12 debug-layer info queue and print any stored messages to
+// stderr. Modeled on Dawn's AppendDebugLayerMessagesToError
+// (dawn/src/dawn/native/d3d12/DeviceD3D12.cpp). VERIFY_OK aborts on the bare
+// HRESULT, which strips the runtime's actual validation reason; calling this
+// before/after a failing op surfaces the real cause in CI logs.
+static void DrainD3D12DebugMessages(ID3D12Device* device, const char* context)
+{
+    if (device == nullptr)
+    {
+        return;
+    }
+    ComPtr<ID3D12InfoQueue> infoQueue;
+    if (FAILED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
+    {
+        return;
+    }
+    UINT64 numMessages = infoQueue->GetNumStoredMessages();
+    for (UINT64 i = 0; i < numMessages; ++i)
+    {
+        SIZE_T messageLength = 0;
+        infoQueue->GetMessage(i, nullptr, &messageLength);
+        std::vector<uint8_t> data(messageLength);
+        auto* message = reinterpret_cast<D3D12_MESSAGE*>(data.data());
+        if (FAILED(infoQueue->GetMessage(i, message, &messageLength)))
+        {
+            continue;
+        }
+        fprintf(stderr,
+                "[D3D12 debug @ %s] sev=%d id=%d cat=%d: %s\n",
+                context,
+                static_cast<int>(message->Severity),
+                static_cast<int>(message->ID),
+                static_cast<int>(message->Category),
+                message->pDescription);
+    }
+    if (numMessages > 0)
+    {
+        fflush(stderr);
+        infoQueue->ClearStoredMessages();
+    }
+}
 
 void SetIntelInformation(const DXGI_ADAPTER_DESC& desc,
                          D3DContextOptions& contextOptions)
@@ -418,6 +461,7 @@ public:
 
     void moveToNextFrame()
     {
+        DrainD3D12DebugMessages(m_device.Get(), "moveToNextFrame.entry");
         VERIFY_OK(m_commandList->Close());
         VERIFY_OK(m_copyCommandList->Close());
 
@@ -493,17 +537,40 @@ public:
         ComPtr<ID3D12Resource> readbackBuffer;
         auto w = m_renderTargets[m_frameIndex]->width();
         auto h = m_renderTargets[m_frameIndex]->height();
-        size_t outputBufferSize = w * h * 4;
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+        const size_t outputBufferSize = w * h * 4;
 
         auto targetTexture =
             m_renderTargets[m_frameIndex]->targetTexture()->resource();
+
+        // GetCopyableFootprints returns a RowPitch already aligned to
+        // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT (256), and totalBytes accounts
+        // for that padded layout. Per the D3D12 spec the
+        // D3D12_PLACED_SUBRESOURCE_FOOTPRINT used by CopyTextureRegion MUST
+        // have a 256-aligned RowPitch — overriding it to the natural pitch
+        // (w * bytesPerPixel) violates the rule and causes Close() to return
+        // E_INVALIDARG under strict validation. Match Dawn's pattern in
+        // CommandBufferD3D12.cpp (Align(..., kTextureBytesPerRowAlignment)):
+        // size the readback buffer for the padded layout and strip the
+        // padding when copying out to the tightly-packed pixelData.
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+        UINT numRows;
+        UINT64 rowSizeInBytes;
+        UINT64 totalBytes;
+        auto desc = targetTexture->GetDesc();
+        m_device->GetCopyableFootprints(&desc,
+                                        0,
+                                        1,
+                                        0,
+                                        &footprint,
+                                        &numRows,
+                                        &rowSizeInBytes,
+                                        &totalBytes);
 
         D3D12_HEAP_PROPERTIES readbackHeapProperties{
             CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK)};
 
         D3D12_RESOURCE_DESC readbackBufferDesc{
-            CD3DX12_RESOURCE_DESC::Buffer(outputBufferSize)};
+            CD3DX12_RESOURCE_DESC::Buffer(totalBytes)};
 
         VERIFY_OK(
             m_device->CreateCommittedResource(&readbackHeapProperties,
@@ -522,27 +589,11 @@ public:
             m_commandList->ResourceBarrier(1, &outputBufferResourceBarrier);
         }
 
-        UINT numRows;
-        UINT64 rowSizeInBtes;
-        UINT64 totalBytes;
-        auto desc = targetTexture->GetDesc();
-        m_device->GetCopyableFootprints(&desc,
-                                        0,
-                                        1,
-                                        0,
-                                        &footprint,
-                                        &numRows,
-                                        &rowSizeInBtes,
-                                        &totalBytes);
-        footprint.Footprint.RowPitch = w * 4;
-
         const CD3DX12_TEXTURE_COPY_LOCATION dst(readbackBuffer.Get(),
                                                 footprint);
         const CD3DX12_TEXTURE_COPY_LOCATION src(targetTexture, 0);
 
         m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-
-        footprint.Footprint.RowPitch = static_cast<UINT>(rowSizeInBtes);
 
         {
             D3D12_RESOURCE_BARRIER outputBufferResourceBarrier{
@@ -561,7 +612,7 @@ public:
         pixelData->resize(outputBufferSize);
 
         uint8_t* mappedData;
-        D3D12_RANGE range{0, outputBufferSize};
+        D3D12_RANGE range{0, static_cast<size_t>(totalBytes)};
         VERIFY_OK(readbackBuffer->Map(0,
                                       &range,
                                       reinterpret_cast<void**>(&mappedData)));
