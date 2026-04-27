@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context.hpp"
-#include "rive/renderer/texture.hpp"
+#include "rive/texture_archive.hpp"
 
 namespace rive::gpu
 {
@@ -43,6 +43,7 @@ public:
         uint32_t width,
         uint32_t height,
         uint32_t mipLevelCount,
+        GPUTextureFormat format,
         const uint8_t imageDataRGBAPremul[]) = 0;
 
     // Creates a RenderCanvas: a GPU texture usable as both a render target

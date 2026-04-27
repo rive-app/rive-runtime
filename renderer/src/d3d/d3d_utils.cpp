@@ -13,6 +13,26 @@ namespace rive::gpu
 {
 namespace d3d_utils
 {
+
+DXGI_FORMAT convert_format(GPUTextureFormat format)
+{
+    switch (format)
+    {
+        case GPUTextureFormat::rgba32:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case GPUTextureFormat::bc1:
+            return DXGI_FORMAT_BC1_UNORM;
+        case GPUTextureFormat::bc2:
+            return DXGI_FORMAT_BC2_UNORM;
+        case GPUTextureFormat::bc3:
+            return DXGI_FORMAT_BC3_UNORM;
+        case GPUTextureFormat::bc7:
+            return DXGI_FORMAT_BC7_UNORM;
+        default:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+    }
+}
+
 bool GetWStringFromString(const char* cString, std::wstring& outString)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, cString, -1, nullptr, 0);

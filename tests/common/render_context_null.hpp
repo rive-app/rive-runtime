@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
+#include "rive/texture_archive.hpp"
 
 class RenderContextNULL : public rive::gpu::RenderContextHelperImpl
 {
@@ -25,6 +26,7 @@ private:
         uint32_t width,
         uint32_t height,
         uint32_t mipLevelCount,
+        rive::GPUTextureFormat format,
         const uint8_t imageDataRGBA[]) override;
 
     std::unique_ptr<rive::gpu::BufferRing> makeUniformBufferRing(

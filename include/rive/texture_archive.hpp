@@ -1,5 +1,4 @@
-#ifndef _RIVE_TEXTURE_ARCHIVE_HPP_
-#define _RIVE_TEXTURE_ARCHIVE_HPP_
+#pragma once
 
 #include "rive/span.hpp"
 
@@ -8,6 +7,7 @@
 
 namespace rive
 {
+
 // Enum class to describe the format of a texture.
 // Only formats which are directly read by a GPU are listed here
 enum class GPUTextureFormat : uint8_t
@@ -33,30 +33,30 @@ enum class GPUTextureFormatBlockSize : uint8_t
 
 struct TextureMipLevel
 {
-    int blocksX;
-    int blocksY;
-    int bytesTotal;
+    uint16_t blocksX;
+    uint16_t blocksY;
+    uint32_t bytesTotal;
     const uint8_t* blocks; // or offset into a big buffer
 };
 
 struct TextureData
 {
-    uint16_t Width;
-    uint16_t Height;
-    uint16_t PaddedWidth;
-    uint16_t PaddedHeight;
+    uint16_t width;
+    uint16_t height;
+    uint16_t paddedWidth;
+    uint16_t paddedHeight;
 
     uint8_t blockSizeX;
     uint8_t blockSizeY;
     uint8_t bytesPerBlock;
-    uint8_t NumMips;
+    uint8_t numMips;
 
     GPUTextureFormat format;
 
     std::vector<TextureMipLevel> mipLevels;
 
-    // Combined Pixel Data size
-    int totalBytes;
+    // Combined pixel data size
+    uint32_t totalBytes;
 };
 
 class TextureDirectory
@@ -65,12 +65,9 @@ public:
     std::vector<TextureData> dir;
     std::vector<uint8_t> dataBlob;
 
-    void AddTexture(TextureData& header);
-    bool Export(const std::string& path);
-    bool Import(const std::string& path);
-    bool Import(Span<const uint8_t> texBytes);
+    void addTexture(TextureData& header);
+    void exportArchive();
+    bool import(const std::string& path);
+    bool import(Span<const uint8_t> texBytes);
 };
-
 } // namespace rive
-
-#endif

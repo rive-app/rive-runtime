@@ -124,8 +124,19 @@ std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount)
     // Step 8: Release JPEG decompression object
     jpeg_destroy_decompress(&cinfo);
 
+    // This assert can fire for corrupted/truncated JPEGs on some platforms.
+    // Don't abort; treat mismatch as decode failure.
+    const size_t expectedSize = static_cast<size_t>(cinfo.output_width) *
+                                static_cast<size_t>(cinfo.output_height) * 3;
+
+    if (pixelBufferSize != expectedSize)
+    {
+        return nullptr;
+    }
+
     return std::make_unique<Bitmap>(cinfo.output_width,
                                     cinfo.output_height,
+                                    pixelBufferSize,
                                     Bitmap::PixelFormat::RGB,
                                     std::move(pixelBuffer));
 }

@@ -88,8 +88,15 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
+    GPUTextureFormat format,
     const uint8_t imageDataRGBAPremul[])
 {
+    if (format != GPUTextureFormat::rgba32)
+    {
+        assert(!"unsupported format");
+        return nullptr;
+    }
+
     auto texture = m_vk->makeTexture2D(
         {
             .format = VK_FORMAT_R8G8B8A8_UNORM,

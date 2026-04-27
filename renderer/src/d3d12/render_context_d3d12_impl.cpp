@@ -6,6 +6,7 @@
 #include "rive/renderer/d3d/d3d_constants.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/profiler/profiler_macros.h"
+#include "rive/renderer/d3d/d3d_utils.hpp"
 
 // needed for root sig and heap constants
 #include "shaders/d3d/root.sig"
@@ -103,51 +104,103 @@ public:
                      UINT width,
                      UINT height,
                      UINT mipLevel,
-                     const uint8_t imageDataRGBA[],
+                     GPUTextureFormat format,
+                     const uint8_t imageData[],
                      bool usesCommandList) :
-        Texture(width, height),
-        m_gpuTexture(manager->make2DTexture(
+        Texture(width, height)
+
+    {
+        DXGI_FORMAT d3dFormat = d3d_utils::convert_format(format);
+
+        m_gpuTexture = manager->make2DTexture(
             width,
             height,
             mipLevel,
-            DXGI_FORMAT_R8G8B8A8_UNORM,
+            d3dFormat,
             D3D12_RESOURCE_FLAG_NONE,
             usesCommandList ? D3D12_RESOURCE_STATE_COMMON
-                            : D3D12_RESOURCE_STATE_COPY_DEST))
-    {
-        D3D12_SUBRESOURCE_DATA srcData;
-        srcData.pData = imageDataRGBA;
-        srcData.RowPitch = width * 4;
-        srcData.SlicePitch = srcData.RowPitch * height;
+                            : D3D12_RESOURCE_STATE_COPY_DEST);
 
-        UINT numRows;
-        UINT64 rowSizeInBtes;
-        UINT64 totalBytes;
-        auto desc = m_gpuTexture->resource()->GetDesc();
-        SNAME_D3D12_OBJECT(m_gpuTexture, "riveImage");
-        manager->device()->GetCopyableFootprints(&desc,
-                                                 0,
-                                                 1,
-                                                 0,
-                                                 &m_uploadFootprint,
-                                                 &numRows,
-                                                 &rowSizeInBtes,
-                                                 &totalBytes);
+        if (format == GPUTextureFormat::bc7)
+        {
+            // imageData contains already compressed data, so we can directly
+            // upload it to the GPU All mip levels are in this sequentially
+            auto desc = m_gpuTexture->resource()->GetDesc();
 
-        m_uploadBuffer = manager->makeUploadBuffer(
-            static_cast<UINT>(totalBytes) +
-            D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+            UINT numRows = 0;
+            UINT64 rowSizeInBytes = 0;
+            UINT64 totalBytes = 0;
 
-        D3D12_MEMCPY_DEST DestData = {
-            m_uploadBuffer->map(),
-            m_uploadFootprint.Footprint.RowPitch,
-            SIZE_T(m_uploadFootprint.Footprint.RowPitch * numRows)};
+            m_subresourceFootprints.resize(mipLevel);
 
-        MemcpySubresource(&DestData,
-                          &srcData,
-                          static_cast<SIZE_T>(rowSizeInBtes),
-                          numRows,
-                          m_uploadFootprint.Footprint.Depth);
+            manager->device()->GetCopyableFootprints(
+                &desc,
+                0,                              // First subresource
+                mipLevel,                       // Number of mips
+                0,                              // Base offset
+                m_subresourceFootprints.data(), // One footprint per mip
+                &numRows,
+                &rowSizeInBytes,
+                &totalBytes);
+
+            m_uploadBuffer = manager->makeUploadBuffer(
+                static_cast<UINT>(totalBytes) +
+                D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+
+            uint8_t* dst = reinterpret_cast<uint8_t*>(m_uploadBuffer->map());
+            const uint8_t* src = imageData;
+
+            for (UINT mip = 0; mip < mipLevel; ++mip)
+            {
+                const auto& fp = m_subresourceFootprints[mip].Footprint;
+
+                UINT64 mipSize = fp.RowPitch * fp.Height;
+
+                memcpy(dst + m_subresourceFootprints[mip].Offset, src, mipSize);
+
+                src += mipSize; // advance to next mip in your BC7 blob
+            }
+        }
+        else if (format == GPUTextureFormat::rgba32)
+        {
+            D3D12_SUBRESOURCE_DATA srcData;
+            srcData.pData = imageData;
+            srcData.RowPitch = width * 4;
+            srcData.SlicePitch = srcData.RowPitch * height;
+
+            UINT numRows;
+            UINT64 rowSizeInBtes;
+            UINT64 totalBytes;
+            auto desc = m_gpuTexture->resource()->GetDesc();
+            SNAME_D3D12_OBJECT(m_gpuTexture, "riveImage");
+            manager->device()->GetCopyableFootprints(&desc,
+                                                     0,
+                                                     1,
+                                                     0,
+                                                     &m_uploadFootprint,
+                                                     &numRows,
+                                                     &rowSizeInBtes,
+                                                     &totalBytes);
+
+            m_uploadBuffer = manager->makeUploadBuffer(
+                static_cast<UINT>(totalBytes) +
+                D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+
+            D3D12_MEMCPY_DEST DestData = {
+                m_uploadBuffer->map(),
+                m_uploadFootprint.Footprint.RowPitch,
+                SIZE_T(m_uploadFootprint.Footprint.RowPitch * numRows)};
+
+            MemcpySubresource(&DestData,
+                              &srcData,
+                              static_cast<SIZE_T>(rowSizeInBtes),
+                              numRows,
+                              m_uploadFootprint.Footprint.Depth);
+        }
+        else
+        {
+            assert(!"unsupported format");
+        }
     }
 
     D3D12Texture* synchronize(ID3D12GraphicsCommandList* copyList,
@@ -156,17 +209,37 @@ public:
     {
         if (m_uploadBuffer)
         {
-            const CD3DX12_TEXTURE_COPY_LOCATION dst(m_gpuTexture->resource(),
-                                                    0);
-            const CD3DX12_TEXTURE_COPY_LOCATION src(m_uploadBuffer->resource(),
-                                                    m_uploadFootprint);
-
-            copyList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+            if (!m_subresourceFootprints.empty())
+            {
+                // BC7: copy each mip level to its own subresource.
+                for (UINT mip = 0;
+                     mip < static_cast<UINT>(m_subresourceFootprints.size());
+                     ++mip)
+                {
+                    const CD3DX12_TEXTURE_COPY_LOCATION dst(
+                        m_gpuTexture->resource(),
+                        mip);
+                    const CD3DX12_TEXTURE_COPY_LOCATION src(
+                        m_uploadBuffer->resource(),
+                        m_subresourceFootprints[mip]);
+                    copyList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+                }
+            }
+            else
+            {
+                // RGBA: single subresource copy.
+                const CD3DX12_TEXTURE_COPY_LOCATION dst(
+                    m_gpuTexture->resource(),
+                    0);
+                const CD3DX12_TEXTURE_COPY_LOCATION src(
+                    m_uploadBuffer->resource(),
+                    m_uploadFootprint);
+                copyList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+            }
 
             manager->transition(cmdList,
                                 m_gpuTexture.get(),
                                 D3D12_RESOURCE_STATE_GENERIC_READ);
-
             m_uploadBuffer = nullptr;
         }
 
@@ -177,8 +250,11 @@ public:
 
 private:
     mutable rcp<D3D12Buffer> m_uploadBuffer;
-    const rcp<D3D12Texture> m_gpuTexture;
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT m_uploadFootprint;
+    rcp<D3D12Texture> m_gpuTexture;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT
+    m_uploadFootprint; // RGBA path (single subresource)
+    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>
+        m_subresourceFootprints; // BC7 path (per-mip)
 };
 
 class RenderBufferD3D12Impl
@@ -683,12 +759,14 @@ rcp<Texture> RenderContextD3D12Impl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
+    GPUTextureFormat format,
     const uint8_t imageDataRGBAPremul[])
 {
     return make_rcp<TextureD3D12Impl>(m_resourceManager.get(),
                                       width,
                                       height,
                                       mipLevelCount,
+                                      format,
                                       imageDataRGBAPremul,
                                       m_usesCopyCommandList);
 }

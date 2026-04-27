@@ -202,6 +202,7 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
 
     return std::make_unique<Bitmap>(image.width,
                                     image.height,
+                                    image.width * image.height * 4,
                                     // CG always premultiplies alpha.
                                     PixelFormat::RGBAPremul,
                                     std::move(image.pixels));

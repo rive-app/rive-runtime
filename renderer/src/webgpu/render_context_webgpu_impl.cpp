@@ -7,6 +7,7 @@
 #include "rive/renderer/draw.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/stack_vector.hpp"
+#include "rive/texture_archive.hpp"
 #include "shaders/constants.glsl"
 
 #include <sstream>
@@ -2227,8 +2228,14 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
+    GPUTextureFormat format,
     const uint8_t imageDataRGBAPremul[])
 {
+    if (format != GPUTextureFormat::rgba32)
+    {
+        assert(!"unsupported format");
+        return nullptr;
+    }
     wgpu::TextureDescriptor textureDesc = {
         .usage =
             wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,

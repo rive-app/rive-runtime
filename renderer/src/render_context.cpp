@@ -12,6 +12,7 @@
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
+#include "rive/texture_archive.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/profiler/profiler_macros.h"
 
@@ -156,13 +157,31 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
     RIVE_PROF_SCOPE()
     rcp<Texture> texture = m_impl->platformDecodeImageTexture(encodedBytes);
+
+    // Detect rtex (BC7 compressed) by 'TXTR' magic.
+    if (texture == nullptr && encodedBytes.size() >= 4 &&
+        encodedBytes[0] == 'T' && encodedBytes[1] == 'X' &&
+        encodedBytes[2] == 'T' && encodedBytes[3] == 'R')
+    {
+        TextureDirectory texDir;
+        if (texDir.import(encodedBytes) && !texDir.dir.empty())
+        {
+            const TextureData& texData = texDir.dir[0];
+            texture = m_impl->makeImageTexture(texData.width,
+                                               texData.height,
+                                               texData.numMips,
+                                               texData.format,
+                                               texDir.dataBlob.data());
+        }
+    }
+
 #ifdef RIVE_DECODERS
     if (texture == nullptr)
     {
         auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
         if (bitmap)
         {
-            // For now, RenderContextImpl::makeImageTexture() only accepts RGBA.
+            // Bitmap::decode always produces RGBA — convert if needed.
             if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
             {
                 bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
@@ -173,6 +192,7 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
             texture = m_impl->makeImageTexture(width,
                                                height,
                                                mipLevelCount,
+                                               GPUTextureFormat::rgba32,
                                                bitmap->bytes());
         }
     }

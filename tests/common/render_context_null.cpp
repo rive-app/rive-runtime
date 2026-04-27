@@ -63,6 +63,7 @@ rive::rcp<rive::RenderBuffer> RenderContextNULL::makeRenderBuffer(
 rcp<Texture> RenderContextNULL::makeImageTexture(uint32_t width,
                                                  uint32_t height,
                                                  uint32_t mipLevelCount,
+                                                 GPUTextureFormat format,
                                                  const uint8_t imageDataRGBA[])
 {
     return make_rcp<Texture>(width, height);

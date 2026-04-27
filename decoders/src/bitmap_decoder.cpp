@@ -10,10 +10,12 @@
 
 Bitmap::Bitmap(uint32_t width,
                uint32_t height,
+               size_t numBytes,
                PixelFormat pixelFormat,
                std::unique_ptr<const uint8_t[]> bytes) :
     m_Width(width),
     m_Height(height),
+    m_NumBytes(numBytes),
     m_PixelFormat(pixelFormat),
     m_Bytes(std::move(bytes))
 {}
@@ -94,4 +96,5 @@ void Bitmap::pixelFormat(PixelFormat format)
 
     m_Bytes = std::move(toBytes);
     m_PixelFormat = format;
+    m_NumBytes = toSizeInBytes;
 }

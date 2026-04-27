@@ -48,6 +48,7 @@ public:
     rcp<Texture> makeImageTexture(uint32_t width,
                                   uint32_t height,
                                   uint32_t mipLevelCount,
+                                  GPUTextureFormat format,
                                   const uint8_t imageDataRGBAPremul[]) override;
 
     // Takes ownership of textureID and responsibility for deleting it.

@@ -862,8 +862,15 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
+    GPUTextureFormat format,
     const uint8_t imageDataRGBAPremul[])
 {
+    if (format != GPUTextureFormat::rgba32)
+    {
+        assert(!"unsupported format");
+        return nullptr;
+    }
+
     return make_rcp<TextureMetalImpl>(
         m_gpu, width, height, mipLevelCount, imageDataRGBAPremul);
 }

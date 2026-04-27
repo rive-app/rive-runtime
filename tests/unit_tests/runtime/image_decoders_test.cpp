@@ -13,6 +13,9 @@ TEST_CASE("png file decodes correctly", "[image-decoder]")
 
     REQUIRE(bitmap->width() == 226);
     REQUIRE(bitmap->height() == 128);
+    const size_t channels =
+        bitmap->pixelFormat() == Bitmap::PixelFormat::RGB ? 3 : 4;
+    REQUIRE(bitmap->numBytes() == 226 * 128 * channels);
 }
 
 TEST_CASE("jpeg file decodes correctly", "[image-decoder]")
@@ -26,6 +29,9 @@ TEST_CASE("jpeg file decodes correctly", "[image-decoder]")
 
     REQUIRE(bitmap->width() == 350);
     REQUIRE(bitmap->height() == 200);
+    const size_t channels =
+        bitmap->pixelFormat() == Bitmap::PixelFormat::RGB ? 3 : 4;
+    REQUIRE(bitmap->numBytes() == 350 * 200 * channels);
 }
 
 #ifndef __APPLE__
@@ -78,4 +84,5 @@ TEST_CASE("webp file decodes correctly", "[image-decoder]")
 
     REQUIRE(bitmap->width() == 550);
     REQUIRE(bitmap->height() == 368);
+    REQUIRE(bitmap->numBytes() == 550 * 368 * 4);
 }

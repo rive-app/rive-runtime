@@ -903,38 +903,90 @@ public:
                    UINT width,
                    UINT height,
                    UINT mipLevelCount,
+                   GPUTextureFormat format,
                    const uint8_t imageDataRGBAPremul[]) :
         Texture(width, height)
     {
-        m_texture = renderContextImpl->makeSimple2DTexture(
-            DXGI_FORMAT_R8G8B8A8_UNORM,
-            width,
-            height,
-            mipLevelCount,
-            D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-            D3D11_RESOURCE_MISC_GENERATE_MIPS);
+        if (format == GPUTextureFormat::bc7)
+        {
+            m_texture = renderContextImpl->makeSimple2DTexture(
+                DXGI_FORMAT_BC7_UNORM,
+                width,
+                height,
+                mipLevelCount,
+                D3D11_BIND_SHADER_RESOURCE);
 
-        // Specify the top-level image in the mipmap chain.
-        D3D11_BOX box;
-        box.left = 0;
-        box.right = width;
-        box.top = 0;
-        box.bottom = height;
-        box.front = 0;
-        box.back = 1;
-        renderContextImpl->gpuContext()->UpdateSubresource(m_texture.Get(),
-                                                           0,
-                                                           &box,
-                                                           imageDataRGBAPremul,
-                                                           width * 4,
-                                                           0);
+            // Specify the top-level image in the mipmap chain.
+            int W = width;
+            int H = height;
+
+            const uint8_t* pData = imageDataRGBAPremul;
+            for (UINT i = 0; i < mipLevelCount; i++)
+            {
+                D3D11_BOX box;
+                box.left = 0;
+                box.right = math::round_up_to_multiple_of<4>(W);
+                box.top = 0;
+                box.bottom = math::round_up_to_multiple_of<4>(H);
+                box.front = 0;
+                box.back = 1;
+
+                int BX = (W + 3) / 4;
+                int BY = (H + 3) / 4;
+
+                renderContextImpl->gpuContext()->UpdateSubresource(
+                    m_texture.Get(),
+                    i,
+                    &box,
+                    pData,
+                    BX * 16,
+                    0);
+
+                pData += (BX * BY * 16);
+
+                W = W / 2;
+                H = H / 2;
+            }
+        }
+        else if (format == GPUTextureFormat::rgba32)
+        {
+            m_texture = renderContextImpl->makeSimple2DTexture(
+                DXGI_FORMAT_R8G8B8A8_UNORM,
+                width,
+                height,
+                mipLevelCount,
+                D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+                D3D11_RESOURCE_MISC_GENERATE_MIPS);
+
+            // Specify the top-level image in the mipmap chain.
+            D3D11_BOX box;
+            box.left = 0;
+            box.right = width;
+            box.top = 0;
+            box.bottom = height;
+            box.front = 0;
+            box.back = 1;
+            renderContextImpl->gpuContext()->UpdateSubresource(
+                m_texture.Get(),
+                0,
+                &box,
+                imageDataRGBAPremul,
+                width * 4,
+                0);
+        }
+        else
+        {
+            assert(!"unsupported format");
+        }
 
         // Create a view and generate mipmaps.
         VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
             m_texture.Get(),
             NULL,
             m_srv.ReleaseAndGetAddressOf()));
-        renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
+
+        if (format == GPUTextureFormat::rgba32)
+            renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
     }
 
     ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
@@ -952,12 +1004,14 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
+    GPUTextureFormat format,
     const uint8_t imageDataRGBAPremul[])
 {
     return make_rcp<TextureD3DImpl>(this,
                                     width,
                                     height,
                                     mipLevelCount,
+                                    format,
                                     imageDataRGBAPremul);
 }
 

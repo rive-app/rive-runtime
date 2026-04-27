@@ -21,18 +21,21 @@ public:
 
     Bitmap(uint32_t width,
            uint32_t height,
+           size_t numBytes,
            PixelFormat pixelFormat,
            std::unique_ptr<const uint8_t[]> bytes);
 
 private:
     uint32_t m_Width;
     uint32_t m_Height;
+    size_t m_NumBytes;
     PixelFormat m_PixelFormat;
     std::unique_ptr<const uint8_t[]> m_Bytes;
 
 public:
     uint32_t width() const { return m_Width; }
     uint32_t height() const { return m_Height; }
+    size_t numBytes() const { return m_NumBytes; }
     PixelFormat pixelFormat() const { return m_PixelFormat; }
     const uint8_t* bytes() const { return m_Bytes.get(); }
     std::unique_ptr<const uint8_t[]> detachBytes()
