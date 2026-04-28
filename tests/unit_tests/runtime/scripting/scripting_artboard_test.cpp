@@ -539,3 +539,51 @@ TEST_CASE("script instances Artboard with opacity applied", "[silver]")
 
     CHECK(silver.matches("script_artboards_opacity"));
 }
+
+TEST_CASE(
+    "View model source cache is correctly cleared when instance is changed",
+    "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripted_viewmodel_cache.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto createInstanceProp = vmi->propertyValue("createInstance")
+                                  ->as<rive::ViewModelInstanceTrigger>();
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Source of the VM instance is now source-1
+    stateMachine->pointerDown(Vec2D(450, 50));
+    stateMachine->pointerUp(Vec2D(450, 50));
+    stateMachine->advanceAndApply(0.016f);
+
+    createInstanceProp->trigger();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Source of the VM instance is now source-2
+    stateMachine->pointerDown(Vec2D(450, 150));
+    stateMachine->pointerUp(Vec2D(450, 150));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    createInstanceProp->trigger();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scripted_viewmodel_cache"));
+}

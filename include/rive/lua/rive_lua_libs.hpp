@@ -754,7 +754,8 @@ private:
     std::unordered_map<std::string, int> m_propertyRefs;
 };
 
-class ScriptedPropertyViewModel : public ScriptedProperty
+class ScriptedPropertyViewModel : public ScriptedProperty,
+                                  public ViewModelValueDependent
 {
 public:
     ScriptedPropertyViewModel(lua_State* L,
@@ -767,6 +768,9 @@ public:
     int pushValue();
     void setValue(ScriptedViewModel*);
     void dispose() override;
+    void relinkDataBind() override;
+    void addDirt(ComponentDirt value, bool recurse) override {}
+    void clearRef();
 
 private:
     rcp<ViewModel> m_viewModel;

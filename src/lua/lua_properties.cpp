@@ -286,22 +286,28 @@ void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
             rcp<ViewModelInstance>(viewModelInstance));
         // Invalidate cached Lua-side value so the next push reflects the new
         // instance.
-        if (m_valueRef != 0)
-        {
-            lua_unref(m_state, m_valueRef);
-            m_valueRef = 0;
-        }
+        clearRef();
     }
 }
 
 void ScriptedPropertyViewModel::dispose()
 {
+    if (m_instanceValue)
+    {
+        m_instanceValue->removeDependent(this);
+    }
+    clearRef();
+    ScriptedProperty::dispose();
+}
+
+void ScriptedPropertyViewModel::clearRef()
+{
+
     if (m_valueRef != 0)
     {
         lua_unref(m_state, m_valueRef);
         m_valueRef = 0;
     }
-    ScriptedProperty::dispose();
 }
 
 ScriptedViewModel::ScriptedViewModel(lua_State* L,
@@ -447,8 +453,6 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
 
 int ScriptedPropertyViewModel::pushValue()
 {
-    // N.B. we'll need to invalidate m_valueRef if the viewmodel's value on the
-    // property changes.
     if (m_valueRef != 0)
     {
         lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_valueRef);
@@ -456,6 +460,7 @@ int ScriptedPropertyViewModel::pushValue()
     }
     if (m_instanceValue)
     {
+        m_instanceValue->addDependent(this);
         lua_newrive<ScriptedViewModel>(
             m_state,
             m_state,
@@ -471,6 +476,8 @@ int ScriptedPropertyViewModel::pushValue()
     m_valueRef = lua_ref(m_state, -1);
     return 1;
 }
+
+void ScriptedPropertyViewModel::relinkDataBind() { clearRef(); }
 
 static int property_vm_index(lua_State* L)
 {
