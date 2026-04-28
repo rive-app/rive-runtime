@@ -2,7 +2,7 @@
  * Copyright 2024 Rive
  */
 
-#include "rive/animation/focus_action.hpp"
+#include "rive/animation/focus_action_target.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
@@ -11,8 +11,8 @@
 
 using namespace rive;
 
-void FocusAction::perform(StateMachineInstance* stateMachineInstance,
-                          const ListenerInvocation& invocation) const
+void FocusActionTarget::perform(StateMachineInstance* stateMachineInstance,
+                                const ListenerInvocation& invocation) const
 {
     (void)invocation;
     auto target = stateMachineInstance->artboard()->resolve(targetId());

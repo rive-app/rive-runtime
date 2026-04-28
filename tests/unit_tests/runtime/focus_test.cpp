@@ -1,9 +1,14 @@
 #include <catch.hpp>
+#include "rive/animation/focus_action_traversal.hpp"
+#include "rive/animation/listener_invocation.hpp"
+#include "rive/animation/state_machine.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/artboard.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/input/focus_manager.hpp"
+#include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
-#include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 
@@ -639,6 +644,87 @@ TEST_CASE("FocusManager stop prevents backward traversal", "[FocusManager]")
     CHECK(manager.primaryFocus() == node1);
 }
 
+TEST_CASE("FocusActionTraversal perform advances focus with traversalKind next",
+          "[FocusActionTraversal]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    FocusManager* fm = smi.focusManager();
+    MockFocusable f1, f2;
+    auto node1 = make_rcp<FocusNode>(&f1);
+    auto node2 = make_rcp<FocusNode>(&f2);
+    fm->addChild(nullptr, node1);
+    fm->addChild(nullptr, node2);
+    fm->setFocus(node1);
+
+    FocusActionTraversal action;
+    action.traversalKind(0);
+    action.perform(&smi, ListenerInvocation::none());
+
+    CHECK(fm->primaryFocus() == node2);
+}
+
+TEST_CASE("FocusActionTraversal perform moves focus back with traversalKind "
+          "previous",
+          "[FocusActionTraversal]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    FocusManager* fm = smi.focusManager();
+    MockFocusable f1, f2;
+    auto node1 = make_rcp<FocusNode>(&f1);
+    auto node2 = make_rcp<FocusNode>(&f2);
+    fm->addChild(nullptr, node1);
+    fm->addChild(nullptr, node2);
+    fm->setFocus(node2);
+
+    FocusActionTraversal action;
+    action.traversalKind(1);
+    action.perform(&smi, ListenerInvocation::none());
+
+    CHECK(fm->primaryFocus() == node1);
+}
+
+TEST_CASE("FocusActionTraversal perform unknown traversalKind defaults to next",
+          "[FocusActionTraversal]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    FocusManager* fm = smi.focusManager();
+    MockFocusable f1, f2;
+    auto node1 = make_rcp<FocusNode>(&f1);
+    auto node2 = make_rcp<FocusNode>(&f2);
+    fm->addChild(nullptr, node1);
+    fm->addChild(nullptr, node2);
+    fm->setFocus(node1);
+
+    FocusActionTraversal action;
+    action.traversalKind(999);
+    action.perform(&smi, ListenerInvocation::none());
+
+    CHECK(fm->primaryFocus() == node2);
+}
+
+TEST_CASE("FocusActionTraversal perform ignores null StateMachineInstance",
+          "[FocusActionTraversal]")
+{
+    FocusActionTraversal action;
+    action.traversalKind(0);
+    action.perform(nullptr, ListenerInvocation::none());
+}
+
 } // namespace rive
 
 TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
@@ -973,4 +1059,84 @@ TEST_CASE("Text input events are handled on focused nodes", "[silver]")
     CHECK(isFocusedProp->propertyValue() == true);
     CHECK(hasKeyedProp->propertyValue() == true);
     CHECK(hasTextedProp->propertyValue() == true);
+}
+
+TEST_CASE("Focus traversal listener actions", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/focus_traversal.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // There are 2 rows of buttons
+    // Top row: Top / Right / Down / Left
+    // Bottom row: Prev / Next
+
+    // Click on Next
+    stateMachine->pointerDown(rive::Vec2D(180, 450));
+    stateMachine->pointerUp(rive::Vec2D(180, 450));
+    stateMachine->advanceAndApply(0.016f);
+    // Second advance to apply focus changes
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Click on Prev
+    stateMachine->pointerDown(rive::Vec2D(60, 450));
+    stateMachine->pointerUp(rive::Vec2D(60, 450));
+    stateMachine->advanceAndApply(0.016f);
+    // Second advance to apply focus changes
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Click on Up
+    stateMachine->pointerDown(rive::Vec2D(60, 350));
+    stateMachine->pointerUp(rive::Vec2D(60, 350));
+    stateMachine->advanceAndApply(0.016f);
+    // Second advance to apply focus changes
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Click on Left
+    stateMachine->pointerDown(rive::Vec2D(420, 350));
+    stateMachine->pointerUp(rive::Vec2D(420, 350));
+    stateMachine->advanceAndApply(0.016f);
+    // Second advance to apply focus changes
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Click on Down
+    stateMachine->pointerDown(rive::Vec2D(300, 350));
+    stateMachine->pointerUp(rive::Vec2D(300, 350));
+    stateMachine->advanceAndApply(0.016f);
+    // Second advance to apply focus changes
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Click on Right
+    stateMachine->pointerDown(rive::Vec2D(180, 350));
+    stateMachine->pointerUp(rive::Vec2D(180, 350));
+    stateMachine->advanceAndApply(0.016f);
+    // Second advance to apply focus changes
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("focus_traversal"));
 }

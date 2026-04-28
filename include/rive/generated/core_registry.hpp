@@ -21,6 +21,8 @@
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/focus_action.hpp"
+#include "rive/animation/focus_action_target.hpp"
+#include "rive/animation/focus_action_traversal.hpp"
 #include "rive/animation/interpolating_keyframe.hpp"
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
@@ -552,6 +554,8 @@ public:
                 return new KeyFrameString();
             case ListenerNumberChangeBase::typeKey:
                 return new ListenerNumberChange();
+            case FocusActionTargetBase::typeKey:
+                return new FocusActionTarget();
             case CubicEaseInterpolatorBase::typeKey:
                 return new CubicEaseInterpolator();
             case TransitionValueIdComparatorBase::typeKey:
@@ -564,8 +568,8 @@ public:
                 return new KeyFrameDouble();
             case KeyFrameColorBase::typeKey:
                 return new KeyFrameColor();
-            case FocusActionBase::typeKey:
-                return new FocusAction();
+            case FocusActionTraversalBase::typeKey:
+                return new FocusActionTraversal();
             case StateMachineBase::typeKey:
                 return new StateMachine();
             case StateMachineFireEventBase::typeKey:
@@ -598,10 +602,10 @@ public:
                 return new ListenerInputTypeEvent();
             case ListenerInputTypeKeyboardBase::typeKey:
                 return new ListenerInputTypeKeyboard();
-            case ListenerInputTypeSemanticBase::typeKey:
-                return new ListenerInputTypeSemantic();
             case ListenerInputTypeTextBase::typeKey:
                 return new ListenerInputTypeText();
+            case ListenerInputTypeSemanticBase::typeKey:
+                return new ListenerInputTypeSemantic();
             case ListenerInputTypeViewModelBase::typeKey:
                 return new ListenerInputTypeViewModel();
             case ExitStateBase::typeKey:
@@ -1320,6 +1324,9 @@ public:
             case BlendState1DInputBase::inputIdPropertyKey:
                 object->as<BlendState1DInputBase>()->inputId(value);
                 break;
+            case FocusActionTargetBase::targetIdPropertyKey:
+                object->as<FocusActionTargetBase>()->targetId(value);
+                break;
             case TransitionValueIdComparatorBase::valuePropertyKey:
                 object->as<TransitionValueIdComparatorBase>()->value(value);
                 break;
@@ -1344,8 +1351,8 @@ public:
             case StateTransitionBase::randomWeightPropertyKey:
                 object->as<StateTransitionBase>()->randomWeight(value);
                 break;
-            case FocusActionBase::targetIdPropertyKey:
-                object->as<FocusActionBase>()->targetId(value);
+            case FocusActionTraversalBase::traversalKindPropertyKey:
+                object->as<FocusActionTraversalBase>()->traversalKind(value);
                 break;
             case StateMachineFireEventBase::eventIdPropertyKey:
                 object->as<StateMachineFireEventBase>()->eventId(value);
@@ -3304,6 +3311,8 @@ public:
                     ->opValue();
             case BlendState1DInputBase::inputIdPropertyKey:
                 return object->as<BlendState1DInputBase>()->inputId();
+            case FocusActionTargetBase::targetIdPropertyKey:
+                return object->as<FocusActionTargetBase>()->targetId();
             case TransitionValueIdComparatorBase::valuePropertyKey:
                 return object->as<TransitionValueIdComparatorBase>()->value();
             case StateTransitionBase::stateToIdPropertyKey:
@@ -3320,8 +3329,8 @@ public:
                 return object->as<StateTransitionBase>()->interpolatorId();
             case StateTransitionBase::randomWeightPropertyKey:
                 return object->as<StateTransitionBase>()->randomWeight();
-            case FocusActionBase::targetIdPropertyKey:
-                return object->as<FocusActionBase>()->targetId();
+            case FocusActionTraversalBase::traversalKindPropertyKey:
+                return object->as<FocusActionTraversalBase>()->traversalKind();
             case StateMachineFireEventBase::eventIdPropertyKey:
                 return object->as<StateMachineFireEventBase>()->eventId();
             case LinearAnimationBase::fpsPropertyKey:
@@ -4337,6 +4346,7 @@ public:
             case TransitionValueConditionBase::opValuePropertyKey:
             case TransitionViewModelConditionBase::opValuePropertyKey:
             case BlendState1DInputBase::inputIdPropertyKey:
+            case FocusActionTargetBase::targetIdPropertyKey:
             case TransitionValueIdComparatorBase::valuePropertyKey:
             case StateTransitionBase::stateToIdPropertyKey:
             case StateTransitionBase::flagsPropertyKey:
@@ -4345,7 +4355,7 @@ public:
             case StateTransitionBase::interpolationTypePropertyKey:
             case StateTransitionBase::interpolatorIdPropertyKey:
             case StateTransitionBase::randomWeightPropertyKey:
-            case FocusActionBase::targetIdPropertyKey:
+            case FocusActionTraversalBase::traversalKindPropertyKey:
             case StateMachineFireEventBase::eventIdPropertyKey:
             case LinearAnimationBase::fpsPropertyKey:
             case LinearAnimationBase::durationPropertyKey:
@@ -5045,6 +5055,8 @@ public:
                 return object->is<TransitionViewModelConditionBase>();
             case BlendState1DInputBase::inputIdPropertyKey:
                 return object->is<BlendState1DInputBase>();
+            case FocusActionTargetBase::targetIdPropertyKey:
+                return object->is<FocusActionTargetBase>();
             case TransitionValueIdComparatorBase::valuePropertyKey:
                 return object->is<TransitionValueIdComparatorBase>();
             case StateTransitionBase::stateToIdPropertyKey:
@@ -5061,8 +5073,8 @@ public:
                 return object->is<StateTransitionBase>();
             case StateTransitionBase::randomWeightPropertyKey:
                 return object->is<StateTransitionBase>();
-            case FocusActionBase::targetIdPropertyKey:
-                return object->is<FocusActionBase>();
+            case FocusActionTraversalBase::traversalKindPropertyKey:
+                return object->is<FocusActionTraversalBase>();
             case StateMachineFireEventBase::eventIdPropertyKey:
                 return object->is<StateMachineFireEventBase>();
             case LinearAnimationBase::fpsPropertyKey:

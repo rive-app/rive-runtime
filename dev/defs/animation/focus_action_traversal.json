@@ -1,0 +1,19 @@
+{
+  "name": "FocusActionTraversal",
+  "key": {
+    "int": 672,
+    "string": "focusactiontraversal"
+  },
+  "extends": "animation/focus_action.json",
+  "properties": {
+    "traversalKind": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1011,
+        "string": "traversalkind"
+      },
+      "description": "Traversal mode: 0=next, 1=previous, 2=up, 3=down, 4=left, 5=right (sync with runtime perform)."
+    }
+  }
+}

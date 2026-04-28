@@ -9,11 +9,7 @@
 namespace rive
 {
 class FocusAction : public FocusActionBase
-{
-public:
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
-};
+{};
 } // namespace rive
 
 #endif

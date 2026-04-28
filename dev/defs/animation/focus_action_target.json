@@ -1,0 +1,21 @@
+{
+  "name": "FocusActionTarget",
+  "key": {
+    "int": 652,
+    "string": "focusaction"
+  },
+  "extends": "animation/focus_action.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 952,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the object use as a target for this listener action."
+    }
+  }
+}
