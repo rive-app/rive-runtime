@@ -1685,7 +1685,9 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     if (interlockMode == gpu::InterlockMode::msaa &&
         enums::is_flag_set(shaderFeatures,
                            gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
-        !renderContextImpl->m_capabilities.KHR_blend_equation_advanced)
+        !renderContextImpl->m_capabilities.KHR_blend_equation_advanced &&
+        !enums::is_flag_set(shaderMiscFlags,
+                            gpu::ShaderMiscFlags::fixedFunctionColorOutput))
     {
         glutils::Uniform1iByName(m_id,
                                  GLSL_dstColorTexture,

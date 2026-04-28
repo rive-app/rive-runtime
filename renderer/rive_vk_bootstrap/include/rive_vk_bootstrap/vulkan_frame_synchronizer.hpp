@@ -55,6 +55,8 @@ public:
     [[nodiscard]] VkResult waitForPixelRead(MappedPixelRead* outRead);
     void finishPixelRead();
 
+    VkQueue graphicsQueue() const { return m_graphicsQueue; }
+
 protected:
     struct Options
     {
@@ -104,8 +106,6 @@ protected:
     }
 
     rive::gpu::VulkanContext* context() const { return m_vk.get(); }
-
-    VkQueue graphicsQueue() const { return m_graphicsQueue; }
 
     VkResult createSemaphore(VkSemaphore*);
     void destroySemaphore(VkSemaphore);

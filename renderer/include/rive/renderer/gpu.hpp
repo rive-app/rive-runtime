@@ -1992,35 +1992,29 @@ void get_pipeline_state(const DrawBatch&,
 // Default PipelineState values as specified in OpenGL.
 constexpr static PipelineState GL_DEFAULT_PIPELINE_STATE = {};
 
-constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE = {
-    .depthTestEnabled = false,
-    .depthWriteEnabled = false,
-    .stencilTestEnabled = false,
-    .stencilWriteMask = 0,
-    .cullFace = CullFace::none,
-    .blendEquation = BlendEquation::none,
-    .colorWriteEnabled = true,
-};
+// Helper to create PipelineState with no depth/stencil and custom blend/cull.
+constexpr inline PipelineState make_flat_pipeline_state(CullFace cull,
+                                                        BlendEquation blend)
+{
+    PipelineState s{};
+    s.depthTestEnabled = false;
+    s.depthWriteEnabled = false;
+    s.stencilTestEnabled = false;
+    s.stencilWriteMask = 0;
+    s.cullFace = cull;
+    s.blendEquation = blend;
+    s.colorWriteEnabled = true;
+    return s;
+}
 
-constexpr static PipelineState ATLAS_FILL_PIPELINE_STATE = {
-    .depthTestEnabled = false,
-    .depthWriteEnabled = false,
-    .stencilTestEnabled = false,
-    .stencilWriteMask = 0,
-    .cullFace = CullFace::none,
-    .blendEquation = BlendEquation::plus,
-    .colorWriteEnabled = true,
-};
+constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE =
+    make_flat_pipeline_state(CullFace::none, BlendEquation::none);
 
-constexpr static PipelineState ATLAS_STROKE_PIPELINE_STATE = {
-    .depthTestEnabled = false,
-    .depthWriteEnabled = false,
-    .stencilTestEnabled = false,
-    .stencilWriteMask = 0,
-    .cullFace = CullFace::counterclockwise,
-    .blendEquation = BlendEquation::max,
-    .colorWriteEnabled = true,
-};
+constexpr static PipelineState ATLAS_FILL_PIPELINE_STATE =
+    make_flat_pipeline_state(CullFace::none, BlendEquation::plus);
+
+constexpr static PipelineState ATLAS_STROKE_PIPELINE_STATE =
+    make_flat_pipeline_state(CullFace::counterclockwise, BlendEquation::max);
 
 float4 cast_f16_to_f32(uint16x4 x);
 uint16x4 cast_f32_to_f16(float4);

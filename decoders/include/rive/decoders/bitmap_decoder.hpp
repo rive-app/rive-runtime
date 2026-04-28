@@ -5,6 +5,7 @@
 #ifndef _RIVE_BITMAP_DECODER_HPP_
 #define _RIVE_BITMAP_DECODER_HPP_
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 

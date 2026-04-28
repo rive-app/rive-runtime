@@ -22,6 +22,7 @@ using Microsoft::WRL::ComPtr;
                     static_cast<int>(__LINE__),                                \
                     std::system_category().message(hr).c_str(),                \
                     #CODE);                                                    \
+            fflush(stderr);                                                    \
             abort();                                                           \
         }                                                                      \
     }

@@ -134,6 +134,7 @@ public:
 
     ID3D12Resource* resource() const { return m_resource.Get(); }
     const D3D12_RESOURCE_DESC& desc() const { return m_desc; }
+    D3D12_RESOURCE_STATES lastState() const { return m_lastState; }
 
 #if DEBUG
     LPCWSTR m_name = L"";
