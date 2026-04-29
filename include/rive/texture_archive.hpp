@@ -2,11 +2,29 @@
 
 #include "rive/span.hpp"
 
+#include <cstdint>
 #include <vector>
 #include <string>
 
 namespace rive
 {
+
+// On-disk header for a .rtex archive. Fields are little-endian; all Rive
+// runtime targets (web/wasm, ARM iOS/Android, x86_64 desktop, Apple Silicon)
+// are little-endian, so the struct is written and read by raw memcpy.
+#pragma pack(push, 1)
+struct TextureArchiveHeader
+{
+    static constexpr char kMagic[4] = {'R', 'T', 'E', 'X'};
+    static constexpr uint16_t kCurrentVersion = 1;
+
+    char magic[4];
+    uint16_t version;
+    uint16_t textureCount;
+};
+#pragma pack(pop)
+static_assert(sizeof(TextureArchiveHeader) == 8,
+              "TextureArchiveHeader must be tightly packed (8 bytes)");
 
 // Enum class to describe the format of a texture.
 // Only formats which are directly read by a GPU are listed here
@@ -66,7 +84,7 @@ public:
     std::vector<uint8_t> dataBlob;
 
     void addTexture(TextureData& header);
-    void exportArchive();
+    bool exportArchive(const std::string& path);
     bool import(const std::string& path);
     bool import(Span<const uint8_t> texBytes);
 };

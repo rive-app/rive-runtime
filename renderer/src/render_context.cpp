@@ -158,10 +158,11 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
     RIVE_PROF_SCOPE()
     rcp<Texture> texture = m_impl->platformDecodeImageTexture(encodedBytes);
 
-    // Detect rtex (BC7 compressed) by 'TXTR' magic.
+    // Detect rtex container by 'RTEX' magic. GPU format read from header
+    // (bc7/astc/etc2/rgba32).
     if (texture == nullptr && encodedBytes.size() >= 4 &&
-        encodedBytes[0] == 'T' && encodedBytes[1] == 'X' &&
-        encodedBytes[2] == 'T' && encodedBytes[3] == 'R')
+        encodedBytes[0] == 'R' && encodedBytes[1] == 'T' &&
+        encodedBytes[2] == 'E' && encodedBytes[3] == 'X')
     {
         TextureDirectory texDir;
         if (texDir.import(encodedBytes) && !texDir.dir.empty())
