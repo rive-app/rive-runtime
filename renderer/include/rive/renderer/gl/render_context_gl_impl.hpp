@@ -114,7 +114,7 @@ public:
         AtlasRenderType atlasDesiredRenderType);
 #endif
 
-private:
+protected:
     class DrawProgram;
 
     // Manages how we implement pixel local storage in shaders.

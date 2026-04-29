@@ -203,6 +203,7 @@ void glProvokingVertexANGLE(GLenum provokeMode)
 
 namespace rive::gpu
 {
+#ifdef RIVE_WEBGL
 static GLenum webgl_load_op(gpu::LoadAction loadAction)
 {
     switch (loadAction)
@@ -327,4 +328,11 @@ RenderContextGLImpl::MakePLSImplWebGL()
 {
     return std::make_unique<PLSImplWebGL>();
 }
+#else
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl>
+RenderContextGLImpl::MakePLSImplWebGL()
+{
+	return nullptr;
+}
+#endif
 } // namespace rive::gpu

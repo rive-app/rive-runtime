@@ -17,11 +17,55 @@
 #define glClearPixelLocalStorageuiEXT(...) RIVE_UNREACHABLE()
 #endif
 
+#ifdef RIVE_DESKTOP_GLES_PVR
+#include <GLES3/gl3.h>
+#include <GLES3/gl31.h>
+#define GL_GLEXT_PROTOTYPES
+#include <GLES2/gl2ext.h> // not a mistake, https://registry.khronos.org/OpenGL/index_es.php
+
+#define GL_COMPLETION_STATUS_KHR 0x91B1
+
+#endif
+
 #ifdef RIVE_ANDROID
 #include <GLES3/gl3.h>
 #include <GLES3/gl31.h>
 #include <GLES3/gl3ext.h>
 #include <GLES2/gl2ext.h>
+#endif
+
+#ifdef RIVE_IOS_GLES
+#define GL_OES_framebuffer_object
+#define GL_PROTOTYPES
+#include <OpenGLES/ES3/gl.h>
+#include <OpenGLES/ES3/glext.h>
+
+#define GL_COMPLETION_STATUS_KHR 0x91B1
+
+#ifndef GL_KHR_blend_equation_advanced
+#define GL_KHR_blend_equation_advanced 1
+#define GL_MULTIPLY_KHR                   0x9294
+#define GL_SCREEN_KHR                     0x9295
+#define GL_OVERLAY_KHR                    0x9296
+#define GL_DARKEN_KHR                     0x9297
+#define GL_LIGHTEN_KHR                    0x9298
+#define GL_COLORDODGE_KHR                 0x9299
+#define GL_COLORBURN_KHR                  0x929A
+#define GL_HARDLIGHT_KHR                  0x929B
+#define GL_SOFTLIGHT_KHR                  0x929C
+#define GL_DIFFERENCE_KHR                 0x929E
+#define GL_EXCLUSION_KHR                  0x92A0
+#define GL_HSL_HUE_KHR                    0x92AD
+#define GL_HSL_SATURATION_KHR             0x92AE
+#define GL_HSL_COLOR_KHR                  0x92AF
+#define GL_HSL_LUMINOSITY_KHR             0x92B0
+#endif
+
+#ifndef GL_KHR_blend_equation_advanced_coherent
+#define GL_KHR_blend_equation_advanced_coherent 1
+#define GL_BLEND_ADVANCED_COHERENT_KHR    0x9285
+#endif
+
 #endif
 
 #ifdef RIVE_WEBGL
@@ -112,7 +156,7 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 
 #endif // RIVE_WEBGL
 
-#if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
+#if defined(RIVE_ANDROID) || defined(RIVE_IOS_GLES) || defined(RIVE_WEBGL)
 // GLES 3.1 functionality is pulled in as an extension. Define these to avoid
 // compile errors, even if we won't use them.
 #define GL_SHADER_STORAGE_BUFFER 0x90D2

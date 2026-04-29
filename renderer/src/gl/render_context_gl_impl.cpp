@@ -2,6 +2,7 @@
  * Copyright 2022 Rive
  */
 
+#include "rive/renderer/gl/gles3.hpp"
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 
 #include "rive/renderer/gl/render_buffer_gl_impl.hpp"
@@ -1164,7 +1165,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         }
         case AtlasRenderType::r32uiPixelLocalStorageANGLE:
         {
-#ifndef RIVE_ANDROID
+#if !defined(RIVE_ANDROID) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
             // ANGLE_shader_pixel_local_storage can just resolve and output the
             // render pass at the end of the PLS render pass.
             assert(m_atlasRenderTexture != 0);
@@ -2044,7 +2045,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case AtlasRenderType::r32uiPixelLocalStorageANGLE:
             {
-#ifndef RIVE_ANDROID
+#if !defined(RIVE_ANDROID) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
                 glBeginPixelLocalStorageANGLE(
                     1,
                     std::array<GLenum, 1>{GL_LOAD_OP_ZERO_ANGLE}.data());
@@ -2055,7 +2056,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case AtlasRenderType::r32iAtomicTexture:
             {
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES)
                 constexpr GLint clearZero4i[4]{};
                 glClearBufferiv(GL_COLOR, 0, clearZero4i);
                 glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
@@ -2129,7 +2130,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             // into a GL_R8 texture that can be sampled.
             if (m_atlasRenderType == AtlasRenderType::r32iAtomicTexture)
             {
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES)
                 glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 #else
                 RIVE_UNREACHABLE();
@@ -2210,7 +2211,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case AtlasRenderType::r32uiPixelLocalStorageANGLE:
             {
-#ifndef RIVE_ANDROID
+#if !defined(RIVE_ANDROID) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
                 // Discard PLS now that we've resolved it to GL_R8.
                 glEndPixelLocalStorageANGLE(
                     1,
@@ -2222,7 +2223,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case AtlasRenderType::r32iAtomicTexture:
             {
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES)
                 glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
                                 GL_FRAMEBUFFER_BARRIER_BIT);
 #else
@@ -2387,6 +2388,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                    m_platformFeatures,
                                                    &pipelineState);
         }
+#ifndef RIVE_IOS_GLES
         else
         {
             // Set up the next clipRect.
@@ -2404,6 +2406,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 clipPlanesEnabled = needsClipPlanes;
             }
         }
+#endif
         m_state->setPipelineState(pipelineState);
 
         if (enums::any_flag_set(batch.barriers,
@@ -2416,11 +2419,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         else if (enums::is_flag_set(batch.barriers, BarrierFlags::dstBlend))
         {
             assert(!m_capabilities.KHR_blend_equation_advanced_coherent);
+#if !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
             if (m_capabilities.KHR_blend_equation_advanced)
             {
                 glBlendBarrierKHR();
             }
             else
+#endif
             {
                 // Read back the framebuffer where we need a dstColor for
                 // blending.
@@ -2609,6 +2614,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             glDisable(GL_BLEND_ADVANCED_COHERENT_KHR);
         }
+#ifndef RIVE_IOS_GLES
         if (clipPlanesEnabled)
         {
             glDisable(GL_CLIP_DISTANCE0_EXT);
@@ -2616,6 +2622,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             glDisable(GL_CLIP_DISTANCE2_EXT);
             glDisable(GL_CLIP_DISTANCE3_EXT);
         }
+#endif
     }
 
 #ifdef RIVE_DESKTOP_GL
@@ -2629,7 +2636,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     // flushes per frame if we don't call glFlush in between.
     glFlush();
 
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES)
     // ARM Mali-G78 also needs a memory barrier sometimes to ensure a resolve of
     // EXT_multisampled_render_to_texture. (Note that the spec says these
     // resolves should all be implicit and automatic.)
@@ -2663,7 +2670,7 @@ void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
                          m_capabilities.maxSupportedInstancesPerFlush))
     {
         flushInjector->flushBeforeInstancedDrawIfNeeded(chunkInstanceCount);
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
         if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
         {
             glDrawElementsInstancedBaseInstanceEXT(primitiveTopology,

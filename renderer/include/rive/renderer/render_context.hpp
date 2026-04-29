@@ -305,7 +305,7 @@ public:
     // (for rendering into) and a render image (for compositing into draws).
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height);
 
-private:
+protected:
     friend class Draw;
     friend class PathDraw;
     friend class ImageRectDraw;
@@ -963,7 +963,7 @@ private:
             uint32_t joinSegmentCount,
             uint32_t contourIDWithFlags);
 
-    private:
+    protected:
         LogicalFlush* const m_flush;
         WriteOnlyMappedMemory<gpu::TessVertexSpan>& m_tessSpanData;
         const uint32_t m_pathID;

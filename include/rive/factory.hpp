@@ -60,9 +60,9 @@ public:
 
     virtual rcp<RenderImage> decodeImage(Span<const uint8_t>) = 0;
 
-    rcp<Font> decodeFont(Span<const uint8_t>);
+    virtual rcp<Font> decodeFont(Span<const uint8_t>);
 
-    rcp<AudioSource> decodeAudio(Span<const uint8_t>);
+    virtual rcp<AudioSource> decodeAudio(Span<const uint8_t>);
 
     // Non-virtual helpers
 

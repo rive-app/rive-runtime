@@ -105,6 +105,7 @@ public:
     void activatePixelLocalStorage(RenderContextGLImpl* impl,
                                    const FlushDescriptor& desc) override
     {
+#ifndef RIVE_IOS_GLES
         assert(impl->m_capabilities.EXT_shader_pixel_local_storage);
         assert(impl->m_capabilities.EXT_shader_framebuffer_fetch ||
                impl->m_capabilities.ARM_shader_framebuffer_fetch);
@@ -173,11 +174,13 @@ public:
             m_state->bindVAO(m_plsLoadStoreVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
+#endif
     }
 
     void deactivatePixelLocalStorage(RenderContextGLImpl* impl,
                                      const FlushDescriptor& desc) override
     {
+#ifndef RIVE_IOS_GLES
         if (!desc.fixedFunctionColorOutput)
         {
             // EXT_shader_pixel_local_storage doesn't support concurrent
@@ -194,6 +197,7 @@ public:
         }
 
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
+#endif
     }
 
     void pushShaderDefines(gpu::InterlockMode,
