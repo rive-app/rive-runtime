@@ -7,10 +7,12 @@
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/scripted/scripted_object.hpp"
 
 #include <math.h>
@@ -77,6 +79,14 @@ static void pushViewModelInstanceValue(lua_State* L,
                 viewModel,
                 ref_rcp(propValue->as<ViewModelInstanceViewModel>()));
             break;
+        case ViewModelInstanceSymbolListIndexBase::typeKey:
+        {
+
+            auto listIndexProp =
+                propValue->as<ViewModelInstanceSymbolListIndex>();
+            lua_pushinteger(L, listIndexProp->propertyValue());
+            break;
+        }
         default:
             lua_pushnil(L);
             break;
@@ -431,6 +441,9 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                                                            nullptr,
                                                            nullptr);
                     break;
+                case ViewModelPropertySymbolListIndexBase::typeKey:
+                    lua_pushinteger(m_state, 1);
+                    break;
             }
         }
     }
@@ -448,6 +461,22 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
         }
     }
     m_propertyRefs[name] = lua_ref(m_state, -1);
+    return 1;
+}
+
+int ScriptedViewModel::pushIndex()
+{
+    auto prop = m_viewModelInstance->propertyValue(SymbolType::itemIndex);
+    if (prop && prop->is<ViewModelInstanceSymbolListIndex>())
+    {
+        lua_pushinteger(
+            m_state,
+            prop->as<ViewModelInstanceSymbolListIndex>()->propertyValue());
+    }
+    else
+    {
+        lua_pushinteger(m_state, -1);
+    }
     return 1;
 }
 
@@ -782,6 +811,11 @@ static int vm_namecall(lua_State* L)
                 const char* name = luaL_checklstring(L, 2, &namelen);
                 assert(vm->state() == L);
                 return vm->pushValue(name, ViewModelInstanceEnumBase::typeKey);
+            }
+            case (int)LuaAtoms::getIndex:
+            {
+                assert(vm->state() == L);
+                return vm->pushIndex();
             }
             case (int)LuaAtoms::instance:
             case (int)LuaAtoms::newAtom:

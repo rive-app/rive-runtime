@@ -6,6 +6,7 @@
 #include "rive/artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/data_bind/data_bind.hpp"
@@ -60,16 +61,29 @@ bool ViewModelInstanceValue::hasChanged()
     return enums::is_flag_set(m_changeFlags, ValueFlags::valueChanged);
 }
 
+void ViewModelInstanceValue::registerSymbol()
+{
+
+    if (m_ViewModelProperty != nullptr && m_viewModelInstance != nullptr)
+    {
+        if (m_ViewModelProperty->is<ViewModelPropertySymbolListIndex>())
+        {
+            m_viewModelInstance->propertyValue(SymbolType::itemIndex, this);
+        }
+        else if ((SymbolType)m_ViewModelProperty->symbolTypeValue() !=
+                 SymbolType::none)
+        {
+            m_viewModelInstance->propertyValue(
+                (SymbolType)m_ViewModelProperty->symbolTypeValue(),
+                this);
+        }
+    }
+}
+
 void ViewModelInstanceValue::viewModelProperty(ViewModelProperty* value)
 {
     m_ViewModelProperty = value;
-    if (m_viewModelInstance != nullptr && m_ViewModelProperty != nullptr &&
-        (SymbolType)m_ViewModelProperty->symbolTypeValue() != SymbolType::none)
-    {
-        m_viewModelInstance->propertyValue(
-            (SymbolType)m_ViewModelProperty->symbolTypeValue(),
-            this);
-    }
+    registerSymbol();
 }
 ViewModelProperty* ViewModelInstanceValue::viewModelProperty()
 {
@@ -116,6 +130,7 @@ void ViewModelInstanceValue::advanced()
 void ViewModelInstanceValue::viewModelInstance(ViewModelInstance* value)
 {
     m_viewModelInstance = value;
+    registerSymbol();
 }
 
 void ViewModelInstanceValue::addDelegate(

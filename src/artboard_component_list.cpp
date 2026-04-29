@@ -482,8 +482,8 @@ void ArtboardComponentList::updateList(
         auto viewModelInstance = item->viewModelInstance();
         if (viewModelInstance != nullptr)
         {
-            auto symbol = viewModelInstance->symbol(
-                ViewModelInstanceSymbolListIndexBase::typeKey);
+            auto symbol =
+                viewModelInstance->propertyValue(SymbolType::itemIndex);
             if (symbol != nullptr)
             {
                 symbol->as<ViewModelInstanceSymbolListIndex>()->propertyValue(

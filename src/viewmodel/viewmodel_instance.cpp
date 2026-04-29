@@ -7,6 +7,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/file.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/importers/artboard_importer.hpp"
@@ -282,18 +283,6 @@ void ViewModelInstance::advanced()
     {
         value->advanced();
     }
-}
-
-ViewModelInstanceValue* ViewModelInstance::symbol(int coreType)
-{
-    for (auto& value : m_PropertyValues)
-    {
-        if (value->coreType() == coreType)
-        {
-            return value.get();
-        }
-    }
-    return nullptr;
 }
 
 void ViewModelInstance::addParent(ViewModelInstance* parent)

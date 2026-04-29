@@ -42,6 +42,7 @@ private:
     ValueFlags m_changeFlags;
     std::vector<ViewModelInstanceValueDelegate*> m_delegates;
     std::vector<ViewModelInstanceValueDelegate*> m_delegatesCopy;
+    void registerSymbol();
 
 public:
     void addDelegate(ViewModelInstanceValueDelegate* delegate);

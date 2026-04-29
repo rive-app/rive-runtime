@@ -330,8 +330,7 @@ TEST_CASE("Number To List Artboards Data Context", "[component_list]")
         REQUIRE(artboard != nullptr);
         auto item = list->listItem(i);
         auto vmInstance = item->viewModelInstance();
-        auto symbol = vmInstance->symbol(
-            rive::ViewModelInstanceSymbolListIndexBase::typeKey);
+        auto symbol = vmInstance->propertyValue(rive::SymbolType::itemIndex);
         REQUIRE(symbol != nullptr);
         auto index = symbol->as<rive::ViewModelInstanceSymbolListIndex>()
                          ->propertyValue();

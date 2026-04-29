@@ -166,6 +166,7 @@ enum class LuaAtoms : int16_t
     getList,
     getViewModel,
     getEnum,
+    getIndex,
     values,
     addListener,
     removeListener,
@@ -735,6 +736,7 @@ public:
     static constexpr const char* luaName = "ViewModel";
     static constexpr bool hasMetatable = true;
     int pushValue(const char* name, int coreType = 0);
+    int pushIndex();
     int instance(lua_State* L);
 
     const lua_State* state() const { return m_state; }

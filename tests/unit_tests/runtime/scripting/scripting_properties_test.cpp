@@ -692,3 +692,26 @@ TEST_CASE("Scripts can remove items from lists", "[silver]")
 
     CHECK(silver.matches("remove_from_list"));
 }
+
+TEST_CASE("Expose list index to scripts and ensure the type is correct",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/list_index_script_access.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("list_index_script_access"));
+}
