@@ -1,0 +1,53 @@
+{
+  "name": "TextAsset",
+  "key": {
+    "int": 971,
+    "string": "textasset"
+  },
+  "abstract": true,
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "codeFileId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 901,
+        "string": "codefileid"
+      },
+      "description": "The CodeFile this TextAsset is backed by",
+      "runtime": false,
+      "journal": false
+    },
+    "recentlyEditedIndex": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 840,
+        "string": "recentlyeditedindex"
+      },
+      "runtime": false,
+      "coop": false,
+      "journal": false
+    },
+    "folderPath": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 926,
+        "string": "folderpath"
+      },
+      "description": "Asset panel folder hierarchy that this TextAsset exists in. This is also used as the namespace when registering the asset by name."
+    },
+    "codeFileText": {
+      "type": "String",
+      "key": {
+        "int": 933,
+        "string": "codefiletext"
+      },
+      "description": "Source text of the backing CodeFile. Used when copy/pasting.",
+      "runtime": false,
+      "coop": false,
+      "journal": false
+    }
+  }
+}

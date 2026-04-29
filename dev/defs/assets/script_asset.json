@@ -4,30 +4,8 @@
     "int": 529,
     "string": "scriptasset"
   },
-  "extends": "assets/file_asset.json",
+  "extends": "assets/text_asset.json",
   "properties": {
-    "codeFileId": {
-      "type": "Id",
-      "initialValue": "Core.missingId",
-      "initialValueRuntime": "-1",
-      "key": {
-        "int": 901,
-        "string": "codefileid"
-      },
-      "description": "The codefile this ScriptAsset is backed by",
-      "runtime": false,
-      "journal": false
-    },
-    "recentlyEditedIndex": {
-      "type": "FractionalIndex",
-      "key": {
-        "int": 840,
-        "string": "recentlyeditedindex"
-      },
-      "runtime": false,
-      "coop": false,
-      "journal": false
-    },
     "generatorFunctionRef": {
       "type": "uint",
       "initialValue": "0",
@@ -49,15 +27,6 @@
       },
       "description": "Whether the script is a module (doesn't implement a protocol like Node, Layout, etc."
     },
-    "folderPath": {
-      "type": "String",
-      "initialValue": "''",
-      "key": {
-        "int": 926,
-        "string": "folderpath"
-      },
-      "description": "Asset panel folder hierarchy that this ScriptAsset exists in. This is also used as the namespace for the Script when registering it"
-    },
     "dependencyIds": {
       "type": "List<Id>",
       "initialValue": "[]",
@@ -69,15 +38,15 @@
       "runtime": false,
       "journal": false
     },
-    "codeFileText": {
-      "type": "String",
+    "compilationOrder": {
+      "type": "uint",
+      "initialValue": "0",
       "key": {
-        "int": 933,
-        "string": "codefiletext"
+        "int": 938,
+        "string": "compilationorder"
       },
-      "description": "Used to store the text of the CodeFile. Used when copy/pasting.",
+      "description": "Topological order from compilation — scripts with lower values are depended on by scripts with higher values. Not exported to runtime; the order is inherent in the position the ScriptAsset is written into the .riv.",
       "runtime": false,
-      "coop": false,
       "journal": false
     }
   }

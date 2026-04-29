@@ -210,7 +210,8 @@ do
     fatalwarnings({ 'All' })
 
     files({ 'src/*.cpp', 'src/*.hpp', 'src/*.h', 'src/shaders/*.glsl',
-            'src/shaders/*.frag', 'src/shaders/*.vert', 'include/**.hpp', 'include/**.h' })
+            'src/shaders/*.frag', 'src/shaders/*.vert', 'include/**.hpp', 'include/**.h',
+            'src/ore/ore_binding_map.cpp', 'src/ore/ore_binding_map_ffi.cpp' })
 
 
     if _OPTIONS['with_optick'] then
