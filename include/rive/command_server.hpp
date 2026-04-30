@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/command_queue.hpp"
+#include "rive/hit_result.hpp"
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -22,6 +23,13 @@ public:
     virtual ~CommandServer();
 
     Factory* factory() const { return m_factory; }
+
+    rive::HitResult pointerDownSynchronized(StateMachineHandle,
+                                            const CommandQueue::PointerEvent&);
+    rive::HitResult pointerMoveSynchronized(StateMachineHandle,
+                                            const CommandQueue::PointerEvent&);
+    rive::HitResult pointerUpSynchronized(StateMachineHandle,
+                                          const CommandQueue::PointerEvent&);
 
     File* getFile(FileHandle) const;
     bool getWasDisconnected() const { return m_wasDisconnectReceived; }
@@ -73,6 +81,15 @@ public:
     bool testing_globalImageContains(std::string name);
     bool testing_globalAudioContains(std::string name);
     bool testing_globalFontContains(std::string name);
+
+#ifndef NDEBUG
+    // Used because "sync pointer events" test needs to be able to
+    // make the server on one thread but access it from another
+    void testing_overrideThreadID(std::thread::id threadID)
+    {
+        m_threadID = threadID;
+    }
+#endif
 #endif
 
 private:
@@ -163,11 +180,40 @@ private:
         }
     }
 
+    struct SynchronizedStateMachine : RefCnt<SynchronizedStateMachine>
+    {
+        // kept in seperate header to avoid including StateMachineInstance in
+        // the main CommandServer header
+        ~SynchronizedStateMachine();
+        SynchronizedStateMachine& operator=(SynchronizedStateMachine&& other)
+        {
+            instance = std::move(other.instance);
+            return *this;
+        }
+        SynchronizedStateMachine() = default;
+        SynchronizedStateMachine(
+            std::unique_ptr<StateMachineInstance> instance) :
+            instance(std::move(instance))
+        {}
+        std::unique_ptr<StateMachineInstance> instance;
+        // This mutex is used to ensure that a specific state machine instance
+        // is not being advanced at the same time a sync mouse event is being
+        // processed.
+        std::mutex m_mutex;
+    };
+
+    rcp<CommandServer::SynchronizedStateMachine> getStateMachineWrapper(
+        StateMachineHandle handle);
+
     bool m_wasDisconnectReceived = false;
     const rcp<CommandQueue> m_commandQueue;
     Factory* const m_factory;
 #ifndef NDEBUG
+#ifdef TESTING
+    std::thread::id m_threadID;
+#else
     const std::thread::id m_threadID;
+#endif
 #endif
 
     // Vector to iterate on for subscriptions. This is a vector instead of a map
@@ -193,9 +239,9 @@ private:
     std::unordered_map<ArtboardHandle, rcp<BindableArtboard>> m_artboards;
     std::unordered_map<ViewModelInstanceHandle, rcp<ViewModelInstanceRuntime>>
         m_viewModels;
-    std::unordered_map<StateMachineHandle,
-                       std::unique_ptr<StateMachineInstance>>
+    std::unordered_map<StateMachineHandle, rcp<SynchronizedStateMachine>>
         m_stateMachines;
+    std::mutex m_stateMachineAccessMutex;
 
     std::unordered_map<DrawKey, CommandServerDrawCallback> m_uniqueDraws;
 

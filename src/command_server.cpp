@@ -272,6 +272,73 @@ CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
 
 CommandServer::~CommandServer() {}
 
+rive::HitResult CommandServer::pointerDownSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->pointerDown(pos,
+                                                       pointerEvent.pointerId);
+        }
+    }
+
+    return rive::HitResult::none;
+}
+
+rive::HitResult CommandServer::pointerMoveSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->pointerMove(pos,
+                                                       0,
+                                                       pointerEvent.pointerId);
+        }
+    }
+
+    return rive::HitResult::none;
+}
+
+rive::HitResult CommandServer::pointerUpSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->pointerUp(pos,
+                                                     pointerEvent.pointerId);
+        }
+    }
+
+    return rive::HitResult::none;
+}
+
 File* CommandServer::getFile(FileHandle handle) const
 {
     assert(std::this_thread::get_id() == m_threadID);
@@ -316,12 +383,20 @@ rcp<BindableArtboard> CommandServer::getBindableArtboard(
     return it != m_artboards.end() ? it->second : nullptr;
 }
 
+rcp<CommandServer::SynchronizedStateMachine> CommandServer::
+    getStateMachineWrapper(StateMachineHandle handle)
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    auto it = m_stateMachines.find(handle);
+    return it != m_stateMachines.end() ? it->second : nullptr;
+}
+
 StateMachineInstance* CommandServer::getStateMachineInstance(
     StateMachineHandle handle) const
 {
     assert(std::this_thread::get_id() == m_threadID);
     auto it = m_stateMachines.find(handle);
-    return it != m_stateMachines.end() ? it->second.get() : nullptr;
+    return it != m_stateMachines.end() ? it->second->instance.get() : nullptr;
 }
 
 ViewModelInstanceRuntime* CommandServer::getViewModelInstance(
@@ -1544,7 +1619,12 @@ bool CommandServer::processCommands()
                             name.empty() ? artboard->defaultStateMachine()
                                          : artboard->stateMachineNamed(name))
                     {
-                        m_stateMachines[handle] = std::move(stateMachine);
+                        std::unique_lock<std::mutex> accesLock(
+                            m_stateMachineAccessMutex);
+                        m_stateMachines[handle] =
+                            make_rcp<SynchronizedStateMachine>(
+                                std::move(stateMachine));
+                        accesLock.unlock();
                         assert(m_artboardDependencies.find(artboardHandle) !=
                                m_artboardDependencies.end());
                         m_artboardDependencies[artboardHandle].push_back(
@@ -1638,10 +1718,12 @@ bool CommandServer::processCommands()
                 commandStream >> timeToAdvance;
                 lock.unlock();
 
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto wrapper = getStateMachineWrapper(handle))
                 {
-                    if (!stateMachine->advanceAndApply(timeToAdvance))
+                    std::unique_lock<std::mutex> advanceLock(wrapper->m_mutex);
+                    if (!wrapper->instance->advanceAndApply(timeToAdvance))
                     {
+                        advanceLock.unlock();
                         std::unique_lock<std::mutex> messageLock(
                             m_commandQueue->m_messageMutex);
                         messageStream
@@ -1675,8 +1757,10 @@ bool CommandServer::processCommands()
                 auto it = m_stateMachines.find(handle);
                 if (it != m_stateMachines.end())
                 {
-                    it->second.get()->dispose();
+                    std::unique_lock<std::mutex> accesLock(
+                        m_stateMachineAccessMutex);
                     m_stateMachines.erase(it);
+                    accesLock.unlock();
                 }
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
@@ -2971,5 +3055,10 @@ bool CommandServer::processCommands()
     checkPropertySubscriptions();
 
     return !m_wasDisconnectReceived;
+}
+CommandServer::SynchronizedStateMachine::~SynchronizedStateMachine()
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    instance->dispose();
 }
 }; // namespace rive

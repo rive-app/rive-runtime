@@ -4788,6 +4788,66 @@ TEST_CASE("global Listener", "[CommandQueue]")
     serverThread.join();
 }
 
+static void local_server_thread(CommandServer* server)
+{
+    server->testing_overrideThreadID(std::this_thread::get_id());
+    server->serveUntilDisconnect();
+}
+
+TEST_CASE("sync pointer events", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    std::unique_ptr<CommandServer> server =
+        std::make_unique<CommandServer>(commandQueue, nullContext.get());
+    std::thread serverThread(local_server_thread, server.get());
+
+    std::ifstream stream("assets/pointer_events.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle =
+        commandQueue->instantiateArtboardNamed(fileHandle, "art-1");
+    auto stateMachineHandle =
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "sm-1");
+
+    commandQueue->advanceStateMachine(stateMachineHandle, 0.0f);
+
+    wait_for_server(commandQueue.get());
+    // Cause as much contention as you can.
+    for (int i = 0; i < 20; ++i)
+    {
+        Vec2D pos(50.0f + i * 10.0f, 50.0f + i * 10.0f);
+        commandQueue->pointerDown(stateMachineHandle, {.position = pos});
+        commandQueue->pointerUp(stateMachineHandle, {.position = pos});
+        commandQueue->pointerMove(stateMachineHandle, {.position = pos});
+
+        commandQueue->advanceStateMachine(stateMachineHandle, 0.1f);
+
+        server->pointerDownSynchronized(stateMachineHandle, {.position = pos});
+        server->pointerUpSynchronized(stateMachineHandle, {.position = pos});
+        server->pointerMoveSynchronized(stateMachineHandle, {.position = pos});
+    }
+
+    commandQueue->deleteStateMachine(stateMachineHandle);
+
+    server->pointerDownSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerUpSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerMoveSynchronized(stateMachineHandle, {.position = {}});
+
+    wait_for_server(commandQueue.get());
+
+    // Test bad handles
+    server->pointerDownSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerUpSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerMoveSynchronized(stateMachineHandle, {.position = {}});
+
+    wait_for_server(commandQueue.get());
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("requestViewModelInstanceListClear", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
