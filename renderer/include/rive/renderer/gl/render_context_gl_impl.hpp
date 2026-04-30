@@ -112,6 +112,9 @@ public:
     AtlasRenderType testingOnly_resetAtlasDesiredRenderType(
         RenderContext* owningRenderContext,
         AtlasRenderType atlasDesiredRenderType);
+
+    bool testingOnly_setBlendAdvancedCoherentKHRSupported(bool supported);
+    bool testingOnly_setBlendAdvancedKHRSupported(bool supported);
 #endif
 
 private:

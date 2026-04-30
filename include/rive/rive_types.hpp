@@ -116,9 +116,9 @@
 #endif
 
 #ifdef DEBUG
-#define RIVE_DEBUG_CODE(CODE) CODE
+#define RIVE_DEBUG_CODE(...) __VA_ARGS__
 #else
-#define RIVE_DEBUG_CODE(CODE)
+#define RIVE_DEBUG_CODE(...)
 #endif
 
 #endif // rive_types

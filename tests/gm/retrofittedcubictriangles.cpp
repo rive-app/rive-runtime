@@ -79,8 +79,8 @@ public:
         return true;
     }
 
-    void pushToRenderContext(RenderContext::LogicalFlush* flush,
-                             int subpassIndex) override
+    gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush* flush,
+                                        int subpassIndex) override
     {
         // Make sure the rawPath in our path reference hasn't changed since we
         // began holding!
@@ -147,14 +147,16 @@ public:
                 m_drawContents |= gpu::DrawContents::clockwiseFill;
             }
 
-            flush->pushOuterCubicsDraw(this,
-                                       m_coverageType == CoverageType::msaa
-                                           ? gpu::DrawType::msaaOuterCubics
-                                           : gpu::DrawType::outerCurvePatches,
-                                       tessVertexCount,
-                                       tessLocation,
-                                       gpu::ShaderMiscFlags::none);
+            return &flush->pushOuterCubicsDraw(
+                this,
+                m_coverageType == CoverageType::msaa
+                    ? gpu::DrawType::msaaOuterCubics
+                    : gpu::DrawType::outerCurvePatches,
+                tessVertexCount,
+                tessLocation,
+                gpu::ShaderMiscFlags::none);
         }
+        return nullptr;
     }
 };
 

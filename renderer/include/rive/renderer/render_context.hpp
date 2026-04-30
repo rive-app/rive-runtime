@@ -700,7 +700,7 @@ private:
         //
         // Also adds the PathDraw to a dstRead list if one is
         // required, and if this is the path's first subpass.
-        void pushMidpointFanDraw(
+        gpu::DrawBatch& pushMidpointFanDraw(
             const PathDraw*,
             gpu::DrawType,
             uint32_t tessVertexCount,
@@ -712,7 +712,7 @@ private:
         //
         // Also adds the PathDraw to a dstRead list if one is
         // required, and if this is the path's first subpass.
-        void pushOuterCubicsDraw(
+        gpu::DrawBatch& pushOuterCubicsDraw(
             const PathDraw*,
             gpu::DrawType,
             uint32_t tessVertexCount,
@@ -722,27 +722,27 @@ private:
         // Writes out triangle verties for the desired WindingFaces and pushes
         // an "interiorTriangulation" draw to the list.
         // Returns the number of vertices actually written.
-        size_t pushInteriorTriangulationDraw(
+        gpu::DrawBatch* pushInteriorTriangulationDraw(
             const PathDraw*,
             uint32_t pathID,
             gpu::WindingFaces,
-            gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
+            gpu::ShaderMiscFlags RIVE_DEBUG_CODE(, size_t* vertexCounter));
 
         // Pushes a screen-space rectangle to the draw list, whose pixel
         // coverage is determined by the atlas region associated with the given
         // pathID.
-        void pushAtlasBlit(PathDraw*, uint32_t pathID);
+        gpu::DrawBatch& pushAtlasBlit(PathDraw*, uint32_t pathID);
 
         // Pushes an "imageRect" to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images
         // should be drawn as rectangular paths with an image paint.
-        void pushImageRectDraw(ImageRectDraw*);
+        gpu::DrawBatch& pushImageRectDraw(ImageRectDraw*);
 
         // Pushes an "imageMesh" draw to the list.
-        void pushImageMeshDraw(ImageMeshDraw*);
+        gpu::DrawBatch& pushImageMeshDraw(ImageMeshDraw*);
 
         // Pushes a "clipReset" draw to the list.
-        void pushClipResetDraw(ClipReset*);
+        gpu::DrawBatch& pushClipResetDraw(ClipReset*);
 
     private:
         friend class TessellationWriter;
@@ -763,6 +763,17 @@ private:
                             gpu::PaintType,
                             uint32_t elementCount,
                             uint32_t baseElement);
+
+        // Adds a batch to the list of draws that use a dstBarrier.
+        void addBatchToDstBarrierList(DrawBatch* batch)
+        {
+            assert(m_dstBlendBarrierListTail != nullptr);
+            assert(*m_dstBlendBarrierListTail == nullptr);
+            assert(batch->nextDstBlendBarrier == nullptr);
+            assert(enums::is_flag_set(batch->barriers, BarrierFlags::dstBlend));
+            *m_dstBlendBarrierListTail = batch;
+            m_dstBlendBarrierListTail = &batch->nextDstBlendBarrier;
+        }
 
         // Instance pointer to the outer parent class.
         RenderContext* const m_ctx;

@@ -1838,7 +1838,9 @@ void RenderContextGLImpl::preBeginFrame(RenderContext* ctx)
     {
         // If the blending was out of tolerance then we need to disable this
         // feature.
+        m_capabilities.KHR_blend_equation_advanced_coherent = false;
         m_capabilities.KHR_blend_equation_advanced = false;
+        m_platformFeatures.supportsBlendAdvancedCoherentKHR = false;
         m_platformFeatures.supportsBlendAdvancedKHR = false;
 
         // We also need to clear the shader caches because shaders get built
@@ -2753,6 +2755,26 @@ RenderContextGLImpl::AtlasRenderType RenderContextGLImpl::
     return std::exchange(
         m_atlasRenderType,
         select_atlas_render_type(m_capabilities, atlasDesiredRenderType));
+}
+
+bool RenderContextGLImpl::testingOnly_setBlendAdvancedCoherentKHRSupported(
+    bool supported)
+{
+    bool wasSupported = m_capabilities.KHR_blend_equation_advanced_coherent;
+    assert(wasSupported == m_platformFeatures.supportsBlendAdvancedCoherentKHR);
+    m_capabilities.KHR_blend_equation_advanced_coherent = supported;
+    m_platformFeatures.supportsBlendAdvancedCoherentKHR = supported;
+    return wasSupported;
+}
+
+bool RenderContextGLImpl::testingOnly_setBlendAdvancedKHRSupported(
+    bool supported)
+{
+    bool wasSupported = m_capabilities.KHR_blend_equation_advanced;
+    assert(wasSupported == m_platformFeatures.supportsBlendAdvancedKHR);
+    m_capabilities.KHR_blend_equation_advanced = supported;
+    m_platformFeatures.supportsBlendAdvancedKHR = supported;
+    return wasSupported;
 }
 #endif
 
