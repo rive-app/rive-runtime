@@ -2354,9 +2354,12 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         m_needsAdvance = true;
     }
 
-    for (auto inst : m_inputInstances)
+    if (m_inputInstances.size() > 0)
     {
-        inst->advanced();
+        for (auto inst : m_inputInstances)
+        {
+            inst->advanced();
+        }
     }
     return m_needsAdvance || !m_reportedEvents.empty() ||
            !m_reportedListenerViewModels.empty();

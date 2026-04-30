@@ -1378,6 +1378,10 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 
 void Artboard::reset()
 {
+    if (m_Resettables.size() == 0)
+    {
+        return;
+    }
     for (auto obj : m_Resettables)
     {
         obj->reset();

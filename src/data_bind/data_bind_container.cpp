@@ -35,6 +35,10 @@ void DataBindContainer::bindDataBindsFromContext(DataContext* dataContext)
 
 bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
 {
+    if (m_dataBinds.size() == 0)
+    {
+        return false;
+    }
     bool didUpdate = false;
     for (auto& dataBind : m_dataBinds)
     {
@@ -114,6 +118,10 @@ void DataBindContainer::updateDataBind(DataBind* dataBind,
 
 void DataBindContainer::updateDataBinds(bool applyTargetToSource)
 {
+    if (m_persistingDataBinds.size() == 0 && m_dirtyDataBinds.size() == 0)
+    {
+        return;
+    }
     m_isProcessing = true;
     for (auto& dataBind : m_persistingDataBinds)
     {
