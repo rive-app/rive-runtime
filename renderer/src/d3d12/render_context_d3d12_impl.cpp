@@ -25,13 +25,13 @@ static constexpr D3D12_FILTER filter_for_sampler_options(ImageFilter option)
     switch (option)
     {
         case ImageFilter::nearest:
-            return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+            return D3D12_FILTER_MIN_MAG_MIP_POINT;
         case ImageFilter::bilinear:
-            return D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+            return D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
     }
 
     RIVE_UNREACHABLE();
-    return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+    return D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 };
 
 static constexpr D3D12_TEXTURE_ADDRESS_MODE address_mode_for_sampler_option(
