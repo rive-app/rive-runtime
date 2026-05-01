@@ -11,12 +11,11 @@ using namespace rive;
 void ScriptedEffectPath::invalidateEffect() { m_path.rewind(); }
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedPathEffect::scriptInit(ScriptingVM* vm)
+
+void ScriptedPathEffect::didHydrateScriptInputs()
 {
     m_isAdvanceActive = true;
-    ScriptedObject::scriptInit(vm);
     addScriptedDirt(ComponentDirt::Paint, true);
-    return true;
 }
 
 void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,

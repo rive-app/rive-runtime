@@ -52,6 +52,19 @@ ScriptInput* ScriptInput::from(Core* component)
 
 void ScriptInput::initScriptedValue() {}
 
+bool ScriptInput::validateForColdScriptInit()
+{
+    return validateForScriptInit();
+}
+
+bool ScriptInput::hydrateScriptInput()
+{
+    initScriptedValue();
+    return true;
+}
+
+bool ScriptInput::validateHydrationPrerequisites() { return true; }
+
 #ifdef WITH_RIVE_SCRIPTING
 bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
                                                    lua_State* state)
@@ -296,7 +309,7 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());
-    return object->scriptInit(scriptVM);
+    return object->ensureScriptInitialized(scriptVM);
 #else
     return false;
 #endif

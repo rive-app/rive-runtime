@@ -21,7 +21,7 @@ class ScriptedDrawable : public ScriptedDrawableBase,
 {
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(ScriptingVM* vm) override;
+    void didHydrateScriptInputs() override;
 #endif
     void draw(Renderer* renderer) override;
     void update(ComponentDirt value) override;

@@ -25,6 +25,9 @@ public:
     {
         return m_referencedArtboard != nullptr;
     }
+    bool validateForColdScriptInit() override;
+    bool hydrateScriptInput() override;
+    bool validateHydrationPrerequisites() override;
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
     StatusCode onAddedClean(CoreContext* context) override;

@@ -874,7 +874,14 @@ void Artboard::initScriptedObjects()
     {
         for (auto obj : m_ScriptedObjects)
         {
-            obj->reinit();
+            if (obj->scriptAsset() != nullptr)
+            {
+                if (!obj->userLuaInitDone())
+                {
+                    obj->scriptAsset()->initScriptedObject(obj);
+                }
+                obj->hydrateScriptInputs();
+            }
         }
     }
 }
@@ -2431,6 +2438,10 @@ void Artboard::internalDataContext(rcp<DataContext> value)
     }
     bindDataBindsFromContext(m_DataContext.get());
     sortDataBinds();
+    for (auto* scriptedObject : m_ScriptedObjects)
+    {
+        scriptedObject->dataContext(value);
+    }
     initScriptedObjects();
 }
 

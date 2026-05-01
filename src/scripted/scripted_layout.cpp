@@ -8,14 +8,14 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedLayout::scriptInit(ScriptingVM* vm)
+
+void ScriptedLayout::didHydrateScriptInputs()
 {
-    ScriptedDrawable::scriptInit(vm);
+    ScriptedDrawable::didHydrateScriptInputs();
     if (parent() != nullptr && parent()->is<LayoutComponent>())
     {
         parent()->as<LayoutComponent>()->markLayoutNodeDirty(true);
     }
-    return true;
 }
 
 void ScriptedLayout::callScriptedResize(Vec2D size)

@@ -130,6 +130,7 @@ void ScriptedProperty::clearListeners()
         {
             lua_unref(m_state, listener.userdata);
         }
+        lua_unref(m_state, listener.propertySelfRef);
     }
     m_listeners.clear();
 }
@@ -222,15 +223,21 @@ int ScriptedProperty::addListener()
 {
     if (lua_isfunction(m_state, 2))
     {
+        lua_pushvalue(m_state, 1);
+        int propertySelfRef = lua_ref(m_state, -1);
+        lua_pop(m_state, 1);
         int callbackRef = lua_ref(m_state, 2);
-        m_listeners.push_back({callbackRef});
+        m_listeners.push_back({callbackRef, 0, propertySelfRef});
         return 0;
     }
     else if (lua_isfunction(m_state, 3))
     {
+        lua_pushvalue(m_state, 1);
+        int propertySelfRef = lua_ref(m_state, -1);
+        lua_pop(m_state, 1);
         int userdataRef = lua_ref(m_state, 2);
         int callbackRef = lua_ref(m_state, 3);
-        m_listeners.push_back({callbackRef, userdataRef});
+        m_listeners.push_back({callbackRef, userdataRef, propertySelfRef});
         return 0;
     }
 
@@ -265,6 +272,7 @@ int ScriptedProperty::removeListener()
             {
                 lua_unref(m_state, listener.userdata);
             }
+            lua_unref(m_state, listener.propertySelfRef);
             itr = m_listeners.erase(itr);
         }
         else

@@ -1900,6 +1900,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_scriptedObjectsMap[scriptedOb] =
             scriptedOb->cloneScriptedObject(this);
     }
+    for (auto& scriptedPair : m_scriptedObjectsMap)
+    {
+        scriptedPair.second->dataContext(m_artboardInstance->dataContext());
+    }
+    initScriptedObjects();
     // Register Scripted objects as keyboard and text targets when expected
     for (auto object : instance->objects<ContainerComponent>())
     {
@@ -2508,7 +2513,14 @@ void StateMachineInstance::initScriptedObjects()
 {
     for (auto obj : m_scriptedObjectsMap)
     {
-        obj.second->reinit();
+        if (obj.second->scriptAsset() != nullptr)
+        {
+            if (!obj.second->userLuaInitDone())
+            {
+                obj.second->scriptAsset()->initScriptedObject(obj.second);
+            }
+            obj.second->hydrateScriptInputs();
+        }
     }
 }
 

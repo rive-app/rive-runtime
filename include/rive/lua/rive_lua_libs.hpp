@@ -689,10 +689,15 @@ private:
     std::unique_ptr<LinearAnimationInstance> m_animation;
 };
 
+// Each listener keeps a registry ref to the property userdata (self) so Luau
+// cannot collect ScriptedProperty while callbacks are registered. Released in
+// clearListeners / removeListener alongside function and optional userdata
+// refs.
 struct ScriptedListener
 {
     int function;
     int userdata;
+    int propertySelfRef;
 };
 
 class ScriptedProperty : public ViewModelInstanceValueDelegate
@@ -1228,12 +1233,17 @@ public:
     ScriptedContext(ScriptedObject*);
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
     void clearScriptedObject() { m_scriptedObject = nullptr; }
+    int pushViewModel(lua_State*);
+    int pushRootViewModel(lua_State*);
+    int pushDataContext(lua_State*);
     static constexpr uint8_t luaTag = LUA_T_COUNT + 28;
     static constexpr const char* luaName = "Context";
     static constexpr bool hasMetatable = true;
+    bool missingRequestedData() { return m_missingRequestedData; }
 
 private:
     ScriptedObject* m_scriptedObject = nullptr;
+    bool m_missingRequestedData = false;
 };
 
 /// Wraps [`ListenerInvocation`] for `performAction` in scripted listener

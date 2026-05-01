@@ -26,10 +26,91 @@
 #include "rive_file_reader.hpp"
 #include "scripting_test_utilities.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
+#include "lua.h"
 #include <catch.hpp>
 #include <cstdio>
 
 using namespace rive;
+
+TEST_CASE("property listeners survive userdata gc while subscribed",
+          "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/data_binding_test.riv");
+
+    auto artboard = file->artboard("artboard-1")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    auto rotationProperty = viewModelInstance->propertyValue("rotation");
+    REQUIRE(rotationProperty != nullptr);
+    REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+listenerHit = false
+listenerHitAfterRemove = false
+
+function registerRotationListener(vm)
+    vm.rotation:addListener(function()
+        listenerHit = true
+    end)
+end
+
+function registerThenRemove(vm)
+    local function cb()
+        listenerHitAfterRemove = true
+    end
+    vm.rotation:addListener(cb)
+    vm.rotation:removeListener(cb)
+end
+)TEST_SRC");
+
+    auto L = vm.state();
+
+    SECTION("chained addListener keeps property alive across gc")
+    {
+        lua_getglobal(L, "registerRotationListener");
+        lua_newrive<ScriptedViewModel>(L,
+                                       L,
+                                       ref_rcp(viewModelInstance->viewModel()),
+                                       viewModelInstance);
+        REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+        lua_gc(L, LUA_GCCOLLECT, 0);
+        lua_gc(L, LUA_GCCOLLECT, 0);
+
+        rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
+            42.0f);
+
+        lua_getglobal(L, "listenerHit");
+        CHECK(lua_toboolean(L, -1) == 1);
+        lua_pop(L, 1);
+    }
+
+    SECTION("removeListener releases anchor before value change")
+    {
+        lua_getglobal(L, "registerThenRemove");
+        lua_newrive<ScriptedViewModel>(L,
+                                       L,
+                                       ref_rcp(viewModelInstance->viewModel()),
+                                       viewModelInstance);
+        REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+        lua_gc(L, LUA_GCCOLLECT, 0);
+        lua_gc(L, LUA_GCCOLLECT, 0);
+
+        rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
+            99.0f);
+
+        lua_getglobal(L, "listenerHitAfterRemove");
+        CHECK(lua_toboolean(L, -1) == 0);
+        lua_pop(L, 1);
+    }
+}
 
 TEST_CASE("scripted properties can be passed to luau", "[scripting_properties]")
 {

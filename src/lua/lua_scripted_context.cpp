@@ -19,6 +19,65 @@ ScriptedContext::ScriptedContext(ScriptedObject* scriptedObject) :
     m_scriptedObject(scriptedObject)
 {}
 
+int ScriptedContext::pushViewModel(lua_State* state)
+{
+    if (m_scriptedObject)
+    {
+        auto dataContext = m_scriptedObject->dataContext();
+        if (dataContext && dataContext->viewModelInstance())
+        {
+            auto viewModelInstance = dataContext->viewModelInstance();
+            lua_newrive<ScriptedViewModel>(
+                state,
+                state,
+                ref_rcp(viewModelInstance->viewModel()),
+                viewModelInstance);
+            return 1;
+        }
+    }
+    m_missingRequestedData = true;
+    return 0;
+}
+
+int ScriptedContext::pushRootViewModel(lua_State* state)
+{
+    if (m_scriptedObject)
+    {
+        auto dataContext = m_scriptedObject->dataContext();
+        if (dataContext)
+        {
+            auto viewModelInstance = dataContext->rootViewModelInstance();
+            if (viewModelInstance)
+            {
+                lua_newrive<ScriptedViewModel>(
+                    state,
+                    state,
+                    ref_rcp(viewModelInstance->viewModel()),
+                    viewModelInstance);
+                return 1;
+            }
+        }
+    }
+    m_missingRequestedData = true;
+    return 0;
+}
+
+int ScriptedContext::pushDataContext(lua_State* state)
+{
+
+    if (m_scriptedObject)
+    {
+        auto dataContext = m_scriptedObject->dataContext();
+        if (dataContext)
+        {
+            lua_newrive<ScriptedDataContext>(state, state, dataContext);
+            return 1;
+        }
+    }
+    m_missingRequestedData = true;
+    return 0;
+}
+
 static int context_namecall(lua_State* L)
 {
     int atom;
@@ -41,39 +100,11 @@ static int context_namecall(lua_State* L)
             }
             case (int)LuaAtoms::viewModel:
             {
-                auto scriptedObject = scriptedContext->scriptedObject();
-                auto dataContext = scriptedObject->dataContext();
-                if (dataContext && dataContext->viewModelInstance())
-                {
-                    auto viewModelInstance = dataContext->viewModelInstance();
-                    lua_newrive<ScriptedViewModel>(
-                        L,
-                        L,
-                        ref_rcp(viewModelInstance->viewModel()),
-                        viewModelInstance);
-                    return 1;
-                }
-                return 0;
+                return scriptedContext->pushViewModel(L);
             }
             case (int)LuaAtoms::rootViewModel:
             {
-                auto scriptedObject = scriptedContext->scriptedObject();
-                auto dataContext = scriptedObject->dataContext();
-                if (dataContext)
-                {
-                    auto viewModelInstance =
-                        dataContext->rootViewModelInstance();
-                    if (viewModelInstance)
-                    {
-                        lua_newrive<ScriptedViewModel>(
-                            L,
-                            L,
-                            ref_rcp(viewModelInstance->viewModel()),
-                            viewModelInstance);
-                        return 1;
-                    }
-                }
-                return 0;
+                return scriptedContext->pushRootViewModel(L);
             }
             case (int)LuaAtoms::image:
             {
@@ -156,14 +187,7 @@ static int context_namecall(lua_State* L)
             }
             case (int)LuaAtoms::dataContext:
             {
-                auto scriptedObject = scriptedContext->scriptedObject();
-                auto dataContext = scriptedObject->dataContext();
-                if (dataContext)
-                {
-                    lua_newrive<ScriptedDataContext>(L, L, dataContext);
-                    return 1;
-                }
-                return 0;
+                return scriptedContext->pushDataContext(L);
             }
 #ifdef WITH_RIVE_AUDIO
             case (int)LuaAtoms::audio:

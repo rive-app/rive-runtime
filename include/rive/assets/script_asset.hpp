@@ -46,6 +46,15 @@ public:
     virtual ~ScriptInput();
     virtual void initScriptedValue();
     virtual bool validateForScriptInit() = 0;
+    /// Inputs that need a DataContext (VM paths, VM-resolved artboards) must
+    /// return true here without requiring binding; resolution runs in
+    /// hydrateScriptInput().
+    virtual bool validateForColdScriptInit();
+    /// Resolve bind-time inputs and push into Lua (called after data bind).
+    virtual bool hydrateScriptInput();
+    /// Non-mutating checks that hydrateScriptInput can succeed for every input;
+    /// hydrateScriptInputs validates all before pushing any.
+    virtual bool validateHydrationPrerequisites();
     static ScriptInput* from(Core* component);
     DataBind* dataBind() { return m_dataBind; }
     void dataBind(DataBind* dataBind, bool ownsDataBind = false)

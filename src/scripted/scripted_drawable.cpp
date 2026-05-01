@@ -8,12 +8,11 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDrawable::scriptInit(ScriptingVM* vm)
+
+void ScriptedDrawable::didHydrateScriptInputs()
 {
     m_isAdvanceActive = true;
-    ScriptedObject::scriptInit(vm);
     addDirt(ComponentDirt::Paint);
-    return true;
 }
 
 void ScriptedDrawable::draw(Renderer* renderer)

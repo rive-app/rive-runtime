@@ -41,11 +41,10 @@ void ScriptedDataConverter::disposeScriptInputs()
 }
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDataConverter::scriptInit(ScriptingVM* vm)
+
+void ScriptedDataConverter::didHydrateScriptInputs()
 {
-    ScriptedObject::scriptInit(vm);
     addScriptedDirt(ComponentDirt::Bindings);
-    return true;
 }
 
 bool ScriptedDataConverter::pushDataValue(DataValue* value)
