@@ -415,14 +415,27 @@ void ScriptedObject::scriptDispose()
         lua_unref(L, m_self);
         disposeScriptedContext();
 #ifdef TESTING
-        // Force GC to collect any ScriptedArtboard instances created via
-        // instance()
         lua_gc(L, LUA_GCCOLLECT, 0);
 #endif
     }
     m_vm = nullptr;
     m_self = 0;
     m_userLuaInitDone = false;
+}
+
+void ScriptedObject::collectLuaGarbage(lua_State* state)
+{
+    if (state != nullptr)
+    {
+        // Null C++ pointers on all ScriptReffedArtboard and ScriptedViewModel
+        // instances for this lua_State. Sub-artboard scripts store orphaned
+        // registry refs (m_context, m_dataRef, m_propertyRefs) that keep C++
+        // objects alive. Rather than walk the registry, we null the C++ side
+        // directly — the Lua userdata become harmless empty shells.
+        ScriptReffedArtboard::releaseAll(state);
+        ScriptedViewModel::releaseAll(state);
+        lua_gc(state, LUA_GCCOLLECT, 0);
+    }
 }
 #else
 void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard) {}
