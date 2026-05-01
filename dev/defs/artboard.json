@@ -132,7 +132,8 @@
       },
       "description": "List of timelines and state machines currenty open.",
       "runtime": false,
-      "coop": false
+      "coop": false,
+      "journal": false
     },
     "isStateful": {
       "type": "bool",
