@@ -1162,18 +1162,18 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     }
 
     // copy to gpu heap
+    const UINT dynamicSrvHeapIndex =
+        m_heapDescriptorOffset + DYNAMIC_SRV_UAV_HEAP_DESCRIPTOPR_START;
     m_device->CopyDescriptorsSimple(
         NUM_DYNAMIC_SRV_HEAP_DESCRIPTORS,
-        m_srvUavCbvHeap->cpuHandleForUpload(
-            m_heapDescriptorOffset + DYNAMIC_SRV_UAV_HEAP_DESCRIPTOPR_START),
+        m_srvUavCbvHeap->cpuHandleForUpload(dynamicSrvHeapIndex),
         m_cpuSrvUavCbvHeap->cpuHandleForIndex(
             DYNAMIC_SRV_UAV_HEAP_DESCRIPTOPR_START),
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     cmdList->SetGraphicsRootDescriptorTable(
         DYNAMIC_SRV_SIG_INDEX,
-        m_srvUavCbvHeap->gpuHandleForIndex(
-            m_heapDescriptorOffset + DYNAMIC_SRV_UAV_HEAP_DESCRIPTOPR_START));
+        m_srvUavCbvHeap->gpuHandleForIndex(dynamicSrvHeapIndex));
 
     if (desc.gradSpanCount)
     {
@@ -1655,6 +1655,33 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                                                        m_samplerHeap->heap()};
 
                     cmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+                    // SetDescriptorHeaps invalidates every previously-bound
+                    // root descriptor table. Re-bind every table that was
+                    // set up earlier in this flush, otherwise GPU-Based
+                    // Validation fires id=554 on every subsequent draw and
+                    // the runtime eventually TDRs the device.
+                    cmdList->SetGraphicsRootDescriptorTable(
+                        STATIC_SRV_SIG_INDEX,
+                        m_srvUavCbvHeap->gpuHandleForIndex(
+                            STATIC_SRV_UAV_HEAP_DESCRIPTOPR_START));
+                    cmdList->SetGraphicsRootDescriptorTable(
+                        UAV_SIG_INDEX,
+                        m_srvUavCbvHeap->gpuHandleForIndex(
+                            UAV_START_HEAP_INDEX));
+                    cmdList->SetGraphicsRootDescriptorTable(
+                        SAMPLER_SIG_INDEX,
+                        m_samplerHeap->gpuHandleForIndex(0));
+                    cmdList->SetGraphicsRootDescriptorTable(
+                        DYNAMIC_SRV_SIG_INDEX,
+                        m_srvUavCbvHeap->gpuHandleForIndex(
+                            dynamicSrvHeapIndex));
+                    cmdList->SetGraphicsRootDescriptorTable(
+                        IMAGE_SIG_INDEX,
+                        m_srvUavCbvHeap->gpuHandleForIndex(
+                            m_heapDescriptorOffset - 1));
+                    // DYNAMIC_SAMPLER_SIG_INDEX is rebound by the existing
+                    // call below.
                 }
 
                 m_samplerHeap->markSamplerToIndex(
