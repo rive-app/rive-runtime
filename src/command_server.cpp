@@ -1675,12 +1675,14 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 lock.unlock();
 
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
                     if (auto viewModelInstance =
                             getViewModelInstance(viewModel))
                     {
-                        stateMachine->bindViewModelInstance(
+                        std::unique_lock<std::mutex> accesLock(
+                            stateMachineWrapper->m_mutex);
+                        stateMachineWrapper->instance->bindViewModelInstance(
                             viewModelInstance->instance());
                     }
                     else
@@ -2836,13 +2838,17 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerMove(position,
-                                              0.0f,
-                                              pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerMove(
+                        position,
+                        0.0f,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2866,11 +2872,16 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerDown(position, pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerDown(
+                        position,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2894,11 +2905,16 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerUp(position, pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerUp(
+                        position,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2922,11 +2938,16 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerExit(position, pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerExit(
+                        position,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
