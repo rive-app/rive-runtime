@@ -641,6 +641,8 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
         m_capabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+    // BC1–BC7 are required at D3D feature level 11.0+.
+    m_platformFeatures.supportsTextureCompressionBC = true;
 
     m_rtvHeap = m_resourceManager->makeHeap(NUM_RTV_HEAP_DESCRIPTORS,
                                             D3D12_DESCRIPTOR_HEAP_TYPE_RTV,

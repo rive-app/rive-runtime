@@ -201,6 +201,14 @@ RenderContextGLImpl::RenderContextGLImpl(
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
     m_platformFeatures.maxTextureSize = maxTextureSize;
 
+    m_platformFeatures.supportsTextureCompressionBC =
+        m_capabilities.EXT_texture_compression_s3tc &&
+        m_capabilities.EXT_texture_compression_bptc;
+    m_platformFeatures.supportsTextureCompressionASTC =
+        m_capabilities.KHR_texture_compression_astc_ldr;
+    m_platformFeatures.supportsTextureCompressionETC2 =
+        m_capabilities.supportsETC2;
+
     std::vector<const char*> generalDefines;
     if (!m_capabilities.ARB_shader_storage_buffer_object)
     {
@@ -2911,6 +2919,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     // versions are reported as extensions.
     if (capabilities.isGLES)
     {
+        // ETC2 is mandatory in GLES 3.0+.
+        capabilities.supportsETC2 = true;
         if (capabilities.isContextVersionAtLeast(3, 1))
         {
             capabilities.ARB_shader_storage_buffer_object = true;
@@ -3054,6 +3064,24 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.QCOM_shader_framebuffer_fetch_noncoherent = true;
         }
+        else if (strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0)
+        {
+            capabilities.EXT_texture_compression_s3tc = true;
+        }
+        else if (strcmp(ext, "GL_EXT_texture_compression_bptc") == 0 ||
+                 strcmp(ext, "GL_ARB_texture_compression_bptc") == 0)
+        {
+            capabilities.EXT_texture_compression_bptc = true;
+        }
+        else if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
+        {
+            capabilities.KHR_texture_compression_astc_ldr = true;
+        }
+        else if (strcmp(ext, "GL_ARB_ES3_compatibility") == 0)
+        {
+            // Desktop GL exposes ETC2 via this extension.
+            capabilities.supportsETC2 = true;
+        }
     }
 
 #ifdef RIVE_DESKTOP_GL
@@ -3121,6 +3149,24 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             "KHR_parallel_shader_compile"))
     {
         capabilities.KHR_parallel_shader_compile = true;
+    }
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "WEBGL_compressed_texture_s3tc"))
+    {
+        capabilities.EXT_texture_compression_s3tc = true;
+    }
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "EXT_texture_compression_bptc"))
+    {
+        capabilities.EXT_texture_compression_bptc = true;
+    }
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "WEBGL_compressed_texture_astc"))
+    {
+        capabilities.KHR_texture_compression_astc_ldr = true;
     }
 #endif // RIVE_WEBGL
 

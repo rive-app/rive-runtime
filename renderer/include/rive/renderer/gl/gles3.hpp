@@ -209,6 +209,13 @@ struct GLCapabilities
     bool EXT_shader_pixel_local_storage2 : 1;
     bool INTEL_fragment_shader_ordering : 1;
     bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
+
+    // Texture compression extensions.
+    bool EXT_texture_compression_s3tc : 1; // BC1/BC2/BC3
+    bool EXT_texture_compression_bptc : 1; // BC7
+    bool KHR_texture_compression_astc_ldr : 1;
+    // ETC2 is core in GLES 3.0+; tracked here for desktop GL (ARB_ES3_compat).
+    bool supportsETC2 : 1;
 };
 
 #ifdef RIVE_ANDROID

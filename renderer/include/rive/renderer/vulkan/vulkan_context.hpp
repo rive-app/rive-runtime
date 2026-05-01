@@ -32,6 +32,11 @@ struct VulkanFeatures
 
     // Indicates a nonconformant driver, like MoltenVK.
     bool VK_KHR_portability_subset = false;
+
+    // VkPhysicalDeviceFeatures – texture compression.
+    bool textureCompressionBC = false;       // BC1/BC2/BC3/BC7
+    bool textureCompressionASTC_LDR = false; // ASTC LDR
+    bool textureCompressionETC2 = false;     // ETC2
 };
 
 // Wraps a VkDevice, function dispatch table, and VMA library instance.

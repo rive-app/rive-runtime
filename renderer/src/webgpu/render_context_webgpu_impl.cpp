@@ -1323,6 +1323,13 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;
+
+    m_platformFeatures.supportsTextureCompressionBC =
+        m_device.HasFeature(wgpu::FeatureName::TextureCompressionBC);
+    m_platformFeatures.supportsTextureCompressionASTC =
+        m_device.HasFeature(wgpu::FeatureName::TextureCompressionASTC);
+    m_platformFeatures.supportsTextureCompressionETC2 =
+        m_device.HasFeature(wgpu::FeatureName::TextureCompressionETC2);
 }
 
 void RenderContextWebGPUImpl::initGPUObjects()

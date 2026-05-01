@@ -121,6 +121,13 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         // We use wireframe for debugging, so enable it even in core mode
         .fillModeNonSolid = supportedFeatures.fillModeNonSolid,
 
+        // VkPhysicalDeviceFeatures field order: textureCompression* must
+        // come before fragmentStoresAndAtomics (-Wreorder-init-list).
+        .textureCompressionETC2 = supportedFeatures.textureCompressionETC2,
+        .textureCompressionASTC_LDR =
+            supportedFeatures.textureCompressionASTC_LDR,
+        .textureCompressionBC = supportedFeatures.textureCompressionBC,
+
         // Always enable this
         .fragmentStoresAndAtomics = supportedFeatures.fragmentStoresAndAtomics,
 
@@ -135,6 +142,11 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         .fragmentStoresAndAtomics =
             bool(requestedFeatures.fragmentStoresAndAtomics),
         .shaderClipDistance = bool(requestedFeatures.shaderClipDistance),
+        .textureCompressionBC = bool(requestedFeatures.textureCompressionBC),
+        .textureCompressionASTC_LDR =
+            bool(requestedFeatures.textureCompressionASTC_LDR),
+        .textureCompressionETC2 =
+            bool(requestedFeatures.textureCompressionETC2),
     };
 
     DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(

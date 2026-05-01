@@ -509,6 +509,8 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         d3dCapabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+    // BC1–BC7 are required at D3D feature level 11.0+.
+    m_platformFeatures.supportsTextureCompressionBC = true;
 
     // Create a default raster state for path and offscreen draws.
     D3D11_RASTERIZER_DESC rasterDesc;

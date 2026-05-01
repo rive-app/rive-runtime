@@ -495,6 +495,20 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 #endif
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
+    // Texture compression support varies by Apple platform family.
+#if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS) ||      \
+    defined(RIVE_IOS_SIMULATOR) || defined(RIVE_XROS_SIMULATOR) ||             \
+    defined(RIVE_APPLETVOS_SIMULATOR)
+    // iOS/tvOS/visionOS: ETC2 and ASTC are always supported.
+    m_platformFeatures.supportsTextureCompressionETC2 = true;
+    m_platformFeatures.supportsTextureCompressionASTC = true;
+#else
+    // macOS: BC is always supported; ASTC only on Apple Silicon.
+    m_platformFeatures.supportsTextureCompressionBC = true;
+    m_platformFeatures.supportsTextureCompressionASTC =
+        [m_gpu supportsFamily:MTLGPUFamilyApple1];
+#endif
+
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_XROS_SIMULATOR) || \
     defined(RIVE_APPLETVOS) || defined(RIVE_APPLETVOS_SIMULATOR)
     // Atomic barriers are never used on iOS, but if we ever did need them, we

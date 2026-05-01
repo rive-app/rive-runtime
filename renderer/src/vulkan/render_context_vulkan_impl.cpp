@@ -887,6 +887,12 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;
     m_platformFeatures.maxTextureSize =
         physicalDeviceProps.limits.maxImageDimension2D;
+    m_platformFeatures.supportsTextureCompressionBC =
+        m_vk->features.textureCompressionBC;
+    m_platformFeatures.supportsTextureCompressionASTC =
+        m_vk->features.textureCompressionASTC_LDR;
+    m_platformFeatures.supportsTextureCompressionETC2 =
+        m_vk->features.textureCompressionETC2;
     m_platformFeatures.maxCoverageBufferLength =
         std::min(physicalDeviceProps.limits.maxStorageBufferRange, 1u << 28) /
         sizeof(uint32_t);

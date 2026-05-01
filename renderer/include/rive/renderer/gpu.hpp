@@ -219,6 +219,11 @@ struct PlatformFeatures
     // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
     // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
     size_t maxCoverageBufferLength = (1 << 27) / sizeof(uint32_t);
+
+    // GPU compressed texture format support (queried per backend at init).
+    bool supportsTextureCompressionBC = false;   // BC1/BC2/BC3/BC7
+    bool supportsTextureCompressionASTC = false; // ASTC LDR (any block size)
+    bool supportsTextureCompressionETC2 = false; // ETC2 RGB8 / RGBA8
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a
