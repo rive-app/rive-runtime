@@ -493,12 +493,45 @@ void LayoutComponent::syncStyle()
         ygNode.setMeasureFunc(nullptr);
     }
 
+    // Derive the unit the layout engine needs from the persisted unit + scale
+    // type.
+    //   - fill/hug always map to YGUnitAuto (regardless of position type) —
+    //     these scale modes don't have a meaningful unit; the layout engine
+    //     decides the size.
+    //   - fixed uses the stored unit. Absolute layouts trust whatever's
+    //     stored (e.g. the editor freezes a point value at the moment
+    //     positionType becomes absolute, since absolute children sit outside
+    //     flex flow).
+    bool isAbsolute = m_style->positionType() == YGPositionTypeAbsolute;
+    bool isLegacyHugEncoding =
+        m_style->widthScaleType() == LayoutScaleType::fixed &&
+        m_style->heightScaleType() == LayoutScaleType::fixed &&
+        m_style->intrinsicallySized() && isLeaf();
+    auto effectiveUnits = [isAbsolute,
+                           isLegacyHugEncoding](LayoutScaleType scaleType,
+                                                YGUnit storedUnits) {
+        if (scaleType != LayoutScaleType::fixed)
+        {
+            return YGUnitAuto;
+        }
+        if (isAbsolute)
+        {
+            return storedUnits;
+        }
+        if (storedUnits == YGUnitPoint || storedUnits == YGUnitPercent)
+        {
+            return storedUnits;
+        }
+        return isLegacyHugEncoding ? YGUnitAuto : YGUnitPoint;
+    };
     auto realWidth = width();
-    auto realWidthUnits = m_style->widthUnits();
     auto realWidthScaleType = m_style->widthScaleType();
+    auto realWidthUnits =
+        effectiveUnits(realWidthScaleType, m_style->widthUnits());
     auto realHeight = height();
-    auto realHeightUnits = m_style->heightUnits();
     auto realHeightScaleType = m_style->heightScaleType();
+    auto realHeightUnits =
+        effectiveUnits(realHeightScaleType, m_style->heightUnits());
     auto parentIsRow =
         layoutParent() != nullptr ? layoutParent()->mainAxisIsRow() : true;
 
@@ -1441,12 +1474,6 @@ void LayoutComponent::scaleTypeChanged()
     {
         return;
     }
-    m_style->widthUnitsValue(m_style->widthScaleType() == LayoutScaleType::fixed
-                                 ? YGUnitPoint
-                                 : YGUnitAuto);
-    m_style->heightUnitsValue(
-        m_style->heightScaleType() == LayoutScaleType::fixed ? YGUnitPoint
-                                                             : YGUnitAuto);
     m_style->intrinsicallySizedValue(
         m_style->widthScaleType() == LayoutScaleType::hug ||
         m_style->heightScaleType() == LayoutScaleType::hug);

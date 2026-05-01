@@ -4,6 +4,7 @@
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "utils/no_op_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
@@ -644,4 +645,43 @@ TEST_CASE("Layout aspect ratio", "[silver]")
     }
 
     CHECK(silver.matches("layout_aspect_ratio"));
+}
+
+TEST_CASE("Layout fixed/fill scale type round trip preserves units", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_fixed_fill.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(viewModelInstance);
+
+    stateMachine->advanceAndApply(0.0f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto boolProp = viewModelInstance->propertyValue("booleanProperty")
+                        ->as<rive::ViewModelInstanceBoolean>();
+    REQUIRE(boolProp != nullptr);
+    boolProp->propertyValue(true);
+
+    int frames = 15;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("layout_fixed_fill"));
 }
