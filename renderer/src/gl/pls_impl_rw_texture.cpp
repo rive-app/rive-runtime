@@ -140,6 +140,7 @@ class RenderContextGLImpl::PLSImplRWTexture
     void activatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                    const FlushDescriptor& desc) override
     {
+#ifndef RIVE_IOS_GLES
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
 
         // Bind and initialize the PLS backing textures.
@@ -277,11 +278,13 @@ class RenderContextGLImpl::PLSImplRWTexture
         }
 
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+#endif
     }
 
     void deactivatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                      const FlushDescriptor& desc) override
     {
+#ifndef RIVE_IOS_GLES
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
         if (!desc.fixedFunctionColorOutput &&
@@ -303,6 +306,7 @@ class RenderContextGLImpl::PLSImplRWTexture
                                          framebufferRenderTarget->height());
             }
         }
+#endif
     }
 
     void pushShaderDefines(gpu::InterlockMode,
@@ -314,7 +318,9 @@ class RenderContextGLImpl::PLSImplRWTexture
 
     void onBarrier(const gpu::FlushDescriptor&) override
     {
+#ifndef RIVE_IOS_GLES
         return glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+#endif
     }
 
 private:

@@ -117,7 +117,7 @@ public:
     bool testingOnly_setBlendAdvancedKHRSupported(bool supported);
 #endif
 
-private:
+protected:
     class DrawProgram;
 
     // Manages how we implement pixel local storage in shaders.
