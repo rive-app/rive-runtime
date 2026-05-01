@@ -796,3 +796,24 @@ TEST_CASE("Expose list index to scripts and ensure the type is correct",
 
     CHECK(silver.matches("list_index_script_access"));
 }
+
+TEST_CASE("Scripted image properties", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripted_property_image.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("scripted_property_image"));
+}

@@ -28,11 +28,14 @@ void ViewModelInstanceAssetImage::propertyValueChanged()
 
 void ViewModelInstanceAssetImage::value(RenderImage* image)
 {
-    propertyValue(-1);
     if (m_imageAsset->renderImage() == image)
     {
+        propertyValue(-1);
         return;
     }
+#ifdef WITH_RIVE_TOOLS
+    const bool alreadySentinel = (propertyValue() == static_cast<uint32_t>(-1));
+#endif
     if (image == nullptr)
     {
         m_imageAsset->renderImage(nullptr);
@@ -42,6 +45,18 @@ void ViewModelInstanceAssetImage::value(RenderImage* image)
         image->ref();
         m_imageAsset->renderImage(rcp<RenderImage>(image));
     }
+#ifdef WITH_RIVE_TOOLS
+    if (!alreadySentinel)
+    {
+        propertyValue(-1);
+    }
+    else if (m_changedCallback != nullptr)
+    {
+        m_changedCallback(this, propertyValue());
+    }
+#else
+    propertyValue(-1);
+#endif
     addDirt(ComponentDirt::Bindings);
     onValueChanged();
 }

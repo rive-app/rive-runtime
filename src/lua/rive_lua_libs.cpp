@@ -101,6 +101,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"getViewModel", (int16_t)LuaAtoms::getViewModel},
     {"getEnum", (int16_t)LuaAtoms::getEnum},
     {"getIndex", (int16_t)LuaAtoms::getIndex},
+    {"getImage", (int16_t)LuaAtoms::getImage},
     {"values", (int16_t)LuaAtoms::values},
     {"addListener", (int16_t)LuaAtoms::addListener},
     {"removeListener", (int16_t)LuaAtoms::removeListener},

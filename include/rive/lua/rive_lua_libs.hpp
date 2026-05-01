@@ -15,6 +15,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/viewmodel/data_enum.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
@@ -167,6 +168,7 @@ enum class LuaAtoms : int16_t
     getViewModel,
     getEnum,
     getIndex,
+    getImage,
     values,
     addListener,
     removeListener,
@@ -890,6 +892,18 @@ public:
 
     int pushValue();
     void setValue(const std::string& value);
+};
+
+class ScriptedPropertyImage : public ScriptedProperty
+{
+public:
+    ScriptedPropertyImage(lua_State* L, rcp<ViewModelInstanceAssetImage> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 49;
+    static constexpr const char* luaName = "Property<Image>";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(ScriptedImage* scriptedImage);
 };
 
 // Make

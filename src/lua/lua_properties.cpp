@@ -1,5 +1,6 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
@@ -9,6 +10,7 @@
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
@@ -85,6 +87,14 @@ static void pushViewModelInstanceValue(lua_State* L,
             auto listIndexProp =
                 propValue->as<ViewModelInstanceSymbolListIndex>();
             lua_pushinteger(L, listIndexProp->propertyValue());
+            break;
+        }
+        case ViewModelInstanceAssetImageBase::typeKey:
+        {
+            lua_newrive<ScriptedPropertyImage>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceAssetImage>()));
             break;
         }
         default:
@@ -448,6 +458,11 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                                                            m_state,
                                                            nullptr,
                                                            nullptr);
+                    break;
+                case ViewModelPropertyAssetImageBase::typeKey:
+                    lua_newrive<ScriptedPropertyImage>(m_state,
+                                                       m_state,
+                                                       nullptr);
                     break;
                 case ViewModelPropertySymbolListIndexBase::typeKey:
                     lua_pushinteger(m_state, 1);
@@ -825,6 +840,14 @@ static int vm_namecall(lua_State* L)
                 assert(vm->state() == L);
                 return vm->pushIndex();
             }
+            case (int)LuaAtoms::getImage:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name,
+                                     ViewModelInstanceAssetImageBase::typeKey);
+            }
             case (int)LuaAtoms::instance:
             case (int)LuaAtoms::newAtom:
             {
@@ -896,6 +919,9 @@ static int property_namecall(lua_State* L)
                 break;
             case ScriptedPropertyList::luaTag:
                 name = ScriptedPropertyList::luaName;
+                break;
+            case ScriptedPropertyImage::luaTag:
+                name = ScriptedPropertyImage::luaName;
                 break;
             default:
                 luaL_typeerror(L, 1, name);
@@ -1165,6 +1191,39 @@ int ScriptedPropertyList::pushValue(int index)
     {
         lua_pushnil(m_state);
     }
+    return 1;
+}
+
+ScriptedPropertyImage::ScriptedPropertyImage(
+    lua_State* L,
+    rcp<ViewModelInstanceAssetImage> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+void ScriptedPropertyImage::setValue(ScriptedImage* scriptedImage)
+{
+    if (!m_instanceValue)
+    {
+        return;
+    }
+    m_instanceValue->as<ViewModelInstanceAssetImage>()->value(
+        scriptedImage != nullptr ? scriptedImage->image.get() : nullptr);
+}
+
+int ScriptedPropertyImage::pushValue()
+{
+    if (m_instanceValue)
+    {
+        auto vmi = m_instanceValue->as<ViewModelInstanceAssetImage>();
+        auto asset = vmi->asset();
+        if (asset != nullptr && asset->renderImage() != nullptr)
+        {
+            auto scriptedImage = lua_newrive<ScriptedImage>(m_state);
+            scriptedImage->image = ref_rcp(asset->renderImage());
+            return 1;
+        }
+    }
+    lua_pushnil(m_state);
     return 1;
 }
 
@@ -1458,6 +1517,53 @@ static int property_enum_newindex(lua_State* L)
     return 0;
 }
 
+static int property_image_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyImage = lua_torive<ScriptedPropertyImage>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            assert(propertyImage->state() == L);
+            return propertyImage->pushValue();
+        default:
+            return 0;
+    }
+}
+
+static int property_image_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyImage = lua_torive<ScriptedPropertyImage>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+        {
+            auto image = lua_torive<ScriptedImage>(L, 3);
+            propertyImage->setValue(image);
+            break;
+        }
+        default:
+            return 0;
+    }
+
+    return 0;
+}
+
 static int vm_eq(lua_State* L)
 {
     auto lhs = lua_torive<ScriptedViewModel>(L, 1);
@@ -1598,6 +1704,22 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_pushcfunction(L, property_list_index, nullptr);
         lua_setfield(L, -2, "__index");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    {
+        lua_register_rive<ScriptedPropertyImage>(L);
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_pushcfunction(L, property_image_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, property_image_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
