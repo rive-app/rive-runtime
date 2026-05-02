@@ -211,6 +211,51 @@ void D3D12DescriptorHeap::markSrvToIndex(ID3D12Device* device,
     device->CreateShaderResourceView(resource->resource(), &srvDesc, srvHandle);
 }
 
+void D3D12DescriptorHeap::markNullTexture2DSrvToIndex(ID3D12Device* device,
+                                                      UINT index,
+                                                      DXGI_FORMAT format)
+{
+    assert(m_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Format = format;
+    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Texture2D.PlaneSlice = 0;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
+        m_heap->GetCPUDescriptorHandleForHeapStart(),
+        index,
+        m_heapDescriptorSize);
+
+    device->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
+}
+
+void D3D12DescriptorHeap::markNullStructuredBufferSrvToIndex(
+    ID3D12Device* device,
+    UINT index,
+    UINT elementByteStride)
+{
+    assert(m_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.Buffer.FirstElement = 0;
+    srvDesc.Buffer.NumElements = 0;
+    srvDesc.Buffer.StructureByteStride = elementByteStride;
+    srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
+        m_heap->GetCPUDescriptorHandleForHeapStart(),
+        index,
+        m_heapDescriptorSize);
+
+    device->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
+}
+
 void D3D12DescriptorHeap::markSrvToIndex(ID3D12Device* device,
                                          D3D12TextureArray* resource,
                                          UINT index)

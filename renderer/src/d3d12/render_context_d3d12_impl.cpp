@@ -1030,12 +1030,23 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                                   targetTexture,
                                   TARGET_RTV_HEAP_OFFSET);
         // mark all the texture srvs, these also only need to be done once per
-        // flush since the texture aren't re created per logical flush
+        // flush since the texture aren't re created per logical flush. When
+        // the source texture is not currently allocated we still need to write
+        // a valid (null) descriptor — the cpu heap is acquired from a pool and
+        // can retain stale descriptors from prior frames, which would trip
+        // GPU-Based Validation (id=1042) when STATIC_SRV is bound.
         if (m_gradientTexture)
         {
             m_cpuSrvUavCbvHeap->markSrvToIndex(m_device.Get(),
                                                m_gradientTexture.get(),
                                                GRAD_IMAGE_HEAP_OFFSET);
+        }
+        else
+        {
+            m_cpuSrvUavCbvHeap->markNullTexture2DSrvToIndex(
+                m_device.Get(),
+                GRAD_IMAGE_HEAP_OFFSET,
+                DXGI_FORMAT_R8G8B8A8_UNORM);
         }
         if (m_tesselationTexture)
         {
@@ -1043,11 +1054,25 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                                                m_tesselationTexture.get(),
                                                TESS_IMAGE_HEAP_OFFSET);
         }
+        else
+        {
+            m_cpuSrvUavCbvHeap->markNullTexture2DSrvToIndex(
+                m_device.Get(),
+                TESS_IMAGE_HEAP_OFFSET,
+                DXGI_FORMAT_R32G32B32A32_UINT);
+        }
         if (m_atlasTexture)
         {
             m_cpuSrvUavCbvHeap->markSrvToIndex(m_device.Get(),
                                                m_atlasTexture.get(),
                                                ATLAS_IMAGE_HEAP_OFFSET);
+        }
+        else
+        {
+            m_cpuSrvUavCbvHeap->markNullTexture2DSrvToIndex(
+                m_device.Get(),
+                ATLAS_IMAGE_HEAP_OFFSET,
+                DXGI_FORMAT_R16_FLOAT);
         }
         assert(m_featherTexture);
         m_cpuSrvUavCbvHeap->markSrvToIndex(m_device.Get(),
@@ -1150,6 +1175,23 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure),
             desc.firstPaintAux);
     }
+    else
+    {
+        // Same reason as the texture-SRV null-fallback above — recycled cpu
+        // heap slots may retain stale buffer descriptors.
+        m_cpuSrvUavCbvHeap->markNullStructuredBufferSrvToIndex(
+            m_device.Get(),
+            PATH_BUFFER_HEAP_OFFSET,
+            StorageBufferElementSizeInBytes(PathData::kBufferStructure));
+        m_cpuSrvUavCbvHeap->markNullStructuredBufferSrvToIndex(
+            m_device.Get(),
+            PAINT_BUFFER_HEAP_OFFSET,
+            StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
+        m_cpuSrvUavCbvHeap->markNullStructuredBufferSrvToIndex(
+            m_device.Get(),
+            PAINT_AUX_BUFFER_HEAP_OFFSET,
+            StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure));
+    }
 
     if (desc.contourCount > 0)
     {
@@ -1161,6 +1203,13 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             sizeof(ContourData),
             StorageBufferElementSizeInBytes(ContourData::kBufferStructure),
             desc.firstContour);
+    }
+    else
+    {
+        m_cpuSrvUavCbvHeap->markNullStructuredBufferSrvToIndex(
+            m_device.Get(),
+            CONTOUR_BUFFER_HEAP_OFFSET,
+            StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
     }
 
     // copy to gpu heap
@@ -1643,15 +1692,29 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 if (++m_samplerHeapDescriptorOffset >=
                     MAX_DESCRIPTOR_SAMPLER_HEAPS_PER_FLUSH)
                 {
-                    auto oldHeap = m_samplerHeap;
                     m_samplerHeap = m_samplerHeapPool.acquire();
                     m_samplerHeapDescriptorOffset = IMAGE_SAMPLER_HEAP_OFFSET;
-                    // copy the imutable sampelrs to the new heap
-                    m_device->CopyDescriptorsSimple(
-                        IMAGE_SAMPLER_HEAP_OFFSET,
-                        m_samplerHeap->cpuHandleForUpload(0),
-                        oldHeap->cpuHandleForUpload(0),
-                        D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+                    // Re-create the immutable samplers in the new heap.
+                    // CopyDescriptorsSimple from the old heap is invalid:
+                    // shader-visible heaps are CPU-write-only per D3D12
+                    // spec, and reading from one as a copy source produces
+                    // garbage descriptors (validation fires id=654, GPU
+                    // eventually TDRs). Mirror the initial-flush block that
+                    // creates these from m_linearSampler directly.
+                    m_samplerHeap->markSamplerToIndex(m_device.Get(),
+                                                      m_linearSampler,
+                                                      TESS_SAMPLER_HEAP_OFFSET);
+                    m_samplerHeap->markSamplerToIndex(m_device.Get(),
+                                                      m_linearSampler,
+                                                      GRAD_SAMPLER_HEAP_OFFSET);
+                    m_samplerHeap->markSamplerToIndex(
+                        m_device.Get(),
+                        m_linearSampler,
+                        FEATHER_SAMPLER_HEAP_OFFSET);
+                    m_samplerHeap->markSamplerToIndex(
+                        m_device.Get(),
+                        m_linearSampler,
+                        ATLAS_SAMPLER_HEAP_OFFSET);
 
                     ID3D12DescriptorHeap* ppHeaps[] = {m_srvUavCbvHeap->heap(),
                                                        m_samplerHeap->heap()};
