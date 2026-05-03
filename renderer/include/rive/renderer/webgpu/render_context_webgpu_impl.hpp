@@ -66,6 +66,9 @@ public:
 
     wgpu::Device device() const { return m_device; }
     wgpu::Queue queue() const { return m_queue; }
+
+    void* makeCommandBuffer() override;
+    void commitCommandBuffer(void* commandBuffer) override;
     const ContextOptions& contextOptions() const { return m_contextOptions; }
     const Capabilities& capabilities() const { return m_capabilities; }
 
@@ -83,8 +86,10 @@ public:
                                   GPUTextureFormat format,
                                   const uint8_t imageDataRGBAPremul[]) override;
 
+#ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+#endif
 
 private:
     RenderContextWebGPUImpl(wgpu::Adapter,
@@ -289,6 +294,11 @@ public:
 
     wgpu::Texture texture() const { return m_texture; }
     wgpu::TextureView textureView() const { return m_textureView; }
+    void* nativeHandle() const override
+    {
+        // Return the raw WGPUTexture handle.
+        return m_texture.Get();
+    }
 
 private:
     wgpu::Texture m_texture;

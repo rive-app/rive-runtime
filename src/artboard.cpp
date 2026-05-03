@@ -48,6 +48,7 @@
 #include "rive/layout/layout_data.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/async/work_pool.hpp"
 
 #include <set>
 #include <unordered_map>
@@ -886,6 +887,55 @@ void Artboard::initScriptedObjects()
     }
 }
 
+void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
+
+void Artboard::drawCanvases()
+{
+    for (auto obj : m_ScriptedObjects)
+    {
+        obj->scriptDrawCanvas();
+    }
+    for (auto artboardHost : m_ArtboardHosts)
+    {
+        for (int i = 0; i < artboardHost->artboardCount(); i++)
+        {
+            auto* nested = artboardHost->artboardInstance(i);
+            if (nested != nullptr)
+            {
+                nested->drawCanvases();
+            }
+        }
+    }
+}
+
+#ifdef WITH_RIVE_SCRIPTING
+void* Artboard::findDrawCanvasLuauState() const
+{
+    for (auto* obj : m_ScriptedObjects)
+    {
+        if (obj->drawsCanvas())
+        {
+            return obj->state();
+        }
+    }
+    for (auto* host : m_ArtboardHosts)
+    {
+        for (int i = 0; i < host->artboardCount(); i++)
+        {
+            auto* nested = host->artboardInstance(i);
+            if (nested != nullptr)
+            {
+                if (auto* state = nested->findDrawCanvasLuauState())
+                {
+                    return state;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+#endif
+
 Core* Artboard::resolve(uint32_t id) const
 {
     if (id >= static_cast<int>(m_Objects.size()))
@@ -1397,6 +1447,10 @@ void Artboard::reset()
 
 bool Artboard::advance(float elapsedSeconds, AdvanceFlags flags)
 {
+    // Poll async work (image decodes, etc.) so promises resolve before
+    // script advance() callbacks run.
+    pollAsyncWork();
+
     AdvanceFlags advancingFlags = flags;
     advancingFlags |= AdvanceFlags::IsRoot;
     bool didUpdate = advanceInternal(elapsedSeconds, advancingFlags);

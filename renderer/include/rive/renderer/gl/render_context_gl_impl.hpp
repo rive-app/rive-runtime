@@ -9,6 +9,8 @@
 #include "rive/renderer/gl/gl_utils.hpp"
 #include "rive/renderer/render_context_helper_impl.hpp"
 
+#include <unordered_map>
+
 namespace rive
 {
 class RiveRenderPath;
@@ -18,6 +20,9 @@ class RiveRenderPaint;
 namespace rive::gpu
 {
 class RenderTargetGL;
+#ifdef RIVE_CANVAS
+class CanvasMirrorTextureGLImpl;
+#endif
 
 // OpenGL backend implementation of RenderContextImpl.
 class RenderContextGLImpl : public RenderContextHelperImpl
@@ -56,8 +61,61 @@ public:
                                    uint32_t height,
                                    GLuint textureID);
 
+#ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+
+    // GL-only: returns a Y-flipped companion of a Rive 2D RenderCanvas
+    // texture, lazily allocating it on first call. Returns nullptr if
+    // `sourceTex` is not a canvas target (i.e. it's a regular image).
+    // Called directly from lua_gpu.cpp behind #ifdef ORE_BACKEND_GL.
+    // See dev/ore_canvas_import_invariant.md.
+    rcp<RiveRenderImage> getCanvasImportMirror(gpu::Texture* sourceTex,
+                                               uint32_t width,
+                                               uint32_t height);
+
+    // ── Canvas mirror registry (GL/WebGL only) ─────────────────────────
+    //
+    // Implements the "imported canvas mirror" pattern for the Rive 2D
+    // RenderCanvas → Ore boundary. On GL the PLS-rendered canvas is
+    // bottom-up in memory; consumers that sample it from a WGSL shader
+    // need a top-up companion texture. The registry tracks the source
+    // canvas GLuint, lazily allocates a companion + a pair of FBOs the
+    // first time wrapRiveTexture is called for it, and arranges for the
+    // companion to be Y-flip-blitted at the end of the source canvas's
+    // own flush() (when GL state is clean).
+    //
+    // Lifetime: registerCanvasTarget is called from makeRenderCanvas;
+    // unregisterCanvasTarget is called from the canvas-target texture's
+    // destructor (CanvasTargetTextureGLImpl) so the entry is freed when
+    // the source GLuint is released. Mirror textures live independently
+    // via the RiveRenderImage returned to the caller; their destruction
+    // releases their FBOs and clears the entry's mirror pointer (but
+    // not the registry slot itself, which dies with the source).
+    //
+    // See dev/ore_canvas_import_invariant.md for the full architecture
+    // discussion.
+
+    void registerCanvasTarget(GLuint sourceTex);
+    void unregisterCanvasTarget(GLuint sourceTex);
+
+    // Looks up an existing mirror for `sourceTex` and allocates one if
+    // none exists yet. Returns nullptr if `sourceTex` was never registered
+    // (i.e. is not a canvas target — caller should fall through to a
+    // direct view of the source). The returned RiveRenderImage owns the
+    // companion GLuint; when its refcount drops to zero, the companion
+    // (and its FBOs) are released.
+    rcp<RiveRenderImage> getOrCreateCanvasMirror(GLuint sourceTex,
+                                                 uint32_t width,
+                                                 uint32_t height);
+
+    // Called from RenderContextGLImpl::flush after the post-flush
+    // glFlush() barrier. Walks the registry for `targetTex`; if there is
+    // a registered entry with a non-null mirror, runs the Y-flip blit
+    // from source → mirror. Cheap O(1) hash lookup with a negative-case
+    // early-out — non-canvas targets pay nothing.
+    void blitMirrorIfRegistered(GLuint targetTex);
+#endif
 
     // Called *after* the GL context has been modified externally.
     // Re-binds Rive internal resources and invalidates the internal cache of GL
@@ -476,5 +534,36 @@ private:
     const rcp<GLState> m_state;
 
     bool m_testForAdvancedBlendError = false;
+
+#ifdef RIVE_CANVAS
+    // Imported canvas mirror registry. See registerCanvasTarget /
+    // getOrCreateCanvasMirror / blitMirrorIfRegistered above.
+    struct CanvasMirrorEntry
+    {
+        // Set in registerCanvasTarget. Identifies an entry as "this is a
+        // PLS canvas target". Source GLuint is the hash key, so it is
+        // implicit (not stored in the entry).
+
+        // Lazily allocated by getOrCreateCanvasMirror. Null until the
+        // first time this canvas is imported via Image:view().
+        // Non-owning — the mirror RiveRenderImage owns the GLuint and
+        // the wrapping rcp keeps it alive.
+        GLuint mirrorTex = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+
+        // Persistent FBOs that the blit reuses every frame. Allocated
+        // when the mirror is first created. Released when the entry's
+        // owning canvas is unregistered.
+        GLuint readFBO = 0;
+        GLuint drawFBO = 0;
+
+        // True iff a mirror has been allocated for this entry. The blit
+        // hook in flush() only fires when this is true.
+        bool hasMirror = false;
+    };
+    std::unordered_map<GLuint, CanvasMirrorEntry> m_canvasMirrors;
+    friend class CanvasMirrorTextureGLImpl;
+#endif
 };
 } // namespace rive::gpu

@@ -70,7 +70,9 @@ public:
     F(SetDebugUtilsObjectNameEXT)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
+    F(AllocateCommandBuffers)                                                  \
     F(AllocateDescriptorSets)                                                  \
+    F(BeginCommandBuffer)                                                      \
     F(CmdBeginRenderPass)                                                      \
     F(CmdBindDescriptorSets)                                                   \
     F(CmdBindIndexBuffer)                                                      \
@@ -87,6 +89,7 @@ public:
     F(CmdPipelineBarrier)                                                      \
     F(CmdSetScissor)                                                           \
     F(CmdSetViewport)                                                          \
+    F(CreateCommandPool)                                                       \
     F(CreateDescriptorPool)                                                    \
     F(CreateDescriptorSetLayout)                                               \
     F(CreateFramebuffer)                                                       \
@@ -96,6 +99,7 @@ public:
     F(CreateRenderPass)                                                        \
     F(CreateSampler)                                                           \
     F(CreateShaderModule)                                                      \
+    F(DestroyCommandPool)                                                      \
     F(DestroyDescriptorPool)                                                   \
     F(DestroyDescriptorSetLayout)                                              \
     F(DestroyFramebuffer)                                                      \
@@ -105,6 +109,10 @@ public:
     F(DestroyRenderPass)                                                       \
     F(DestroySampler)                                                          \
     F(DestroyShaderModule)                                                     \
+    F(EndCommandBuffer)                                                        \
+    F(FreeCommandBuffers)                                                      \
+    F(QueueSubmit)                                                             \
+    F(QueueWaitIdle)                                                           \
     F(ResetDescriptorPool)                                                     \
     F(UpdateDescriptorSets)
 

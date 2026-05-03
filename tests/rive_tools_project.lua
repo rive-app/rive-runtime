@@ -102,6 +102,13 @@ function rive_tools_project(name, project_kind)
         })
     end
 
+    -- When scripting is enabled, librive.a contains lua_promise.o and
+    -- lua_image_decode.o which reference luau symbols.
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
+    do
+        links({ 'luau_vm' })
+    end
+
     filter({ 'system:windows or macosx or linux', 'options:not for_unreal'  })
     do
         externalincludedirs({
@@ -135,6 +142,11 @@ function rive_tools_project(name, project_kind)
             '_WINSOCK_DEPRECATED_NO_WARNINGS',
             'UNICODE',
         })
+        if rive_target_os == 'windows' then
+            externalincludedirs({
+                dx12_headers .. '/include/directx',
+            })
+        end
     end
 
     filter('system:android')
@@ -235,6 +247,10 @@ function rive_tools_project(name, project_kind)
             'Dbghelp',
             'd3dcompiler',
             'ws2_32',
+            'gdi32',
+            'shell32',
+            'advapi32',
+            'user32',
         })
     end
 

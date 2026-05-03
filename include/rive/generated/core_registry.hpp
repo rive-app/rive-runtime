@@ -114,6 +114,8 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/manifest_asset.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/assets/shader_asset.hpp"
+#include "rive/assets/text_asset.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/backboard.hpp"
 #include "rive/bones/bone.hpp"
@@ -382,12 +384,18 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case ViewModelInstanceBase::typeKey:
-                return new ViewModelInstance();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelInstanceBase::typeKey:
+                return new ViewModelInstance();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -400,18 +408,12 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -866,6 +868,8 @@ public:
                 return new ManifestAsset();
             case ImageAssetBase::typeKey:
                 return new ImageAsset();
+            case ShaderAssetBase::typeKey:
+                return new ShaderAsset();
             case FontAssetBase::typeKey:
                 return new FontAsset();
             case AudioAssetBase::typeKey:
@@ -1746,8 +1750,8 @@ public:
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 object->as<FileAssetBase>()->cdnBaseUrl(value);
                 break;
-            case ScriptAssetBase::folderPathPropertyKey:
-                object->as<ScriptAssetBase>()->folderPath(value);
+            case TextAssetBase::folderPathPropertyKey:
+                object->as<TextAssetBase>()->folderPath(value);
                 break;
         }
     }
@@ -3605,8 +3609,8 @@ public:
                 return object->as<AssetBase>()->name();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->as<FileAssetBase>()->cdnBaseUrl();
-            case ScriptAssetBase::folderPathPropertyKey:
-                return object->as<ScriptAssetBase>()->folderPath();
+            case TextAssetBase::folderPathPropertyKey:
+                return object->as<TextAssetBase>()->folderPath();
         }
         return "";
     }
@@ -4484,7 +4488,7 @@ public:
             case TextValueRunBase::textPropertyKey:
             case AssetBase::namePropertyKey:
             case FileAssetBase::cdnBaseUrlPropertyKey:
-            case ScriptAssetBase::folderPathPropertyKey:
+            case TextAssetBase::folderPathPropertyKey:
                 return CoreStringType::id;
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
             case CustomPropertyColorBase::propertyValuePropertyKey:
@@ -5328,8 +5332,8 @@ public:
                 return object->is<AssetBase>();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->is<FileAssetBase>();
-            case ScriptAssetBase::folderPathPropertyKey:
-                return object->is<ScriptAssetBase>();
+            case TextAssetBase::folderPathPropertyKey:
+                return object->is<TextAssetBase>();
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceColorBase>();
             case CustomPropertyColorBase::propertyValuePropertyKey:

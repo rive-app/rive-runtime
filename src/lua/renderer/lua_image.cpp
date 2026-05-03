@@ -5,6 +5,23 @@
 
 using namespace rive;
 
+// Defined in lua_gpu.cpp (compiled as ObjC++ on Apple, has ore includes).
+#ifdef RIVE_ORE
+extern int riveImageViewImpl(lua_State* L);
+#endif
+
+// Out-of-line destructor. The rcp<ore::TextureView> member (when
+// RIVE_CANVAS && RIVE_ORE) prevents implicit ~ScriptedImage() in TUs
+// that don't include the full ore headers. When ore is not enabled the
+// default-generated body is fine.
+#if !(defined(RIVE_CANVAS) && defined(RIVE_ORE))
+ScriptedImage::~ScriptedImage() = default;
+ScriptedImage* ScriptedImage::luaNew(lua_State* L)
+{
+    return lua_newrive<ScriptedImage>(L);
+}
+#endif
+
 static int image_index(lua_State* L)
 {
     auto image = lua_torive<ScriptedImage>(L, 1);
@@ -23,6 +40,11 @@ static int image_index(lua_State* L)
         case (int)LuaAtoms::height:
             lua_pushnumber(L, image->image ? image->image->height() : 0);
             return 1;
+#ifdef RIVE_ORE
+        case (int)LuaAtoms::view:
+            lua_pushcfunction(L, riveImageViewImpl, "Image.view");
+            return 1;
+#endif
     }
     luaL_error(L,
                "'%s' is not a valid index of %s",

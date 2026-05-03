@@ -8,14 +8,22 @@ int luaopen_rive_image(lua_State* L);
 int luaopen_rive_blob(lua_State* L);
 int luaopen_rive_paint(lua_State* L);
 int luaopen_rive_renderer(lua_State* L);
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+int luaopen_rive_gpu(lua_State* L);
+#endif
 
-static const lua_CFunction rendererTypes[] = {luaopen_rive_path,
-                                              luaopen_rive_gradient,
-                                              luaopen_rive_mesh,
-                                              luaopen_rive_image,
-                                              luaopen_rive_blob,
-                                              luaopen_rive_paint,
-                                              luaopen_rive_renderer};
+static const lua_CFunction rendererTypes[] = {
+    luaopen_rive_path,
+    luaopen_rive_gradient,
+    luaopen_rive_mesh,
+    luaopen_rive_image,
+    luaopen_rive_blob,
+    luaopen_rive_paint,
+    luaopen_rive_renderer,
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+    luaopen_rive_gpu,
+#endif
+};
 
 int luaopen_rive_renderer_library(lua_State* L)
 {

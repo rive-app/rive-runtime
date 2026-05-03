@@ -214,6 +214,7 @@ public:
         return m_imageView->vkImageViewAddressOf();
     }
     ImageAccess& lastAccess() { return m_lastAccess; }
+    void* nativeHandle() const override { return (void*)vkImage(); }
 
     // Deferred mechanism for uploading image data without a command buffer.
     void scheduleUpload(const void* imageDataRGBAPremul,

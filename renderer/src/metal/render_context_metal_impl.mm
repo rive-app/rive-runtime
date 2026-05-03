@@ -6,7 +6,9 @@
 
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#endif
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
@@ -866,6 +868,7 @@ public:
     {}
 
     id<MTLTexture> texture() const { return m_texture; }
+    void* nativeHandle() const override { return (__bridge void*)m_texture; }
 
 private:
     id<MTLTexture> m_texture;
@@ -889,6 +892,7 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
         m_gpu, width, height, mipLevelCount, imageDataRGBAPremul);
 }
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
                                                            uint32_t height)
 {
@@ -917,6 +921,7 @@ rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+#endif
 
 std::unique_ptr<BufferRing> RenderContextMetalImpl::makeUniformBufferRing(
     size_t capacityInBytes)
@@ -1118,6 +1123,30 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     }
 
     return pipelineIter->second.get();
+}
+
+void* RenderContextMetalImpl::makeCommandBuffer()
+{
+    if (m_commandQueue == nil)
+    {
+        return nullptr;
+    }
+    // __bridge_retained: transfers ARC ownership to the void* so it stays alive
+    // until commitCommandBuffer() releases it.
+    return (__bridge_retained void*)[m_commandQueue commandBuffer];
+}
+
+void RenderContextMetalImpl::commitCommandBuffer(void* commandBuffer)
+{
+    if (commandBuffer == nullptr)
+    {
+        return;
+    }
+    // __bridge_transfer: reclaims ARC ownership, balancing the
+    // __bridge_retained in makeCommandBuffer().
+    id<MTLCommandBuffer> mtlCmdBuffer =
+        (__bridge_transfer id<MTLCommandBuffer>)commandBuffer;
+    [mtlCmdBuffer commit];
 }
 
 void RenderContextMetalImpl::prepareToFlush(uint64_t nextFrameNumber,

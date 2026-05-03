@@ -9,7 +9,9 @@
 
 namespace rive::gpu
 {
+#ifdef RIVE_CANVAS
 class RenderCanvas;
+#endif
 class Texture;
 
 // This class manages GPU buffers and isues the actual rendering commands from
@@ -46,12 +48,14 @@ public:
         GPUTextureFormat format,
         const uint8_t imageDataRGBAPremul[]) = 0;
 
+#ifdef RIVE_CANVAS
     // Creates a RenderCanvas: a GPU texture usable as both a render target
     // and a render image. Returns nullptr if not supported by this backend.
     virtual rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height)
     {
         return nullptr;
     }
+#endif
 
     // Resize GPU buffers. These methods cannot fail, and must allocate the
     // exact size requested.
@@ -176,6 +180,16 @@ public:
     // Called after all logical flushes in a frame have completed.
     virtual void postFlush(const RenderContext::FlushResources&) {}
 
+    // Creates a platform-specific command buffer for use with flush().
+    // Returns an opaque pointer that should be passed as
+    // FlushResources::externalCommandBuffer.
+    // The default implementation returns nullptr (not supported).
+    virtual void* makeCommandBuffer() { return nullptr; }
+
+    // Commits a command buffer previously created by makeCommandBuffer().
+    // Called after flush() to submit the GPU work.
+    virtual void commitCommandBuffer(void* commandBuffer) {}
+
     // Steady clock, used to determine when we should trim our resource
     // allocations.
     virtual double secondsNow() const = 0;
@@ -184,3 +198,17 @@ protected:
     PlatformFeatures m_platformFeatures;
 };
 } // namespace rive::gpu
+
+#if defined(ORE_BACKEND_GL) && defined(RIVE_CANVAS)
+namespace rive
+{
+class RiveRenderImage;
+// Returns a Y-flipped companion of a GL canvas texture, or nullptr on
+// non-GL backends. Hides the RenderContextGLImpl downcast so callers
+// don't need GL headers.
+rcp<RiveRenderImage> getCanvasImportMirrorGL(gpu::RenderContext*,
+                                             gpu::Texture* sourceTex,
+                                             uint32_t width,
+                                             uint32_t height);
+} // namespace rive
+#endif

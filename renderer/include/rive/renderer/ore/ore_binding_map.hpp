@@ -4,24 +4,21 @@
 
 #pragma once
 
-// C++ mirror of the `NagaBindingMapEntry` / `NagaCompiledShader` FFI
-// surface in packages/scripting_workspace/naga_ffi/. Produces and
-// consumes the same on-disk schema defined in RFC §3.5 and §14.5–6.
+// Portable C++ binding map matching the on-disk RSTB schema (RFC §3.5,
+// §14.5–6). Runtime parses one of these out of an RSTB sidecar via
+// `fromBlob`; the editor-side toolchain produces the blob via `toBlob`.
 //
 // Usage pattern:
-//   auto bm = ore::BindingMap::fromFFI(compiledShader);  // after
-//                                                        //
-//                                                        naga_compile_for_backend
-//   bm.finalize();                                       // sort + binary
-//                                                        // searchable
+//   ore::BindingMap bm;
+//   ore::BindingMap::fromBlob(bytes, size, &bm);
 //   uint32_t metalSlot = bm.lookup(group, binding,
 //                                  ore::ResourceKind::UniformBuffer,
 //                                  ore::BindingMap::Stage::VS);
 //
 // BindingMap is owned by `ore::Pipeline` — populated at pipeline creation
-// from the naga-compiled shader, consumed by each flatten backend's
-// `makeBindGroup` (Commit 4). Vulkan/WebGPU construct it for reflection
-// parity but never read it at bind time.
+// from the RSTB sidecar, consumed by each flatten backend's
+// `makeBindGroup`. Vulkan/WebGPU construct it for reflection parity but
+// never read it at bind time.
 
 #include <algorithm>
 #include <cassert>
@@ -29,14 +26,39 @@
 #include <cstring>
 #include <vector>
 
-struct NagaBindingMapEntry; // forward decl — defined in naga_ffi.h
-struct NagaCompiledShader;  // forward decl — defined in naga_ffi.h
-
 namespace rive::ore
 {
 
 // ----------------------------------------------------------------------------
-// ResourceKind — matches the NAGA_BINDING_KIND_* constants in naga_ffi.h.
+// Reserved native slots
+//
+// Per RFC §6.6, Ore reserves a small number of native slots in each
+// backend's slot namespace for its own internal machinery (push-constant
+// emulation, dynamic-sized storage-buffer length arrays). The binding-map
+// allocator must never hand out a user binding at one of these slots, even
+// though no current Ore feature consumes them — they are forward-compat
+// scaffolding so that adding push constants or compute storage buffers
+// later cannot collide with a slot a user shader has already allocated.
+//
+// Values must agree with the RSTB-emit path in scripting_workspace.
+// ----------------------------------------------------------------------------
+
+// Metal `[[buffer(30)]]` reservation. Metal's hardware buffer table is 31
+// slots (`MTLBufferTableSize`); reserving the topmost matches Dawn's MSL
+// backend convention (`kImmediateBlockBufferSlot`). Targets:
+//   1. Push-constant emulation (Vulkan native, D3D12 root constants — Metal
+//      has no equivalent, must be emulated as a buffer bind).
+//   2. Sizes buffer for dynamic-sized storage-buffer `arrayLength()`
+//      lookups (compute path, currently disabled — see
+//      `Features::storageBuffers`).
+constexpr uint32_t kMetalReservedBufferSlot = 30;
+
+// Maximum buffer slot the binding-map allocator may assign to a user
+// binding on Metal. Allocator stops at this; overflow is a hard error.
+constexpr uint32_t kMetalMaxUserBufferSlot = kMetalReservedBufferSlot - 1;
+
+// ----------------------------------------------------------------------------
+// ResourceKind
 //
 // Numeric values are the frozen on-disk RSTB schema (RFC §14.5). Never
 // renumber existing variants; new variants append at the next integer.
@@ -99,7 +121,7 @@ class BindingMap
 {
 public:
     // Shader stage index for per-stage slot lookup. Order matches the
-    // fixed-width NagaBindingMapEntry::backend_slot_{vs, fs, cs} fields.
+    // fixed-width per-stage backend-slot fields in the on-disk RSTB row.
     enum class Stage : uint8_t
     {
         VS = 0,
@@ -107,15 +129,14 @@ public:
         CS = 2,
     };
 
-    // Stage bitmask bits (must match NAGA_STAGE_* in naga_ffi.h).
+    // Stage bitmask bits — frozen RSTB schema (RFC §14.5).
     static constexpr uint32_t kStageVertex = 1u << 0;
     static constexpr uint32_t kStageFragment = 1u << 1;
     static constexpr uint32_t kStageCompute = 1u << 2;
 
     // Sentinel for a per-stage slot that the resource is not visible to.
-    // Matches NAGA_SLOT_ABSENT (= UINT32_MAX) on the FFI side. We expose
-    // a 16-bit sentinel in the compact C++ `Entry` since all real slots
-    // fit in 16 bits on every backend (Metal: 31, D3D11: 128, GL: ~64).
+    // The 16-bit width fits every real slot on every backend
+    // (Metal: 31, D3D11: 128, GL: ~64).
     static constexpr uint16_t kAbsent = UINT16_MAX;
 
     // RSTB blob version byte. Bumped when the on-disk schema changes in a
@@ -123,17 +144,15 @@ public:
     // error, never a silent misbind (RFC §14.4).
     static constexpr uint8_t kBlobVersion = 2;
 
-    // Allocator version currently supported. Matches NAGA_ALLOCATOR_VERSION
-    // in naga_ffi.h. Pipelines load with this value; any blob stamped with
-    // a different version fails `fromBlob` with a clear error (RFC §14.4).
+    // Allocator version currently supported. Pipelines load with this
+    // value; any blob stamped with a different version fails `fromBlob`
+    // with a clear error (RFC §14.4).
     //
-    // WebGPU-aligned global-counter-per-kind allocation per RFC §3.2. Same
-    // allocator used by every flatten backend at runtime via
-    // Pipeline::m_bindingMap.
+    // WebGPU-aligned global-counter-per-kind allocation per RFC §3.2.
     static constexpr uint8_t kAllocatorVersion = 1;
 
-    // One row of the binding map. Layout mirrors NagaBindingMapEntry but
-    // packed tighter (fewer bits where the semantics allow).
+    // One row of the binding map. Layout matches the on-disk RSTB row
+    // but packed tighter (fewer bits where the semantics allow).
     struct Entry
     {
         uint8_t group;
@@ -142,7 +161,7 @@ public:
         uint8_t stageMask;    // Bitwise-OR of kStage* bits.
         uint8_t backendSpace; // D3D12 register space / Vulkan set = group.
         uint16_t backendSlot[3] = {kAbsent, kAbsent, kAbsent}; // [VS, FS, CS]
-        // Texture reflection — populated from naga for SampledTexture /
+        // Texture reflection — populated for SampledTexture /
         // StorageTexture kinds; `Undefined` / `false` elsewhere. Consumed
         // by the WebGPU backend's BGL builder to feed Dawn's frontend
         // shader-vs-layout compatibility check. Ignored by VK / D3D /
@@ -153,15 +172,6 @@ public:
     };
 
     BindingMap() = default;
-
-    // Construct from the Rust FFI's NagaCompiledShader handle. Iterates
-    // the shader's binding-map entries, copies them into the C++ shape,
-    // and finalizes. Returns an empty map if `shader` is null.
-    //
-    // Defined out-of-line in ore_binding_map.cpp so this header doesn't
-    // need to include naga_ffi.h (users who don't use the FFI — e.g. tests
-    // that build maps directly — avoid the transitive include).
-    static BindingMap fromFFI(const NagaCompiledShader* shader);
 
     // Parse a blob produced by `toBlob` (or by the RSTB-emit path in
     // scripting_workspace). Returns a populated `BindingMap` + `true` on

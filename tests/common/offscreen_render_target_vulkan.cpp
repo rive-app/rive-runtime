@@ -98,6 +98,17 @@ private:
             return m_renderImage.get();
         }
 
+        VkImage targetImage() const override { return texture()->vkImage(); }
+        VkImageView targetImageView() const override
+        {
+            return texture()->vkImageView();
+        }
+
+        void updateLastAccess(const rive::gpu::vkutil::ImageAccess& a) override
+        {
+            texture()->lastAccess() = a;
+        }
+
         VkImage accessTargetImage(
             VkCommandBuffer commandBuffer,
             const rive::gpu::vkutil::ImageAccess& dstAccess,
@@ -119,7 +130,7 @@ private:
         }
 
     private:
-        rive::gpu::vkutil::Texture2D* texture()
+        rive::gpu::vkutil::Texture2D* texture() const
         {
             return static_cast<rive::gpu::vkutil::Texture2D*>(
                 m_renderImage->getTexture());

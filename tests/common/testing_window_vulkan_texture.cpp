@@ -66,6 +66,22 @@ public:
                 .forceAtomicMode = backendParams.atomic,
                 .shaderCompilationMode = backendParams.shaderCompilationMode,
             });
+
+        // Enable canvas pre-pass support
+        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+        // for canvas rendering.
+        VkQueue graphicsQueue;
+        auto impl =
+            m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+        auto vkGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
+            impl->vulkanContext()->GetDeviceProcAddr(m_device->vkDevice(),
+                                                     "vkGetDeviceQueue"));
+        vkGetDeviceQueue(m_device->vkDevice(),
+                         m_device->graphicsQueueFamilyIndex(),
+                         0,
+                         &graphicsQueue);
+        impl->setCanvasQueue(graphicsQueue,
+                             m_device->graphicsQueueFamilyIndex());
     }
 
     ~TestingWindowVulkanTexture()
@@ -209,6 +225,49 @@ private:
     }
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
+
+    void* vulkanGraphicsQueue() const override
+    {
+        if (!vk() || !m_device)
+            return VK_NULL_HANDLE;
+        // graphicsQueue() is protected on VulkanFrameSynchronizer, so retrieve
+        // the queue via vkGetDeviceQueue using the known family index.
+        auto pfnGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
+            vk()->GetDeviceProcAddr(vk()->device, "vkGetDeviceQueue"));
+        if (!pfnGetDeviceQueue)
+            return VK_NULL_HANDLE;
+        VkQueue queue = VK_NULL_HANDLE;
+        pfnGetDeviceQueue(vk()->device,
+                          m_device->graphicsQueueFamilyIndex(),
+                          0,
+                          &queue);
+        return queue;
+    }
+    uint32_t vulkanGraphicsQueueFamilyIndex() const override
+    {
+        return m_device ? m_device->graphicsQueueFamilyIndex() : 0;
+    }
+    void* vulkanGetInstanceProcAddr() const override
+    {
+        return m_instance ? reinterpret_cast<void*>(
+                                m_instance->getVkGetInstanceProcAddrPtr())
+                          : nullptr;
+    }
+    void* vulkanCurrentCommandBuffer() const override
+    {
+        // Per the base-class contract: return nullptr when no CB is open.
+        // The handle exposed by VulkanFrameSynchronizer is allocated up front
+        // but is only in the recording state between
+        // waitForFenceAndBeginFrame() and endFrame(). Handing it out before
+        // that causes Ore to record into an unbegun CB
+        // (VUID-vkCmdBeginRenderPass-commandBuffer-recording on validation, GPU
+        // ring timeout on RADV, heap corruption on nvidia). Matches
+        // testing_window_android_vulkan.cpp.
+        if (m_frameSynchronizer == nullptr ||
+            !m_frameSynchronizer->isFrameStarted())
+            return nullptr;
+        return m_frameSynchronizer->currentCommandBuffer();
+    }
 
     const BackendParams m_backendParams;
     std::unique_ptr<rive_vkb::VulkanInstance> m_instance;

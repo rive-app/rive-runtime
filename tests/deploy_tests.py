@@ -504,7 +504,7 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
     if args.target == "android":
         sharedlib = os.path.join(dirname, "lib%s.so" % toolname)
         print("\nDeploying %s on android..." % sharedlib)
-        tool_args = ' '.join([sharedlib] + cmd[1:])
+        tool_args = ' '.join(cmd[1:])
         return ["adb", "shell",
                 "am force-stop app.rive.android_tests && "
                 "am start -n app.rive.android_tests/.%s -e args '%s'" % (toolname, tool_args)]

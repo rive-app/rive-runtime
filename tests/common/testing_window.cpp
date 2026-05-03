@@ -31,6 +31,7 @@ extern "C"
 
 // Call TestingWindow::Destroy if you want to delete the window singleton
 TestingWindow* s_TestingWindow = nullptr;
+TestingWindow::Backend TestingWindow::s_Backend = TestingWindow::Backend::null;
 
 const char* TestingWindow::BackendName(Backend backend)
 {
@@ -432,6 +433,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
         abort();
     }
 
+    s_Backend = backend;
     return s_TestingWindow;
 }
 

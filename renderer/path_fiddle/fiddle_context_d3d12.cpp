@@ -241,6 +241,11 @@ public:
             RenderContextD3D12Impl::MakeContext(m_device,
                                                 m_copyCommandList.Get(),
                                                 contextOptions);
+        // Enable canvas pre-pass support
+        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+        // for canvas rendering.
+        m_renderContext->static_impl_cast<RenderContextD3D12Impl>()
+            ->setCommandQueue(m_commandQueue.Get());
         VERIFY_OK(m_copyCommandList->Close());
         VERIFY_OK(m_commandList->Close());
 

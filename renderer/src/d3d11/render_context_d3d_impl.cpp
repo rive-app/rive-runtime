@@ -6,7 +6,9 @@
 
 #include "rive/renderer/d3d/d3d_constants.hpp"
 
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#endif
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
 
@@ -996,6 +998,10 @@ public:
     {
         return m_srv.GetAddressOf();
     }
+    void* nativeHandle() const override
+    {
+        return static_cast<void*>(m_texture.Get());
+    }
 
 private:
     ComPtr<ID3D11Texture2D> m_texture;
@@ -1025,6 +1031,7 @@ rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
     return make_rcp<TextureD3DImpl>(this, image, width, height);
 }
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
                                                          uint32_t height)
 {
@@ -1045,6 +1052,7 @@ rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+#endif
 
 class BufferRingD3D : public BufferRing
 {

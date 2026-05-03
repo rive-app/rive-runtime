@@ -120,7 +120,7 @@ else
 
     # Only use default arguments if RIVE_PREMAKE_ARGS is unset (not just empty).
     if [ -z "${RIVE_PREMAKE_ARGS+null_detector_string}" ]; then
-        RIVE_PREMAKE_ARGS="--with_rive_text --with_rive_layout"
+        RIVE_PREMAKE_ARGS="--with_rive_text --with_rive_layout --with_rive_canvas"
     fi
 
     while [[ $# -gt 0 ]]; do

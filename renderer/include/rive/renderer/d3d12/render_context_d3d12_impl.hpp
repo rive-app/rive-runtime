@@ -110,8 +110,10 @@ public:
 
     rcp<Texture> adoptImageTexture(rcp<D3D12Texture> imageTexture);
 
+#ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+#endif
 
 #define IMPLEMENT_RIVE_BUFFER(Name, m_buffer)                                  \
     void resize##Name(size_t sizeInBytes) override                             \
@@ -174,6 +176,14 @@ public:
 
     ComPtr<ID3D12Device> device() const { return m_device; }
 
+    // Set the command queue used by makeCommandBuffer(). Must be called
+    // before any ScriptedCanvas flush if canvas support is needed.
+    void setCommandQueue(ID3D12CommandQueue* queue) { m_canvasQueue = queue; }
+    ID3D12CommandQueue* commandQueue() const { return m_canvasQueue; }
+
+    void* makeCommandBuffer() override;
+    void commitCommandBuffer(void* commandBuffer) override;
+
     rcp<D3D12ResourceManager> manager() const { return m_resourceManager; }
 
     const D3DCapabilities& d3dCapabilities() const { return m_capabilities; }
@@ -201,6 +211,7 @@ private:
                      const IAABB& rect);
 
     ComPtr<ID3D12Device> m_device;
+    ID3D12CommandQueue* m_canvasQueue = nullptr;
     const D3DCapabilities m_capabilities;
 
     rcp<D3D12Texture> m_gradientTexture;

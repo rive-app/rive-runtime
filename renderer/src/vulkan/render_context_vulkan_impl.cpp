@@ -5,7 +5,9 @@
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 
 #include "vulkan_shaders.hpp"
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#endif
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
@@ -123,6 +125,17 @@ public:
         m_texture(std::move(texture))
     {}
 
+    VkImage targetImage() const override { return m_texture->vkImage(); }
+    VkImageView targetImageView() const override
+    {
+        return m_texture->vkImageView();
+    }
+
+    void updateLastAccess(const vkutil::ImageAccess& a) override
+    {
+        m_texture->lastAccess() = a;
+    }
+
     VkImage accessTargetImage(VkCommandBuffer commandBuffer,
                               const vkutil::ImageAccess& dstAccess,
                               vkutil::ImageAccessAction accessAction) override
@@ -144,6 +157,7 @@ private:
     rcp<vkutil::Texture2D> m_texture;
 };
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
                                                             uint32_t height)
 {
@@ -173,6 +187,7 @@ rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+#endif
 
 // Common base class for a pipeline that renders a texture resource at the
 // beginning of a flush, which is then read during the main draw pass.
@@ -1093,6 +1108,11 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
     assert(m_tessSpanBuffer == nullptr);
     assert(m_triangleBuffer == nullptr);
 
+    if (m_canvasCommandPool != VK_NULL_HANDLE)
+    {
+        m_vk->DestroyCommandPool(m_vk->device, m_canvasCommandPool, nullptr);
+    }
+
     // Tell the context we are entering our shutdown cycle. After this point,
     // all resources will be deleted immediately upon their refCount reaching
     // zero, as opposed to being kept alive for in-flight command buffers.
@@ -1498,6 +1518,71 @@ bool RenderContextVulkanImpl::wantsManualRenderPassResolve(
     return false;
 }
 
+void RenderContextVulkanImpl::setCanvasQueue(VkQueue queue,
+                                             uint32_t queueFamilyIndex)
+{
+    m_canvasQueue = queue;
+    m_canvasQueueFamilyIndex = queueFamilyIndex;
+}
+
+void* RenderContextVulkanImpl::makeCommandBuffer()
+{
+    if (m_canvasQueue == VK_NULL_HANDLE)
+    {
+        return nullptr;
+    }
+    if (m_canvasCommandPool == VK_NULL_HANDLE)
+    {
+        VkCommandPoolCreateInfo ci = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = m_canvasQueueFamilyIndex,
+        };
+        VK_CHECK(m_vk->CreateCommandPool(m_vk->device,
+                                         &ci,
+                                         nullptr,
+                                         &m_canvasCommandPool));
+    }
+    VkCommandBuffer cmdBuf;
+    VkCommandBufferAllocateInfo ai = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = m_canvasCommandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+    if (m_vk->AllocateCommandBuffers(m_vk->device, &ai, &cmdBuf) != VK_SUCCESS)
+    {
+        return nullptr;
+    }
+    VkCommandBufferBeginInfo bi = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    m_vk->BeginCommandBuffer(cmdBuf, &bi);
+    return reinterpret_cast<void*>(cmdBuf);
+}
+
+void RenderContextVulkanImpl::commitCommandBuffer(void* commandBuffer)
+{
+    if (commandBuffer == nullptr)
+    {
+        return;
+    }
+    auto cmdBuf = reinterpret_cast<VkCommandBuffer>(commandBuffer);
+    m_vk->EndCommandBuffer(cmdBuf);
+
+    VkSubmitInfo si = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmdBuf,
+    };
+    m_vk->QueueSubmit(m_canvasQueue, 1, &si, VK_NULL_HANDLE);
+    // Wait for completion so the canvas texture is ready for compositing
+    // and the command buffer can be freed immediately.
+    m_vk->QueueWaitIdle(m_canvasQueue);
+    m_vk->FreeCommandBuffers(m_vk->device, m_canvasCommandPool, 1, &cmdBuf);
+}
+
 void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
                                              uint64_t safeFrameNumber)
 {
@@ -1514,7 +1599,14 @@ void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
 
     // Advance the context frame and delete resources that are no longer
     // referenced by in-flight command buffers.
-    m_vk->advanceFrameNumber(nextFrameNumber, safeFrameNumber);
+    // When nextFrameNumber is 0 this is a canvas pre-pass flush that uses its
+    // own command buffer (via makeCommandBuffer/commitCommandBuffer). Skip
+    // advancing the frame number because the pre-pass executes synchronously
+    // and doesn't participate in frame lifetime tracking.
+    if (nextFrameNumber != 0)
+    {
+        m_vk->advanceFrameNumber(nextFrameNumber, safeFrameNumber);
+    }
 
     // Acquire buffers for the flush.
     m_flushUniformBuffer = m_flushUniformBufferPool.acquire();
@@ -1972,6 +2064,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     const auto commandBuffer =
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
+    assert(commandBuffer != VK_NULL_HANDLE);
 
     m_featherTexture->prepareForVertexOrFragmentShaderRead(commandBuffer);
     m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);

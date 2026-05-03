@@ -4,7 +4,9 @@
 
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include "rive/renderer/d3d/d3d_constants.hpp"
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#endif
 #include "rive/profiler/profiler_macros.h"
 #include "rive/renderer/d3d/d3d_utils.hpp"
 
@@ -247,6 +249,10 @@ public:
     }
 
     D3D12Texture* resource() const { return m_gpuTexture.get(); }
+    void* nativeHandle() const override
+    {
+        return static_cast<void*>(m_gpuTexture.get());
+    }
 
 private:
     mutable rcp<D3D12Buffer> m_uploadBuffer;
@@ -779,6 +785,7 @@ rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(
     return make_rcp<TextureD3D12Impl>(std::move(imageTexture));
 }
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
                                                            uint32_t height)
 {
@@ -800,6 +807,7 @@ rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+#endif
 
 void rive::gpu::RenderContextD3D12Impl::resizeGradientTexture(uint32_t width,
                                                               uint32_t height)
@@ -878,6 +886,73 @@ void rive::gpu::RenderContextD3D12Impl::resizeAtlasTexture(uint32_t width,
     }
 }
 
+// Internal struct to hold D3D12 canvas command buffer resources.
+// Allocated by makeCommandBuffer(), freed by commitCommandBuffer().
+struct CanvasCommandBuffer
+{
+    RenderContextD3D12Impl::CommandLists lists;
+    ComPtr<ID3D12CommandAllocator> allocator;
+    ComPtr<ID3D12GraphicsCommandList> commandList;
+};
+
+void* RenderContextD3D12Impl::makeCommandBuffer()
+{
+    if (m_canvasQueue == nullptr)
+    {
+        return nullptr;
+    }
+    auto* cb = new CanvasCommandBuffer();
+    HRESULT hr =
+        m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                         IID_PPV_ARGS(&cb->allocator));
+    if (FAILED(hr))
+    {
+        delete cb;
+        return nullptr;
+    }
+    hr = m_device->CreateCommandList(0,
+                                     D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                     cb->allocator.Get(),
+                                     nullptr,
+                                     IID_PPV_ARGS(&cb->commandList));
+    if (FAILED(hr))
+    {
+        delete cb;
+        return nullptr;
+    }
+    cb->lists.copyComandList = nullptr; // use direct list for everything
+    cb->lists.directComandList = cb->commandList.Get();
+    return &cb->lists;
+}
+
+void RenderContextD3D12Impl::commitCommandBuffer(void* commandBuffer)
+{
+    if (commandBuffer == nullptr)
+    {
+        return;
+    }
+    // Recover the CanvasCommandBuffer from the CommandLists pointer.
+    auto* lists = static_cast<CommandLists*>(commandBuffer);
+    auto* cb = reinterpret_cast<CanvasCommandBuffer*>(
+        reinterpret_cast<char*>(lists) - offsetof(CanvasCommandBuffer, lists));
+    cb->commandList->Close();
+    ID3D12CommandList* ppCommandLists[] = {cb->commandList.Get()};
+    m_canvasQueue->ExecuteCommandLists(1, ppCommandLists);
+
+    // Wait for completion so the canvas texture is ready for compositing.
+    ComPtr<ID3D12Fence> fence;
+    m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+    m_canvasQueue->Signal(fence.Get(), 1);
+    if (fence->GetCompletedValue() < 1)
+    {
+        HANDLE event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        fence->SetEventOnCompletion(1, event);
+        WaitForSingleObject(event, INFINITE);
+        CloseHandle(event);
+    }
+    delete cb;
+}
+
 void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
                                             uint64_t safeFrameNumber)
 {
@@ -898,7 +973,14 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
 
     // Advance the context frame and delete resources that are no longer
     // referenced by in-flight command buffers.
-    m_resourceManager->advanceFrameNumber(nextFrameNumber, safeFrameNumber);
+    // When nextFrameNumber is 0 this is a canvas pre-pass flush that uses its
+    // own command buffer (via makeCommandBuffer/commitCommandBuffer). Skip
+    // advancing the frame number because the pre-pass executes synchronously
+    // and doesn't participate in frame lifetime tracking.
+    if (nextFrameNumber != 0)
+    {
+        m_resourceManager->advanceFrameNumber(nextFrameNumber, safeFrameNumber);
+    }
 
     // Acquire buffers for the flush.
     m_flushUniformBuffer = m_flushUniformBufferPool.acquire();

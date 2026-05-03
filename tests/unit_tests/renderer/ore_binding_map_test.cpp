@@ -83,6 +83,143 @@ TEST_CASE("BindingMap stage visibility", "[ore_binding_map]")
           BindingMap::kAbsent);
 }
 
+TEST_CASE("BindingMap FS-only entry hides VS / CS", "[ore_binding_map]")
+{
+    // The FS-only case is the one the post-review sweep specifically
+    // surfaced (every flatten backend's makeBindGroup hard-coded
+    // `Stage::VS` and dropped FS-only sampled textures from the bind).
+    // A correctly-tagged FS-only entry should answer kAbsent for any
+    // VS or CS lookup regardless of whether the per-stage slot field
+    // happens to be populated.
+    BindingMap m;
+    m.push(makeEntry(2,
+                     0,
+                     ResourceKind::SampledTexture,
+                     /*slotVs*/ BindingMap::kAbsent,
+                     /*slotFs*/ 4,
+                     /*slotCs*/ BindingMap::kAbsent,
+                     /*stageMask*/ BindingMap::kStageFragment));
+    m.finalize();
+
+    CHECK(m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
+          4);
+    CHECK(m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
+          BindingMap::kAbsent);
+    CHECK(m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::CS) ==
+          BindingMap::kAbsent);
+}
+
+TEST_CASE("BindingMap empty stageMask hides every stage", "[ore_binding_map]")
+{
+    // Pathological case: an entry that exists in the map (group/binding
+    // present) but advertises no stages. Every per-stage lookup must
+    // answer kAbsent, even if the per-stage slot field is populated.
+    // This protects against a future allocator bug that forgets to set
+    // stageMask while still emitting the slot.
+    BindingMap m;
+    m.push(makeEntry(0,
+                     0,
+                     ResourceKind::UniformBuffer,
+                     /*slotVs*/ 9,
+                     /*slotFs*/ 9,
+                     /*slotCs*/ 9,
+                     /*stageMask*/ 0));
+    m.finalize();
+
+    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
+          BindingMap::kAbsent);
+    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
+          BindingMap::kAbsent);
+    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::CS) ==
+          BindingMap::kAbsent);
+}
+
+TEST_CASE("BindingMap sampler / comparison-sampler kind collapse",
+          "[ore_binding_map]")
+{
+    // Documented in `BindingMap::lookup` (ore_binding_map.hpp): the
+    // runtime bind API has a single "sampler" category, so a query for
+    // either `Sampler` or `ComparisonSampler` must match an entry of
+    // either kind. Without this collapse, a shadow sampler (declared
+    // as `sampler_comparison` in WGSL → `ComparisonSampler` in the map)
+    // would be invisible to the runtime's `Sampler` lookup and the
+    // bind would fail.
+    {
+        BindingMap m;
+        m.push(makeEntry(0,
+                         0,
+                         ResourceKind::ComparisonSampler,
+                         /*slotVs*/ 7,
+                         /*slotFs*/ 7));
+        m.finalize();
+
+        // Query as ComparisonSampler — direct match.
+        CHECK(m.lookup(0,
+                       0,
+                       ResourceKind::ComparisonSampler,
+                       BindingMap::Stage::FS) == 7);
+        // Query as Sampler — must collapse and return the same slot.
+        CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::FS) ==
+              7);
+        // Non-sampler kind must NOT collapse.
+        CHECK(m.lookup(0,
+                       0,
+                       ResourceKind::SampledTexture,
+                       BindingMap::Stage::FS) == BindingMap::kAbsent);
+        CHECK(m.lookup(0,
+                       0,
+                       ResourceKind::UniformBuffer,
+                       BindingMap::Stage::FS) == BindingMap::kAbsent);
+    }
+    {
+        // Reverse: entry kind = Sampler, query as ComparisonSampler must
+        // also collapse. The runtime's bind-API category is symmetric.
+        BindingMap m;
+        m.push(makeEntry(0,
+                         0,
+                         ResourceKind::Sampler,
+                         /*slotVs*/ 2,
+                         /*slotFs*/ 2));
+        m.finalize();
+
+        CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::FS) ==
+              2);
+        CHECK(m.lookup(0,
+                       0,
+                       ResourceKind::ComparisonSampler,
+                       BindingMap::Stage::FS) == 2);
+    }
+}
+
+TEST_CASE("BindingMap per-stage slots can disagree", "[ore_binding_map]")
+{
+    // RFC §3.2.1 / §3.4: per-stage backend counters mean a single
+    // (group, binding) can carry distinct slot values for VS vs FS
+    // (Metal/D3D11 with truly per-stage allocator). The lookup API
+    // must return the correct stage's slot, not collapse them.
+    // Today's v1 allocator stamps the same slot to all stages; this
+    // test locks the lookup contract so the v2 allocator landing
+    // doesn't need a contemporaneous lookup-API change.
+    BindingMap m;
+    m.push(makeEntry(0,
+                     0,
+                     ResourceKind::SampledTexture,
+                     /*slotVs*/ 1,
+                     /*slotFs*/ 4,
+                     /*slotCs*/ 9,
+                     /*stageMask*/ BindingMap::kStageVertex |
+                         BindingMap::kStageFragment |
+                         BindingMap::kStageCompute));
+    m.finalize();
+
+    CHECK(m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
+          1);
+    CHECK(m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
+          4);
+    CHECK(m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::CS) ==
+          9);
+}
+
 TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
 {
     BindingMap original;

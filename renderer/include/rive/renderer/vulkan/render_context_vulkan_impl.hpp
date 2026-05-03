@@ -63,6 +63,13 @@ public:
 
     VulkanContext* vulkanContext() const { return m_vk.get(); }
 
+    // Set the queue and queue family index used by makeCommandBuffer().
+    // Must be called before any ScriptedCanvas flush.
+    void setCanvasQueue(VkQueue queue, uint32_t queueFamilyIndex);
+
+    void* makeCommandBuffer() override;
+    void commitCommandBuffer(void* commandBuffer) override;
+
     rcp<RenderTargetVulkanImpl> makeRenderTarget(
         uint32_t width,
         uint32_t height,
@@ -79,8 +86,10 @@ public:
                                   GPUTextureFormat format,
                                   const uint8_t imageDataRGBAPremul[]) override;
 
+#ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+#endif
 
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
@@ -337,6 +346,11 @@ private:
     }
 
     const rcp<VulkanContext> m_vk;
+
+    // Canvas command buffer support (set via setCanvasQueue).
+    VkQueue m_canvasQueue = VK_NULL_HANDLE;
+    uint32_t m_canvasQueueFamilyIndex = 0;
+    VkCommandPool m_canvasCommandPool = VK_NULL_HANDLE;
 
     struct DriverWorkarounds
     {

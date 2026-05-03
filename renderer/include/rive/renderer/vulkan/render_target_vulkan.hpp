@@ -19,6 +19,16 @@ public:
         return m_targetUsageFlags;
     }
 
+    // Raw handle accessors — no layout transition. Used by ORE to wrap the
+    // canvas backing image at wrapCanvasTexture() time.
+    virtual VkImage targetImage() const = 0;
+    virtual VkImageView targetImageView() const = 0;
+
+    // Called by ORE's RenderPass::finish() after it has transitioned the image
+    // to SHADER_READ_ONLY_OPTIMAL, so Rive's own barrier logic sees the correct
+    // layout on the next draw.
+    virtual void updateLastAccess(const vkutil::ImageAccess&) {}
+
     // Performs a pipeline barrier and returns the target image in the requested
     // layout.
     virtual VkImage accessTargetImage(
@@ -112,6 +122,14 @@ public:
     const vkutil::ImageAccess& targetLastAccess() const
     {
         return m_targetLastAccess;
+    }
+
+    VkImage targetImage() const override { return m_targetImage; }
+    VkImageView targetImageView() const override { return m_targetImageView; }
+
+    void updateLastAccess(const vkutil::ImageAccess& a) override
+    {
+        m_targetLastAccess = a;
     }
 
     VkImage accessTargetImage(

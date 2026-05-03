@@ -46,6 +46,9 @@ extern "C" JNIEXPORT void JNICALL android_main(android_app* app)
 
     std::vector<char> rawArgs;
     std::vector<const char*> argv;
+    // argv[0] is conventionally the program name; rive_android_main (and all
+    // other main-like entry points) start parsing at index 1.
+    argv.push_back("gms");
     if (extras != nullptr)
     {
         // ... .getString("args")
@@ -59,16 +62,19 @@ extern "C" JNIEXPORT void JNICALL android_main(android_app* app)
                                   getStringFn,
                                   env->NewStringUTF("args")));
 
-        // Split args by space.
-        const char* argsUtf8 = env->GetStringUTFChars(args, 0);
-        rawArgs.resize(strlen(argsUtf8) + 1);
-        strcpy(rawArgs.data(), argsUtf8);
-        env->ReleaseStringUTFChars(args, argsUtf8);
-        const char* arg = strtok(rawArgs.data(), " ");
-        while (arg != nullptr)
+        if (args != nullptr)
         {
-            argv.push_back(arg);
-            arg = strtok(nullptr, " ");
+            // Split args by space.
+            const char* argsUtf8 = env->GetStringUTFChars(args, 0);
+            rawArgs.resize(strlen(argsUtf8) + 1);
+            strcpy(rawArgs.data(), argsUtf8);
+            env->ReleaseStringUTFChars(args, argsUtf8);
+            const char* arg = strtok(rawArgs.data(), " ");
+            while (arg != nullptr)
+            {
+                argv.push_back(arg);
+                arg = strtok(nullptr, " ");
+            }
         }
     }
 

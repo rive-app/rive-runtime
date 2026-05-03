@@ -59,6 +59,7 @@ public:
     void setViewModelInput(std::string name, ViewModelInstanceValue* value);
     void trigger(std::string name);
     bool scriptAdvance(float elapsedSeconds);
+    void scriptDrawCanvas();
     void scriptUpdate();
     void reinit();
 #ifdef WITH_RIVE_SCRIPTING

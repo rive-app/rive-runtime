@@ -7,7 +7,9 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/rive_render_factory.hpp"
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#endif
 #include "rive/renderer/render_target.hpp"
 #include "rive/renderer/shader_compilation_mode.hpp"
 #include "rive/renderer/sk_rectanizer_skyline.hpp"
@@ -301,9 +303,11 @@ public:
                                        size_t) override;
     rcp<RenderImage> decodeImage(Span<const uint8_t>) override;
 
+#ifdef RIVE_CANVAS
     // Creates a RenderCanvas: a GPU texture usable as both a render target
     // (for rendering into) and a render image (for compositing into draws).
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height);
+#endif
 
 private:
     friend class Draw;

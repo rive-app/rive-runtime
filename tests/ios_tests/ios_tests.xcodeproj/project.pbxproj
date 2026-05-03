@@ -321,6 +321,7 @@
 					"-llibpng",
 					"-lrive_decoders",
 					"-lrive_pls_renderer",
+					"-lrive_cg_renderer",
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
@@ -335,6 +336,7 @@
 					"-llibpng",
 					"-lrive_decoders",
 					"-lrive_pls_renderer",
+					"-lrive_cg_renderer",
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
@@ -370,9 +372,42 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = "";
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = ../out/ios_release;
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = ../out/iossim_universal_release;
 				MACH_O_TYPE = mh_execute;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"-lrive",
+					"-lrive_sheenbidi",
+					"-lrive_harfbuzz",
+					"-lrive_yoga",
+					"-lzlib",
+					"-llibpng",
+					"-lrive_decoders",
+					"-lrive_pls_renderer",
+					"-lrive_cg_renderer",
+					"-ltools_common",
+					"-lgoldens",
+					"-lgms",
+					'-lminiaudio',
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"-lrive",
+					"-lrive_sheenbidi",
+					"-lrive_harfbuzz",
+					"-lrive_yoga",
+					"-lzlib",
+					"-llibpng",
+					"-lrive_decoders",
+					"-lrive_pls_renderer",
+					"-lrive_cg_renderer",
+					"-ltools_common",
+					"-lgoldens",
+					"-lgms",
+					'-lminiaudio',
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";
 				PRODUCT_NAME = rive_ios_tests;
 				SWIFT_EMIT_LOC_STRINGS = YES;

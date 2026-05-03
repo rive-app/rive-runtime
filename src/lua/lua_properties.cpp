@@ -1218,7 +1218,14 @@ int ScriptedPropertyImage::pushValue()
         auto asset = vmi->asset();
         if (asset != nullptr && asset->renderImage() != nullptr)
         {
-            auto scriptedImage = lua_newrive<ScriptedImage>(m_state);
+            // Use the out-of-line `ScriptedImage::luaNew` factory rather
+            // than `lua_newrive<ScriptedImage>` directly: when ore is
+            // enabled, ScriptedImage holds an `rcp<ore::TextureView>` and
+            // its destructor needs the full TextureView definition (this
+            // TU only sees the forward decl in `rive_lua_libs.hpp`). The
+            // factory lives in `lua_gpu.cpp` / `lua_image.cpp` where the
+            // ore headers are visible.
+            auto scriptedImage = ScriptedImage::luaNew(m_state);
             scriptedImage->image = ref_rcp(asset->renderImage());
             return 1;
         }

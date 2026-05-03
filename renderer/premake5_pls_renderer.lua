@@ -34,15 +34,89 @@ do
     defines({ 'RIVE_DESKTOP_GL' })
 end
 
+-- Ore backend selection — defined globally so tests and consumers also see them.
+-- Only active when --with_rive_canvas is enabled.
+-- RIVE_ORE is defined whenever any ore backend is active, so C++ code can guard
+-- ore API calls without enumerating every backend.
+filter({ 'system:macosx or ios', 'options:with_rive_canvas' })
+do
+    defines({ 'ORE_BACKEND_METAL', 'RIVE_ORE' })
+end
+
+-- Enable @try/@catch in Metal ORE for graceful error handling at runtime.
+-- Not used in tools/fuzz builds where crashing on Metal exceptions is preferred.
+filter({ 'system:macosx or ios', 'options:with_objc_exceptions' })
+do
+    defines({ 'RIVE_OBJC_EXCEPTIONS=1' })
+end
+
+-- macOS also gets ORE_BACKEND_GL so ore GMs work with ANGLE (GL on desktop).
+filter({ 'system:macosx', 'options:with_rive_canvas', 'options:not no_gl' })
+do
+    defines({ 'ORE_BACKEND_GL' })
+end
+
+filter({ 'system:windows', 'options:with_rive_canvas' })
+do
+    defines({ 'ORE_BACKEND_D3D11', 'ORE_BACKEND_D3D12', 'RIVE_ORE' })
+end
+
+-- Windows + Dawn: ore routes through Dawn's WebGPU device. Supersedes D3D11
+-- and D3D12 ore backends.
+filter({ 'system:windows', 'options:with_rive_canvas', 'options:with-dawn' })
+do
+    defines({ 'ORE_BACKEND_WGPU' })
+    removedefines({ 'ORE_BACKEND_D3D11' })
+    removedefines({ 'ORE_BACKEND_D3D12' })
+end
+
 filter('system:android')
 do
     defines({ 'RIVE_ANDROID' })
 end
 
+filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:not no_gl' })
+do
+    defines({ 'ORE_BACKEND_GL', 'RIVE_ORE' })
+end
+
+-- Android + wagyu: Ore routes through the WebGPU/wagyu device instead of raw GL.
+-- Runtime dispatch inside ORE_BACKEND_WGPU selects GLSLRAW (GLES) or GLSL (Vulkan).
+filter({ 'system:android', 'options:with_rive_canvas', 'options:with_wagyu' })
+do
+    defines({ 'ORE_BACKEND_WGPU', 'RIVE_ORE' })
+end
+
+-- Android + native Vulkan (no wagyu): raw Vulkan ORE backend.
+-- Takes SPIR-V directly; traditional VkRenderPass for TBDR tile memory efficiency.
+-- When GL is also enabled (the default), both backends coexist in the same binary
+-- via VK+GL dispatch files (src/ore/vulkan/ore_*_vk_gl.cpp).
+filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:with_vulkan' })
+do
+    defines({ 'ORE_BACKEND_VK' })
+end
+
+-- Linux: native Vulkan ORE backend (requires --with_vulkan for headers and VMA).
+-- Also enables the ORE GL backend so the same binary can service `--backend gl`
+-- via the VK+GL dispatch TUs, parallel to the Android VK+GL configuration.
+filter({ 'system:linux', 'options:with_rive_canvas', 'options:with_vulkan' })
+do
+    defines({ 'ORE_BACKEND_VK', 'ORE_BACKEND_GL', 'RIVE_ORE' })
+end
+
+
+newoption({
+    trigger = 'with_objc_exceptions',
+    description = 'enable @try/@catch in Metal ORE (requires -fobjc-exceptions)',
+})
+
+
+
 newoption({
     trigger = 'with-dawn',
     description = 'compile in support for webgpu via dawn',
 })
+
 filter({ 'options:with-dawn' })
 do
     defines({ 'RIVE_DAWN' })
@@ -51,6 +125,18 @@ end
 filter('system:emscripten')
 do
     defines({ 'RIVE_WEBGL' })
+end
+
+-- Emscripten + wagyu: Ore routes through the WebGPU/wagyu device.
+-- Runtime dispatch inside ORE_BACKEND_WGPU selects GLSLRAW (GLES) or GLSL (Vulkan).
+filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:with_wagyu' })
+do
+    defines({ 'ORE_BACKEND_WGPU', 'RIVE_ORE' })
+end
+
+filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:not no_gl' })
+do
+    defines({ 'ORE_BACKEND_GL', 'RIVE_ORE' })
 end
 
 newoption({
@@ -211,7 +297,8 @@ do
 
     files({ 'src/*.cpp', 'src/*.hpp', 'src/*.h', 'src/shaders/*.glsl',
             'src/shaders/*.frag', 'src/shaders/*.vert', 'include/**.hpp', 'include/**.h',
-            'src/ore/ore_binding_map.cpp', 'src/ore/ore_binding_map_ffi.cpp' })
+            'src/ore/ore_binding_map.cpp',
+            'src/ore/ore_bind_group_layout.cpp' })
 
 
     if _OPTIONS['with_optick'] then
@@ -289,6 +376,115 @@ do
         buildoptions({ '-fobjc-arc' })
     end
 
+    -- Shared cross-backend Ore sources. Compiled whenever canvas is on,
+    -- regardless of which GPU backend(s) are active.
+    filter({ 'options:with_rive_canvas' })
+    do
+        files({ 'src/ore/*.cpp' })
+    end
+
+    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:with_rive_canvas' })
+    do
+        files({ 'src/ore/metal/*.mm' })
+    end
+
+    -- Enable -fobjc-exceptions for .mm files when @try/@catch is active.
+    -- Uses a files: filter so the flag doesn't hit .cpp compilations
+    -- (clang warns on -fobjc-exceptions for non-ObjC++ sources).
+    filter({
+        'system:macosx or ios',
+        'options:not nop-obj-c',
+        'options:with_objc_exceptions',
+        'files:**.mm',
+    })
+    do
+        buildoptions({ '-fobjc-exceptions' })
+    end
+
+    -- Enable -fobjc-exceptions for .mm files when @try/@catch is active.
+    -- Uses a files: filter so the flag doesn't hit .cpp compilations
+    -- (clang warns on -fobjc-exceptions for non-ObjC++ sources).
+    filter({
+        'system:macosx or ios',
+        'options:not nop-obj-c',
+        'options:with_objc_exceptions',
+        'files:**.mm',
+    })
+    do
+        buildoptions({ '-fobjc-exceptions' })
+    end
+
+
+    -- macOS also compiles the ore GL backend (via ObjC++ wrappers) so ore
+    -- works with ANGLE. Both METAL and GL backends coexist in the same binary.
+    filter({ 'system:macosx', 'options:not nop-obj-c', 'options:with_rive_canvas', 'options:not no_gl' })
+    do
+        files({ 'src/ore/gl/*.mm' })
+    end
+
+
+    filter({ 'system:windows', 'options:with_rive_canvas' })
+    do
+        files({ 'src/ore/d3d11/*.cpp' })
+        files({ 'src/ore/d3d12/*.cpp' })
+    end
+
+    -- Windows + Dawn: ore uses the WebGPU device exposed by Dawn. Supersedes
+    -- D3D11 and D3D12 ore backends — Dawn provides the GPU abstraction.
+    filter({ 'system:windows', 'options:with_rive_canvas', 'options:with-dawn' })
+    do
+        files({ 'src/ore/wgpu/*.cpp' })
+        removefiles({ 'src/ore/d3d11/*.cpp' })
+        removefiles({ 'src/ore/d3d12/*.cpp' })
+    end
+
+
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:not with_vulkan', 'options:not no_gl' })
+    do
+        files({ 'src/ore/gl/*.cpp' })
+    end
+
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:with_wagyu' })
+    do
+        files({ 'src/ore/wgpu/*.cpp' })
+    end
+
+    filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:with_wagyu' })
+    do
+        files({ 'src/ore/wgpu/*.cpp' })
+    end
+
+    -- Android VK: always include Vulkan backend files.
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:with_vulkan' })
+    do
+        files({ 'src/ore/vulkan/*.cpp' })
+    end
+
+    -- Android VK+GL: both backends coexist. Standalone files compile to
+    -- static-helper-only objects (method bodies guarded out by the other
+    -- backend's define). VK+GL dispatch files (ore_*_vk_gl.cpp) in the
+    -- vulkan/ directory provide the actual method implementations.
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:with_vulkan', 'options:not no_gl' })
+    do
+        files({ 'src/ore/gl/*.cpp' })
+    end
+
+    if _OPTIONS['with_vulkan'] then
+        filter({ 'system:linux', 'options:with_rive_canvas' })
+        do
+            externalincludedirs({
+                vulkan_headers .. '/include',
+                vulkan_memory_allocator .. '/include',
+            })
+            files({ 'src/ore/vulkan/*.cpp', 'src/ore/gl/*.cpp' })
+        end
+    end
+
+    filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:not no_gl' })
+    do
+        files({ 'src/ore/gl/*.cpp' })
+    end
+
     filter({ 'options:with-dawn' })
     do
         includedirs({
@@ -300,8 +496,7 @@ do
     filter({ 'options:with-webgpu or with-dawn' })
     do
         files({
-            -- Don't use "**.cpp" because we don't want to compile files in
-            -- wagyu-port/**
+--Don 't use "**.cpp" because we don' t want to compile files in-- wagyu - port/**
             'src/webgpu/*.cpp',
             'src/gl/load_store_actions_ext.cpp',
         })

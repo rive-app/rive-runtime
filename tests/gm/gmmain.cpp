@@ -178,8 +178,34 @@ extern "C" void gms_build_registry()
     MAKE_GM(trickycubicstrokes)
     MAKE_GM(preserverendertarget_blendmode)
     MAKE_GM(trickycubicstrokes_feather)
+#ifdef RIVE_CANVAS
     MAKE_GM(render_canvas_basic)
     MAKE_GM(render_canvas_persistence)
+    MAKE_GM(render_canvas_prepass)
+    MAKE_GM(render_canvas_prepass_multi)
+#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
+    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    MAKE_GM(ore_triangle)
+    MAKE_GM(ore_mrt)
+    MAKE_GM(ore_depth)
+    MAKE_GM(ore_cubemap)
+    MAKE_GM(ore_image_view)
+    MAKE_GM(ore_canvas_import)
+    MAKE_GM(ore_binding_witness)
+    MAKE_GM(ore_binding_mixed_kind)
+    MAKE_GM(ore_binding_multi_group)
+    MAKE_GM(ore_binding_shadow_sampler)
+    MAKE_GM(ore_binding_shadow_sampler_d32)
+    MAKE_GM(ore_binding_vs_texture)
+    MAKE_GM(ore_binding_dynamic_ubo)
+    MAKE_GM(ore_msaa_resolve)
+    MAKE_GM(ore_blend_stencil)
+    MAKE_GM(ore_array_upload)
+    MAKE_GM(ore_layout_reuse)
+    MAKE_GM(ore_layout_mismatch)
+#endif
+#endif
 }
 
 static void dump_gm(GM* gm, const std::string& name)

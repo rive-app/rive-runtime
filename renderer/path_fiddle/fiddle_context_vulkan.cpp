@@ -213,6 +213,13 @@ public:
                                                         swapOpts);
         assert(m_swapchain != nullptr);
 
+        // Enable canvas pre-pass support
+        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+        // for canvas rendering.
+        renderContextVulkanImpl()->setCanvasQueue(
+            m_swapchain->graphicsQueue(),
+            m_device->graphicsQueueFamilyIndex());
+
         m_renderTarget = renderContextVulkanImpl()->makeRenderTarget(
             width,
             height,

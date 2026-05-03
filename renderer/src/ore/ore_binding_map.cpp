@@ -7,12 +7,9 @@
 #include <algorithm>
 #include <cstring>
 
-// This translation unit contains the FFI-free portion of BindingMap: the
-// serialization (toBlob/fromBlob), sort/finalize, and lookup. The `fromFFI`
-// method — which depends on the `naga_compiled_*` symbols exposed by the
-// naga_ffi Rust library — lives in a separate translation unit
-// (ore_binding_map_ffi.cpp) so that linkers can dead-strip it in builds
-// (e.g. unit_tests) that don't link naga_ffi.
+// BindingMap serialization (toBlob/fromBlob), sort/finalize, and lookup.
+// All construction at runtime goes through `fromBlob` against an RSTB
+// sidecar; the editor-side toolchain produces the blob via `toBlob`.
 
 namespace rive::ore
 {
@@ -82,8 +79,6 @@ inline void writeU32LE(uint8_t* p, uint32_t v)
 #endif
 
 } // namespace
-
-// NOTE: `BindingMap::fromFFI` lives in ore_binding_map_ffi.cpp.
 
 // Runtime API: fromBlob trusts its input to be sorted (toBlob iterates
 // m_entries in canonical order). No sort on the hot path.

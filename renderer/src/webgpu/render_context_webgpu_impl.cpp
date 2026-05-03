@@ -5,7 +5,9 @@
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
 #include "rive/renderer/draw.hpp"
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#endif
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/texture_archive.hpp"
 #include "shaders/constants.glsl"
@@ -1933,6 +1935,7 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
                                       height));
 }
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
                                                             uint32_t height)
 {
@@ -1960,6 +1963,7 @@ rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+#endif
 
 class RenderBufferWebGPUImpl : public RenderBuffer
 {
@@ -3706,5 +3710,26 @@ std::unique_ptr<RenderContext> RenderContextWebGPUImpl::MakeContext(
         new RenderContextWebGPUImpl(adapter, device, queue, contextOptions));
     impl->initGPUObjects();
     return std::make_unique<RenderContext>(std::move(impl));
+}
+
+void* RenderContextWebGPUImpl::makeCommandBuffer()
+{
+    wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
+    // Release the C++ wrapper's ref and return the raw handle.
+    // The caller (commitCommandBuffer) will re-acquire it.
+    return encoder.MoveToCHandle();
+}
+
+void RenderContextWebGPUImpl::commitCommandBuffer(void* commandBuffer)
+{
+    if (commandBuffer == nullptr)
+    {
+        return;
+    }
+    // Re-acquire ownership of the raw handle.
+    wgpu::CommandEncoder encoder = wgpu::CommandEncoder::Acquire(
+        static_cast<WGPUCommandEncoder>(commandBuffer));
+    wgpu::CommandBuffer commands = encoder.Finish();
+    m_queue.Submit(1, &commands);
 }
 } // namespace rive::gpu

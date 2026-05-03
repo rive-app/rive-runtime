@@ -332,6 +332,19 @@ public:
     Drawable* firstDrawable() { return m_FirstDrawable; };
     void addScriptedObject(ScriptedObject* object);
 
+    void drawCanvases();
+
+    /// Poll async work (image decodes, etc.) so promises resolve before
+    /// script callbacks run. Called at the top of advance().
+    void pollAsyncWork();
+
+#ifdef WITH_RIVE_SCRIPTING
+    /// Returns the lua_State* (as void*) for the first drawCanvas scripted
+    /// object in this artboard or any nested artboard, recursively. Returns
+    /// nullptr if no drawCanvas scripts exist. Used by the Dart FFI layer to
+    /// open a GPU frame before calling drawCanvases().
+    void* findDrawCanvasLuauState() const;
+#endif
     void drawInternal(Renderer* renderer);
     void draw(Renderer* renderer) override;
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
