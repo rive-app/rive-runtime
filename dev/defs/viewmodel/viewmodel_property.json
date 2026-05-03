@@ -46,6 +46,16 @@
         "string": "componentprops"
       },
       "description": "Bitfield that stores data about the property including whether its an input or an output of a stateful component"
+    },
+    "displayName": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 1012,
+        "string": "displayname"
+      },
+      "description": "Display name for the property used by stateful components inputs/outputs",
+      "runtime": false
     }
   }
 }
