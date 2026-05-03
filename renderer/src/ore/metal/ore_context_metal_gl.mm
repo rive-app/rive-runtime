@@ -471,7 +471,9 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(
+                desc.colorCount, desc.fragmentModule != nullptr, &err))
         {
             if (outError)
                 *outError = err;
@@ -481,7 +483,15 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         }
         pipeline->m_glProgram = glCreateProgram();
         glAttachShader(pipeline->m_glProgram, desc.vertexModule->m_glShader);
-        glAttachShader(pipeline->m_glProgram, desc.fragmentModule->m_glShader);
+        if (desc.fragmentModule != nullptr)
+        {
+            glAttachShader(pipeline->m_glProgram,
+                           desc.fragmentModule->m_glShader);
+        }
+        else
+        {
+            attachNoOpGLFragmentShader(pipeline->m_glProgram);
+        }
         for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)
         {
             const auto& layout = desc.vertexBuffers[bufIdx];

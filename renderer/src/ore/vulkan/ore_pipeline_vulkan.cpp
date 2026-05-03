@@ -332,7 +332,10 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -371,17 +374,22 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
                               &pipeline->m_vkPipelineLayout);
     pipeline->m_vkDestroyPipelineLayout = m_vk.DestroyPipelineLayout;
 
-    // --- Shader stages ---
+    // --- Shader stages --- (depth-only pipelines omit the fragment stage)
     VkPipelineShaderStageCreateInfo stages[2]{};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
     stages[0].module = desc.vertexModule->m_vkShaderModule;
     stages[0].pName = desc.vertexEntryPoint;
 
-    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    stages[1].module = desc.fragmentModule->m_vkShaderModule;
-    stages[1].pName = desc.fragmentEntryPoint;
+    uint32_t stageCount = 1;
+    if (desc.fragmentModule != nullptr)
+    {
+        stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        stages[1].module = desc.fragmentModule->m_vkShaderModule;
+        stages[1].pName = desc.fragmentEntryPoint;
+        stageCount = 2;
+    }
 
     // --- Vertex input ---
     constexpr uint32_t kMaxBindings = 8;
@@ -545,9 +553,11 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
     VkRenderPass compatRenderPass = getOrCreateRenderPass(key);
 
     // --- Assemble VkGraphicsPipelineCreateInfo ---
+    // pColorBlendState must be nullptr for depth-only pipelines per Dawn's
+    // pattern; otherwise validation flags an unused blend state.
     VkGraphicsPipelineCreateInfo pipelineCI{};
     pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineCI.stageCount = 2;
+    pipelineCI.stageCount = stageCount;
     pipelineCI.pStages = stages;
     pipelineCI.pVertexInputState = &vertexInput;
     pipelineCI.pInputAssemblyState = &inputAssembly;
@@ -555,7 +565,8 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
     pipelineCI.pRasterizationState = &raster;
     pipelineCI.pMultisampleState = &multisample;
     pipelineCI.pDepthStencilState = &depthStencil;
-    pipelineCI.pColorBlendState = &colorBlend;
+    pipelineCI.pColorBlendState =
+        (desc.fragmentModule != nullptr) ? &colorBlend : nullptr;
     pipelineCI.pDynamicState = &dynamicState;
     pipelineCI.layout = pipeline->m_vkPipelineLayout;
     pipelineCI.renderPass = compatRenderPass;

@@ -1876,16 +1876,19 @@ static int gpupipeline_construct(lua_State* L)
     desc.vertexModule = vs->vertexMod();
     lua_pop(L, 1);
 
-    // fragment shader (optional, defaults to vertex shader's fragment module)
+    // fragment shader. Three cases:
+    //   * explicit `fragment` Shader → use its fragment module.
+    //   * absent + at least one colorTarget → fall back to vs's fragment
+    //     module (combined-shader file with both vs_main and fs_main).
+    //   * absent + no colorTargets → depth-only pipeline, no fragment.
+    // Case 3 resolution is deferred until after colorTargets is parsed.
+    bool explicitFragment = false;
     lua_getfield(L, descIdx, "fragment");
     if (!lua_isnil(L, -1))
     {
         auto* fs = lua_torive<ScriptedShader>(L, -1);
         desc.fragmentModule = fs->fragmentMod();
-    }
-    else
-    {
-        desc.fragmentModule = vs->fragmentMod();
+        explicitFragment = true;
     }
     lua_pop(L, 1);
 
@@ -2017,6 +2020,12 @@ static int gpupipeline_construct(lua_State* L)
         }
     }
     lua_pop(L, 1); // pop colorTargets
+
+    // Resolve the deferred fragment-module decision (see "fragment shader"
+    // block above). With color outputs but no explicit fragment shader,
+    // fall back to the vertex shader's fragment module (combined file).
+    if (!explicitFragment && desc.colorCount > 0)
+        desc.fragmentModule = vs->fragmentMod();
 
     // depthStencil (optional)
     lua_getfield(L, descIdx, "depthStencil");

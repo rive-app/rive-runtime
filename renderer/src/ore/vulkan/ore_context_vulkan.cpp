@@ -1325,6 +1325,12 @@ RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
         pass.m_vkDepthImage = dsTex->m_vkImage;
         pass.m_vkDepthBaseLayer = desc.depthStencil.view->baseLayer();
         pass.m_vkDepthLayerCount = desc.depthStencil.view->layerCount();
+        // Depth-only pass: no color attachments contributed dimensions.
+        if (passWidth == 0)
+        {
+            passWidth = dsTex->width();
+            passHeight = dsTex->height();
+        }
     }
 
     VkRenderPass renderPass = getOrCreateRenderPass(key);

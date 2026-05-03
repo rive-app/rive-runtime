@@ -839,7 +839,10 @@ rcp<Pipeline> Context::d3d11MakePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -853,7 +856,8 @@ rcp<Pipeline> Context::d3d11MakePipeline(const PipelineDesc& desc,
     // The Luau GC can destroy the ScriptedShader (which owns the
     // ShaderModule rcp) at any time after script init.
     pipeline->m_vsModule = ref_rcp(desc.vertexModule);
-    pipeline->m_psModule = ref_rcp(desc.fragmentModule);
+    if (desc.fragmentModule != nullptr)
+        pipeline->m_psModule = ref_rcp(desc.fragmentModule);
 
     std::string compileErr;
     desc.vertexModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
@@ -864,19 +868,24 @@ rcp<Pipeline> Context::d3d11MakePipeline(const PipelineDesc& desc,
             *outError = m_lastError;
         return nullptr;
     }
-    desc.fragmentModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
-    if (!compileErr.empty())
+    if (desc.fragmentModule != nullptr)
     {
-        setLastError("Ore D3D11 PS: %s", compileErr.c_str());
-        if (outError)
-            *outError = m_lastError;
-        return nullptr;
+        desc.fragmentModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
+        if (!compileErr.empty())
+        {
+            setLastError("Ore D3D11 PS: %s", compileErr.c_str());
+            if (outError)
+                *outError = m_lastError;
+            return nullptr;
+        }
     }
 
     pipeline->m_d3dVS = desc.vertexModule->m_d3dVertexShader.Get();
-    pipeline->m_d3dPS = desc.fragmentModule->m_d3dPixelShader.Get();
+    if (desc.fragmentModule != nullptr)
+        pipeline->m_d3dPS = desc.fragmentModule->m_d3dPixelShader.Get();
 
-    if (!pipeline->m_d3dVS || !pipeline->m_d3dPS)
+    if (!pipeline->m_d3dVS ||
+        (desc.fragmentModule != nullptr && !pipeline->m_d3dPS))
     {
         setLastError("Ore D3D11: %s",
                      !pipeline->m_d3dVS

@@ -686,7 +686,9 @@ inline rcp<Pipeline> Context::mtlMakePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(
+                desc.colorCount, desc.fragmentModule != nullptr, &err))
         {
             if (outError)
                 *outError = err;
@@ -719,24 +721,28 @@ inline rcp<Pipeline> Context::mtlMakePipeline(const PipelineDesc& desc,
             *outError = msg;
         return nullptr;
     }
-    // Fragment function.
-    if (desc.fragmentModule->m_mtlLibrary == nil)
+    // Fragment function. Depth-only pipelines leave it nil — Metal allows
+    // a vertex-only pipeline that writes only depth.
+    if (desc.fragmentModule != nullptr)
     {
-        if (outError)
-            *outError = "fragment shader library is nil";
-        return nullptr;
-    }
-    rpd.fragmentFunction = [desc.fragmentModule->m_mtlLibrary
-        newFunctionWithName:@(desc.fragmentEntryPoint)];
-    if (rpd.fragmentFunction == nil)
-    {
-        std::string msg = std::string("fragment entry point '") +
-                          desc.fragmentEntryPoint +
-                          "' not found in shader library";
-        NSLog(@"RIVE ORE: makePipeline: %s", msg.c_str());
-        if (outError)
-            *outError = msg;
-        return nullptr;
+        if (desc.fragmentModule->m_mtlLibrary == nil)
+        {
+            if (outError)
+                *outError = "fragment shader library is nil";
+            return nullptr;
+        }
+        rpd.fragmentFunction = [desc.fragmentModule->m_mtlLibrary
+            newFunctionWithName:@(desc.fragmentEntryPoint)];
+        if (rpd.fragmentFunction == nil)
+        {
+            std::string msg = std::string("fragment entry point '") +
+                              desc.fragmentEntryPoint +
+                              "' not found in shader library";
+            NSLog(@"RIVE ORE: makePipeline: %s", msg.c_str());
+            if (outError)
+                *outError = msg;
+            return nullptr;
+        }
     }
 
     // Vertex descriptor.

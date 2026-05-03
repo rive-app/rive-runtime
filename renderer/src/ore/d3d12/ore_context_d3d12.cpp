@@ -1435,7 +1435,10 @@ rcp<Pipeline> Context::d3d12MakePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -1587,8 +1590,12 @@ rcp<Pipeline> Context::d3d12MakePipeline(const PipelineDesc& desc,
     psoDesc.pRootSignature = pipeline->m_d3dRootSigOwned.Get();
     psoDesc.VS.pShaderBytecode = desc.vertexModule->m_d3dBytecode.data();
     psoDesc.VS.BytecodeLength = desc.vertexModule->m_d3dBytecode.size();
-    psoDesc.PS.pShaderBytecode = desc.fragmentModule->m_d3dBytecode.data();
-    psoDesc.PS.BytecodeLength = desc.fragmentModule->m_d3dBytecode.size();
+    if (desc.fragmentModule != nullptr)
+    {
+        psoDesc.PS.pShaderBytecode = desc.fragmentModule->m_d3dBytecode.data();
+        psoDesc.PS.BytecodeLength = desc.fragmentModule->m_d3dBytecode.size();
+    }
+    // else: psoDesc.PS stays zero — D3D12 allows null PS for depth-only.
     psoDesc.BlendState = blendDesc;
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.RasterizerState = rastDesc;

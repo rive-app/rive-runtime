@@ -1200,7 +1200,10 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -1210,7 +1213,15 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         }
         pipeline->m_glProgram = glCreateProgram();
         glAttachShader(pipeline->m_glProgram, desc.vertexModule->m_glShader);
-        glAttachShader(pipeline->m_glProgram, desc.fragmentModule->m_glShader);
+        if (desc.fragmentModule != nullptr)
+        {
+            glAttachShader(pipeline->m_glProgram,
+                           desc.fragmentModule->m_glShader);
+        }
+        else
+        {
+            attachNoOpGLFragmentShader(pipeline->m_glProgram);
+        }
         for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)
         {
             const auto& layout = desc.vertexBuffers[bufIdx];
@@ -1249,7 +1260,7 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         }
         oreGLFixupProgramBindings(pipeline->m_glProgram,
                                   desc.vertexModule,
-                                  desc.fragmentModule);
+                                  desc.fragmentModule); // null-safe
 
         // (Removed: a `m_glState` cache that was populated here but
         // never consulted by `setPipeline`. Mirror of the dead-cache
@@ -1269,7 +1280,10 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -1307,17 +1321,22 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
                               &pipeline->m_vkPipelineLayout);
     pipeline->m_vkDestroyPipelineLayout = m_vk.DestroyPipelineLayout;
 
-    // --- Shader stages ---
+    // --- Shader stages --- (depth-only pipelines omit the fragment stage)
     VkPipelineShaderStageCreateInfo stages[2]{};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
     stages[0].module = desc.vertexModule->m_vkShaderModule;
     stages[0].pName = desc.vertexEntryPoint;
 
-    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    stages[1].module = desc.fragmentModule->m_vkShaderModule;
-    stages[1].pName = desc.fragmentEntryPoint;
+    uint32_t stageCount = 1;
+    if (desc.fragmentModule != nullptr)
+    {
+        stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        stages[1].module = desc.fragmentModule->m_vkShaderModule;
+        stages[1].pName = desc.fragmentEntryPoint;
+        stageCount = 2;
+    }
 
     // --- Vertex input ---
     constexpr uint32_t kMaxBindings = 8;
@@ -1483,7 +1502,7 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
     // --- Assemble VkGraphicsPipelineCreateInfo ---
     VkGraphicsPipelineCreateInfo pipelineCI{};
     pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineCI.stageCount = 2;
+    pipelineCI.stageCount = stageCount;
     pipelineCI.pStages = stages;
     pipelineCI.pVertexInputState = &vertexInput;
     pipelineCI.pInputAssemblyState = &inputAssembly;
@@ -1491,7 +1510,8 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
     pipelineCI.pRasterizationState = &raster;
     pipelineCI.pMultisampleState = &multisample;
     pipelineCI.pDepthStencilState = &depthStencil;
-    pipelineCI.pColorBlendState = &colorBlend;
+    pipelineCI.pColorBlendState =
+        (desc.fragmentModule != nullptr) ? &colorBlend : nullptr;
     pipelineCI.pDynamicState = &dynamicState;
     pipelineCI.layout = pipeline->m_vkPipelineLayout;
     pipelineCI.renderPass = compatRenderPass;
@@ -2125,6 +2145,12 @@ RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
         pass.m_vkDepthImage = dsTex->m_vkImage;
         pass.m_vkDepthBaseLayer = desc.depthStencil.view->baseLayer();
         pass.m_vkDepthLayerCount = desc.depthStencil.view->layerCount();
+        // Depth-only pass: no color attachments contributed dimensions.
+        if (passWidth == 0)
+        {
+            passWidth = dsTex->width();
+            passHeight = dsTex->height();
+        }
     }
 
     VkRenderPass renderPass = getOrCreateRenderPass(key);

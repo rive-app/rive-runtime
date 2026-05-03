@@ -876,11 +876,15 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         }
     }
 
+    // Fragment state is omitted for depth-only pipelines.
     wgpu::FragmentState fragmentState{};
-    fragmentState.module = desc.fragmentModule->m_wgpuShaderModule;
-    fragmentState.entryPoint = desc.fragmentEntryPoint;
-    fragmentState.targetCount = desc.colorCount;
-    fragmentState.targets = colorTargets;
+    if (desc.fragmentModule != nullptr)
+    {
+        fragmentState.module = desc.fragmentModule->m_wgpuShaderModule;
+        fragmentState.entryPoint = desc.fragmentEntryPoint;
+        fragmentState.targetCount = desc.colorCount;
+        fragmentState.targets = colorTargets;
+    }
 
     // --- Validate user-supplied layouts against shader binding map ---
     //
@@ -892,7 +896,10 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -924,7 +931,8 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
     rpDesc.primitive = primitiveState;
     rpDesc.depthStencil = pDepthStencil;
     rpDesc.multisample = multisampleState;
-    rpDesc.fragment = &fragmentState;
+    rpDesc.fragment =
+        (desc.fragmentModule != nullptr) ? &fragmentState : nullptr;
 
     pipeline->m_wgpuDevice = m_wgpuDevice;
     pipeline->m_wgpuPipeline = m_wgpuDevice.CreateRenderPipeline(&rpDesc);

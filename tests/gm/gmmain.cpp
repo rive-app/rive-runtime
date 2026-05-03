@@ -204,6 +204,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(ore_array_upload)
     MAKE_GM(ore_layout_reuse)
     MAKE_GM(ore_layout_mismatch)
+    MAKE_GM(ore_depth_only_pipeline)
 #endif
 #endif
 }

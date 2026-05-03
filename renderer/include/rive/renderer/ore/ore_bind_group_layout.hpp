@@ -138,4 +138,12 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
                                       uint32_t layoutCount,
                                       std::string* outError);
 
+// Color outputs require a fragment shader. Mirrors Dawn's
+// ValidateRenderPipelineDescriptor invariant. Depth-only pipelines
+// (colorCount == 0) may legitimately omit the fragment module — the
+// rasterizer still writes depth.
+bool validateColorRequiresFragment(uint32_t colorCount,
+                                   bool hasFragmentModule,
+                                   std::string* outError);
+
 } // namespace rive::ore

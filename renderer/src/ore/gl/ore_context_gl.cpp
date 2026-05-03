@@ -633,6 +633,24 @@ rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
 /// calls (a UBO declared in both VS and FS, which shows up in both
 /// stages' fixup tables with the same slot) are harmless — the GL
 /// driver overwrites with the same value.
+// Depth-only pipelines have no user-supplied fragment shader, but GLES 3.0
+// won't link a non-separable program object that lacks a fragment stage.
+// Mirror Dawn's GL backend (its
+// `UsePlaceholderFragmentInVertexOnlyPipeline` toggle, enabled on GLES):
+// synthesize a no-op FS, attach + immediately glDeleteShader. The shader
+// stays alive via GL refcount until the program is destroyed.
+static void attachNoOpGLFragmentShader(GLuint program)
+{
+    static const char kSrc[] = "#version 300 es\nvoid main() {}\n";
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    const char* src = kSrc;
+    GLint len = static_cast<GLint>(sizeof(kSrc) - 1);
+    glShaderSource(fs, 1, &src, &len);
+    glCompileShader(fs);
+    glAttachShader(program, fs);
+    glDeleteShader(fs);
+}
+
 static void oreGLFixupProgramBindings(GLuint program,
                                       const ShaderModule* vsModule,
                                       const ShaderModule* fsModule)
@@ -686,7 +704,10 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
         if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
                                               desc.bindGroupLayouts,
                                               desc.bindGroupLayoutCount,
-                                              &err))
+                                              &err) ||
+            !validateColorRequiresFragment(desc.colorCount,
+                                           desc.fragmentModule != nullptr,
+                                           &err))
         {
             if (outError)
                 *outError = err;
@@ -698,7 +719,14 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
 
     pipeline->m_glProgram = glCreateProgram();
     glAttachShader(pipeline->m_glProgram, desc.vertexModule->m_glShader);
-    glAttachShader(pipeline->m_glProgram, desc.fragmentModule->m_glShader);
+    if (desc.fragmentModule != nullptr)
+    {
+        glAttachShader(pipeline->m_glProgram, desc.fragmentModule->m_glShader);
+    }
+    else
+    {
+        attachNoOpGLFragmentShader(pipeline->m_glProgram);
+    }
 
     // Bind vertex attribute locations before linking (matches shaderSlot).
     for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)

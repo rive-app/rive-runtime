@@ -226,4 +226,19 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
     return true;
 }
 
+bool validateColorRequiresFragment(uint32_t colorCount,
+                                   bool hasFragmentModule,
+                                   std::string* outError)
+{
+    if (colorCount > 0 && !hasFragmentModule)
+    {
+        if (outError != nullptr)
+            *outError = "pipeline declares color outputs but has no fragment "
+                        "shader; supply `fragment`, or omit `colorTargets` "
+                        "for a depth-only pipeline";
+        return false;
+    }
+    return true;
+}
+
 } // namespace rive::ore
