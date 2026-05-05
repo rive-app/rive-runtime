@@ -5,6 +5,8 @@
 #include <rive/simple_array.hpp>
 #include <catch.hpp>
 #include <rive/text_engine.hpp>
+#include <cstdint>
+#include <limits>
 
 using namespace rive;
 
@@ -185,4 +187,131 @@ TEST_CASE("builders can be reset", "[simple array]")
     REQUIRE(SimpleArrayTesting::freeCount == 0);
     REQUIRE(SimpleArrayTesting::mallocCount == 0);
     REQUIRE(array.size() == 2);
+}
+
+TEST_CASE("ctor returns empty array on size*sizeof(T) overflow",
+          "[simple array]")
+{
+    SimpleArrayTesting::resetCounters();
+
+    // (SIZE_MAX/4) * sizeof(uint64_t) = (SIZE_MAX/4) * 8 wraps SIZE_MAX.
+    // checkedMul rejects before malloc is called, so this is safe to
+    // construct in a unit test — no gigantic allocation is attempted.
+    constexpr size_t huge = std::numeric_limits<size_t>::max() / 4;
+    SimpleArray<uint64_t> array(huge);
+
+    REQUIRE(array.empty());
+    REQUIRE(array.size() == 0);
+    REQUIRE(array.size_bytes() == 0);
+    REQUIRE(array.data() == nullptr);
+    REQUIRE(SimpleArrayTesting::mallocCount == 0);
+}
+
+// Skip under AddressSanitizer: ASAN aborts on requested sizes above its
+// internal cap (~1 TiB) before the system allocator can return null, so the
+// production null-check this test exists to exercise never runs. The defense
+// itself (m_ptr null-check in the ctor) remains in the code; ASAN catches
+// the same class of misuse via its allocation-size-too-big diagnostic.
+// __SANITIZE_ADDRESS__ covers GCC, MSVC, and Clang 13+; older Apple Clang
+// only sets __has_feature(address_sanitizer), so check both. The
+// __has_feature shim keeps MSVC's preprocessor (which doesn't know
+// __has_feature) from choking on the second condition.
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if !defined(__SANITIZE_ADDRESS__) && !__has_feature(address_sanitizer)
+TEST_CASE("ctor returns empty array when malloc fails (OOM)", "[simple array]")
+{
+    SimpleArrayTesting::resetCounters();
+
+    // SIZE_MAX * 1 does not overflow checkedMul, but no real allocator can
+    // satisfy SIZE_MAX bytes — malloc returns nullptr and the ctor must
+    // tolerate it without writing through the null pointer.
+    SimpleArray<uint8_t> array(std::numeric_limits<size_t>::max());
+
+    REQUIRE(array.empty());
+    REQUIRE(array.size() == 0);
+    REQUIRE(array.data() == nullptr);
+    REQUIRE(SimpleArrayTesting::mallocCount == 0);
+}
+#endif
+
+TEST_CASE("delegating ctor stays safe on overflow", "[simple array]")
+{
+    SimpleArrayTesting::resetCounters();
+
+    constexpr size_t huge = std::numeric_limits<size_t>::max() / 4;
+    const uint64_t dummy = 0;
+    SimpleArray<uint64_t> array(&dummy, huge);
+
+    REQUIRE(array.empty());
+    REQUIRE(array.size() == 0);
+    REQUIRE(array.data() == nullptr);
+    REQUIRE(SimpleArrayTesting::mallocCount == 0);
+}
+
+TEST_CASE("ctor still works for normal sizes after overflow guard",
+          "[simple array]")
+{
+    SimpleArrayTesting::resetCounters();
+
+    SimpleArray<uint32_t> array(8);
+    REQUIRE(!array.empty());
+    REQUIRE(array.size() == 8);
+    REQUIRE(array.data() != nullptr);
+    REQUIRE(SimpleArrayTesting::mallocCount == 1);
+}
+
+TEST_CASE("overflow-failed array stays composable", "[simple array]")
+{
+    // Construct an array that fails the size*sizeof(T) overflow check, then
+    // exercise the rest of the API on the empty state. Locks the
+    // m_ptr=nullptr/m_size=0 invariant against future refactors of either
+    // the ctor or the move/copy paths.
+    constexpr size_t huge = std::numeric_limits<size_t>::max() / 4;
+
+    SimpleArrayTesting::resetCounters();
+
+    SimpleArray<uint64_t> failed(huge);
+    REQUIRE(failed.empty());
+    REQUIRE(failed.begin() == failed.end());
+
+    // range-for should iterate zero times.
+    int iterations = 0;
+    for (auto& v : failed)
+    {
+        (void)v;
+        iterations++;
+    }
+    REQUIRE(iterations == 0);
+
+    // move-construct from the failed array — moved should still be empty,
+    // failed is left valid-but-empty per move semantics.
+    SimpleArray<uint64_t> moved = std::move(failed);
+    REQUIRE(moved.empty());
+    REQUIRE(moved.data() == nullptr);
+
+    // copy-construct from another freshly-failed array — delegates through
+    // SimpleArray(const T*, size_t) which short-circuits in the size==0 ctor.
+    SimpleArray<uint64_t> another(huge);
+    SimpleArray<uint64_t> copy(another);
+    REQUIRE(copy.empty());
+    REQUIRE(copy.data() == nullptr);
+
+    // No real allocations should have happened along any of these paths.
+    REQUIRE(SimpleArrayTesting::mallocCount == 0);
+    // Destruction at scope end must not crash on free(nullptr).
+}
+
+TEST_CASE("delegating ctor accepts (nullptr, 0) without UB", "[simple array]")
+{
+    // The delegating SimpleArray(const T*, size_t) ctor must early-return
+    // before touching `ptr` when size is zero; otherwise nullptr arithmetic
+    // and memcpy(nullptr, ...) would be UB even with size == 0.
+    SimpleArrayTesting::resetCounters();
+
+    SimpleArray<int> array(static_cast<const int*>(nullptr), 0);
+    REQUIRE(array.empty());
+    REQUIRE(array.data() == nullptr);
+    REQUIRE(SimpleArrayTesting::mallocCount == 0);
 }
