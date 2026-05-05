@@ -1711,13 +1711,13 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
             [encoder setFragmentSamplerState:m_imageSamplers[batch.imageSampler
                                                                  .asKey()]
-                                     atIndex:IMAGE_SAMPLER_IDX];
+                                     atIndex:IMAGE_TEXTURE_IDX];
         }
         else
         {
             [encoder setFragmentSamplerState:
                          m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY]
-                                     atIndex:IMAGE_SAMPLER_IDX];
+                                     atIndex:IMAGE_TEXTURE_IDX];
         }
 
         // Issue any barriers if needed.

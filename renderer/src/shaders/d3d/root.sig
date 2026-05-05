@@ -90,4 +90,4 @@
                     "Sampler(s9),"\
                     "Sampler(s10),"\
                     "Sampler(s11), visibility=SHADER_VISIBILITY_ALL),"\
-    "DescriptorTable(Sampler(s13, flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL) "
+    "DescriptorTable(Sampler(s12, flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL) "

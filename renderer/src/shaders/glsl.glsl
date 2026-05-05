@@ -129,7 +129,7 @@
 #define VARYING_BLOCK_END
 
 // clang-format off
-#ifdef @TARGET_VULKAN
+#ifdef @TARGET_SPIRV
    // Since Vulkan is compiled offline and not all platforms support noperspective, don't use it.
 #  define NO_PERSPECTIVE
 #else
@@ -155,7 +155,7 @@
 #define DYNAMIC_SAMPLER_BLOCK_BEGIN
 #define DYNAMIC_SAMPLER_BLOCK_END
 
-#ifdef @TARGET_VULKAN
+#ifdef @TARGET_SPIRV
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
     layout(set = SET, binding = IDX) uniform highp utexture2D NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME)                                        \
@@ -192,15 +192,24 @@
 #define TEXTURE_R32UI(SET, IDX, NAME) uniform highp usampler2D NAME
 #endif
 
-#ifdef @TARGET_VULKAN
-#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
-    layout(set = IMMUTABLE_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)        \
-        uniform mediump sampler NAME;
-#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
-    layout(set = IMMUTABLE_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)        \
-        uniform mediump sampler NAME;
+#ifdef @TARGET_SPIRV
+
 #define SAMPLER_DYNAMIC(SET, IDX, NAME)                                        \
     layout(set = SET, binding = IDX) uniform mediump sampler NAME;
+
+#ifdef @USE_WEBGPU_SAMPLERS
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
+    layout(set = WEBGPU_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)           \
+        uniform mediump sampler NAME;
+#define SAMPLER_DYNAMIC_IMAGE(NAME)                                            \
+    SAMPLER_DYNAMIC(PER_DRAW_BINDINGS_SET, WEBGPU_IMAGE_SAMPLER_IDX, NAME)
+#else
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
+    layout(set = PER_FLUSH_BINDINGS_SET, binding = TEXTURE_IDX)                \
+        uniform mediump sampler NAME;
+#define SAMPLER_DYNAMIC_IMAGE(NAME)                                            \
+    SAMPLER_DYNAMIC(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, NAME)
+#endif
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
     texture(sampler2D(NAME, SAMPLER_NAME), COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
@@ -212,12 +221,14 @@
 #if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
 #extension GL_OES_sample_variables : require
 #endif // @FRAGMENT && @RENDER_MODE_MSAA
-#else  // @TARGET_VULKAN -> !@TARGET_VULKAN
-// SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
-// parameters are API-level state tied to the texture.
+
+#else // @TARGET_SPIRV -> !@TARGET_SPIRV
+
+// SAMPLER_LINEAR is a no-op because in GL, sampling parameters are API-level
+// state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
-#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
 #define SAMPLER_DYNAMIC(SET, IDX, NAME)
+#define SAMPLER_DYNAMIC_IMAGE(NAME)
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(NAME, COORD, LOD)
@@ -225,7 +236,7 @@
     texture(NAME, COORD, LODBIAS)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
-#endif // !@TARGET_VULKAN
+#endif // !@TARGET_SPIRV
 
 #define TEXTURE_SAMPLE_DYNAMIC(TEXTURE, SAMPLER_NAME, COORD)                   \
     TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)
@@ -252,7 +263,7 @@
 #define TEXTURE_CONTEXT_FORWARD
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
 
-#ifdef @TARGET_VULKAN
+#ifdef @TARGET_SPIRV
 #define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
     textureGather(sampler2D(NAME, SAMPLER_NAME),                               \
                   (COORD) * (TEXTURE_INVERSE_SIZE))
@@ -412,7 +423,7 @@
 #endif
 
 #define PLS_BLOCK_BEGIN
-#ifdef @TARGET_VULKAN
+#ifdef @TARGET_SPIRV
 #define PLS_DECL4F(IDX, NAME)                                                  \
     layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8)               \
         uniform mediump coherent image2D NAME
@@ -504,13 +515,13 @@
 #define PLS_DECL4F_READONLY PLS_DECL4F
 #endif
 
-#ifdef @TARGET_VULKAN
+#ifdef @TARGET_SPIRV
 #define gl_VertexID gl_VertexIndex
 #endif
 
 // clang-format off
 #ifdef @ENABLE_INSTANCE_INDEX
-#  ifdef @TARGET_VULKAN
+#  ifdef @TARGET_SPIRV
 #    define INSTANCE_INDEX gl_InstanceIndex
 #  else
 #    ifdef @BASE_INSTANCE_UNIFORM_NAME
@@ -571,7 +582,7 @@
 
 #ifdef @USING_PLS_STORAGE_TEXTURES
 
-#ifdef @TARGET_VULKAN
+#ifdef @TARGET_SPIRV
 #define PLS_DECLUI_UAV(IDX, NAME)                                              \
     layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
         uniform highp coherent uimage2D NAME
@@ -647,7 +658,7 @@
 
 #define EMIT_PLS_AND_FRAG_COLOR EMIT_PLS
 
-#if defined(@TARGET_VULKAN) && !defined(@INPUT_ATTACHMENT_NONE)
+#if defined(@TARGET_SPIRV) && !defined(@INPUT_ATTACHMENT_NONE)
 #define DST_COLOR_TEXTURE(NAME)                                                \
     layout(input_attachment_index = 0,                                         \
            binding = COLOR_PLANE_IDX,                                          \

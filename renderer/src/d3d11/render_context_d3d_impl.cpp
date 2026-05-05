@@ -2006,7 +2006,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                    ImageSampler::MAX_SAMPLER_PERMUTATIONS);
             ID3D11SamplerState* samplers[1] = {
                 m_samplerStates[batch.imageSampler.asKey()].Get()};
-            m_gpuContext->PSSetSamplers(IMAGE_SAMPLER_IDX, 1, samplers);
+            m_gpuContext->PSSetSamplers(IMAGE_TEXTURE_IDX, 1, samplers);
         }
 
         switch (drawType)

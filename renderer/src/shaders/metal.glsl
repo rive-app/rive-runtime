@@ -148,9 +148,9 @@
 
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
-#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
-    $constexpr $sampler NAME($filter::$linear, $mip_filter::$linear);
 #define SAMPLER_DYNAMIC(SET, IDX, NAME) [[$sampler(IDX)]] $sampler NAME;
+#define SAMPLER_DYNAMIC_IMAGE(NAME)                                            \
+    [[$sampler(IMAGE_TEXTURE_IDX)]] $sampler NAME;
 #define TEXEL_FETCH(TEXTURE, COORD) _textures.TEXTURE.$read(uint2(COORD))
 #define TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)                           \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD)

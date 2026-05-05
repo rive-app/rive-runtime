@@ -236,7 +236,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // @RENDER_MODE_MSAA
     }
 #endif // ENABLE_CLIP_RECT
-       // #endif // TARGET_VULKAN
 
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)

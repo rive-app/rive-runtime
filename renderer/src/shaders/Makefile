@@ -73,7 +73,7 @@ $(OUT)/rive_pls_macosx.metallib.c: $(OUT)/macosx/rive_pls_macosx.metallib
 		$(OUT)/macosx/rive_pls_macosx.metallib \
 		$(OUT)/rive_pls_macosx.metallib.c
 
-$(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL) | $(OUT)/ios/. 
+$(OUT)/ios/rive_pls_ios.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL) | $(OUT)/ios/.
 	$(foreach FILE, $(METAL_INPUTS), \
 		xcrun -sdk iphoneos metal -std=ios-metal2.2 \
 		-I$(OUT) -mios-version-min=13 -ffast-math -ffp-contract=fast -fpreserve-invariance \
@@ -156,6 +156,15 @@ SPIRV_STANDARD_INPUTS := $(wildcard spirv/*.main) \
 				 $(wildcard spirv/*.vert) \
 				 $(wildcard spirv/*.frag)
 
+# WebGPU needs some additional shaders to be built specifically for it,
+# to ensure the proper sampler binding set is used.
+SPIRV_WEBGPU_INPUTS := \
+    spirv/tessellate.main \
+	spirv/render_atlas.vert \
+	spirv/render_atlas_fill.frag \
+	spirv/render_atlas_stroke.frag \
+	spirv/blit_texture_as_draw_filtered.main \
+
 # Files that need separate fragment shaders with FIXED_FUNCTION_COLOR_OUTPUT defined.
 SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/atomic_draw_image_mesh.main \
@@ -207,7 +216,7 @@ spirv_is_clockwise = $(and $(findstring clockwise,$1), $(call spirv_is_not_clock
 ##   --merge-return
 ##   --inline-entry-points-exhaustive
 ## without those, the pipelines on the affected devices will fail to link. However, we can do
-## more optimizations while we're here, which 
+## more optimizations while we're here, which will reduce the binary size.
 
 ## Vertex shaders can be optimized using the standard "optimize for performance" option
 ## with no known issues
@@ -314,7 +323,7 @@ spirv_opt_params = \
 ##   Where OUTPUT_TYPE is, say, "vert" or "frag" or "fixedcolor_frag", etc
 define spirv_list_rule
   $(spirv_out_filename_no_ext).spirv: $1 $(MINIFY_STAMP) | $(OUT)/spirv/.
-	@glslangValidator -S $(spirv_type) -DTARGET_VULKAN \
+	@glslangValidator -S $(spirv_type) -DTARGET_SPIRV \
 		$(if $(spirv_is_vert), -DVERTEX, -DFRAGMENT $(spirv_frag_params)) \
 		-I$(OUT)  -V $3 -o $(spirv_out_filename_no_ext).spirv.unoptimized $1
 	@spirv-opt --preserve-bindings --preserve-interface $(spirv_opt_params) \
@@ -340,16 +349,20 @@ define make_spirv_rules
     )
 endef
 
-## All .main/vert/frag files should build 
+## All .main/vert/frag files should build
 $(eval $(call make_spirv_rules, $(SPIRV_STANDARD_INPUTS), vert frag))
+
+SPIRV_COMMON_WEBGPU_PARAMS = -DSPEC_CONST_NONE -DUSE_WEBGPU_SAMPLERS
 
 ## Each of the specialized SPIRV lists have their own associated rules
 $(eval $(call make_spirv_rules, $(SPIRV_FIXEDCOLOR_FRAG_INPUTS), fixedcolor_frag, -DFIXED_FUNCTION_COLOR_OUTPUT))
 $(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_vert, -DSPEC_CONST_NONE))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_noclipdistance_vert, -DSPEC_CONST_NONE -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_frag, -DSPEC_CONST_NONE -DINPUT_ATTACHMENT_NONE))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_fixedcolor_frag, -DSPEC_CONST_NONE -DINPUT_ATTACHMENT_NONE -DFIXED_FUNCTION_COLOR_OUTPUT))
+$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_INPUTS), webgpu_vert, $(SPIRV_COMMON_WEBGPU_PARAMS)))
+$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_INPUTS), webgpu_frag, $(SPIRV_COMMON_WEBGPU_PARAMS) -DINPUT_ATTACHMENT_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_vert, $(SPIRV_COMMON_WEBGPU_PARAMS)))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_noclipdistance_vert, $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_frag, $(SPIRV_COMMON_WEBGPU_PARAMS) -DINPUT_ATTACHMENT_NONE))
+$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_fixedcolor_frag, $(SPIRV_COMMON_WEBGPU_PARAMS) -DINPUT_ATTACHMENT_NONE -DFIXED_FUNCTION_COLOR_OUTPUT))
 
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)

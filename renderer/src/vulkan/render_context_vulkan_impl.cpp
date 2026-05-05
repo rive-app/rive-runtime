@@ -522,10 +522,8 @@ public:
         VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
             pipelineManager->perFlushDescriptorSetLayout(),
             pipelineManager->emptyDescriptorSetLayout(),
-            pipelineManager->immutableSamplerDescriptorSetLayout(),
         };
         static_assert(PER_FLUSH_BINDINGS_SET == 0);
-        static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -679,10 +677,8 @@ public:
         VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
             pipelineManager->perFlushDescriptorSetLayout(),
             pipelineManager->emptyDescriptorSetLayout(),
-            pipelineManager->immutableSamplerDescriptorSetLayout(),
         };
         static_assert(PER_FLUSH_BINDINGS_SET == 0);
-        static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1625,8 +1621,9 @@ namespace descriptor_pool_limits
 constexpr static uint32_t kMaxUniformUpdates = 3;
 constexpr static uint32_t kMaxDynamicUniformUpdates = 1;
 constexpr static uint32_t kMaxImageTextureUpdates = 256;
-constexpr static uint32_t kMaxSampledImageUpdates =
-    4 + kMaxImageTextureUpdates; // tess + grad + feather + atlas + images
+constexpr static uint32_t kMaxCombinedImageSamplerUpdates =
+    3 + kMaxImageTextureUpdates; // grad + feather + atlas + images
+constexpr static uint32_t kMaxSampledImageUpdates = 1; // tess
 constexpr static uint32_t kMaxStorageImageUpdates =
     4; // color/coverage/clip/scratch in clockwise mode.
 constexpr static uint32_t kMaxStorageBufferUpdates =
@@ -1650,12 +1647,13 @@ RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
                 descriptor_pool_limits::kMaxDynamicUniformUpdates,
         },
         {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = descriptor_pool_limits::kMaxSampledImageUpdates,
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount =
+                descriptor_pool_limits::kMaxCombinedImageSamplerUpdates,
         },
         {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = descriptor_pool_limits::kMaxImageTextureUpdates,
+            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = descriptor_pool_limits::kMaxSampledImageUpdates,
         },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -2230,7 +2228,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         descriptorSetAllocator.perFlushDescriptorSet(),
         {
             .dstBinding = GRAD_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
             .imageView = m_gradTexture->vkImageView(),
@@ -2241,7 +2239,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         descriptorSetAllocator.perFlushDescriptorSet(),
         {
             .dstBinding = FEATHER_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
             .imageView = m_featherTexture->vkImageView(),
@@ -2252,7 +2250,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         descriptorSetAllocator.perFlushDescriptorSet(),
         {
             .dstBinding = ATLAS_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
             .imageView = m_atlasTexture->vkImageView(),
@@ -2342,8 +2340,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             });
     }
-    VkDescriptorSet immutableSamplerDescriptorSet =
-        m_pipelineManager->immutableSamplerDescriptorSet();
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
@@ -2401,14 +2397,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             &descriptorSetAllocator.perFlushDescriptorSet(),
             1,
             ZERO_OFFSET_32);
-        m_vk->CmdBindDescriptorSets(commandBuffer,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_tessellatePipeline->pipelineLayout(),
-                                    IMMUTABLE_SAMPLER_BINDINGS_SET,
-                                    1,
-                                    &immutableSamplerDescriptorSet,
-                                    0,
-                                    nullptr);
 
         m_vk->CmdBindPipeline(commandBuffer,
                               VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -2540,14 +2528,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             &descriptorSetAllocator.perFlushDescriptorSet(),
             1,
             ZERO_OFFSET_32);
-        m_vk->CmdBindDescriptorSets(commandBuffer,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_atlasPipeline->pipelineLayout(),
-                                    IMMUTABLE_SAMPLER_BINDINGS_SET,
-                                    1,
-                                    &immutableSamplerDescriptorSet,
-                                    0,
-                                    nullptr);
 
         if (desc.atlasFillBatchCount != 0)
         {
@@ -3173,14 +3153,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VkDescriptorSet drawDescriptorSets[] = {
         descriptorSetAllocator.perFlushDescriptorSet(),
         m_pipelineManager->nullImageDescriptorSet(),
-        m_pipelineManager->immutableSamplerDescriptorSet(),
         inputAttachmentDescriptorSet,
     };
     static_assert(PER_FLUSH_BINDINGS_SET == 0);
     static_assert(PER_DRAW_BINDINGS_SET == 1);
-    static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
-    static_assert(PLS_TEXTURE_BINDINGS_SET == 3);
-    static_assert(BINDINGS_SET_COUNT == 4);
+    static_assert(PLS_TEXTURE_BINDINGS_SET == 2);
+    static_assert(VULKAN_BINDINGS_SET_COUNT == 3);
 
     m_vk->CmdBindDescriptorSets(commandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -3188,8 +3166,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                 PER_FLUSH_BINDINGS_SET,
                                 drawRenderPass.pipelineLayout().plsLayout() !=
                                         VK_NULL_HANDLE
-                                    ? BINDINGS_SET_COUNT
-                                    : BINDINGS_SET_COUNT - 1,
+                                    ? VULKAN_BINDINGS_SET_COUNT
+                                    : VULKAN_BINDINGS_SET_COUNT - 1,
                                 drawDescriptorSets,
                                 1,
                                 ZERO_OFFSET_32);
@@ -3318,22 +3296,14 @@ void RenderContextVulkanImpl::submitDrawList(
                     imageDescriptorSet,
                     {
                         .dstBinding = IMAGE_TEXTURE_IDX,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                    },
-                    {{
-                        .imageView = imageTexture->vkImageView(),
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    }});
-
-                m_vk->updateImageDescriptorSets(
-                    imageDescriptorSet,
-                    {
-                        .dstBinding = IMAGE_SAMPLER_IDX,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                        .descriptorType =
+                            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                     },
                     {{
                         .sampler = m_pipelineManager->imageSampler(
                             batch.imageSampler.asKey()),
+                        .imageView = imageTexture->vkImageView(),
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     }});
 
                 imageTexture->updateCachedDescriptorSet(

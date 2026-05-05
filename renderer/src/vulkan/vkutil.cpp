@@ -41,6 +41,7 @@ const char* string_from_vk_result(VkResult result)
         STR_CASE(ERROR_INCOMPATIBLE_DISPLAY_KHR);
         STR_CASE(ERROR_NATIVE_WINDOW_IN_USE_KHR);
         STR_CASE(ERROR_VALIDATION_FAILED_EXT);
+        STR_CASE(ERROR_OUT_OF_POOL_MEMORY);
         default:
             return "<unknown>";
     }
