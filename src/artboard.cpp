@@ -1564,7 +1564,7 @@ void Artboard::draw(Renderer* renderer)
 
 void Artboard::drawInternal(Renderer* renderer)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(1)
     m_didChange = false;
     if (renderOpacity() == 0)
     {

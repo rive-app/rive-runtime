@@ -124,7 +124,7 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
-        RIVE_PROF_SCOPE()
+        RIVE_PROF_SCOPE_L(0)
 
         if (m_renderTarget->targetTexture() == nullptr)
         {
@@ -152,7 +152,7 @@ public:
 
     void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
     {
-        RIVE_PROF_SCOPE()
+        RIVE_PROF_SCOPE_L(0)
         flushPLSContext(nullptr);
         if (pixelData != nullptr)
         {

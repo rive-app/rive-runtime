@@ -26,7 +26,7 @@ void TrimPath::trimPath(ShapePaintPath* destination,
                         const RawPath* source,
                         ShapePaintType shapePaintType)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
     auto rawPath = destination->mutableRawPath();
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
     auto closeShape = shapePaintType == ShapePaintType::fill;

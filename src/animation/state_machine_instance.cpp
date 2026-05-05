@@ -2386,7 +2386,7 @@ void StateMachineInstance::reset()
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(1)
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
     // to true.
     bool keepGoing = this->advance(seconds, true) || seconds == 0.0f;

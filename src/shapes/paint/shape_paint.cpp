@@ -82,7 +82,7 @@ void ShapePaint::draw(Renderer* renderer,
                       RenderPaint* overridePaint,
                       bool needsSaveOperation)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
 
     ShapePaintPath* pathToDraw = shapePaintPath;
     bool saved = !needsSaveOperation;

@@ -150,7 +150,16 @@ if _OPTIONS['with_microprofile'] then
     defines({ 'RIVE_MICROPROFILE' })
     RIVE_MICROPROFILE_URL = 'aliasbinman/microprofile'
     RIVE_MICROPROFILE_VERSION = 'rivebuild'
-end 
+end
+
+newoption({
+    trigger = 'prof_level_max',
+    value = '0..4',
+    description = 'Compile-time max tier for RIVE_PROF_SCOPE_L / GPUNAME_L / SCOPENAME_L. Markers with level > N drop at preprocess time. 0 = frame markers only (cheapest), 4 = everything. Default 0.',
+})
+if _OPTIONS['prof_level_max'] then
+    defines({ 'RIVE_PROF_LEVEL_MAX=' .. _OPTIONS['prof_level_max'] })
+end
 
 location(RIVE_BUILD_OUT)
 targetdir(RIVE_BUILD_OUT)

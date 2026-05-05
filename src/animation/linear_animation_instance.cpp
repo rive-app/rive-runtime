@@ -42,7 +42,7 @@ LinearAnimationInstance::~LinearAnimationInstance() {}
 
 bool LinearAnimationInstance::advanceAndApply(float seconds)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(1)
     bool more = this->advance(seconds, this);
     this->apply();
     if (m_artboardInstance->advance(seconds))

@@ -1522,6 +1522,7 @@ static D3D11_RECT make_scissor(const TAABB<uint16_t> scissor)
 
 void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
+    RIVE_PROF_GPUNAME_L(0, "RiveFlush");
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetD3D*>(desc.renderTarget);
 
@@ -1665,7 +1666,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        RIVE_PROF_GPUNAME("Tessellate Curves");
+        RIVE_PROF_GPUNAME_L(1, "Tessellate Curves");
 
         ID3D11Buffer* tessSpanBuffer =
             flush_buffer(m_gpuContext.Get(), tessSpanBufferRing());
@@ -1749,7 +1750,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
-        RIVE_PROF_GPUNAME("atlasRender");
+        RIVE_PROF_GPUNAME_L(1, "atlasRender");
 
         float clearZero[4]{};
         m_gpuContext->ClearRenderTargetView(m_atlasTextureRTV.Get(), clearZero);
@@ -1835,7 +1836,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // Setup and clear the PLS textures.
     {
-        RIVE_PROF_GPUNAME("clearPLSTextures");
+        RIVE_PROF_GPUNAME_L(1, "clearPLSTextures");
         switch (desc.colorLoadAction)
         {
 
@@ -1897,7 +1898,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    RIVE_PROF_GPUNAME("DrawList");
+    RIVE_PROF_GPUNAME_L(1, "DrawList");
 
     // Execute the DrawList.
     ID3D11RenderTargetView* targetRTV =
@@ -2029,7 +2030,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                                 &drawUniforms,
                                                 0,
                                                 0);
-                RIVE_PROF_GPUNAME("Patches");
+                RIVE_PROF_GPUNAME_L(2, "Patches");
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
                                                    batch.elementCount,
                                                    PatchBaseIndex(drawType),
@@ -2044,15 +2045,16 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->RSSetState(
                     m_backCulledRasterState[desc.wireframe].Get());
-                RIVE_PROF_GPUNAME(drawType == DrawType::atlasBlit
-                                      ? "atlasBlit"
-                                      : "interiorTriangulation");
+                RIVE_PROF_GPUNAME_L(2,
+                                    drawType == DrawType::atlasBlit
+                                        ? "atlasBlit"
+                                        : "interiorTriangulation");
                 m_gpuContext->Draw(batch.elementCount, batch.baseElement);
                 break;
             }
             case DrawType::imageRect:
             {
-                RIVE_PROF_GPUNAME("imageRect");
+                RIVE_PROF_GPUNAME_L(2, "imageRect");
 
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2075,7 +2077,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::imageMesh:
             {
-                RIVE_PROF_GPUNAME("imageMesh");
+                RIVE_PROF_GPUNAME_L(2, "imageMesh");
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         RenderBufferD3DImpl*,
                                         batch.vertexBuffer);
@@ -2117,7 +2119,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::renderPassResolve:
             {
-                RIVE_PROF_GPUNAME("renderPassResolve");
+                RIVE_PROF_GPUNAME_L(1, "renderPassResolve");
 
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 m_gpuContext->IASetPrimitiveTopology(
@@ -2175,7 +2177,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
         !renderTarget->targetTextureSupportsUAV())
     {
-        RIVE_PROF_GPUNAME("blit_sub_rect");
+        RIVE_PROF_GPUNAME_L(1, "blit_sub_rect");
 
         // We rendered to an offscreen UAV and did not resolve to the
         // renderTarget. Copy back to the main target.

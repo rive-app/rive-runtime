@@ -425,7 +425,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                              float modulatedOpacity,
                              RawPath* scratchPath)
 {
-    RIVE_PROF_SCOPE();
+    RIVE_PROF_SCOPE_L(2);
     assert(path != nullptr);
     assert(paint != nullptr);
 
@@ -733,7 +733,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
 
 void PathDraw::releaseRefs()
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     Draw::releaseRefs();
     RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();
@@ -743,7 +743,7 @@ void PathDraw::releaseRefs()
 void PathDraw::initForMidpointFan(RenderContext* context,
                                   const RiveRenderPaint* paint)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Only call init() once.
     assert((m_resourceCounts.midpointFanTessVertexCount |
             m_resourceCounts.outerCubicTessVertexCount) == 0);
@@ -1370,7 +1370,7 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
                                             RawPath* scratchPath,
                                             TriangulatorAxis triangulatorAxis)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
     POP_DISABLE_CLANG_SIMD_ABI_WARNING()
@@ -1391,7 +1391,7 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
 
 bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     const RenderContext::FrameDescriptor& frameDesc = flush->frameDescriptor();
 
     // Allocate a gradient if needed. Do this first since it's more expensive to
@@ -1476,7 +1476,7 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
 
 void PathDraw::countSubpasses()
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     m_subpassCount = 1;
     m_prepassCount = 0;
 
@@ -1554,7 +1554,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
     int subpassIndex)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Make sure the rawPath in our path reference hasn't changed since we began
     // holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
@@ -1769,7 +1769,7 @@ void PathDraw::pushAtlasTessellation(RenderContext::LogicalFlush* flush,
                                      uint32_t* tessVertexCount,
                                      uint32_t* tessBaseVertex)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     assert(m_coverageType == CoverageType::atlas);
     assert(m_resourceCounts.outerCubicTessVertexCount == 0 ||
            m_resourceCounts.midpointFanTessVertexCount == 0);
@@ -1792,7 +1792,7 @@ void PathDraw::pushTessellationData(RenderContext::LogicalFlush* flush,
                                     uint32_t tessVertexCount,
                                     uint32_t tessLocation)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Determine where to fill in forward and mirrored tessellations.
     uint32_t forwardTessVertexCount, forwardTessLocation,
         mirroredTessVertexCount, mirroredTessLocation;
@@ -1889,7 +1889,7 @@ void PathDraw::pushTessellationData(RenderContext::LogicalFlush* flush,
 void PathDraw::pushMidpointFanTessellationData(
     RenderContext::TessellationWriter* tessWriter)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
     for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
@@ -2277,7 +2277,7 @@ void PathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     uint32_t strokeCapSegmentCount,
     uint32_t contourIDWithFlags)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
     // Reverse the cubic and push it with zero parametric and polar segments,
     // and a 180-degree join tangent. This results in a solitary join,
     // positioned immediately before the provided cubic, that looks like the
@@ -2302,7 +2302,7 @@ void PathDraw::iterateInteriorTriangulation(
     TriangulatorAxis triangulatorAxis,
     RenderContext::TessellationWriter* tessWriter)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();
     assert(!rawPath.empty());
