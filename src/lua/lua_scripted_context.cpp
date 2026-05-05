@@ -118,6 +118,26 @@ int lua_push_gpu_features(lua_State* L)
     return 1;
 }
 
+// Push the platform's preferred canvas color format onto the Lua stack as a
+// string. makeRenderCanvas() hardcodes RGBA8 on Metal so that Rive's internal
+// PLS shaders (which work in RGBA space) can render into the canvas without
+// format-dependent swizzling.
+//   Metal  (macOS/iOS)  → rgba8unorm (off-screen canvas, not a CAMetalLayer
+//                        surface)
+//   D3D11/D3D12        → bgra8unorm
+//   Vulkan/GL/WebGPU   → rgba8unorm (safe default; actual format may vary —
+//                        query canvas.format for the authoritative value once
+//                        a canvas has been created)
+int lua_push_preferred_canvas_format(lua_State* L)
+{
+#if defined(_WIN32)
+    lua_pushstring(L, "bgra8unorm");
+#else
+    lua_pushstring(L, "rgba8unorm");
+#endif
+    return 1;
+}
+
 ScriptedContext::ScriptedContext(ScriptedObject* scriptedObject) :
     m_scriptedObject(scriptedObject)
 {}
@@ -534,24 +554,7 @@ static int context_namecall(lua_State* L)
                 return lua_push_gpu_features(L);
 
             case (int)LuaAtoms::preferredCanvasFormat:
-            {
-                // Return the native GPU canvas texture format for this
-                // platform. makeRenderCanvas() hardcodes RGBA8 on Metal so that
-                // Rive's internal PLS shaders (which work in RGBA space) can
-                // render into the canvas without format-dependent swizzling.
-                //   Metal  (macOS/iOS)  → rgba8unorm (off-screen canvas, not a
-                //   CAMetalLayer surface) D3D11/D3D12        → bgra8unorm
-                //   Vulkan/GL/WebGPU   → rgba8unorm (safe default; actual
-                //                        format may vary — query canvas.format
-                //                        for the authoritative value once a
-                //                        canvas has been created)
-#if defined(_WIN32)
-                lua_pushstring(L, "bgra8unorm");
-#else
-                lua_pushstring(L, "rgba8unorm");
-#endif
-                return 1;
-            }
+                return lua_push_preferred_canvas_format(L);
 
             case (int)LuaAtoms::loadShader:
             {
