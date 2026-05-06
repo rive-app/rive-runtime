@@ -37,6 +37,12 @@ namespace rive::ore
 {
 
 class Context;
+#if defined(ORE_BACKEND_VK)
+class ContextVulkan;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+class ContextD3D12;
+#endif
 
 class Texture : public RefCnt<Texture>
 {
@@ -58,6 +64,24 @@ public:
 
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
     friend class TextureView;
     friend class RenderPass;
 
@@ -108,18 +132,19 @@ private:
     VkImageLayout m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkDevice m_vkDevice = VK_NULL_HANDLE;         // Weak ref.
     VmaAllocator m_vmaAllocator = VK_NULL_HANDLE; // Weak ref.
-    // Back-pointer to the owning Context. upload() reads the current frame
-    // CB and VK dispatch table through it, and onRefCntReachedZero() routes
-    // vmaDestroyImage through Context::vkDeferDestroy() in external-CB mode.
-    Context* m_vkOreContext = nullptr;
+    // Back-pointer to the owning ContextVulkan. upload() reads the current
+    // frame CB and VK dispatch table through it, and onRefCntReachedZero()
+    // routes vmaDestroyImage through ContextVulkan::vkDeferDestroy() in
+    // external-CB mode.
+    ContextVulkan* m_vkOreContext = nullptr;
 #endif
 #if defined(ORE_BACKEND_D3D12)
     Microsoft::WRL::ComPtr<ID3D12Resource> m_d3dTexture;
     D3D12_RESOURCE_STATES m_d3dCurrentState = D3D12_RESOURCE_STATE_COMMON;
     bool m_d3dIsExternal = false;        // true for wrapCanvasTexture.
     ID3D12Device* m_d3dDevice = nullptr; // Weak ref.
-    // Set by Context::makeTexture so upload() can schedule copy commands.
-    Context* m_d3dOreContext = nullptr; // Weak ref.
+    // Set by ContextD3D12::makeTexture so upload() can schedule copy commands.
+    ContextD3D12* m_d3dOreContext = nullptr; // Weak ref.
 #endif
 
 public:
@@ -146,6 +171,24 @@ public:
 
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
     friend class RenderPass;
 
     TextureView(rcp<Texture> texture, const TextureViewDesc& desc) :
@@ -188,16 +231,16 @@ private:
     // RenderPass::finish() to update Rive's layout tracking.
     gpu::RenderTargetVulkan* m_vkRenderTarget = nullptr; // Weak ref.
     // Back-ref so onRefCntReachedZero() can route the destroy through
-    // Context::vkDeferDestroy() in external-CB mode. Weak ref.
-    Context* m_vkOreContext = nullptr;
+    // ContextVulkan::vkDeferDestroy() in external-CB mode. Weak ref.
+    ContextVulkan* m_vkOreContext = nullptr;
 #endif
 #if defined(ORE_BACKEND_D3D12)
     D3D12_CPU_DESCRIPTOR_HANDLE m_d3dSrvHandle = {}; // {0} = invalid.
     D3D12_CPU_DESCRIPTOR_HANDLE m_d3dRtvHandle = {};
     D3D12_CPU_DESCRIPTOR_HANDLE m_d3dDsvHandle = {};
     // Back-ref so onRefCntReachedZero() can route destruction through
-    // Context::d3dDeferDestroy() in external-CL mode. Weak ref.
-    Context* m_d3dOreContext = nullptr;
+    // ContextD3D12::d3dDeferDestroy() in external-CL mode. Weak ref.
+    ContextD3D12* m_d3dOreContext = nullptr;
 #endif
 
 public:

@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_metal.hpp"
 
 #import <Metal/Metal.h>
 

@@ -8,7 +8,7 @@
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_context.hpp" // for RenderPass inline bodies
+#include "rive/renderer/ore/ore_context_metal.hpp" // for RenderPass inline bodies
 #include "rive/rive_types.hpp"
 
 #import <Metal/Metal.h>

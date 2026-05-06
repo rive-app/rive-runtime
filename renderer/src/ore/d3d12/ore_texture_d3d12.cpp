@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d12.h>
@@ -31,7 +31,7 @@ void Texture::upload(const TextureDataDesc& data)
            "Cannot upload into an external (canvas-wrapped) texture");
     assert(data.data != nullptr);
 
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
 
     // Open the upload command list if not already recording.
     if (!ctx->m_d3dUploadListOpen)
@@ -169,7 +169,7 @@ void Texture::upload(const TextureDataDesc& data)
 
 void Texture::onRefCntReachedZero() const
 {
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<Texture*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));
@@ -179,7 +179,7 @@ void Texture::onRefCntReachedZero() const
 
 void TextureView::onRefCntReachedZero() const
 {
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<TextureView*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));

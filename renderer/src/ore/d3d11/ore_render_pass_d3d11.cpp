@@ -9,7 +9,7 @@
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_context.hpp" // for RenderPass inline bodies
+#include "rive/renderer/ore/ore_context_d3d11.hpp" // for RenderPass inline bodies
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -203,7 +203,8 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
     // independent on D3D11; skip the stage whose slot is `kAbsent` so we
     // don't clobber another resource's register.
     ID3D11DeviceContext1* ctx1 =
-        m_context ? m_context->m_d3d11Context1.Get() : nullptr;
+        m_context ? static_cast<ContextD3D11*>(m_context)->m_d3d11Context1.Get()
+                  : nullptr;
     for (const auto& ubo : bg->m_d3d11UBOs)
     {
         ID3D11Buffer* buf = ubo.buffer;

@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_metal.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -438,7 +438,7 @@ static TextureFormat mtlFormatToOre(MTLPixelFormat fmt)
 // Shared between metal-only and metal+gl builds.
 // ============================================================================
 
-inline void Context::mtlPopulateFeatures(id<MTLDevice> device)
+inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 {
     Features& f = m_features;
     f.colorBufferFloat = true;
@@ -483,7 +483,7 @@ inline void Context::mtlPopulateFeatures(id<MTLDevice> device)
     }
 }
 
-inline rcp<Buffer> Context::mtlMakeBuffer(const BufferDesc& desc)
+inline rcp<Buffer> ContextMetal::mtlMakeBuffer(const BufferDesc& desc)
 {
     auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
     if (desc.data)
@@ -506,7 +506,7 @@ inline rcp<Buffer> Context::mtlMakeBuffer(const BufferDesc& desc)
     return buffer;
 }
 
-inline rcp<Texture> Context::mtlMakeTexture(const TextureDesc& desc)
+inline rcp<Texture> ContextMetal::mtlMakeTexture(const TextureDesc& desc)
 {
     MTLTextureDescriptor* td = [[MTLTextureDescriptor alloc] init];
 
@@ -584,7 +584,8 @@ inline rcp<Texture> Context::mtlMakeTexture(const TextureDesc& desc)
     return texture;
 }
 
-inline rcp<TextureView> Context::mtlMakeTextureView(const TextureViewDesc& desc)
+inline rcp<TextureView> ContextMetal::mtlMakeTextureView(
+    const TextureViewDesc& desc)
 {
     Texture* tex = desc.texture;
     assert(tex != nullptr);
@@ -625,7 +626,7 @@ inline rcp<TextureView> Context::mtlMakeTextureView(const TextureViewDesc& desc)
     return view;
 }
 
-inline rcp<Sampler> Context::mtlMakeSampler(const SamplerDesc& desc)
+inline rcp<Sampler> ContextMetal::mtlMakeSampler(const SamplerDesc& desc)
 {
     MTLSamplerDescriptor* sd = [[MTLSamplerDescriptor alloc] init];
     sd.minFilter = oreFilterToMTL(desc.minFilter);
@@ -653,7 +654,7 @@ inline rcp<Sampler> Context::mtlMakeSampler(const SamplerDesc& desc)
     return sampler;
 }
 
-inline rcp<ShaderModule> Context::mtlMakeShaderModule(
+inline rcp<ShaderModule> ContextMetal::mtlMakeShaderModule(
     const ShaderModuleDesc& desc)
 {
     auto module = rcp<ShaderModule>(new ShaderModule());
@@ -675,8 +676,8 @@ inline rcp<ShaderModule> Context::mtlMakeShaderModule(
     return module;
 }
 
-inline rcp<Pipeline> Context::mtlMakePipeline(const PipelineDesc& desc,
-                                              std::string* outError)
+inline rcp<Pipeline> ContextMetal::mtlMakePipeline(const PipelineDesc& desc,
+                                                   std::string* outError)
 {
     auto pipeline = rcp<Pipeline>(new Pipeline(desc));
 
@@ -900,7 +901,7 @@ inline rcp<Pipeline> Context::mtlMakePipeline(const PipelineDesc& desc,
     return pipeline;
 }
 
-inline rcp<BindGroup> Context::mtlMakeBindGroup(const BindGroupDesc& desc)
+inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
 {
     if (desc.layout == nullptr)
     {
@@ -1028,8 +1029,8 @@ inline rcp<BindGroup> Context::mtlMakeBindGroup(const BindGroupDesc& desc)
     return bg;
 }
 
-inline RenderPass Context::mtlBeginRenderPass(const RenderPassDesc& desc,
-                                              std::string* outError)
+inline RenderPass ContextMetal::mtlBeginRenderPass(const RenderPassDesc& desc,
+                                                   std::string* outError)
 {
     assert(m_mtlCommandBuffer != nil);
 
@@ -1132,7 +1133,8 @@ inline RenderPass Context::mtlBeginRenderPass(const RenderPassDesc& desc,
     return pass;
 }
 
-inline rcp<TextureView> Context::mtlWrapCanvasTexture(gpu::RenderCanvas* canvas)
+inline rcp<TextureView> ContextMetal::mtlWrapCanvasTexture(
+    gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
 
@@ -1170,64 +1172,32 @@ inline rcp<TextureView> Context::mtlWrapCanvasTexture(gpu::RenderCanvas* canvas)
 }
 
 // ============================================================================
-// Context
-// When both Metal and GL are compiled (macOS), ore_context_metal_gl.mm
-// provides all Context method definitions with runtime dispatch instead.
+// ContextMetal
 // ============================================================================
 
-#if !defined(ORE_BACKEND_GL)
-
-Context::Context() {}
-
-Context::~Context()
+ContextMetal::~ContextMetal()
 {
     m_mtlCommandBuffer = nil;
     m_mtlQueue = nil;
     m_mtlDevice = nil;
 }
 
-Context::Context(Context&& other) noexcept :
-    m_features(other.m_features),
-    m_mtlDevice(other.m_mtlDevice),
-    m_mtlQueue(other.m_mtlQueue),
-    m_mtlCommandBuffer(other.m_mtlCommandBuffer)
+std::unique_ptr<ContextMetal> ContextMetal::Make(id<MTLDevice> device,
+                                                 id<MTLCommandQueue> queue)
 {
-    other.m_mtlDevice = nil;
-    other.m_mtlQueue = nil;
-    other.m_mtlCommandBuffer = nil;
-}
-
-Context& Context::operator=(Context&& other) noexcept
-{
-    if (this != &other)
-    {
-        m_mtlCommandBuffer = nil;
-        m_mtlQueue = nil;
-        m_mtlDevice = nil;
-
-        m_features = other.m_features;
-        m_mtlDevice = other.m_mtlDevice;
-        m_mtlQueue = other.m_mtlQueue;
-        m_mtlCommandBuffer = other.m_mtlCommandBuffer;
-        other.m_mtlDevice = nil;
-        other.m_mtlQueue = nil;
-        other.m_mtlCommandBuffer = nil;
-    }
-    return *this;
-}
-
-Context Context::createMetal(id<MTLDevice> device, id<MTLCommandQueue> queue)
-{
-    Context ctx;
-    ctx.m_mtlDevice = device;
-    ctx.m_mtlQueue = queue;
-    ctx.mtlPopulateFeatures(device);
+    auto ctx = std::unique_ptr<ContextMetal>(new ContextMetal());
+    ctx->m_mtlDevice = device;
+    ctx->m_mtlQueue = queue;
+    ctx->mtlPopulateFeatures(device);
     return ctx;
 }
 
-void Context::beginFrame() { m_mtlCommandBuffer = [m_mtlQueue commandBuffer]; }
+void ContextMetal::beginFrame()
+{
+    m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
+}
 
-void Context::waitForGPU()
+void ContextMetal::waitForGPU()
 {
 #if defined(ORE_BACKEND_METAL)
     if (m_mtlCommandBuffer)
@@ -1235,7 +1205,7 @@ void Context::waitForGPU()
 #endif
 }
 
-void Context::endFrame()
+void ContextMetal::endFrame()
 {
     if (m_mtlCommandBuffer)
     {
@@ -1266,7 +1236,7 @@ void Context::endFrame()
 // makeBuffer
 // ============================================================================
 
-rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextMetal::makeBuffer(const BufferDesc& desc)
 {
     return mtlMakeBuffer(desc);
 }
@@ -1275,7 +1245,7 @@ rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
 // makeTexture
 // ============================================================================
 
-rcp<Texture> Context::makeTexture(const TextureDesc& desc)
+rcp<Texture> ContextMetal::makeTexture(const TextureDesc& desc)
 {
     return mtlMakeTexture(desc);
 }
@@ -1284,7 +1254,7 @@ rcp<Texture> Context::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextMetal::makeTextureView(const TextureViewDesc& desc)
 {
     return mtlMakeTextureView(desc);
 }
@@ -1293,7 +1263,7 @@ rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
 // makeSampler
 // ============================================================================
 
-rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextMetal::makeSampler(const SamplerDesc& desc)
 {
     return mtlMakeSampler(desc);
 }
@@ -1302,7 +1272,7 @@ rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
 // makeShaderModule
 // ============================================================================
 
-rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextMetal::makeShaderModule(const ShaderModuleDesc& desc)
 {
     return mtlMakeShaderModule(desc);
 }
@@ -1311,8 +1281,8 @@ rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
 // makePipeline
 // ============================================================================
 
-rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
-                                    std::string* outError)
+rcp<Pipeline> ContextMetal::makePipeline(const PipelineDesc& desc,
+                                         std::string* outError)
 {
     return mtlMakePipeline(desc, outError);
 }
@@ -1321,7 +1291,7 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
 // makeBindGroup
 // ============================================================================
 
-rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextMetal::makeBindGroup(const BindGroupDesc& desc)
 {
     return mtlMakeBindGroup(desc);
 }
@@ -1330,7 +1300,7 @@ rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
 // makeBindGroupLayout
 // ============================================================================
 
-rcp<BindGroupLayout> Context::makeBindGroupLayout(
+rcp<BindGroupLayout> ContextMetal::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     if (desc.groupIndex >= kMaxBindGroups)
@@ -1354,8 +1324,8 @@ rcp<BindGroupLayout> Context::makeBindGroupLayout(
 // beginRenderPass
 // ============================================================================
 
-RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError)
+RenderPass ContextMetal::beginRenderPass(const RenderPassDesc& desc,
+                                         std::string* outError)
 {
     finishActiveRenderPass();
     return mtlBeginRenderPass(desc, outError);
@@ -1365,14 +1335,14 @@ RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
 // wrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextMetal::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     return mtlWrapCanvasTexture(canvas);
 }
 
-rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
-                                          uint32_t w,
-                                          uint32_t h)
+rcp<TextureView> ContextMetal::wrapRiveTexture(gpu::Texture* gpuTex,
+                                               uint32_t w,
+                                               uint32_t h)
 {
     if (!gpuTex)
         return nullptr;
@@ -1405,7 +1375,5 @@ rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
     view->m_mtlTextureView = mtlTex;
     return view;
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d12.h>
@@ -30,7 +30,7 @@ void Buffer::update(const void* data, uint32_t size, uint32_t offset)
 
 void Buffer::onRefCntReachedZero() const
 {
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<Buffer*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));

@@ -8,7 +8,7 @@
 #if defined(ORE_BACKEND_D3D11) && defined(ORE_BACKEND_D3D12)
 
 #include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -58,7 +58,7 @@ void Texture::upload(const TextureDataDesc& data)
         assert(!m_d3dIsExternal &&
                "Cannot upload into an external (canvas-wrapped) texture");
 
-        Context* ctx = m_d3dOreContext;
+        ContextD3D12* ctx = m_d3dOreContext;
 
         // Open the upload command list if not already recording.
         if (!ctx->m_d3dUploadListOpen)
@@ -195,7 +195,7 @@ void Texture::onRefCntReachedZero() const
     // m_d3dOreContext is only set on D3D12-backed textures (see
     // d3d12MakeTexture / d3d12WrapCanvasTexture / d3d12WrapRiveTexture).
     // D3D11-backed textures keep the immediate-delete path unchanged.
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<Texture*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));
@@ -205,7 +205,7 @@ void Texture::onRefCntReachedZero() const
 
 void TextureView::onRefCntReachedZero() const
 {
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<TextureView*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));

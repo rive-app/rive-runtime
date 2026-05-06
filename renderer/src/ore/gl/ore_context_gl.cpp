@@ -6,7 +6,7 @@
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_gl.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -190,35 +190,13 @@ static GLenum oreCompareFunctionToGL(CompareFunction fn)
 // Context lifecycle
 // ============================================================================
 
-// When both Metal and GL are compiled into the same binary (macOS), the
-// ore_context_metal_gl.mm file provides all Context method definitions with
-// runtime dispatch. Only compile GL Context definitions when Metal is absent.
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
+ContextGL::~ContextGL() {}
 
-Context::Context() {}
-
-Context::~Context() {}
-
-Context::Context(Context&& other) noexcept :
-    m_features(other.m_features), m_savedState(other.m_savedState)
-{}
-
-Context& Context::operator=(Context&& other) noexcept
+std::unique_ptr<ContextGL> ContextGL::Make()
 {
-    if (this != &other)
-    {
-        m_features = other.m_features;
-        m_savedState = other.m_savedState;
-    }
-    return *this;
-}
+    auto ctx = std::unique_ptr<ContextGL>(new ContextGL());
 
-Context Context::createGL()
-{
-    Context ctx;
-
-    Features& f = ctx.m_features;
+    Features& f = ctx->m_features;
 
     // GLES3 / WebGL2 baseline capabilities.
     f.colorBufferFloat = false; // Requires EXT_color_buffer_float.
@@ -282,7 +260,7 @@ Context Context::createGL()
     return ctx;
 }
 
-void Context::beginFrame()
+void ContextGL::beginFrame()
 {
     // Release deferred BindGroups from last frame. By beginFrame() the
     // caller has waited for the previous frame's GPU work to complete.
@@ -299,9 +277,9 @@ void Context::beginFrame()
     // element buffer that was associated with it.
 }
 
-void Context::waitForGPU() {} // GL is synchronous after glFinish/flush.
+void ContextGL::waitForGPU() {} // GL is synchronous after glFinish/flush.
 
-void Context::endFrame()
+void ContextGL::endFrame()
 {
     // Restore saved state. Each `RenderPass::finish()` already restores
     // its own captured VAO in-place, so by the time we get here only the
@@ -343,7 +321,7 @@ void Context::endFrame()
 // makeBuffer
 // ============================================================================
 
-rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
 {
     auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
 
@@ -389,7 +367,7 @@ rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
 // makeTexture
 // ============================================================================
 
-rcp<Texture> Context::makeTexture(const TextureDesc& desc)
+rcp<Texture> ContextGL::makeTexture(const TextureDesc& desc)
 {
     auto texture = rcp<Texture>(new Texture(desc));
 
@@ -485,7 +463,7 @@ rcp<Texture> Context::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextGL::makeTextureView(const TextureViewDesc& desc)
 {
     Texture* tex = desc.texture;
     if (!tex)
@@ -505,7 +483,7 @@ rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
 // makeSampler
 // ============================================================================
 
-rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 {
     auto sampler = rcp<Sampler>(new Sampler());
 
@@ -554,7 +532,7 @@ rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
 // makeShaderModule
 // ============================================================================
 
-rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextGL::makeShaderModule(const ShaderModuleDesc& desc)
 {
     auto module = rcp<ShaderModule>(new ShaderModule());
 
@@ -615,8 +593,6 @@ rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
     module->applyBindingMapFromDesc(desc);
     return module;
 }
-
-#endif // close standalone-GL guard; helpers below are shared with VK+GL
 
 // ============================================================================
 // GL uniform fixup (shared by pure GL and VK+GL backends)
@@ -686,15 +662,12 @@ static void oreGLFixupProgramBindings(GLuint program,
     glUseProgram(0);
 }
 
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
-
 // ============================================================================
 // makePipeline
 // ============================================================================
 
-rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
-                                    std::string* outError)
+rcp<Pipeline> ContextGL::makePipeline(const PipelineDesc& desc,
+                                      std::string* outError)
 {
     auto pipeline = rcp<Pipeline>(new Pipeline(desc));
 
@@ -780,7 +753,7 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
 // makeBindGroup
 // ============================================================================
 
-rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
 {
     if (desc.layout == nullptr)
     {
@@ -909,7 +882,7 @@ rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
 // makeBindGroupLayout
 // ============================================================================
 
-rcp<BindGroupLayout> Context::makeBindGroupLayout(
+rcp<BindGroupLayout> ContextGL::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     if (desc.groupIndex >= kMaxBindGroups)
@@ -933,8 +906,8 @@ rcp<BindGroupLayout> Context::makeBindGroupLayout(
 // beginRenderPass
 // ============================================================================
 
-RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError)
+RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
+                                      std::string* outError)
 {
     finishActiveRenderPass();
 
@@ -1134,7 +1107,7 @@ RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
 // wrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
 
@@ -1168,9 +1141,9 @@ rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     return rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
 }
 
-rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
-                                          uint32_t w,
-                                          uint32_t h)
+rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
+                                            uint32_t w,
+                                            uint32_t h)
 {
     if (!gpuTex)
         return nullptr;
@@ -1204,7 +1177,5 @@ rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
 
     return rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
 }
-
-#endif // ORE_BACKEND_GL standalone
 
 } // namespace rive::ore

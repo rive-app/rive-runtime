@@ -15,7 +15,7 @@
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include "ore_vulkan_dsl.hpp" // for kVkMaxGroups
 
@@ -77,7 +77,7 @@ void Buffer::onRefCntReachedZero() const
     VmaAllocator allocator = m_vmaAllocator;
     VkBuffer vkBuf = m_vkBuffer;
     VmaAllocation alloc = m_vmaAllocation;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (vkBuf != VK_NULL_HANDLE)
@@ -507,7 +507,7 @@ void Texture::onRefCntReachedZero() const
     VmaAllocator allocator = m_vmaAllocator;
     VkImage image = m_vkImage;
     VmaAllocation alloc = m_vmaAllocation;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (image != VK_NULL_HANDLE && alloc != VK_NULL_HANDLE)
@@ -539,7 +539,7 @@ void TextureView::onRefCntReachedZero() const
     VkDevice dev = m_vkDevice;
     VkImageView view = m_vkImageView;
     auto destroyFn = m_vkDestroyImageView;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (view != VK_NULL_HANDLE && destroyFn != nullptr)
@@ -574,7 +574,7 @@ void Pipeline::onRefCntReachedZero() const
     VkPipelineLayout layout = m_vkPipelineLayout;
     auto destroyPipe = m_vkDestroyPipeline;
     auto destroyLayout = m_vkDestroyPipelineLayout;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (pipe != VK_NULL_HANDLE && destroyPipe != nullptr)
@@ -600,7 +600,15 @@ void BindGroupLayout::onRefCntReachedZero() const
     VkDevice dev = m_vkDevice;
     VkDescriptorSetLayout dsl = m_vkDSL;
     auto destroyDSL = m_vkDestroyDescriptorSetLayout;
-    Context* ctx = m_context;
+    // In VK+GL builds m_context can point at either a ContextVulkan (set by
+    // ContextVulkan::makeBindGroupLayout) or a ContextGL (set by
+    // ContextGL::makeBindGroupLayout). m_vkDSL is the unambiguous signal that
+    // this is a VK-created layout — GL layouts leave it VK_NULL_HANDLE — so we
+    // only downcast and defer when there is actually a Vulkan handle to
+    // destroy.
+    ContextVulkan* ctx = (dsl != VK_NULL_HANDLE)
+                             ? static_cast<ContextVulkan*>(m_context)
+                             : nullptr;
 
     auto destroy = [=]() {
         if (dsl != VK_NULL_HANDLE && destroyDSL != nullptr)
@@ -632,7 +640,7 @@ void Sampler::onRefCntReachedZero() const
     VkDevice dev = m_vkDevice;
     VkSampler samp = m_vkSampler;
     auto destroyFn = m_vkDestroySampler;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (samp != VK_NULL_HANDLE && destroyFn != nullptr)

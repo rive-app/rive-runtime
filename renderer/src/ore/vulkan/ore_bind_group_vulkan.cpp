@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {
@@ -24,14 +24,14 @@ void BindGroup::onRefCntReachedZero() const
     // Context::deferBindGroupDestroy(), which keeps the rcp<> alive
     // until after endFrame(). By the time refcount reaches zero here,
     // the GPU is guaranteed to be done.
-    if (m_vkDescriptorSet != VK_NULL_HANDLE && m_context != nullptr &&
-        m_context->m_vkPersistentDescriptorPool != VK_NULL_HANDLE)
+    auto* ctx = static_cast<ContextVulkan*>(m_context);
+    if (m_vkDescriptorSet != VK_NULL_HANDLE && ctx != nullptr &&
+        ctx->m_vkPersistentDescriptorPool != VK_NULL_HANDLE)
     {
-        m_context->m_vk.FreeDescriptorSets(
-            m_context->m_vkDevice,
-            m_context->m_vkPersistentDescriptorPool,
-            1,
-            &m_vkDescriptorSet);
+        ctx->m_vk.FreeDescriptorSets(ctx->m_vkDevice,
+                                     ctx->m_vkPersistentDescriptorPool,
+                                     1,
+                                     &m_vkDescriptorSet);
     }
     delete this;
 }

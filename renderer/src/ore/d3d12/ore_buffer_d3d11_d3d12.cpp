@@ -8,7 +8,7 @@
 #if defined(ORE_BACKEND_D3D11) && defined(ORE_BACKEND_D3D12)
 
 #include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -50,7 +50,7 @@ void Buffer::onRefCntReachedZero() const
     // m_d3dOreContext is only set on D3D12-backed buffers (see
     // d3d12MakeBuffer). D3D11-backed buffers keep the immediate-delete path
     // unchanged.
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<Buffer*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));

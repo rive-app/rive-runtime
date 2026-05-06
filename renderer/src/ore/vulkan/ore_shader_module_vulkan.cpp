@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {

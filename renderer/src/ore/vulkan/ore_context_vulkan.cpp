@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -11,6 +11,8 @@
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
+
+#include "ore_vulkan_dsl.hpp" // for createDSLFromLayoutDesc
 
 #include <vk_mem_alloc.h>
 // VMA_IMPLEMENTATION is defined in src/vulkan/vulkan_memory_allocator.cpp,
@@ -137,13 +139,8 @@ static VkAttachmentStoreOp oreStoreOpToVk(StoreOp op)
 // Context lifecycle
 // ============================================================================
 
-#if !defined(ORE_BACKEND_GL)
-
-Context::Context() {}
-
-Context::~Context()
+ContextVulkan::~ContextVulkan()
 {
-#if defined(ORE_BACKEND_VK)
     if (m_vkDevice == VK_NULL_HANDLE)
         return;
 
@@ -183,79 +180,39 @@ Context::~Context()
 
     if (m_vkCommandPool != VK_NULL_HANDLE)
         m_vk.DestroyCommandPool(m_vkDevice, m_vkCommandPool, nullptr);
-#endif
-}
-
-Context::Context(Context&& other) noexcept :
-    m_features(other.m_features)
-#if defined(ORE_BACKEND_VK)
-    ,
-    m_vk(other.m_vk),
-    m_vkPhysicalDevice(other.m_vkPhysicalDevice),
-    m_vkDevice(other.m_vkDevice),
-    m_vkQueue(other.m_vkQueue),
-    m_vkQueueFamily(other.m_vkQueueFamily),
-    m_vmaAllocator(other.m_vmaAllocator),
-    m_vkCommandPool(other.m_vkCommandPool),
-    m_vkCommandBuffer(other.m_vkCommandBuffer),
-    m_vkDescriptorPool(other.m_vkDescriptorPool),
-    m_vkFrameFence(other.m_vkFrameFence),
-    m_vkPersistentDescriptorPool(other.m_vkPersistentDescriptorPool),
-    m_vkDeferredFramebuffers(std::move(other.m_vkDeferredFramebuffers)),
-    m_vkDeferredStagingBuffers(std::move(other.m_vkDeferredStagingBuffers)),
-    m_vkRenderPassCache(std::move(other.m_vkRenderPassCache)),
-    m_deferredBindGroups(std::move(other.m_deferredBindGroups))
-#endif
-{
-#if defined(ORE_BACKEND_VK)
-    other.m_vkDevice = VK_NULL_HANDLE;
-    other.m_vkCommandPool = VK_NULL_HANDLE;
-    other.m_vkDescriptorPool = VK_NULL_HANDLE;
-    other.m_vkPersistentDescriptorPool = VK_NULL_HANDLE;
-    other.m_vkFrameFence = VK_NULL_HANDLE;
-#endif
-}
-
-Context& Context::operator=(Context&& other) noexcept
-{
-    if (this != &other)
-    {
-        this->~Context();
-        new (this) Context(std::move(other));
-    }
-    return *this;
 }
 
 // ============================================================================
-// createVulkan
+// ContextVulkan::Make
 // ============================================================================
 
-Context Context::createVulkan(VkInstance instance,
-                              VkPhysicalDevice physicalDevice,
-                              VkDevice device,
-                              VkQueue queue,
-                              uint32_t queueFamilyIndex,
-                              VmaAllocator allocator,
-                              PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr)
+std::unique_ptr<ContextVulkan> ContextVulkan::Make(
+    VkInstance instance,
+    VkPhysicalDevice physicalDevice,
+    VkDevice device,
+    VkQueue queue,
+    uint32_t queueFamilyIndex,
+    VmaAllocator allocator,
+    PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr)
 {
-    Context ctx;
-    ctx.m_vkPhysicalDevice = physicalDevice;
-    ctx.m_vkDevice = device;
-    ctx.m_vkQueue = queue;
-    ctx.m_vkQueueFamily = queueFamilyIndex;
-    ctx.m_vmaAllocator = allocator;
+    auto ctx = std::unique_ptr<ContextVulkan>(new ContextVulkan());
+    ctx->m_vkPhysicalDevice = physicalDevice;
+    ctx->m_vkDevice = device;
+    ctx->m_vkQueue = queue;
+    ctx->m_vkQueueFamily = queueFamilyIndex;
+    ctx->m_vmaAllocator = allocator;
 
     // Load instance-level function pointers.
 #define LOAD_INSTANCE_CMD(CMD)                                                 \
-    ctx.m_vk.CMD = reinterpret_cast<PFN_vk##CMD>(                              \
+    ctx->m_vk.CMD = reinterpret_cast<PFN_vk##CMD>(                             \
         pfnGetInstanceProcAddr(instance, "vk" #CMD));
     ORE_VK_INSTANCE_COMMANDS(LOAD_INSTANCE_CMD)
 #undef LOAD_INSTANCE_CMD
 
     // Load device-level function pointers via GetDeviceProcAddr.
 #define LOAD_DEVICE_CMD(CMD)                                                   \
-    ctx.m_vk.CMD = reinterpret_cast<PFN_vk##CMD>(                              \
-        ctx.m_vk.GetDeviceProcAddr(device, "vk" #CMD));
+    ctx->m_vk.CMD = reinterpret_cast<PFN_vk##CMD>(                             \
+        ctx->m_vk.GetDeviceProcAddr(device, "vk" #CMD));
     ORE_VK_DEVICE_COMMANDS(LOAD_DEVICE_CMD)
 #undef LOAD_DEVICE_CMD
 
@@ -264,15 +221,18 @@ Context Context::createVulkan(VkInstance instance,
     poolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolCI.queueFamilyIndex = queueFamilyIndex;
-    ctx.m_vk.CreateCommandPool(device, &poolCI, nullptr, &ctx.m_vkCommandPool);
+    ctx->m_vk.CreateCommandPool(device,
+                                &poolCI,
+                                nullptr,
+                                &ctx->m_vkCommandPool);
 
     // Single reusable command buffer.
     VkCommandBufferAllocateInfo cbAI{};
     cbAI.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cbAI.commandPool = ctx.m_vkCommandPool;
+    cbAI.commandPool = ctx->m_vkCommandPool;
     cbAI.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbAI.commandBufferCount = 1;
-    ctx.m_vk.AllocateCommandBuffers(device, &cbAI, &ctx.m_vkCommandBuffer);
+    ctx->m_vk.AllocateCommandBuffers(device, &cbAI, &ctx->m_vkCommandBuffer);
 
     // Descriptor pool: sized generously for per-frame allocation + reset.
     // 3 sets per draw × 256 draws per frame × 3 types = 2304 descriptors.
@@ -287,10 +247,10 @@ Context Context::createVulkan(VkInstance instance,
     dpCI.maxSets = 768;
     dpCI.poolSizeCount = 3;
     dpCI.pPoolSizes = poolSizes;
-    ctx.m_vk.CreateDescriptorPool(device,
-                                  &dpCI,
-                                  nullptr,
-                                  &ctx.m_vkDescriptorPool);
+    ctx->m_vk.CreateDescriptorPool(device,
+                                   &dpCI,
+                                   nullptr,
+                                   &ctx->m_vkDescriptorPool);
 
     // Frame fence — signaled after each endFrame() QueueSubmit, waited on
     // in the next beginFrame() (or the destructor) so we never destroy
@@ -299,15 +259,15 @@ Context Context::createVulkan(VkInstance instance,
     VkFenceCreateInfo fenceCI{};
     fenceCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCI.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    ctx.m_vk.CreateFence(device, &fenceCI, nullptr, &ctx.m_vkFrameFence);
+    ctx->m_vk.CreateFence(device, &fenceCI, nullptr, &ctx->m_vkFrameFence);
 
     // Populate features from physical device properties.
     VkPhysicalDeviceProperties props{};
-    ctx.m_vk.GetPhysicalDeviceProperties(physicalDevice, &props);
+    ctx->m_vk.GetPhysicalDeviceProperties(physicalDevice, &props);
     VkPhysicalDeviceFeatures feat{};
-    ctx.m_vk.GetPhysicalDeviceFeatures(physicalDevice, &feat);
+    ctx->m_vk.GetPhysicalDeviceFeatures(physicalDevice, &feat);
 
-    Features& f = ctx.m_features;
+    Features& f = ctx->m_features;
     f.colorBufferFloat = true; // All Vulkan 1.1+ support rgba16f attachments.
     f.perTargetBlend = feat.independentBlend == VK_TRUE;
     f.perTargetWriteMask = feat.independentBlend == VK_TRUE;
@@ -339,7 +299,7 @@ Context Context::createVulkan(VkInstance instance,
 // Frame lifecycle
 // ============================================================================
 
-void Context::vkDrainDeferred()
+void ContextVulkan::vkDrainDeferred()
 {
     for (VkFramebuffer fb : m_vkDeferredFramebuffers)
         m_vk.DestroyFramebuffer(m_vkDevice, fb, nullptr);
@@ -354,7 +314,7 @@ void Context::vkDrainDeferred()
     m_vkDeferredDestroys.clear();
 }
 
-void Context::vkDeferDestroy(std::function<void()> destroy)
+void ContextVulkan::vkDeferDestroy(std::function<void()> destroy)
 {
     if (m_vkExternalCmdBuf)
         m_vkDeferredDestroys.push_back(std::move(destroy));
@@ -367,7 +327,7 @@ void Context::vkDeferDestroy(std::function<void()> destroy)
 // `bindGroupLayouts[]` (e.g. `[NULL, layout1, layout2]` for a shader
 // that only binds to groups 1 and 2). Vulkan VUID 06753 forbids
 // VK_NULL_HANDLE in pSetLayouts without graphicsPipelineLibrary.
-VkDescriptorSetLayout Context::vkGetOrCreateEmptyDSL()
+VkDescriptorSetLayout ContextVulkan::vkGetOrCreateEmptyDSL()
 {
     if (m_vkEmptyDSL != VK_NULL_HANDLE)
         return m_vkEmptyDSL;
@@ -379,7 +339,7 @@ VkDescriptorSetLayout Context::vkGetOrCreateEmptyDSL()
     return m_vkEmptyDSL;
 }
 
-void Context::vkFlushPendingInitialTransitions()
+void ContextVulkan::vkFlushPendingInitialTransitions()
 {
     if (m_vkPendingInitialTransitions.empty())
         return;
@@ -429,7 +389,7 @@ void Context::vkFlushPendingInitialTransitions()
     m_vkPendingInitialTransitions.clear();
 }
 
-void Context::beginFrame()
+void ContextVulkan::beginFrame()
 {
     // Release deferred BindGroups from last frame. endFrame() already
     // waited for GPU completion, so these are safe to destroy.
@@ -460,7 +420,7 @@ void Context::beginFrame()
     vkFlushPendingInitialTransitions();
 }
 
-void Context::beginFrame(VkCommandBuffer externalCb)
+void ContextVulkan::beginFrame(VkCommandBuffer externalCb)
 {
     assert(externalCb != VK_NULL_HANDLE);
 
@@ -477,7 +437,7 @@ void Context::beginFrame(VkCommandBuffer externalCb)
     vkFlushPendingInitialTransitions();
 }
 
-void Context::waitForGPU()
+void ContextVulkan::waitForGPU()
 {
 #if defined(ORE_BACKEND_VK)
     if (m_vkFrameFence != VK_NULL_HANDLE)
@@ -485,7 +445,7 @@ void Context::waitForGPU()
 #endif
 }
 
-void Context::endFrame()
+void ContextVulkan::endFrame()
 {
     if (m_vkExternalCmdBuf)
     {
@@ -515,7 +475,7 @@ void Context::endFrame()
 // getOrCreateRenderPass
 // ============================================================================
 
-VkRenderPass Context::getOrCreateRenderPass(const VKRenderPassKey& key)
+VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
 {
     // Linear scan — cache is typically <10 entries.
     for (auto& [k, rp] : m_vkRenderPassCache)
@@ -663,7 +623,7 @@ VkRenderPass Context::getOrCreateRenderPass(const VKRenderPassKey& key)
 // makeBuffer
 // ============================================================================
 
-rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 {
     auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
     buffer->m_vkDevice = m_vkDevice;
@@ -715,7 +675,7 @@ rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
 // makeTexture
 // ============================================================================
 
-rcp<Texture> Context::makeTexture(const TextureDesc& desc)
+rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
 {
     auto texture = rcp<Texture>(new Texture(desc));
     texture->m_vkDevice = m_vkDevice;
@@ -786,7 +746,7 @@ rcp<Texture> Context::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
 {
     Texture* tex = desc.texture;
     if (!tex)
@@ -858,7 +818,7 @@ rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
 // makeSampler
 // ============================================================================
 
-rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
 {
     auto sampler = rcp<Sampler>(new Sampler());
     sampler->m_vkDevice = m_vkDevice;
@@ -937,7 +897,7 @@ rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
 // makeShaderModule
 // ============================================================================
 
-rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextVulkan::makeShaderModule(const ShaderModuleDesc& desc)
 {
     auto module = rcp<ShaderModule>(new ShaderModule());
     module->m_vkDevice = m_vkDevice;
@@ -967,7 +927,7 @@ rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
 // makeBindGroupLayout
 // ============================================================================
 
-rcp<BindGroupLayout> Context::makeBindGroupLayout(
+rcp<BindGroupLayout> ContextVulkan::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     if (desc.groupIndex >= kMaxBindGroups)
@@ -1003,7 +963,7 @@ rcp<BindGroupLayout> Context::makeBindGroupLayout(
 // makeBindGroup
 // ============================================================================
 
-rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
 {
     if (desc.layout == nullptr)
     {
@@ -1240,8 +1200,8 @@ rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
 // beginRenderPass
 // ============================================================================
 
-RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError)
+RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
+                                          std::string* outError)
 {
     finishActiveRenderPass();
 
@@ -1392,7 +1352,7 @@ RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
 // wrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextVulkan::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
 
@@ -1461,9 +1421,9 @@ rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     return view;
 }
 
-rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
-                                          uint32_t w,
-                                          uint32_t h)
+rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
+                                                uint32_t w,
+                                                uint32_t h)
 {
     if (!gpuTex)
         return nullptr;
@@ -1512,7 +1472,5 @@ rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
     view->m_vkOreContext = this;
     return view;
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

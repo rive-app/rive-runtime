@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -460,13 +460,8 @@ static void d3d12WaitFence(ID3D12CommandQueue* queue,
 // ore_context_d3d11_d3d12.cpp file provides these methods with dispatch.
 // ============================================================================
 
-#if defined(ORE_BACKEND_D3D12) && !defined(ORE_BACKEND_D3D11)
-
-Context::Context() {}
-
-Context::~Context()
+ContextD3D12::~ContextD3D12()
 {
-#if defined(ORE_BACKEND_D3D12)
     if (m_d3dDevice)
     {
         // Flush all pending GPU work before releasing resources. In
@@ -490,114 +485,57 @@ Context::~Context()
             m_d3dFenceEvent = nullptr;
         }
     }
-#endif
-}
-
-Context::Context(Context&& other) noexcept :
-    m_features(other.m_features)
-#if defined(ORE_BACKEND_D3D12)
-    ,
-    m_d3dDevice(std::move(other.m_d3dDevice)),
-    m_d3dQueue(std::move(other.m_d3dQueue)),
-    m_d3dAllocator(std::move(other.m_d3dAllocator)),
-    m_d3dOwnedCmdList(std::move(other.m_d3dOwnedCmdList)),
-    m_d3dCmdList(other.m_d3dCmdList),
-    m_d3dUploadAllocator(std::move(other.m_d3dUploadAllocator)),
-    m_d3dUploadCmdList(std::move(other.m_d3dUploadCmdList)),
-    m_d3dUploadListOpen(other.m_d3dUploadListOpen),
-    m_d3dFence(std::move(other.m_d3dFence)),
-    m_d3dFenceValue(other.m_d3dFenceValue),
-    m_d3dFenceEvent(other.m_d3dFenceEvent),
-    m_d3dCpuSrvHeap(std::move(other.m_d3dCpuSrvHeap)),
-    m_d3dCpuRtvHeap(std::move(other.m_d3dCpuRtvHeap)),
-    m_d3dCpuDsvHeap(std::move(other.m_d3dCpuDsvHeap)),
-    m_d3dCpuSamplerHeap(std::move(other.m_d3dCpuSamplerHeap)),
-    m_d3dCpuSrvAllocated(other.m_d3dCpuSrvAllocated),
-    m_d3dCpuRtvAllocated(other.m_d3dCpuRtvAllocated),
-    m_d3dCpuDsvAllocated(other.m_d3dCpuDsvAllocated),
-    m_d3dCpuSamplerAllocated(other.m_d3dCpuSamplerAllocated),
-    m_d3dSrvDescSize(other.m_d3dSrvDescSize),
-    m_d3dRtvDescSize(other.m_d3dRtvDescSize),
-    m_d3dDsvDescSize(other.m_d3dDsvDescSize),
-    m_d3dSamplerDescSize(other.m_d3dSamplerDescSize),
-    m_d3dNullSrv(other.m_d3dNullSrv),
-    m_d3dNullSampler(other.m_d3dNullSampler),
-    m_d3dGpuSrvHeap(std::move(other.m_d3dGpuSrvHeap)),
-    m_d3dGpuSamplerHeap(std::move(other.m_d3dGpuSamplerHeap)),
-    m_d3dGpuSrvAllocated(other.m_d3dGpuSrvAllocated),
-    m_d3dGpuSamplerAllocated(other.m_d3dGpuSamplerAllocated),
-    m_d3dPendingUploads(std::move(other.m_d3dPendingUploads)),
-    m_d3dExternalCmdList(other.m_d3dExternalCmdList),
-    m_d3dDeferredDestroys(std::move(other.m_d3dDeferredDestroys))
-#endif
-{
-#if defined(ORE_BACKEND_D3D12)
-    other.m_d3dFenceEvent = nullptr;
-    other.m_d3dFenceValue = 0;
-    other.m_d3dUploadListOpen = false;
-    other.m_d3dCmdList = nullptr;
-    other.m_d3dExternalCmdList = false;
-#endif
-}
-
-Context& Context::operator=(Context&& other) noexcept
-{
-    if (this != &other)
-    {
-        this->~Context();
-        new (this) Context(std::move(other));
-    }
-    return *this;
 }
 
 // ============================================================================
-// Context::createD3D12
+// ContextD3D12::Make
 // ============================================================================
 
-Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
+std::unique_ptr<ContextD3D12> ContextD3D12::Make(ID3D12Device* device,
+                                                 ID3D12CommandQueue* queue)
 {
-    Context ctx;
-    ctx.m_d3dDevice = device;
-    ctx.m_d3dQueue = queue;
+    auto ctx = std::unique_ptr<ContextD3D12>(new ContextD3D12());
+    ctx->m_d3dDevice = device;
+    ctx->m_d3dQueue = queue;
 
     // --- Command allocator + list for rendering ---
     [[maybe_unused]] HRESULT hr;
     hr = device->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT,
-        IID_PPV_ARGS(ctx.m_d3dAllocator.GetAddressOf()));
+        IID_PPV_ARGS(ctx->m_d3dAllocator.GetAddressOf()));
     assert(SUCCEEDED(hr));
     hr = device->CreateCommandList(
         0,
         D3D12_COMMAND_LIST_TYPE_DIRECT,
-        ctx.m_d3dAllocator.Get(),
+        ctx->m_d3dAllocator.Get(),
         nullptr,
-        IID_PPV_ARGS(ctx.m_d3dOwnedCmdList.GetAddressOf()));
+        IID_PPV_ARGS(ctx->m_d3dOwnedCmdList.GetAddressOf()));
     assert(SUCCEEDED(hr));
-    ctx.m_d3dCmdList = ctx.m_d3dOwnedCmdList.Get();
+    ctx->m_d3dCmdList = ctx->m_d3dOwnedCmdList.Get();
     // Close immediately; reopened in beginFrame().
-    ctx.m_d3dCmdList->Close();
+    ctx->m_d3dCmdList->Close();
 
     // --- Upload allocator + list ---
     hr = device->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT,
-        IID_PPV_ARGS(ctx.m_d3dUploadAllocator.GetAddressOf()));
+        IID_PPV_ARGS(ctx->m_d3dUploadAllocator.GetAddressOf()));
     assert(SUCCEEDED(hr));
     hr = device->CreateCommandList(
         0,
         D3D12_COMMAND_LIST_TYPE_DIRECT,
-        ctx.m_d3dUploadAllocator.Get(),
+        ctx->m_d3dUploadAllocator.Get(),
         nullptr,
-        IID_PPV_ARGS(ctx.m_d3dUploadCmdList.GetAddressOf()));
+        IID_PPV_ARGS(ctx->m_d3dUploadCmdList.GetAddressOf()));
     assert(SUCCEEDED(hr));
-    ctx.m_d3dUploadCmdList->Close();
+    ctx->m_d3dUploadCmdList->Close();
 
     // --- Fence ---
     hr = device->CreateFence(0,
                              D3D12_FENCE_FLAG_NONE,
-                             IID_PPV_ARGS(ctx.m_d3dFence.GetAddressOf()));
+                             IID_PPV_ARGS(ctx->m_d3dFence.GetAddressOf()));
     assert(SUCCEEDED(hr));
-    ctx.m_d3dFenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    assert(ctx.m_d3dFenceEvent != nullptr);
+    ctx->m_d3dFenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    assert(ctx->m_d3dFenceEvent != nullptr);
 
     // Root signatures are per-pipeline (RFC v5 §3.2.2). Each pipeline
     // builds its own from its `ore::BindingMap` via `buildPerPipeline-
@@ -606,13 +544,13 @@ Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
     // one. No context-wide root signature is needed.
 
     // --- Descriptor heap sizes ---
-    ctx.m_d3dSrvDescSize = device->GetDescriptorHandleIncrementSize(
+    ctx->m_d3dSrvDescSize = device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    ctx.m_d3dRtvDescSize = device->GetDescriptorHandleIncrementSize(
+    ctx->m_d3dRtvDescSize = device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    ctx.m_d3dDsvDescSize = device->GetDescriptorHandleIncrementSize(
+    ctx->m_d3dDsvDescSize = device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-    ctx.m_d3dSamplerDescSize = device->GetDescriptorHandleIncrementSize(
+    ctx->m_d3dSamplerDescSize = device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
     // --- CPU-visible heaps ---
@@ -630,12 +568,12 @@ Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
     };
     makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
                 1024,
-                ctx.m_d3dCpuSrvHeap);
-    makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256, ctx.m_d3dCpuRtvHeap);
-    makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64, ctx.m_d3dCpuDsvHeap);
+                ctx->m_d3dCpuSrvHeap);
+    makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256, ctx->m_d3dCpuRtvHeap);
+    makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64, ctx->m_d3dCpuDsvHeap);
     makeCpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
                 256,
-                ctx.m_d3dCpuSamplerHeap);
+                ctx->m_d3dCpuSamplerHeap);
 
     // --- GPU-visible heaps ---
     auto makeGpuHeap = [&](D3D12_DESCRIPTOR_HEAP_TYPE type,
@@ -652,16 +590,16 @@ Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
     };
     makeGpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
                 4096,
-                ctx.m_d3dGpuSrvHeap);
+                ctx->m_d3dGpuSrvHeap);
     makeGpuHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
                 512,
-                ctx.m_d3dGpuSamplerHeap);
+                ctx->m_d3dGpuSamplerHeap);
 
     // --- Null SRV (2D texture, for unused descriptor-table slots) ---
     {
         D3D12_CPU_DESCRIPTOR_HANDLE handle =
-            ctx.m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
-        handle.ptr += ctx.m_d3dCpuSrvAllocated++ * ctx.m_d3dSrvDescSize;
+            ctx->m_d3dCpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
+        handle.ptr += ctx->m_d3dCpuSrvAllocated++ * ctx->m_d3dSrvDescSize;
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -669,14 +607,15 @@ Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
             D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.Texture2D.MipLevels = 1;
         device->CreateShaderResourceView(nullptr, &srvDesc, handle);
-        ctx.m_d3dNullSrv = handle;
+        ctx->m_d3dNullSrv = handle;
     }
 
     // --- Null Sampler ---
     {
         D3D12_CPU_DESCRIPTOR_HANDLE handle =
-            ctx.m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
-        handle.ptr += ctx.m_d3dCpuSamplerAllocated++ * ctx.m_d3dSamplerDescSize;
+            ctx->m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
+        handle.ptr +=
+            ctx->m_d3dCpuSamplerAllocated++ * ctx->m_d3dSamplerDescSize;
         D3D12_SAMPLER_DESC sampDesc = {};
         sampDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
         sampDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -685,11 +624,11 @@ Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
         sampDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
         sampDesc.MaxLOD = D3D12_FLOAT32_MAX;
         device->CreateSampler(&sampDesc, handle);
-        ctx.m_d3dNullSampler = handle;
+        ctx->m_d3dNullSampler = handle;
     }
 
     // --- Features ---
-    Features& f = ctx.m_features;
+    Features& f = ctx->m_features;
     f.colorBufferFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
@@ -719,7 +658,7 @@ Context Context::createD3D12(ID3D12Device* device, ID3D12CommandQueue* queue)
 // beginFrame / endFrame / waitForGPU
 // ============================================================================
 
-void Context::beginFrame()
+void ContextD3D12::beginFrame()
 {
     // Release deferred BindGroups from last frame. By beginFrame() the
     // caller has waited for the previous frame's GPU work to complete.
@@ -752,7 +691,7 @@ void Context::beginFrame()
 #endif
 }
 
-void Context::beginFrame(ID3D12GraphicsCommandList* externalCl)
+void ContextD3D12::beginFrame(ID3D12GraphicsCommandList* externalCl)
 {
 #if defined(ORE_BACKEND_D3D12)
     assert(externalCl != nullptr);
@@ -784,7 +723,7 @@ void Context::beginFrame(ID3D12GraphicsCommandList* externalCl)
 #endif
 }
 
-void Context::waitForGPU()
+void ContextD3D12::waitForGPU()
 {
 #if defined(ORE_BACKEND_D3D12)
     d3d12WaitFence(m_d3dQueue.Get(),
@@ -794,7 +733,7 @@ void Context::waitForGPU()
 #endif
 }
 
-void Context::endFrame()
+void ContextD3D12::endFrame()
 {
 #if defined(ORE_BACKEND_D3D12)
     if (m_d3dExternalCmdList)
@@ -820,8 +759,6 @@ void Context::endFrame()
 #endif
 }
 
-#endif // D3D12-only (Context lifecycle + beginFrame/endFrame)
-
 // ============================================================================
 // d3d12FlushUploads + GPU-visible heap allocation helpers (called by
 // RenderPass and d3d12* helpers)
@@ -829,14 +766,14 @@ void Context::endFrame()
 
 #if defined(ORE_BACKEND_D3D12)
 
-void Context::d3dDrainDeferred()
+void ContextD3D12::d3dDrainDeferred()
 {
     for (auto& destroy : m_d3dDeferredDestroys)
         destroy();
     m_d3dDeferredDestroys.clear();
 }
 
-void Context::d3dDeferDestroy(std::function<void()> destroy)
+void ContextD3D12::d3dDeferDestroy(std::function<void()> destroy)
 {
     if (m_d3dExternalCmdList)
         m_d3dDeferredDestroys.push_back(std::move(destroy));
@@ -844,7 +781,7 @@ void Context::d3dDeferDestroy(std::function<void()> destroy)
         destroy();
 }
 
-void Context::d3d12FlushUploads()
+void ContextD3D12::d3d12FlushUploads()
 {
     if (!m_d3dUploadListOpen)
         return;
@@ -860,7 +797,7 @@ void Context::d3d12FlushUploads()
     m_d3dUploadListOpen = false;
 }
 
-UINT Context::d3d12AllocGpuSrvSlots(UINT count)
+UINT ContextD3D12::d3d12AllocGpuSrvSlots(UINT count)
 {
     // Heap exhaustion is reachable from a Lua script that creates more
     // bind groups than the GPU heap can hold (4096 SRV/CBV/UAV slots).
@@ -880,7 +817,7 @@ UINT Context::d3d12AllocGpuSrvSlots(UINT count)
     return start;
 }
 
-UINT Context::d3d12AllocGpuSamplerSlots(UINT count)
+UINT ContextD3D12::d3d12AllocGpuSamplerSlots(UINT count)
 {
     if (m_d3dGpuSamplerAllocated + count > 512)
     {
@@ -895,7 +832,7 @@ UINT Context::d3d12AllocGpuSamplerSlots(UINT count)
     return start;
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE Context::d3d12GpuSrvCpuHandle(UINT index) const
+D3D12_CPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSrvCpuHandle(UINT index) const
 {
     D3D12_CPU_DESCRIPTOR_HANDLE h =
         m_d3dGpuSrvHeap->GetCPUDescriptorHandleForHeapStart();
@@ -903,7 +840,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE Context::d3d12GpuSrvCpuHandle(UINT index) const
     return h;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Context::d3d12GpuSrvGpuHandle(UINT index) const
+D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSrvGpuHandle(UINT index) const
 {
     D3D12_GPU_DESCRIPTOR_HANDLE h =
         m_d3dGpuSrvHeap->GetGPUDescriptorHandleForHeapStart();
@@ -911,7 +848,8 @@ D3D12_GPU_DESCRIPTOR_HANDLE Context::d3d12GpuSrvGpuHandle(UINT index) const
     return h;
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE Context::d3d12GpuSamplerCpuHandle(UINT index) const
+D3D12_CPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerCpuHandle(
+    UINT index) const
 {
     D3D12_CPU_DESCRIPTOR_HANDLE h =
         m_d3dGpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
@@ -919,7 +857,8 @@ D3D12_CPU_DESCRIPTOR_HANDLE Context::d3d12GpuSamplerCpuHandle(UINT index) const
     return h;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Context::d3d12GpuSamplerGpuHandle(UINT index) const
+D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerGpuHandle(
+    UINT index) const
 {
     D3D12_GPU_DESCRIPTOR_HANDLE h =
         m_d3dGpuSamplerHeap->GetGPUDescriptorHandleForHeapStart();
@@ -938,7 +877,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE Context::d3d12GpuSamplerGpuHandle(UINT index) const
 // d3d12MakeBuffer
 // ============================================================================
 
-rcp<Buffer> Context::d3d12MakeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
     auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
@@ -992,7 +931,7 @@ rcp<Buffer> Context::d3d12MakeBuffer(const BufferDesc& desc)
 // d3d12MakeTexture
 // ============================================================================
 
-rcp<Texture> Context::d3d12MakeTexture(const TextureDesc& desc)
+rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
     auto texture = rcp<Texture>(new Texture(desc));
@@ -1077,7 +1016,7 @@ rcp<Texture> Context::d3d12MakeTexture(const TextureDesc& desc)
 // d3d12MakeTextureView
 // ============================================================================
 
-rcp<TextureView> Context::d3d12MakeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
     Texture* tex = desc.texture;
@@ -1295,7 +1234,7 @@ rcp<TextureView> Context::d3d12MakeTextureView(const TextureViewDesc& desc)
 // d3d12MakeSampler
 // ============================================================================
 
-rcp<Sampler> Context::d3d12MakeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextD3D12::d3d12MakeSampler(const SamplerDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
     auto sampler = rcp<Sampler>(new Sampler());
@@ -1335,7 +1274,8 @@ rcp<Sampler> Context::d3d12MakeSampler(const SamplerDesc& desc)
 // d3d12MakeShaderModule
 // ============================================================================
 
-rcp<ShaderModule> Context::d3d12MakeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
+    const ShaderModuleDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
     auto module = rcp<ShaderModule>(new ShaderModule());
@@ -1420,8 +1360,8 @@ rcp<ShaderModule> Context::d3d12MakeShaderModule(const ShaderModuleDesc& desc)
 // d3d12MakePipeline
 // ============================================================================
 
-rcp<Pipeline> Context::d3d12MakePipeline(const PipelineDesc& desc,
-                                         std::string* outError)
+rcp<Pipeline> ContextD3D12::d3d12MakePipeline(const PipelineDesc& desc,
+                                              std::string* outError)
 {
     (void)outError;
 #if defined(ORE_BACKEND_D3D12)
@@ -1633,7 +1573,7 @@ rcp<Pipeline> Context::d3d12MakePipeline(const PipelineDesc& desc,
 // d3d12MakeBindGroup
 // ============================================================================
 
-rcp<BindGroup> Context::d3d12MakeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
     if (desc.layout == nullptr)
@@ -1767,7 +1707,7 @@ rcp<BindGroup> Context::d3d12MakeBindGroup(const BindGroupDesc& desc)
 // d3d12MakeBindGroupLayout
 // ============================================================================
 
-rcp<BindGroupLayout> Context::d3d12MakeBindGroupLayout(
+rcp<BindGroupLayout> ContextD3D12::d3d12MakeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
@@ -1800,8 +1740,8 @@ rcp<BindGroupLayout> Context::d3d12MakeBindGroupLayout(
 // d3d12BeginRenderPass
 // ============================================================================
 
-RenderPass Context::d3d12BeginRenderPass(const RenderPassDesc& desc,
-                                         std::string* outError)
+RenderPass ContextD3D12::d3d12BeginRenderPass(const RenderPassDesc& desc,
+                                              std::string* outError)
 {
 #if defined(ORE_BACKEND_D3D12)
     // Flush any pending texture uploads before rendering.
@@ -1994,7 +1934,7 @@ RenderPass Context::d3d12BeginRenderPass(const RenderPassDesc& desc,
 // d3d12WrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> Context::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextD3D12::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
 #if defined(ORE_BACKEND_D3D12)
     assert(canvas != nullptr);
@@ -2071,9 +2011,9 @@ rcp<TextureView> Context::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
 #endif
 }
 
-rcp<TextureView> Context::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
-                                               uint32_t w,
-                                               uint32_t h)
+rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
+                                                    uint32_t w,
+                                                    uint32_t h)
 {
 #if defined(ORE_BACKEND_D3D12)
     if (!gpuTex)
@@ -2179,73 +2119,67 @@ rcp<TextureView> Context::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
 
 // ============================================================================
 // Public method definitions (D3D12-only builds)
-// When both D3D11 and D3D12 are compiled, the combined
-// ore_context_d3d11_d3d12.cpp file provides these methods with dispatch.
 // ============================================================================
 
-#if defined(ORE_BACKEND_D3D12) && !defined(ORE_BACKEND_D3D11)
-
-rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextD3D12::makeBuffer(const BufferDesc& desc)
 {
     return d3d12MakeBuffer(desc);
 }
 
-rcp<Texture> Context::makeTexture(const TextureDesc& desc)
+rcp<Texture> ContextD3D12::makeTexture(const TextureDesc& desc)
 {
     return d3d12MakeTexture(desc);
 }
 
-rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextD3D12::makeTextureView(const TextureViewDesc& desc)
 {
     return d3d12MakeTextureView(desc);
 }
 
-rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextD3D12::makeSampler(const SamplerDesc& desc)
 {
     return d3d12MakeSampler(desc);
 }
 
-rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextD3D12::makeShaderModule(const ShaderModuleDesc& desc)
 {
     return d3d12MakeShaderModule(desc);
 }
 
-rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
-                                    std::string* outError)
+rcp<Pipeline> ContextD3D12::makePipeline(const PipelineDesc& desc,
+                                         std::string* outError)
 {
     return d3d12MakePipeline(desc, outError);
 }
 
-rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextD3D12::makeBindGroup(const BindGroupDesc& desc)
 {
     return d3d12MakeBindGroup(desc);
 }
 
-rcp<BindGroupLayout> Context::makeBindGroupLayout(
+rcp<BindGroupLayout> ContextD3D12::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     return d3d12MakeBindGroupLayout(desc);
 }
 
-RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError)
+RenderPass ContextD3D12::beginRenderPass(const RenderPassDesc& desc,
+                                         std::string* outError)
 {
     finishActiveRenderPass();
     return d3d12BeginRenderPass(desc, outError);
 }
 
-rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextD3D12::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     return d3d12WrapCanvasTexture(canvas);
 }
 
-rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
-                                          uint32_t w,
-                                          uint32_t h)
+rcp<TextureView> ContextD3D12::wrapRiveTexture(gpu::Texture* gpuTex,
+                                               uint32_t w,
+                                               uint32_t h)
 {
     return d3d12WrapRiveTexture(gpuTex, w, h);
 }
-
-#endif // D3D12-only (public method stubs)
 
 } // namespace rive::ore

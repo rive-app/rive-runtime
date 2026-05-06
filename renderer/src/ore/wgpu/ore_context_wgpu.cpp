@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_wgpu.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -451,49 +451,21 @@ static wgpu::ShaderModule compileWagyuShader(wgpu::Device device,
 // Context lifecycle
 // ============================================================================
 
-Context::Context() {}
+ContextWGPU::~ContextWGPU() {}
 
-Context::~Context() {}
-
-Context::Context(Context&& other) noexcept :
-    m_features(other.m_features),
-    m_wgpuBackend(other.m_wgpuBackend),
-    m_wgpuDevice(std::move(other.m_wgpuDevice)),
-    m_wgpuQueue(std::move(other.m_wgpuQueue)),
-    m_wgpuCommandEncoder(std::move(other.m_wgpuCommandEncoder)),
-    m_wgpuExternalEncoder(other.m_wgpuExternalEncoder)
+std::unique_ptr<ContextWGPU> ContextWGPU::Make(wgpu::Device device,
+                                               wgpu::Queue queue,
+                                               wgpu::BackendType backendType)
 {
-    other.m_wgpuExternalEncoder = false;
-}
-
-Context& Context::operator=(Context&& other) noexcept
-{
-    if (this != &other)
-    {
-        m_features = other.m_features;
-        m_wgpuBackend = other.m_wgpuBackend;
-        m_wgpuDevice = std::move(other.m_wgpuDevice);
-        m_wgpuQueue = std::move(other.m_wgpuQueue);
-        m_wgpuCommandEncoder = std::move(other.m_wgpuCommandEncoder);
-        m_wgpuExternalEncoder = other.m_wgpuExternalEncoder;
-        other.m_wgpuExternalEncoder = false;
-    }
-    return *this;
-}
-
-Context Context::createWGPU(wgpu::Device device,
-                            wgpu::Queue queue,
-                            wgpu::BackendType backendType)
-{
-    Context ctx;
-    ctx.m_wgpuDevice = std::move(device);
-    ctx.m_wgpuQueue = std::move(queue);
-    ctx.m_wgpuBackend = (backendType == wgpu::BackendType::OpenGLES)
-                            ? WGPUBackend::OpenGLES
-                            : WGPUBackend::Vulkan;
+    auto ctx = std::unique_ptr<ContextWGPU>(new ContextWGPU());
+    ctx->m_wgpuDevice = std::move(device);
+    ctx->m_wgpuQueue = std::move(queue);
+    ctx->m_wgpuBackend = (backendType == wgpu::BackendType::OpenGLES)
+                             ? WGPUBackend::OpenGLES
+                             : WGPUBackend::Vulkan;
 
     // Populate features with WebGPU-level capabilities.
-    Features& f = ctx.m_features;
+    Features& f = ctx->m_features;
     f.colorBufferFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
@@ -520,7 +492,7 @@ Context Context::createWGPU(wgpu::Device device,
     return ctx;
 }
 
-void Context::beginFrame()
+void ContextWGPU::beginFrame()
 {
     // Release deferred BindGroups from last frame. By beginFrame() the
     // caller has waited for the previous frame's GPU work to complete.
@@ -531,7 +503,7 @@ void Context::beginFrame()
     m_wgpuCommandEncoder = m_wgpuDevice.CreateCommandEncoder(&encoderDesc);
 }
 
-void Context::beginFrame(wgpu::CommandEncoder externalEncoder)
+void ContextWGPU::beginFrame(wgpu::CommandEncoder externalEncoder)
 {
     assert(externalEncoder != nullptr);
     // Same drain contract as owned-encoder mode: by the time we're called
@@ -542,9 +514,9 @@ void Context::beginFrame(wgpu::CommandEncoder externalEncoder)
     m_wgpuExternalEncoder = true;
 }
 
-void Context::waitForGPU() {} // WGPU submit is synchronous for Dawn.
+void ContextWGPU::waitForGPU() {} // WGPU submit is synchronous for Dawn.
 
-void Context::endFrame()
+void ContextWGPU::endFrame()
 {
     assert(m_wgpuCommandEncoder != nullptr);
     if (m_wgpuExternalEncoder)
@@ -564,7 +536,7 @@ void Context::endFrame()
 // makeBuffer
 // ============================================================================
 
-rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
 {
     auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
     buffer->m_wgpuQueue = m_wgpuQueue; // addref'd copy for WriteBuffer
@@ -603,7 +575,7 @@ rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
 // makeTexture
 // ============================================================================
 
-rcp<Texture> Context::makeTexture(const TextureDesc& desc)
+rcp<Texture> ContextWGPU::makeTexture(const TextureDesc& desc)
 {
     auto texture = rcp<Texture>(new Texture(desc));
     texture->m_wgpuQueue = m_wgpuQueue;
@@ -631,7 +603,7 @@ rcp<Texture> Context::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextWGPU::makeTextureView(const TextureViewDesc& desc)
 {
     Texture* tex = desc.texture;
     if (!tex)
@@ -657,7 +629,7 @@ rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
 // makeSampler
 // ============================================================================
 
-rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextWGPU::makeSampler(const SamplerDesc& desc)
 {
     auto sampler = rcp<Sampler>(new Sampler());
 
@@ -687,7 +659,7 @@ rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
 // makeShaderModule
 // ============================================================================
 
-rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextWGPU::makeShaderModule(const ShaderModuleDesc& desc)
 {
     auto module = rcp<ShaderModule>(new ShaderModule());
 
@@ -733,8 +705,8 @@ rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
 // makePipeline
 // ============================================================================
 
-rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
-                                    std::string* outError)
+rcp<Pipeline> ContextWGPU::makePipeline(const PipelineDesc& desc,
+                                        std::string* outError)
 {
     auto pipeline = rcp<Pipeline>(new Pipeline(desc));
 
@@ -950,7 +922,7 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
 // makeBindGroupLayout
 // ============================================================================
 
-rcp<BindGroupLayout> Context::makeBindGroupLayout(
+rcp<BindGroupLayout> ContextWGPU::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     if (desc.groupIndex >= kMaxBindGroups)
@@ -982,7 +954,7 @@ rcp<BindGroupLayout> Context::makeBindGroupLayout(
 // makeBindGroup
 // ============================================================================
 
-rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
 {
     if (desc.layout == nullptr)
     {
@@ -1102,8 +1074,8 @@ rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
 // beginRenderPass
 // ============================================================================
 
-RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError)
+RenderPass ContextWGPU::beginRenderPass(const RenderPassDesc& desc,
+                                        std::string* outError)
 {
     finishActiveRenderPass();
 
@@ -1186,7 +1158,7 @@ RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
 // wrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextWGPU::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
 
@@ -1240,9 +1212,9 @@ rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     return view;
 }
 
-rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
-                                          uint32_t w,
-                                          uint32_t h)
+rcp<TextureView> ContextWGPU::wrapRiveTexture(gpu::Texture* gpuTex,
+                                              uint32_t w,
+                                              uint32_t h)
 {
     if (!gpuTex)
         return nullptr;

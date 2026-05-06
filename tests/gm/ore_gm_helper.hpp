@@ -21,7 +21,25 @@
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
 #include "rive/renderer/ore/ore_context.hpp"
-#include <optional>
+#include <memory>
+#endif
+#if defined(ORE_BACKEND_METAL)
+#include "rive/renderer/ore/ore_context_metal.hpp"
+#endif
+#if defined(ORE_BACKEND_GL)
+#include "rive/renderer/ore/ore_context_gl.hpp"
+#endif
+#if defined(ORE_BACKEND_D3D11)
+#include "rive/renderer/ore/ore_context_d3d11.hpp"
+#endif
+#if defined(ORE_BACKEND_D3D12)
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
+#endif
+#if defined(ORE_BACKEND_WGPU)
+#include "rive/renderer/ore/ore_context_wgpu.hpp"
+#endif
+#if defined(ORE_BACKEND_VK)
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 #endif
 #if defined(ORE_BACKEND_METAL)
 #include "rive/renderer/metal/render_context_metal_impl.h"
@@ -110,7 +128,7 @@ struct OreGMContext
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-    std::optional<rive::ore::Context> oreContext;
+    std::unique_ptr<rive::ore::Context> oreContext;
 #endif
 
     // Creates the Ore context from the active TestingWindow's render context.
@@ -120,7 +138,7 @@ struct OreGMContext
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        if (oreContext.has_value())
+        if (oreContext != nullptr)
             return true;
 
         if (!renderContext || !isOreBackendActive())
@@ -137,8 +155,7 @@ struct OreGMContext
             auto queue = (__bridge id<MTLCommandQueue>)TestingWindow::Get()
                              ->metalQueue();
             assert(queue != nil);
-            oreContext.emplace(
-                rive::ore::Context::createMetal(impl->gpu(), queue));
+            oreContext = rive::ore::ContextMetal::Make(impl->gpu(), queue);
             return true;
         }
 #endif
@@ -146,7 +163,7 @@ struct OreGMContext
         if (b == TestingWindow::Backend::gl ||
             b == TestingWindow::Backend::angle)
         {
-            oreContext.emplace(rive::ore::Context::createGL());
+            oreContext = rive::ore::ContextGL::Make();
             return true;
         }
 #endif
@@ -156,9 +173,8 @@ struct OreGMContext
             auto* impl =
                 renderContext
                     ->static_impl_cast<rive::gpu::RenderContextD3DImpl>();
-            oreContext.emplace(
-                rive::ore::Context::createD3D11(impl->gpu(),
-                                                impl->gpuContext()));
+            oreContext =
+                rive::ore::ContextD3D11::Make(impl->gpu(), impl->gpuContext());
             return true;
         }
 #endif
@@ -168,9 +184,8 @@ struct OreGMContext
             auto* impl =
                 renderContext
                     ->static_impl_cast<rive::gpu::RenderContextD3D12Impl>();
-            oreContext.emplace(
-                rive::ore::Context::createD3D12(impl->device().Get(),
-                                                impl->commandQueue()));
+            oreContext = rive::ore::ContextD3D12::Make(impl->device().Get(),
+                                                       impl->commandQueue());
             return true;
         }
 #endif
@@ -181,10 +196,10 @@ struct OreGMContext
             auto* impl =
                 renderContext
                     ->static_impl_cast<rive::gpu::RenderContextWebGPUImpl>();
-            oreContext.emplace(rive::ore::Context::createWGPU(
-                impl->device(),
-                impl->queue(),
-                impl->capabilities().backendType));
+            oreContext =
+                rive::ore::ContextWGPU::Make(impl->device(),
+                                             impl->queue(),
+                                             impl->capabilities().backendType);
             return true;
         }
 #endif
@@ -205,14 +220,13 @@ struct OreGMContext
                     win->vulkanGetInstanceProcAddr());
             if (queue == VK_NULL_HANDLE || pfnGetInstanceProcAddr == nullptr)
                 return false;
-            oreContext.emplace(
-                rive::ore::Context::createVulkan(vkCtx->instance,
-                                                 vkCtx->physicalDevice,
-                                                 vkCtx->device,
-                                                 queue,
-                                                 queueFamily,
-                                                 vkCtx->allocator(),
-                                                 pfnGetInstanceProcAddr));
+            oreContext = rive::ore::ContextVulkan::Make(vkCtx->instance,
+                                                        vkCtx->physicalDevice,
+                                                        vkCtx->device,
+                                                        queue,
+                                                        queueFamily,
+                                                        vkCtx->allocator(),
+                                                        pfnGetInstanceProcAddr);
             return true;
         }
 #endif
@@ -233,7 +247,7 @@ struct OreGMContext
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        assert(oreContext.has_value());
+        assert(oreContext != nullptr);
 #if defined(ORE_BACKEND_VK)
         auto b = TestingWindow::backend();
         if (b == TestingWindow::Backend::vk ||
@@ -244,7 +258,8 @@ struct OreGMContext
                 TestingWindow::Get()->vulkanCurrentCommandBuffer());
             if (cb != VK_NULL_HANDLE)
             {
-                oreContext->beginFrame(cb);
+                static_cast<rive::ore::ContextVulkan*>(oreContext.get())
+                    ->beginFrame(cb);
                 return;
             }
         }
@@ -256,7 +271,8 @@ struct OreGMContext
                 TestingWindow::Get()->d3d12CurrentCommandList());
             if (cl != nullptr)
             {
-                oreContext->beginFrame(cl);
+                static_cast<rive::ore::ContextD3D12*>(oreContext.get())
+                    ->beginFrame(cl);
                 return;
             }
         }
@@ -280,8 +296,8 @@ struct OreGMContext
 #else
                     wgpuCommandEncoderReference(rawEncoder);
 #endif
-                    oreContext->beginFrame(
-                        wgpu::CommandEncoder::Acquire(rawEncoder));
+                    static_cast<rive::ore::ContextWGPU*>(oreContext.get())
+                        ->beginFrame(wgpu::CommandEncoder::Acquire(rawEncoder));
                     return;
                 }
             }
@@ -296,7 +312,7 @@ struct OreGMContext
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        assert(oreContext.has_value());
+        assert(oreContext != nullptr);
         oreContext->endFrame();
 #endif
     }

@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d11.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
@@ -439,7 +439,7 @@ static DXGI_FORMAT oreVertexFormatToDXGI(VertexFormat fmt)
 // d3d11MakeBuffer
 // ============================================================================
 
-rcp<Buffer> Context::d3d11MakeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
 {
     if (desc.immutable && desc.data == nullptr)
     {
@@ -513,7 +513,7 @@ rcp<Buffer> Context::d3d11MakeBuffer(const BufferDesc& desc)
 // d3d11MakeTexture
 // ============================================================================
 
-rcp<Texture> Context::d3d11MakeTexture(const TextureDesc& desc)
+rcp<Texture> ContextD3D11::d3d11MakeTexture(const TextureDesc& desc)
 {
     const D3D11FormatInfo fmtInfo = oreFormatInfo(desc.format);
     // ETC2 / ASTC have no native D3D11 path; `oreFormatInfo` returns
@@ -607,7 +607,7 @@ rcp<Texture> Context::d3d11MakeTexture(const TextureDesc& desc)
 // d3d11MakeTextureView
 // ============================================================================
 
-rcp<TextureView> Context::d3d11MakeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextD3D11::d3d11MakeTextureView(const TextureViewDesc& desc)
 {
     Texture* tex = desc.texture;
     if (!tex)
@@ -767,7 +767,7 @@ rcp<TextureView> Context::d3d11MakeTextureView(const TextureViewDesc& desc)
 // d3d11MakeSampler
 // ============================================================================
 
-rcp<Sampler> Context::d3d11MakeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextD3D11::d3d11MakeSampler(const SamplerDesc& desc)
 {
     D3D11_SAMPLER_DESC sd{};
     sd.Filter = oreFilterToD3D(desc.minFilter,
@@ -799,7 +799,8 @@ rcp<Sampler> Context::d3d11MakeSampler(const SamplerDesc& desc)
 // d3d11MakeShaderModule
 // ============================================================================
 
-rcp<ShaderModule> Context::d3d11MakeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextD3D11::d3d11MakeShaderModule(
+    const ShaderModuleDesc& desc)
 {
     auto module = rcp<ShaderModule>(new ShaderModule());
     module->m_stage = desc.stage;
@@ -828,8 +829,8 @@ rcp<ShaderModule> Context::d3d11MakeShaderModule(const ShaderModuleDesc& desc)
 // d3d11MakePipeline
 // ============================================================================
 
-rcp<Pipeline> Context::d3d11MakePipeline(const PipelineDesc& desc,
-                                         std::string* outError)
+rcp<Pipeline> ContextD3D11::d3d11MakePipeline(const PipelineDesc& desc,
+                                              std::string* outError)
 {
     auto pipeline = rcp<Pipeline>(new Pipeline(desc));
 
@@ -1060,7 +1061,7 @@ rcp<Pipeline> Context::d3d11MakePipeline(const PipelineDesc& desc,
 // d3d11MakeBindGroup
 // ============================================================================
 
-rcp<BindGroup> Context::d3d11MakeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
 {
     if (desc.layout == nullptr)
     {
@@ -1204,7 +1205,7 @@ rcp<BindGroup> Context::d3d11MakeBindGroup(const BindGroupDesc& desc)
 // d3d11MakeBindGroupLayout
 // ============================================================================
 
-rcp<BindGroupLayout> Context::d3d11MakeBindGroupLayout(
+rcp<BindGroupLayout> ContextD3D11::d3d11MakeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     if (desc.groupIndex >= kMaxBindGroups)
@@ -1228,8 +1229,8 @@ rcp<BindGroupLayout> Context::d3d11MakeBindGroupLayout(
 // d3d11BeginRenderPass
 // ============================================================================
 
-RenderPass Context::d3d11BeginRenderPass(const RenderPassDesc& desc,
-                                         std::string* outError)
+RenderPass ContextD3D11::d3d11BeginRenderPass(const RenderPassDesc& desc,
+                                              std::string* outError)
 {
     // Collect RTVs and DSV.
     ID3D11RenderTargetView* rtvs[4] = {};
@@ -1346,7 +1347,7 @@ RenderPass Context::d3d11BeginRenderPass(const RenderPassDesc& desc,
 // d3d11WrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> Context::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
 
@@ -1405,9 +1406,9 @@ rcp<TextureView> Context::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
 // d3d11WrapRiveTexture
 // ============================================================================
 
-rcp<TextureView> Context::d3d11WrapRiveTexture(gpu::Texture* gpuTex,
-                                               uint32_t w,
-                                               uint32_t h)
+rcp<TextureView> ContextD3D11::d3d11WrapRiveTexture(gpu::Texture* gpuTex,
+                                                    uint32_t w,
+                                                    uint32_t h)
 {
     if (!gpuTex)
         return nullptr;
@@ -1477,50 +1478,25 @@ rcp<TextureView> Context::d3d11WrapRiveTexture(gpu::Texture* gpuTex,
 // Public method definitions (D3D11-only builds)
 // ============================================================================
 
-#if defined(ORE_BACKEND_D3D11) && !defined(ORE_BACKEND_D3D12)
-
-Context::Context() {}
-
-Context::~Context()
+ContextD3D11::~ContextD3D11()
 {
     m_d3d11Context.Reset();
     m_d3d11Device.Reset();
 }
 
-Context::Context(Context&& other) noexcept :
-    m_features(other.m_features),
-    m_d3d11Device(std::move(other.m_d3d11Device)),
-    m_d3d11Context(std::move(other.m_d3d11Context)),
-    m_d3d11Context1(std::move(other.m_d3d11Context1))
-{}
-
-Context& Context::operator=(Context&& other) noexcept
+std::unique_ptr<ContextD3D11> ContextD3D11::Make(ID3D11Device* device,
+                                                 ID3D11DeviceContext* context)
 {
-    if (this != &other)
-    {
-        m_d3d11Context1.Reset();
-        m_d3d11Context.Reset();
-        m_d3d11Device.Reset();
-        m_features = other.m_features;
-        m_d3d11Device = std::move(other.m_d3d11Device);
-        m_d3d11Context = std::move(other.m_d3d11Context);
-        m_d3d11Context1 = std::move(other.m_d3d11Context1);
-    }
-    return *this;
-}
-
-Context Context::createD3D11(ID3D11Device* device, ID3D11DeviceContext* context)
-{
-    Context ctx;
-    ctx.m_d3d11Device = device;
-    ctx.m_d3d11Context = context;
+    auto ctx = std::unique_ptr<ContextD3D11>(new ContextD3D11());
+    ctx->m_d3d11Device = device;
+    ctx->m_d3d11Context = context;
     // QI the 11.1 context for offset-range constant-buffer binds. D3D11.1 is
     // ubiquitous on supported Rive platforms; pre-11.1 drivers fall back to
     // whole-buffer binds (no offsets).
-    context->QueryInterface(IID_PPV_ARGS(ctx.m_d3d11Context1.GetAddressOf()));
+    context->QueryInterface(IID_PPV_ARGS(ctx->m_d3d11Context1.GetAddressOf()));
 
     // Populate features for D3D11 feature level 11.0.
-    Features& f = ctx.m_features;
+    Features& f = ctx->m_features;
     f.colorBufferFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
@@ -1548,78 +1524,76 @@ Context Context::createD3D11(ID3D11Device* device, ID3D11DeviceContext* context)
     return ctx;
 }
 
-void Context::beginFrame()
+void ContextD3D11::beginFrame()
 {
     // Release deferred BindGroups from last frame. By beginFrame() the
     // caller has waited for the previous frame's GPU work to complete.
     m_deferredBindGroups.clear();
 } // D3D11 immediate context has no command buffer.
 
-void Context::waitForGPU() {} // D3D11 immediate context is synchronous.
+void ContextD3D11::waitForGPU() {} // D3D11 immediate context is synchronous.
 
-void Context::endFrame() {}
+void ContextD3D11::endFrame() {}
 
-rcp<Buffer> Context::makeBuffer(const BufferDesc& desc)
+rcp<Buffer> ContextD3D11::makeBuffer(const BufferDesc& desc)
 {
     return d3d11MakeBuffer(desc);
 }
 
-rcp<Texture> Context::makeTexture(const TextureDesc& desc)
+rcp<Texture> ContextD3D11::makeTexture(const TextureDesc& desc)
 {
     return d3d11MakeTexture(desc);
 }
 
-rcp<TextureView> Context::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextD3D11::makeTextureView(const TextureViewDesc& desc)
 {
     return d3d11MakeTextureView(desc);
 }
 
-rcp<Sampler> Context::makeSampler(const SamplerDesc& desc)
+rcp<Sampler> ContextD3D11::makeSampler(const SamplerDesc& desc)
 {
     return d3d11MakeSampler(desc);
 }
 
-rcp<ShaderModule> Context::makeShaderModule(const ShaderModuleDesc& desc)
+rcp<ShaderModule> ContextD3D11::makeShaderModule(const ShaderModuleDesc& desc)
 {
     return d3d11MakeShaderModule(desc);
 }
 
-rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
-                                    std::string* outError)
+rcp<Pipeline> ContextD3D11::makePipeline(const PipelineDesc& desc,
+                                         std::string* outError)
 {
     return d3d11MakePipeline(desc, outError);
 }
 
-rcp<BindGroup> Context::makeBindGroup(const BindGroupDesc& desc)
+rcp<BindGroup> ContextD3D11::makeBindGroup(const BindGroupDesc& desc)
 {
     return d3d11MakeBindGroup(desc);
 }
 
-rcp<BindGroupLayout> Context::makeBindGroupLayout(
+rcp<BindGroupLayout> ContextD3D11::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
     return d3d11MakeBindGroupLayout(desc);
 }
 
-RenderPass Context::beginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError)
+RenderPass ContextD3D11::beginRenderPass(const RenderPassDesc& desc,
+                                         std::string* outError)
 {
     finishActiveRenderPass();
     return d3d11BeginRenderPass(desc, outError);
 }
 
-rcp<TextureView> Context::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextD3D11::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     return d3d11WrapCanvasTexture(canvas);
 }
 
-rcp<TextureView> Context::wrapRiveTexture(gpu::Texture* gpuTex,
-                                          uint32_t w,
-                                          uint32_t h)
+rcp<TextureView> ContextD3D11::wrapRiveTexture(gpu::Texture* gpuTex,
+                                               uint32_t w,
+                                               uint32_t h)
 {
     return d3d11WrapRiveTexture(gpuTex, w, h);
 }
-
-#endif // ORE_BACKEND_D3D11 && !ORE_BACKEND_D3D12
 
 } // namespace rive::ore

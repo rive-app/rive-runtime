@@ -4,7 +4,7 @@
 
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 
 namespace rive::ore
 {
@@ -22,7 +22,7 @@ void Pipeline::onRefCntReachedZero() const
     // next beginFrame() drains it, so the ComPtr release (and the underlying
     // D3D12 resource destroy) can't happen while the host's command list
     // still references the pipeline state object.
-    Context* ctx = m_d3dOreContext;
+    ContextD3D12* ctx = m_d3dOreContext;
     auto destroy = [p = const_cast<Pipeline*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));
@@ -34,7 +34,7 @@ void BindGroupLayout::onRefCntReachedZero() const
 {
     // Layout has no GPU handle on D3D12 (root sig owns the descriptor
     // table shape; it's per-pipeline). Just delete.
-    Context* ctx = m_context;
+    ContextD3D12* ctx = static_cast<ContextD3D12*>(m_context);
     auto destroy = [p = const_cast<BindGroupLayout*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));

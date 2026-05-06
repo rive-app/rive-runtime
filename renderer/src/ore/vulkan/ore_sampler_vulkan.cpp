@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {
@@ -15,7 +15,7 @@ void Sampler::onRefCntReachedZero() const
     VkDevice dev = m_vkDevice;
     VkSampler samp = m_vkSampler;
     auto destroyFn = m_vkDestroySampler;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (samp != VK_NULL_HANDLE && destroyFn != nullptr)

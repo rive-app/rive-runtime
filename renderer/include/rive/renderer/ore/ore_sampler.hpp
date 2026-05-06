@@ -31,11 +31,35 @@ namespace rive::ore
 {
 
 class Context;
+#if defined(ORE_BACKEND_VK)
+class ContextVulkan;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+class ContextD3D12;
+#endif
 
 class Sampler : public RefCnt<Sampler>
 {
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
     friend class RenderPass;
 
     Sampler() = default;
@@ -57,14 +81,14 @@ private:
     VkDevice m_vkDevice = VK_NULL_HANDLE; // Weak ref.
     PFN_vkDestroySampler m_vkDestroySampler = nullptr;
     // Back-ref so onRefCntReachedZero() can route destruction through
-    // Context::vkDeferDestroy() in external-CB mode. Weak ref.
-    Context* m_vkOreContext = nullptr;
+    // ContextVulkan::vkDeferDestroy() in external-CB mode. Weak ref.
+    ContextVulkan* m_vkOreContext = nullptr;
 #endif
 #if defined(ORE_BACKEND_D3D12)
     D3D12_CPU_DESCRIPTOR_HANDLE m_d3dSamplerHandle = {}; // {0} = invalid.
     // Back-ref so onRefCntReachedZero() can route destruction through
-    // Context::d3dDeferDestroy() in external-CL mode. Weak ref.
-    Context* m_d3dOreContext = nullptr;
+    // ContextD3D12::d3dDeferDestroy() in external-CL mode. Weak ref.
+    ContextD3D12* m_d3dOreContext = nullptr;
 #endif
 
 public:

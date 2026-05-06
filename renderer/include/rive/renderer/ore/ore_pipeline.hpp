@@ -35,6 +35,12 @@ namespace rive::ore
 {
 
 class Context;
+#if defined(ORE_BACKEND_VK)
+class ContextVulkan;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+class ContextD3D12;
+#endif
 
 class Pipeline : public RefCnt<Pipeline>
 {
@@ -58,6 +64,24 @@ public:
 
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
     friend class RenderPass;
 
     Pipeline(const PipelineDesc& desc) : m_desc(desc)
@@ -124,9 +148,9 @@ private:
     PFN_vkDestroyPipeline m_vkDestroyPipeline = nullptr;
     PFN_vkDestroyPipelineLayout m_vkDestroyPipelineLayout = nullptr;
     // Back-ref so onRefCntReachedZero() can route the actual vkDestroy* calls
-    // through Context::vkDeferDestroy() when an external command buffer is
-    // active (the host hasn't submitted yet). Weak ref.
-    Context* m_vkOreContext = nullptr;
+    // through ContextVulkan::vkDeferDestroy() when an external command buffer
+    // is active (the host hasn't submitted yet). Weak ref.
+    ContextVulkan* m_vkOreContext = nullptr;
 #endif
 #if defined(ORE_BACKEND_D3D12)
     Microsoft::WRL::ComPtr<ID3D12PipelineState> m_d3dPSO;
@@ -144,9 +168,9 @@ private:
         D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     UINT m_d3dVertexStrides[8] = {}; // Per-slot vertex strides.
     // Back-ref so onRefCntReachedZero() can route the ComPtr release through
-    // Context::d3dDeferDestroy() when an external command list is active.
+    // ContextD3D12::d3dDeferDestroy() when an external command list is active.
     // Weak ref.
-    Context* m_d3dOreContext = nullptr;
+    ContextD3D12* m_d3dOreContext = nullptr;
 #endif
 
 public:

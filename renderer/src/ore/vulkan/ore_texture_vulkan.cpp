@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include <vk_mem_alloc.h>
 
@@ -357,7 +357,7 @@ void Texture::onRefCntReachedZero() const
     VmaAllocator allocator = m_vmaAllocator;
     VkImage image = m_vkImage;
     VmaAllocation alloc = m_vmaAllocation;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (image != VK_NULL_HANDLE && alloc != VK_NULL_HANDLE)
@@ -381,7 +381,7 @@ void TextureView::onRefCntReachedZero() const
     VkDevice dev = m_vkDevice;
     VkImageView view = m_vkImageView;
     auto destroyFn = m_vkDestroyImageView;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (view != VK_NULL_HANDLE && destroyFn != nullptr)

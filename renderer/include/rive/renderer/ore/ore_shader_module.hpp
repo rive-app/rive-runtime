@@ -140,6 +140,24 @@ public:
 
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
     friend class Pipeline;
 
     ShaderModule() = default;

@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include <vk_mem_alloc.h>
 
@@ -27,7 +27,7 @@ void Buffer::onRefCntReachedZero() const
     VmaAllocator allocator = m_vmaAllocator;
     VkBuffer buf = m_vkBuffer;
     VmaAllocation alloc = m_vmaAllocation;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (buf != VK_NULL_HANDLE)

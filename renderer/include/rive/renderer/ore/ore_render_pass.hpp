@@ -39,6 +39,15 @@ class Sampler;
 class Pipeline;
 class BindGroup;
 class Context;
+#if defined(ORE_BACKEND_VK)
+class ContextVulkan;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+class ContextWGPU;
+#endif
 
 class RenderPass
 {
@@ -98,6 +107,24 @@ public:
 
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
 
     RenderPass() = default;
 
@@ -280,14 +307,14 @@ private:
     uint32_t m_d3d11ResolveCount = 0;
 #endif
 #if defined(ORE_BACKEND_WGPU)
-    Context* m_wgpuContext = nullptr;
+    ContextWGPU* m_wgpuContext = nullptr;
     wgpu::RenderPassEncoder m_wgpuPassEncoder;
     wgpu::Buffer m_wgpuIndexBuffer;
     wgpu::IndexFormat m_wgpuIndexFormat = wgpu::IndexFormat::Uint16;
     uint64_t m_wgpuIndexOffset = 0;
 #endif
 #if defined(ORE_BACKEND_VK)
-    Context* m_vkContext = nullptr;
+    ContextVulkan* m_vkContext = nullptr;
     VkCommandBuffer m_vkCmdBuf = VK_NULL_HANDLE; // Weak ref (owned by Context).
     VkFramebuffer m_vkFramebuffer =
         VK_NULL_HANDLE; // Created per-pass, destroyed in finish().
@@ -320,9 +347,9 @@ private:
                                     uint32_t dynamicOffsetCount);
 
     ID3D12GraphicsCommandList* m_d3dCmdList =
-        nullptr;                         // Weak ref (owned by Context).
-    ID3D12Device* m_d3dDevice = nullptr; // Weak ref.
-    Context* m_d3dContext = nullptr;     // Weak ref.
+        nullptr;                          // Weak ref (owned by Context).
+    ID3D12Device* m_d3dDevice = nullptr;  // Weak ref.
+    ContextD3D12* m_d3dContext = nullptr; // Weak ref.
     // Strong ref — same Lua-GC reasoning as the cross-backend
     // `m_currentPipeline` above. The D3D12-only field exists because
     // D3D12's setPipeline path is split between this TU and the

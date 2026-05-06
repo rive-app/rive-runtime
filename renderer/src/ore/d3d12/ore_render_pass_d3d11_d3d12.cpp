@@ -19,7 +19,8 @@
 
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_d3d11.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -297,7 +298,9 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
         // the i-th dynamic UBO in BindGroupLayout-entry order.
         uint32_t dynIdx = 0;
         ID3D11DeviceContext1* ctx1 =
-            m_context ? m_context->m_d3d11Context1.Get() : nullptr;
+            m_context
+                ? static_cast<ContextD3D11*>(m_context)->m_d3d11Context1.Get()
+                : nullptr;
         for (const auto& ubo : bg->m_d3d11UBOs)
         {
             ID3D11Buffer* buf = ubo.buffer;

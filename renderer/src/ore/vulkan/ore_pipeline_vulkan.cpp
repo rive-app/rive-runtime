@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 #include "rive/rive_types.hpp"
 #include "ore_vulkan_dsl.hpp"
@@ -13,17 +13,13 @@
 namespace rive::ore
 {
 
-// hasStencilLocal() is defined in ore_context_vulkan.cpp. When this file is
-// compiled standalone (VK-only), the context file is a separate TU so we need
-// our own copy. When included by ore_context_vk_gl.cpp (VK+GL dispatch), the
-// context file is included first and already provides it.
-#if !defined(ORE_BACKEND_GL)
+// hasStencilLocal() is also defined as `static` in ore_context_vulkan.cpp;
+// each definition is TU-local so they coexist without a link conflict.
 static bool hasStencilLocal(TextureFormat fmt)
 {
     return fmt == TextureFormat::depth24plusStencil8 ||
            fmt == TextureFormat::depth32floatStencil8;
 }
-#endif
 
 // ============================================================================
 // Enum → Vulkan conversion helpers
@@ -273,7 +269,7 @@ void Pipeline::onRefCntReachedZero() const
     VkPipelineLayout layout = m_vkPipelineLayout;
     auto destroyPipe = m_vkDestroyPipeline;
     auto destroyLayout = m_vkDestroyPipelineLayout;
-    Context* ctx = m_vkOreContext;
+    ContextVulkan* ctx = m_vkOreContext;
 
     auto destroy = [=]() {
         if (pipe != VK_NULL_HANDLE && destroyPipe != nullptr)
@@ -299,7 +295,7 @@ void BindGroupLayout::onRefCntReachedZero() const
     VkDevice dev = m_vkDevice;
     VkDescriptorSetLayout dsl = m_vkDSL;
     auto destroyDSL = m_vkDestroyDescriptorSetLayout;
-    Context* ctx = m_context;
+    ContextVulkan* ctx = static_cast<ContextVulkan*>(m_context);
 
     auto destroy = [=]() {
         if (dsl != VK_NULL_HANDLE && destroyDSL != nullptr)
@@ -314,12 +310,16 @@ void BindGroupLayout::onRefCntReachedZero() const
         destroy();
 }
 
+#endif // !ORE_BACKEND_GL — resource onRefCntReachedZero defs
+
 // ============================================================================
-// Context::makePipeline — called from ore_context_vulkan.cpp
+// ContextVulkan::makePipeline — called from ore_context_vulkan.cpp.
+// Always compiled when ORE_BACKEND_VK is defined (regardless of GL coexist),
+// because the per-backend ContextVulkan vtable requires this body.
 // ============================================================================
 
-rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
-                                    std::string* outError)
+rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
+                                          std::string* outError)
 {
     auto pipeline = rcp<Pipeline>(new Pipeline(desc));
     pipeline->m_vkDevice = m_vkDevice;
@@ -589,7 +589,5 @@ rcp<Pipeline> Context::makePipeline(const PipelineDesc& desc,
 
     return pipeline;
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

@@ -33,6 +33,12 @@ namespace rive::ore
 {
 
 class Context;
+#if defined(ORE_BACKEND_VK)
+class ContextVulkan;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+class ContextD3D12;
+#endif
 
 class Buffer : public RefCnt<Buffer>
 {
@@ -44,6 +50,24 @@ public:
 
 private:
     friend class Context;
+#if defined(ORE_BACKEND_METAL)
+    friend class ContextMetal;
+#endif
+#if defined(ORE_BACKEND_GL)
+    friend class ContextGL;
+#endif
+#if defined(ORE_BACKEND_D3D11)
+    friend class ContextD3D11;
+#endif
+#if defined(ORE_BACKEND_D3D12)
+    friend class ContextD3D12;
+#endif
+#if defined(ORE_BACKEND_WGPU)
+    friend class ContextWGPU;
+#endif
+#if defined(ORE_BACKEND_VK)
+    friend class ContextVulkan;
+#endif
     friend class RenderPass;
 
     Buffer(uint32_t size, BufferUsage usage) : m_size(size), m_usage(usage) {}
@@ -75,8 +99,8 @@ private:
     VkDevice m_vkDevice = VK_NULL_HANDLE;         // Weak ref.
     VmaAllocator m_vmaAllocator = VK_NULL_HANDLE; // Weak ref.
     // Back-ref so onRefCntReachedZero() can route the vmaDestroyBuffer call
-    // through Context::vkDeferDestroy() in external-CB mode. Weak ref.
-    Context* m_vkOreContext = nullptr;
+    // through ContextVulkan::vkDeferDestroy() in external-CB mode. Weak ref.
+    ContextVulkan* m_vkOreContext = nullptr;
 #endif
 #if defined(ORE_BACKEND_D3D12)
     // UPLOAD heap — persistently mapped; GPU reads directly (acceptable for
@@ -84,8 +108,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> m_d3dBuffer;
     void* m_d3dMappedPtr = nullptr;
     // Back-ref so onRefCntReachedZero() can route the ComPtr release through
-    // Context::d3dDeferDestroy() in external-CL mode. Weak ref.
-    Context* m_d3dOreContext = nullptr;
+    // ContextD3D12::d3dDeferDestroy() in external-CL mode. Weak ref.
+    ContextD3D12* m_d3dOreContext = nullptr;
 #endif
 
 public:

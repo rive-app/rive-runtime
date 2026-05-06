@@ -247,23 +247,23 @@ public:
     virtual uint32_t vulkanGraphicsQueueFamilyIndex() const { return 0; }
     virtual void* vulkanGetInstanceProcAddr() const { return nullptr; }
     // Returns the host's currently-recording VkCommandBuffer (as void*) so
-    // Ore can record into it via ore::Context::beginFrame(externalCb). Returns
-    // nullptr on non-Vulkan harnesses or when no CB is open.
+    // Ore can record into it via ore::ContextVulkan::beginFrame(externalCb).
+    // Returns nullptr on non-Vulkan harnesses or when no CB is open.
     virtual void* vulkanCurrentCommandBuffer() const { return nullptr; }
 #endif
 
     // Returns the host's currently-recording ID3D12GraphicsCommandList (as
     // void*) so Ore can record into it via
-    // ore::Context::beginFrame(externalCl). Returns nullptr on non-D3D12
+    // ore::ContextD3D12::beginFrame(externalCl). Returns nullptr on non-D3D12
     // harnesses or when no CL is open. Typed as void* to avoid leaking d3d12.h
     // into this cross-platform header.
     virtual void* d3d12CurrentCommandList() const { return nullptr; }
 
     // Returns the host's currently-recording wgpu::CommandEncoder (as a raw
     // WGPUCommandEncoder handle, i.e. void*) so Ore can record into it via
-    // ore::Context::beginFrame(externalEncoder). Returns nullptr on non-WGPU
-    // harnesses or when no encoder is open. Typed as void* to keep WebGPU
-    // headers out of this cross-platform header.
+    // ore::ContextWGPU::beginFrame(externalEncoder). Returns nullptr on
+    // non-WGPU harnesses or when no encoder is open. Typed as void* to keep
+    // WebGPU headers out of this cross-platform header.
     virtual void* wgpuCurrentCommandEncoder() const { return nullptr; }
 
     virtual ~TestingWindow() {}
