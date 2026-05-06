@@ -14,10 +14,9 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-ATTR(
-    0,
-    float4,
-    @a_p0p1_); // End in '_' because D3D interprets the '1' as a semantic index.
+// RHI Version > 5.8 failes to parse this when it's multi line
+// End in '_' because D3D interprets the '1' as a semantic index.
+ATTR(0, float4, @a_p0p1_);
 ATTR(1, float4, @a_p2p3_);
 ATTR(2, float4, @a_joinTan_and_ys); // [joinTangent, y, reflectionY]
 #ifdef SPLIT_UINT4_ATTRIBUTES
