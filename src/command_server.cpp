@@ -1794,6 +1794,15 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::cancelDraw:
+            {
+                DrawKey drawKey;
+                commandStream >> drawKey;
+                lock.unlock();
+                m_uniqueDraws.erase(drawKey);
+                break;
+            }
+
             case CommandQueue::Command::commandLoopBreak:
             {
                 lock.unlock();

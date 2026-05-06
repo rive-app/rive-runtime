@@ -572,6 +572,59 @@ TEST_CASE("draw happens once per poll", "[CommandQueue]")
     commandQueue->disconnect();
 }
 
+TEST_CASE("cancelDraw prevents pending draw from running", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    int drawCount = 0;
+    auto drawLambda = [&drawCount](DrawKey, CommandServer*) { ++drawCount; };
+    DrawKey drawKey = commandQueue->createDrawKey();
+
+    commandQueue->draw(drawKey, drawLambda);
+    commandQueue->cancelDraw(drawKey);
+
+    server.processCommands();
+
+    CHECK(drawCount == 0);
+
+    commandQueue->disconnect();
+}
+
+TEST_CASE("cancelDraw only cancels the matching draw key", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    int drawCountA = 0;
+    int drawCountB = 0;
+    auto drawLambdaA = [&drawCountA](DrawKey, CommandServer*) { ++drawCountA; };
+    auto drawLambdaB = [&drawCountB](DrawKey, CommandServer*) { ++drawCountB; };
+    DrawKey drawKeyA = commandQueue->createDrawKey();
+    DrawKey drawKeyB = commandQueue->createDrawKey();
+
+    commandQueue->draw(drawKeyA, drawLambdaA);
+    commandQueue->draw(drawKeyB, drawLambdaB);
+    commandQueue->cancelDraw(drawKeyA);
+
+    server.processCommands();
+
+    CHECK(drawCountA == 0);
+    CHECK(drawCountB == 1);
+
+    commandQueue->draw(drawKeyA, drawLambdaA);
+    server.processCommands();
+
+    CHECK(drawCountA == 1);
+    CHECK(drawCountB == 1);
+
+    commandQueue->disconnect();
+}
+
 TEST_CASE("disconnect", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();

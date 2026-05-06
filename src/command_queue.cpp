@@ -826,6 +826,14 @@ void CommandQueue::draw(DrawKey drawKey, CommandServerDrawCallback callback)
     m_commandStream << drawKey;
     m_drawCallbacks << std::move(callback);
 }
+
+void CommandQueue::cancelDraw(DrawKey drawKey)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::cancelDraw;
+    m_commandStream << drawKey;
+}
+
 #ifdef TESTING
 void CommandQueue::testing_commandLoopBreak()
 {
