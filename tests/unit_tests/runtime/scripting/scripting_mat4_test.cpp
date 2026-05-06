@@ -125,6 +125,83 @@ TEST_CASE("Mat4.multiply writes in place", "[scripting]")
     CHECK(lua_tonumber(t.state(), -1) == 4.0);
 }
 
+TEST_CASE("Mat4.multiplyAffine matches multiply for affine inputs",
+          "[scripting]")
+{
+    // For two affine matrices the fast and slow paths must agree
+    // bit-exactly on every entry.
+    const char* src =
+        "local a = Mat4.fromTranslation(3, -1, 5) * Mat4.fromRotationY(0.7)\n"
+        "local b = Mat4.fromScale(2, 0.5, 1) * Mat4.fromRotationZ(-0.3)\n"
+        "local slow = Mat4.identity()\n"
+        "local fast = Mat4.identity()\n"
+        "Mat4.multiply(slow, a, b)\n"
+        "Mat4.multiplyAffine(fast, a, b)\n"
+        // Sum |slow[i] - fast[i]| over i=1..16; must be 0.
+        "local diff = 0\n"
+        "for i = 1, 16 do diff = diff + math.abs(slow[i] - fast[i]) end\n"
+        "return diff, fast.m41, fast.m42, fast.m43, fast.m44\n";
+    auto t = ScriptingTest(src, 5);
+    CHECK(lua_tonumber(t.state(), -5) == 0.0);
+    // Bottom row stays [0, 0, 0, 1] (affine invariant).
+    CHECK(lua_tonumber(t.state(), -4) == 0.0);
+    CHECK(lua_tonumber(t.state(), -3) == 0.0);
+    CHECK(lua_tonumber(t.state(), -2) == 0.0);
+    CHECK(lua_tonumber(t.state(), -1) == 1.0);
+}
+
+TEST_CASE("Mat4:invertAffine round-trips", "[scripting]")
+{
+    const char* src =
+        "local m = Mat4.fromTranslation(3, -4, 5) * Mat4.fromRotationY(0.4)"
+        " * Mat4.fromScale(2, 2, 2)\n"
+        "local inv = m:invertAffine()\n"
+        "assert(inv ~= nil)\n"
+        "local r = m * inv\n"
+        "return math.abs(r.m11 - 1) + math.abs(r.m22 - 1)"
+        " + math.abs(r.m33 - 1) + math.abs(r.m44 - 1)"
+        " + math.abs(r.m14) + math.abs(r.m24) + math.abs(r.m34)\n";
+    auto t = ScriptingTest(src);
+    CHECK(lua_tonumber(t.state(), -1) < 1e-5);
+}
+
+TEST_CASE("Mat4.invertAffine writes in place", "[scripting]")
+{
+    const char* src = "local m = Mat4.fromTranslation(10, 0, 0)\n"
+                      "local out = Mat4.identity()\n"
+                      "local ok = Mat4.invertAffine(out, m)\n"
+                      "return ok, out.m14, out.m24, out.m34\n";
+    auto t = ScriptingTest(src, 4);
+    CHECK(lua_toboolean(t.state(), -4) == 1);
+    CHECK(lua_tonumber(t.state(), -3) == -10.0);
+    CHECK(lua_tonumber(t.state(), -2) == 0.0);
+    CHECK(lua_tonumber(t.state(), -1) == 0.0);
+}
+
+TEST_CASE("Mat4:invertAffine returns nil on singular linear part",
+          "[scripting]")
+{
+    // Zero scale on Y collapses the linear part — singular.
+    const char* src = "local m = Mat4.fromScale(2, 0, 1)\n"
+                      "return m:invertAffine()\n";
+    auto t = ScriptingTest(src);
+    CHECK(lua_isnil(t.state(), -1));
+}
+
+TEST_CASE("Mat4.perspectiveReverseZ has expected layout", "[scripting]")
+{
+    // For aspect=1, fovY=90deg: f = 1/tan(45deg) = 1.
+    // m11 = f/aspect = 1, m22 = f = 1, m33 = 0, m43 = -1, m34 = near.
+    const char* src = "local p = Mat4.perspectiveReverseZ(math.rad(90), 1, 5)\n"
+                      "return p.m11, p.m22, p.m33, p.m43, p.m34\n";
+    auto t = ScriptingTest(src, 5);
+    CHECK(lua_tonumber(t.state(), -5) == Approx(1.0).margin(1e-6));
+    CHECK(lua_tonumber(t.state(), -4) == Approx(1.0).margin(1e-6));
+    CHECK(lua_tonumber(t.state(), -3) == 0.0);
+    CHECK(lua_tonumber(t.state(), -2) == -1.0);
+    CHECK(lua_tonumber(t.state(), -1) == 5.0);
+}
+
 TEST_CASE("Mat4:writeToBuffer stores 64 bytes column-major", "[scripting]")
 {
     const char* src =

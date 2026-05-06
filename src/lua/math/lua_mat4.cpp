@@ -80,6 +80,16 @@ static int mat4_perspective(lua_State* L)
     return 1;
 }
 
+// Reverse-Z infinite-far perspective. See Mat4::perspectiveReverseZ.
+static int mat4_perspectiveReverseZ(lua_State* L)
+{
+    float fov = float(luaL_checknumber(L, 1));
+    float aspect = float(luaL_checknumber(L, 2));
+    float n = float(luaL_checknumber(L, 3));
+    lua_pushmat4(L, Mat4::perspectiveReverseZ(fov, aspect, n));
+    return 1;
+}
+
 // In-place: Mat4.multiply(out, a, b)  ->  out = a * b. Returns out.
 // Avoids per-call userdata allocation in tight loops.
 static int mat4_static_multiply(lua_State* L)
@@ -92,11 +102,34 @@ static int mat4_static_multiply(lua_State* L)
     return 1;
 }
 
+// In-place: Mat4.multiplyAffine(out, a, b)  ->  out = a * b, assuming both
+// inputs are affine (bottom row [0,0,0,1]). Faster than `multiply` (skips
+// the bottom-row work).
+static int mat4_static_multiplyAffine(lua_State* L)
+{
+    auto out = lua_torive<ScriptedMat4>(L, 1);
+    auto a = lua_torive<ScriptedMat4>(L, 2);
+    auto b = lua_torive<ScriptedMat4>(L, 3);
+    out->value = Mat4::multiplyAffine(a->value, b->value);
+    lua_pushvalue(L, 1);
+    return 1;
+}
+
 static int mat4_static_invert(lua_State* L)
 {
     auto out = lua_torive<ScriptedMat4>(L, 1);
     auto in = lua_torive<ScriptedMat4>(L, 2);
     lua_pushboolean(L, in->value.invert(&out->value));
+    return 1;
+}
+
+// In-place: Mat4.invertAffine(out, in) — closed-form affine inverse.
+// Returns true if invertible. Caller must ensure the input is affine.
+static int mat4_static_invertAffine(lua_State* L)
+{
+    auto out = lua_torive<ScriptedMat4>(L, 1);
+    auto in = lua_torive<ScriptedMat4>(L, 2);
+    lua_pushboolean(L, in->value.invertAffine(&out->value));
     return 1;
 }
 
@@ -219,6 +252,19 @@ static int mat4_invert(lua_State* L)
     return 1;
 }
 
+static int mat4_invertAffine(lua_State* L)
+{
+    auto mat = lua_torive<ScriptedMat4>(L, 1);
+    Mat4 result;
+    if (mat->value.invertAffine(&result))
+    {
+        lua_pushmat4(L, result);
+        return 1;
+    }
+    lua_pushnil(L);
+    return 1;
+}
+
 static int mat4_transpose(lua_State* L)
 {
     auto mat = lua_torive<ScriptedMat4>(L, 1);
@@ -293,6 +339,8 @@ static int mat4_namecall(lua_State* L)
         {
             case (int)LuaAtoms::invert:
                 return mat4_invert(L);
+            case (int)LuaAtoms::invertAffine:
+                return mat4_invertAffine(L);
             case (int)LuaAtoms::transpose:
                 return mat4_transpose(L);
             case (int)LuaAtoms::transformPoint:
@@ -319,8 +367,11 @@ static const luaL_Reg mat4StaticMethods[] = {
     {"fromRotationY", mat4_fromRotationY},
     {"fromRotationZ", mat4_fromRotationZ},
     {"perspective", mat4_perspective},
+    {"perspectiveReverseZ", mat4_perspectiveReverseZ},
     {"multiply", mat4_static_multiply},
+    {"multiplyAffine", mat4_static_multiplyAffine},
     {"invert", mat4_static_invert},
+    {"invertAffine", mat4_static_invertAffine},
     {nullptr, nullptr}};
 
 int luaopen_rive_mat4(lua_State* L)

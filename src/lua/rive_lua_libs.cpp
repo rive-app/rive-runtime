@@ -250,6 +250,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"transformPoint", (int16_t)LuaAtoms::transformPoint},
     {"transformVec4", (int16_t)LuaAtoms::transformVec4},
     {"writeToBuffer", (int16_t)LuaAtoms::writeToBuffer},
+    {"invertAffine", (int16_t)LuaAtoms::invertAffine},
 };
 
 static const luaL_Reg lualibs[] = {

@@ -339,6 +339,7 @@ enum class LuaAtoms : int16_t
     transformPoint,
     transformVec4,
     writeToBuffer,
+    invertAffine,
 };
 
 struct ScriptedMat2D

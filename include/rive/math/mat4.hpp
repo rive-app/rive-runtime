@@ -156,6 +156,28 @@ public:
         return m;
     }
 
+    // Right-handed perspective with reverse-Z (near -> 1, far -> 0) and an
+    // infinite far plane. Combined with a float depth buffer this gives a
+    // near-uniform 1/z depth distribution across the entire frustum — the
+    // best precision an arbitrary scene can hope for. See Upchurch & Desbrun,
+    // "Tightening the Precision of Perspective Rendering" (2012).
+    //
+    // Caller's depth buffer must be cleared to 0 (not 1) and the depth test
+    // flipped (GREATER, not LESS).
+    static Mat4 perspectiveReverseZ(float fovYRadians,
+                                    float aspect,
+                                    float near_)
+    {
+        float f = 1.f / std::tan(fovYRadians * 0.5f);
+        Mat4 m{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        m.m_buffer[0] = f / aspect;
+        m.m_buffer[5] = f;
+        m.m_buffer[10] = 0.f;
+        m.m_buffer[11] = -1.f;
+        m.m_buffer[14] = near_;
+        return m;
+    }
+
     // SIMD: out = lhs * rhs. Both column-major.
     static Mat4 multiply(const Mat4& lhs, const Mat4& rhs)
     {
@@ -180,6 +202,38 @@ public:
     }
 
     Mat4 operator*(const Mat4& rhs) const { return multiply(*this, rhs); }
+
+    // SIMD: out = lhs * rhs, assuming both are affine (bottom row
+    // [0, 0, 0, 1]). Skips the four FMAs that would multiply lhs's bottom-
+    // row zeros and the rhs[3]=0 entries of the first three columns.
+    //
+    // Result is always affine. Passing a non-affine input gives an
+    // incorrect result — callers must ensure the contract.
+    static Mat4 multiplyAffine(const Mat4& lhs, const Mat4& rhs)
+    {
+        const float* L = lhs.m_buffer.data();
+        const float* R = rhs.m_buffer.data();
+        float4 c0 = simd::load4f(L);      // [_,_,_,0]
+        float4 c1 = simd::load4f(L + 4);  // [_,_,_,0]
+        float4 c2 = simd::load4f(L + 8);  // [_,_,_,0]
+        float4 c3 = simd::load4f(L + 12); // [_,_,_,1]
+
+        Mat4 out;
+        // Cols 0..2: rhs[3] is 0, so the c3*rhs[3] term vanishes.
+        for (int j = 0; j < 3; ++j)
+        {
+            const float* rcol = R + j * 4;
+            float4 result = c0 * rcol[0] + c1 * rcol[1] + c2 * rcol[2];
+            simd::store(out.m_buffer.data() + j * 4, result);
+        }
+        // Col 3: rhs[3] is 1, so c3 contributes directly.
+        {
+            const float* rcol = R + 12;
+            float4 result = c0 * rcol[0] + c1 * rcol[1] + c2 * rcol[2] + c3;
+            simd::store(out.m_buffer.data() + 12, result);
+        }
+        return out;
+    }
 
     // SIMD: out = M * (x, y, z, w). Returns a 4-component vector (xyzw).
     void transformVec4(float out[4], float x, float y, float z, float w) const
@@ -263,6 +317,66 @@ public:
         float invDet = 1.f / det;
         for (int i = 0; i < 16; ++i)
             (*result)[i] = inv[i] * invDet;
+        return true;
+    }
+
+    // Closed-form inverse for affine matrices (bottom row [0, 0, 0, 1]).
+    // Inverts the 3x3 linear part R via cofactors, then writes -R^-1 * t
+    // into the translation column. Much smaller and faster than the full
+    // 4x4 cofactor `invert`.
+    //
+    // Returns false (and leaves `result` unchanged) only if the linear part
+    // is singular. Caller must ensure the input is actually affine.
+    bool invertAffine(Mat4* result) const
+    {
+        const float* m = m_buffer.data();
+        // The 3x3 linear part R has R[row][col] = m[col*4 + row].
+        // Cofactors C[i][j] of column 0 of R, expanded for det along col 0.
+        float c00 = m[5] * m[10] - m[6] * m[9];
+        float c10 = m[6] * m[8] - m[4] * m[10];
+        float c20 = m[4] * m[9] - m[5] * m[8];
+        float det = m[0] * c00 + m[1] * c10 + m[2] * c20;
+        if (det == 0.f)
+            return false;
+        float invDet = 1.f / det;
+        // Remaining 6 cofactors.
+        float c01 = m[2] * m[9] - m[1] * m[10];
+        float c02 = m[1] * m[6] - m[2] * m[5];
+        float c11 = m[0] * m[10] - m[2] * m[8];
+        float c12 = m[2] * m[4] - m[0] * m[6];
+        float c21 = m[1] * m[8] - m[0] * m[9];
+        float c22 = m[0] * m[5] - m[1] * m[4];
+
+        // R^-1 = (cofactor matrix)^T / det, so Rinv[i][j] = C[j][i] / det.
+        // Naming below: ri_j = Rinv[i][j].
+        float r0_0 = c00 * invDet, r0_1 = c10 * invDet, r0_2 = c20 * invDet;
+        float r1_0 = c01 * invDet, r1_1 = c11 * invDet, r1_2 = c21 * invDet;
+        float r2_0 = c02 * invDet, r2_1 = c12 * invDet, r2_2 = c22 * invDet;
+
+        // Translation column: -R^-1 * t.
+        float tx = m[12], ty = m[13], tz = m[14];
+        float ix = -(r0_0 * tx + r0_1 * ty + r0_2 * tz);
+        float iy = -(r1_0 * tx + r1_1 * ty + r1_2 * tz);
+        float iz = -(r2_0 * tx + r2_1 * ty + r2_2 * tz);
+
+        // Store column-major: o[col*4 + row] = Rinv[row][col].
+        float* o = result->m_buffer.data();
+        o[0] = r0_0;
+        o[1] = r1_0;
+        o[2] = r2_0;
+        o[3] = 0.f;
+        o[4] = r0_1;
+        o[5] = r1_1;
+        o[6] = r2_1;
+        o[7] = 0.f;
+        o[8] = r0_2;
+        o[9] = r1_2;
+        o[10] = r2_2;
+        o[11] = 0.f;
+        o[12] = ix;
+        o[13] = iy;
+        o[14] = iz;
+        o[15] = 1.f;
         return true;
     }
 
