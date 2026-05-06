@@ -430,16 +430,30 @@ static Context* getOreContext(lua_State* L)
         static_cast<ScriptingContext*>(lua_getthreaddata(L))->oreContext());
 }
 
-/// Returns the ShaderTarget byte that matches the active platform/backend.
-/// Mirrors the platform selection logic in wgslCompileForBackend().
+/// Returns the RSTB `ShaderTarget` byte that matches the ore backend
+/// compiled into this build. Dispatches on `ORE_BACKEND_*` rather than
+/// host-OS macros (`__APPLE__` / `_WIN32`) so hosts whose backend doesn't
+/// match the host's "default" runtime API — e.g. the Linux GPU recorder
+/// (Vulkan, not GL) or Mac MoltenVK — pick the correct pre-compiled
+/// variant out of the RSTB table.
+///
+/// Target enum (must match `ShaderAsset` RSTB format):
+///   0 = WGSL passthrough, 1 = GLSL ES3, 2 = MSL, 3 = HLSL SM5,
+///   5 = SPIR-V
 static uint8_t currentShaderTarget()
 {
-#if defined(__APPLE__)
+#if defined(ORE_BACKEND_METAL)
     return 2; // MSL
-#elif defined(_WIN32)
-    return 3; // HLSL SM5, compiled to DXBC at runtime (D3D11/D3D12)
+#elif defined(ORE_BACKEND_VK)
+    return 5; // SPIR-V
+#elif defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
+    return 3; // HLSL SM5, compiled to DXBC at runtime via D3DCompile
+#elif defined(ORE_BACKEND_WGPU)
+    return 0; // WGSL passthrough (Dawn + wagyu)
+#elif defined(ORE_BACKEND_GL)
+    return 1; // GLSL ES3
 #else
-    return 1; // GLSL ES3 (Android / Linux OpenGL / Web via wagyu)
+    return 1;
 #endif
 }
 
