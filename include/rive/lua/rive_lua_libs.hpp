@@ -10,6 +10,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/math/mat4.hpp"
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/path_measure.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
@@ -332,6 +333,12 @@ enum class LuaAtoms : int16_t
 
     // Image decode
     decodeImage,
+
+    // Mat4
+    transpose,
+    transformPoint,
+    transformVec4,
+    writeToBuffer,
 };
 
 struct ScriptedMat2D
@@ -353,6 +360,21 @@ struct ScriptedMat2D
 
 static_assert(std::is_trivially_destructible<ScriptedMat2D>::value,
               "ScriptedMat2D must be trivially destructible");
+
+struct ScriptedMat4
+{
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 62;
+    static constexpr const char* luaName = "Mat4";
+    static constexpr bool hasMetatable = true;
+
+    ScriptedMat4() {}
+    ScriptedMat4(const Mat4& mat) : value(mat) {}
+
+    rive::Mat4 value;
+};
+
+static_assert(std::is_trivially_destructible<ScriptedMat4>::value,
+              "ScriptedMat4 must be trivially destructible");
 
 class ScriptedPathCommand
 {

@@ -245,6 +245,11 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"onCancel", (int16_t)LuaAtoms::onCancel},
     {"getStatus", (int16_t)LuaAtoms::getStatus},
     {"decodeImage", (int16_t)LuaAtoms::decodeImage},
+    // Mat4
+    {"transpose", (int16_t)LuaAtoms::transpose},
+    {"transformPoint", (int16_t)LuaAtoms::transformPoint},
+    {"transformVec4", (int16_t)LuaAtoms::transformVec4},
+    {"writeToBuffer", (int16_t)LuaAtoms::writeToBuffer},
 };
 
 static const luaL_Reg lualibs[] = {
