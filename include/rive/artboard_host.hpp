@@ -43,6 +43,7 @@ public:
     /// Returns nullptr if the host is not a Component.
     virtual class Component* hostComponent() { return nullptr; }
     virtual void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) {}
+    virtual int type() const = 0;
 };
 } // namespace rive
 

@@ -5,6 +5,7 @@
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
+#include "rive/animation/exit_state.hpp"
 #include "rive/animation/layer_state_flags.hpp"
 #include "rive/animation/nested_linear_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
@@ -70,6 +71,37 @@
 #include <cmath>
 
 using namespace rive;
+
+#ifdef RIVE_MICROPROFILE
+#include "rive/profiler/rive_profile.hpp"
+static std::string getStateName(const StateInstance* stateInstance)
+{
+    if (stateInstance == nullptr)
+    {
+        return "(null)";
+    }
+    auto state = stateInstance->state();
+    if (state->is<AnimationState>())
+    {
+        auto anim = state->as<AnimationState>()->animation();
+        return anim != nullptr ? anim->name() : "Animation";
+    }
+    if (state->is<EntryState>())
+    {
+        return "Entry";
+    }
+    if (state->is<ExitState>())
+    {
+        return "Exit";
+    }
+    if (state->is<AnyState>())
+    {
+        return "Any";
+    }
+    return "Blend";
+}
+#endif
+
 namespace rive
 {
 namespace
@@ -472,6 +504,15 @@ public:
             clearAnimationReset();
             changeState(transition->stateTo());
             m_stateMachineChangedOnAdvance = true;
+#ifdef RIVE_MICROPROFILE
+            RiveProfile::instance().recordTransition(
+                m_stateMachineInstance->artboard()->name(),
+                m_stateMachineInstance->name(),
+                m_layer->name(),
+                getStateName(outState),
+                getStateName(m_currentState),
+                m_stateMachineInstance->artboard());
+#endif
             // state actually has changed
             m_transition = transition;
             m_transitionDurationProperty =
@@ -2332,6 +2373,7 @@ void StateMachineInstance::fireSemanticAction(uint32_t semanticNodeId,
 
 bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
+    RIVE_PROF_SCOPE()
     if (m_drawOrderChangeCounter !=
         m_artboardInstance->drawOrderChangeCounter())
     {

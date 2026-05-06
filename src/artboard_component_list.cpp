@@ -190,6 +190,24 @@ ArtboardInstance* ArtboardComponentList::artboardInstance(int index)
     }
     return nullptr;
 }
+int ArtboardComponentList::indexOfArtboardInstance(
+    ArtboardInstance* instance) const
+{
+    if (instance == nullptr)
+    {
+        return -1;
+    }
+    for (size_t i = 0; i < m_listItems.size(); ++i)
+    {
+        auto itr = m_artboardInstancesMap.find(m_listItems[i]);
+        if (itr != m_artboardInstancesMap.end() &&
+            itr->second.get() == instance)
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
 StateMachineInstance* ArtboardComponentList::stateMachineInstance(int index)
 {
     if (!virtualizationEnabled())

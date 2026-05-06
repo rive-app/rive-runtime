@@ -1371,6 +1371,7 @@ void Artboard::calculateLayout()
 
 bool Artboard::updatePass(bool isRoot)
 {
+    RIVE_PROF_SCOPE()
     updateDataBinds();
     bool didUpdate = false;
     syncStyleChangesWithUpdate();
@@ -1416,6 +1417,7 @@ bool Artboard::updatePass(bool isRoot)
 
 bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
+    RIVE_PROF_SCOPE()
     bool didUpdate = false;
 
     for (auto adv : m_advancingComponents)

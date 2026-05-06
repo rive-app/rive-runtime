@@ -48,6 +48,8 @@ public:
     size_t artboardCount() override { return m_listItems.size(); }
     rcp<ViewModelInstanceListItem> listItem(int index);
     ArtboardInstance* artboardInstance(int index = 0) override;
+    /// Logical index of the given instance in the list, or -1 if not found.
+    int indexOfArtboardInstance(ArtboardInstance* instance) const;
     StateMachineInstance* stateMachineInstance(int index = 0);
     bool worldToLocal(Vec2D world, Vec2D* local, int index);
     bool collapse(bool value) override;
@@ -133,6 +135,7 @@ public:
     const Mat2D& listTransform() override;
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;
     void addMapRule(ArtboardListMapRule*);
+    int type() const override { return coreType(); }
 
     /// Rebuilds the ordered-list cache when invalid (list, visibility, or
     /// drawIndex sort inputs changed).

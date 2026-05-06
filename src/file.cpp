@@ -728,7 +728,7 @@ lua_State* File::scriptingState()
 
 void File::setScriptingVM(rcp<ScriptingVM> vm)
 {
-#if defined(WITH_RIVE_TOOLS)
+#ifdef WITH_RIVE_TOOLS
     if (m_scriptingVM != nullptr)
     {
         ScriptingContext* context = m_scriptingVM->context();
@@ -743,7 +743,7 @@ void File::setScriptingVM(rcp<ScriptingVM> vm)
 
 void File::cleanupScriptingVM()
 {
-#if defined(WITH_RIVE_TOOLS)
+#ifdef WITH_RIVE_TOOLS
     if (m_scriptingVM != nullptr)
     {
         ScriptingContext* context = m_scriptingVM->context();

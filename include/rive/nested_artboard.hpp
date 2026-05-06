@@ -67,6 +67,7 @@ public:
     int referencedArtboardId() override;
     void referencedArtboard(Artboard* artboard) override;
     size_t artboardCount() override { return 1; }
+    int type() const override { return coreType(); }
     ArtboardInstance* artboardInstance(int index = 0) override
     {
         return m_Instance.get();
