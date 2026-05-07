@@ -1353,20 +1353,29 @@ bool Artboard::syncStyleChanges()
 
 void Artboard::calculateLayout()
 {
-#if defined(WITH_RIVE_TOOLS) && !defined(TESTING)
+    // Always pass NAN and let calculateLayoutInternal decide whether to use
+    // the intrinsic (hug) size or fall back to width()/height().
+    //
+    // This covers all cases:
+    // - Runtime:
+    //   - Top level artboards: intrinsically sized artboards get NAN so Yoga
+    //     computes from children; fixed-size artboards fall back to
+    //     width()/height() inside calculateLayoutInternal.
+    //   - Nested node/leaf artboards (m_updatesOwnLayout == true): same as
+    //     top-level, calculateLayoutInternal handles the distinction.
+    //   - Nested layout-mode artboards (NestedArtboardLayout): their layout
+    //     node is owned by the parent via takeLayoutData(), which sets
+    //     m_updatesOwnLayout = false. syncStyleChangesWithUpdate() gates on
+    //     that flag, so calculateLayout() is not reached for these.
+    // - Editor:
+    //   - Top level artboards: are handled on the Dart side so don't take
+    //     this code path
+    //   - Nested node/leaf artboards (m_updatesOwnLayout == true):
+    //     same as runtime, calculateLayoutInternal handles the distinction.
+    //   - Nested layout-mode artboards (NestedArtboardLayout): same
+    //     as runtime, their layout node is owned by the Dart parent
+    //     which sets m_updatesOwnLayout = false
     calculateLayoutInternal(NAN, NAN);
-#else
-    // If we're a child of another artboard (ie nested or artboard list item)
-    // pass NAN so we compute our hugged size if applicable
-    if (parentArtboard() != nullptr && m_updatesOwnLayout)
-    {
-        calculateLayoutInternal(NAN, NAN);
-    }
-    else
-    {
-        calculateLayoutInternal(width(), height());
-    }
-#endif
 }
 
 bool Artboard::updatePass(bool isRoot)
