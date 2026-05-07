@@ -21,6 +21,12 @@ do
     -- On non-Apple, ore GMs are excluded from the gm/*.cpp glob but re-added
     -- per-platform as the corresponding Ore backend lands.
     removefiles({ 'gm/ore_*.cpp' })
+    -- render_canvas GMs use RenderContext::makeRenderCanvas which is gated
+    -- behind RIVE_CANVAS; only compile them when with_rive_canvas is on.
+    filter({ 'options:not with_rive_canvas' })
+    do
+        removefiles({ 'gm/render_canvas*.cpp' })
+    end
     filter('system:macosx or ios')
     do
         files({ 'gm/*.mm' })
