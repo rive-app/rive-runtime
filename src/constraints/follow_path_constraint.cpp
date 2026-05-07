@@ -166,23 +166,25 @@ StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 
 void FollowPathConstraint::buildDependencies()
 {
-
-    if (m_Target != nullptr &&
-        m_Target->is<Shape>()) // which should never happen
+    if (m_Target != nullptr && m_Target->is<Shape>())
     {
-        // Follow path should update after the target's path composer
+        // Follow path should update after the target's path composer.
         Shape* shape = static_cast<Shape*>(m_Target);
         shape->pathComposer()->addDependent(this);
     }
-    // ok this appears to be enough to get the inital layout & animations to be
-    // working.
-    else if (m_Target != nullptr &&
-             m_Target->is<Path>()) // which should never happen
+    else if (m_Target != nullptr && m_Target->is<Path>())
     {
-        // or do we need to be dependent on the shape still???
         Path* path = static_cast<Path*>(m_Target);
-        path->addDependent(this);
+        Shape* shape = path->shape();
+        if (shape != nullptr)
+        {
+            shape->pathComposer()->addDependent(this);
+        }
+        else
+        {
+            path->addDependent(this);
+        }
     }
-    // The constrained component should update after follow path
+    // The constrained component should update after follow path.
     addDependent(parent());
 }
