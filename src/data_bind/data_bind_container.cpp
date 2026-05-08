@@ -80,10 +80,6 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
     {
         m_persistingDataBinds.push_back(dataBind);
     }
-    else
-    {
-        m_dirtyDataBinds.push_back(dataBind);
-    }
     dataBind->container(this);
 }
 

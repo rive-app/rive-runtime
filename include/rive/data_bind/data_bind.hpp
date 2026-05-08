@@ -60,7 +60,7 @@ private:
     bool m_isCollapsed = false;
 
 protected:
-    ComponentDirt m_Dirt = ComponentDirt::Filthy;
+    ComponentDirt m_Dirt = ComponentDirt::None;
     Core* m_target = nullptr;
     rcp<ViewModelInstanceValue> m_Source = nullptr;
     DataBindContextValue* m_ContextValue = nullptr;
