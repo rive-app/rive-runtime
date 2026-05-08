@@ -78,6 +78,9 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 }
 
 #include "catch.hpp"
+#include <rive/assets/audio_asset.hpp>
+#include <rive/assets/font_asset.hpp>
+#include <rive/assets/script_asset.hpp>
 
 using namespace rive;
 
@@ -477,6 +480,51 @@ TEST_CASE("draw loops", "[CommandQueue]")
     commandQueue->disconnect();
     serverThread.join();
 }
+
+class TestAssetsFileLoader : public rive::FileAssetLoader
+{
+public:
+    bool loadContents(FileAsset& asset,
+                      Span<const uint8_t> inBandBytes,
+                      Factory* factory) override
+    {
+        CHECK((asset.is<ImageAsset>() || asset.is<AudioAsset>() ||
+               asset.is<FontAsset>() || asset.is<ScriptAsset>()));
+        m_called = true;
+        return false;
+    }
+
+    bool m_called = false;
+};
+
+static void server_thread_file_loader(rcp<CommandQueue> commandQueue,
+                                      rcp<TestAssetsFileLoader> loader)
+{
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(std::move(commandQueue),
+                         nullContext.get(),
+                         std::move(loader));
+    server.serveUntilDisconnect();
+}
+
+TEST_CASE("test support for all asset types", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    auto loader = make_rcp<TestAssetsFileLoader>();
+    std::thread serverThread(server_thread_file_loader, commandQueue, loader);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    wait_for_server(commandQueue.get());
+
+    CHECK(loader->m_called);
+
+    commandQueue->disconnect();
+    serverThread.join();
+};
 
 TEST_CASE("wait for server race condition", "[CommandQueue]")
 {

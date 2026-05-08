@@ -18,12 +18,20 @@ namespace rive
 class CommandServer::CommandFileAssetLoader : public FileAssetLoader
 {
 public:
-    CommandFileAssetLoader(CommandServer* server) : m_server(server) {}
+    CommandFileAssetLoader(CommandServer* server,
+                           rcp<rive::FileAssetLoader> internalLoader) :
+        m_server(server), m_internalLoader(internalLoader)
+    {}
 
     virtual bool loadContents(FileAsset& asset,
                               Span<const uint8_t> inBandBytes,
                               Factory* factory) override
     {
+        if (m_internalLoader)
+        {
+            if (m_internalLoader->loadContents(asset, inBandBytes, factory))
+                return true;
+        }
         if (asset.is<ImageAsset>())
         {
             // No need for another if because as just asserts the above
@@ -57,7 +65,6 @@ public:
                 return false;
             }
         }
-
         else if (asset.is<FontAsset>())
         {
             auto fontAsset = asset.as<FontAsset>();
@@ -73,14 +80,12 @@ public:
                 return false;
             }
         }
-
         else if (asset.is<ScriptAsset>())
         {
             // Script assets cannot currently be added externally.
             // Let the file loader handle it.
             return false;
         }
-
         else
         {
             fprintf(stderr,
@@ -177,6 +182,7 @@ private:
     std::unordered_map<std::string, RenderImageHandle> m_imageAssets;
     std::unordered_map<std::string, AudioSourceHandle> m_audioAssets;
     std::unordered_map<std::string, FontHandle> m_fontAssets;
+    rcp<FileAssetLoader> m_internalLoader;
 };
 
 std::ostream& operator<<(std::ostream& os, DataType t)
@@ -261,13 +267,15 @@ bool CommandServer::testing_globalFontContains(std::string name)
 #endif
 
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
-                             Factory* factory) :
+                             Factory* factory,
+                             rcp<rive::FileAssetLoader> internalLoader) :
     m_commandQueue(std::move(commandBuffer)),
     m_factory(factory),
 #ifndef NDEBUG
     m_threadID(std::this_thread::get_id()),
 #endif
-    m_fileAssetLoader(make_rcp<CommandFileAssetLoader>(this))
+    m_fileAssetLoader(
+        make_rcp<CommandFileAssetLoader>(this, std::move(internalLoader)))
 {}
 
 CommandServer::~CommandServer() {}
