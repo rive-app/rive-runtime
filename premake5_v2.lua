@@ -25,6 +25,11 @@ do
     -- could produce.
     defines({ 'WITH_RIVE_TEST_SIGNATURE' })
 end
+filter({ 'options:track_rive_shader_id' })
+do
+    -- Stores ShaderAsset::assetId() on each ore::ShaderModule.
+    defines({ 'TRACK_RIVE_SHADER_ID' })
+end
 filter({ 'options:with_rive_audio=system' })
 do
     defines({ 'WITH_RIVE_AUDIO', 'MA_NO_RESOURCE_MANAGER' })
@@ -268,4 +273,9 @@ newoption({
 newoption({
     trigger = 'with_rive_docs',
     description = 'Indicates building for use with the docs generator.',
+})
+
+newoption({
+    trigger = 'track_rive_shader_id',
+    description = 'Stores ShaderAsset::assetId() on each ore::ShaderModule.',
 })

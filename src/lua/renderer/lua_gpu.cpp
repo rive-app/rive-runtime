@@ -707,6 +707,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
         {
             const char* blobData = reinterpret_cast<const char*>(blob.data());
             uint32_t blobSize = static_cast<uint32_t>(blob.size());
+            const uint32_t assetId = fileAsset->assetId();
 
             // Sidecar lookup (mirrors makeShaderFromRstb above). The
             // sidecar is mandatory; absence here would assert in
@@ -778,6 +779,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 vtxDesc.hlslEntryPoint = vsEntry;
                 vtxDesc.bindingMapBytes = bindingMapBytes;
                 vtxDesc.bindingMapSize = bindingMapSize;
+                vtxDesc.shaderAssetId = assetId;
                 out->module = oreCtx->makeShaderModule(vtxDesc);
 
                 ShaderModuleDesc fragDesc;
@@ -787,6 +789,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 fragDesc.hlslEntryPoint = fsEntry;
                 fragDesc.bindingMapBytes = bindingMapBytes;
                 fragDesc.bindingMapSize = bindingMapSize;
+                fragDesc.shaderAssetId = assetId;
                 out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
             }
             // GLSL ES3 (target 1): split vertex\0fragment.
@@ -808,6 +811,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     vtxDesc.bindingMapSize = bindingMapSize;
                     vtxDesc.glFixupBytes = vsFixupBytes;
                     vtxDesc.glFixupSize = vsFixupSize;
+                    vtxDesc.shaderAssetId = assetId;
                     out->module = oreCtx->makeShaderModule(vtxDesc);
 
                     ShaderModuleDesc fragDesc;
@@ -818,6 +822,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     fragDesc.bindingMapSize = bindingMapSize;
                     fragDesc.glFixupBytes = fsFixupBytes;
                     fragDesc.glFixupSize = fsFixupSize;
+                    fragDesc.shaderAssetId = assetId;
                     out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
                 }
                 else
@@ -828,6 +833,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     desc.codeSize = blobSize;
                     desc.bindingMapBytes = bindingMapBytes;
                     desc.bindingMapSize = bindingMapSize;
+                    desc.shaderAssetId = assetId;
                     out->module = oreCtx->makeShaderModule(desc);
                 }
             }
@@ -839,6 +845,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 desc.codeSize = blobSize;
                 desc.bindingMapBytes = bindingMapBytes;
                 desc.bindingMapSize = bindingMapSize;
+                desc.shaderAssetId = assetId;
                 out->module = oreCtx->makeShaderModule(desc);
             }
 

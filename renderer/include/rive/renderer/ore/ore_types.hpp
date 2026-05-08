@@ -425,6 +425,10 @@ struct ShaderModuleDesc
     // module's source target is GLSL (target 1); null for other targets.
     const uint8_t* glFixupBytes = nullptr;
     uint32_t glFixupSize = 0;
+
+    // Source ShaderAsset id (FileAsset::assetId()), or 0 if synthesized.
+    // Storage on ShaderModule is gated by TRACK_RIVE_SHADER_ID.
+    uint32_t shaderAssetId = 0;
 };
 
 struct VertexAttribute

@@ -68,6 +68,12 @@ public:
     // fragment modules at construction.
     BindingMap m_bindingMap;
 
+#ifdef TRACK_RIVE_SHADER_ID
+    // Set from desc.shaderAssetId in applyBindingMapFromDesc.
+    uint32_t m_shaderAssetId = 0;
+    uint32_t shaderAssetId() const { return m_shaderAssetId; }
+#endif
+
     // Helper for backend `makeShaderModule` paths: parse the binding-map
     // sidecar bytes (`desc.bindingMapBytes`) into `m_bindingMap`. The
     // sidecar is mandatory; runtime backends rely on it to translate
@@ -82,6 +88,9 @@ public:
         assert(ok && "binding-map sidecar failed to parse");
         (void)ok;
         applyGLFixupFromDesc(desc);
+#ifdef TRACK_RIVE_SHADER_ID
+        m_shaderAssetId = desc.shaderAssetId;
+#endif
     }
 
     // One entry in the GL program-link fixup table: tells the runtime
