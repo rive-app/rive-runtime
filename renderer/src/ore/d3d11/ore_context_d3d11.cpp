@@ -805,21 +805,13 @@ rcp<ShaderModule> ContextD3D11::d3d11MakeShaderModule(
     auto module = rcp<ShaderModule>(new ShaderModule());
     module->m_stage = desc.stage;
 
-    // Store HLSL source for runtime D3DCompile if provided. AMD drivers
-    // require DXBC to be compiled in the same process context where it's
-    // used — pre-compiled DXBC from a build step causes driver crashes.
-    if (desc.hlslSource && desc.hlslSourceSize > 0)
-    {
-        module->m_hlslSource =
-            std::string(desc.hlslSource, desc.hlslSourceSize);
-        if (desc.hlslEntryPoint)
-            module->m_hlslEntryPoint = desc.hlslEntryPoint;
-    }
-    else if (desc.code && desc.codeSize > 0)
-    {
-        const uint8_t* code = static_cast<const uint8_t*>(desc.code);
-        module->m_bytecode.assign(code, code + desc.codeSize);
-    }
+    // HLSL source compiled at first pipeline use via ensureD3DShaders.
+    // AMD drivers crash on cross-process DXBC, so we never ingest it.
+    assert(desc.hlslSource && desc.hlslSourceSize > 0 &&
+           "ShaderModuleDesc::hlslSource is required for the D3D11 backend");
+    module->m_hlslSource = std::string(desc.hlslSource, desc.hlslSourceSize);
+    if (desc.hlslEntryPoint)
+        module->m_hlslEntryPoint = desc.hlslEntryPoint;
 
     module->applyBindingMapFromDesc(desc);
     return module;

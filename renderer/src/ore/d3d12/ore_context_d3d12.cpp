@@ -1280,74 +1280,52 @@ rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
 #if defined(ORE_BACKEND_D3D12)
     auto module = rcp<ShaderModule>(new ShaderModule());
 
-    // HLSL source path: compile via D3DCompile in-process. This mirrors the
-    // D3D11 backend — the RSTB ships HLSL source for SM5 (not pre-compiled
-    // DXBC) because compiling in the same process avoids AMD driver issues
-    // with cross-process bytecode.
-    if (desc.hlslSource && desc.hlslSourceSize > 0)
+    // HLSL source compiled in-process via D3DCompile. AMD drivers crash on
+    // cross-process DXBC, so we never ingest pre-compiled bytecode.
+    assert(desc.hlslSource && desc.hlslSourceSize > 0 &&
+           "ShaderModuleDesc::hlslSource is required for the D3D12 backend");
+
+    // Normalize line endings (SPIRV-Cross emits \r\n on Windows).
+    std::string source(desc.hlslSource, desc.hlslSourceSize);
+    source.erase(std::remove(source.begin(), source.end(), '\r'), source.end());
+
+    const char* target =
+        (desc.stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
+    const char* entry = (desc.hlslEntryPoint && *desc.hlslEntryPoint)
+                            ? desc.hlslEntryPoint
+                            : "main";
+    ComPtr<ID3DBlob> compiled;
+    ComPtr<ID3DBlob> errors;
+    HRESULT hr = D3DCompile(source.c_str(),
+                            source.size(),
+                            nullptr,
+                            nullptr,
+                            nullptr,
+                            entry,
+                            target,
+                            D3DCOMPILE_ENABLE_STRICTNESS |
+                                D3DCOMPILE_OPTIMIZATION_LEVEL3,
+                            0,
+                            compiled.GetAddressOf(),
+                            errors.GetAddressOf());
+    if (FAILED(hr))
     {
-        // Normalize line endings — SPIRV-Cross emits \r\n on Windows, which
-        // can confuse D3DCompile's preprocessor.
-        std::string source(desc.hlslSource, desc.hlslSourceSize);
-        source.erase(std::remove(source.begin(), source.end(), '\r'),
-                     source.end());
-
-        const char* target =
-            (desc.stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
-        const char* entry = (desc.hlslEntryPoint && *desc.hlslEntryPoint)
-                                ? desc.hlslEntryPoint
-                                : "main";
-        ComPtr<ID3DBlob> compiled;
-        ComPtr<ID3DBlob> errors;
-        HRESULT hr = D3DCompile(source.c_str(),
-                                source.size(),
-                                nullptr,
-                                nullptr,
-                                nullptr,
-                                entry,
-                                target,
-                                D3DCOMPILE_ENABLE_STRICTNESS |
-                                    D3DCOMPILE_OPTIMIZATION_LEVEL3,
-                                0,
-                                compiled.GetAddressOf(),
-                                errors.GetAddressOf());
-        if (FAILED(hr))
-        {
-            const char* errMsg =
-                errors ? static_cast<const char*>(errors->GetBufferPointer())
-                       : "(no error log)";
-            setLastError(
-                "Ore D3D12: D3DCompile failed (entry=%s target=%s hr=0x%08x): "
-                "%s",
-                entry,
-                target,
-                static_cast<unsigned>(hr),
-                errMsg);
-            return nullptr;
-        }
-
-        const uint8_t* bytes =
-            static_cast<const uint8_t*>(compiled->GetBufferPointer());
-        module->m_d3dBytecode.assign(bytes, bytes + compiled->GetBufferSize());
-        module->m_d3dIsVertex = (desc.stage == ShaderStage::vertex);
-        module->applyBindingMapFromDesc(desc);
-        return module;
+        const char* errMsg =
+            errors ? static_cast<const char*>(errors->GetBufferPointer())
+                   : "(no error log)";
+        setLastError(
+            "Ore D3D12: D3DCompile failed (entry=%s target=%s hr=0x%08x): %s",
+            entry,
+            target,
+            static_cast<unsigned>(hr),
+            errMsg);
+        return nullptr;
     }
 
-    // Pre-compiled DXBC path.
-    const uint8_t* code = static_cast<const uint8_t*>(desc.code);
-    module->m_d3dBytecode.assign(code, code + desc.codeSize);
-
-    // Probe bytecode to determine VS vs PS.
-    // DXBC programs have a 4-byte "DXBC" magic at offset 0 and a program type
-    // DWORD at offset 0x0C: 0xFFFF = PS, 0xFFFE = VS.
-    if (desc.codeSize >= 0x10)
-    {
-        const uint32_t* dwords = reinterpret_cast<const uint32_t*>(desc.code);
-        uint32_t shaderType = dwords[3] >> 16; // High 16 bits of version token.
-        module->m_d3dIsVertex = (shaderType == 0xFFFE);
-    }
-
+    const uint8_t* bytes =
+        static_cast<const uint8_t*>(compiled->GetBufferPointer());
+    module->m_d3dBytecode.assign(bytes, bytes + compiled->GetBufferSize());
+    module->m_d3dIsVertex = (desc.stage == ShaderStage::vertex);
     module->applyBindingMapFromDesc(desc);
     return module;
 #else

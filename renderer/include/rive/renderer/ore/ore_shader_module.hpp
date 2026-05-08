@@ -184,25 +184,16 @@ private:
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_d3dVertexShader;
     Microsoft::WRL::ComPtr<ID3D11PixelShader> m_d3dPixelShader;
 
-    // HLSL source for runtime D3DCompile. Stored instead of pre-compiled
-    // DXBC because the HLSL must be compiled in the same process context
-    // where the shader will be used — pre-compiled DXBC from RSTB
-    // generation causes driver errors on AMD.
+    // HLSL source compiled at first pipeline use via ensureD3DShaders.
     std::string m_hlslSource;
     std::string m_hlslEntryPoint;
 
-    // Guards `ensureD3DShaders` against concurrent first-call from two
-    // pipelines that share this ShaderModule. Without it, both threads
-    // race the early-out check and both run `D3DCompile` + `m_bytecode.assign`
-    // + `CreateVertexShader/PixelShader` against the same module — at best
-    // wasted compile work, at worst use-after-free of one thread's
-    // `compiledBlob` while the other is still reading from it.
+    // Guards ensureD3DShaders against concurrent first-call from two
+    // pipelines sharing this ShaderModule.
     std::once_flag m_d3dInitFlag;
 
-    // Create actual D3D11 shader objects from HLSL source or stored DXBC.
-    // Called from makePipeline. `outError`, if non-null, is populated with
-    // the D3DCompile error log on compile failure so the caller can route
-    // it to Context::m_lastError.
+    // outError, if non-null, receives the D3DCompile error log so the
+    // caller can route it to Context::m_lastError.
     void ensureD3DShaders(ID3D11Device* device, std::string* outError = nullptr)
     {
         std::call_once(m_d3dInitFlag,
@@ -211,68 +202,59 @@ private:
 
     void ensureD3DShadersImpl(ID3D11Device* device, std::string* outError)
     {
-        const void* code = m_bytecode.data();
-        SIZE_T codeSize = m_bytecode.size();
+        if (m_hlslSource.empty())
+            return;
+
+        // Normalize line endings (SPIRV-Cross outputs \r\n on Windows).
+        m_hlslSource.erase(
+            std::remove(m_hlslSource.begin(), m_hlslSource.end(), '\r'),
+            m_hlslSource.end());
+
+        const char* target =
+            (m_stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
+        const char* entry =
+            m_hlslEntryPoint.empty() ? "main" : m_hlslEntryPoint.c_str();
         Microsoft::WRL::ComPtr<ID3DBlob> compiledBlob;
-
-        if (!m_hlslSource.empty())
+        Microsoft::WRL::ComPtr<ID3DBlob> errors;
+        HRESULT hr = D3DCompile(m_hlslSource.c_str(),
+                                m_hlslSource.size(),
+                                nullptr,
+                                nullptr,
+                                nullptr,
+                                entry,
+                                target,
+                                D3DCOMPILE_ENABLE_STRICTNESS |
+                                    D3DCOMPILE_OPTIMIZATION_LEVEL3,
+                                0,
+                                compiledBlob.GetAddressOf(),
+                                errors.GetAddressOf());
+        if (FAILED(hr))
         {
-            // Normalize line endings — SPIRV-Cross outputs \r\n on Windows.
-            m_hlslSource.erase(
-                std::remove(m_hlslSource.begin(), m_hlslSource.end(), '\r'),
-                m_hlslSource.end());
-
-            const char* target =
-                (m_stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
-            const char* entry =
-                m_hlslEntryPoint.empty() ? "main" : m_hlslEntryPoint.c_str();
-            Microsoft::WRL::ComPtr<ID3DBlob> errors;
-            HRESULT hr = D3DCompile(m_hlslSource.c_str(),
-                                    m_hlslSource.size(),
-                                    nullptr,
-                                    nullptr,
-                                    nullptr,
-                                    entry,
-                                    target,
-                                    D3DCOMPILE_ENABLE_STRICTNESS |
-                                        D3DCOMPILE_OPTIMIZATION_LEVEL3,
-                                    0,
-                                    compiledBlob.GetAddressOf(),
-                                    errors.GetAddressOf());
-            if (SUCCEEDED(hr))
+            if (outError)
             {
-                code = compiledBlob->GetBufferPointer();
-                codeSize = compiledBlob->GetBufferSize();
-                // Store compiled bytecode for CreateInputLayout.
-                m_bytecode.assign(static_cast<const uint8_t*>(code),
-                                  static_cast<const uint8_t*>(code) + codeSize);
+                const char* errMsg =
+                    errors
+                        ? static_cast<const char*>(errors->GetBufferPointer())
+                        : "(no error log)";
+                char buf[1024];
+                snprintf(buf,
+                         sizeof(buf),
+                         "D3DCompile failed (entry=%s target=%s "
+                         "hr=0x%08x): %s",
+                         entry,
+                         target,
+                         static_cast<unsigned>(hr),
+                         errMsg);
+                *outError = buf;
             }
-            else
-            {
-                if (outError)
-                {
-                    const char* errMsg = errors
-                                             ? static_cast<const char*>(
-                                                   errors->GetBufferPointer())
-                                             : "(no error log)";
-                    char buf[1024];
-                    snprintf(buf,
-                             sizeof(buf),
-                             "D3DCompile failed (entry=%s target=%s "
-                             "hr=0x%08x): %s",
-                             entry,
-                             target,
-                             static_cast<unsigned>(hr),
-                             errMsg);
-                    *outError = buf;
-                }
-                return;
-            }
-        }
-        else if (m_bytecode.empty())
-        {
             return;
         }
+
+        const void* code = compiledBlob->GetBufferPointer();
+        SIZE_T codeSize = compiledBlob->GetBufferSize();
+        // Store compiled bytecode for CreateInputLayout.
+        m_bytecode.assign(static_cast<const uint8_t*>(code),
+                          static_cast<const uint8_t*>(code) + codeSize);
 
         if (m_stage == ShaderStage::fragment)
         {
