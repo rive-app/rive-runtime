@@ -498,7 +498,7 @@ int main(int argc, const char* argv[])
     TestingWindow::BackendParams backendParams;
     bool onlyUbershaders = false;
 
-    for (int i = 0; i < argc; ++i)
+    for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "--test_harness") == 0)
         {
