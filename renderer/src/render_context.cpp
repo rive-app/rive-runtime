@@ -1632,16 +1632,27 @@ void RenderContext::LogicalFlush::writeResources()
                 };
             }
 
+            // When the dstBlend barrier has no other option than to copy out a
+            // texture, this copy destroys MSAA information and we can no longer
+            // put subpasses in different drawGroups.
+            // Otherwise, we put subpasses into different draw groups because it
+            // yields better reordering.
+            const bool allSubpassesInSameDrawGroup =
+                m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa &&
+                !platformFeatures.supportsBlendAdvancedKHR &&
+                enums::is_flag_set(m_combinedDrawContents,
+                                   gpu::DrawContents::advancedBlend);
+
             // Our top priority in re-ordering is to group non-overlapping draws
             // together, in order to maximize batching while preserving
             // correctness.
-            int maxPasses =
+            const int maxSubpasses =
                 std::max(draw->prepassCount(), draw->subpassCount());
-            int16_t drawGroupIdx =
-                intersectionBoard->addRectangle(drawBounds,
-                                                kOverlapBits,
-                                                kDisallowOverlapMask,
-                                                maxPasses);
+            int16_t drawGroupIdx = intersectionBoard->addRectangle(
+                drawBounds,
+                kOverlapBits,
+                kDisallowOverlapMask,
+                allSubpassesInSameDrawGroup ? 1 : maxSubpasses);
             assert(drawGroupIdx > 0);
             const auto textureHash =
                 (draw->imageTexture() != nullptr)
@@ -1673,31 +1684,44 @@ void RenderContext::LogicalFlush::writeResources()
             }
 
             // Add any additional passes.
-            for (int i = 1; i < maxPasses; ++i)
+            if (maxSubpasses > 1)
             {
-                // Increment the drawGroupIdx and i both at once. (The
-                // intersectionBoard already reserved "maxPasses" layers of
-                // drawGroupIndices for us.)
-                static constexpr auto INCREMENT = keyBuilder.buildPartialKey({
-                    {SortEntry::drawGroup, 1},
-                    {SortEntry::subpassIndex, 1},
-                });
-                key += INCREMENT;
-
-                assert(keyBuilder.extract<int16_t>(SortEntry::drawGroup, key) ==
-                       drawGroupIdx + i);
-                assert(keyBuilder.extract<int>(SortEntry::subpassIndex, key) ==
-                       i);
-
-                if (i < draw->prepassCount())
+                const auto subpassKeyIncrement =
+                    allSubpassesInSameDrawGroup
+                        // Special case: All subpasses belong to the same
+                        // drawGroup, so only increment subpassIndex.
+                        ? keyBuilder.buildPartialKey({
+                              {SortEntry::subpassIndex, 1},
+                          })
+                        // Usual case: Increment the drawGroup and subpassIndex
+                        // both at once. (The intersectionBoard already reserved
+                        // "maxPasses" layers of drawGroupIndices for us.)
+                        : keyBuilder.buildPartialKey({
+                              {SortEntry::drawGroup, 1},
+                              {SortEntry::subpassIndex, 1},
+                          });
+                for (int i = 1; i < maxSubpasses; ++i)
                 {
-                    // Negating the key is an easy way to sort the prepasses
-                    // front-to-back, and before the subpasses.
-                    indirectDrawList.push_back(-key);
-                }
-                if (i < draw->subpassCount())
-                {
-                    indirectDrawList.push_back(key);
+                    key += subpassKeyIncrement;
+
+                    assert(keyBuilder.extract<int16_t>(SortEntry::drawGroup,
+                                                       key) ==
+                           int16_t(allSubpassesInSameDrawGroup
+                                       ? drawGroupIdx
+                                       : drawGroupIdx + i));
+                    assert(keyBuilder.extract<int>(SortEntry::subpassIndex,
+                                                   key) == i);
+
+                    if (i < draw->prepassCount())
+                    {
+                        // Negating the key is an easy way to sort the prepasses
+                        // front-to-back, and before the subpasses.
+                        indirectDrawList.push_back(-key);
+                    }
+                    if (i < draw->subpassCount())
+                    {
+                        indirectDrawList.push_back(key);
+                    }
                 }
             }
         }

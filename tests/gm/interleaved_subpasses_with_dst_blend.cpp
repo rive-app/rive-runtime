@@ -112,13 +112,145 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend,
         auto renderPath =
             PathBuilder(FillRule::clockwise).addOval({0, 0, 1, 1}).detach();
 
-        auto renderPaint = TestingWindow::Get()->factory()->makeRenderPaint();
+        Paint renderPaint;
         renderPaint->color(0xfff3da93);
         renderPaint->blendMode(BlendMode::lighten);
 
         AutoRestore ar(renderer, true);
         renderer->transform(Mat2D(800, 0, 0, 300, 100, 100));
         renderer->drawPath(renderPath.get(), renderPaint.get());
+    }
+
+    // Restore KHR_blend_equation_advanced.
+    if (renderContext != nullptr)
+    {
+#ifndef RIVE_TOOLS_NO_GL
+        if (gpu::RenderContextGLImpl* glImpl =
+                TestingWindow::Get()->renderContextGLImpl())
+        {
+            TestingWindow::Get()->flushPLSContext();
+            glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(
+                hadBlendAdvancedCoherentKHR);
+            glImpl->testingOnly_setBlendAdvancedKHRSupported(
+                hadBlendAdvancedKHR);
+            renderContext->beginFrame(preserveRenderTargetFrameDesc);
+        }
+#endif
+    }
+}
+
+DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend2,
+                               0xff000000,
+                               WINDOW_SIZE,
+                               WINDOW_SIZE,
+                               renderer)
+{
+    gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
+    gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;
+    if (renderContext != nullptr)
+    {
+        preserveRenderTargetFrameDesc = renderContext->frameDescriptor();
+        preserveRenderTargetFrameDesc.loadAction =
+            gpu::LoadAction::preserveRenderTarget;
+    }
+
+    // Disable KHR_blend_equation_advanced, which is necessary for this to
+    // repro.
+    bool hadBlendAdvancedCoherentKHR = false;
+    bool hadBlendAdvancedKHR = false;
+    if (renderContext != nullptr)
+    {
+#ifndef RIVE_TOOLS_NO_GL
+        if (gpu::RenderContextGLImpl* glImpl =
+                TestingWindow::Get()->renderContextGLImpl())
+        {
+            TestingWindow::Get()->flushPLSContext();
+            hadBlendAdvancedCoherentKHR =
+                glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(false);
+            hadBlendAdvancedKHR =
+                glImpl->testingOnly_setBlendAdvancedKHRSupported(false);
+            renderContext->beginFrame(preserveRenderTargetFrameDesc);
+        }
+#endif
+    }
+
+    {
+        AutoRestore ar(renderer, true);
+
+        Paint paint;
+        paint->color(0xe0da93f3);
+        paint->feather(30.000000);
+        paint->blendMode(BlendMode::srcOver);
+
+        auto renderPath =
+            PathBuilder(FillRule::clockwise)
+                .addRect({0.099000f, -74.448006f, 656.115417f, 0.198000f})
+                .detach();
+        renderer->transform(Mat2D(1.506361f,
+                                  0.000000f,
+                                  0.000000f,
+                                  1.506361f,
+                                  303.258057f,
+                                  1075.497070f));
+
+        renderer->drawPath(renderPath.get(), paint.get());
+
+        paint->color(0x93e0daf3);
+        paint->feather(0);
+
+        renderer->translate(-12, -12);
+        renderer->drawPath(renderPath.get(), paint.get());
+    }
+
+    {
+        AutoRestore ar(renderer, true);
+
+        auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
+
+        // Make sure the paint is slightly transparent so the path doesn't turn
+        // into an opaque prepass. Its subpasses need to interleave with the
+        // advanced blend draw.
+        Paint white;
+        white->color(0xeeffffff);
+
+        RawText text(TestingWindow::Get()->factory());
+        text.maxWidth(800);
+        text.sizing(TextSizing::fixed);
+        text.append("abcdefghijklmnopqrstuvwxyz@",
+                    ref_rcp(white.get()),
+                    roboto,
+                    75);
+
+        renderer->transform(Mat2D(1.506361f,
+                                  0.000000f,
+                                  0.000000f,
+                                  1.506361f,
+                                  153.994843f,
+                                  1209.160156f));
+        text.render(renderer);
+    }
+
+    {
+        AutoRestore ar(renderer, true);
+
+        Paint paint;
+        paint->color(0xfff3da93);
+        paint->feather(30.000000);
+        paint->blendMode(BlendMode::lighten);
+
+        auto renderPath =
+            PathBuilder(FillRule::clockwise)
+                .addOval({-35.099998f, -48.600010f, 35.099998f, 48.600010f})
+                .detach();
+
+        renderer->transform(Mat2D(4.071247f,
+                                  0.000000f,
+                                  0.000000f,
+                                  4.071247f,
+                                  1159.308716f,
+                                  537.785034f));
+
+        renderer->drawPath(renderPath.get(), paint.get());
     }
 
     // Restore KHR_blend_equation_advanced.

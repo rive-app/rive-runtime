@@ -1558,7 +1558,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         const auto feature = ShaderFeatures(1 << i);
-        if (enums::any_flag_set(shaderFeatures, feature))
+        if (enums::is_flag_set(shaderFeatures, feature))
         {
             assert(enums::is_flag_set(kVertexShaderFeaturesMask, feature) ||
                    shaderType == GL_FRAGMENT_SHADER);
@@ -3071,6 +3071,11 @@ bool RenderContextGLImpl::testingOnly_setBlendAdvancedCoherentKHRSupported(
     assert(wasSupported == m_platformFeatures.supportsBlendAdvancedCoherentKHR);
     m_capabilities.KHR_blend_equation_advanced_coherent = supported;
     m_platformFeatures.supportsBlendAdvancedCoherentKHR = supported;
+
+    // Clear the shader cache since these are built with hard expectations about
+    // m_capabilities/m_platformFeatures.
+    m_pipelineManager.clearCache();
+
     return wasSupported;
 }
 
@@ -3081,6 +3086,11 @@ bool RenderContextGLImpl::testingOnly_setBlendAdvancedKHRSupported(
     assert(wasSupported == m_platformFeatures.supportsBlendAdvancedKHR);
     m_capabilities.KHR_blend_equation_advanced = supported;
     m_platformFeatures.supportsBlendAdvancedKHR = supported;
+
+    // Clear the shader cache since these are built with hard expectations about
+    // m_capabilities/m_platformFeatures.
+    m_pipelineManager.clearCache();
+
     return wasSupported;
 }
 #endif
