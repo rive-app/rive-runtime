@@ -4,9 +4,9 @@
 
 #pragma once
 
-// Portable C++ binding map matching the on-disk RSTB schema (RFC §3.5,
-// §14.5–6). Runtime parses one of these out of an RSTB sidecar via
-// `fromBlob`; the editor-side toolchain produces the blob via `toBlob`.
+// Portable C++ binding map matching the on-disk RSTB schema. Runtime
+// parses one of these out of an RSTB sidecar via `fromBlob`; the
+// editor-side toolchain produces the blob via `toBlob`.
 //
 // Usage pattern:
 //   ore::BindingMap bm;
@@ -32,9 +32,9 @@ namespace rive::ore
 // ----------------------------------------------------------------------------
 // Reserved native slots
 //
-// Per RFC §6.6, Ore reserves a small number of native slots in each
-// backend's slot namespace for its own internal machinery (push-constant
-// emulation, dynamic-sized storage-buffer length arrays). The binding-map
+// Ore reserves a small number of native slots in each backend's slot
+// namespace for its own internal machinery (push-constant emulation,
+// dynamic-sized storage-buffer length arrays). The binding-map
 // allocator must never hand out a user binding at one of these slots, even
 // though no current Ore feature consumes them — they are forward-compat
 // scaffolding so that adding push constants or compute storage buffers
@@ -60,8 +60,8 @@ constexpr uint32_t kMetalMaxUserBufferSlot = kMetalReservedBufferSlot - 1;
 // ----------------------------------------------------------------------------
 // ResourceKind
 //
-// Numeric values are the frozen on-disk RSTB schema (RFC §14.5). Never
-// renumber existing variants; new variants append at the next integer.
+// Numeric values are the frozen on-disk RSTB schema. Never renumber
+// existing variants; new variants append at the next integer.
 // ----------------------------------------------------------------------------
 
 enum class ResourceKind : uint8_t
@@ -89,7 +89,7 @@ enum class ResourceKind : uint8_t
 // backends ignore these fields since VK/D3D/Metal descriptor types are
 // dimension-agnostic.
 //
-// Numeric values are frozen on-disk RSTB schema (RFC §14.5).
+// Numeric values are frozen on-disk RSTB schema.
 // ----------------------------------------------------------------------------
 
 enum class TextureViewDim : uint8_t
@@ -129,7 +129,7 @@ public:
         CS = 2,
     };
 
-    // Stage bitmask bits — frozen RSTB schema (RFC §14.5).
+    // Stage bitmask bits, frozen RSTB schema.
     static constexpr uint32_t kStageVertex = 1u << 0;
     static constexpr uint32_t kStageFragment = 1u << 1;
     static constexpr uint32_t kStageCompute = 1u << 2;
@@ -140,15 +140,15 @@ public:
     static constexpr uint16_t kAbsent = UINT16_MAX;
 
     // RSTB blob version byte. Bumped when the on-disk schema changes in a
-    // way that renders old blobs unreadable; a mismatch on load is a loud
-    // error, never a silent misbind (RFC §14.4).
+    // way that renders old blobs unreadable. A mismatch on load is a loud
+    // error, never a silent misbind.
     static constexpr uint8_t kBlobVersion = 2;
 
     // Allocator version currently supported. Pipelines load with this
     // value; any blob stamped with a different version fails `fromBlob`
-    // with a clear error (RFC §14.4).
+    // with a clear error.
     //
-    // WebGPU-aligned global-counter-per-kind allocation per RFC §3.2.
+    // WebGPU-aligned global-counter-per-kind allocation.
     static constexpr uint8_t kAllocatorVersion = 1;
 
     // One row of the binding map. Layout matches the on-disk RSTB row
@@ -180,9 +180,8 @@ public:
     // fall back to a different layout silently.
     //
     // First two bytes of the blob are `kBlobVersion` and
-    // `kAllocatorVersion`; mismatch either and parse fails loudly per
-    // RFC §14.4. Serialization (`toBlob`) lives in the tooling-gated
-    // portion of the API.
+    // `kAllocatorVersion`; mismatch either and parse fails loudly.
+    // Serialization (`toBlob`) lives in the tooling-gated portion of the API.
     static bool fromBlob(const uint8_t* data, size_t size, BindingMap* out);
 
     // Per-stage backend-slot lookup. Returns kAbsent when the resource

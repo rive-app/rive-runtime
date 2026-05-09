@@ -597,42 +597,7 @@ static int context_namecall(lua_State* L)
                     return 1;
                 }
                 lua_pop(L, 1);
-
-                // Legacy-compat fallback: pre-ShaderAsset .riv files pack
-                // WGSL shaders into ScriptAssets. Detect by RSTB magic and
-                // build the shader from those raw bytes.
-                if (scriptAsset != nullptr)
-                {
-                    File* file = scriptAsset->file();
-                    if (file != nullptr)
-                    {
-                        for (const auto& asset : file->assets())
-                        {
-                            if (!asset->is<ScriptAsset>())
-                                continue;
-                            auto* sa = asset->as<ScriptAsset>();
-                            if (sa->name() != shaderName)
-                                continue;
-                            auto bc = sa->moduleBytecode();
-                            if (bc.size() < 4 || bc[0] != 'R' || bc[1] != 'S' ||
-                                bc[2] != 'T' || bc[3] != 'B')
-                                continue;
-                            auto* legacyScripted =
-                                lua_newrive<ScriptedShader>(L);
-                            if (lua_gpu_make_shader_from_rstb(
-                                    legacyScripted,
-                                    scriptingCtx,
-                                    bc.data(),
-                                    static_cast<uint32_t>(bc.size())))
-                            {
-                                return 1;
-                            }
-                            lua_pop(L, 1);
-                            break;
-                        }
-                    }
-                }
-                return 0; // return nil — shader not found or compile failed
+                return 0; // return nil, shader not found or compile failed
 #else
                 return 0;
 #endif

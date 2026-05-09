@@ -324,9 +324,9 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
                     ? (numConstantsRaw < 16 ? 16u
                                             : ((numConstantsRaw + 15u) & ~15u))
                     : 0;
-            // Per-stage emit (RFC §3.4): VS / PS register namespaces are
-            // independent; skip the stage whose slot is `kAbsent` so we
-            // don't clobber another resource's register.
+            // Per-stage emit: VS / PS register namespaces are independent
+            // on D3D11. Skip the stage whose slot is `kAbsent` so we don't
+            // clobber another resource's register.
             if (ubo.vsSlot != BindingMap::kAbsent)
             {
                 if (useOffsetPath)

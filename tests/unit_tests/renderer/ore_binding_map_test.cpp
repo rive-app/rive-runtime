@@ -193,13 +193,12 @@ TEST_CASE("BindingMap sampler / comparison-sampler kind collapse",
 
 TEST_CASE("BindingMap per-stage slots can disagree", "[ore_binding_map]")
 {
-    // RFC §3.2.1 / §3.4: per-stage backend counters mean a single
-    // (group, binding) can carry distinct slot values for VS vs FS
-    // (Metal/D3D11 with truly per-stage allocator). The lookup API
-    // must return the correct stage's slot, not collapse them.
-    // Today's v1 allocator stamps the same slot to all stages; this
-    // test locks the lookup contract so the v2 allocator landing
-    // doesn't need a contemporaneous lookup-API change.
+    // Per-stage backend counters mean a single (group, binding) can carry
+    // distinct slot values for VS vs FS (Metal and D3D11 use a truly
+    // per-stage allocator). The lookup API must return the correct stage's
+    // slot, not collapse them. Today's v1 allocator stamps the same slot
+    // to all stages; this test locks the lookup contract so the v2
+    // allocator landing doesn't need a contemporaneous lookup-API change.
     BindingMap m;
     m.push(makeEntry(0,
                      0,
@@ -290,7 +289,7 @@ TEST_CASE("BindingMap rejects bad blob version", "[ore_binding_map]")
     CHECK_FALSE(BindingMap::fromBlob(nullptr, 0, &out));
     CHECK_FALSE(BindingMap::fromBlob(blob.data(), 4, &out));
 
-    // Bad blob version → fail loud, per RFC §14.4.
+    // Bad blob version, fail loud rather than fall back.
     std::vector<uint8_t> badBlobVer = blob;
     badBlobVer[0] = BindingMap::kBlobVersion + 1;
     CHECK_FALSE(
@@ -327,9 +326,9 @@ TEST_CASE("BindingMap forward-compat: larger entry_size parses OK",
     std::vector<uint8_t> blob = source.toBlob();
 
     // Read the writer's entry_size out of the real blob so the test stays
-    // meaningful as the wire format grows (RFC §14.6 append-only fields).
-    // Synthesize a "future" blob that's `kExtraTrailing` bytes longer per
-    // entry; the reader should accept it by skipping the unknown tail.
+    // meaningful as the wire format grows. Synthesize a "future" blob
+    // that's `kExtraTrailing` bytes longer per entry; the reader should
+    // accept it by skipping the unknown tail.
     const uint16_t currentEntrySize =
         static_cast<uint16_t>(blob[2]) | (static_cast<uint16_t>(blob[3]) << 8);
     constexpr uint16_t kExtraTrailing = 4;
@@ -376,7 +375,7 @@ TEST_CASE("BindingMap forward-compat: smaller entry_size rejected",
 
 TEST_CASE("ResourceKind numeric values are frozen", "[ore_binding_map]")
 {
-    // RFC §14.5: never renumber. Locks the on-disk RSTB schema.
+    // Never renumber. Locks the on-disk RSTB schema.
     CHECK(static_cast<uint8_t>(ResourceKind::UniformBuffer) == 0);
     CHECK(static_cast<uint8_t>(ResourceKind::StorageBufferRO) == 1);
     CHECK(static_cast<uint8_t>(ResourceKind::StorageBufferRW) == 2);

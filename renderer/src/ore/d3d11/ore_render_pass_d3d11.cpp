@@ -199,9 +199,9 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
     // minUniformBufferOffsetAlignment default matches this, so a
     // spec-compliant caller's offsets are already aligned.
     //
-    // Per-stage emit (RFC §3.4): VS and PS register namespaces are
-    // independent on D3D11; skip the stage whose slot is `kAbsent` so we
-    // don't clobber another resource's register.
+    // Per-stage emit: VS and PS register namespaces are independent on
+    // D3D11. Skip the stage whose slot is `kAbsent` so we don't clobber
+    // another resource's register.
     ID3D11DeviceContext1* ctx1 =
         m_context ? static_cast<ContextD3D11*>(m_context)->m_d3d11Context1.Get()
                   : nullptr;
@@ -266,7 +266,7 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
     // SRVs and samplers, per-stage. Skipping kAbsent stages (rather than
     // binding to both unconditionally) means a VS-only or PS-only
     // resource can share a register number with a different resource in
-    // the other stage — matches RFC §3.4's per-stage register file.
+    // the other stage, matching D3D11's per-stage register file.
     for (const auto& tex : bg->m_d3d11Textures)
     {
         if (tex.vsSlot != BindingMap::kAbsent)

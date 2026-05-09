@@ -41,11 +41,11 @@ namespace
 //
 // Forward compat: a newer writer may emit entries larger than the current
 // reader knows about by bumping entry_size. The reader skips the trailing
-// unknown bytes per entry. New fields are always *appended* at the tail —
-// no reserved-for-future slots inside the known prefix, since entry_size
+// unknown bytes per entry. New fields are always *appended* at the tail.
+// No reserved-for-future slots inside the known prefix, since entry_size
 // already gives us self-describing append-only growth. Any mismatch that
 // matters semantically (blob_version or allocator_version) is a loud
-// error — see RFC §14.4 / §14.6.
+// error.
 
 constexpr size_t kBlobHeaderSize = 8;
 constexpr uint16_t kEntryWireSize = 14;
@@ -97,7 +97,7 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
     const uint8_t blobVer = data[0];
     const uint8_t allocVer = data[1];
     if (blobVer != kBlobVersion)
-        return false; // RFC §14.4: never silent-fallback.
+        return false; // Never silent-fallback on a malformed blob.
     if (allocVer != kAllocatorVersion)
         return false;
 

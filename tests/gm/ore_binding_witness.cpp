@@ -24,7 +24,7 @@
  *
  * Both resources are packed into a single BindGroup at groupIndex=0 so
  * the test specifically exercises multiple UBOs with non-dense bindings
- * in the same group — the exact case RFC §11.1 witnesses.
+ * in the same group.
  */
 
 #include "gm.hpp"

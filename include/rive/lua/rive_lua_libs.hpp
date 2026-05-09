@@ -2071,14 +2071,6 @@ bool lua_gpu_load_shader_by_name(rive::ScriptedShader* out,
                                  const char* name,
                                  rive::ShaderAsset* fileAsset);
 
-// Build a ScriptedShader directly from raw RSTB bytes. Used by the legacy
-// `loadShader` fallback for .riv files that packed WGSL shaders into
-// ScriptAsset containers before the ShaderAsset split.
-bool lua_gpu_make_shader_from_rstb(rive::ScriptedShader* out,
-                                   rive::ScriptingContext* context,
-                                   const uint8_t* data,
-                                   uint32_t len);
-
 // Compile a shader by name and push the resulting ScriptedShader onto the
 // Lua stack. Returns 1 on success, 0 on failure. Declared here (implemented
 // in lua_gpu.cpp) so callers that only have a forward-declaration of

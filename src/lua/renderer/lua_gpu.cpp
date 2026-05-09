@@ -503,7 +503,7 @@ static bool makeShaderFromRstb(Context* oreCtx,
         return false;
 
     uint8_t target = currentShaderTarget();
-    auto blob = asset.findShader(0, target);
+    auto blob = asset.findShader(target);
     if (blob.empty())
         return false;
 
@@ -511,8 +511,8 @@ static bool makeShaderFromRstb(Context* oreCtx,
     uint32_t blobSize = static_cast<uint32_t>(blob.size());
 
     // Binding-map sidecar (mandatory) + GL fixup sidecars (only present
-    // for the GLSL source target). RFC §14.4: every shipped shader carries
-    // a sidecar paired with its source variant.
+    // for the GLSL source target). Every shipped shader carries a sidecar
+    // paired with its source variant.
     auto bindingMapTargetFor = [](uint8_t t) -> uint8_t {
         switch (t)
         {
@@ -531,15 +531,15 @@ static bool makeShaderFromRstb(Context* oreCtx,
         }
     };
     uint8_t bmTarget = bindingMapTargetFor(target);
-    auto bindingMapBlob = (bmTarget == 255) ? Span<const uint8_t>{}
-                                            : asset.findShader(0, bmTarget);
+    auto bindingMapBlob =
+        (bmTarget == 255) ? Span<const uint8_t>{} : asset.findShader(bmTarget);
     const uint8_t* bindingMapBytes =
         bindingMapBlob.empty() ? nullptr : bindingMapBlob.data();
     uint32_t bindingMapSize = static_cast<uint32_t>(bindingMapBlob.size());
     auto vsGLFixupBlob =
-        (target == 1) ? asset.findShader(0, 14) : Span<const uint8_t>{};
+        (target == 1) ? asset.findShader(14) : Span<const uint8_t>{};
     auto fsGLFixupBlob =
-        (target == 1) ? asset.findShader(0, 15) : Span<const uint8_t>{};
+        (target == 1) ? asset.findShader(15) : Span<const uint8_t>{};
     const uint8_t* vsGLFixupBytes =
         vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
     uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());
@@ -654,19 +654,6 @@ static bool makeShaderFromRstb(Context* oreCtx,
     return out->module != nullptr;
 }
 
-/// Public wrapper: build a ScriptedShader from raw RSTB bytes. Used by the
-/// runtime `loadShader` fallback path for legacy .riv files where WGSL
-/// shaders were packed into ScriptAsset containers (pre-ShaderAsset).
-bool lua_gpu_make_shader_from_rstb(ScriptedShader* out,
-                                   ScriptingContext* context,
-                                   const uint8_t* data,
-                                   uint32_t len)
-{
-    Context* oreCtx = static_cast<Context*>(
-        context != nullptr ? context->oreContext() : nullptr);
-    return makeShaderFromRstb(oreCtx, data, len, out);
-}
-
 /// Look up a shader by name: first check the per-VM RSTB blobs on the
 /// ScriptingContext (editor path, compiled during requestVM), then try the
 /// ShaderAsset from file->assets() (runtime .riv path).
@@ -702,7 +689,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
     if (fileAsset != nullptr && oreCtx != nullptr)
     {
         uint8_t target = currentShaderTarget();
-        auto blob = fileAsset->findShader(0, target);
+        auto blob = fileAsset->findShader(target);
         if (!blob.empty())
         {
             const char* blobData = reinterpret_cast<const char*>(blob.data());
@@ -729,15 +716,14 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                         return 255;
                 }
             }(target);
-            auto bmBlob = (bmTarget == 255)
-                              ? Span<const uint8_t>{}
-                              : fileAsset->findShader(0, bmTarget);
+            auto bmBlob = (bmTarget == 255) ? Span<const uint8_t>{}
+                                            : fileAsset->findShader(bmTarget);
             const uint8_t* bindingMapBytes =
                 bmBlob.empty() ? nullptr : bmBlob.data();
             uint32_t bindingMapSize = static_cast<uint32_t>(bmBlob.size());
-            auto vsFixupBlob = (target == 1) ? fileAsset->findShader(0, 14)
+            auto vsFixupBlob = (target == 1) ? fileAsset->findShader(14)
                                              : Span<const uint8_t>{};
-            auto fsFixupBlob = (target == 1) ? fileAsset->findShader(0, 15)
+            auto fsFixupBlob = (target == 1) ? fileAsset->findShader(15)
                                              : Span<const uint8_t>{};
             const uint8_t* vsFixupBytes =
                 vsFixupBlob.empty() ? nullptr : vsFixupBlob.data();
@@ -2358,7 +2344,7 @@ static int gpurenderpass_setbindgroup(lua_State* L)
     // Parse optional dynamic offsets array.
     //
     // WebGPU contract: `dynamicOffsets[i]` corresponds to the i-th dynamic
-    // entry in the BindGroupLayout (= ascending `@binding` per RFC §3.6).
+    // entry in the BindGroupLayout, ordered by ascending `@binding`.
     // The count must equal the BindGroup's dynamic-offset count exactly,
     // and each value must be aligned to `minUniformBufferOffsetAlignment`
     // (256 bytes — D3D11.1's `firstConstant` requirement, D3D12's CBV

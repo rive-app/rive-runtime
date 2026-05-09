@@ -11,6 +11,8 @@
 
 #include "common/testing_window.hpp"
 #include "rive/renderer/render_context.hpp"
+#include <array>
+#include <cassert>
 #include <cstdio>
 #include <cstring>
 #include <unordered_map>
@@ -435,26 +437,29 @@ struct OreGMShaderResult
     const char* fsEntryPoint = "fs_main";
 };
 
-// Reuse ShaderAsset for RSTB parsing — single source of truth for
-// the binary format (handles v1 and v2, including tagged metadata sections).
-inline rive::ShaderAsset& getRstbAsset()
+// Lazy per-shader ShaderAsset cache. The fixture header
+// `ore_gm_shaders.rstb.hpp` embeds N single-shader RSTB v3 blobs concatenated
+// with an offset table indexed by `OreGMShader`.
+inline rive::ShaderAsset& getRstbAssetForShader(uint32_t shaderId)
 {
-    static rive::ShaderAsset asset;
-    static bool parsed = false;
-    if (!parsed)
+    static std::array<rive::ShaderAsset, ore_gm_shaders::kShaderCount> assets;
+    static std::array<bool, ore_gm_shaders::kShaderCount> parsed{};
+    assert(shaderId < ore_gm_shaders::kShaderCount);
+    if (!parsed[shaderId])
     {
-        parsed = true;
-        // ShaderAsset::decode expects a SignedContentHeader envelope
-        // (`[flags:1][sig:64?][RSTB...]`). ore_gm_rstb_test emits raw RSTB,
-        // so prepend an unsigned envelope (flags=0, no signature).
-        rive::SimpleArray<uint8_t> data(ore_gm_shaders::kDataLen + 1);
+        parsed[shaderId] = true;
+        // ShaderAsset::decode expects a SignedContentHeader envelope. Prepend
+        // an unsigned envelope (flags=0) around the per-shader RSTB slice.
+        uint32_t off = ore_gm_shaders::kShaderOffsets[shaderId];
+        uint32_t size = ore_gm_shaders::kShaderOffsets[shaderId + 1] - off;
+        rive::SimpleArray<uint8_t> data(size + 1);
         data[0] = 0x00;
-        memcpy(data.data() + 1,
-               ore_gm_shaders::kData,
-               ore_gm_shaders::kDataLen);
-        asset.decode(data, nullptr);
+        memcpy(data.data() + 1, ore_gm_shaders::kShaderData + off, size);
+        bool ok = assets[shaderId].decode(data, nullptr);
+        assert(ok && "ore_gm fixture decode failed");
+        (void)ok;
     }
-    return asset;
+    return assets[shaderId];
 }
 
 /// Map TestingWindow backend to RSTB ShaderTarget.
@@ -504,11 +509,11 @@ inline std::pair<const char*, const char*> wgslEntryPoints(uint32_t shaderId)
     }
 }
 
-/// RSTB ShaderTarget IDs (RFC §8.1). The full table for both the
-/// shader-source variants and the per-target binding-map sidecars is
-/// scattered across `ore_gm_rstb_test.cpp` (writer side) and
-/// `shaderTargetForBackend` / `bindingMapTargetFor` (reader side); kept
-/// here so a single grep finds every magic number.
+/// RSTB ShaderTarget IDs. The full table for both the shader-source
+/// variants and the per-target binding-map sidecars is scattered across
+/// `ore_gm_rstb_test.cpp` (writer side) and `shaderTargetForBackend` /
+/// `bindingMapTargetFor` (reader side); kept here so a single grep finds
+/// every magic number.
 ///
 ///   Source variants (the compiled shader bytes):
 ///     0  WGSL              (passthrough WGSL for the WGPU backend)
@@ -520,7 +525,7 @@ inline std::pair<const char*, const char*> wgslEntryPoints(uint32_t shaderId)
 ///     6-9 reserved — future source variants
 ///
 ///   Binding-map sidecars (paired 1:1 with a source target;
-///   `findShader(id, sidecarTarget)` returns the `ore::BindingMap` blob
+///   `findShader(sidecarTarget)` returns the `ore::BindingMap` blob
 ///   the runtime parses with `BindingMap::fromBlob`):
 ///     10 MSL binding map        (paired with source 2)
 ///     11 GLSL binding map       (paired with source 1)
@@ -559,36 +564,30 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     using namespace rive::ore;
     OreGMShaderResult result{};
 
-    auto& asset = getRstbAsset();
+    auto& asset = getRstbAssetForShader(shaderId);
     uint8_t target = shaderTargetForBackend();
 
-    auto blob = asset.findShader(shaderId, target);
+    auto blob = asset.findShader(target);
     if (blob.empty())
         return result;
 
     const char* blobData = reinterpret_cast<const char*>(blob.data());
     uint32_t blobSize = static_cast<uint32_t>(blob.size());
 
-    // Look up the binding-map sidecar — required by `makeShaderModule`
-    // (RFC §14.4). `bindingMapTargetFor` returns 255 only for source
-    // targets we don't ship; for any active runtime target there must be
-    // a paired sidecar in the RSTB.
+    // Binding-map sidecar (mandatory).
     uint8_t bmTarget = bindingMapTargetFor(target);
-    auto bindingMapBlob = (bmTarget == 255)
-                              ? rive::Span<const uint8_t>{}
-                              : asset.findShader(shaderId, bmTarget);
+    auto bindingMapBlob = (bmTarget == 255) ? rive::Span<const uint8_t>{}
+                                            : asset.findShader(bmTarget);
     assert(bmTarget == 255 || !bindingMapBlob.empty());
     const uint8_t* bindingMapBytes =
         bindingMapBlob.empty() ? nullptr : bindingMapBlob.data();
     uint32_t bindingMapSize = static_cast<uint32_t>(bindingMapBlob.size());
 
-    // GL program-link fixup tables (sidecar targets 14 = VS, 15 = FS).
-    // Only the GLSL source target carries them; lookup is a cheap no-op
-    // for other backends.
-    auto vsGLFixupBlob = (target == 1) ? asset.findShader(shaderId, 14)
-                                       : rive::Span<const uint8_t>{};
-    auto fsGLFixupBlob = (target == 1) ? asset.findShader(shaderId, 15)
-                                       : rive::Span<const uint8_t>{};
+    // GL program-link fixup tables (only present for GLSL source target).
+    auto vsGLFixupBlob =
+        (target == 1) ? asset.findShader(14) : rive::Span<const uint8_t>{};
+    auto fsGLFixupBlob =
+        (target == 1) ? asset.findShader(15) : rive::Span<const uint8_t>{};
     const uint8_t* vsGLFixupBytes =
         vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
     uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());

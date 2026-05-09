@@ -87,10 +87,9 @@ private:
     Pipeline(const PipelineDesc& desc) : m_desc(desc)
     {
         // Propagate the binding map from the VS module (or FS if VS is
-        // absent — e.g. blit-only pipelines). The two modules are
+        // absent, e.g. blit-only pipelines). The two modules are
         // compiled from a single WGSL source so their maps agree, and
-        // every module is required to carry a populated map (sidecar
-        // mandatory, RFC §14.4).
+        // every module is required to carry a populated map.
         if (desc.vertexModule != nullptr)
         {
             m_bindingMap = desc.vertexModule->m_bindingMap;

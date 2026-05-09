@@ -681,18 +681,6 @@ void File::registerScripts()
         {
             for (auto scriptAsset : scripts)
             {
-                // Legacy-compat: .riv files exported before the ShaderAsset
-                // split (typeKey 970) pack WGSL RSTB blobs into ScriptAssets.
-                // Detect by RSTB magic "RSTB" (0x52535442 LE) and skip —
-                // the shader lookup path picks them up by name via the
-                // fallback in loadShader.
-                auto bc = scriptAsset->moduleBytecode();
-                if (bc.size() >= 4 && bc[0] == 'R' && bc[1] == 'S' &&
-                    bc[2] == 'T' && bc[3] == 'B')
-                {
-                    continue;
-                }
-
                 // At runtime, if the script is verified, add it to be
                 // registered with the VM. At edit time, the script will
                 // have already been registered, so this won't run.

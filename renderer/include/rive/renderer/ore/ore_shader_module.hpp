@@ -77,7 +77,7 @@ public:
     // Helper for backend `makeShaderModule` paths: parse the binding-map
     // sidecar bytes (`desc.bindingMapBytes`) into `m_bindingMap`. The
     // sidecar is mandatory; runtime backends rely on it to translate
-    // `@group/@binding` to native slots (RFC §14.4).
+    // `@group/@binding` to native slots.
     void applyBindingMapFromDesc(const ShaderModuleDesc& desc)
     {
         assert(desc.bindingMapBytes != nullptr && desc.bindingMapSize > 0 &&

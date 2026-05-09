@@ -6,8 +6,8 @@
  * + Phase 3).
  *
  * Locks in the WebGPU contract that `dynamicOffsets[i]` is consumed in
- * BindGroupLayout-entry order (= ascending `@binding` per RFC §3.6 BGL
- * sort), NOT in the caller's `desc.ubos[]` order.
+ * BindGroupLayout-entry order (ascending `@binding` within a kind), NOT
+ * in the caller's `desc.ubos[]` order.
  *
  * Two dynamic UBOs at @group(0) @binding(0) and @group(0) @binding(1).
  * One buffer with two 256-byte aligned ranges:
@@ -111,7 +111,7 @@ public:
         if (!shader.vsModule)
             return;
 
-        // Dynamic UBO bindings declared on the layout (RFC §3.6 / Dawn).
+        // Dynamic UBO bindings declared on the layout.
         const uint32_t dynBindings[] = {0, 1};
         auto layout0 = ore_gm::makeLayoutFromShader(ctx,
                                                     shader.vsModule.get(),

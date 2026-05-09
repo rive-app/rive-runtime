@@ -2,11 +2,9 @@
  * Copyright 2026 Rive
  *
  * Private helpers for building `VkDescriptorSetLayout`s from a public
- * `BindGroupLayoutDesc` (RFC §9.1, Phase E — explicit BindGroupLayout
- * decoupling). Pre-Phase-E this file built DSLs from the pipeline's
- * `ore::BindingMap` directly; with Phase E the user supplies entries
- * up front via `Context::makeBindGroupLayout`, and the DSL is built
- * once per layout instead of per pipeline.
+ * `BindGroupLayoutDesc`. The user supplies entries up front via
+ * `Context::makeBindGroupLayout`, and the DSL is built once per layout
+ * instead of per pipeline.
  */
 
 #pragma once

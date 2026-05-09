@@ -147,19 +147,18 @@ private:
     // Metal: flat resource arrays applied at setBindGroup time.
     //
     // Per-stage Metal slots are stored independently per resource: Metal
-    // has separate VS / FS argument tables, and the allocator (RFC §3.2.1)
-    // is free to assign different per-stage slots — VS-only UBO A and
-    // FS-only UBO B can share Metal slot 0 in their own stages. Each
-    // `*Slot` is `BindingMap::kAbsent` when the binding isn't visible to
-    // that stage; setBindGroup then skips the per-stage emit instead of
-    // forwarding `0` (which would clobber another resource's slot).
+    // has separate VS / FS argument tables, and the allocator is free to
+    // assign different per-stage slots, so VS-only UBO A and FS-only UBO B
+    // can share Metal slot 0 in their own stages. Each `*Slot` is
+    // `BindingMap::kAbsent` when the binding isn't visible to that stage;
+    // setBindGroup then skips the per-stage emit instead of forwarding `0`
+    // (which would clobber another resource's slot).
     //
     // `binding` carries the WGSL `@binding` value, used as the sort key
-    // for dynamic-offset ordering: WebGPU spec requires `dynamicOffsets[i]`
-    // to be consumed in BindGroupLayout entry order, which (per RFC §3.6)
-    // is ascending `@binding` within a kind. Sorting at construction time
-    // makes the BindGroup robust to callers who pass `desc.ubos[]` in any
-    // order.
+    // for dynamic-offset ordering: WebGPU requires `dynamicOffsets[i]` to
+    // be consumed in BindGroupLayout entry order, which is ascending
+    // `@binding` within a kind. Sorting at construction time makes the
+    // BindGroup robust to callers who pass `desc.ubos[]` in any order.
     struct MTLBufferBinding
     {
         id<MTLBuffer> buffer = nil;
@@ -225,12 +224,12 @@ private:
     // D3D11: store resource pointers + per-stage register slots.
     //
     // D3D11 has independent VS / PS register namespaces (`b0` in VS is a
-    // different register than `b0` in PS). The allocator (RFC §3.4) is
-    // free to assign different per-stage register numbers — VS-only and
-    // PS-only resources can share register 0 in their own stages. Each
-    // `*Slot` is `BindingMap::kAbsent` when the binding isn't visible to
-    // that stage; setBindGroup then skips the per-stage `VSSet*` /
-    // `PSSet*` call so we don't overwrite another resource's slot.
+    // different register than `b0` in PS). The allocator is free to assign
+    // different per-stage register numbers, so VS-only and PS-only
+    // resources can share register 0 in their own stages. Each `*Slot` is
+    // `BindingMap::kAbsent` when the binding isn't visible to that stage;
+    // setBindGroup then skips the per-stage `VSSet*` / `PSSet*` call so
+    // we don't overwrite another resource's slot.
     //
     // `binding` carries the WGSL `@binding` value, used as the sort key
     // for dynamic-offset ordering (same shape as the Metal binding) so

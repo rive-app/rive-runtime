@@ -14,8 +14,8 @@ namespace rive::ore
 // ============================================================================
 
 // Maximum number of bind groups Ore supports per pipeline. WebGPU's
-// `maxBindGroups` minimum is 4 (RFC §9.1 / §14.2), and Ore sits at that
-// minimum — backends preallocate per-group structures using this
+// `maxBindGroups` minimum is 4, and Ore sits at that minimum. Backends
+// preallocate per-group structures using this
 // constant (Vulkan DSLs, WebGPU BGLs, D3D12 root params, RenderPass
 // `m_boundGroups`). Single source of truth across every backend's
 // per-group array, the public `BindGroupDesc::groupIndex` validity
@@ -411,10 +411,10 @@ struct ShaderModuleDesc
     const char* hlslEntryPoint = nullptr;
 
     // Required binding-map sidecar bytes from the RSTB (target IDs 10-13,
-    // 16 — one per source backend). `makeShaderModule` parses them via
+    // 16, one per source backend). `makeShaderModule` parses them via
     // `ore::BindingMap::fromBlob` into `ShaderModule::m_bindingMap`. The
-    // sidecar is mandatory (RFC §14.4): a missing or unparseable blob is a
-    // programming error, not a fallback condition.
+    // sidecar is mandatory: a missing or unparseable blob is a programming
+    // error, not a fallback condition.
     const uint8_t* bindingMapBytes = nullptr;
     uint32_t bindingMapSize = 0;
 
@@ -486,7 +486,7 @@ struct DepthStencilState
 };
 
 // ============================================================================
-// BindGroupLayout Descriptor — explicit layout, Dawn-shaped (RFC §3.2 / §6).
+// BindGroupLayout Descriptor, explicit layout, Dawn-shaped.
 //
 // One layout per WGSL `@group(N)`. Created via `Context::makeBindGroupLayout`
 // and consumed by both `PipelineDesc::bindGroupLayouts[]` and
