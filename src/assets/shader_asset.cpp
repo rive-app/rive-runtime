@@ -3,12 +3,12 @@
 
 using namespace rive;
 
-bool ShaderAsset::decode(SimpleArray<uint8_t>& data, Factory*)
+bool rive::ShaderAsset::decode(Span<uint8_t> data, Factory* factory)
 {
     // `data` is always a SignedContentHeader envelope
     // (`[flags:1][sig:64?][RSTB...]`) shared with ScriptAsset. Raw-RSTB
     // callers (editor live-preview) must prepend a single 0x00 flag byte.
-    SignedContentHeader envelope(Span<const uint8_t>(data.data(), data.size()));
+    SignedContentHeader envelope(std::move(data));
     if (!envelope.isValid())
     {
         return false;

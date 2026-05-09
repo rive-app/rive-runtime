@@ -27,7 +27,12 @@ namespace rive
 class ShaderAsset : public ShaderAssetBase
 {
 public:
-    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
+    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override
+    {
+        return decode(Span<uint8_t>(data.data(), data.size()), factory);
+    }
+
+    bool decode(Span<uint8_t> data, Factory* factory);
     std::string fileExtension() const override { return "rstb"; }
 
     /// Returns the blob for the given target, or an empty span if not present.
