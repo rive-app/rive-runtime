@@ -22,6 +22,7 @@
 #include "rive/virtualizing_component.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/semantic/semantic_node.hpp"
+#include "rive/lua/scripting_vm.hpp"
 
 #include <queue>
 #include <unordered_set>
@@ -91,6 +92,9 @@ private:
     std::vector<ScriptedObject*> m_ScriptedObjects;
     std::vector<AdvancingComponent*> m_advancingComponents;
     rcp<DataContext> m_DataContext = nullptr;
+#ifdef WITH_RIVE_SCRIPTING
+    ScriptingVM* m_scriptingVM = nullptr;
+#endif
     bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
@@ -333,6 +337,7 @@ public:
     void addScriptedObject(ScriptedObject* object);
 
     void drawCanvases();
+    void internalDrawCanvases();
 
     /// Poll async work (image decodes, etc.) so promises resolve before
     /// script callbacks run. Called at the top of advance().
@@ -372,6 +377,9 @@ public:
         return m_ComponentLists;
     }
     rcp<DataContext> dataContext() { return m_DataContext; }
+#ifdef WITH_RIVE_SCRIPTING
+    void scriptingVM(ScriptingVM* value) { m_scriptingVM = value; }
+#endif
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 

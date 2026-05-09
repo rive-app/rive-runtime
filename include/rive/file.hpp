@@ -255,6 +255,7 @@ public:
 
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
+    std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
 
     /// The file's backboard. All Rive files have a single backboard
     /// where the artboards live.

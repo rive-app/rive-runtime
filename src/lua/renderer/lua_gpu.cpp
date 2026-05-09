@@ -2637,6 +2637,14 @@ static int gpucanvashandle_beginrenderpass(lua_State* L)
         luaL_error(L, "GPU context not initialized");
     }
 
+    auto* scriptingContext =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (scriptingContext == nullptr || !scriptingContext->canvasDrawingPhase())
+    {
+        luaL_error(L,
+                   "GPUCanvas:beginRenderPass() called outside drawing phase");
+    }
+
     RenderPassDesc passDesc{};
     passDesc.colorCount = 1;
     // Default: if the canvas has an MSAA color texture, render into it and
@@ -3149,6 +3157,12 @@ static int canvashandle_beginframe(lua_State* L)
     if (self->renderCtx == nullptr)
     {
         luaL_error(L, "Canvas: renderCtx not initialized");
+    }
+    auto* scriptingContext =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (scriptingContext == nullptr || !scriptingContext->canvasDrawingPhase())
+    {
+        luaL_error(L, "Canvas:beginFrame() called outside drawing phase");
     }
     if (self->m_state != CanvasState::Idle)
     {

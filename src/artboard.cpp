@@ -48,6 +48,9 @@
 #include "rive/layout/layout_data.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
+#ifdef WITH_RIVE_SCRIPTING
+#include "rive/lua/rive_lua_libs.hpp"
+#endif
 #include "rive/async/work_pool.hpp"
 
 #include <set>
@@ -891,6 +894,25 @@ void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
 
 void Artboard::drawCanvases()
 {
+#ifdef WITH_RIVE_SCRIPTING
+    if (m_scriptingVM)
+    {
+        auto* L = m_scriptingVM->state();
+        if (L != nullptr)
+        {
+            auto* context =
+                static_cast<ScriptingContext*>(lua_getthreaddata(L));
+            ScopedCanvasDrawingPhase phase(context);
+            internalDrawCanvases();
+            return;
+        }
+    }
+#endif
+    internalDrawCanvases();
+}
+
+void Artboard::internalDrawCanvases()
+{
     for (auto obj : m_ScriptedObjects)
     {
         obj->scriptDrawCanvas();
@@ -902,7 +924,7 @@ void Artboard::drawCanvases()
             auto* nested = artboardHost->artboardInstance(i);
             if (nested != nullptr)
             {
-                nested->drawCanvases();
+                nested->internalDrawCanvases();
             }
         }
     }
@@ -1570,6 +1592,7 @@ bool Artboard::hitTestPoint(const Vec2D& position,
 void Artboard::draw(Renderer* renderer)
 {
     sm_frameId++;
+    drawCanvases();
     drawInternal(renderer);
 }
 

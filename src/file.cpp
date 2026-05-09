@@ -793,22 +793,35 @@ std::string File::artboardNameAt(size_t index) const
     return ab ? ab->name() : "";
 }
 
+std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
+{
+    if (ab)
+    {
+        auto artboardInstance = ab->instance();
+#ifdef WITH_RIVE_SCRIPTING
+        artboardInstance->scriptingVM(m_scriptingVM.get());
+#endif
+        return artboardInstance;
+    }
+    return nullptr;
+}
+
 std::unique_ptr<ArtboardInstance> File::artboardDefault() const
 {
     auto ab = this->artboard();
-    return ab ? ab->instance() : nullptr;
+    return instanceArtboard(ab);
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const
 {
     auto ab = this->artboard(index);
-    return ab ? ab->instance() : nullptr;
+    return instanceArtboard(ab);
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 {
     auto ab = this->artboard(name);
-    return ab ? ab->instance() : nullptr;
+    return instanceArtboard(ab);
 }
 
 rcp<BindableArtboard> File::bindableArtboardNamed(std::string name) const

@@ -1417,6 +1417,11 @@ public:
     void setOreFrameOpen(bool open) { m_oreFrameOpen = open; }
     bool oreFrameOpen() const { return m_oreFrameOpen; }
 
+    // True while Artboard::drawCanvases() is actively walking scripted
+    // objects to invoke their drawCanvas() Lua callbacks.
+    void setCanvasDrawingPhase(bool value) { m_canvasDrawingPhase = value; }
+    bool canvasDrawingPhase() const { return m_canvasDrawingPhase; }
+
     // WebGL/WASM only: GL context handle saved at riveGPUBeginFrame so
     // riveGPUEndFrame can restore the caller's context afterwards.
     void setPrevGLContext(intptr_t h) { m_prevGLContext = h; }
@@ -1441,6 +1446,7 @@ private:
     void* m_renderContext = nullptr;
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
+    bool m_canvasDrawingPhase = false;
     intptr_t m_prevGLContext = 0;
 #ifdef __EMSCRIPTEN__
     int m_glHandle = 0;
@@ -1511,6 +1517,32 @@ public:
 private:
     ScriptingContext* m_context;
     ScriptedObject* m_previous;
+};
+
+class ScopedCanvasDrawingPhase
+{
+public:
+    ScopedCanvasDrawingPhase(ScriptingContext* context) :
+        m_context(context),
+        m_previous(context == nullptr ? false : context->canvasDrawingPhase())
+    {
+        if (m_context != nullptr)
+        {
+            m_context->setCanvasDrawingPhase(true);
+        }
+    }
+
+    ~ScopedCanvasDrawingPhase()
+    {
+        if (m_context != nullptr)
+        {
+            m_context->setCanvasDrawingPhase(m_previous);
+        }
+    }
+
+private:
+    ScriptingContext* m_context;
+    bool m_previous;
 };
 
 class ScriptedDataValue
