@@ -384,18 +384,12 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
-            case ViewModelPropertyColorBase::typeKey:
-                return new ViewModelPropertyColor();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelPropertyColorBase::typeKey:
+                return new ViewModelPropertyColor();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -408,12 +402,18 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -1839,6 +1839,9 @@ public:
             case NestedArtboardBase::isPausedPropertyKey:
                 object->as<NestedArtboardBase>()->isPaused(value);
                 break;
+            case NestedArtboardBase::isStatefulPropertyKey:
+                object->as<NestedArtboardBase>()->isStateful(value);
+                break;
             case AxisBase::normalizedPropertyKey:
                 object->as<AxisBase>()->normalized(value);
                 break;
@@ -1915,9 +1918,6 @@ public:
                 break;
             case LayoutComponentBase::clipPropertyKey:
                 object->as<LayoutComponentBase>()->clip(value);
-                break;
-            case ArtboardBase::isStatefulPropertyKey:
-                object->as<ArtboardBase>()->isStateful(value);
                 break;
             case SemanticDataBase::isExpandablePropertyKey:
             {
@@ -3678,6 +3678,8 @@ public:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
             case NestedArtboardBase::isPausedPropertyKey:
                 return object->as<NestedArtboardBase>()->isPaused();
+            case NestedArtboardBase::isStatefulPropertyKey:
+                return object->as<NestedArtboardBase>()->isStateful();
             case AxisBase::normalizedPropertyKey:
                 return object->as<AxisBase>()->normalized();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -3731,8 +3733,6 @@ public:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
                 return object->as<LayoutComponentBase>()->clip();
-            case ArtboardBase::isStatefulPropertyKey:
-                return object->as<ArtboardBase>()->isStateful();
             case DataBindPathBase::isRelativePropertyKey:
                 return object->as<DataBindPathBase>()->isRelative();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
@@ -4515,6 +4515,7 @@ public:
             case ScrollConstraintBase::interactivePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case NestedArtboardBase::isPausedPropertyKey:
+            case NestedArtboardBase::isStatefulPropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -4540,7 +4541,6 @@ public:
             case FocusDataBase::canTraversePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
-            case ArtboardBase::isStatefulPropertyKey:
             case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
@@ -5382,6 +5382,8 @@ public:
                 return object->is<ScrollBarConstraintBase>();
             case NestedArtboardBase::isPausedPropertyKey:
                 return object->is<NestedArtboardBase>();
+            case NestedArtboardBase::isStatefulPropertyKey:
+                return object->is<NestedArtboardBase>();
             case AxisBase::normalizedPropertyKey:
                 return object->is<AxisBase>();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -5432,8 +5434,6 @@ public:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:
                 return object->is<LayoutComponentBase>();
-            case ArtboardBase::isStatefulPropertyKey:
-                return object->is<ArtboardBase>();
             case SemanticDataBase::isExpandablePropertyKey:
                 return object->is<SemanticDataBase>();
             case SemanticDataBase::isSelectablePropertyKey:

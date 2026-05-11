@@ -1265,14 +1265,10 @@ void ArtboardComponentList::bindArtboard(
         auto dataContext = mainArtboard->dataContext();
         rcp<ViewModelInstance> viewModelInstance = nullptr;
 
-        // Check if the source artboard is stateful - if so, create a new
-        // instance for it (takes priority over any existing list item
-        // instance). Clone the list item's instance when available so we
-        // pick up its property values; otherwise fall back to the default.
         if (m_file != nullptr)
         {
             auto source = artboardInstance->artboardSource();
-            if (source != nullptr && source->isStateful())
+            if (m_useStatefulInstances && source != nullptr)
             {
                 auto listItemInstance = listItem->viewModelInstance();
                 if (listItemInstance != nullptr)
