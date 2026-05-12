@@ -76,6 +76,7 @@
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -585,6 +586,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedPathEffect::typeKey:
             case ScriptedListenerAction::typeKey:
             case ScriptedTransitionCondition::typeKey:
+            case ScriptedInterpolator::typeKey:
             {
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
@@ -633,6 +635,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             {
                 m_keyframeInterpolators.push_back(
                     object->as<KeyFrameInterpolator>());
+            }
+            if (object->is<ScriptedInterpolator>())
+            {
+                m_scriptedInterpolators.push_back(
+                    object->as<ScriptedInterpolator>());
             }
         }
         else if (object->is<ScrollPhysics>())
@@ -697,6 +704,15 @@ void File::registerScripts()
             // Perform registration - ScriptingContext will handle dependencies
             // and retries
             vm->performRegistration();
+        }
+
+        for (auto& interpolator : m_scriptedInterpolators)
+        {
+            auto scriptAsset = interpolator->scriptAsset();
+            if (scriptAsset != nullptr)
+            {
+                scriptAsset->initScriptedObject(interpolator);
+            }
         }
     }
 }

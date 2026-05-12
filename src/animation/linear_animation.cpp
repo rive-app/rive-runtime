@@ -68,7 +68,10 @@ void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object)
     m_KeyedObjects.push_back(std::move(object));
 }
 
-void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
+void LinearAnimation::apply(Artboard* artboard,
+                            float time,
+                            float mix,
+                            const LinearAnimationInstance* context) const
 {
     if (quantize())
     {
@@ -77,7 +80,7 @@ void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
     }
     for (const auto& object : m_KeyedObjects)
     {
-        object->apply(artboard, time, mix);
+        object->apply(artboard, time, mix, context);
     }
 }
 

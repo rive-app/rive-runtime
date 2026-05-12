@@ -28,7 +28,8 @@ enum ScriptProtocol
     converter,
     pathEffect,
     listenerAction,
-    transitionCondition
+    transitionCondition,
+    interpolator
 };
 
 #ifdef WITH_RIVE_SCRIPTING

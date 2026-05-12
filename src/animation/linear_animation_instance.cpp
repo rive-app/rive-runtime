@@ -1,8 +1,12 @@
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/interpolating_keyframe.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/loop.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
+#include "rive/assets/script_asset.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/profiler/profiler_macros.h"
+#include "rive/scripted/scripted_interpolator.hpp"
 
 #include <cmath>
 #include <cassert>
@@ -38,7 +42,99 @@ LinearAnimationInstance::LinearAnimationInstance(
     m_loopValue(lhs.m_loopValue)
 {}
 
-LinearAnimationInstance::~LinearAnimationInstance() {}
+LinearAnimationInstance::~LinearAnimationInstance()
+{
+    // Critical teardown order, mirroring the SMI pattern at
+    // state_machine_instance.cpp:2011-2044: pull cloned data binds out of
+    // the artboard and delete them BEFORE m_scriptedInterpolatorInstances
+    // destroys the clones whose CustomPropertys are those binds' targets.
+    // Without this, the next Artboard::updateDataBinds() (which runs every
+    // frame from updatePass) reads through DataBind::target() into freed
+    // memory.
+    if (m_artboardInstance != nullptr)
+    {
+        for (auto* bind : m_clonedArtboardDataBinds)
+        {
+            m_artboardInstance->removeDataBind(bind);
+            delete bind;
+        }
+    }
+    m_clonedArtboardDataBinds.clear();
+    // m_scriptedInterpolatorInstances destructs here via unique_ptr; safe now
+    // that no DataBind still points at the clones' CustomPropertys.
+}
+
+// Returns a per-(this LAI, keyframe) stateful clone of the given shared
+// ScriptedInterpolator. Mirrors StateMachineInstance::scriptedObjects but
+// keyed by the keyframe pointer so distinct keyframes that share a script
+// each get their own Lua `self` table. Lazily allocates the map and the
+// clone on first hit; subsequent calls return the cached clone. Cleanup
+// runs in ~LinearAnimationInstance via unique_ptr.
+ScriptedInterpolator* LinearAnimationInstance::statefulInterpolator(
+    const InterpolatingKeyFrame* keyframe,
+    const ScriptedInterpolator* shared) const
+{
+    if (shared == nullptr || keyframe == nullptr)
+    {
+        return nullptr;
+    }
+    if (m_scriptedInterpolatorInstances == nullptr)
+    {
+        m_scriptedInterpolatorInstances = std::make_unique<
+            std::unordered_map<const InterpolatingKeyFrame*,
+                               std::unique_ptr<ScriptedInterpolator>>>();
+    }
+    auto& map = *m_scriptedInterpolatorInstances;
+    auto it = map.find(keyframe);
+    if (it != map.end())
+    {
+        return it->second.get();
+    }
+
+    // cloneScriptedObject is non-const on the source; the shared template is
+    // logically read-only here so the const_cast is safe and matches the
+    // ScriptedListenerAction pattern.
+    auto* cloneAsObj =
+        const_cast<ScriptedInterpolator*>(shared)->cloneScriptedObject(
+            m_artboardInstance);
+    if (cloneAsObj == nullptr)
+    {
+        return nullptr;
+    }
+    auto* clone = static_cast<ScriptedInterpolator*>(cloneAsObj);
+    clone->dataContext(m_artboardInstance->dataContext());
+
+    // Walk the clone's ScriptInputs to discover the binds cloneProperties
+    // just parked on the artboard for this clone. The back-pointer is set
+    // inside cloneProperties (scripted_object.cpp) immediately after
+    // dataBindContainer->addDataBind(...). We track these so ~LAI can
+    // removeDataBind + delete each one BEFORE the clone — whose
+    // CustomProperty is the bind's target — is destroyed.
+    for (auto* prop : clone->customProperties())
+    {
+        if (auto* input = ScriptInput::from(prop))
+        {
+            if (auto* bind = input->dataBind())
+            {
+                m_clonedArtboardDataBinds.push_back(bind);
+            }
+        }
+    }
+
+    // Late-binding safety net: reinit() inside cloneScriptedObject is a no-op
+    // when scriptAsset() is null at clone time. If the asset became available
+    // later (editor live-edit), init now. ensureScriptInitialized
+    // short-circuits when already initialized so this stays cheap.
+    if (clone->scriptAsset() != nullptr && !clone->userLuaInitDone())
+    {
+        clone->scriptAsset()->initScriptedObject(clone);
+        clone->hydrateScriptInputs();
+    }
+
+    auto* raw = clone;
+    map.emplace(keyframe, std::unique_ptr<ScriptedInterpolator>(clone));
+    return raw;
+}
 
 bool LinearAnimationInstance::advanceAndApply(float seconds)
 {

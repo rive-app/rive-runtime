@@ -73,7 +73,10 @@ void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
     }
 }
 
-void KeyedObject::apply(Artboard* artboard, float time, float mix)
+void KeyedObject::apply(Artboard* artboard,
+                        float time,
+                        float mix,
+                        const LinearAnimationInstance* context)
 {
     Core* object = artboard->resolve(objectId());
     if (object == nullptr)
@@ -86,7 +89,7 @@ void KeyedObject::apply(Artboard* artboard, float time, float mix)
         {
             continue;
         }
-        property->apply(object, time, mix);
+        property->apply(object, time, mix, context);
     }
 }
 

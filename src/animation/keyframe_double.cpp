@@ -33,14 +33,16 @@ void KeyFrameDouble::applyInterpolation(Core* object,
                                         int propertyKey,
                                         float currentTime,
                                         const KeyFrame* nextFrame,
-                                        float mix)
+                                        float mix,
+                                        const LinearAnimationInstance* context)
 {
     auto kfd = nextFrame->as<KeyFrameDouble>();
     const KeyFrameDouble& nextDouble = *kfd;
     float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
     float frameValue;
-    if (KeyFrameInterpolator* keyframeInterpolator = interpolator())
+    if (KeyFrameInterpolator* keyframeInterpolator =
+            effectiveInterpolator(context))
     {
         frameValue = keyframeInterpolator->transformValue(value(),
                                                           nextDouble.value(),

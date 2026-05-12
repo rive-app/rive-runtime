@@ -19,6 +19,7 @@ void DataBindContainer::unbindDataBinds()
     {
         dataBind->unbind();
     }
+    m_dataContext = nullptr;
 }
 
 void DataBindContainer::bindDataBindsFromContext(DataContext* dataContext)
@@ -31,6 +32,7 @@ void DataBindContainer::bindDataBindsFromContext(DataContext* dataContext)
             dataBind->as<DataBindContext>()->bindFromContext(dataContext);
         }
     }
+    m_dataContext = dataContext;
 }
 
 bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
@@ -81,6 +83,11 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
         m_persistingDataBinds.push_back(dataBind);
     }
     dataBind->container(this);
+    if (m_dataContext && dataBind->is<DataBindContext>())
+    {
+        dataBind->as<DataBindContext>()->bindFromContext(m_dataContext);
+        updateDataBind(dataBind, true);
+    }
 }
 
 void DataBindContainer::updateDataBind(DataBind* dataBind,

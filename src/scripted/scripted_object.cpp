@@ -9,6 +9,7 @@
 #include "rive/animation/scripted_transition_condition.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_object.hpp"
@@ -32,6 +33,8 @@ ScriptedObject* ScriptedObject::from(Core* object)
             return object->as<ScriptedListenerAction>();
         case ScriptedTransitionCondition::typeKey:
             return object->as<ScriptedTransitionCondition>();
+        case ScriptedInterpolator::typeKey:
+            return object->as<ScriptedInterpolator>();
     }
     return nullptr;
 }
@@ -519,6 +522,11 @@ void ScriptedObject::cloneProperties(CustomPropertyContainer* twin,
                 }
                 dataBindClone->target(clonedValue);
                 dataBindContainer->addDataBind(dataBindClone);
+                if (auto* clonedInput = ScriptInput::from(clonedValue))
+                {
+                    clonedInput->dataBind(dataBindClone,
+                                          /*ownsDataBind=*/false);
+                }
             }
         }
     }

@@ -234,6 +234,7 @@
 #include "rive/script_input_viewmodel_property.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/semantic/semantic_data.hpp"
@@ -464,6 +465,8 @@ public:
                 return new ScriptedDrawable();
             case ScriptedDataConverterBase::typeKey:
                 return new ScriptedDataConverter();
+            case ScriptedInterpolatorBase::typeKey:
+                return new ScriptedInterpolator();
             case ScriptedLayoutBase::typeKey:
                 return new ScriptedLayout();
             case ScriptedPathEffectBase::typeKey:
@@ -1024,6 +1027,9 @@ public:
                 break;
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedDataConverterBase>()->scriptAssetId(value);
+                break;
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
+                object->as<ScriptedInterpolatorBase>()->scriptAssetId(value);
                 break;
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedPathEffectBase>()->scriptAssetId(value);
@@ -3090,6 +3096,8 @@ public:
                 return object->as<ScriptedDrawableBase>()->scriptAssetId();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedDataConverterBase>()->scriptAssetId();
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
+                return object->as<ScriptedInterpolatorBase>()->scriptAssetId();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedPathEffectBase>()->scriptAssetId();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
@@ -4261,6 +4269,7 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
             case ScriptedDrawableBase::scriptAssetIdPropertyKey:
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
             case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
@@ -4886,6 +4895,8 @@ public:
                 return object->is<ScriptedDrawableBase>();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedDataConverterBase>();
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
+                return object->is<ScriptedInterpolatorBase>();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedPathEffectBase>();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:

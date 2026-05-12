@@ -27,13 +27,15 @@ void KeyFrameColor::applyInterpolation(Core* object,
                                        int propertyKey,
                                        float currentTime,
                                        const KeyFrame* nextFrame,
-                                       float mix)
+                                       float mix,
+                                       const LinearAnimationInstance* context)
 {
     auto kfc = nextFrame->as<KeyFrameColor>();
     const KeyFrameColor& nextColor = *kfc;
     float f = (currentTime - seconds()) / (nextColor.seconds() - seconds());
 
-    if (KeyFrameInterpolator* keyframeInterpolator = interpolator())
+    if (KeyFrameInterpolator* keyframeInterpolator =
+            effectiveInterpolator(context))
     {
         f = keyframeInterpolator->transform(f);
     }

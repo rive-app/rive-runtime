@@ -108,7 +108,8 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
         scriptProtocol == ScriptProtocol::converter ||
         scriptProtocol == ScriptProtocol::pathEffect ||
         scriptProtocol == ScriptProtocol::listenerAction ||
-        scriptProtocol == ScriptProtocol::transitionCondition)
+        scriptProtocol == ScriptProtocol::transitionCondition ||
+        scriptProtocol == ScriptProtocol::interpolator)
     {
         if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
             LUA_TFUNCTION)
