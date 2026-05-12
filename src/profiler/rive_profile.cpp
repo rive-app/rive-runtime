@@ -16,10 +16,6 @@ void writeInt64(rive::VectorBinaryWriter& writer, int64_t value)
 {
     writer.write(reinterpret_cast<const uint8_t*>(&value), sizeof(value));
 }
-void writeUint64(rive::VectorBinaryWriter& writer, uint64_t value)
-{
-    writer.write(reinterpret_cast<const uint8_t*>(&value), sizeof(value));
-}
 
 void writeProfileHeader(rive::VectorBinaryWriter& writer)
 {
