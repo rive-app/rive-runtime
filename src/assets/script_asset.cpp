@@ -337,11 +337,6 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                 name().c_str());
         return false;
     }
-    fprintf(stderr,
-            "[activate] script \"%s\" generatorFunctionRef=%u -> lua ref=%d\n",
-            name().c_str(),
-            generatorFunctionRef(),
-            ref);
     rive_lua_pushRef(state, ref);
 
     if (!m_initted)
