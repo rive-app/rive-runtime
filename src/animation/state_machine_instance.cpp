@@ -228,12 +228,24 @@ public:
 
             if (i == maxIterations)
             {
+                auto stateMachineName =
+                    m_stateMachineInstance->stateMachine() == nullptr
+                        ? "[SM Not found]"
+                        : m_stateMachineInstance->stateMachine()
+                              ->name()
+                              .c_str();
+                auto layerName = m_layer == nullptr ? "[LY Not found]"
+                                                    : m_layer->name().c_str();
+                auto artboardName =
+                    m_stateMachineInstance->artboard() == nullptr
+                        ? "[AB Not found]"
+                        : m_stateMachineInstance->artboard()->name().c_str();
                 fprintf(stderr,
                         "%s StateMachine exceeded max iterations in layer %s "
                         "on artboard %s\n",
-                        m_stateMachineInstance->stateMachine()->name().c_str(),
-                        m_layer->name().c_str(),
-                        m_stateMachineInstance->artboard()->name().c_str());
+                        stateMachineName,
+                        layerName,
+                        artboardName);
                 return false;
             }
         }
