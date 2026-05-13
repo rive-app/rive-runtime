@@ -2585,6 +2585,10 @@ void Artboard::clearDataContext()
     {
         artboardHost->clearDataContext();
     }
+    for (auto* scriptedObject : m_ScriptedObjects)
+    {
+        scriptedObject->resetLuaInit();
+    }
 }
 
 float Artboard::volume() const { return m_volume; }

@@ -64,8 +64,10 @@ public:
     void reinit();
 #ifdef WITH_RIVE_SCRIPTING
     bool userLuaInitDone() { return m_userLuaInitDone; }
+    void resetLuaInit() { m_userLuaInitDone = false; }
 #else
     bool userLuaInitDone() { return true; }
+    void resetLuaInit() {}
 #endif
     virtual void markNeedsUpdate();
     virtual rcp<DataContext> dataContext() { return m_dataContext; }
