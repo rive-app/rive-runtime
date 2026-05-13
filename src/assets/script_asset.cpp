@@ -73,11 +73,6 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
     // (meaning generator-ref resolved to nothing) vs a function that then
     // errored internally.
     int topType = static_cast<int>(lua_type(state, -1));
-    fprintf(stderr,
-            "[verifyImpl] entering verify for object protocol=%d, stack top "
-            "type=%d\n",
-            (int)object->scriptProtocol(),
-            topType);
 
     lua_pushvalue(state, -1);
     if (static_cast<lua_Status>(rive_lua_pcall(state, 0, 1)) != LUA_OK)
@@ -337,11 +332,6 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                 name().c_str());
         return false;
     }
-    fprintf(stderr,
-            "[activate] script \"%s\" generatorFunctionRef=%u -> lua ref=%d\n",
-            name().c_str(),
-            generatorFunctionRef(),
-            ref);
     rive_lua_pushRef(state, ref);
 
     if (!m_initted)
