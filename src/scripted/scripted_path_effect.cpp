@@ -45,6 +45,7 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         {
             return;
         }
+        setInUpdatePhase(true);
         // Stack: []
         rive_lua_pushRef(L, m_self);
         // Stack: [self]
@@ -74,6 +75,7 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         }
         // Stack: [self, status] or [self, outputPathData]
         rive_lua_pop(L, 2);
+        setInUpdatePhase(false);
     }
 }
 #else
@@ -168,6 +170,10 @@ Core* ScriptedPathEffect::clone() const
 
 void ScriptedPathEffect::markNeedsUpdate()
 {
+    if (inUpdatePhase())
+    {
+        return;
+    }
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 

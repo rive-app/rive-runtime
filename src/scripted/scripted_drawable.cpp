@@ -325,6 +325,10 @@ Core* ScriptedDrawable::clone() const
 
 void ScriptedDrawable::markNeedsUpdate()
 {
+    if (inUpdatePhase())
+    {
+        return;
+    }
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 

@@ -222,6 +222,7 @@ void ScriptedObject::scriptUpdate()
     {
         return;
     }
+    m_inUpdatePhase = true;
     // Stack: []
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
@@ -234,6 +235,7 @@ void ScriptedObject::scriptUpdate()
     {
         rive_lua_pop(L, 1);
     }
+    m_inUpdatePhase = false;
 }
 
 bool ScriptedObject::tryLuaUserInit(lua_State* L)

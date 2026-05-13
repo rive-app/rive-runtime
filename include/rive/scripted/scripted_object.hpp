@@ -38,9 +38,13 @@ protected:
     ScriptingVM* m_vm = nullptr; // Non-owning for runtime
 #endif
 #endif
+    bool inUpdatePhase() const { return m_inUpdatePhase; }
+    void setInUpdatePhase(bool value) { m_inUpdatePhase = value; }
+
 private:
     rcp<DataContext> m_dataContext = nullptr;
     std::vector<ScriptedProperty*> m_trackedScriptedProperties;
+    bool m_inUpdatePhase = false;
 #ifdef WITH_RIVE_SCRIPTING
     bool m_userLuaInitDone = false;
     bool tryLuaUserInit(lua_State* L);
