@@ -463,6 +463,7 @@ static uint8_t currentShaderTarget()
 /// the ScriptedShader. Returns true on success.
 /// Copy texture-sampler pairs from a ShaderAsset into both
 /// vertex and fragment ShaderModules of a ScriptedShader.
+#ifdef WITH_RIVE_TOOLS
 static void propagatePairs(const ShaderAsset& asset, ScriptedShader* out)
 {
     auto pairs = asset.textureSamplerPairs();
@@ -653,6 +654,7 @@ static bool makeShaderFromRstb(Context* oreCtx,
         propagatePairs(asset, out);
     return out->module != nullptr;
 }
+#endif // WITH_RIVE_TOOLS
 
 /// Look up a shader by name: first check the per-VM RSTB blobs on the
 /// ScriptingContext (editor path, compiled during requestVM), then try the
@@ -874,25 +876,6 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
     }
     return 1;
 }
-
-// Optional WGSL→native compiler, set by the host via
-// luaopen_rive_gpu_set_wgsl_compiler(). When set, shader_construct() routes
-// WGSL source through this function before passing to makeShaderModule().
-// Returns true and fills |outSource| on success; returns false and fills
-// |outError| on failure. Not set in Flutter runtime builds (shaders arrive
-// as pre-compiled backend source from ShaderAsset).
-#ifdef WITH_RIVE_TOOLS
-static bool (*g_wgslCompilerFn)(const char* wgsl,
-                                uint32_t len,
-                                std::string* outSource,
-                                std::string* outError) = nullptr;
-
-void luaopen_rive_gpu_set_wgsl_compiler(
-    bool (*fn)(const char*, uint32_t, std::string*, std::string*))
-{
-    g_wgslCompilerFn = fn;
-}
-#endif
 
 static int shader_construct(lua_State* L)
 {
