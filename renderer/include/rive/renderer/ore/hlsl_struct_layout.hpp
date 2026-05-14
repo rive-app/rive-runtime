@@ -25,7 +25,7 @@
 // clang-format off
 //   Header (12 bytes):
 //     magic            u32LE = 0x544C5348 (bytes 'H','S','L','T' on disk)
-//     version          u16  = 1
+//     version          u16  = 2
 //     reserved         u16  = 0
 //     struct_count     u16
 //     resource_count   u16
@@ -53,13 +53,21 @@
 //     texture_view_dim u8   // rive::ore::TextureViewDim (Undefined unless texture)
 //     texture_sample_type u8 // rive::ore::TextureSampleType (Undefined unless texture)
 //     texture_multisampled u8
+//     stage_mask       u8   // bitwise-OR of BindingMap::kStage* (VS|FS|CS)
 //     struct_index     i32  // for UniformBuffer / StorageBuffer*: into struct table; else -1
 // clang-format on
 //
+// v1 → v2: added `stage_mask`. v1 blobs are rejected by `fromBlob` (the
+// version is checked exactly, not as a floor) — there are no v1 consumers
+// in the wild yet, so this is a clean break rather than a compat shim.
+//
 // Resources are keyed by HLSL variable name. The consumer (Unreal RHI)
 // joins these entries to its `FShaderParametersMetadataBuilder` calls by
-// name; WGSL (@group, @binding) info lives in the separate BindingMap
-// sidecar (RSTB target=12) and is not duplicated here.
+// name. Stage visibility is carried directly on each resource via
+// `stageMask` (Unreal needs this to feed `EShaderFrequency` /
+// `Shader_Type_Visibility` into the parameter metadata); WGSL
+// (@group, @binding) info still lives in the separate BindingMap sidecar
+// (RSTB target=12) and is not duplicated here.
 
 #include "rive/renderer/ore/ore_binding_map.hpp"
 
@@ -74,7 +82,7 @@ namespace rive::ore
 // reader here both consume these — keep them in sync via this single
 // header.
 constexpr uint32_t kHLSLStructLayoutMagic = 0x544C5348u; // 'HSLT' bytes
-constexpr uint16_t kHLSLStructLayoutVersion = 1;
+constexpr uint16_t kHLSLStructLayoutVersion = 2;
 
 // Mirrors `spirv_cross::SPIRType::BaseType` for the subset that survives
 // HLSL emission. Frozen on-disk values — never renumber.
@@ -121,6 +129,7 @@ struct HLSLStructLayoutResource
     TextureViewDim textureViewDim = TextureViewDim::Undefined;
     TextureSampleType textureSampleType = TextureSampleType::Undefined;
     bool textureMultisampled = false;
+    uint8_t stageMask = 0;    // bitwise-OR of BindingMap::kStage* (VS|FS|CS)
     int32_t structIndex = -1; // index into HLSLStructLayout::structs for
                               // UniformBuffer / StorageBuffer* kinds
 };

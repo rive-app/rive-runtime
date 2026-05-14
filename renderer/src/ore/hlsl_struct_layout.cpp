@@ -135,15 +135,16 @@ bool HLSLStructLayout::fromBlob(const uint8_t* data,
         if (!readString(&p, end, &res.name))
             return false;
         // 1 (kind) + 1 (texture_view_dim) + 1 (texture_sample_type) +
-        // 1 (texture_multisampled) + 4 (struct_index) = 8 bytes
-        constexpr size_t kResourceFixed = 8;
+        // 1 (texture_multisampled) + 1 (stage_mask) + 4 (struct_index) = 9
+        constexpr size_t kResourceFixed = 9;
         if (p + kResourceFixed > end)
             return false;
         res.kind = static_cast<ResourceKind>(p[0]);
         res.textureViewDim = static_cast<TextureViewDim>(p[1]);
         res.textureSampleType = static_cast<TextureSampleType>(p[2]);
         res.textureMultisampled = (p[3] != 0);
-        p += 4;
+        res.stageMask = p[4];
+        p += 5;
         res.structIndex = readI32LE(p);
         p += 4;
         if (res.structIndex >= 0 &&
