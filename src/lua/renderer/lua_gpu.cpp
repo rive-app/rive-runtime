@@ -457,7 +457,6 @@ static uint8_t currentShaderTarget()
 #endif
 }
 
-#ifdef WITH_RIVE_TOOLS
 /// Try to create ShaderModules from a raw RSTB blob.
 /// For GLSL targets, the blob may contain two sources separated by a null
 /// byte (vertex then fragment). Populates both module and fragmentModule on
