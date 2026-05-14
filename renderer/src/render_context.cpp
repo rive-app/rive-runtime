@@ -14,7 +14,7 @@
 #endif
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/profiler/profiler_macros.h"
 
@@ -24,6 +24,10 @@
 
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
+#endif
+
+#ifdef RIVE_KTX2
+#include "rive/decoders/decode_ktx2.hpp"
 #endif
 
 #include "sort_key_builder.hpp"
@@ -162,23 +166,24 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
     RIVE_PROF_SCOPE_L(1)
     rcp<Texture> texture = m_impl->platformDecodeImageTexture(encodedBytes);
 
-    // Detect rtex container by 'RTEX' magic. GPU format read from header
-    // (bc7/astc/etc2/rgba32).
-    if (texture == nullptr && encodedBytes.size() >= 4 &&
-        encodedBytes[0] == 'R' && encodedBytes[1] == 'T' &&
-        encodedBytes[2] == 'E' && encodedBytes[3] == 'X')
+#ifdef RIVE_KTX2
+    // KTX2 magic = «KTX 20»\r\n\x1A\n. Match the first 4 bytes for the cheap
+    // dispatch; full magic is re-checked inside DecodeKtx2.
+    if (texture == nullptr && encodedBytes.size() >= 12 &&
+        encodedBytes[0] == 0xAB && encodedBytes[1] == 0x4B &&
+        encodedBytes[2] == 0x54 && encodedBytes[3] == 0x58)
     {
-        TextureDirectory texDir;
-        if (texDir.import(encodedBytes) && !texDir.dir.empty())
+        Ktx2DecodeResult ktx2;
+        if (DecodeKtx2(encodedBytes.data(), encodedBytes.size(), ktx2))
         {
-            const TextureData& texData = texDir.dir[0];
-            texture = m_impl->makeImageTexture(texData.width,
-                                               texData.height,
-                                               texData.numMips,
-                                               texData.format,
-                                               texDir.dataBlob.data());
+            texture = m_impl->makeImageTexture(ktx2.pixelWidth,
+                                               ktx2.pixelHeight,
+                                               ktx2.levelCount,
+                                               ktx2.format,
+                                               ktx2.blocks.data());
         }
     }
+#endif
 
 #ifdef RIVE_DECODERS
     if (texture == nullptr)

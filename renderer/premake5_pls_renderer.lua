@@ -513,6 +513,17 @@ do
         defines({ 'RIVE_DECODERS' })
     end
 
+    -- RIVE_KTX2 must also be visible to the renderer (not just the decoders
+    -- lib) so the `#ifdef RIVE_KTX2` dispatch block in render_context.cpp
+    -- compiles in. Gate it on `not no-rive-decoders` AS WELL — without the
+    -- decoders lib linked (e.g. the wasm webgl2 build) the renderer would
+    -- compile a call to rive::DecodeKtx2 that has no definition, breaking
+    -- the link.
+    filter({ 'options:not no-rive-decoders', 'options:not no_rive_ktx2' })
+    do
+        defines({ 'RIVE_KTX2' })
+    end
+
     filter('system:windows')
     do
         architecture('x64')

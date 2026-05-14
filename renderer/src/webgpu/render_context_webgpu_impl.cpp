@@ -9,7 +9,7 @@
 #include "rive/renderer/render_canvas.hpp"
 #endif
 #include "rive/renderer/stack_vector.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
 #include "shaders/constants.glsl"
 
 #include <sstream>

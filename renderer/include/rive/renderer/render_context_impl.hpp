@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
 
 namespace rive::gpu
 {

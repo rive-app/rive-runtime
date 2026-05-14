@@ -21,6 +21,11 @@ newoption({
     description = 'don\'t build webp support into the rive_decoders library (built-in webp decoding will fail)',
 })
 
+newoption({
+    trigger = 'no_rive_ktx2',
+    description = 'don\'t build KTX2 container parsing into the rive_decoders library',
+})
+
 if not _OPTIONS["no_rive_png"] then
     dofile(rive .. '/dependencies/premake5_libpng_v2.lua')
 end
@@ -34,6 +39,7 @@ if not _OPTIONS["no_rive_webp"] then
 else
     libwebp = ''
 end
+
 
 project('rive_decoders')
 do
@@ -102,6 +108,12 @@ do
         dependson('libwebp')
         defines({ 'RIVE_WEBP' })
         files({ 'src/decode_webp.cpp' })
+    end
+
+    filter({ 'options:not no_rive_ktx2' })
+    do
+        defines({ 'RIVE_KTX2' })
+        files({ 'src/decode_ktx2.cpp' })
     end
 
 end

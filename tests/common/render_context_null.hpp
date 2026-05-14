@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
 
 class RenderContextNULL : public rive::gpu::RenderContextHelperImpl
 {
