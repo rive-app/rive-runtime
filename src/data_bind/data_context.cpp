@@ -43,6 +43,10 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
                 instance =
                     viewModelInstanceValue->as<ViewModelInstanceViewModel>()
                         ->referenceViewModelInstance();
+                if (instance == nullptr)
+                {
+                    goto skip_path;
+                }
             }
             else
             {
@@ -91,6 +95,10 @@ ViewModelInstanceValue* DataContext::getRelativeViewModelProperty(
                 instance =
                     viewModelInstanceValue->as<ViewModelInstanceViewModel>()
                         ->referenceViewModelInstance();
+                if (instance == nullptr)
+                {
+                    goto skip_relative_path;
+                }
             }
             else
             {
