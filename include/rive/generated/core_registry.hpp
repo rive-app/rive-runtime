@@ -2986,6 +2986,9 @@ public:
     {
         switch (propertyKey)
         {
+            case ViewModelInstanceTriggerBase::firePropertyKey:
+                object->as<ViewModelInstanceTriggerBase>()->fire(value);
+                break;
             case CustomPropertyTriggerBase::firePropertyKey:
                 object->as<CustomPropertyTriggerBase>()->fire(value);
                 break;
@@ -4802,6 +4805,7 @@ public:
     {
         switch (propertyKey)
         {
+            case ViewModelInstanceTriggerBase::firePropertyKey:
             case CustomPropertyTriggerBase::firePropertyKey:
             case NestedTriggerBase::firePropertyKey:
             case EventBase::triggerPropertyKey:
@@ -5943,6 +5947,8 @@ public:
                 return object->is<DrawableAssetBase>();
             case ExportAudioBase::volumePropertyKey:
                 return object->is<ExportAudioBase>();
+            case ViewModelInstanceTriggerBase::firePropertyKey:
+                return object->is<ViewModelInstanceTriggerBase>();
             case CustomPropertyTriggerBase::firePropertyKey:
                 return object->is<CustomPropertyTriggerBase>();
             case NestedTriggerBase::firePropertyKey:
