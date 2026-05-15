@@ -1496,7 +1496,7 @@ HitResult StateMachineInstance::dragStart(Vec2D position,
     {
         disablePointerEvents(pointerId);
     }
-    auto hit = updateListeners(position, ListenerType::dragStart);
+    auto hit = updateListeners(position, ListenerType::dragStart, pointerId);
     return hit;
 }
 HitResult StateMachineInstance::dragEnd(Vec2D position,
@@ -1504,7 +1504,7 @@ HitResult StateMachineInstance::dragEnd(Vec2D position,
                                         int pointerId)
 {
     enablePointerEvents(pointerId);
-    auto hit = updateListeners(position, ListenerType::dragEnd);
+    auto hit = updateListeners(position, ListenerType::dragEnd, pointerId);
     pointerMove(position, timeStamp, pointerId);
     return hit;
 }
