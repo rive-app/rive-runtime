@@ -56,6 +56,7 @@ void DataConverter::copy(const DataConverter& object)
     {
         auto dataBindClone = dataBind->clone()->as<DataBind>();
         dataBindClone->target(this);
+        dataBindClone->file(dataBind->file());
         addDataBind(dataBindClone);
     }
     DataConverterBase::copy(object);
