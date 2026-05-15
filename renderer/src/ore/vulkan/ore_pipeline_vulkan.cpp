@@ -63,20 +63,6 @@ static VkFormat oreVertexFormatToVk(VertexFormat fmt)
             return VK_FORMAT_R16G16B16A16_SFLOAT;
         case VertexFormat::uint32:
             return VK_FORMAT_R32_UINT;
-        case VertexFormat::uint32x2:
-            return VK_FORMAT_R32G32_UINT;
-        case VertexFormat::uint32x3:
-            return VK_FORMAT_R32G32B32_UINT;
-        case VertexFormat::uint32x4:
-            return VK_FORMAT_R32G32B32A32_UINT;
-        case VertexFormat::sint32:
-            return VK_FORMAT_R32_SINT;
-        case VertexFormat::sint32x2:
-            return VK_FORMAT_R32G32_SINT;
-        case VertexFormat::sint32x3:
-            return VK_FORMAT_R32G32B32_SINT;
-        case VertexFormat::sint32x4:
-            return VK_FORMAT_R32G32B32A32_SINT;
     }
     RIVE_UNREACHABLE();
 }

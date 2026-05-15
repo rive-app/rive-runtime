@@ -384,20 +384,6 @@ static wgpu::VertexFormat oreVertexFormatToWGPU(VertexFormat fmt)
             return wgpu::VertexFormat::Float16x4;
         case VertexFormat::uint32:
             return wgpu::VertexFormat::Uint32;
-        case VertexFormat::uint32x2:
-            return wgpu::VertexFormat::Uint32x2;
-        case VertexFormat::uint32x3:
-            return wgpu::VertexFormat::Uint32x3;
-        case VertexFormat::uint32x4:
-            return wgpu::VertexFormat::Uint32x4;
-        case VertexFormat::sint32:
-            return wgpu::VertexFormat::Sint32;
-        case VertexFormat::sint32x2:
-            return wgpu::VertexFormat::Sint32x2;
-        case VertexFormat::sint32x3:
-            return wgpu::VertexFormat::Sint32x3;
-        case VertexFormat::sint32x4:
-            return wgpu::VertexFormat::Sint32x4;
     }
     RIVE_UNREACHABLE();
 }

@@ -180,20 +180,6 @@ static GLVertexInfo oreVertexFormatToGL(VertexFormat fmt)
             return {GL_HALF_FLOAT, 4, GL_FALSE};
         case VertexFormat::uint32:
             return {GL_UNSIGNED_INT, 1, GL_FALSE};
-        case VertexFormat::uint32x2:
-            return {GL_UNSIGNED_INT, 2, GL_FALSE};
-        case VertexFormat::uint32x3:
-            return {GL_UNSIGNED_INT, 3, GL_FALSE};
-        case VertexFormat::uint32x4:
-            return {GL_UNSIGNED_INT, 4, GL_FALSE};
-        case VertexFormat::sint32:
-            return {GL_INT, 1, GL_FALSE};
-        case VertexFormat::sint32x2:
-            return {GL_INT, 2, GL_FALSE};
-        case VertexFormat::sint32x3:
-            return {GL_INT, 3, GL_FALSE};
-        case VertexFormat::sint32x4:
-            return {GL_INT, 4, GL_FALSE};
     }
     RIVE_UNREACHABLE();
 }

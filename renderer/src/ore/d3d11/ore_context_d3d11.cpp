@@ -412,20 +412,6 @@ static DXGI_FORMAT oreVertexFormatToDXGI(VertexFormat fmt)
             return DXGI_FORMAT_R16G16B16A16_FLOAT;
         case VertexFormat::uint32:
             return DXGI_FORMAT_R32_UINT;
-        case VertexFormat::uint32x2:
-            return DXGI_FORMAT_R32G32_UINT;
-        case VertexFormat::uint32x3:
-            return DXGI_FORMAT_R32G32B32_UINT;
-        case VertexFormat::uint32x4:
-            return DXGI_FORMAT_R32G32B32A32_UINT;
-        case VertexFormat::sint32:
-            return DXGI_FORMAT_R32_SINT;
-        case VertexFormat::sint32x2:
-            return DXGI_FORMAT_R32G32_SINT;
-        case VertexFormat::sint32x3:
-            return DXGI_FORMAT_R32G32B32_SINT;
-        case VertexFormat::sint32x4:
-            return DXGI_FORMAT_R32G32B32A32_SINT;
     }
     RIVE_UNREACHABLE();
 }

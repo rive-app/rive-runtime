@@ -337,20 +337,6 @@ static MTLVertexFormat oreVertexFormatToMTL(VertexFormat fmt)
             return MTLVertexFormatHalf4;
         case VertexFormat::uint32:
             return MTLVertexFormatUInt;
-        case VertexFormat::uint32x2:
-            return MTLVertexFormatUInt2;
-        case VertexFormat::uint32x3:
-            return MTLVertexFormatUInt3;
-        case VertexFormat::uint32x4:
-            return MTLVertexFormatUInt4;
-        case VertexFormat::sint32:
-            return MTLVertexFormatInt;
-        case VertexFormat::sint32x2:
-            return MTLVertexFormatInt2;
-        case VertexFormat::sint32x3:
-            return MTLVertexFormatInt3;
-        case VertexFormat::sint32x4:
-            return MTLVertexFormatInt4;
     }
     RIVE_UNREACHABLE();
 }
