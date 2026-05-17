@@ -2232,9 +2232,15 @@ static int gpupipeline_namecall(lua_State* L)
 
 static void validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
 {
-    if (self->m_finished || self->pass == nullptr)
+    // pass->isFinished() catches the case where a *previous*
+    // beginRenderPass auto-finished this pass (because the script forgot
+    // to :finish() before opening the next one). The wrapper's own
+    // m_finished is still false there.
+    if (self->m_finished || !self->pass || self->pass->isFinished())
     {
-        luaL_error(L, "render pass expired — call finish() only once");
+        luaL_error(L,
+                   "render pass expired — already finished, or auto-"
+                   "finished by a subsequent beginRenderPass");
     }
 }
 
@@ -2496,7 +2502,7 @@ static int gpurenderpass_finish(lua_State* L)
     // Clear the context's active pass pointer so the next beginRenderPass
     // doesn't see a stale (already-finished) pass.
     Context* oreCtx = getOreContext(L);
-    if (oreCtx && oreCtx->activeRenderPass() == self->pass)
+    if (oreCtx && oreCtx->activeRenderPass() == self->pass.get())
         oreCtx->setActiveRenderPass(nullptr);
     return 0;
 }
@@ -2546,8 +2552,6 @@ static int gpurenderpass_namecall(lua_State* L)
 
 ScriptedGPUCanvas::~ScriptedGPUCanvas()
 {
-    delete m_activePass;
-    m_activePass = nullptr;
     if (m_L != nullptr && m_imageRef != LUA_NOREF)
     {
         lua_unref(m_L, m_imageRef);
@@ -2556,9 +2560,13 @@ ScriptedGPUCanvas::~ScriptedGPUCanvas()
 
 ScriptedGPURenderPass::~ScriptedGPURenderPass()
 {
-    if (m_L != nullptr && m_canvasRef != LUA_NOREF)
+    // If the script GC'd the wrapper without :finish(), drop the active-
+    // pass slot before unique_ptr destroys the backend RenderPass — else
+    // ore::Context::activeRenderPass() would dangle into the next
+    // beginRenderPass.
+    if (m_context && pass && m_context->activeRenderPass() == pass.get())
     {
-        lua_unref(m_L, m_canvasRef);
+        m_context->setActiveRenderPass(nullptr);
     }
 }
 
@@ -2594,307 +2602,278 @@ static StoreOp lua_tostoreop_str(const char* s)
     return StoreOp::store;
 }
 
-static int gpucanvashandle_beginrenderpass(lua_State* L)
+// context:beginRenderPass(desc) — open a render pass.
+//
+// `desc` is required: at least one color attachment or a depthStencil
+// attachment must be supplied. Every attachment carries its own view, and
+// sampleCount is derived from those views (all attachments must share one
+// sampleCount, matching WebGPU validation).
+int context_beginrenderpass(lua_State* L)
 {
-    auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
-    if (!self->oreColorView)
+    Context* oreCtx = getOreContext(L);
+    if (oreCtx == nullptr)
     {
-        luaL_error(L, "GPUCanvas has no color view");
-    }
-    if (getOreContext(L) == nullptr)
-    {
-        luaL_error(L, "GPU context not initialized");
+        luaL_error(L, "context:beginRenderPass() requires a GPU context");
     }
 
     auto* scriptingContext =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
     if (scriptingContext == nullptr || !scriptingContext->canvasDrawingPhase())
     {
-        luaL_error(L,
-                   "GPUCanvas:beginRenderPass() called outside drawing phase");
+        luaL_error(L, "context:beginRenderPass() called outside drawing phase");
     }
+
+    luaL_checktype(L, 2, LUA_TTABLE);
 
     RenderPassDesc passDesc{};
-    passDesc.colorCount = 1;
-    // Default: if the canvas has an MSAA color texture, render into it and
-    // resolve to the 1× platform backing; otherwise render directly to it.
-    if (self->oreMSAAColorView)
-    {
-        passDesc.colorAttachments[0].view = self->oreMSAAColorView.get();
-        passDesc.colorAttachments[0].resolveTarget = self->oreColorView.get();
-        passDesc.colorAttachments[0].storeOp = StoreOp::discard;
-    }
-    else
-    {
-        passDesc.colorAttachments[0].view = self->oreColorView.get();
-    }
-    passDesc.colorAttachments[0].loadOp = LoadOp::clear;
+    passDesc.colorCount = 0;
 
-    uint32_t passSampleCount =
-        self->oreMSAAColorView ? self->oreMSAAColorTexture->sampleCount() : 1;
+    // Tracks the first attachment we see (any color slot or depth) and
+    // becomes the pass's authoritative sampleCount. Subsequent attachments
+    // must match. -1 means "not yet seen any attachment". The label owns
+    // its storage so per-iteration stack buffers don't dangle into the
+    // error path.
+    int32_t passSampleCount = -1;
+    std::string sampleCountSourceLabel;
 
-    // Parse optional descriptor table
-    if (lua_gettop(L) >= 2 && lua_istable(L, 2))
-    {
-        lua_getfield(L, 2, "color");
-        if (lua_isnil(L, -1))
+    auto recordSampleCount = [&](uint32_t sc, const char* label) {
+        if (passSampleCount == -1)
         {
-            // Descriptor provided but no 'color' key — caller wants a
-            // depth-only pass (e.g. shadow map).  Drop the default canvas
-            // color attachment so the render pass matches pipelines that
-            // have no color outputs.
-            passDesc.colorCount = 0;
-            // Fall through to the lua_pop(L, 1) below (don't pop here).
+            passSampleCount = static_cast<int32_t>(sc);
+            sampleCountSourceLabel = label;
         }
-        else if (lua_istable(L, -1))
+        else if (static_cast<uint32_t>(passSampleCount) != sc)
         {
-            // color is an array of attachment descriptor tables.  Each entry
-            // Each entry is an attachment descriptor table.  Supported fields:
-            //   view: GPUTextureView?       — overrides the default canvas view
-            //   resolveTarget: GPUTextureView? — 1× resolve (for MSAA)
-            //   loadOp: LoadOp?
-            //   storeOp: StoreOp?           — use 'discard' on MSAA color
-            //   clearColor: {r, g, b, a}?
-            passDesc.colorCount = 0;
-            for (int ci = 1; ci <= 4; ++ci)
-            {
-                lua_rawgeti(L, -1, ci);
-                if (!lua_istable(L, -1))
-                {
-                    lua_pop(L, 1);
-                    break;
-                }
-                int slot = passDesc.colorCount++;
-
-                // Optional explicit TextureView override
-                lua_getfield(L, -1, "view");
-                if (!lua_isnil(L, -1))
-                {
-                    auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-                    if (tv && tv->view)
-                    {
-                        passDesc.colorAttachments[slot].view = tv->view.get();
-                        if (slot == 0)
-                            passSampleCount =
-                                tv->view->texture()->sampleCount();
-                    }
-                }
-                lua_pop(L, 1); // view
-
-                // Default view for slot 0 is the canvas itself; other slots
-                // require an explicit view from the descriptor. This
-                // mirrors the depthStencil-attachment shape below — both
-                // depth and color slot 1+ surface a clear error when no
-                // view is supplied, so a malformed `colorAttachments`
-                // table can't silently truncate the pass to fewer
-                // attachments than declared.
-                if (passDesc.colorAttachments[slot].view == nullptr)
-                {
-                    if (slot == 0)
-                    {
-                        passDesc.colorAttachments[0].view =
-                            self->oreColorView.get();
-                    }
-                    else
-                    {
-                        luaL_error(L,
-                                   "beginRenderPass: colorAttachments[%d] "
-                                   "has no `view` field — slot %d requires "
-                                   "an explicit GPUTextureView (only slot 0 "
-                                   "defaults to the canvas color view)",
-                                   slot + 1,
-                                   slot);
-                    }
-                }
-
-                // resolveTarget (optional — for MSAA)
-                lua_getfield(L, -1, "resolveTarget");
-                if (!lua_isnil(L, -1))
-                {
-                    auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-                    if (tv && tv->view)
-                    {
-                        // Validate: resolveTarget format must match the MSAA
-                        // attachment format. Metal/Vulkan/D3D all require this;
-                        // mismatches produce silent corruption (channel swaps,
-                        // broken alpha). bgra8 canvas vs rgba8 MSAA is the
-                        // classic footgun — catch it here.
-                        auto* msaaTex = passDesc.colorAttachments[slot].view
-                                            ? passDesc.colorAttachments[slot]
-                                                  .view->texture()
-                                            : nullptr;
-                        if (msaaTex &&
-                            tv->view->texture()->format() != msaaTex->format())
-                        {
-                            luaL_error(
-                                L,
-                                "beginRenderPass: resolveTarget format '%s' "
-                                "does not match MSAA attachment format '%s' — "
-                                "resolve requires identical formats. Use "
-                                "canvas.format to "
-                                "match your pipeline and textures.",
-                                lua_totextureformatstring(
-                                    tv->view->texture()->format()),
-                                lua_totextureformatstring(msaaTex->format()));
-                        }
-                        passDesc.colorAttachments[slot].resolveTarget =
-                            tv->view.get();
-                    }
-                }
-                lua_pop(L, 1); // resolveTarget
-
-                lua_getfield(L, -1, "loadOp");
-                if (!lua_isnil(L, -1))
-                {
-                    passDesc.colorAttachments[slot].loadOp =
-                        lua_toloadop_str(luaL_checkstring(L, -1));
-                }
-                lua_pop(L, 1); // loadOp
-
-                lua_getfield(L, -1, "storeOp");
-                if (lua_isnil(L, -1))
-                {
-                    lua_pop(L, 1);
-                    luaL_error(L,
-                               "beginRenderPass: color[%d].storeOp is required "
-                               "— use 'discard' for MSAA color (after resolve) "
-                               "or 'store' to keep the rendered output",
-                               slot + 1);
-                }
-                passDesc.colorAttachments[slot].storeOp =
-                    lua_tostoreop_str(luaL_checkstring(L, -1));
-                lua_pop(L, 1); // storeOp
-
-                lua_getfield(L, -1, "clearColor");
-                if (lua_istable(L, -1))
-                {
-                    lua_rawgeti(L, -1, 1);
-                    passDesc.colorAttachments[slot].clearColor.r =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, 2);
-                    passDesc.colorAttachments[slot].clearColor.g =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, 3);
-                    passDesc.colorAttachments[slot].clearColor.b =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, 4);
-                    passDesc.colorAttachments[slot].clearColor.a =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                }
-                lua_pop(L, 1); // clearColor
-                lua_pop(L, 1); // entry table
-            }
-            // If no explicit entries were found, fall back to the canvas view
-            if (passDesc.colorCount == 0)
-            {
-                passDesc.colorCount = 1;
-                passDesc.colorAttachments[0].view = self->oreColorView.get();
-            }
+            luaL_error(
+                L,
+                "beginRenderPass: %s sampleCount (%u) does not match %s "
+                "sampleCount (%u). All render-pass attachments must share "
+                "one sampleCount.",
+                label,
+                sc,
+                sampleCountSourceLabel.c_str(),
+                static_cast<uint32_t>(passSampleCount));
         }
-        lua_pop(L, 1); // color
+    };
 
-        lua_getfield(L, 2, "depthStencil");
-        if (lua_istable(L, -1))
+    lua_getfield(L, 2, "color");
+    if (lua_istable(L, -1))
+    {
+        for (int ci = 1; ci <= 4; ++ci)
         {
-            // Prefer an explicit view from the descriptor; fall back to the
-            // canvas's own depth view if available.
+            lua_rawgeti(L, -1, ci);
+            if (!lua_istable(L, -1))
+            {
+                lua_pop(L, 1);
+                break;
+            }
+            int slot = passDesc.colorCount++;
+
             lua_getfield(L, -1, "view");
-            if (!lua_isnil(L, -1))
-            {
-                auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-                if (tv && tv->view)
-                    passDesc.depthStencil.view = tv->view.get();
-            }
-            else if (self->oreDepthView)
-            {
-                passDesc.depthStencil.view = self->oreDepthView.get();
-            }
-            lua_pop(L, 1); // view
-
-            // Require an explicit view, matching WebGPU validation. Without
-            // one, GL silently drops depth testing while Metal/TBDR implicitly
-            // allocates tile memory — making the same script behave differently
-            // across backends.
-            if (!passDesc.depthStencil.view)
+            if (lua_isnil(L, -1))
             {
                 luaL_error(L,
-                           "beginRenderPass: depthStencil.view is required — "
-                           "pass GPUTexture:view()");
+                           "beginRenderPass: color[%d].view is required — "
+                           "every color attachment needs an explicit "
+                           "GPUTextureView",
+                           slot + 1);
             }
-
-            if (passDesc.depthStencil.view)
+            auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
+            if (!tv || !tv->view)
             {
-                passDesc.depthStencil.depthLoadOp = LoadOp::clear;
-                lua_getfield(L, -1, "depthLoadOp");
-                if (!lua_isnil(L, -1))
-                {
-                    passDesc.depthStencil.depthLoadOp =
-                        lua_toloadop_str(luaL_checkstring(L, -1));
-                }
-                lua_pop(L, 1);
+                luaL_error(L,
+                           "beginRenderPass: color[%d].view is not a valid "
+                           "GPUTextureView",
+                           slot + 1);
+            }
+            passDesc.colorAttachments[slot].view = tv->view.get();
+            char colorLabel[32];
+            snprintf(colorLabel, sizeof(colorLabel), "color[%d]", slot + 1);
+            recordSampleCount(tv->view->texture()->sampleCount(), colorLabel);
+            lua_pop(L, 1); // view
 
-                lua_getfield(L, -1, "depthStoreOp");
-                if (lua_isnil(L, -1))
+            // resolveTarget (optional — for MSAA). Source view must be
+            // multisampled; resolve target must be sampleCount=1 and
+            // format-matched to the source.
+            lua_getfield(L, -1, "resolveTarget");
+            if (!lua_isnil(L, -1))
+            {
+                auto* rtv = lua_torive<ScriptedGPUTextureView>(L, -1);
+                if (rtv && rtv->view)
                 {
-                    lua_pop(L, 1);
-                    luaL_error(L,
-                               "beginRenderPass: depthStencil.depthStoreOp is "
-                               "required — use 'discard' for transient/MSAA "
-                               "depth or 'store' if you need to read it later");
+                    auto* msaaTex =
+                        passDesc.colorAttachments[slot].view
+                            ? passDesc.colorAttachments[slot].view->texture()
+                            : nullptr;
+                    if (msaaTex && msaaTex->sampleCount() == 1)
+                    {
+                        luaL_error(
+                            L,
+                            "beginRenderPass: color[%d].resolveTarget is "
+                            "meaningless when the source `view` is single-"
+                            "sampled — drop it, or use an MSAA texture as "
+                            "`view`",
+                            slot + 1);
+                    }
+                    if (msaaTex &&
+                        rtv->view->texture()->format() != msaaTex->format())
+                    {
+                        luaL_error(
+                            L,
+                            "beginRenderPass: resolveTarget format '%s' does "
+                            "not match MSAA attachment format '%s' — resolve "
+                            "requires identical formats. Use canvas.format to "
+                            "match your pipeline and textures.",
+                            lua_totextureformatstring(
+                                rtv->view->texture()->format()),
+                            lua_totextureformatstring(msaaTex->format()));
+                    }
+                    if (rtv->view->texture()->sampleCount() != 1)
+                    {
+                        luaL_error(L,
+                                   "beginRenderPass: color[%d].resolveTarget "
+                                   "must have sampleCount=1 (got %u)",
+                                   slot + 1,
+                                   rtv->view->texture()->sampleCount());
+                    }
+                    passDesc.colorAttachments[slot].resolveTarget =
+                        rtv->view.get();
                 }
-                passDesc.depthStencil.depthStoreOp =
-                    lua_tostoreop_str(luaL_checkstring(L, -1));
-                lua_pop(L, 1);
+            }
+            lua_pop(L, 1); // resolveTarget
 
-                lua_getfield(L, -1, "depthClearValue");
-                if (!lua_isnil(L, -1))
-                {
-                    passDesc.depthStencil.depthClearValue =
-                        static_cast<float>(lua_tonumber(L, -1));
-                }
+            lua_getfield(L, -1, "loadOp");
+            if (!lua_isnil(L, -1))
+            {
+                passDesc.colorAttachments[slot].loadOp =
+                    lua_toloadop_str(luaL_checkstring(L, -1));
+            }
+            else
+            {
+                passDesc.colorAttachments[slot].loadOp = LoadOp::clear;
+            }
+            lua_pop(L, 1); // loadOp
+
+            lua_getfield(L, -1, "storeOp");
+            if (lua_isnil(L, -1))
+            {
+                lua_pop(L, 1);
+                luaL_error(L,
+                           "beginRenderPass: color[%d].storeOp is required "
+                           "— use 'discard' for MSAA color (after resolve) "
+                           "or 'store' to keep the rendered output",
+                           slot + 1);
+            }
+            passDesc.colorAttachments[slot].storeOp =
+                lua_tostoreop_str(luaL_checkstring(L, -1));
+            lua_pop(L, 1); // storeOp
+
+            lua_getfield(L, -1, "clearColor");
+            if (lua_istable(L, -1))
+            {
+                lua_rawgeti(L, -1, 1);
+                passDesc.colorAttachments[slot].clearColor.r =
+                    (float)lua_tonumber(L, -1);
+                lua_pop(L, 1);
+                lua_rawgeti(L, -1, 2);
+                passDesc.colorAttachments[slot].clearColor.g =
+                    (float)lua_tonumber(L, -1);
+                lua_pop(L, 1);
+                lua_rawgeti(L, -1, 3);
+                passDesc.colorAttachments[slot].clearColor.b =
+                    (float)lua_tonumber(L, -1);
+                lua_pop(L, 1);
+                lua_rawgeti(L, -1, 4);
+                passDesc.colorAttachments[slot].clearColor.a =
+                    (float)lua_tonumber(L, -1);
                 lua_pop(L, 1);
             }
+            lua_pop(L, 1); // clearColor
+            lua_pop(L, 1); // entry table
         }
-        lua_pop(L, 1); // depthStencil
+    }
+    lua_pop(L, 1); // color
+
+    lua_getfield(L, 2, "depthStencil");
+    if (lua_istable(L, -1))
+    {
+        lua_getfield(L, -1, "view");
+        if (lua_isnil(L, -1))
+        {
+            luaL_error(L,
+                       "beginRenderPass: depthStencil.view is required — "
+                       "pass GPUTexture:view()");
+        }
+        auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
+        if (!tv || !tv->view)
+        {
+            luaL_error(L,
+                       "beginRenderPass: depthStencil.view is not a valid "
+                       "GPUTextureView");
+        }
+        passDesc.depthStencil.view = tv->view.get();
+        recordSampleCount(tv->view->texture()->sampleCount(), "depthStencil");
+        lua_pop(L, 1); // view
+
+        passDesc.depthStencil.depthLoadOp = LoadOp::clear;
+        lua_getfield(L, -1, "depthLoadOp");
+        if (!lua_isnil(L, -1))
+        {
+            passDesc.depthStencil.depthLoadOp =
+                lua_toloadop_str(luaL_checkstring(L, -1));
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "depthStoreOp");
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            luaL_error(L,
+                       "beginRenderPass: depthStencil.depthStoreOp is "
+                       "required — use 'discard' for transient/MSAA depth or "
+                       "'store' if you need to read it later");
+        }
+        passDesc.depthStencil.depthStoreOp =
+            lua_tostoreop_str(luaL_checkstring(L, -1));
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "depthClearValue");
+        if (!lua_isnil(L, -1))
+        {
+            passDesc.depthStencil.depthClearValue =
+                static_cast<float>(lua_tonumber(L, -1));
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1); // depthStencil
+
+    if (passDesc.colorCount == 0 && !passDesc.depthStencil.view)
+    {
+        luaL_error(L,
+                   "beginRenderPass: descriptor must include at least one "
+                   "color attachment or a depthStencil attachment");
     }
 
-    // Delete any previous active pass (ore::RenderPass destructor handles
-    // cleanup)
     // Metal (and other backends) only allow one active encoder per command
-    // buffer. If another canvas handle (or another VM sharing the same
-    // oreCtx) left a pass open, finish it before opening a new encoder.
-    Context* oreCtx = getOreContext(L);
+    // buffer. If a previous pass was left open, finish it before opening
+    // a new encoder.
     if (oreCtx->activeRenderPass() && !oreCtx->activeRenderPass()->isFinished())
     {
         oreCtx->activeRenderPass()->finish();
+        oreCtx->setActiveRenderPass(nullptr);
     }
 
-    delete self->m_activePass;
-    self->m_activePass = nullptr;
-
     ore::RenderPass raw = oreCtx->beginRenderPass(passDesc);
-    self->m_activePass = new ore::RenderPass(std::move(raw));
-    self->m_activePassLabel = passDesc.label ? passDesc.label : "";
-    oreCtx->setActiveRenderPass(self->m_activePass);
 
     auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
-    rp->pass = self->m_activePass;
+    rp->pass = std::make_unique<ore::RenderPass>(std::move(raw));
+    rp->m_context = oreCtx;
     rp->m_finished = false;
-    rp->sampleCount = passSampleCount;
-    rp->label = self->m_activePassLabel;
+    rp->sampleCount =
+        passSampleCount < 1 ? 1u : static_cast<uint32_t>(passSampleCount);
+    rp->label = passDesc.label ? passDesc.label : "";
     rp->drawCallCount = 0;
-    // Hold a Lua ref to the owning canvas so it can't be GC'd while the
-    // pass userdata is reachable. Without this, `~ScriptedGPUCanvas`
-    // deletes `m_activePass` (which `rp->pass` aliases) and any
-    // subsequent method on the pass dereferences a freed pointer.
-    rp->m_L = L;
-    lua_pushvalue(L, 1); // canvas userdata is the `self` argument.
-    rp->m_canvasRef = lua_ref(L, -1);
-    lua_pop(L, 1);
+    oreCtx->setActiveRenderPass(rp->pass.get());
     return 1;
 }
 
@@ -2936,42 +2915,6 @@ static int gpucanvashandle_resize(lua_State* L)
     }
     self->canvas = std::move(newCanvas);
     self->oreColorView = std::move(newColorView);
-
-    // Rebuild MSAA color texture if canvas was created with sampleCount > 1.
-    if (self->oreMSAAColorTexture)
-    {
-        uint32_t sc = self->oreMSAAColorTexture->sampleCount();
-        ore::TextureDesc msaaDesc;
-        msaaDesc.width = w;
-        msaaDesc.height = h;
-        msaaDesc.format = self->oreColorView->texture()->format();
-        msaaDesc.renderTarget = true;
-        msaaDesc.sampleCount = sc;
-        msaaDesc.label = "GPUCanvasMSAAColor";
-        self->oreMSAAColorTexture = oreCtx->makeTexture(msaaDesc);
-        ore::TextureViewDesc msaaViewDesc;
-        msaaViewDesc.texture = self->oreMSAAColorTexture.get();
-        self->oreMSAAColorView = oreCtx->makeTextureView(msaaViewDesc);
-
-        ore::TextureDesc depthDesc;
-        depthDesc.width = w;
-        depthDesc.height = h;
-        depthDesc.format = ore::TextureFormat::depth32float;
-        depthDesc.renderTarget = true;
-        depthDesc.sampleCount = sc;
-        depthDesc.label = "GPUCanvasMSAADepth";
-        self->oreDepthTexture = oreCtx->makeTexture(depthDesc);
-        ore::TextureViewDesc depthViewDesc;
-        depthViewDesc.texture = self->oreDepthTexture.get();
-        self->oreDepthView = oreCtx->makeTextureView(depthViewDesc);
-    }
-    else
-    {
-        self->oreMSAAColorTexture = nullptr;
-        self->oreMSAAColorView = nullptr;
-        self->oreDepthTexture = nullptr;
-        self->oreDepthView = nullptr;
-    }
 
     auto* img = lua_newrive<ScriptedImage>(L);
     img->image =
@@ -3019,19 +2962,6 @@ static int gpucanvashandle_index(lua_State* L)
         lua_pushnumber(L, self->canvas->height());
         return 1;
     }
-    if (strcmp(key, "sampleCount") == 0)
-    {
-        uint32_t sc = self->oreMSAAColorTexture
-                          ? self->oreMSAAColorTexture->sampleCount()
-                          : 1;
-        lua_pushnumber(L, sc);
-        return 1;
-    }
-    if (strcmp(key, "hasDepth") == 0)
-    {
-        lua_pushboolean(L, self->oreDepthView != nullptr);
-        return 1;
-    }
     if (strcmp(key, "format") == 0)
     {
         if (self->oreColorView && self->oreColorView->texture())
@@ -3054,8 +2984,6 @@ static int gpucanvashandle_namecall(lua_State* L)
     {
         switch (atom)
         {
-            case (int)LuaAtoms::beginRenderPass:
-                return gpucanvashandle_beginrenderpass(L);
             case (int)LuaAtoms::colorView:
                 return gpucanvashandle_colorview(L);
             case (int)LuaAtoms::resize:

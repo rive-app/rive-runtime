@@ -469,79 +469,6 @@ static int context_namecall(lua_State* L)
                 handle->oreColorView = std::move(colorView);
                 handle->renderCtx = gpuRenderCtx;
 
-                // Optional MSAA: context:gpuCanvas({ ..., sampleCount = 4 })
-                lua_getfield(L, 2, "sampleCount");
-                uint32_t gpuCanvasSamples =
-                    lua_isnumber(L, -1)
-                        ? static_cast<uint32_t>(lua_tonumber(L, -1))
-                        : 1;
-                lua_pop(L, 1);
-                if (gpuCanvasSamples > 1)
-                {
-                    if ((gpuCanvasSamples & (gpuCanvasSamples - 1)) != 0)
-                        luaL_error(L,
-                                   "gpuCanvas sampleCount must be a power of "
-                                   "two (got %u)",
-                                   gpuCanvasSamples);
-                    uint32_t maxSamples = oreCtx->features().maxSamples;
-                    if (gpuCanvasSamples > maxSamples)
-                        luaL_error(L,
-                                   "gpuCanvas sampleCount %u exceeds device "
-                                   "maximum of %u — query "
-                                   "context:features().maxSamples first",
-                                   gpuCanvasSamples,
-                                   maxSamples);
-                }
-                if (gpuCanvasSamples > 1)
-                {
-                    ore::TextureDesc msaaDesc;
-                    msaaDesc.width = gw;
-                    msaaDesc.height = gh;
-                    msaaDesc.format = handle->oreColorView->texture()->format();
-                    msaaDesc.renderTarget = true;
-                    msaaDesc.sampleCount = gpuCanvasSamples;
-                    msaaDesc.label = "GPUCanvasMSAAColor";
-                    handle->oreMSAAColorTexture = oreCtx->makeTexture(msaaDesc);
-                    if (!handle->oreMSAAColorTexture)
-                    {
-                        luaL_error(
-                            L,
-                            "context:gpuCanvas() failed to create MSAA color "
-                            "texture (sampleCount=%u)",
-                            gpuCanvasSamples);
-                        return 0;
-                    }
-                    ore::TextureViewDesc msaaViewDesc;
-                    msaaViewDesc.texture = handle->oreMSAAColorTexture.get();
-                    handle->oreMSAAColorView =
-                        oreCtx->makeTextureView(msaaViewDesc);
-
-                    // Depth buffer — sampleCount must match the MSAA color
-                    // attachment or Metal/Vulkan will reject the render pass.
-                    ore::TextureDesc depthDesc;
-                    depthDesc.width = gw;
-                    depthDesc.height = gh;
-                    depthDesc.format = ore::TextureFormat::depth32float;
-                    depthDesc.renderTarget = true;
-                    depthDesc.sampleCount = gpuCanvasSamples;
-                    depthDesc.label = "GPUCanvasMSAADepth";
-                    handle->oreDepthTexture = oreCtx->makeTexture(depthDesc);
-                    if (!handle->oreDepthTexture)
-                    {
-                        luaL_error(
-                            L,
-                            "context:gpuCanvas() failed to create MSAA depth "
-                            "texture (sampleCount=%u)",
-                            gpuCanvasSamples);
-                        return 0;
-                    }
-                    ore::TextureViewDesc depthViewDesc;
-                    depthViewDesc.texture = handle->oreDepthTexture.get();
-                    handle->oreDepthView =
-                        oreCtx->makeTextureView(depthViewDesc);
-                }
-                // Create a ScriptedImage backed by canvas->renderImage() so
-                // the script can composite it with renderer:drawImage()
                 auto* img = lua_newrive<ScriptedImage>(L);
                 img->image = ref_rcp(
                     static_cast<RenderImage*>(handle->canvas->renderImage()));
@@ -550,6 +477,19 @@ static int context_namecall(lua_State* L)
                 return 1;
 #endif
             }
+            case (int)LuaAtoms::beginRenderPass:
+            {
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+                extern int context_beginrenderpass(lua_State * L);
+                return context_beginrenderpass(L);
+#else
+                luaL_error(L,
+                           "context:beginRenderPass() requires a RIVE_CANVAS "
+                           "+ RIVE_ORE build");
+                return 0;
+#endif
+            }
+
             case (int)LuaAtoms::features:
                 return lua_push_gpu_features(L);
 

@@ -668,20 +668,20 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 46;
     static constexpr const char* luaName = "GPURenderPass";
     static constexpr bool hasMetatable = true;
+    // Out-of-line: unique_ptr<ore::RenderPass> needs the complete type at
+    // destructor instantiation, and we clear the context's active-pass
+    // slot if the wrapper is GC'd without :finish() so a stale pointer
+    // doesn't survive into the next beginRenderPass.
     ~ScriptedGPURenderPass();
-    // `pass` is owned by `ScriptedGPUCanvas::m_activePass`. To prevent
-    // the canvas from being GC'd before this render pass — which would
-    // delete `m_activePass` and dangle this pointer — the constructor
-    // site stores a Lua ref to the owning canvas in `m_canvasRef`,
-    // released by `~ScriptedGPURenderPass`.
-    ore::RenderPass* pass = nullptr;
+    std::unique_ptr<ore::RenderPass> pass;
+    // Borrowed; Context outlives every wrapper. Used by ~dtor to clear
+    // the active-pass slot if it still points at our pass.
+    ore::Context* m_context = nullptr;
     bool m_finished = false;
     bool m_pipelineSet = false;
     uint32_t sampleCount = 1; // for pipeline sampleCount validation
     std::string label;
     uint32_t drawCallCount = 0;
-    lua_State* m_L = nullptr;
-    int m_canvasRef = LUA_NOREF;
 };
 
 class ScriptedGPUTextureView
@@ -704,18 +704,12 @@ public:
     static constexpr bool hasMetatable = true;
     ~ScriptedGPUCanvas();
     rcp<gpu::RenderCanvas> canvas;
-    // 1× resolve target (platform backing texture).
+    // 1× presentation target. Same role as a WebGPU surface texture:
+    // single-sampled, format determined by the platform. MSAA color +
+    // depth are user-allocated and passed in via the RenderPassDesc.
     rcp<ore::TextureView> oreColorView;
-    // MSAA color attachment — non-null when canvas was created with sampleCount
-    // > 1.
-    rcp<ore::Texture> oreMSAAColorTexture;
-    rcp<ore::TextureView> oreMSAAColorView;
-    rcp<ore::Texture> oreDepthTexture;
-    rcp<ore::TextureView> oreDepthView;
     lua_State* m_L = nullptr;
     int m_imageRef = LUA_NOREF;
-    ore::RenderPass* m_activePass = nullptr; // heap-allocated, owned by this
-    std::string m_activePassLabel; // label of m_activePass for diagnostics
     gpu::RenderContext* renderCtx = nullptr; // needed for resize()
 };
 
