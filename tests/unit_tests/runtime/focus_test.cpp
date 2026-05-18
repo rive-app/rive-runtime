@@ -717,6 +717,31 @@ TEST_CASE("FocusActionTraversal perform unknown traversalKind defaults to next",
     CHECK(fm->primaryFocus() == node2);
 }
 
+TEST_CASE(
+    "StateMachineInstance exposes hasFocusNodes, focusNext, focusPrevious from focusManager",
+    "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable f1, f2;
+    auto node1 = make_rcp<FocusNode>(&f1);
+    auto node2 = make_rcp<FocusNode>(&f2);
+
+    CHECK(smi.hasFocusNodes() == false);
+
+    smi.focusManager()->addChild(nullptr, node1);
+    smi.focusManager()->addChild(nullptr, node2);
+    smi.focusManager()->setFocus(node1);
+
+    CHECK(smi.hasFocusNodes() == true);
+    CHECK(smi.focusNext() == true);
+    CHECK(smi.focusPrevious() == true);
+}
+
 TEST_CASE("FocusActionTraversal perform ignores null StateMachineInstance",
           "[FocusActionTraversal]")
 {

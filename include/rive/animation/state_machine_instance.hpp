@@ -212,6 +212,9 @@ public:
         const StateTransition* transition,
         uint32_t propertyKey) const;
     bool hasListeners() { return m_hitComponents.size() > 0; }
+    bool hasFocusNodes();
+    bool focusNext();
+    bool focusPrevious();
     void clearDataContext();
     void relinkDataContext() override;
     void rebuildDataBind(DataBind*) override;

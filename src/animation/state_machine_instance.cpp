@@ -2918,3 +2918,24 @@ BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
     }
     return nullptr;
 }
+
+bool StateMachineInstance::hasFocusNodes()
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    return !fm->rootNodes().empty();
+}
+
+bool StateMachineInstance::focusNext()
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    return fm->focusNext();
+}
+
+bool StateMachineInstance::focusPrevious()
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    return fm->focusPrevious();
+}
