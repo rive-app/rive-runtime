@@ -283,6 +283,14 @@ function rive_tools_project(name, project_kind)
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:android' })
     do
         links({ 'EGL', 'GLESv3', 'log' })
+        -- Support 16 KB page sizes
+        -- Necessary for NDK r27, can remove when upgrading to r28+
+            -- See: https://developer.android.com/guide/practices/page-sizes#compile-r27-lower
+        -- See: https://android.googlesource.com/platform/ndk/+/master/docs/BuildSystemMaintainers.md#page-sizes
+        linkoptions({
+            '-Wl,-z,max-page-size=16384',
+            '-Wl,-z,common-page-size=16384',
+        })
     end
 
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-dawn' })
