@@ -2238,7 +2238,7 @@ bool CommandServer::processCommands()
                 ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
                 ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
                 RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
-                ArtboardHandle artboadHandle = RIVE_NULL_HANDLE;
+                ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
                 uint64_t requestId;
                 CommandQueue::ViewModelInstanceData value;
 
@@ -2272,7 +2272,7 @@ bool CommandServer::processCommands()
                         commandStream >> imageHandle;
                         break;
                     case DataType::artboard:
-                        commandStream >> artboadHandle;
+                        commandStream >> artboardHandle;
                         break;
                     default:
                         RIVE_UNREACHABLE();
@@ -2482,11 +2482,15 @@ bool CommandServer::processCommands()
                         }
                         case DataType::assetImage:
                         {
-                            if (auto image = getImage(imageHandle))
+                            if (auto imageProperty =
+                                    viewModelInstance->propertyImage(
+                                        value.metaData.name))
                             {
-                                if (auto imageProperty =
-                                        viewModelInstance->propertyImage(
-                                            value.metaData.name))
+                                if (imageHandle == RIVE_NULL_HANDLE)
+                                {
+                                    imageProperty->value(nullptr);
+                                }
+                                else if (auto image = getImage(imageHandle))
                                 {
                                     imageProperty->value(image);
                                 }
@@ -2497,8 +2501,10 @@ bool CommandServer::processCommands()
                                         handle,
                                         requestId,
                                         CommandQueue::Message::viewModelError)
-                                        << "Could not find "
-                                           "image property at path "
+                                        << "Could not find image "
+                                        << imageHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
                                         << value.metaData.name;
                                 }
                             }
@@ -2509,21 +2515,25 @@ bool CommandServer::processCommands()
                                     handle,
                                     requestId,
                                     CommandQueue::Message::viewModelError)
-                                    << "Could not find image " << imageHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
+                                    << "Could not find "
+                                       "image property at path "
                                     << value.metaData.name;
                             }
                             break;
                         }
                         case DataType::artboard:
                         {
-                            if (auto bindableArtboard =
-                                    getBindableArtboard(artboadHandle))
+                            if (auto artboardProperty =
+                                    viewModelInstance->propertyArtboard(
+                                        value.metaData.name))
                             {
-                                if (auto artboardProperty =
-                                        viewModelInstance->propertyArtboard(
-                                            value.metaData.name))
+                                if (artboardHandle == RIVE_NULL_HANDLE)
+                                {
+                                    artboardProperty->value(nullptr);
+                                }
+                                else if (auto bindableArtboard =
+                                             getBindableArtboard(
+                                                 artboardHandle))
                                 {
                                     artboardProperty->value(bindableArtboard);
                                 }
@@ -2534,8 +2544,10 @@ bool CommandServer::processCommands()
                                         handle,
                                         requestId,
                                         CommandQueue::Message::viewModelError)
-                                        << "Could not find "
-                                           "artboard property at path "
+                                        << "Could not find artboard "
+                                        << artboardHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
                                         << value.metaData.name;
                                 }
                             }
@@ -2546,10 +2558,8 @@ bool CommandServer::processCommands()
                                     handle,
                                     requestId,
                                     CommandQueue::Message::viewModelError)
-                                    << "Could not find artboard "
-                                    << artboadHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
+                                    << "Could not find "
+                                       "artboard property at path "
                                     << value.metaData.name;
                             }
                             break;

@@ -1978,6 +1978,32 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
             CHECK(imageProperty->testing_value() == image);
         });
 
+    // Setting a null image handle should clear the property.
+    commandQueue->setViewModelInstanceImage(tester.m_handle,
+                                            "Test Image",
+                                            RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([handle = tester.m_handle](CommandServer* server) {
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto imageProperty = viewModel->propertyImage("Test Image");
+        CHECK(imageProperty != nullptr);
+        CHECK(imageProperty->testing_value() == nullptr);
+    });
+
+    // Setting a null artboard handle should clear the property.
+    commandQueue->setViewModelInstanceArtboard(tester.m_handle,
+                                               "Test Artboard",
+                                               RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([handle = tester.m_handle](CommandServer* server) {
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto artboardProperty = viewModel->propertyArtboard("Test Artboard");
+        CHECK(artboardProperty != nullptr);
+        CHECK(artboardProperty->testing_value() == nullptr);
+    });
+
     // We should set / get in order as it goes through the list.
     for (int i = 0; i < 10; ++i)
     {
