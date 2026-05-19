@@ -5,6 +5,7 @@
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
 #include "utils/no_op_factory.hpp"
+#include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
@@ -167,6 +168,76 @@ TEST_CASE("ScrollConstraint list", "[layoutscroll]")
     REQUIRE(scroll->contentHeight() == 960.0f);
     REQUIRE(scroll->viewportHeight() == 500.0f);
     REQUIRE(scroll->maxOffsetY() == -460.0f);
+}
+
+TEST_CASE("Carousel snap swipe right settles past index 0", "[silver]")
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_scroll_snap.riv", &silver);
+
+    auto artboard = file->artboard("main")->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto renderer = silver.makeRenderer();
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    float centerY = artboard->height() / 2.0f;
+    float startX = artboard->width() / 2.0f;
+    float dt = 0.016f;
+
+    // Swipe right: use whole-second timestamps so they survive long long
+    // truncation in the physics accumulator.
+    float swipeDistance = 1500.0f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(startX, centerY), time);
+    smi->pointerDown(rive::Vec2D(startX, centerY));
+    time += 1.0f;
+
+    int steps = 4;
+    for (int i = 1; i <= steps; i++)
+    {
+        silver.addFrame();
+        float x = startX + (swipeDistance * i / steps);
+        smi->pointerMove(rive::Vec2D(x, centerY), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+
+    smi->pointerUp(rive::Vec2D(startX + swipeDistance, centerY));
+
+    // Capture frames while physics settles.
+    for (int i = 0; i < 300; i++)
+    {
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+        if (!smi->artboard()
+                 ->find<rive::ScrollConstraint>()[0]
+                 ->physics()
+                 ->isRunning())
+        {
+            break;
+        }
+    }
+
+    CHECK(silver.matches("layout_scroll_snap_carousel"));
+
+    rive::File::deterministicMode = false;
 }
 
 TEST_CASE("ScrollConstraint nearestSnapOffsetInDirection", "[layoutscroll]")
