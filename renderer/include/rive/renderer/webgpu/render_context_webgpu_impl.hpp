@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
+#include "rive/renderer/texture.hpp"
 #include <map>
 #include <webgpu/webgpu_cpp.h>
 
@@ -15,6 +16,11 @@
 namespace rive::gpu
 {
 class RenderTargetWebGPU;
+
+namespace wgsl
+{
+struct Shader;
+}
 
 class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
@@ -98,13 +104,22 @@ private:
                             const ContextOptions&);
 
     // Create a standard PLS "draw" pipeline for the current implementation.
-    wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType,
-                                          gpu::InterlockMode,
-                                          gpu::ShaderMiscFlags,
-                                          wgpu::TextureFormat framebufferFormat,
-                                          wgpu::ShaderModule vertexShader,
-                                          wgpu::ShaderModule fragmentShader,
-                                          const gpu::PipelineState&);
+    // vertexShader / fragmentShader carry information about which override
+    // constants are actually used by the shader (WebGPU doesn't allow
+    // overriding a constant that is declared but not used via the main
+    // entrypoint). Pass nullptr for non-WGSL (e.g. WAGYU/GLSL) shader paths,
+    // where permutations are baked in via #defines and there are no overrides.
+    wgpu::RenderPipeline makeDrawPipeline(
+        rive::gpu::DrawType,
+        gpu::ShaderFeatures,
+        gpu::InterlockMode,
+        gpu::ShaderMiscFlags,
+        wgpu::TextureFormat framebufferFormat,
+        wgpu::ShaderModule vertexShaderModule,
+        wgpu::ShaderModule fragmentShaderModule,
+        const wgsl::Shader* vertexShader,
+        const wgsl::Shader* fragmentShader,
+        const gpu::PipelineState&);
 
     // Begin a Rive render pass that uses pixel local storage.
     wgpu::RenderPassEncoder beginPLSRenderPass(wgpu::CommandEncoder,

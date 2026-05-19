@@ -15,32 +15,29 @@
 #include <sstream>
 #include <string>
 
-namespace spirv
-{
-#include "generated/shaders/spirv/blit_texture_as_draw_filtered.webgpu_vert.h"
-#include "generated/shaders/spirv/blit_texture_as_draw_filtered.webgpu_frag.h"
-#include "generated/shaders/spirv/color_ramp.vert.h"
-#include "generated/shaders/spirv/color_ramp.frag.h"
-#include "generated/shaders/spirv/tessellate.webgpu_vert.h"
-#include "generated/shaders/spirv/tessellate.webgpu_frag.h"
-#include "generated/shaders/spirv/render_atlas.webgpu_vert.h"
-#include "generated/shaders/spirv/render_atlas_fill.webgpu_frag.h"
-#include "generated/shaders/spirv/render_atlas_stroke.webgpu_frag.h"
-#include "generated/shaders/spirv/draw_msaa_path.webgpu_vert.h"
-#include "generated/shaders/spirv/draw_msaa_path.webgpu_noclipdistance_vert.h"
-#include "generated/shaders/spirv/draw_msaa_path.webgpu_frag.h"
-#include "generated/shaders/spirv/draw_msaa_path.webgpu_fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.webgpu_vert.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.webgpu_noclipdistance_vert.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.webgpu_frag.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.webgpu_fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.webgpu_vert.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.webgpu_noclipdistance_vert.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.webgpu_frag.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.webgpu_fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_stencil.vert.h"
-#include "generated/shaders/spirv/draw_msaa_stencil.frag.h"
-} // namespace spirv
+#include "generated/shaders/wgsl/blit_texture_as_draw_filtered.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/blit_texture_as_draw_filtered.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/color_ramp.vert.hpp"
+#include "generated/shaders/wgsl/color_ramp.frag.hpp"
+#include "generated/shaders/wgsl/tessellate.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/tessellate.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/render_atlas.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/render_atlas_fill.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/render_atlas_stroke.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_path.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_path.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_path.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_path.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_msaa_stencil.vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_stencil.frag.hpp"
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
@@ -61,7 +58,7 @@ namespace wgpu
 using TexelCopyBufferInfo = ImageCopyBuffer;
 using TexelCopyTextureInfo = ImageCopyTexture;
 using TexelCopyBufferLayout = TextureDataLayout;
-using ShaderSourceSPIRV = ShaderModuleSPIRVDescriptor;
+using ShaderSourceWGSL = ShaderModuleWGSLDescriptor;
 }; // namespace wgpu
 
 static WGPUBool wgpu_bool(bool value) { return static_cast<WGPUBool>(value); }
@@ -208,14 +205,17 @@ static wgpu::MipmapFilterMode webgpu_mipmap_filter_mode(
     RIVE_UNREACHABLE();
 }
 
-static wgpu::ShaderModule compile_shader_module_spirv(wgpu::Device device,
-                                                      const uint32_t* code,
-                                                      uint32_t codeSize)
+static wgpu::ShaderModule compile_shader_module_wgsl(
+    wgpu::Device device,
+    const rive::gpu::wgsl::Shader& shader)
 {
-    wgpu::ShaderSourceSPIRV spirvSource;
-    spirvSource.code = code;
-    spirvSource.codeSize = codeSize;
-    wgpu::ShaderModuleDescriptor descriptor = {.nextInChain = &spirvSource};
+    wgpu::ShaderSourceWGSL source;
+    source.code = shader.source;
+    wgpu::ShaderModuleDescriptor descriptor = {
+        .nextInChain = &source,
+    };
+    descriptor.label = shader.label;
+
     return device.CreateShaderModule(&descriptor);
 }
 
@@ -251,9 +251,10 @@ EM_JS(int, gl_max_vertex_shader_storage_blocks, (), {
         .GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS;
 });
 
-wgpu::ShaderModule compile_shader_module_wagyu(wgpu::Device device,
-                                               const char* source,
-                                               WGPUWagyuShaderLanguage language)
+static wgpu::ShaderModule compile_shader_module_wagyu(
+    wgpu::Device device,
+    const char* source,
+    WGPUWagyuShaderLanguage language)
 {
     WGPUChainedStruct* chainedShaderModuleDescriptor = nullptr;
     WGPUWagyuShaderModuleDescriptor wagyuDesc =
@@ -353,13 +354,13 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             context->m_device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule fragmentShader;
+        wgpu::ShaderModule fragmentShaderModule;
         std::ostringstream glsl;
         glsl << "#version 310 es\n";
         glsl << "#define " GLSL_FRAGMENT " true\n";
         glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
         BuildLoadStoreEXTGLSL(glsl, actions);
-        fragmentShader =
+        fragmentShaderModule =
             compile_shader_module_wagyu(context->m_device,
                                         glsl.str().c_str(),
                                         WGPUWagyuShaderLanguage_GLSLRAW);
@@ -369,7 +370,7 @@ public:
         };
 
         wgpu::FragmentState fragmentState = {
-            .module = fragmentShader,
+            .module = fragmentShaderModule,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -442,7 +443,7 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader, fragmentShader;
+        wgpu::ShaderModule vertexShaderModule, fragmentShaderModule;
 #ifdef RIVE_WAGYU
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
@@ -462,7 +463,7 @@ public:
             vertexGLSL << "#version 310 es\n";
             vertexGLSL << "#define " GLSL_VERTEX " true\n";
             vertexGLSL << glsl.str();
-            vertexShader =
+            vertexShaderModule =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -471,7 +472,7 @@ public:
             fragmentGLSL << "#version 310 es\n";
             fragmentGLSL << "#define " GLSL_FRAGMENT " true\n";
             fragmentGLSL << glsl.str();
-            fragmentShader =
+            fragmentShaderModule =
                 compile_shader_module_wagyu(device,
                                             fragmentGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -479,14 +480,10 @@ public:
         else
 #endif
         {
-            vertexShader =
-                compile_shader_module_spirv(device,
-                                            spirv::color_ramp_vert,
-                                            std::size(spirv::color_ramp_vert));
-            fragmentShader =
-                compile_shader_module_spirv(device,
-                                            spirv::color_ramp_frag,
-                                            std::size(spirv::color_ramp_frag));
+            vertexShaderModule =
+                compile_shader_module_wgsl(device, wgsl::color_ramp_vert);
+            fragmentShaderModule =
+                compile_shader_module_wgsl(device, wgsl::color_ramp_frag);
         }
 
         wgpu::VertexAttribute attrs[] = {
@@ -511,7 +508,7 @@ public:
         };
 
         wgpu::FragmentState fragmentState = {
-            .module = fragmentShader,
+            .module = fragmentShaderModule,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -522,7 +519,7 @@ public:
             .layout = pipelineLayout,
             .vertex =
                 {
-                    .module = vertexShader,
+                    .module = vertexShaderModule,
                     .entryPoint = "main",
                     .bufferCount = 1,
                     .buffers = &vertexBufferLayout,
@@ -581,7 +578,7 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader, fragmentShader;
+        wgpu::ShaderModule vertexShaderModule, fragmentShaderModule;
 #ifdef RIVE_WAGYU
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
@@ -607,7 +604,7 @@ public:
             vertexGLSL << "#version 310 es\n";
             vertexGLSL << "#define " GLSL_VERTEX " true\n";
             vertexGLSL << glsl.str();
-            vertexShader =
+            vertexShaderModule =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -616,7 +613,7 @@ public:
             fragmentGLSL << "#version 310 es\n";
             fragmentGLSL << "#define " GLSL_FRAGMENT " true\n";
             fragmentGLSL << glsl.str();
-            fragmentShader =
+            fragmentShaderModule =
                 compile_shader_module_wagyu(device,
                                             fragmentGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -624,14 +621,12 @@ public:
         else
 #endif
         {
-            vertexShader = compile_shader_module_spirv(
-                device,
-                spirv::tessellate_webgpu_vert,
-                std::size(spirv::tessellate_webgpu_vert));
-            fragmentShader = compile_shader_module_spirv(
-                device,
-                spirv::tessellate_webgpu_frag,
-                std::size(spirv::tessellate_webgpu_frag));
+            vertexShaderModule =
+                compile_shader_module_wgsl(device,
+                                           wgsl::tessellate_webgpu_vert);
+            fragmentShaderModule =
+                compile_shader_module_wgsl(device,
+                                           wgsl::tessellate_webgpu_frag);
         }
 
         wgpu::VertexAttribute attrs[] = {
@@ -671,7 +666,7 @@ public:
         };
 
         wgpu::FragmentState fragmentState = {
-            .module = fragmentShader,
+            .module = fragmentShaderModule,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -682,7 +677,7 @@ public:
             .layout = pipelineLayout,
             .vertex =
                 {
-                    .module = vertexShader,
+                    .module = vertexShaderModule,
                     .entryPoint = "main",
                     .bufferCount = 1,
                     .buffers = &vertexBufferLayout,
@@ -741,8 +736,8 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader;
-        wgpu::ShaderModule fillFragmentShader, strokeFragmentShader;
+        wgpu::ShaderModule vertexShaderModule;
+        wgpu::ShaderModule fillFragmentShaderModule, strokeFragmentShaderModule;
 #ifdef RIVE_WAGYU
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
@@ -774,7 +769,7 @@ public:
             vertexGLSL << "#pragma shader_stage(vertex)\n";
             vertexGLSL << "#define " GLSL_VERTEX " true\n";
             vertexGLSL << glsl.str();
-            vertexShader =
+            vertexShaderModule =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -785,7 +780,7 @@ public:
             fillGLSL << "#define " GLSL_FRAGMENT " true\n";
             fillGLSL << "#define " GLSL_ATLAS_FEATHERED_FILL " true\n";
             fillGLSL << glsl.str();
-            fillFragmentShader =
+            fillFragmentShaderModule =
                 compile_shader_module_wagyu(device,
                                             fillGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -796,7 +791,7 @@ public:
             strokeGLSL << "#define " GLSL_FRAGMENT " true\n";
             strokeGLSL << "#define " GLSL_ATLAS_FEATHERED_STROKE " true\n";
             strokeGLSL << glsl.str();
-            strokeFragmentShader =
+            strokeFragmentShaderModule =
                 compile_shader_module_wagyu(device,
                                             strokeGLSL.str().c_str(),
                                             WGPUWagyuShaderLanguage_GLSLRAW);
@@ -804,18 +799,15 @@ public:
         else
 #endif
         {
-            vertexShader = compile_shader_module_spirv(
+            vertexShaderModule =
+                compile_shader_module_wgsl(device,
+                                           wgsl::render_atlas_webgpu_vert);
+            fillFragmentShaderModule =
+                compile_shader_module_wgsl(device,
+                                           wgsl::render_atlas_fill_webgpu_frag);
+            strokeFragmentShaderModule = compile_shader_module_wgsl(
                 device,
-                spirv::render_atlas_webgpu_vert,
-                std::size(spirv::render_atlas_webgpu_vert));
-            fillFragmentShader = compile_shader_module_spirv(
-                device,
-                spirv::render_atlas_fill_webgpu_frag,
-                std::size(spirv::render_atlas_fill_webgpu_frag));
-            strokeFragmentShader = compile_shader_module_spirv(
-                device,
-                spirv::render_atlas_stroke_webgpu_frag,
-                std::size(spirv::render_atlas_stroke_webgpu_frag));
+                wgsl::render_atlas_stroke_webgpu_frag);
         }
 
         wgpu::VertexAttribute attrs[] = {
@@ -853,7 +845,7 @@ public:
         };
 
         wgpu::FragmentState fragmentState = {
-            .module = fillFragmentShader,
+            .module = fillFragmentShaderModule,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -864,7 +856,7 @@ public:
             .layout = pipelineLayout,
             .vertex =
                 {
-                    .module = vertexShader,
+                    .module = vertexShaderModule,
                     .entryPoint = "main",
                     .bufferCount = 1,
                     .buffers = &vertexBufferLayout,
@@ -881,7 +873,7 @@ public:
         m_fillPipeline = device.CreateRenderPipeline(&desc);
 
         blendState.color.operation = wgpu::BlendOperation::Max;
-        fragmentState.module = strokeFragmentShader;
+        fragmentState.module = strokeFragmentShaderModule;
         m_strokePipeline = device.CreateRenderPipeline(&desc);
     }
 
@@ -913,7 +905,12 @@ public:
         const bool fixedFunctionColorOutput =
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::fixedFunctionColorOutput);
-        wgpu::ShaderModule vertexShader, fragmentShader;
+        wgpu::ShaderModule vertexModule, fragmentModule;
+        // Override info for the WGSL path. Stays nullptr on the WAGYU/GLSL
+        // path, where permutations are baked in via #defines instead of
+        // pipeline-overridable constants.
+        const wgsl::Shader* vertexShader = nullptr;
+        const wgsl::Shader* fragmentShader = nullptr;
 #ifdef RIVE_WAGYU
         PixelLocalStorageType plsType = context->m_capabilities.plsType;
         if (using_pls(interlockMode))
@@ -1095,7 +1092,7 @@ public:
             vertexGLSL << "#pragma shader_stage(vertex)\n";
             vertexGLSL << "#define " GLSL_VERTEX " true\n";
             vertexGLSL << glsl.str();
-            vertexShader = compile_shader_module_wagyu(context->m_device,
+            vertexModule = compile_shader_module_wagyu(context->m_device,
                                                        vertexGLSL.str().c_str(),
                                                        language);
 
@@ -1104,7 +1101,7 @@ public:
             fragmentGLSL << "#pragma shader_stage(fragment)\n";
             fragmentGLSL << "#define " GLSL_FRAGMENT " true\n";
             fragmentGLSL << glsl.str();
-            fragmentShader =
+            fragmentModule =
                 compile_shader_module_wagyu(context->m_device,
                                             fragmentGLSL.str().c_str(),
                                             language);
@@ -1113,8 +1110,6 @@ public:
 #endif
         {
             assert(interlockMode == gpu::InterlockMode::msaa);
-            Span<const uint32_t> vertCode;
-            Span<const uint32_t> fragCode;
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
@@ -1129,23 +1124,20 @@ public:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:
                 case DrawType::msaaMidpointFanPathsCover:
-                    vertCode =
+                    vertexShader =
                         enums::is_flag_set(shaderFeatures,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? make_span(spirv::draw_msaa_path_webgpu_vert)
-                            : make_span(
-                                  spirv::
-                                      draw_msaa_path_webgpu_noclipdistance_vert);
-                    fragCode =
+                            ? &wgsl::draw_msaa_path_webgpu_vert
+                            : &wgsl::draw_msaa_path_webgpu_noclipdistance_vert;
+                    fragmentShader =
                         fixedFunctionColorOutput
-                            ? make_span(
-                                  spirv::draw_msaa_path_webgpu_fixedcolor_frag)
-                            : make_span(spirv::draw_msaa_path_webgpu_frag);
+                            ? &wgsl::draw_msaa_path_webgpu_fixedcolor_frag
+                            : &wgsl::draw_msaa_path_webgpu_frag;
                     break;
 
                 case DrawType::clipReset:
-                    vertCode = make_span(spirv::draw_msaa_stencil_vert);
-                    fragCode = make_span(spirv::draw_msaa_stencil_frag);
+                    vertexShader = &wgsl::draw_msaa_stencil_vert;
+                    fragmentShader = &wgsl::draw_msaa_stencil_frag;
                     break;
 
                 case DrawType::interiorTriangulation:
@@ -1154,61 +1146,49 @@ public:
                     break;
 
                 case DrawType::atlasBlit:
-                    vertCode =
+                    vertexShader =
                         enums::is_flag_set(shaderFeatures,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? make_span(spirv::draw_msaa_atlas_blit_webgpu_vert)
-                            : make_span(
-                                  spirv::
-                                      draw_msaa_atlas_blit_webgpu_noclipdistance_vert);
-                    fragCode =
+                            ? &wgsl::draw_msaa_atlas_blit_webgpu_vert
+                            : &wgsl::
+                                  draw_msaa_atlas_blit_webgpu_noclipdistance_vert;
+                    fragmentShader =
                         fixedFunctionColorOutput
-                            ? make_span(
-                                  spirv::
-                                      draw_msaa_atlas_blit_webgpu_fixedcolor_frag)
-                            : make_span(
-                                  spirv::draw_msaa_atlas_blit_webgpu_frag);
+                            ? &wgsl::draw_msaa_atlas_blit_webgpu_fixedcolor_frag
+                            : &wgsl::draw_msaa_atlas_blit_webgpu_frag;
                     break;
 
                 case DrawType::imageMesh:
-                    vertCode =
+                    vertexShader =
                         enums::is_flag_set(shaderFeatures,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? make_span(spirv::draw_msaa_image_mesh_webgpu_vert)
-                            : make_span(
-                                  spirv::
-                                      draw_msaa_image_mesh_webgpu_noclipdistance_vert);
-                    fragCode =
+                            ? &wgsl::draw_msaa_image_mesh_webgpu_vert
+                            : &wgsl::
+                                  draw_msaa_image_mesh_webgpu_noclipdistance_vert;
+                    fragmentShader =
                         fixedFunctionColorOutput
-                            ? make_span(
-                                  spirv::
-                                      draw_msaa_image_mesh_webgpu_fixedcolor_frag)
-                            : make_span(
-                                  spirv::draw_msaa_image_mesh_webgpu_frag);
+                            ? &wgsl::draw_msaa_image_mesh_webgpu_fixedcolor_frag
+                            : &wgsl::draw_msaa_image_mesh_webgpu_frag;
                     break;
 
                 case DrawType::renderPassInitialize:
                     // MSAA render passes get initialized by drawing the
                     // previous contents into the framebuffer.
                     // (LoadAction::preserveRenderTarget only.)
-                    vertCode = make_span(
-                        spirv::blit_texture_as_draw_filtered_webgpu_vert);
-                    fragCode = make_span(
-                        spirv::blit_texture_as_draw_filtered_webgpu_frag);
+                    vertexShader =
+                        &wgsl::blit_texture_as_draw_filtered_webgpu_vert;
+                    fragmentShader =
+                        &wgsl::blit_texture_as_draw_filtered_webgpu_frag;
                     break;
 
                 case DrawType::imageRect:
                 case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
             }
-            vertexShader = compile_shader_module_spirv(
-                context->m_device,
-                vertCode.data(),
-                math::lossless_numeric_cast<uint32_t>(vertCode.count()));
-            fragmentShader = compile_shader_module_spirv(
-                context->m_device,
-                fragCode.data(),
-                math::lossless_numeric_cast<uint32_t>(fragCode.count()));
+            vertexModule =
+                compile_shader_module_wgsl(context->m_device, *vertexShader);
+            fragmentModule =
+                compile_shader_module_wgsl(context->m_device, *fragmentShader);
         }
 
         for (auto framebufferFormat :
@@ -1217,9 +1197,12 @@ public:
             int pipelineIdx = RenderPipelineIdx(framebufferFormat);
             m_renderPipelines[pipelineIdx] =
                 context->makeDrawPipeline(drawType,
+                                          shaderFeatures,
                                           interlockMode,
                                           shaderMiscFlags,
                                           framebufferFormat,
+                                          vertexModule,
+                                          fragmentModule,
                                           vertexShader,
                                           fragmentShader,
                                           pipelineState);
@@ -2113,22 +2096,20 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader = compile_shader_module_spirv(
+        wgpu::ShaderModule vertexShaderModule = compile_shader_module_wgsl(
             device,
-            spirv::blit_texture_as_draw_filtered_webgpu_vert,
-            std::size(spirv::blit_texture_as_draw_filtered_webgpu_vert));
+            wgsl::blit_texture_as_draw_filtered_webgpu_vert);
 
-        wgpu::ShaderModule fragmentShader = compile_shader_module_spirv(
+        wgpu::ShaderModule fragmentShaderModule = compile_shader_module_wgsl(
             device,
-            spirv::blit_texture_as_draw_filtered_webgpu_frag,
-            std::size(spirv::blit_texture_as_draw_filtered_webgpu_frag));
+            wgsl::blit_texture_as_draw_filtered_webgpu_frag);
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA8Unorm,
         };
 
         wgpu::FragmentState fragmentState = {
-            .module = fragmentShader,
+            .module = fragmentShaderModule,
             .entryPoint = "main",
             .targetCount = 1,
             .targets = &colorTargetState,
@@ -2139,7 +2120,7 @@ public:
             .layout = pipelineLayout,
             .vertex =
                 {
-                    .module = vertexShader,
+                    .module = vertexShaderModule,
                     .entryPoint = "main",
                 },
             .primitive =
@@ -2521,11 +2502,14 @@ void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
 
 wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     gpu::DrawType drawType,
+    gpu::ShaderFeatures shaderFeatures,
     gpu::InterlockMode interlockMode,
     gpu::ShaderMiscFlags shaderMiscFlags,
     wgpu::TextureFormat framebufferFormat,
-    wgpu::ShaderModule vertexShader,
-    wgpu::ShaderModule fragmentShader,
+    wgpu::ShaderModule vertexShaderModule,
+    wgpu::ShaderModule fragmentShaderModule,
+    const wgsl::Shader* vertexShader,
+    const wgsl::Shader* fragmentShader,
     const gpu::PipelineState& pipelineState)
 {
     std::vector<WGPUVertexAttribute> attrs;
@@ -2684,9 +2668,113 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     }
 #endif
 
+    // Override constants for the WGSL shaders. Mirrors the SPIRV specialization
+    // layout — same indices, same data, just delivered through WebGPU's
+    // override mechanism.
+    double shaderPermutationFlags[SPECIALIZATION_COUNT] = {
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_CLIPPING)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_CLIP_RECT)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_FEATHER)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_EVEN_ODD)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES)),
+        static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_DITHER)),
+        static_cast<double>(
+            enums::is_flag_set(shaderMiscFlags,
+                               gpu::ShaderMiscFlags::clockwiseFill)),
+        static_cast<double>(
+            enums::is_flag_set(shaderMiscFlags,
+                               gpu::ShaderMiscFlags::borrowedCoveragePass)),
+        static_cast<double>(
+            enums::is_flag_set(shaderMiscFlags,
+                               gpu::ShaderMiscFlags::nestedClipUpdateOnly)),
+        0.0, // VULKAN_VENDOR_ARM — ignored for now, but we may want to detect
+             // this if it we find ARM bugs on WebGPU that get fixed by shader
+             // modifications.
+    };
+    static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
+    static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
+    static_assert(ADVANCED_BLEND_SPECIALIZATION_IDX == 2);
+    static_assert(FEATHER_SPECIALIZATION_IDX == 3);
+    static_assert(EVEN_ODD_SPECIALIZATION_IDX == 4);
+    static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
+    static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
+    static_assert(DITHER_SPECIALIZATION_IDX == 7);
+    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 9);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 10);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 11);
+    static_assert(SPECIALIZATION_COUNT == 12);
+
+    // Build a per-stage WGPUConstantEntry[] from the shader's own override
+    // list.
+    auto buildConstants = [&](const wgsl::Shader* shader,
+                              WGPUConstantEntry* out) -> size_t {
+        if (shader == nullptr)
+        {
+            return 0;
+        }
+
+        constexpr const char* SpecializationIdxIDs[] = {
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+        };
+        static_assert(std::size(SpecializationIdxIDs) == SPECIALIZATION_COUNT);
+
+        size_t count = 0;
+        for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
+        {
+            if (!shader->usedOverrides[i])
+                continue;
+            out[count++] = {
+                .nextInChain = nullptr,
+                .key = WGPU_STRING_VIEW(SpecializationIdxIDs[i]),
+                .value = shaderPermutationFlags[i],
+            };
+        }
+
+        return count;
+    };
+
+    WGPUConstantEntry vertexConstantEntries[SPECIALIZATION_COUNT];
+    WGPUConstantEntry fragmentConstantEntries[SPECIALIZATION_COUNT];
+    size_t vertexConstantCount =
+        buildConstants(vertexShader, vertexConstantEntries);
+    size_t fragmentConstantCount =
+        buildConstants(fragmentShader, fragmentConstantEntries);
+
     WGPUFragmentState fragmentState = {
-        .module = fragmentShader.Get(),
+        .module = fragmentShaderModule.Get(),
         .entryPoint = WGPU_STRING_VIEW("main"),
+        .constantCount = fragmentConstantCount,
+        .constants = fragmentConstantEntries,
         .targetCount = colorAttachments.size(),
         .targets = colorAttachments.data(),
     };
@@ -2721,8 +2809,10 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         .layout = m_drawPipelineLayout.Get(),
         .vertex =
             {
-                .module = vertexShader.Get(),
+                .module = vertexShaderModule.Get(),
                 .entryPoint = WGPU_STRING_VIEW("main"),
+                .constantCount = vertexConstantCount,
+                .constants = vertexConstantEntries,
                 .bufferCount = std::size(vertexBufferLayouts),
                 .buffers = vertexBufferLayouts.data(),
             },

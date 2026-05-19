@@ -824,23 +824,25 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_workarounds({
         .maxInstancesPerRenderPass =
             (m_vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3 &&
-             (m_vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_ARM ||
+             (m_vk->physicalDeviceProperties().vendorID ==
+                  vkutil::vendors::ARM ||
               m_vk->physicalDeviceProperties().vendorID ==
-                  VULKAN_VENDOR_IMG_TEC))
+                  vkutil::vendors::Imagination))
                 // Early Mali and PowerVR devices are known to crash when a
                 // single render pass is too complex.
                 ? (1u << 13) - 1u
                 : UINT32_MAX,
         // Early Xclipse drivers struggle with our manual msaa resolve, so we
         // always do automatic fullscreen resolves on that GPU family.
-        .avoidManualMSAAResolves =
-            m_vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_SAMSUNG,
+        .avoidManualMSAAResolves = m_vk->physicalDeviceProperties().vendorID ==
+                                   vkutil::vendors::Samsung,
         // Some Android drivers (some Android 12 and earlier Adreno drivers)
         // have issues with having both a self-dependency for dst reads and
         // resolve attachments. For now we just always manually resolve these
         // render passes that use advanced blend on Qualcomm.
         .needsManualMSAAResolveAfterDstRead =
-            m_vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_QUALCOMM,
+            m_vk->physicalDeviceProperties().vendorID ==
+            vkutil::vendors::Qualcomm,
     }),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
     m_imageDrawUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
@@ -910,7 +912,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 
     switch (physicalDeviceProps.vendorID)
     {
-        case VULKAN_VENDOR_QUALCOMM:
+        case vkutil::vendors::Qualcomm:
             // Qualcomm advertises EXT_rasterization_order_attachment_access,
             // but it's slow. Use atomics instead on this platform.
             m_platformFeatures.supportsRasterOrderingMode = false;
@@ -924,7 +926,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             m_platformFeatures.pathIDGranularity = 2;
             break;
 
-        case VULKAN_VENDOR_ARM:
+        case vkutil::vendors::ARM:
             // Raster ordering is known to work on ARM hardware, even on old
             // drivers without EXT_rasterization_order_attachment_access, as
             // long as you define a subpass self-dependency.
@@ -932,7 +934,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
                 !contextOptions.forceAtomicMode;
             break;
 
-        case VULKAN_VENDOR_IMG_TEC:
+        case vkutil::vendors::Imagination:
             // Raster ordering is known to work on IMG hardware, even without
             // EXT_rasterization_order_attachment_access, as long as you define
             // a subpass self-dependency.
@@ -3682,7 +3684,8 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
         return nullptr;
     }
 
-    if (vk->physicalDeviceProperties().vendorID == VULKAN_VENDOR_IMG_TEC &&
+    if (vk->physicalDeviceProperties().vendorID ==
+            vkutil::vendors::Imagination &&
         vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3)
     {
         fprintf(

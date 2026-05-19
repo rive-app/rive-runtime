@@ -36,7 +36,7 @@ static const char* physicalDeviceTypeName(VkPhysicalDeviceType type)
 VulkanDevice::DriverVersion unpackDriverVersion(
     const VkPhysicalDeviceProperties& props)
 {
-    if (props.vendorID == VULKAN_VENDOR_NVIDIA)
+    if (props.vendorID == rive::gpu::vkutil::vendors::NVIDIA)
     {
         // NVidia uses 10|8|8|6 encoding for driver version. We'll ignore the
         // fourth version section.
@@ -47,7 +47,7 @@ VulkanDevice::DriverVersion unpackDriverVersion(
         };
     }
 #ifdef _WIN32
-    else if (props.vendorID == VULKAN_VENDOR_INTEL)
+    else if (props.vendorID == rive::gpu::vkutil::vendors::Intel)
     {
         return {
             .major = props.driverVersion >> 14,

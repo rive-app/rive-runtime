@@ -316,7 +316,7 @@ function rive_tools_project(name, project_kind)
         'system:windows',
     })
     do
-        links({ 'dxguid' })
+        links({ 'dxguid', 'onecore' })
     end
 
     filter({

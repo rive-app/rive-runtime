@@ -322,18 +322,18 @@ spirv_opt_params = \
 ## Usage: $(eval $(call spirv_list_rule, INPUT_FILENAME, OUTPUT_TYPE [, ADDITIONAL_COMPILE_OPTIONS]))
 ##   Where OUTPUT_TYPE is, say, "vert" or "frag" or "fixedcolor_frag", etc
 define spirv_list_rule
-  $(spirv_out_filename_no_ext).spirv: $1 $(MINIFY_STAMP) | $(OUT)/spirv/.
+  $(spirv_out_filename_no_ext).spv: $1 $(MINIFY_STAMP) | $(OUT)/spirv/.
 	@glslangValidator -S $(spirv_type) -DTARGET_SPIRV \
 		$(if $(spirv_is_vert), -DVERTEX, -DFRAGMENT $(spirv_frag_params)) \
-		-I$(OUT)  -V $3 -o $(spirv_out_filename_no_ext).spirv.unoptimized $1
+		-I$(OUT)  -V $3 -o $(spirv_out_filename_no_ext).spv.unoptimized $1
 	@spirv-opt --preserve-bindings --preserve-interface $(spirv_opt_params) \
-		$(spirv_out_filename_no_ext).spirv.unoptimized -o $(spirv_out_filename_no_ext).spirv
-	@rm $(spirv_out_filename_no_ext).spirv.unoptimized
+		$(spirv_out_filename_no_ext).spv.unoptimized -o $(spirv_out_filename_no_ext).spv
+	@rm $(spirv_out_filename_no_ext).spv.unoptimized
 
-  $(spirv_out_filename_no_ext).h: $(spirv_out_filename_no_ext).spirv
-	@python3 spirv_binary_to_header.py $(spirv_out_filename_no_ext).spirv $(spirv_out_filename_no_ext).h $(subst $(suffix $1),_$2,$(notdir $1))
+  $(spirv_out_filename_no_ext).h: $(spirv_out_filename_no_ext).spv
+	@python3 spirv_binary_to_header.py $(spirv_out_filename_no_ext).spv $(spirv_out_filename_no_ext).h $(subst $(suffix $1),_$2,$(notdir $1))
 
-  SPIRV_OUTPUTS_BINARY += $(spirv_out_filename_no_ext).spirv
+  SPIRV_OUTPUTS_BINARY += $(spirv_out_filename_no_ext).spv
   SPIRV_OUTPUTS_HEADERS += $(spirv_out_filename_no_ext).h
 endef
 
@@ -352,7 +352,7 @@ endef
 ## All .main/vert/frag files should build
 $(eval $(call make_spirv_rules, $(SPIRV_STANDARD_INPUTS), vert frag))
 
-SPIRV_COMMON_WEBGPU_PARAMS = -DSPEC_CONST_NONE -DUSE_WEBGPU_SAMPLERS
+SPIRV_COMMON_WEBGPU_PARAMS = -DUSE_WEBGPU_SAMPLERS
 
 ## Each of the specialized SPIRV lists have their own associated rules
 $(eval $(call make_spirv_rules, $(SPIRV_FIXEDCOLOR_FRAG_INPUTS), fixedcolor_frag, -DFIXED_FUNCTION_COLOR_OUTPUT))
@@ -367,6 +367,57 @@ $(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_fixedcolor_fra
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)
 spirv-binary: $(SPIRV_OUTPUTS_BINARY)
+
+## WGSL compilation. Translates WebGPU-flavored SPIR-V binaries to WGSL using
+## naga. Some Vulkan-flavored SPIR-V files aren't compatible with WebGPU so we
+## filter to the webgpu_* variants only — plus a hand-curated list of standard
+## variants that translate cleanly (e.g., shaders without combined samplers).
+$(OUT)/wgsl/.: | $(OUT)/.
+	@mkdir -p $@
+
+WGSL_OUTPUTS := \
+    $(patsubst $(OUT)/spirv/%.spv,$(OUT)/wgsl/%.wgsl, \
+        $(filter %.webgpu_vert.spv \
+                 %.webgpu_noclipdistance_vert.spv \
+                 %.webgpu_frag.spv \
+                 %.webgpu_fixedcolor_frag.spv, \
+                 $(SPIRV_OUTPUTS_BINARY))) \
+    $(OUT)/wgsl/draw_msaa_stencil.vert.wgsl \
+    $(OUT)/wgsl/draw_msaa_stencil.frag.wgsl \
+    $(OUT)/wgsl/color_ramp.vert.wgsl \
+    $(OUT)/wgsl/color_ramp.frag.wgsl
+
+## Filter naga's noisy "Unknown decoration RelaxedPrecision" warning — WGSL has
+## no precision qualifiers, so naga always drops it. bash with pipefail ensures
+## a real naga failure still fails the build (pipeline exit status reflects
+## naga's, not grep's). The trailing "[ $$? = 1 ]" absorbs grep's "no matches"
+## exit code on clean runs where naga emitted nothing.
+
+## TERM=dumb forces a terminfo entry that always exists. CI sometimes sets
+## TERM=unknown, which makes naga's terminal-detection code (ncurses-backed)
+## abort with "Error opening terminal: unknown" before it can translate.
+
+## --keep-coordinate-space disables naga's default Y-flip on gl_Position. naga
+## assumes Vulkan-flavored SPIR-V (Y-down NDC) and flips to OpenGL/ WebGPU's Y-up
+## NDC. Our GLSL is already authored for Y-up — gpu.cpp sets
+## renderTargetInverseViewportY negative so the math produces WebGPU clip coords
+## directly — and the extra flip would render upside down (Dawn's SPIR-V path
+## didn't apply it either).
+$(OUT)/wgsl/%.wgsl: $(OUT)/spirv/%.spv | $(OUT)/wgsl/.
+	@echo "wgsl/$*.wgsl"
+	@TERM=dumb bash -o pipefail -c 'naga --keep-coordinate-space "$<" "$@" 2>&1 | { grep -v "Unknown decoration RelaxedPrecision" || [ $$? = 1 ]; }'
+
+## Embed each .wgsl as a C++ raw string literal in a .hpp header that downstream
+## code can #include. The variable lives in the wgsl:: namespace and is named
+## after the basename with dots replaced by underscores (e.g.
+## wgsl::tessellate_webgpu_vert). wgsl_to_header.py minifies the source first
+## unless WGSL_FLAGS includes --raw.
+WGSL_HEADER_OUTPUTS := $(patsubst %.wgsl,%.hpp,$(WGSL_OUTPUTS))
+
+$(OUT)/wgsl/%.hpp: $(OUT)/wgsl/%.wgsl wgsl_to_header.py | $(OUT)/wgsl/.
+	@python3 wgsl_to_header.py $(WGSL_FLAGS) $< $@ $(subst .,_,$(basename $(notdir $<)))
+
+wgsl: $(WGSL_HEADER_OUTPUTS)
 
 ## d3d compilation.
 .PHONY: $(OUT)/d3d/render_atlas.frag.h

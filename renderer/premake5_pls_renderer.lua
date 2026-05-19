@@ -238,13 +238,17 @@ if os.host() == 'macosx' then
         makecommand = makecommand .. ' rive_pls_macosx_metallib'
     end
 end
-
 if rive_target_os == 'windows' then
     makecommand = makecommand .. ' d3d'
 end
-
-if _OPTIONS['with_vulkan'] or _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] then
+if _OPTIONS['with_vulkan'] then
     makecommand = makecommand .. ' spirv'
+end
+if _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] then
+    if _OPTIONS['raw_shaders'] then
+        makecommand = makecommand .. ' WGSL_FLAGS="--raw"'
+    end
+    makecommand = makecommand .. ' wgsl'
 end
 
 function execute_and_check(cmd)

@@ -289,7 +289,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                            gpu::ShaderMiscFlags::borrowedCoveragePass),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::nestedClipUpdateOnly),
-        pipelineManager->vendorID(),
+        pipelineManager->vendorID() == vkutil::vendors::ARM,
     };
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
     static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
@@ -302,7 +302,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
     static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 9);
     static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 10);
-    static_assert(VULKAN_VENDOR_ID_SPECIALIZATION_IDX == 11);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 11);
     static_assert(SPECIALIZATION_COUNT == 12);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
