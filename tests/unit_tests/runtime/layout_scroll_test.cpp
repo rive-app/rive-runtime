@@ -4,6 +4,7 @@
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
@@ -290,4 +291,74 @@ TEST_CASE("ScrollConstraint nearestSnapOffsetInDirection", "[layoutscroll]")
         scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, 0.0f),
                                              rive::Vec2D(0.0f, -220.0f));
     REQUIRE(onSnap.y == -220.0f);
+}
+
+TEST_CASE("ScrollConstraint scrollIndex with hidden items", "[silver]")
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/layout/layout_scroll_visibility.riv", &silver);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto vis2 = vmi->propertyValue("vis2")->as<rive::ViewModelInstanceEnum>();
+    auto vis3 = vmi->propertyValue("vis3")->as<rive::ViewModelInstanceEnum>();
+    auto vis4 = vmi->propertyValue("vis4")->as<rive::ViewModelInstanceEnum>();
+
+    auto renderer = silver.makeRenderer();
+    float dt = 1.0f / 60.0f;
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Run 300 frames, toggling visibility at key moments.
+    for (int frame = 0; frame < 300; frame++)
+    {
+        // Hide item 2 at frame 30.
+        if (frame == 30)
+        {
+            vis2->value(1);
+        }
+        // Hide item 3 at frame 90.
+        if (frame == 90)
+        {
+            vis3->value(1);
+        }
+        // Show item 2 again at frame 150.
+        if (frame == 150)
+        {
+            vis2->value(0);
+        }
+        // Hide item 4 at frame 210.
+        if (frame == 210)
+        {
+            vis4->value(1);
+        }
+        // Show all at frame 270.
+        if (frame == 270)
+        {
+            vis2->value(0);
+            vis3->value(0);
+            vis4->value(0);
+        }
+
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("layout_scroll_visibility"));
+
+    rive::File::deterministicMode = false;
 }
