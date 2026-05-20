@@ -2,14 +2,14 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_render_pass.hpp"
-#include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_context_d3d11.hpp" // for RenderPass inline bodies
+#include "ore_render_pass_d3d11.hpp"
+#include "ore_bind_group_d3d11.hpp"
+#include "ore_buffer_d3d11.hpp"
+#include "ore_texture_d3d11.hpp"
+#include "ore_sampler_d3d11.hpp"
+#include "ore_pipeline_d3d11.hpp"
+#include "ore_shader_module_d3d11.hpp"
+#include "rive/renderer/ore/ore_context_d3d11.hpp" // for RenderPassD3D11 inline bodies
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -18,7 +18,7 @@ namespace rive::ore
 {
 
 // ============================================================================
-// D3D11 static helpers — used by both the standalone D3D11-only RenderPass
+// D3D11 static helpers — used by both the standalone D3D11-only RenderPassD3D11
 // methods below and by the combined D3D11+D3D12 dispatch file
 // (ore_render_pass_d3d11_d3d12.cpp) which #includes this file.
 // ============================================================================
@@ -61,12 +61,12 @@ namespace rive::ore
 #endif // ORE_BACKEND_D3D11
 
 // ============================================================================
-// RenderPass — D3D11-only method definitions
+// RenderPassD3D11 — D3D11-only method definitions
 // ============================================================================
 
-#if defined(ORE_BACKEND_D3D11) && !defined(ORE_BACKEND_D3D12)
+#if defined(ORE_BACKEND_D3D11)
 
-RenderPass::~RenderPass()
+RenderPassD3D11::~RenderPassD3D11()
 {
     if (!m_finished && m_d3d11Context != nullptr)
     {
@@ -74,16 +74,15 @@ RenderPass::~RenderPass()
     }
 }
 
-RenderPass::RenderPass(RenderPass&& other) noexcept :
-    m_currentPipeline(std::move(other.m_currentPipeline)),
+RenderPassD3D11::RenderPassD3D11(RenderPassD3D11&& other) noexcept :
     m_d3d11Context(other.m_d3d11Context),
+    m_currentPipeline(std::move(other.m_currentPipeline)),
     m_d3d11Topology(other.m_d3d11Topology),
     m_d3d11IndexFormat(other.m_d3d11IndexFormat),
     m_d3d11IndexOffset(other.m_d3d11IndexOffset),
     m_d3d11StencilRef(other.m_d3d11StencilRef),
     m_d3d11ResolveCount(other.m_d3d11ResolveCount)
 {
-    moveCrossBackendFieldsFrom(other);
     m_d3d11BlendFactor[0] = other.m_d3d11BlendFactor[0];
     m_d3d11BlendFactor[1] = other.m_d3d11BlendFactor[1];
     m_d3d11BlendFactor[2] = other.m_d3d11BlendFactor[2];
@@ -93,7 +92,7 @@ RenderPass::RenderPass(RenderPass&& other) noexcept :
     other.m_d3d11Context = nullptr;
 }
 
-RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
+RenderPassD3D11& RenderPassD3D11::operator=(RenderPassD3D11&& other) noexcept
 {
     if (this != &other)
     {
@@ -101,7 +100,6 @@ RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
         {
             finish();
         }
-        moveCrossBackendFieldsFrom(other);
         m_d3d11Context = other.m_d3d11Context;
         m_currentPipeline = std::move(other.m_currentPipeline);
         m_d3d11Topology = other.m_d3d11Topology;
@@ -120,15 +118,16 @@ RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
     return *this;
 }
 
-void RenderPass::validate() const
+void RenderPassD3D11::validate() const
 {
-    assert(!m_finished && "RenderPass already finished");
+    assert(!m_finished && "RenderPassD3D11 already finished");
     assert(m_d3d11Context != nullptr);
 }
 
-void RenderPass::setPipeline(Pipeline* pipeline)
+void RenderPassD3D11::setPipeline(Pipeline* inPipeline)
 {
     validate();
+    auto* pipeline = static_cast<PipelineD3D11*>(inPipeline);
     if (!checkPipelineCompat(pipeline))
         return;
     m_currentPipeline = ref_rcp(pipeline);
@@ -150,9 +149,12 @@ void RenderPass::setPipeline(Pipeline* pipeline)
                                     0xFFFFFFFF);
 }
 
-void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
+void RenderPassD3D11::setVertexBuffer(uint32_t slot,
+                                      Buffer* inBuffer,
+                                      uint32_t offset)
 {
     validate();
+    auto buffer = static_cast<BufferD3D11*>(inBuffer);
     UINT stride = (m_currentPipeline &&
                    slot < m_currentPipeline->desc().vertexBufferCount)
                       ? m_currentPipeline->desc().vertexBuffers[slot].stride
@@ -162,11 +164,12 @@ void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
     m_d3d11Context->IASetVertexBuffers(slot, 1, &buf, &stride, &off);
 }
 
-void RenderPass::setIndexBuffer(Buffer* buffer,
-                                IndexFormat format,
-                                uint32_t offset)
+void RenderPassD3D11::setIndexBuffer(Buffer* inBuffer,
+                                     IndexFormat format,
+                                     uint32_t offset)
 {
     validate();
+    auto buffer = static_cast<BufferD3D11*>(inBuffer);
     m_d3d11IndexFormat = oreIndexFormatToDXGI(format);
     m_d3d11IndexOffset = offset;
     m_d3d11Context->IASetIndexBuffer(buffer->m_d3d11Buffer.Get(),
@@ -174,12 +177,13 @@ void RenderPass::setIndexBuffer(Buffer* buffer,
                                      offset);
 }
 
-void RenderPass::setBindGroup(uint32_t groupIndex,
-                              BindGroup* bg,
-                              const uint32_t* dynamicOffsets,
-                              uint32_t dynamicOffsetCount)
+void RenderPassD3D11::setBindGroup(uint32_t groupIndex,
+                                   BindGroup* inBg,
+                                   const uint32_t* dynamicOffsets,
+                                   uint32_t dynamicOffsetCount)
 {
     validate();
+    auto bg = static_cast<BindGroupD3D11*>(inBg);
     assert(bg != nullptr);
 
     // Hold a strong reference so the BindGroup stays alive until finish().
@@ -284,12 +288,12 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
     }
 }
 
-void RenderPass::setViewport(float x,
-                             float y,
-                             float width,
-                             float height,
-                             float minDepth,
-                             float maxDepth)
+void RenderPassD3D11::setViewport(float x,
+                                  float y,
+                                  float width,
+                                  float height,
+                                  float minDepth,
+                                  float maxDepth)
 {
     validate();
     D3D11_VIEWPORT vp{};
@@ -312,10 +316,10 @@ void RenderPass::setViewport(float x,
     m_d3d11Context->RSSetScissorRects(1, &scissor);
 }
 
-void RenderPass::setScissorRect(uint32_t x,
-                                uint32_t y,
-                                uint32_t width,
-                                uint32_t height)
+void RenderPassD3D11::setScissorRect(uint32_t x,
+                                     uint32_t y,
+                                     uint32_t width,
+                                     uint32_t height)
 {
     validate();
     D3D11_RECT rect{};
@@ -326,7 +330,7 @@ void RenderPass::setScissorRect(uint32_t x,
     m_d3d11Context->RSSetScissorRects(1, &rect);
 }
 
-void RenderPass::setStencilReference(uint32_t ref)
+void RenderPassD3D11::setStencilReference(uint32_t ref)
 {
     validate();
     m_d3d11StencilRef = ref;
@@ -338,7 +342,7 @@ void RenderPass::setStencilReference(uint32_t ref)
     }
 }
 
-void RenderPass::setBlendColor(float r, float g, float b, float a)
+void RenderPassD3D11::setBlendColor(float r, float g, float b, float a)
 {
     validate();
     m_d3d11BlendFactor[0] = r;
@@ -353,10 +357,10 @@ void RenderPass::setBlendColor(float r, float g, float b, float a)
     }
 }
 
-void RenderPass::draw(uint32_t vertexCount,
-                      uint32_t instanceCount,
-                      uint32_t firstVertex,
-                      uint32_t firstInstance)
+void RenderPassD3D11::draw(uint32_t vertexCount,
+                           uint32_t instanceCount,
+                           uint32_t firstVertex,
+                           uint32_t firstInstance)
 {
     validate();
     if (instanceCount > 1 || firstInstance != 0)
@@ -372,11 +376,11 @@ void RenderPass::draw(uint32_t vertexCount,
     }
 }
 
-void RenderPass::drawIndexed(uint32_t indexCount,
-                             uint32_t instanceCount,
-                             uint32_t firstIndex,
-                             int32_t baseVertex,
-                             uint32_t firstInstance)
+void RenderPassD3D11::drawIndexed(uint32_t indexCount,
+                                  uint32_t instanceCount,
+                                  uint32_t firstIndex,
+                                  int32_t baseVertex,
+                                  uint32_t firstInstance)
 {
     validate();
     if (instanceCount > 1 || firstInstance != 0 || baseVertex != 0)
@@ -393,7 +397,7 @@ void RenderPass::drawIndexed(uint32_t indexCount,
     }
 }
 
-void RenderPass::finish()
+void RenderPassD3D11::finish()
 {
     if (m_finished)
         return;

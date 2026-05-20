@@ -3,16 +3,15 @@
  */
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
+#include "ore_buffer_gl.hpp"
 #include "rive/rive_types.hpp"
 
 namespace rive::ore
 {
 
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
+#if defined(ORE_BACKEND_GL)
 
-void Buffer::update(const void* data, uint32_t size, uint32_t offset)
+void BufferGL::update(const void* data, uint32_t size, uint32_t offset)
 {
     assert(offset + size <= m_size);
     assert(m_glBuffer != 0);
@@ -40,7 +39,7 @@ void Buffer::update(const void* data, uint32_t size, uint32_t offset)
     }
 }
 
-void Buffer::onRefCntReachedZero() const
+void BufferGL::onRefCntReachedZero() const
 {
     if (m_glBuffer != 0)
     {
@@ -50,6 +49,6 @@ void Buffer::onRefCntReachedZero() const
     delete this;
 }
 
-#endif // ORE_BACKEND_GL && !ORE_BACKEND_METAL
+#endif // ORE_BACKEND_GL
 
 } // namespace rive::ore

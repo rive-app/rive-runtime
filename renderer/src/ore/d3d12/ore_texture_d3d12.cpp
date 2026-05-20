@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_d3d12.hpp"
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/rive_types.hpp"
 
@@ -16,12 +16,7 @@ using Microsoft::WRL::ComPtr;
 namespace rive::ore
 {
 
-// --- Public method definitions (D3D12-only builds) ---
-// When both D3D11 and D3D12 are compiled, the combined
-// ore_context_d3d11_d3d12.cpp file provides these methods with dispatch.
-#if defined(ORE_BACKEND_D3D12) && !defined(ORE_BACKEND_D3D11)
-
-void Texture::upload(const TextureDataDesc& data)
+void TextureD3D12::upload(const TextureDataDesc& data)
 {
 #if defined(ORE_BACKEND_D3D12)
     assert(m_d3dTexture != nullptr);
@@ -167,26 +162,23 @@ void Texture::upload(const TextureDataDesc& data)
 #endif
 }
 
-void Texture::onRefCntReachedZero() const
+void TextureD3D12::onRefCntReachedZero() const
 {
     ContextD3D12* ctx = m_d3dOreContext;
-    auto destroy = [p = const_cast<Texture*>(this)]() { delete p; };
+    auto destroy = [p = const_cast<TextureD3D12*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));
     else
         destroy();
 }
 
-void TextureView::onRefCntReachedZero() const
+void TextureViewD3D12::onRefCntReachedZero() const
 {
     ContextD3D12* ctx = m_d3dOreContext;
-    auto destroy = [p = const_cast<TextureView*>(this)]() { delete p; };
+    auto destroy = [p = const_cast<TextureViewD3D12*>(this)]() { delete p; };
     if (ctx != nullptr)
         ctx->d3dDeferDestroy(std::move(destroy));
     else
         destroy();
 }
-
-#endif // D3D12-only
-
 } // namespace rive::ore

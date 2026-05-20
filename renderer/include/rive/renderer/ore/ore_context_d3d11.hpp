@@ -32,8 +32,9 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
     void beginFrame() override;
     void endFrame() override;
@@ -48,9 +49,9 @@ public:
     ContextD3D11& operator=(const ContextD3D11&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassD3D11;
+    friend class BindGroupD3D11;
+    friend class TextureD3D11;
 
     ContextD3D11() = default;
 
@@ -65,8 +66,8 @@ private:
     rcp<BindGroup> d3d11MakeBindGroup(const BindGroupDesc& desc);
     rcp<BindGroupLayout> d3d11MakeBindGroupLayout(
         const BindGroupLayoutDesc& desc);
-    RenderPass d3d11BeginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError);
+    std::unique_ptr<RenderPass> d3d11BeginRenderPass(const RenderPassDesc& desc,
+                                                     std::string* outError);
     rcp<TextureView> d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas);
     rcp<TextureView> d3d11WrapRiveTexture(gpu::Texture* gpuTex,
                                           uint32_t w,

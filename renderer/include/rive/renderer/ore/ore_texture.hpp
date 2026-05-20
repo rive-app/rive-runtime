@@ -5,46 +5,15 @@
 #pragma once
 
 #include "rive/refcnt.hpp"
+#include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
-
-#if defined(ORE_BACKEND_METAL)
-#import <Metal/Metal.h>
-#endif
-// Note: load_gles_extensions.hpp (glad) is intentionally NOT included here.
-// GL object handles are GLuint = unsigned int; no glad needed in the header.
-#if defined(ORE_BACKEND_D3D11)
-#include <d3d11.h>
-#include <wrl/client.h>
-#endif
-#if defined(ORE_BACKEND_D3D12)
-#include <d3d12.h>
-#include <wrl/client.h>
-#endif
-#if defined(ORE_BACKEND_WGPU)
-#include <webgpu/webgpu_cpp.h>
-#endif
-#if defined(ORE_BACKEND_VK)
-#include <vulkan/vulkan.h>
-VK_DEFINE_HANDLE(VmaAllocator);
-VK_DEFINE_HANDLE(VmaAllocation);
-namespace rive::gpu
-{
-class RenderTargetVulkan;
-}
-#endif
 
 namespace rive::ore
 {
 
 class Context;
-#if defined(ORE_BACKEND_VK)
-class ContextVulkan;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-class ContextD3D12;
-#endif
 
-class Texture : public RefCnt<Texture>
+class Texture : public RefCnt<Texture>, public ENABLE_LITE_RTTI(Texture)
 {
 public:
     uint32_t width() const { return m_width; }
@@ -56,32 +25,16 @@ public:
     uint32_t sampleCount() const { return m_sampleCount; }
     bool isRenderTarget() const { return m_renderTarget; }
 
-    void upload(const TextureDataDesc& data);
+    virtual void upload(const TextureDataDesc& data) = 0;
 
-#if defined(ORE_BACKEND_METAL)
-    id<MTLTexture> mtlTexture() const { return m_mtlTexture; }
-#endif
+    virtual ~Texture() = default;
 
-private:
+    // Default: immediately free. Backends that need deferred GPU-resource
+    // destruction (D3D12, Vulkan) override this.
+    virtual void onRefCntReachedZero() const { delete this; }
+
+protected:
     friend class Context;
-#if defined(ORE_BACKEND_METAL)
-    friend class ContextMetal;
-#endif
-#if defined(ORE_BACKEND_GL)
-    friend class ContextGL;
-#endif
-#if defined(ORE_BACKEND_D3D11)
-    friend class ContextD3D11;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-    friend class ContextD3D12;
-#endif
-#if defined(ORE_BACKEND_WGPU)
-    friend class ContextWGPU;
-#endif
-#if defined(ORE_BACKEND_VK)
-    friend class ContextVulkan;
-#endif
     friend class TextureView;
     friend class RenderPass;
 
@@ -104,54 +57,10 @@ private:
     bool m_renderTarget;
     uint32_t m_numMipmaps;
     uint32_t m_sampleCount;
-
-#if defined(ORE_BACKEND_METAL)
-    id<MTLTexture> m_mtlTexture = nil;
-#endif
-#if defined(ORE_BACKEND_GL)
-    unsigned int m_glTexture = 0;
-    unsigned int m_glRenderbuffer = 0; // Non-zero for MSAA render targets
-                                       // (renderbuffer-backed, not texture).
-    unsigned int m_glTarget = 0;
-    bool m_glOwnsTexture = true; // False for borrowed textures (e.g.
-                                 // wrapCanvasTexture).
-#endif
-#if defined(ORE_BACKEND_D3D11)
-    Microsoft::WRL::ComPtr<ID3D11Resource> m_d3d11Texture;
-    ID3D11DeviceContext* m_d3d11Context =
-        nullptr; // Weak ref, set by Context::makeTexture.
-#endif
-#if defined(ORE_BACKEND_WGPU)
-    wgpu::Texture m_wgpuTexture;
-    wgpu::Queue
-        m_wgpuQueue; // Weak ref (addref'd copy), set by Context::makeTexture.
-#endif
-#if defined(ORE_BACKEND_VK)
-    VkImage m_vkImage = VK_NULL_HANDLE;
-    VmaAllocation m_vmaAllocation = VK_NULL_HANDLE;
-    VkImageLayout m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VkDevice m_vkDevice = VK_NULL_HANDLE;         // Weak ref.
-    VmaAllocator m_vmaAllocator = VK_NULL_HANDLE; // Weak ref.
-    // Back-pointer to the owning ContextVulkan. upload() reads the current
-    // frame CB and VK dispatch table through it, and onRefCntReachedZero()
-    // routes vmaDestroyImage through ContextVulkan::vkDeferDestroy() in
-    // external-CB mode.
-    ContextVulkan* m_vkOreContext = nullptr;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-    Microsoft::WRL::ComPtr<ID3D12Resource> m_d3dTexture;
-    D3D12_RESOURCE_STATES m_d3dCurrentState = D3D12_RESOURCE_STATE_COMMON;
-    bool m_d3dIsExternal = false;        // true for wrapCanvasTexture.
-    ID3D12Device* m_d3dDevice = nullptr; // Weak ref.
-    // Set by ContextD3D12::makeTexture so upload() can schedule copy commands.
-    ContextD3D12* m_d3dOreContext = nullptr; // Weak ref.
-#endif
-
-public:
-    void onRefCntReachedZero() const;
 };
 
-class TextureView : public RefCnt<TextureView>
+class TextureView : public RefCnt<TextureView>,
+                    public ENABLE_LITE_RTTI(TextureView)
 {
 public:
     Texture* texture() const { return m_texture.get(); }
@@ -162,33 +71,14 @@ public:
     uint32_t baseLayer() const { return m_baseLayer; }
     uint32_t layerCount() const { return m_layerCount; }
 
-#if defined(ORE_BACKEND_METAL)
-    id<MTLTexture> mtlTexture() const
-    {
-        return m_mtlTextureView ? m_mtlTextureView : m_texture->m_mtlTexture;
-    }
-#endif
+    virtual ~TextureView() = default;
 
-private:
+    // Default: immediately free. Backends that need deferred GPU-resource
+    // destruction (D3D12, Vulkan) override this.
+    virtual void onRefCntReachedZero() const { delete this; }
+
+protected:
     friend class Context;
-#if defined(ORE_BACKEND_METAL)
-    friend class ContextMetal;
-#endif
-#if defined(ORE_BACKEND_GL)
-    friend class ContextGL;
-#endif
-#if defined(ORE_BACKEND_D3D11)
-    friend class ContextD3D11;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-    friend class ContextD3D12;
-#endif
-#if defined(ORE_BACKEND_WGPU)
-    friend class ContextWGPU;
-#endif
-#if defined(ORE_BACKEND_VK)
-    friend class ContextVulkan;
-#endif
     friend class RenderPass;
 
     TextureView(rcp<Texture> texture, const TextureViewDesc& desc) :
@@ -208,43 +98,6 @@ private:
     uint32_t m_mipCount;
     uint32_t m_baseLayer;
     uint32_t m_layerCount;
-
-#if defined(ORE_BACKEND_METAL)
-    id<MTLTexture> m_mtlTextureView = nil;
-#endif
-#if defined(ORE_BACKEND_GL)
-    unsigned int m_glTextureView = 0; // GL 4.3 view, or 0 (use base texture).
-#endif
-#if defined(ORE_BACKEND_D3D11)
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_d3dSRV;
-    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_d3dRTV;
-    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_d3dDSV;
-#endif
-#if defined(ORE_BACKEND_WGPU)
-    wgpu::TextureView m_wgpuTextureView;
-#endif
-#if defined(ORE_BACKEND_VK)
-    VkImageView m_vkImageView = VK_NULL_HANDLE;
-    VkDevice m_vkDevice = VK_NULL_HANDLE; // Weak ref.
-    PFN_vkDestroyImageView m_vkDestroyImageView = nullptr;
-    // Set only for canvas-backed views (wrapCanvasTexture). Used by
-    // RenderPass::finish() to update Rive's layout tracking.
-    gpu::RenderTargetVulkan* m_vkRenderTarget = nullptr; // Weak ref.
-    // Back-ref so onRefCntReachedZero() can route the destroy through
-    // ContextVulkan::vkDeferDestroy() in external-CB mode. Weak ref.
-    ContextVulkan* m_vkOreContext = nullptr;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-    D3D12_CPU_DESCRIPTOR_HANDLE m_d3dSrvHandle = {}; // {0} = invalid.
-    D3D12_CPU_DESCRIPTOR_HANDLE m_d3dRtvHandle = {};
-    D3D12_CPU_DESCRIPTOR_HANDLE m_d3dDsvHandle = {};
-    // Back-ref so onRefCntReachedZero() can route destruction through
-    // ContextD3D12::d3dDeferDestroy() in external-CL mode. Weak ref.
-    ContextD3D12* m_d3dOreContext = nullptr;
-#endif
-
-public:
-    void onRefCntReachedZero() const;
 };
 
 } // namespace rive::ore

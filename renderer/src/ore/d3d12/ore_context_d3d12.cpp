@@ -3,12 +3,14 @@
  */
 
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_render_pass.hpp"
+#include "ore_buffer_d3d12.hpp"
+#include "ore_texture_d3d12.hpp"
+#include "ore_sampler_d3d12.hpp"
+#include "ore_shader_module_d3d12.hpp"
+#include "ore_pipeline_d3d12.hpp"
+#include "ore_bind_group_d3d12.hpp"
+#include "ore_bind_group_layout_d3d12.hpp"
+#include "ore_render_pass_d3d12.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
 #include "rive/rive_types.hpp"
@@ -866,7 +868,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerGpuHandle(
 rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
+    auto buffer = rcp<BufferD3D12>(new BufferD3D12(desc.size, desc.usage));
     buffer->m_d3dOreContext = this;
 
     // All ORE buffers live in UPLOAD heap — simple, safe for test workloads.
@@ -920,7 +922,7 @@ rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
 rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto texture = rcp<Texture>(new Texture(desc));
+    auto texture = rcp<TextureD3D12>(new TextureD3D12(desc));
     texture->m_d3dDevice = m_d3dDevice.Get();
     texture->m_d3dOreContext = this;
 
@@ -1005,11 +1007,11 @@ rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
 rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    Texture* tex = desc.texture;
+    TextureD3D12* tex = lite_rtti_cast<TextureD3D12*>(desc.texture);
     if (!tex)
         return nullptr;
 
-    auto view = rcp<TextureView>(new TextureView(ref_rcp(tex), desc));
+    auto view = rcp<TextureViewD3D12>(new TextureViewD3D12(ref_rcp(tex), desc));
     view->m_d3dOreContext = this;
 
     const D3D12FormatInfo fmtInfo = oreFormatInfoD3D12(tex->format());
@@ -1223,7 +1225,7 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
 rcp<Sampler> ContextD3D12::d3d12MakeSampler(const SamplerDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto sampler = rcp<Sampler>(new Sampler());
+    auto sampler = rcp<SamplerD3D12>(new SamplerD3D12());
     sampler->m_d3dOreContext = this;
 
     D3D12_CPU_DESCRIPTOR_HANDLE handle =
@@ -1264,7 +1266,7 @@ rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
     const ShaderModuleDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto module = rcp<ShaderModule>(new ShaderModule());
+    auto module = rcp<ShaderModuleD3D12>(new ShaderModuleD3D12());
 
     // HLSL source compiled in-process via D3DCompile. AMD drivers crash on
     // cross-process DXBC, so we never ingest pre-compiled bytecode.
@@ -1329,7 +1331,7 @@ rcp<Pipeline> ContextD3D12::d3d12MakePipeline(const PipelineDesc& desc,
 {
     (void)outError;
 #if defined(ORE_BACKEND_D3D12)
-    auto pipeline = rcp<Pipeline>(new Pipeline(desc));
+    auto pipeline = rcp<PipelineD3D12>(new PipelineD3D12(desc));
     pipeline->m_d3dOreContext = this;
     pipeline->m_d3dTopology = oreTopologyToD3D12(desc.topology);
 
@@ -1492,12 +1494,15 @@ rcp<Pipeline> ContextD3D12::d3d12MakePipeline(const PipelineDesc& desc,
     // --- Build PSO ---
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.pRootSignature = pipeline->m_d3dRootSigOwned.Get();
-    psoDesc.VS.pShaderBytecode = desc.vertexModule->m_d3dBytecode.data();
-    psoDesc.VS.BytecodeLength = desc.vertexModule->m_d3dBytecode.size();
-    if (desc.fragmentModule != nullptr)
+    auto vertexModule = lite_rtti_cast<ShaderModuleD3D12*>(desc.vertexModule);
+    auto fragmentModule =
+        lite_rtti_cast<ShaderModuleD3D12*>(desc.fragmentModule);
+    psoDesc.VS.pShaderBytecode = vertexModule->m_d3dBytecode.data();
+    psoDesc.VS.BytecodeLength = vertexModule->m_d3dBytecode.size();
+    if (fragmentModule != nullptr)
     {
-        psoDesc.PS.pShaderBytecode = desc.fragmentModule->m_d3dBytecode.data();
-        psoDesc.PS.BytecodeLength = desc.fragmentModule->m_d3dBytecode.size();
+        psoDesc.PS.pShaderBytecode = fragmentModule->m_d3dBytecode.data();
+        psoDesc.PS.BytecodeLength = fragmentModule->m_d3dBytecode.size();
     }
     // else: psoDesc.PS stays zero — D3D12 allows null PS for depth-only.
     psoDesc.BlendState = blendDesc;
@@ -1554,7 +1559,7 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
         return nullptr;
     }
 
-    auto bg = rcp<BindGroup>(new BindGroup());
+    auto bg = rcp<BindGroupD3D12>(new BindGroupD3D12());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
 
@@ -1620,11 +1625,12 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
         if (!nativeSlot(entry.slot, BindingKind::uniformBuffer, &slot))
             continue;
         assert(slot < 8);
+        auto buffer = lite_rtti_cast<BufferD3D12*>(entry.buffer);
+        assert(buffer != nullptr);
         bg->m_d3dUBOAddresses[slot] =
-            entry.buffer->m_d3dBuffer->GetGPUVirtualAddress() + entry.offset;
+            buffer->m_d3dBuffer->GetGPUVirtualAddress() + entry.offset;
         bg->m_d3dUBOSizes[slot] =
-            entry.size > 0 ? entry.size
-                           : static_cast<uint32_t>(entry.buffer->size());
+            entry.size > 0 ? entry.size : static_cast<uint32_t>(buffer->size());
         bg->m_d3dUBOSlotMask |= static_cast<uint8_t>(1u << slot);
         if (layout->hasDynamicOffset(entry.slot))
             bg->m_d3dUBODynamicOffsetMask |= static_cast<uint8_t>(1u << slot);
@@ -1635,27 +1641,29 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
     for (uint32_t i = 0; i < desc.textureCount; ++i)
     {
         const auto& entry = desc.textures[i];
-        assert(entry.view != nullptr);
+        auto view = lite_rtti_cast<TextureViewD3D12*>(entry.view);
+        assert(view != nullptr);
         uint32_t slot = 0;
         if (!nativeSlot(entry.slot, BindingKind::sampledTexture, &slot))
             continue;
         assert(slot < 8);
-        bg->m_d3dSrvHandles[slot] = entry.view->m_d3dSrvHandle;
-        bg->m_d3dSrvTextures[slot] = entry.view->texture();
+        bg->m_d3dSrvHandles[slot] = view->m_d3dSrvHandle;
+        bg->m_d3dSrvTextures[slot] = view->texture();
         bg->m_d3dSrvSlotMask |= static_cast<uint8_t>(1u << slot);
-        bg->m_retainedViews.push_back(ref_rcp(entry.view));
+        bg->m_retainedViews.push_back(ref_rcp(view));
     }
 
     // Sampler bindings.
     for (uint32_t i = 0; i < desc.samplerCount; ++i)
     {
         const auto& entry = desc.samplers[i];
-        assert(entry.sampler != nullptr);
+        auto sampler = lite_rtti_cast<SamplerD3D12*>(entry.sampler);
+        assert(sampler != nullptr);
         uint32_t slot = 0;
         if (!nativeSlot(entry.slot, BindingKind::sampler, &slot))
             continue;
         assert(slot < 8);
-        bg->m_d3dSamplerHandles[slot] = entry.sampler->m_d3dSamplerHandle;
+        bg->m_d3dSamplerHandles[slot] = sampler->m_d3dSamplerHandle;
         bg->m_d3dSamplerSlotMask |= static_cast<uint8_t>(1u << slot);
         bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
     }
@@ -1682,7 +1690,7 @@ rcp<BindGroupLayout> ContextD3D12::d3d12MakeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout());
+    auto layout = rcp<BindGroupLayoutD3D12>(new BindGroupLayoutD3D12());
     layout->m_context = this;
     layout->m_groupIndex = desc.groupIndex;
     layout->m_entries.reserve(desc.entryCount);
@@ -1704,23 +1712,22 @@ rcp<BindGroupLayout> ContextD3D12::d3d12MakeBindGroupLayout(
 // d3d12BeginRenderPass
 // ============================================================================
 
-RenderPass ContextD3D12::d3d12BeginRenderPass(const RenderPassDesc& desc,
-                                              std::string* outError)
+std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
+    const RenderPassDesc& desc,
+    std::string* outError)
 {
 #if defined(ORE_BACKEND_D3D12)
     // Flush any pending texture uploads before rendering.
     d3d12FlushUploads();
 
-    RenderPass pass;
-    pass.m_context = this;
-    pass.m_d3dCmdList = m_d3dCmdList;
-    pass.m_d3dDevice = m_d3dDevice.Get();
-    pass.m_d3dContext = this;
+    std::unique_ptr<RenderPassD3D12> pass(new RenderPassD3D12(this));
+    pass->m_d3dCmdList = m_d3dCmdList;
+    pass->m_d3dDevice = m_d3dDevice.Get();
+    pass->m_d3dContext = this;
     // `m_d3dCurrentRootSig` starts nullptr; the first `setPipeline`
     // calls `SetGraphicsRootSignature` with the pipeline's sig (every
     // pipeline ships with its own per RFC v5 §3.2.2).
-    pass.populateAttachmentMetadata(desc);
-
+    pass->populateAttachmentMetadata(desc);
     // Collect RTVs and DSV handles, transitioning resources to the correct
     // state.
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandles[4] = {};
@@ -1729,10 +1736,12 @@ RenderPass ContextD3D12::d3d12BeginRenderPass(const RenderPassDesc& desc,
 
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
-        TextureView* view = desc.colorAttachments[i].view;
+        TextureViewD3D12* view =
+            lite_rtti_cast<TextureViewD3D12*>(desc.colorAttachments[i].view);
         assert(view != nullptr);
 
-        Texture* tex = view->texture();
+        TextureD3D12* tex = lite_rtti_cast<TextureD3D12*>(view->texture());
+        assert(tex != nullptr);
         if (tex->m_d3dCurrentState != D3D12_RESOURCE_STATE_RENDER_TARGET)
         {
             D3D12_RESOURCE_BARRIER barrier = {};
@@ -1749,23 +1758,26 @@ RenderPass ContextD3D12::d3d12BeginRenderPass(const RenderPassDesc& desc,
         rtvHandles[i] = view->m_d3dRtvHandle;
 
         // Record resource + final state for finish() to transition back.
-        pass.m_d3dColorResources[i] = tex->m_d3dTexture.Get();
-        pass.m_d3dColorTextures[i] = tex;
+        pass->m_d3dColorResources[i] = tex->m_d3dTexture.Get();
+        pass->m_d3dColorTextures[i] = tex;
         // External (canvas) textures go back to COMMON; ORE-owned go to
         // PIXEL_SHADER_RESOURCE.
         const D3D12_RESOURCE_STATES colourFinalState =
             tex->m_d3dIsExternal ? D3D12_RESOURCE_STATE_COMMON
                                  : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-        pass.m_d3dColorFinalStates[i] = colourFinalState;
-        pass.m_d3dColorCount++;
+        pass->m_d3dColorFinalStates[i] = colourFinalState;
+        pass->m_d3dColorCount++;
 
         // Record MSAA resolve pair if present. D3D12 subresource index
         // for the common single-plane case is mipLevel + arraySlice*mipCount.
-        TextureView* resolveView = desc.colorAttachments[i].resolveTarget;
+        TextureViewD3D12* resolveView = lite_rtti_cast<TextureViewD3D12*>(
+            desc.colorAttachments[i].resolveTarget);
         if (resolveView != nullptr && resolveView->texture() != nullptr)
         {
-            Texture* resolveTex = resolveView->texture();
-            auto& r = pass.m_d3dResolves[pass.m_d3dResolveCount++];
+            TextureD3D12* resolveTex =
+                lite_rtti_cast<TextureD3D12*>(resolveView->texture());
+            assert(resolveTex != nullptr);
+            auto& r = pass->m_d3dResolves[pass->m_d3dResolveCount++];
             r.msaa = tex->m_d3dTexture.Get();
             r.resolve = resolveTex->m_d3dTexture.Get();
             r.resolveTex = resolveTex;
@@ -1786,8 +1798,11 @@ RenderPass ContextD3D12::d3d12BeginRenderPass(const RenderPassDesc& desc,
 
     if (desc.depthStencil.view)
     {
-        TextureView* dsView = desc.depthStencil.view;
-        Texture* dsTex = dsView->texture();
+        TextureViewD3D12* dsView =
+            lite_rtti_cast<TextureViewD3D12*>(desc.depthStencil.view);
+        assert(dsView != nullptr);
+        TextureD3D12* dsTex = lite_rtti_cast<TextureD3D12*>(dsView->texture());
+        assert(dsTex != nullptr);
 
         D3D12_RESOURCE_STATES dsTarget = D3D12_RESOURCE_STATE_DEPTH_WRITE;
         if (dsTex->m_d3dCurrentState != dsTarget)
@@ -1806,12 +1821,12 @@ RenderPass ContextD3D12::d3d12BeginRenderPass(const RenderPassDesc& desc,
         dsvHandle = dsView->m_d3dDsvHandle;
         hasDsv = true;
 
-        pass.m_d3dDepthResource = dsTex->m_d3dTexture.Get();
-        pass.m_d3dDepthTexture = dsTex;
+        pass->m_d3dDepthResource = dsTex->m_d3dTexture.Get();
+        pass->m_d3dDepthTexture = dsTex;
         // When the depth is stored the caller intends to sample it as a
         // shader resource (e.g. shadow map read-back), so transition to
         // PIXEL_SHADER_RESOURCE.  Otherwise DEPTH_READ is sufficient.
-        pass.m_d3dDepthFinalState =
+        pass->m_d3dDepthFinalState =
             (desc.depthStencil.depthStoreOp == StoreOp::store)
                 ? D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
                 : D3D12_RESOURCE_STATE_DEPTH_READ;
@@ -1936,7 +1951,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureD3D12>(new TextureD3D12(texDesc));
     texture->m_d3dTexture =
         d3dTex->resource(); // Borrow — RenderCanvas owns it.
     texture->m_d3dCurrentState = D3D12_RESOURCE_STATE_COMMON;
@@ -1952,7 +1967,8 @@ rcp<TextureView> ContextD3D12::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewD3D12>(
+        new TextureViewD3D12(std::move(texture), viewDesc));
     view->m_d3dOreContext = this;
 
     // Create the RTV in our CPU RTV heap.
@@ -2016,7 +2032,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureD3D12>(new TextureD3D12(texDesc));
     texture->m_d3dTexture = d3dTex->resource(); // Borrow.
     texture->m_d3dCurrentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     texture->m_d3dIsExternal = true;
@@ -2053,7 +2069,8 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewD3D12>(
+        new TextureViewD3D12(std::move(texture), viewDesc));
     view->m_d3dOreContext = this;
     // Create SRV for sampling (images are read-only, no RTV needed).
     if (m_d3dCpuSrvAllocated >= 1024)
@@ -2127,8 +2144,9 @@ rcp<BindGroupLayout> ContextD3D12::makeBindGroupLayout(
     return d3d12MakeBindGroupLayout(desc);
 }
 
-RenderPass ContextD3D12::beginRenderPass(const RenderPassDesc& desc,
-                                         std::string* outError)
+std::unique_ptr<RenderPass> ContextD3D12::beginRenderPass(
+    const RenderPassDesc& desc,
+    std::string* outError)
 {
     finishActiveRenderPass();
     return d3d12BeginRenderPass(desc, outError);

@@ -2,9 +2,11 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
+#include "ore_pipeline_vulkan.hpp"
+#include "ore_bind_group_vulkan.hpp"
+#include "ore_bind_group_layout_vulkan.hpp"
+#include "ore_shader_module_vulkan.hpp"
 #include "rive/rive_types.hpp"
 #include "ore_vulkan_dsl.hpp"
 
@@ -246,9 +248,7 @@ static VkStencilOpState oreStencilFaceToVk(const StencilFaceState& s,
 // BindGroupLayout::onRefCntReachedZero when its rcp drops.
 // ============================================================================
 
-#if !defined(ORE_BACKEND_GL)
-
-void Pipeline::onRefCntReachedZero() const
+void PipelineVulkan::onRefCntReachedZero() const
 {
     VkDevice dev = m_vkDevice;
     VkPipeline pipe = m_vkPipeline;
@@ -276,7 +276,7 @@ void Pipeline::onRefCntReachedZero() const
 // BindGroupLayout::onRefCntReachedZero (Vulkan)
 // ============================================================================
 
-void BindGroupLayout::onRefCntReachedZero() const
+void BindGroupLayoutVulkan::onRefCntReachedZero() const
 {
     VkDevice dev = m_vkDevice;
     VkDescriptorSetLayout dsl = m_vkDSL;
@@ -296,8 +296,6 @@ void BindGroupLayout::onRefCntReachedZero() const
         destroy();
 }
 
-#endif // !ORE_BACKEND_GL — resource onRefCntReachedZero defs
-
 // ============================================================================
 // ContextVulkan::makePipeline — called from ore_context_vulkan.cpp.
 // Always compiled when ORE_BACKEND_VK is defined (regardless of GL coexist),
@@ -307,8 +305,8 @@ void BindGroupLayout::onRefCntReachedZero() const
 rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
                                           std::string* outError)
 {
-    auto pipeline = rcp<Pipeline>(new Pipeline(desc));
-    pipeline->m_vkDevice = m_vkDevice;
+    auto pipeline = rcp<PipelineVulkan>(new PipelineVulkan(desc));
+    pipeline->m_vkDevice = m_vk->device;
     pipeline->m_vkOreContext = this;
     pipeline->m_vkTopology = oreTopologyToVk(desc.topology);
 
@@ -341,7 +339,9 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     {
         if (desc.bindGroupLayouts[g] != nullptr)
         {
-            dsls[g] = desc.bindGroupLayouts[g]->m_vkDSL;
+            auto layout = lite_rtti_cast<BindGroupLayoutVulkan*>(
+                desc.bindGroupLayouts[g]);
+            dsls[g] = layout->m_vkDSL;
         }
         else
         {
@@ -354,17 +354,19 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layoutCI.setLayoutCount = desc.bindGroupLayoutCount;
     layoutCI.pSetLayouts = desc.bindGroupLayoutCount > 0 ? dsls : nullptr;
-    m_vk.CreatePipelineLayout(m_vkDevice,
-                              &layoutCI,
-                              nullptr,
-                              &pipeline->m_vkPipelineLayout);
-    pipeline->m_vkDestroyPipelineLayout = m_vk.DestroyPipelineLayout;
+    m_vk->CreatePipelineLayout(m_vk->device,
+                               &layoutCI,
+                               nullptr,
+                               &pipeline->m_vkPipelineLayout);
+    pipeline->m_vkDestroyPipelineLayout = m_vk->DestroyPipelineLayout;
 
     // --- Shader stages --- (depth-only pipelines omit the fragment stage)
     VkPipelineShaderStageCreateInfo stages[2]{};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    stages[0].module = desc.vertexModule->m_vkShaderModule;
+    auto vertexModule = lite_rtti_cast<ShaderModuleVulkan*>(desc.vertexModule);
+    assert(vertexModule);
+    stages[0].module = vertexModule->m_vkShaderModule;
     stages[0].pName = desc.vertexEntryPoint;
 
     uint32_t stageCount = 1;
@@ -372,7 +374,10 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     {
         stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        stages[1].module = desc.fragmentModule->m_vkShaderModule;
+        auto fragmentModule =
+            lite_rtti_cast<ShaderModuleVulkan*>(desc.fragmentModule);
+        assert(fragmentModule);
+        stages[1].module = fragmentModule->m_vkShaderModule;
         stages[1].pName = desc.fragmentEntryPoint;
         stageCount = 2;
     }
@@ -558,12 +563,12 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     pipelineCI.renderPass = compatRenderPass;
     pipelineCI.subpass = 0;
 
-    VkResult vkr = m_vk.CreateGraphicsPipelines(m_vkDevice,
-                                                VK_NULL_HANDLE,
-                                                1,
-                                                &pipelineCI,
-                                                nullptr,
-                                                &pipeline->m_vkPipeline);
+    VkResult vkr = m_vk->CreateGraphicsPipelines(m_vk->device,
+                                                 VK_NULL_HANDLE,
+                                                 1,
+                                                 &pipelineCI,
+                                                 nullptr,
+                                                 &pipeline->m_vkPipeline);
     if (vkr != VK_SUCCESS)
     {
         setLastError("Ore Vulkan: vkCreateGraphicsPipelines failed (%d)", vkr);
@@ -571,7 +576,7 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
             *outError = m_lastError;
         return nullptr;
     }
-    pipeline->m_vkDestroyPipeline = m_vk.DestroyPipeline;
+    pipeline->m_vkDestroyPipeline = m_vk->DestroyPipeline;
 
     return pipeline;
 }

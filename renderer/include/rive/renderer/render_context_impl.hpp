@@ -7,6 +7,17 @@
 #include "rive/renderer/render_context.hpp"
 #include "rive/gpu_texture_format.hpp"
 
+#ifdef RIVE_CANVAS
+#include <memory>
+#endif
+
+#ifdef RIVE_CANVAS
+namespace rive::ore
+{
+class Context;
+};
+#endif
+
 namespace rive::gpu
 {
 #ifdef RIVE_CANVAS
@@ -55,6 +66,9 @@ public:
     {
         return nullptr;
     }
+
+    // If canvas is enabled then the backend Impl MUST implement this.
+    virtual std::unique_ptr<rive::ore::Context> makeOreContext() = 0;
 #endif
 
     // Resize GPU buffers. These methods cannot fail, and must allocate the

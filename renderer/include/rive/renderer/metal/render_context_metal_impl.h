@@ -144,6 +144,7 @@ public:
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
     // Atomic mode requires a barrier between overlapping draws. We have to

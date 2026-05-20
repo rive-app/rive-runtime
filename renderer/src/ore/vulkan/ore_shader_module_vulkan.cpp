@@ -2,15 +2,13 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_shader_module.hpp"
+#include "ore_shader_module_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {
 
-#if !defined(ORE_BACKEND_GL)
-
-void ShaderModule::onRefCntReachedZero() const
+void ShaderModuleVulkan::onRefCntReachedZero() const
 {
     if (m_vkShaderModule != VK_NULL_HANDLE &&
         m_vkDestroyShaderModule != nullptr)
@@ -19,7 +17,5 @@ void ShaderModule::onRefCntReachedZero() const
     }
     delete this;
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

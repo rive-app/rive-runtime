@@ -182,12 +182,12 @@ public:
         rpDesc.label = "ore_depth_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setVertexBuffer(0, vbo.get());
-        pass.setViewport(0, 0, kSize, kSize);
+        pass->setPipeline(pipeline.get());
+        pass->setVertexBuffer(0, vbo.get());
+        pass->setViewport(0, 0, kSize, kSize);
         // Draw all 18 vertices (3 quads x 6 vertices each).
-        pass.draw(18);
-        pass.finish();
+        pass->draw(18);
+        pass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

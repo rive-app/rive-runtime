@@ -73,8 +73,9 @@ public:
                                        std::string* outError = nullptr) = 0;
     virtual rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) = 0;
 
-    virtual RenderPass beginRenderPass(const RenderPassDesc& desc,
-                                       std::string* outError = nullptr) = 0;
+    virtual std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) = 0;
 
     // Frame lifecycle (owned-CL form). For external-CL mode, see the
     // typed beginFrame overload on the relevant per-backend subclass

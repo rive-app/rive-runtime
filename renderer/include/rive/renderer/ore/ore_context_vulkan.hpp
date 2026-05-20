@@ -5,7 +5,7 @@
 #pragma once
 
 #include "rive/renderer/ore/ore_context.hpp"
-
+#include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <functional>
 #include <utility>
 #include <vk_mem_alloc.h>
@@ -64,13 +64,9 @@ public:
     // The caller is responsible for creating all Vulkan objects and the VMA
     // allocator. Ore does not manage device lifetime.
     static std::unique_ptr<ContextVulkan> Make(
-        VkInstance instance,
-        VkPhysicalDevice physicalDevice,
-        VkDevice device,
+        const rcp<rive::gpu::VulkanContext> vk,
         VkQueue queue,
-        uint32_t queueFamilyIndex,
-        VmaAllocator allocator,
-        PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr);
+        uint32_t queueFamilyIndex);
 
     ~ContextVulkan() override;
 
@@ -85,8 +81,9 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
     void beginFrame() override;
     void endFrame() override;
@@ -118,85 +115,18 @@ public:
     // Called by makePipeline() (with DONT_CARE ops) and beginRenderPass().
     VkRenderPass getOrCreateRenderPass(const VKRenderPassKey&);
 
-    // Vulkan function dispatch table.
-    // Populated by Make(); all call sites use m_vk.Xxx(...) to avoid direct
-    // vkXxx() symbols which are stripped when VK_NO_PROTOTYPES is defined.
-#define ORE_VK_INSTANCE_COMMANDS(F)                                            \
-    F(GetDeviceProcAddr)                                                       \
-    F(GetPhysicalDeviceProperties)                                             \
-    F(GetPhysicalDeviceFeatures)
-
-#define ORE_VK_DEVICE_COMMANDS(F)                                              \
-    F(AllocateCommandBuffers)                                                  \
-    F(AllocateDescriptorSets)                                                  \
-    F(FreeDescriptorSets)                                                      \
-    F(BeginCommandBuffer)                                                      \
-    F(CmdBeginRenderPass)                                                      \
-    F(CmdBindDescriptorSets)                                                   \
-    F(CmdBindIndexBuffer)                                                      \
-    F(CmdBindPipeline)                                                         \
-    F(CmdBindVertexBuffers)                                                    \
-    F(CmdCopyBufferToImage)                                                    \
-    F(CmdDraw)                                                                 \
-    F(CmdDrawIndexed)                                                          \
-    F(CmdEndRenderPass)                                                        \
-    F(CmdPipelineBarrier)                                                      \
-    F(CmdSetBlendConstants)                                                    \
-    F(CmdSetScissor)                                                           \
-    F(CmdSetStencilReference)                                                  \
-    F(CmdSetViewport)                                                          \
-    F(CreateCommandPool)                                                       \
-    F(CreateDescriptorPool)                                                    \
-    F(CreateDescriptorSetLayout)                                               \
-    F(CreateFramebuffer)                                                       \
-    F(CreateGraphicsPipelines)                                                 \
-    F(CreateImageView)                                                         \
-    F(CreatePipelineLayout)                                                    \
-    F(CreateRenderPass)                                                        \
-    F(CreateSampler)                                                           \
-    F(CreateShaderModule)                                                      \
-    F(DestroyCommandPool)                                                      \
-    F(DestroyDescriptorPool)                                                   \
-    F(DestroyDescriptorSetLayout)                                              \
-    F(DestroyFramebuffer)                                                      \
-    F(DestroyImageView)                                                        \
-    F(DestroyPipeline)                                                         \
-    F(DestroyPipelineLayout)                                                   \
-    F(DestroyRenderPass)                                                       \
-    F(DestroySampler)                                                          \
-    F(DestroyShaderModule)                                                     \
-    F(EndCommandBuffer)                                                        \
-    F(CreateFence)                                                             \
-    F(DestroyFence)                                                            \
-    F(WaitForFences)                                                           \
-    F(ResetFences)                                                             \
-    F(QueueSubmit)                                                             \
-    F(QueueWaitIdle)                                                           \
-    F(ResetCommandBuffer)                                                      \
-    F(ResetDescriptorPool)                                                     \
-    F(UpdateDescriptorSets)
-
-    struct VkFn
-    {
-#define DECLARE_VK_CMD(CMD) PFN_vk##CMD CMD = nullptr;
-        ORE_VK_INSTANCE_COMMANDS(DECLARE_VK_CMD)
-        ORE_VK_DEVICE_COMMANDS(DECLARE_VK_CMD)
-#undef DECLARE_VK_CMD
-    };
-
     ContextVulkan(const ContextVulkan&) = delete;
     ContextVulkan& operator=(const ContextVulkan&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassVulkan;
+    friend class BindGroupVulkan;
+    friend class TextureVulkan;
 
-    ContextVulkan() = default;
+    ContextVulkan(const rcp<rive::gpu::VulkanContext> vk) : m_vk(vk) {}
 
-    VkFn m_vk;
-    VkPhysicalDevice m_vkPhysicalDevice = VK_NULL_HANDLE;
-    VkDevice m_vkDevice = VK_NULL_HANDLE;
+    const rcp<rive::gpu::VulkanContext> m_vk;
+
     VkQueue m_vkQueue = VK_NULL_HANDLE;
     uint32_t m_vkQueueFamily = 0;
     VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;

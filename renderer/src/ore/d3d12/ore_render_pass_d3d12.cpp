@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_render_pass.hpp"
+#include "ore_render_pass_d3d12.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
@@ -15,26 +15,22 @@
 #include <d3d12.h>
 #include <cassert>
 #include <cstring>
+#include "ore_buffer_d3d12.hpp"
 
 namespace rive::ore
 {
-
-// --- Public method definitions (D3D12-only builds) ---
-// When both D3D11 and D3D12 are compiled, the combined
-// ore_context_d3d11_d3d12.cpp file provides these methods with dispatch.
-#if defined(ORE_BACKEND_D3D12) && !defined(ORE_BACKEND_D3D11)
 
 // ============================================================================
 // RenderPass — lifecycle
 // ============================================================================
 
-RenderPass::~RenderPass()
+RenderPassD3D12::~RenderPassD3D12()
 {
     if (!m_finished && m_d3dCmdList != nullptr)
         finish();
 }
 
-RenderPass::RenderPass(RenderPass&& other) noexcept
+RenderPassD3D12::RenderPassD3D12(RenderPassD3D12&& other) noexcept
 #if defined(ORE_BACKEND_D3D12)
     :
     m_d3dCmdList(other.m_d3dCmdList),
@@ -49,7 +45,6 @@ RenderPass::RenderPass(RenderPass&& other) noexcept
     m_d3dDepthFinalState(other.m_d3dDepthFinalState)
 #endif
 {
-    moveCrossBackendFieldsFrom(other);
 #if defined(ORE_BACKEND_D3D12)
     for (int i = 0; i < 8; ++i)
     {
@@ -77,13 +72,12 @@ RenderPass::RenderPass(RenderPass&& other) noexcept
 #endif
 }
 
-RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
+RenderPassD3D12& RenderPassD3D12::operator=(RenderPassD3D12&& other) noexcept
 {
     if (this != &other)
     {
         if (!m_finished && m_d3dCmdList != nullptr)
             finish();
-        moveCrossBackendFieldsFrom(other);
 #if defined(ORE_BACKEND_D3D12)
         m_d3dCmdList = other.m_d3dCmdList;
         m_d3dDevice = other.m_d3dDevice;
@@ -123,7 +117,7 @@ RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
     return *this;
 }
 
-void RenderPass::validate() const
+void RenderPassD3D12::validate() const
 {
     assert(!m_finished && "RenderPass already finished");
 #if defined(ORE_BACKEND_D3D12)
@@ -135,10 +129,11 @@ void RenderPass::validate() const
 // setPipeline
 // ============================================================================
 
-void RenderPass::setPipeline(Pipeline* pipeline)
+void RenderPassD3D12::setPipeline(Pipeline* inPipeline)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
+    auto pipeline = lite_rtti_cast<PipelineD3D12*>(inPipeline);
     if (!checkPipelineCompat(pipeline))
         return;
     m_d3dCurrentPipeline = ref_rcp(pipeline);
@@ -167,10 +162,13 @@ void RenderPass::setPipeline(Pipeline* pipeline)
 // setVertexBuffer
 // ============================================================================
 
-void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
+void RenderPassD3D12::setVertexBuffer(uint32_t slot,
+                                      Buffer* inBuffer,
+                                      uint32_t offset)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
+    auto buffer = lite_rtti_cast<BufferD3D12*>(inBuffer);
     assert(buffer->m_d3dBuffer != nullptr);
 
     UINT stride = (m_d3dCurrentPipeline &&
@@ -194,12 +192,13 @@ void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
 // setIndexBuffer
 // ============================================================================
 
-void RenderPass::setIndexBuffer(Buffer* buffer,
-                                IndexFormat format,
-                                uint32_t offset)
+void RenderPassD3D12::setIndexBuffer(Buffer* inBuffer,
+                                     IndexFormat format,
+                                     uint32_t offset)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
+    auto buffer = lite_rtti_cast<BufferD3D12*>(inBuffer);
     assert(buffer->m_d3dBuffer != nullptr);
 
     m_d3dIndexFormat = (format == IndexFormat::uint32) ? DXGI_FORMAT_R32_UINT
@@ -218,13 +217,14 @@ void RenderPass::setIndexBuffer(Buffer* buffer,
 #endif
 }
 
-void RenderPass::setBindGroup(uint32_t groupIndex,
-                              BindGroup* bg,
-                              const uint32_t* dynamicOffsets,
-                              uint32_t dynamicOffsetCount)
+void RenderPassD3D12::setBindGroup(uint32_t groupIndex,
+                                   BindGroup* inBg,
+                                   const uint32_t* dynamicOffsets,
+                                   uint32_t dynamicOffsetCount)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
+    auto bg = lite_rtti_cast<BindGroupD3D12*>(inBg);
     assert(bg != nullptr);
     // Hold a strong reference so the BindGroup stays alive until finish().
     m_boundGroups[groupIndex] = ref_rcp(bg);
@@ -241,12 +241,12 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
 // setViewport / setScissorRect
 // ============================================================================
 
-void RenderPass::setViewport(float x,
-                             float y,
-                             float width,
-                             float height,
-                             float minDepth,
-                             float maxDepth)
+void RenderPassD3D12::setViewport(float x,
+                                  float y,
+                                  float width,
+                                  float height,
+                                  float minDepth,
+                                  float maxDepth)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
@@ -269,10 +269,10 @@ void RenderPass::setViewport(float x,
 #endif
 }
 
-void RenderPass::setScissorRect(uint32_t x,
-                                uint32_t y,
-                                uint32_t width,
-                                uint32_t height)
+void RenderPassD3D12::setScissorRect(uint32_t x,
+                                     uint32_t y,
+                                     uint32_t width,
+                                     uint32_t height)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
@@ -290,7 +290,7 @@ void RenderPass::setScissorRect(uint32_t x,
 // setStencilReference / setBlendColor
 // ============================================================================
 
-void RenderPass::setStencilReference(uint32_t ref)
+void RenderPassD3D12::setStencilReference(uint32_t ref)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
@@ -301,7 +301,7 @@ void RenderPass::setStencilReference(uint32_t ref)
 #endif
 }
 
-void RenderPass::setBlendColor(float r, float g, float b, float a)
+void RenderPassD3D12::setBlendColor(float r, float g, float b, float a)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
@@ -322,10 +322,10 @@ void RenderPass::setBlendColor(float r, float g, float b, float a)
 // draw / drawIndexed
 // ============================================================================
 
-void RenderPass::draw(uint32_t vertexCount,
-                      uint32_t instanceCount,
-                      uint32_t firstVertex,
-                      uint32_t firstInstance)
+void RenderPassD3D12::draw(uint32_t vertexCount,
+                           uint32_t instanceCount,
+                           uint32_t firstVertex,
+                           uint32_t firstInstance)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
@@ -341,11 +341,11 @@ void RenderPass::draw(uint32_t vertexCount,
 #endif
 }
 
-void RenderPass::drawIndexed(uint32_t indexCount,
-                             uint32_t instanceCount,
-                             uint32_t firstIndex,
-                             int32_t baseVertex,
-                             uint32_t firstInstance)
+void RenderPassD3D12::drawIndexed(uint32_t indexCount,
+                                  uint32_t instanceCount,
+                                  uint32_t firstIndex,
+                                  int32_t baseVertex,
+                                  uint32_t firstInstance)
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
@@ -367,7 +367,7 @@ void RenderPass::drawIndexed(uint32_t indexCount,
 // finish
 // ============================================================================
 
-void RenderPass::finish()
+void RenderPassD3D12::finish()
 {
     if (m_finished)
         return;
@@ -503,7 +503,4 @@ void RenderPass::finish()
     m_d3dContext = nullptr;
 #endif
 }
-
-#endif // D3D12-only
-
 } // namespace rive::ore

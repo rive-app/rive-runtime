@@ -8,6 +8,7 @@
 #include "rive/renderer/buffer_ring.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_metal.hpp"
 #endif
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
@@ -920,6 +921,12 @@ rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+
+std::unique_ptr<rive::ore::Context> RenderContextMetalImpl::makeOreContext()
+{
+    assert(m_commandQueue);
+    return rive::ore::ContextMetal::Make(m_gpu, m_commandQueue);
 }
 #endif
 

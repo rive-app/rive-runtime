@@ -289,21 +289,21 @@ public:
         auto pass = ctx.beginRenderPass(rpDesc);
 
         // Reference value 1 carries across both pipelines — set once.
-        pass.setStencilReference(1);
+        pass->setStencilReference(1);
 
         // Prepass: stencil-only, mask written by the centered triangle.
-        pass.setPipeline(prepass.get());
-        pass.setVertexBuffer(0, vbStencil.get());
-        pass.setViewport(0, 0, 256, 256);
-        pass.draw(3);
+        pass->setPipeline(prepass.get());
+        pass->setVertexBuffer(0, vbStencil.get());
+        pass->setViewport(0, 0, 256, 256);
+        pass->draw(3);
 
         // Overlay: full-screen alpha-blended tint, masked to the
         // stencil region.
-        pass.setPipeline(overlay.get());
-        pass.setVertexBuffer(0, vbOverlay.get());
-        pass.draw(3);
+        pass->setPipeline(overlay.get());
+        pass->setVertexBuffer(0, vbOverlay.get());
+        pass->draw(3);
 
-        pass.finish();
+        pass->finish();
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);
 

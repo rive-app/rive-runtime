@@ -108,10 +108,10 @@ public:
         rpDesc.label = "mrt_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(mrtPipeline.get());
-        pass.setViewport(0, 0, kSize, kSize);
-        pass.draw(3); // Fullscreen triangle, no VBO needed.
-        pass.finish();
+        pass->setPipeline(mrtPipeline.get());
+        pass->setViewport(0, 0, kSize, kSize);
+        pass->draw(3); // Fullscreen triangle, no VBO needed.
+        pass->finish();
 
         // Now blit each target to a RenderCanvas for compositing.
         // Load blit shader from the pre-compiled RSTB.
@@ -189,12 +189,12 @@ public:
             auto blitTexBG = ctx.makeBindGroup(blitTexBGDesc);
 
             auto blitPass = ctx.beginRenderPass(blitPassDesc);
-            blitPass.setPipeline(blitPipeline.get());
-            blitPass.setBindGroup(1, blitTexBG.get());
-            blitPass.setBindGroup(2, blitSampBG.get());
-            blitPass.setViewport(i * kSize, 0, kSize, kSize);
-            blitPass.draw(3);
-            blitPass.finish();
+            blitPass->setPipeline(blitPipeline.get());
+            blitPass->setBindGroup(1, blitTexBG.get());
+            blitPass->setBindGroup(2, blitSampBG.get());
+            blitPass->setViewport(i * kSize, 0, kSize, kSize);
+            blitPass->draw(3);
+            blitPass->finish();
         }
 
         m_ore.endFrame();

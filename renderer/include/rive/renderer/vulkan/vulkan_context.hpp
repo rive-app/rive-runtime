@@ -67,6 +67,7 @@ public:
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
     F(GetPhysicalDeviceProperties)                                             \
+    F(GetPhysicalDeviceFeatures)                                               \
     F(SetDebugUtilsObjectNameEXT)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
@@ -80,6 +81,8 @@ public:
     F(CmdBindVertexBuffers)                                                    \
     F(CmdBlitImage)                                                            \
     F(CmdClearColorImage)                                                      \
+    F(CmdSetStencilReference)                                                  \
+    F(CmdSetBlendConstants)                                                    \
     F(CmdCopyBufferToImage)                                                    \
     F(CmdDraw)                                                                 \
     F(CmdDrawIndexed)                                                          \
@@ -93,6 +96,7 @@ public:
     F(CreateDescriptorPool)                                                    \
     F(CreateDescriptorSetLayout)                                               \
     F(CreateFramebuffer)                                                       \
+    F(CreateFence)                                                             \
     F(CreateGraphicsPipelines)                                                 \
     F(CreateImageView)                                                         \
     F(CreatePipelineLayout)                                                    \
@@ -102,6 +106,7 @@ public:
     F(DestroyCommandPool)                                                      \
     F(DestroyDescriptorPool)                                                   \
     F(DestroyDescriptorSetLayout)                                              \
+    F(DestroyFence)                                                            \
     F(DestroyFramebuffer)                                                      \
     F(DestroyImageView)                                                        \
     F(DestroyPipeline)                                                         \
@@ -111,10 +116,14 @@ public:
     F(DestroyShaderModule)                                                     \
     F(EndCommandBuffer)                                                        \
     F(FreeCommandBuffers)                                                      \
+    F(FreeDescriptorSets)                                                      \
     F(QueueSubmit)                                                             \
     F(QueueWaitIdle)                                                           \
+    F(ResetCommandBuffer)                                                      \
     F(ResetDescriptorPool)                                                     \
-    F(UpdateDescriptorSets)
+    F(ResetFences)                                                             \
+    F(UpdateDescriptorSets)                                                    \
+    F(WaitForFences)
 
 #define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
     RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)

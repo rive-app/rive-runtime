@@ -7,6 +7,7 @@
 #include "rive/renderer/draw.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_wgpu.hpp"
 #endif
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/gpu_texture_format.hpp"
@@ -1947,6 +1948,12 @@ rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+std::unique_ptr<rive::ore::Context> RenderContextWebGPUImpl::makeOreContext()
+{
+    return rive::ore::ContextWGPU::Make(m_device,
+                                        m_queue,
+                                        m_capabilities.backendType);
 }
 #endif
 

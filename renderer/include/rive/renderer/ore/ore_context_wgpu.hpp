@@ -7,7 +7,7 @@
 #include "rive/renderer/ore/ore_context.hpp"
 
 #include <webgpu/webgpu_cpp.h>
-#ifndef RIVE_DAWN
+#ifdef RIVE_WAGYU
 #include <webgpu/webgpu_wagyu.h>
 #endif
 
@@ -36,8 +36,9 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
     void beginFrame() override;
     void endFrame() override;
@@ -69,9 +70,9 @@ public:
     ContextWGPU& operator=(const ContextWGPU&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassWGPU;
+    friend class BindGroupWGPU;
+    friend class TextureWGPU;
 
     ContextWGPU() = default;
 

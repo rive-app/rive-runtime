@@ -6,6 +6,7 @@
 #include "rive/renderer/d3d/d3d_constants.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #endif
 #include "rive/profiler/profiler_macros.h"
 #include "rive/renderer/d3d/d3d_utils.hpp"
@@ -806,6 +807,12 @@ rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+
+std::unique_ptr<rive::ore::Context> RenderContextD3D12Impl::makeOreContext()
+{
+    assert(m_canvasQueue);
+    return rive::ore::ContextD3D12::Make(m_device.Get(), m_canvasQueue);
 }
 #endif
 

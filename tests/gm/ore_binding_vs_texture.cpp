@@ -223,11 +223,11 @@ public:
         rpDesc.label = "ore_binding_vs_texture_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(0, bg.get());
-        pass.setViewport(0, 0, 128, 128);
-        pass.draw(3); // fullscreen triangle
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(0, bg.get());
+        pass->setViewport(0, 0, 128, 128);
+        pass->draw(3); // fullscreen triangle
+        pass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

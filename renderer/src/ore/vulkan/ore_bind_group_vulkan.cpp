@@ -2,15 +2,13 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_bind_group.hpp"
+#include "ore_bind_group_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {
 
-#if !defined(ORE_BACKEND_GL)
-
-void BindGroup::onRefCntReachedZero() const
+void BindGroupVulkan::onRefCntReachedZero() const
 {
     // Free the VkDescriptorSet back to the persistent pool. Without
     // this the pool grows unbounded — long editor sessions hit
@@ -28,14 +26,12 @@ void BindGroup::onRefCntReachedZero() const
     if (m_vkDescriptorSet != VK_NULL_HANDLE && ctx != nullptr &&
         ctx->m_vkPersistentDescriptorPool != VK_NULL_HANDLE)
     {
-        ctx->m_vk.FreeDescriptorSets(ctx->m_vkDevice,
-                                     ctx->m_vkPersistentDescriptorPool,
-                                     1,
-                                     &m_vkDescriptorSet);
+        ctx->m_vk->FreeDescriptorSets(ctx->m_vk->device,
+                                      ctx->m_vkPersistentDescriptorPool,
+                                      1,
+                                      &m_vkDescriptorSet);
     }
     delete this;
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

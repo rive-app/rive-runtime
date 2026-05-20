@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/refcnt.hpp"
+#include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
@@ -13,38 +14,13 @@
 #include <string>
 #include <vector>
 
-#if defined(ORE_BACKEND_METAL)
-#import <Metal/Metal.h>
-#endif
-// Note: load_gles_extensions.hpp (glad) is intentionally NOT included here.
-// GL object handles are GLuint = unsigned int; no glad needed in the header.
-#if defined(ORE_BACKEND_D3D11)
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#include <wrl/client.h>
-#include <algorithm>
-#include <mutex>
-#include <vector>
-#include <string>
-#endif
-#if defined(ORE_BACKEND_D3D12)
-#include <d3d12.h>
-#include <wrl/client.h>
-#include <vector>
-#endif
-#if defined(ORE_BACKEND_WGPU)
-#include <webgpu/webgpu_cpp.h>
-#endif
-#if defined(ORE_BACKEND_VK)
-#include <vulkan/vulkan.h>
-#endif
-
 namespace rive::ore
 {
 
 class Context;
 
-class ShaderModule : public RefCnt<ShaderModule>
+class ShaderModule : public RefCnt<ShaderModule>,
+                     public ENABLE_LITE_RTTI(ShaderModule)
 {
 public:
     /// Texture-sampler pair from RSTB shader reflection.
@@ -69,7 +45,6 @@ public:
     BindingMap m_bindingMap;
 
 #ifdef TRACK_RIVE_SHADER_ID
-    // Set from desc.shaderAssetId in applyBindingMapFromDesc.
     uint32_t m_shaderAssetId = 0;
     uint32_t shaderAssetId() const { return m_shaderAssetId; }
 #endif
@@ -147,161 +122,17 @@ public:
         }
     }
 
-private:
+    virtual ~ShaderModule() = default;
+
+    // Default: immediately free. No backend currently needs deferred
+    // destruction for shader modules.
+    virtual void onRefCntReachedZero() const { delete this; }
+
+protected:
     friend class Context;
-#if defined(ORE_BACKEND_METAL)
-    friend class ContextMetal;
-#endif
-#if defined(ORE_BACKEND_GL)
-    friend class ContextGL;
-#endif
-#if defined(ORE_BACKEND_D3D11)
-    friend class ContextD3D11;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-    friend class ContextD3D12;
-#endif
-#if defined(ORE_BACKEND_WGPU)
-    friend class ContextWGPU;
-#endif
-#if defined(ORE_BACKEND_VK)
-    friend class ContextVulkan;
-#endif
     friend class Pipeline;
 
     ShaderModule() = default;
-
-#if defined(ORE_BACKEND_METAL)
-    id<MTLLibrary> m_mtlLibrary = nil;
-#endif
-#if defined(ORE_BACKEND_GL)
-    unsigned int m_glShader = 0;
-    unsigned int m_glShaderType = 0; // GL_VERTEX_SHADER or GL_FRAGMENT_SHADER.
-#endif
-#if defined(ORE_BACKEND_D3D11)
-    std::vector<uint8_t> m_bytecode;
-    ShaderStage m_stage = ShaderStage::autoDetect;
-    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_d3dVertexShader;
-    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_d3dPixelShader;
-
-    // HLSL source compiled at first pipeline use via ensureD3DShaders.
-    std::string m_hlslSource;
-    std::string m_hlslEntryPoint;
-
-    // Guards ensureD3DShaders against concurrent first-call from two
-    // pipelines sharing this ShaderModule.
-    std::once_flag m_d3dInitFlag;
-
-    // outError, if non-null, receives the D3DCompile error log so the
-    // caller can route it to Context::m_lastError.
-    void ensureD3DShaders(ID3D11Device* device, std::string* outError = nullptr)
-    {
-        std::call_once(m_d3dInitFlag,
-                       [&]() { ensureD3DShadersImpl(device, outError); });
-    }
-
-    void ensureD3DShadersImpl(ID3D11Device* device, std::string* outError)
-    {
-        if (m_hlslSource.empty())
-            return;
-
-        // Normalize line endings (SPIRV-Cross outputs \r\n on Windows).
-        m_hlslSource.erase(
-            std::remove(m_hlslSource.begin(), m_hlslSource.end(), '\r'),
-            m_hlslSource.end());
-
-        const char* target =
-            (m_stage == ShaderStage::fragment) ? "ps_5_0" : "vs_5_0";
-        const char* entry =
-            m_hlslEntryPoint.empty() ? "main" : m_hlslEntryPoint.c_str();
-        Microsoft::WRL::ComPtr<ID3DBlob> compiledBlob;
-        Microsoft::WRL::ComPtr<ID3DBlob> errors;
-        HRESULT hr = D3DCompile(m_hlslSource.c_str(),
-                                m_hlslSource.size(),
-                                nullptr,
-                                nullptr,
-                                nullptr,
-                                entry,
-                                target,
-                                D3DCOMPILE_ENABLE_STRICTNESS |
-                                    D3DCOMPILE_OPTIMIZATION_LEVEL3,
-                                0,
-                                compiledBlob.GetAddressOf(),
-                                errors.GetAddressOf());
-        if (FAILED(hr))
-        {
-            if (outError)
-            {
-                const char* errMsg =
-                    errors
-                        ? static_cast<const char*>(errors->GetBufferPointer())
-                        : "(no error log)";
-                char buf[1024];
-                snprintf(buf,
-                         sizeof(buf),
-                         "D3DCompile failed (entry=%s target=%s "
-                         "hr=0x%08x): %s",
-                         entry,
-                         target,
-                         static_cast<unsigned>(hr),
-                         errMsg);
-                *outError = buf;
-            }
-            return;
-        }
-
-        const void* code = compiledBlob->GetBufferPointer();
-        SIZE_T codeSize = compiledBlob->GetBufferSize();
-        // Store compiled bytecode for CreateInputLayout.
-        m_bytecode.assign(static_cast<const uint8_t*>(code),
-                          static_cast<const uint8_t*>(code) + codeSize);
-
-        if (m_stage == ShaderStage::fragment)
-        {
-            device->CreatePixelShader(code,
-                                      codeSize,
-                                      nullptr,
-                                      m_d3dPixelShader.GetAddressOf());
-        }
-        else if (m_stage == ShaderStage::vertex)
-        {
-            device->CreateVertexShader(code,
-                                       codeSize,
-                                       nullptr,
-                                       m_d3dVertexShader.GetAddressOf());
-        }
-        else
-        {
-            HRESULT hr =
-                device->CreateVertexShader(code,
-                                           codeSize,
-                                           nullptr,
-                                           m_d3dVertexShader.GetAddressOf());
-            if (FAILED(hr))
-            {
-                device->CreatePixelShader(code,
-                                          codeSize,
-                                          nullptr,
-                                          m_d3dPixelShader.GetAddressOf());
-            }
-        }
-    }
-#endif
-#if defined(ORE_BACKEND_WGPU)
-    wgpu::ShaderModule m_wgpuShaderModule;
-#endif
-#if defined(ORE_BACKEND_VK)
-    VkShaderModule m_vkShaderModule = VK_NULL_HANDLE;
-    VkDevice m_vkDevice = VK_NULL_HANDLE; // Weak ref.
-    PFN_vkDestroyShaderModule m_vkDestroyShaderModule = nullptr;
-#endif
-#if defined(ORE_BACKEND_D3D12)
-    std::vector<uint8_t> m_d3dBytecode;
-    bool m_d3dIsVertex = false; // True = VS, False = PS.
-#endif
-
-public:
-    void onRefCntReachedZero() const;
 };
 
 } // namespace rive::ore

@@ -4,14 +4,14 @@
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
-#include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_context_gl.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_render_pass.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_bind_group_gl.hpp"
+#include "ore_buffer_gl.hpp"
+#include "ore_pipeline_gl.hpp"
+#include "ore_render_pass_gl.hpp"
+#include "ore_sampler_gl.hpp"
+#include "ore_shader_module_gl.hpp"
+#include "ore_texture_gl.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/rive_types.hpp"
 
@@ -107,13 +107,13 @@ static GLenum oreFormatToGLInternal(TextureFormat fmt)
     RIVE_UNREACHABLE();
 }
 
-static bool isDepthFormat(TextureFormat fmt)
-{
-    return fmt == TextureFormat::depth16unorm ||
-           fmt == TextureFormat::depth24plusStencil8 ||
-           fmt == TextureFormat::depth32float ||
-           fmt == TextureFormat::depth32floatStencil8;
-}
+// static bool isDepthFormat(TextureFormat fmt)
+//{
+//     return fmt == TextureFormat::depth16unorm ||
+//            fmt == TextureFormat::depth24plusStencil8 ||
+//            fmt == TextureFormat::depth32float ||
+//            fmt == TextureFormat::depth32floatStencil8;
+// }
 
 static GLenum oreTextureTypeToGLTarget(TextureType type)
 {
@@ -323,7 +323,7 @@ void ContextGL::endFrame()
 
 rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
 {
-    auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
+    auto buffer = rcp<BufferGL>(new BufferGL(desc.size, desc.usage));
 
     glGenBuffers(1, &buffer->m_glBuffer);
 
@@ -369,7 +369,7 @@ rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
 
 rcp<Texture> ContextGL::makeTexture(const TextureDesc& desc)
 {
-    auto texture = rcp<Texture>(new Texture(desc));
+    auto texture = rcp<TextureGL>(new TextureGL(desc));
 
     glGenTextures(1, &texture->m_glTexture);
     texture->m_glTarget = oreTextureTypeToGLTarget(desc.type);
@@ -469,7 +469,7 @@ rcp<TextureView> ContextGL::makeTextureView(const TextureViewDesc& desc)
     if (!tex)
         return nullptr;
 
-    auto view = rcp<TextureView>(new TextureView(ref_rcp(tex), desc));
+    auto view = rcp<TextureViewGL>(new TextureViewGL(ref_rcp(tex), desc));
 
     // GLES3 doesn't have glTextureView. We store m_glTextureView = 0
     // and use the base texture at bind time. FBO attachment targeting
@@ -485,7 +485,7 @@ rcp<TextureView> ContextGL::makeTextureView(const TextureViewDesc& desc)
 
 rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 {
-    auto sampler = rcp<Sampler>(new Sampler());
+    auto sampler = rcp<SamplerGL>(new SamplerGL());
 
     glGenSamplers(1, &sampler->m_glSampler);
     GLuint s = sampler->m_glSampler;
@@ -534,7 +534,7 @@ rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 
 rcp<ShaderModule> ContextGL::makeShaderModule(const ShaderModuleDesc& desc)
 {
-    auto module = rcp<ShaderModule>(new ShaderModule());
+    auto module = rcp<ShaderModuleGL>(new ShaderModuleGL());
 
     const char* source = static_cast<const char*>(desc.code);
 
@@ -669,7 +669,7 @@ static void oreGLFixupProgramBindings(GLuint program,
 rcp<Pipeline> ContextGL::makePipeline(const PipelineDesc& desc,
                                       std::string* outError)
 {
-    auto pipeline = rcp<Pipeline>(new Pipeline(desc));
+    auto pipeline = rcp<PipelineGL>(new PipelineGL(desc));
 
     // --- Validate user-supplied layouts against shader binding map ---
     {
@@ -691,10 +691,14 @@ rcp<Pipeline> ContextGL::makePipeline(const PipelineDesc& desc,
     }
 
     pipeline->m_glProgram = glCreateProgram();
-    glAttachShader(pipeline->m_glProgram, desc.vertexModule->m_glShader);
+    auto* vertMod = lite_rtti_cast<ShaderModuleGL*>(desc.vertexModule);
+    assert(vertMod);
+    glAttachShader(pipeline->m_glProgram, vertMod->m_glShader);
     if (desc.fragmentModule != nullptr)
     {
-        glAttachShader(pipeline->m_glProgram, desc.fragmentModule->m_glShader);
+        auto* fragMod = lite_rtti_cast<ShaderModuleGL*>(desc.fragmentModule);
+        assert(fragMod);
+        glAttachShader(pipeline->m_glProgram, fragMod->m_glShader);
     }
     else
     {
@@ -768,7 +772,7 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
                      groupIndex);
         return nullptr;
     }
-    auto bg = rcp<BindGroup>(new BindGroup());
+    auto bg = rcp<BindGroupGL>(new BindGroupGL());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
 
@@ -824,8 +828,10 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     for (uint32_t i = 0; i < nBufs; ++i)
     {
         const auto& entry = desc.ubos[i];
-        BindGroup::GLUBOBinding binding{};
-        binding.buffer = entry.buffer->m_glBuffer;
+        BindGroupGL::GLUBOBinding binding{};
+        auto* buf = lite_rtti_cast<BufferGL*>(entry.buffer);
+        assert(buf);
+        binding.buffer = buf->m_glBuffer;
         binding.offset = entry.offset;
         binding.size = entry.size != 0
                            ? entry.size
@@ -839,23 +845,26 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
         bg->m_glUBOs.push_back(binding);
         bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
     }
-    std::sort(
-        bg->m_glUBOs.begin(),
-        bg->m_glUBOs.end(),
-        [](const BindGroup::GLUBOBinding& a, const BindGroup::GLUBOBinding& b) {
-            return a.binding < b.binding;
-        });
+    std::sort(bg->m_glUBOs.begin(),
+              bg->m_glUBOs.end(),
+              [](const BindGroupGL::GLUBOBinding& a,
+                 const BindGroupGL::GLUBOBinding& b) {
+                  return a.binding < b.binding;
+              });
 
     uint32_t nTexs = std::min(desc.textureCount, 8u);
     bg->m_glTextures.reserve(nTexs);
     for (uint32_t i = 0; i < nTexs; ++i)
     {
         const auto& entry = desc.textures[i];
-        BindGroup::GLTexBinding binding{};
-        binding.texture = entry.view->m_glTextureView != 0
-                              ? entry.view->m_glTextureView
-                              : entry.view->texture()->m_glTexture;
-        binding.target = entry.view->texture()->m_glTarget;
+        BindGroupGL::GLTexBinding binding{};
+        auto* viewGL = lite_rtti_cast<TextureViewGL*>(entry.view);
+        assert(viewGL);
+        auto* texGL = lite_rtti_cast<TextureGL*>(entry.view->texture());
+        assert(texGL);
+        binding.texture = viewGL->m_glTextureView != 0 ? viewGL->m_glTextureView
+                                                       : texGL->m_glTexture;
+        binding.target = texGL->m_glTarget;
         if (!nativeSlot(entry.slot, BindingKind::sampledTexture, &binding.slot))
             continue;
         bg->m_glTextures.push_back(binding);
@@ -867,8 +876,10 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     for (uint32_t i = 0; i < nSamps; ++i)
     {
         const auto& entry = desc.samplers[i];
-        BindGroup::GLSamplerBinding binding{};
-        binding.sampler = entry.sampler->m_glSampler;
+        BindGroupGL::GLSamplerBinding binding{};
+        auto* samp = lite_rtti_cast<SamplerGL*>(entry.sampler);
+        assert(samp);
+        binding.sampler = samp->m_glSampler;
         if (!nativeSlot(entry.slot, BindingKind::sampler, &binding.slot))
             continue;
         bg->m_glSamplers.push_back(binding);
@@ -906,26 +917,26 @@ rcp<BindGroupLayout> ContextGL::makeBindGroupLayout(
 // beginRenderPass
 // ============================================================================
 
-RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
-                                      std::string* outError)
+std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
+    const RenderPassDesc& desc,
+    std::string* outError)
 {
     finishActiveRenderPass();
 
-    RenderPass pass;
-    pass.m_context = this;
-    pass.populateAttachmentMetadata(desc);
+    auto pass = std::make_unique<RenderPassGL>(this);
+    pass->populateAttachmentMetadata(desc);
 
     // Save the host renderer's VAO and FBO so we can restore them in finish().
     GLint prevVAO = 0, prevFBO = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
-    pass.m_prevVAO = static_cast<unsigned int>(prevVAO);
-    pass.m_prevFBO = static_cast<unsigned int>(prevFBO);
+    pass->m_prevVAO = static_cast<unsigned int>(prevVAO);
+    pass->m_prevFBO = static_cast<unsigned int>(prevFBO);
 
     // Create an FBO for this render pass.
-    glGenFramebuffers(1, &pass.m_glFBO);
-    pass.m_ownsFBO = true;
-    glBindFramebuffer(GL_FRAMEBUFFER, pass.m_glFBO);
+    glGenFramebuffers(1, &pass->m_glFBO);
+    pass->m_ownsFBO = true;
+    glBindFramebuffer(GL_FRAMEBUFFER, pass->m_glFBO);
 
     // Attach color targets.
     GLenum drawBuffers[4] = {};
@@ -934,31 +945,32 @@ RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
         const auto& ca = desc.colorAttachments[i];
         if (ca.view)
         {
-            Texture* tex = ca.view->texture();
+            auto* texGL = lite_rtti_cast<TextureGL*>(ca.view->texture());
+            assert(texGL);
             GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
 
-            if (tex->m_glRenderbuffer != 0)
+            if (texGL->m_glRenderbuffer != 0)
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                           attachment,
                                           GL_RENDERBUFFER,
-                                          tex->m_glRenderbuffer);
+                                          texGL->m_glRenderbuffer);
             }
-            else if (tex->type() == TextureType::cube)
+            else if (texGL->type() == TextureType::cube)
             {
                 glFramebufferTexture2D(GL_FRAMEBUFFER,
                                        attachment,
                                        GL_TEXTURE_CUBE_MAP_POSITIVE_X +
                                            ca.view->baseLayer(),
-                                       tex->m_glTexture,
+                                       texGL->m_glTexture,
                                        ca.view->baseMipLevel());
             }
-            else if (tex->type() == TextureType::array2D ||
-                     tex->type() == TextureType::texture3D)
+            else if (texGL->type() == TextureType::array2D ||
+                     texGL->type() == TextureType::texture3D)
             {
                 glFramebufferTextureLayer(GL_FRAMEBUFFER,
                                           attachment,
-                                          tex->m_glTexture,
+                                          texGL->m_glTexture,
                                           ca.view->baseMipLevel(),
                                           ca.view->baseLayer());
             }
@@ -967,19 +979,22 @@ RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
                 glFramebufferTexture2D(GL_FRAMEBUFFER,
                                        attachment,
                                        GL_TEXTURE_2D,
-                                       tex->m_glTexture,
+                                       texGL->m_glTexture,
                                        ca.view->baseMipLevel());
             }
 
             // Record resolve target for MSAA blit in finish().
             if (ca.resolveTarget)
             {
-                auto& r = pass.m_glResolves[pass.m_glResolveCount++];
+                auto* resolveTexGL =
+                    lite_rtti_cast<TextureGL*>(ca.resolveTarget->texture());
+                assert(resolveTexGL);
+                auto& r = pass->m_glResolves[pass->m_glResolveCount++];
                 r.colorIndex = i;
-                r.resolveTex = ca.resolveTarget->texture()->m_glTexture;
-                r.resolveTarget = ca.resolveTarget->texture()->m_glTarget;
-                r.width = tex->width();
-                r.height = tex->height();
+                r.resolveTex = resolveTexGL->m_glTexture;
+                r.resolveTarget = resolveTexGL->m_glTarget;
+                r.width = texGL->width();
+                r.height = texGL->height();
             }
 
             drawBuffers[i] = attachment;
@@ -994,28 +1009,30 @@ RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
     // Attach depth/stencil.
     if (desc.depthStencil.view)
     {
-        Texture* depthTex = desc.depthStencil.view->texture();
+        auto* depthTexGL =
+            lite_rtti_cast<TextureGL*>(desc.depthStencil.view->texture());
+        assert(depthTexGL);
         GLenum depthAttachment;
 
-        TextureFormat depthFmt = depthTex->format();
+        TextureFormat depthFmt = depthTexGL->format();
         bool hasStencil = (depthFmt == TextureFormat::depth24plusStencil8 ||
                            depthFmt == TextureFormat::depth32floatStencil8);
         depthAttachment =
             hasStencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
 
-        if (depthTex->m_glRenderbuffer != 0)
+        if (depthTexGL->m_glRenderbuffer != 0)
         {
             glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                       depthAttachment,
                                       GL_RENDERBUFFER,
-                                      depthTex->m_glRenderbuffer);
+                                      depthTexGL->m_glRenderbuffer);
         }
         else
         {
             glFramebufferTexture2D(GL_FRAMEBUFFER,
                                    depthAttachment,
                                    GL_TEXTURE_2D,
-                                   depthTex->m_glTexture,
+                                   depthTexGL->m_glTexture,
                                    desc.depthStencil.view->baseMipLevel());
         }
     }
@@ -1075,9 +1092,9 @@ RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
 
     // Create a dedicated VAO for this render pass so Ore's vertex attrib state
     // doesn't contaminate the host renderer's VAO (e.g., Rive's draw VAO).
-    glGenVertexArrays(1, &pass.m_glVAO);
-    pass.m_ownsVAO = true;
-    glBindVertexArray(pass.m_glVAO);
+    glGenVertexArrays(1, &pass->m_glVAO);
+    pass->m_ownsVAO = true;
+    glBindVertexArray(pass->m_glVAO);
 
     // Set a default viewport from the first color or depth attachment so
     // scripts that omit setViewport() still render correctly. Metal infers
@@ -1096,8 +1113,8 @@ RenderPass ContextGL::beginRenderPass(const RenderPassDesc& desc,
     if (defaultW > 0 && defaultH > 0)
     {
         glViewport(0, 0, defaultW, defaultH);
-        pass.m_viewportWidth = defaultW;
-        pass.m_viewportHeight = defaultH;
+        pass->m_viewportWidth = defaultW;
+        pass->m_viewportHeight = defaultH;
     }
 
     return pass;
@@ -1125,7 +1142,7 @@ rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureGL>(new TextureGL(texDesc));
     texture->m_glTexture = texID; // Borrow — RenderCanvas owns it.
     texture->m_glTarget = GL_TEXTURE_2D;
     texture->m_glOwnsTexture = false;
@@ -1138,7 +1155,7 @@ rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    return rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
 }
 
 rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
@@ -1162,7 +1179,7 @@ rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureGL>(new TextureGL(texDesc));
     texture->m_glTexture = texID; // Borrow — caller owns via RenderImage.
     texture->m_glTarget = GL_TEXTURE_2D;
     texture->m_glOwnsTexture = false;
@@ -1175,7 +1192,7 @@ rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    return rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
 }
 
 } // namespace rive::ore

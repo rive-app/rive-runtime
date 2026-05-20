@@ -3,16 +3,14 @@
  */
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_bind_group_layout.hpp"
+#include "ore_pipeline_gl.hpp"
 
 namespace rive::ore
 {
 
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
+#if defined(ORE_BACKEND_GL)
 
-void Pipeline::onRefCntReachedZero() const
+void PipelineGL::onRefCntReachedZero() const
 {
     if (m_glProgram != 0)
     {
@@ -21,8 +19,6 @@ void Pipeline::onRefCntReachedZero() const
     delete this;
 }
 
-void BindGroupLayout::onRefCntReachedZero() const { delete this; }
-
-#endif // ORE_BACKEND_GL && !ORE_BACKEND_METAL && !ORE_BACKEND_VK
+#endif // ORE_BACKEND_GL
 
 } // namespace rive::ore

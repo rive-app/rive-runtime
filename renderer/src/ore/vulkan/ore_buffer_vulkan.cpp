@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_buffer.hpp"
+#include "ore_buffer_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include <vk_mem_alloc.h>
@@ -13,16 +13,14 @@
 namespace rive::ore
 {
 
-#if !defined(ORE_BACKEND_GL)
-
-void Buffer::update(const void* data, uint32_t size, uint32_t offset)
+void BufferVulkan::update(const void* data, uint32_t size, uint32_t offset)
 {
     assert(offset + size <= m_size);
     assert(m_vkMappedPtr != nullptr);
     memcpy(static_cast<uint8_t*>(m_vkMappedPtr) + offset, data, size);
 }
 
-void Buffer::onRefCntReachedZero() const
+void BufferVulkan::onRefCntReachedZero() const
 {
     VmaAllocator allocator = m_vmaAllocator;
     VkBuffer buf = m_vkBuffer;
@@ -42,5 +40,4 @@ void Buffer::onRefCntReachedZero() const
         destroy();
 }
 
-#endif // !ORE_BACKEND_GL
 } // namespace rive::ore

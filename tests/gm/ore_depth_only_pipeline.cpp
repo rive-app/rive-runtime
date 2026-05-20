@@ -193,11 +193,11 @@ public:
 
             ctx.clearLastError();
             auto pass = ctx.beginRenderPass(rp);
-            pass.setPipeline(depthOnlyPipeline.get());
-            pass.setVertexBuffer(0, vbuf.get());
-            pass.setViewport(0, 0, 64, 64);
-            pass.draw(3);
-            pass.finish();
+            pass->setPipeline(depthOnlyPipeline.get());
+            pass->setVertexBuffer(0, vbuf.get());
+            pass->setViewport(0, 0, 64, 64);
+            pass->draw(3);
+            pass->finish();
 
             if (!ctx.lastError().empty())
             {
@@ -233,8 +233,8 @@ public:
         rpDesc.label = "ore_depth_only_pipeline_result";
 
         auto resultPass = ctx.beginRenderPass(rpDesc);
-        resultPass.setViewport(0, 0, 128, 128);
-        resultPass.finish();
+        resultPass->setViewport(0, 0, 128, 128);
+        resultPass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

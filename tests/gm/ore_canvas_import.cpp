@@ -288,12 +288,12 @@ public:
         rpDesc.label = "ore_canvas_import_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(1, texBG.get());
-        pass.setBindGroup(2, sampBG.get());
-        pass.setViewport(0, 0, kSize, kSize);
-        pass.draw(6); // fullscreen quad
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(1, texBG.get());
+        pass->setBindGroup(2, sampBG.get());
+        pass->setViewport(0, 0, kSize, kSize);
+        pass->draw(6); // fullscreen quad
+        pass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

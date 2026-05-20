@@ -2,15 +2,13 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_sampler.hpp"
+#include "ore_sampler_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {
 
-#if !defined(ORE_BACKEND_GL)
-
-void Sampler::onRefCntReachedZero() const
+void SamplerVulkan::onRefCntReachedZero() const
 {
     VkDevice dev = m_vkDevice;
     VkSampler samp = m_vkSampler;
@@ -29,7 +27,5 @@ void Sampler::onRefCntReachedZero() const
     else
         destroy();
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

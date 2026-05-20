@@ -2863,10 +2863,8 @@ int context_beginrenderpass(lua_State* L)
         oreCtx->setActiveRenderPass(nullptr);
     }
 
-    ore::RenderPass raw = oreCtx->beginRenderPass(passDesc);
-
     auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
-    rp->pass = std::make_unique<ore::RenderPass>(std::move(raw));
+    rp->pass = oreCtx->beginRenderPass(passDesc);
     rp->m_context = oreCtx;
     rp->m_finished = false;
     rp->sampleCount =

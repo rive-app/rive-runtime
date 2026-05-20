@@ -7,12 +7,23 @@
 #include "rive/renderer/render_context_helper_impl.hpp"
 #include "rive/gpu_texture_format.hpp"
 
+#ifdef RIVE_CANVAS
+#include "rive/renderer/ore/ore_context.hpp"
+#endif
+
 class RenderContextNULL : public rive::gpu::RenderContextHelperImpl
 {
 public:
     static std::unique_ptr<rive::gpu::RenderContext> MakeContext();
 
     RenderContextNULL();
+
+#ifdef RIVE_CANVAS
+    std::unique_ptr<rive::ore::Context> makeOreContext() override
+    {
+        return nullptr;
+    }
+#endif
 
     rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width,
                                                         uint32_t height);

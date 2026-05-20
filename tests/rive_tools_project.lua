@@ -59,6 +59,13 @@ function rive_tools_project(name, project_kind)
 
     fatalwarnings { "All" }
 
+    -- Solves link order issue on linux
+    filter({ 'system:linux'})
+    do
+        linkgroups("On")
+    end
+    filter({ })
+    
     defines({
         'SK_GL',
         'GL_SILENCE_DEPRECATION', -- For glReadPixels()

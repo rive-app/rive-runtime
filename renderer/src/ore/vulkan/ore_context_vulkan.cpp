@@ -3,12 +3,14 @@
  */
 
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_render_pass.hpp"
+#include "ore_buffer_vulkan.hpp"
+#include "ore_texture_vulkan.hpp"
+#include "ore_sampler_vulkan.hpp"
+#include "ore_shader_module_vulkan.hpp"
+#include "ore_pipeline_vulkan.hpp"
+#include "ore_render_pass_vulkan.hpp"
+#include "ore_bind_group_vulkan.hpp"
+#include "ore_bind_group_layout_vulkan.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
 
@@ -141,16 +143,16 @@ static VkAttachmentStoreOp oreStoreOpToVk(StoreOp op)
 
 ContextVulkan::~ContextVulkan()
 {
-    if (m_vkDevice == VK_NULL_HANDLE)
+    if (m_vk->device == VK_NULL_HANDLE)
         return;
 
     // Wait for any in-flight GPU work before tearing down resources. Use
     // QueueWaitIdle to also cover the external-CB path where the host owns
     // the frame fence and may have submitted work Ore doesn't track.
     if (m_vkQueue != VK_NULL_HANDLE)
-        m_vk.QueueWaitIdle(m_vkQueue);
+        m_vk->QueueWaitIdle(m_vkQueue);
     if (m_vkFrameFence != VK_NULL_HANDLE)
-        m_vk.DestroyFence(m_vkDevice, m_vkFrameFence, nullptr);
+        m_vk->DestroyFence(m_vk->device, m_vkFrameFence, nullptr);
 
     // Drop any BindGroups that were deferred past the final endFrame(). Their
     // descriptor sets live in m_vkPersistentDescriptorPool and must go away
@@ -162,24 +164,24 @@ ContextVulkan::~ContextVulkan()
 
     // Drain the render pass cache.
     for (auto& [key, rp] : m_vkRenderPassCache)
-        m_vk.DestroyRenderPass(m_vkDevice, rp, nullptr);
+        m_vk->DestroyRenderPass(m_vk->device, rp, nullptr);
     m_vkRenderPassCache.clear();
 
     if (m_vkDescriptorPool != VK_NULL_HANDLE)
-        m_vk.DestroyDescriptorPool(m_vkDevice, m_vkDescriptorPool, nullptr);
+        m_vk->DestroyDescriptorPool(m_vk->device, m_vkDescriptorPool, nullptr);
 
     // The persistent pool backs BindGroups (allocated lazily in makeBindGroup).
     // Destroying it implicitly frees any remaining descriptor sets it owns.
     if (m_vkPersistentDescriptorPool != VK_NULL_HANDLE)
-        m_vk.DestroyDescriptorPool(m_vkDevice,
-                                   m_vkPersistentDescriptorPool,
-                                   nullptr);
+        m_vk->DestroyDescriptorPool(m_vk->device,
+                                    m_vkPersistentDescriptorPool,
+                                    nullptr);
 
     if (m_vkEmptyDSL != VK_NULL_HANDLE)
-        m_vk.DestroyDescriptorSetLayout(m_vkDevice, m_vkEmptyDSL, nullptr);
+        m_vk->DestroyDescriptorSetLayout(m_vk->device, m_vkEmptyDSL, nullptr);
 
     if (m_vkCommandPool != VK_NULL_HANDLE)
-        m_vk.DestroyCommandPool(m_vkDevice, m_vkCommandPool, nullptr);
+        m_vk->DestroyCommandPool(m_vk->device, m_vkCommandPool, nullptr);
 }
 
 // ============================================================================
@@ -187,44 +189,24 @@ ContextVulkan::~ContextVulkan()
 // ============================================================================
 
 std::unique_ptr<ContextVulkan> ContextVulkan::Make(
-    VkInstance instance,
-    VkPhysicalDevice physicalDevice,
-    VkDevice device,
+    const rcp<rive::gpu::VulkanContext> vk,
     VkQueue queue,
-    uint32_t queueFamilyIndex,
-    VmaAllocator allocator,
-    PFN_vkGetInstanceProcAddr pfnGetInstanceProcAddr)
+    uint32_t queueFamilyIndex)
 {
-    auto ctx = std::unique_ptr<ContextVulkan>(new ContextVulkan());
-    ctx->m_vkPhysicalDevice = physicalDevice;
-    ctx->m_vkDevice = device;
+    auto ctx = std::unique_ptr<ContextVulkan>(new ContextVulkan(vk));
     ctx->m_vkQueue = queue;
     ctx->m_vkQueueFamily = queueFamilyIndex;
-    ctx->m_vmaAllocator = allocator;
-
-    // Load instance-level function pointers.
-#define LOAD_INSTANCE_CMD(CMD)                                                 \
-    ctx->m_vk.CMD = reinterpret_cast<PFN_vk##CMD>(                             \
-        pfnGetInstanceProcAddr(instance, "vk" #CMD));
-    ORE_VK_INSTANCE_COMMANDS(LOAD_INSTANCE_CMD)
-#undef LOAD_INSTANCE_CMD
-
-    // Load device-level function pointers via GetDeviceProcAddr.
-#define LOAD_DEVICE_CMD(CMD)                                                   \
-    ctx->m_vk.CMD = reinterpret_cast<PFN_vk##CMD>(                             \
-        ctx->m_vk.GetDeviceProcAddr(device, "vk" #CMD));
-    ORE_VK_DEVICE_COMMANDS(LOAD_DEVICE_CMD)
-#undef LOAD_DEVICE_CMD
+    ctx->m_vmaAllocator = vk->allocator();
 
     // Command pool: reset-per-command-buffer for single-threaded use.
     VkCommandPoolCreateInfo poolCI{};
     poolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolCI.queueFamilyIndex = queueFamilyIndex;
-    ctx->m_vk.CreateCommandPool(device,
-                                &poolCI,
-                                nullptr,
-                                &ctx->m_vkCommandPool);
+    ctx->m_vk->CreateCommandPool(ctx->m_vk->device,
+                                 &poolCI,
+                                 nullptr,
+                                 &ctx->m_vkCommandPool);
 
     // Single reusable command buffer.
     VkCommandBufferAllocateInfo cbAI{};
@@ -232,7 +214,9 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     cbAI.commandPool = ctx->m_vkCommandPool;
     cbAI.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbAI.commandBufferCount = 1;
-    ctx->m_vk.AllocateCommandBuffers(device, &cbAI, &ctx->m_vkCommandBuffer);
+    ctx->m_vk->AllocateCommandBuffers(ctx->m_vk->device,
+                                      &cbAI,
+                                      &ctx->m_vkCommandBuffer);
 
     // Descriptor pool: sized generously for per-frame allocation + reset.
     // 3 sets per draw × 256 draws per frame × 3 types = 2304 descriptors.
@@ -247,10 +231,10 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     dpCI.maxSets = 768;
     dpCI.poolSizeCount = 3;
     dpCI.pPoolSizes = poolSizes;
-    ctx->m_vk.CreateDescriptorPool(device,
-                                   &dpCI,
-                                   nullptr,
-                                   &ctx->m_vkDescriptorPool);
+    ctx->m_vk->CreateDescriptorPool(ctx->m_vk->device,
+                                    &dpCI,
+                                    nullptr,
+                                    &ctx->m_vkDescriptorPool);
 
     // Frame fence — signaled after each endFrame() QueueSubmit, waited on
     // in the next beginFrame() (or the destructor) so we never destroy
@@ -259,13 +243,16 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     VkFenceCreateInfo fenceCI{};
     fenceCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCI.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    ctx->m_vk.CreateFence(device, &fenceCI, nullptr, &ctx->m_vkFrameFence);
+    ctx->m_vk->CreateFence(ctx->m_vk->device,
+                           &fenceCI,
+                           nullptr,
+                           &ctx->m_vkFrameFence);
 
     // Populate features from physical device properties.
     VkPhysicalDeviceProperties props{};
-    ctx->m_vk.GetPhysicalDeviceProperties(physicalDevice, &props);
+    ctx->m_vk->GetPhysicalDeviceProperties(ctx->m_vk->physicalDevice, &props);
     VkPhysicalDeviceFeatures feat{};
-    ctx->m_vk.GetPhysicalDeviceFeatures(physicalDevice, &feat);
+    ctx->m_vk->GetPhysicalDeviceFeatures(ctx->m_vk->physicalDevice, &feat);
 
     Features& f = ctx->m_features;
     f.colorBufferFloat = true; // All Vulkan 1.1+ support rgba16f attachments.
@@ -302,7 +289,7 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
 void ContextVulkan::vkDrainDeferred()
 {
     for (VkFramebuffer fb : m_vkDeferredFramebuffers)
-        m_vk.DestroyFramebuffer(m_vkDevice, fb, nullptr);
+        m_vk->DestroyFramebuffer(m_vk->device, fb, nullptr);
     m_vkDeferredFramebuffers.clear();
 
     for (auto& buf : m_vkDeferredStagingBuffers)
@@ -335,7 +322,7 @@ VkDescriptorSetLayout ContextVulkan::vkGetOrCreateEmptyDSL()
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
     ci.bindingCount = 0;
     ci.pBindings = nullptr;
-    m_vk.CreateDescriptorSetLayout(m_vkDevice, &ci, nullptr, &m_vkEmptyDSL);
+    m_vk->CreateDescriptorSetLayout(m_vk->device, &ci, nullptr, &m_vkEmptyDSL);
     return m_vkEmptyDSL;
 }
 
@@ -353,7 +340,8 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
     barriers.reserve(m_vkPendingInitialTransitions.size());
     for (const auto& pt : m_vkPendingInitialTransitions)
     {
-        if (pt.texture->m_vkLayout != VK_IMAGE_LAYOUT_UNDEFINED)
+        auto texture = lite_rtti_cast<TextureVulkan*>(pt.texture.get());
+        if (texture->m_vkLayout != VK_IMAGE_LAYOUT_UNDEFINED)
             continue;
 
         VkImageMemoryBarrier b{};
@@ -364,27 +352,27 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
         b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        b.image = pt.texture->m_vkImage;
+        b.image = texture->m_vkImage;
         b.subresourceRange.aspectMask = pt.aspectMask;
         b.subresourceRange.baseMipLevel = 0;
         b.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
         b.subresourceRange.baseArrayLayer = 0;
         b.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
         barriers.push_back(b);
-        pt.texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
     if (!barriers.empty())
     {
-        m_vk.CmdPipelineBarrier(m_vkCommandBuffer,
-                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                0,
-                                0,
-                                nullptr,
-                                0,
-                                nullptr,
-                                static_cast<uint32_t>(barriers.size()),
-                                barriers.data());
+        m_vk->CmdPipelineBarrier(m_vkCommandBuffer,
+                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr,
+                                 static_cast<uint32_t>(barriers.size()),
+                                 barriers.data());
     }
     m_vkPendingInitialTransitions.clear();
 }
@@ -405,15 +393,15 @@ void ContextVulkan::beginFrame()
     m_vkExternalCmdBuf = false;
 
     // Reset the descriptor pool — all sets from last frame are invalid.
-    m_vk.ResetDescriptorPool(m_vkDevice, m_vkDescriptorPool, 0);
+    m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
 
     // Begin the frame command buffer.
-    m_vk.ResetCommandBuffer(m_vkCommandBuffer, 0);
+    m_vk->ResetCommandBuffer(m_vkCommandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    m_vk.BeginCommandBuffer(m_vkCommandBuffer, &beginInfo);
+    m_vk->BeginCommandBuffer(m_vkCommandBuffer, &beginInfo);
 
     // Flush any lazy-init barriers queued between frames (e.g. BindGroups
     // created before beginFrame that referenced a still-UNDEFINED texture).
@@ -427,7 +415,7 @@ void ContextVulkan::beginFrame(VkCommandBuffer externalCb)
     m_deferredBindGroups.clear();
     vkDrainDeferred();
 
-    m_vk.ResetDescriptorPool(m_vkDevice, m_vkDescriptorPool, 0);
+    m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
 
     m_vkCommandBuffer = externalCb;
     m_vkExternalCmdBuf = true;
@@ -441,7 +429,11 @@ void ContextVulkan::waitForGPU()
 {
 #if defined(ORE_BACKEND_VK)
     if (m_vkFrameFence != VK_NULL_HANDLE)
-        m_vk.WaitForFences(m_vkDevice, 1, &m_vkFrameFence, VK_TRUE, UINT64_MAX);
+        m_vk->WaitForFences(m_vk->device,
+                            1,
+                            &m_vkFrameFence,
+                            VK_TRUE,
+                            UINT64_MAX);
 #endif
 }
 
@@ -455,18 +447,18 @@ void ContextVulkan::endFrame()
         return;
     }
 
-    m_vk.EndCommandBuffer(m_vkCommandBuffer);
+    m_vk->EndCommandBuffer(m_vkCommandBuffer);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &m_vkCommandBuffer;
-    m_vk.ResetFences(m_vkDevice, 1, &m_vkFrameFence);
-    m_vk.QueueSubmit(m_vkQueue, 1, &submitInfo, m_vkFrameFence);
+    m_vk->ResetFences(m_vk->device, 1, &m_vkFrameFence);
+    m_vk->QueueSubmit(m_vkQueue, 1, &submitInfo, m_vkFrameFence);
     // Wait for GPU completion before returning — callers destroy Ore
     // resources (textures, views, pipelines) after endFrame(), and those
     // must not be in use by the GPU.  Matches D3D12's endFrame() behavior.
-    m_vk.WaitForFences(m_vkDevice, 1, &m_vkFrameFence, VK_TRUE, UINT64_MAX);
+    m_vk->WaitForFences(m_vk->device, 1, &m_vkFrameFence, VK_TRUE, UINT64_MAX);
 
     vkDrainDeferred();
 }
@@ -613,7 +605,7 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
     rpCI.pDependencies = deps;
 
     VkRenderPass rp = VK_NULL_HANDLE;
-    m_vk.CreateRenderPass(m_vkDevice, &rpCI, nullptr, &rp);
+    m_vk->CreateRenderPass(m_vk->device, &rpCI, nullptr, &rp);
 
     m_vkRenderPassCache.emplace_back(key, rp);
     return rp;
@@ -625,8 +617,8 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
 
 rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 {
-    auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
-    buffer->m_vkDevice = m_vkDevice;
+    auto buffer = rcp<BufferVulkan>(new BufferVulkan(desc.size, desc.usage));
+    buffer->m_vkDevice = m_vk->device;
     buffer->m_vmaAllocator = m_vmaAllocator;
     buffer->m_vkOreContext = this;
 
@@ -677,8 +669,8 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 
 rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
 {
-    auto texture = rcp<Texture>(new Texture(desc));
-    texture->m_vkDevice = m_vkDevice;
+    auto texture = rcp<TextureVulkan>(new TextureVulkan(desc));
+    texture->m_vkDevice = m_vk->device;
     texture->m_vmaAllocator = m_vmaAllocator;
     texture->m_vkOreContext = this;
 
@@ -748,12 +740,13 @@ rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
 
 rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
 {
-    Texture* tex = desc.texture;
+    TextureVulkan* tex = lite_rtti_cast<TextureVulkan*>(desc.texture);
     if (!tex)
         return nullptr;
 
-    auto view = rcp<TextureView>(new TextureView(ref_rcp(tex), desc));
-    view->m_vkDevice = m_vkDevice;
+    auto view =
+        rcp<TextureViewVulkan>(new TextureViewVulkan(ref_rcp(tex), desc));
+    view->m_vkDevice = m_vk->device;
     view->m_vkOreContext = this;
 
     VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -808,8 +801,8 @@ rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
     viewCI.subresourceRange.layerCount =
         desc.layerCount > 0 ? desc.layerCount : VK_REMAINING_ARRAY_LAYERS;
 
-    m_vk.CreateImageView(m_vkDevice, &viewCI, nullptr, &view->m_vkImageView);
-    view->m_vkDestroyImageView = m_vk.DestroyImageView;
+    m_vk->CreateImageView(m_vk->device, &viewCI, nullptr, &view->m_vkImageView);
+    view->m_vkDestroyImageView = m_vk->DestroyImageView;
 
     return view;
 }
@@ -820,8 +813,8 @@ rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
 
 rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
 {
-    auto sampler = rcp<Sampler>(new Sampler());
-    sampler->m_vkDevice = m_vkDevice;
+    auto sampler = rcp<SamplerVulkan>(new SamplerVulkan());
+    sampler->m_vkDevice = m_vk->device;
     sampler->m_vkOreContext = this;
 
     auto filterToVk = [](Filter f) {
@@ -887,8 +880,8 @@ rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
     sCI.maxLod = desc.maxLod;
     sCI.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 
-    m_vk.CreateSampler(m_vkDevice, &sCI, nullptr, &sampler->m_vkSampler);
-    sampler->m_vkDestroySampler = m_vk.DestroySampler;
+    m_vk->CreateSampler(m_vk->device, &sCI, nullptr, &sampler->m_vkSampler);
+    sampler->m_vkDestroySampler = m_vk->DestroySampler;
 
     return sampler;
 }
@@ -899,25 +892,25 @@ rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
 
 rcp<ShaderModule> ContextVulkan::makeShaderModule(const ShaderModuleDesc& desc)
 {
-    auto module = rcp<ShaderModule>(new ShaderModule());
-    module->m_vkDevice = m_vkDevice;
+    auto module = rcp<ShaderModuleVulkan>(new ShaderModuleVulkan());
+    module->m_vkDevice = m_vk->device;
 
     VkShaderModuleCreateInfo smCI{};
     smCI.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     smCI.codeSize = desc.codeSize;
     smCI.pCode = static_cast<const uint32_t*>(desc.code);
 
-    VkResult result = m_vk.CreateShaderModule(m_vkDevice,
-                                              &smCI,
-                                              nullptr,
-                                              &module->m_vkShaderModule);
+    VkResult result = m_vk->CreateShaderModule(m_vk->device,
+                                               &smCI,
+                                               nullptr,
+                                               &module->m_vkShaderModule);
     if (result != VK_SUCCESS || module->m_vkShaderModule == VK_NULL_HANDLE)
     {
         setLastError("Ore Vulkan: vkCreateShaderModule failed (VkResult=%d)",
                      static_cast<int>(result));
         return nullptr;
     }
-    module->m_vkDestroyShaderModule = m_vk.DestroyShaderModule;
+    module->m_vkDestroyShaderModule = m_vk->DestroyShaderModule;
 
     module->applyBindingMapFromDesc(desc);
     return module;
@@ -937,17 +930,17 @@ rcp<BindGroupLayout> ContextVulkan::makeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout());
+    auto layout = rcp<BindGroupLayoutVulkan>(new BindGroupLayoutVulkan());
     layout->m_context = this;
     layout->m_groupIndex = desc.groupIndex;
     layout->m_entries.reserve(desc.entryCount);
     for (uint32_t i = 0; i < desc.entryCount; ++i)
         layout->m_entries.push_back(desc.entries[i]);
 
-    layout->m_vkDevice = m_vkDevice;
-    layout->m_vkDestroyDescriptorSetLayout = m_vk.DestroyDescriptorSetLayout;
-    layout->m_vkDSL = createDSLFromLayoutDesc(m_vk.CreateDescriptorSetLayout,
-                                              m_vkDevice,
+    layout->m_vkDevice = m_vk->device;
+    layout->m_vkDestroyDescriptorSetLayout = m_vk->DestroyDescriptorSetLayout;
+    layout->m_vkDSL = createDSLFromLayoutDesc(m_vk->CreateDescriptorSetLayout,
+                                              m_vk->device,
                                               desc);
     if (layout->m_vkDSL == VK_NULL_HANDLE)
     {
@@ -970,7 +963,9 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
-    BindGroupLayout* layout = desc.layout;
+    BindGroupLayoutVulkan* layout =
+        lite_rtti_cast<BindGroupLayoutVulkan*>(desc.layout);
+    assert(layout != nullptr);
     const uint32_t groupIndex = layout->groupIndex();
     if (groupIndex >= kMaxBindGroups)
     {
@@ -981,7 +976,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         return nullptr;
     }
 
-    auto bg = rcp<BindGroup>(new BindGroup());
+    auto bg = rcp<BindGroupVulkan>(new BindGroupVulkan());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
 
@@ -1011,10 +1006,10 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         ci.maxSets = 256;
         ci.poolSizeCount = 4;
         ci.pPoolSizes = poolSizes;
-        m_vk.CreateDescriptorPool(m_vkDevice,
-                                  &ci,
-                                  nullptr,
-                                  &m_vkPersistentDescriptorPool);
+        m_vk->CreateDescriptorPool(m_vk->device,
+                                   &ci,
+                                   nullptr,
+                                   &m_vkPersistentDescriptorPool);
     }
 
     // Allocate a descriptor set from the persistent pool using the layout's
@@ -1026,9 +1021,9 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &dsl;
 
-    VkResult result = m_vk.AllocateDescriptorSets(m_vkDevice,
-                                                  &allocInfo,
-                                                  &bg->m_vkDescriptorSet);
+    VkResult result = m_vk->AllocateDescriptorSets(m_vk->device,
+                                                   &allocInfo,
+                                                   &bg->m_vkDescriptorSet);
     if (result != VK_SUCCESS)
     {
         // Allocation failed — pool may be exhausted.
@@ -1095,9 +1090,10 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         assert(writeIdx < kMaxWrites && bufInfoIdx < kMaxWrites);
 
         VkDescriptorBufferInfo& bi = bufferInfos[bufInfoIdx++];
-        bi.buffer = ubo.buffer->m_vkBuffer;
+        auto buffer = lite_rtti_cast<BufferVulkan*>(ubo.buffer);
+        bi.buffer = buffer->m_vkBuffer;
         bi.offset = ubo.offset;
-        bi.range = (ubo.size > 0) ? ubo.size : ubo.buffer->size();
+        bi.range = (ubo.size > 0) ? ubo.size : buffer->size();
 
         VkWriteDescriptorSet& w = writes[writeIdx++];
         w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1132,7 +1128,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         // lazy-initialize-on-first-use semantic.  The layout is updated
         // at flush time, not here, so an intervening upload() still sees
         // UNDEFINED and emits the correct upload barrier sequence.
-        Texture* baseTex = tex.view->texture();
+        auto baseTex = lite_rtti_cast<TextureVulkan*>(tex.view->texture());
         if (baseTex->m_vkLayout == VK_IMAGE_LAYOUT_UNDEFINED)
         {
             VkImageAspectFlags aspect =
@@ -1146,7 +1142,9 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         }
 
         VkDescriptorImageInfo& ii = imageInfos[imgInfoIdx++];
-        ii.imageView = tex.view->m_vkImageView;
+        auto view = lite_rtti_cast<TextureViewVulkan*>(tex.view);
+        assert(view != nullptr);
+        ii.imageView = view->m_vkImageView;
         ii.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         ii.sampler = VK_NULL_HANDLE; // Sampler bound separately.
 
@@ -1172,7 +1170,8 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         assert(writeIdx < kMaxWrites && imgInfoIdx < kMaxWrites);
 
         VkDescriptorImageInfo& ii = imageInfos[imgInfoIdx++];
-        ii.sampler = samp.sampler->m_vkSampler;
+        auto sampler = lite_rtti_cast<SamplerVulkan*>(samp.sampler);
+        ii.sampler = sampler->m_vkSampler;
         ii.imageView = VK_NULL_HANDLE;
         ii.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -1190,7 +1189,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
 
     if (writeIdx > 0)
     {
-        m_vk.UpdateDescriptorSets(m_vkDevice, writeIdx, writes, 0, nullptr);
+        m_vk->UpdateDescriptorSets(m_vk->device, writeIdx, writes, 0, nullptr);
     }
 
     return bg;
@@ -1200,8 +1199,9 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
 // beginRenderPass
 // ============================================================================
 
-RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
-                                          std::string* outError)
+std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
+    const RenderPassDesc& desc,
+    std::string* outError)
 {
     finishActiveRenderPass();
 
@@ -1211,11 +1211,12 @@ RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
     // makeBindGroup must be emitted here.
     vkFlushPendingInitialTransitions();
 
-    RenderPass pass;
-    pass.m_context = this;
-    pass.m_vkContext = this;
-    pass.m_vkCmdBuf = m_vkCommandBuffer;
-    pass.populateAttachmentMetadata(desc);
+    std::unique_ptr<RenderPassVulkan> pass =
+        std::make_unique<RenderPassVulkan>();
+    pass->m_context = this;
+    pass->m_vkContext = this;
+    pass->m_vkCmdBuf = m_vkCommandBuffer;
+    pass->populateAttachmentMetadata(desc);
 
     // Build render pass key from the actual load/store ops + formats.
     // Attachment layout in `attachViews`: [color × N][resolve × N_resolve]
@@ -1232,12 +1233,12 @@ RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
     VkImageView resolveViews[4]{};
     bool anyResolve = false;
 
-    pass.m_vkColorCount = desc.colorCount;
+    pass->m_vkColorCount = desc.colorCount;
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
         const ColorAttachment& ca = desc.colorAttachments[i];
         assert(ca.view != nullptr);
-        Texture* tex = ca.view->texture();
+        auto tex = lite_rtti_cast<TextureVulkan*>(ca.view->texture());
         key.colorFormats[i] = tex->format();
         key.colorLoadOps[i] = ca.loadOp;
         key.colorStoreOps[i] = ca.storeOp;
@@ -1245,19 +1246,22 @@ RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
         if (key.colorHasResolve[i])
         {
             anyResolve = true;
-            resolveViews[i] = ca.resolveTarget->m_vkImageView;
+            auto resolveView =
+                lite_rtti_cast<TextureViewVulkan*>(ca.resolveTarget);
+            resolveViews[i] = resolveView->m_vkImageView;
         }
         if (key.sampleCount == 1)
             key.sampleCount = tex->sampleCount();
         passWidth = tex->width();
         passHeight = tex->height();
-        attachViews[attachCount++] = ca.view->m_vkImageView;
+        auto view = lite_rtti_cast<TextureViewVulkan*>(ca.view);
+        attachViews[attachCount++] = view->m_vkImageView;
         // Store image handle, layer range, and render target back-ref for
         // finish().
-        pass.m_vkColorImages[i] = tex->m_vkImage;
-        pass.m_vkColorBaseLayer[i] = ca.view->baseLayer();
-        pass.m_vkColorLayerCount[i] = ca.view->layerCount();
-        pass.m_vkColorRenderTargets[i] = ca.view->m_vkRenderTarget;
+        pass->m_vkColorImages[i] = tex->m_vkImage;
+        pass->m_vkColorBaseLayer[i] = view->baseLayer();
+        pass->m_vkColorLayerCount[i] = view->layerCount();
+        pass->m_vkColorRenderTargets[i] = view->m_vkRenderTarget;
     }
 
     // Resolve image views must be appended in the same order as the
@@ -1275,16 +1279,18 @@ RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
 
     if (desc.depthStencil.view != nullptr)
     {
-        Texture* dsTex = desc.depthStencil.view->texture();
+        auto dsTex =
+            lite_rtti_cast<TextureVulkan*>(desc.depthStencil.view->texture());
         key.hasDepth = true;
         key.depthFormat = dsTex->format();
         key.depthLoadOp = desc.depthStencil.depthLoadOp;
         key.depthStoreOp = desc.depthStencil.depthStoreOp;
-        attachViews[attachCount++] = desc.depthStencil.view->m_vkImageView;
+        auto view = lite_rtti_cast<TextureViewVulkan*>(desc.depthStencil.view);
+        attachViews[attachCount++] = view->m_vkImageView;
         // Store depth image handle and layer range for finish() barrier.
-        pass.m_vkDepthImage = dsTex->m_vkImage;
-        pass.m_vkDepthBaseLayer = desc.depthStencil.view->baseLayer();
-        pass.m_vkDepthLayerCount = desc.depthStencil.view->layerCount();
+        pass->m_vkDepthImage = dsTex->m_vkImage;
+        pass->m_vkDepthBaseLayer = view->baseLayer();
+        pass->m_vkDepthLayerCount = view->layerCount();
         // Depth-only pass: no color attachments contributed dimensions.
         if (passWidth == 0)
         {
@@ -1304,7 +1310,10 @@ RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
     fbCI.width = passWidth;
     fbCI.height = passHeight;
     fbCI.layers = 1;
-    m_vk.CreateFramebuffer(m_vkDevice, &fbCI, nullptr, &pass.m_vkFramebuffer);
+    m_vk->CreateFramebuffer(m_vk->device,
+                            &fbCI,
+                            nullptr,
+                            &pass->m_vkFramebuffer);
 
     // Clear values — must match the attachment ordering that
     // `getOrCreateRenderPass` builds: [color × N][resolve × R][depth?].
@@ -1335,15 +1344,15 @@ RenderPass ContextVulkan::beginRenderPass(const RenderPassDesc& desc,
     VkRenderPassBeginInfo rpBI{};
     rpBI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpBI.renderPass = renderPass;
-    rpBI.framebuffer = pass.m_vkFramebuffer;
+    rpBI.framebuffer = pass->m_vkFramebuffer;
     rpBI.renderArea.offset = {0, 0};
     rpBI.renderArea.extent = {passWidth, passHeight};
     rpBI.clearValueCount = attachCount;
     rpBI.pClearValues = clearValues;
 
-    m_vk.CmdBeginRenderPass(m_vkCommandBuffer,
-                            &rpBI,
-                            VK_SUBPASS_CONTENTS_INLINE);
+    m_vk->CmdBeginRenderPass(m_vkCommandBuffer,
+                             &rpBI,
+                             VK_SUBPASS_CONTENTS_INLINE);
 
     return pass;
 }
@@ -1395,7 +1404,7 @@ rcp<TextureView> ContextVulkan::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.sampleCount = 1;
 
     // Borrow the VkImage — the RenderCanvas owns it.
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureVulkan>(new TextureVulkan(texDesc));
     texture->m_vkImage = image;
     // Mark as not VMA-owned so onRefCntReachedZero skips the VMA free.
     texture->m_vmaAllocation = VK_NULL_HANDLE;
@@ -1410,7 +1419,8 @@ rcp<TextureView> ContextVulkan::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewVulkan>(
+        new TextureViewVulkan(std::move(texture), viewDesc));
     view->m_vkImageView = imageView;
     view->m_vkOreContext = this;
     // No destroy pointer — caller owns the image view lifetime.
@@ -1454,7 +1464,7 @@ rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
            "wrapRiveTexture requires an open frame: call beginFrame() first");
     vkTex->prepareForFragmentShaderRead(m_vkCommandBuffer);
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureVulkan>(new TextureVulkan(texDesc));
     texture->m_vkImage = image;
     texture->m_vmaAllocation = VK_NULL_HANDLE; // Borrowed, not VMA-owned.
     texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1467,7 +1477,8 @@ rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewVulkan>(
+        new TextureViewVulkan(std::move(texture), viewDesc));
     view->m_vkImageView = imageView;
     view->m_vkOreContext = this;
     return view;

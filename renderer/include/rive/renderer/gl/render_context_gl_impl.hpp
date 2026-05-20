@@ -65,6 +65,8 @@ public:
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
 
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
+
     // GL-only: returns a Y-flipped companion of a Rive 2D RenderCanvas
     // texture, lazily allocating it on first call. Returns nullptr if
     // `sourceTex` is not a canvas target (i.e. it's a regular image).

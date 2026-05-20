@@ -13,6 +13,10 @@
 namespace rive::ore
 {
 
+class RenderPassGL;
+class BindGroupGL;
+class TextureGL;
+
 class ContextGL : public Context
 {
 public:
@@ -31,8 +35,9 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
     void beginFrame() override;
     void endFrame() override;
@@ -47,9 +52,9 @@ public:
     ContextGL& operator=(const ContextGL&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassGL;
+    friend class BindGroupGL;
+    friend class TextureGL;
 
     ContextGL() = default;
 

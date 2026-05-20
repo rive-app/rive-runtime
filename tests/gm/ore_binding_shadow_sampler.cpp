@@ -289,12 +289,12 @@ public:
         rpDesc.colorCount = 1;
         rpDesc.label = "ore_binding_shadow_sampler_pass";
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(0, bg0.get());
-        pass.setBindGroup(1, bg1.get());
-        pass.setViewport(0, 0, 128, 128);
-        pass.draw(3);
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(0, bg0.get());
+        pass->setBindGroup(1, bg1.get());
+        pass->setViewport(0, 0, 128, 128);
+        pass->draw(3);
+        pass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

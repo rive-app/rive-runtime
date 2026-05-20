@@ -199,12 +199,12 @@ public:
         rpDesc.label = "ore_image_view_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(1, texBG.get());
-        pass.setBindGroup(2, sampBG.get());
-        pass.setViewport(0, 0, 256, 256);
-        pass.draw(6); // fullscreen quad — 2 triangles
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(1, texBG.get());
+        pass->setBindGroup(2, sampBG.get());
+        pass->setViewport(0, 0, 256, 256);
+        pass->draw(6); // fullscreen quad — 2 triangles
+        pass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

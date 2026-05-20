@@ -126,7 +126,9 @@ inline Microsoft::WRL::ComPtr<ID3D12RootSignature> buildPerPipelineRootSig(
         if (g >= layoutCount || layouts == nullptr || layouts[g] == nullptr)
             continue;
 
-        const D3D12GroupRootParams& src = layouts[g]->d3dGroupParams();
+        auto layout = lite_rtti_cast<BindGroupLayoutD3D12*>(layouts[g]);
+        assert(layout && "BindGroupLayout must be a BindGroupLayoutD3D12");
+        const D3D12GroupRootParams& src = layout->d3dGroupParams();
         D3D12GroupRootParams& out = groupOut[g];
 
         // Mirror counts + base global slots from the layout. Indices get

@@ -201,8 +201,8 @@ public:
         rpDesc.label = "ore_layout_mismatch_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setViewport(0, 0, 128, 128);
-        pass.finish();
+        pass->setViewport(0, 0, 128, 128);
+        pass->finish();
 
         m_ore.endFrame();
         ore_gm::invalidateGLStateAfterOre(renderContext);

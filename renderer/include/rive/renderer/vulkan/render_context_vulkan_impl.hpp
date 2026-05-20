@@ -89,6 +89,7 @@ public:
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
     void hotloadShaders(rive::Span<const uint32_t> spirvData);

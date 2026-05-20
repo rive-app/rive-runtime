@@ -7,6 +7,7 @@
 #include "vulkan_shaders.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 #endif
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
@@ -186,6 +187,13 @@ rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+std::unique_ptr<rive::ore::Context> RenderContextVulkanImpl::makeOreContext()
+{
+    assert(m_canvasQueue != VK_NULL_HANDLE);
+    return rive::ore::ContextVulkan::Make(m_vk,
+                                          m_canvasQueue,
+                                          m_canvasQueueFamilyIndex);
 }
 #endif
 

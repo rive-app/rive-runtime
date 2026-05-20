@@ -16,27 +16,28 @@
 
 #pragma once
 
-#include "rive/renderer/ore/ore_render_pass.hpp"
-#include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_context.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
+#include "ore_render_pass_d3d12.hpp"
+#include "ore_bind_group_d3d12.hpp"
+#include "ore_pipeline_d3d12.hpp"
 
 #include <d3d12.h>
 #include <cassert>
 #include <climits>
 #include <cstdint>
+#include "ore_texture_d3d12.hpp"
 
 namespace rive::ore
 {
 
-inline void RenderPass::d3d12ApplyBindGroup(uint32_t groupIndex,
-                                            BindGroup* bg,
-                                            const uint32_t* dynamicOffsets,
-                                            uint32_t dynamicOffsetCount)
+inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex,
+                                                 BindGroupD3D12* bg,
+                                                 const uint32_t* dynamicOffsets,
+                                                 uint32_t dynamicOffsetCount)
 {
     assert(groupIndex < 4); // RFC v4 §9.1 / §14.2.
 
-    Pipeline* pipe = m_d3dCurrentPipeline.get();
+    PipelineD3D12* pipe = m_d3dCurrentPipeline.get();
     assert(pipe != nullptr && pipe->m_d3dRootSigOwned &&
            "d3d12ApplyBindGroup: pipeline missing per-pipeline root sig — "
            "every Ore D3D12 pipeline must ship with a populated binding map");
@@ -129,7 +130,8 @@ inline void RenderPass::d3d12ApplyBindGroup(uint32_t groupIndex,
             uint8_t globalSlot = gp.srvBaseGlobalSlot + i;
             if (!(bg->m_d3dSrvSlotMask & (1u << globalSlot)))
                 continue;
-            Texture* tex = bg->m_d3dSrvTextures[globalSlot];
+            TextureD3D12* tex =
+                lite_rtti_cast<TextureD3D12*>(bg->m_d3dSrvTextures[globalSlot]);
             if (tex == nullptr)
                 continue;
             // Require *full* coverage of both shader-stage bits, not

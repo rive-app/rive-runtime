@@ -9,6 +9,7 @@
 #include "rive/renderer/draw.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_gl.hpp"
 #endif
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
@@ -779,6 +780,11 @@ rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+
+std::unique_ptr<rive::ore::Context> RenderContextGLImpl::makeOreContext()
+{
+    return rive::ore::ContextGL::Make();
 }
 
 // ────────────────────────────────────────────────────────────────────────────

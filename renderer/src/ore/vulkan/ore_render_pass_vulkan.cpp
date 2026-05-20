@@ -2,13 +2,13 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_render_pass.hpp"
-#include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
+#include "ore_render_pass_vulkan.hpp"
+#include "ore_bind_group_vulkan.hpp"
+#include "ore_buffer_vulkan.hpp"
+#include "ore_texture_vulkan.hpp"
+#include "ore_sampler_vulkan.hpp"
+#include "ore_pipeline_vulkan.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "rive/rive_types.hpp"
 
@@ -24,52 +24,60 @@ namespace rive::ore
 // RenderPass methods
 // ============================================================================
 
-#if !defined(ORE_BACKEND_GL)
-
-void RenderPass::setPipeline(Pipeline* pipeline)
+void RenderPassVulkan::setPipeline(Pipeline* inPipeline)
 {
-    if (!checkPipelineCompat(pipeline))
+    if (!checkPipelineCompat(inPipeline))
         return;
+    auto pipeline = lite_rtti_cast<PipelineVulkan*>(inPipeline);
+    assert(pipeline != nullptr);
     m_currentPipeline = ref_rcp(pipeline);
-    m_vkContext->m_vk.CmdBindPipeline(m_vkCmdBuf,
-                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                      pipeline->m_vkPipeline);
+    m_vkContext->m_vk->CmdBindPipeline(m_vkCmdBuf,
+                                       VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                       pipeline->m_vkPipeline);
 }
 
-void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
+void RenderPassVulkan::setVertexBuffer(uint32_t slot,
+                                       Buffer* inBuffer,
+                                       uint32_t offset)
 {
     VkDeviceSize vkOffset = offset;
-    m_vkContext->m_vk.CmdBindVertexBuffers(m_vkCmdBuf,
-                                           slot,
-                                           1,
-                                           &buffer->m_vkBuffer,
-                                           &vkOffset);
+    auto buffer = lite_rtti_cast<BufferVulkan*>(inBuffer);
+    assert(buffer != nullptr);
+    m_vkContext->m_vk->CmdBindVertexBuffers(m_vkCmdBuf,
+                                            slot,
+                                            1,
+                                            &buffer->m_vkBuffer,
+                                            &vkOffset);
 }
 
-void RenderPass::setIndexBuffer(Buffer* buffer,
-                                IndexFormat format,
-                                uint32_t offset)
+void RenderPassVulkan::setIndexBuffer(Buffer* inBuffer,
+                                      IndexFormat format,
+                                      uint32_t offset)
 {
+    auto buffer = lite_rtti_cast<BufferVulkan*>(inBuffer);
+    assert(buffer != nullptr);
     m_vkIndexBuffer = buffer->m_vkBuffer;
     m_vkIndexType = (format == IndexFormat::uint32) ? VK_INDEX_TYPE_UINT32
                                                     : VK_INDEX_TYPE_UINT16;
     m_vkIndexOffset = offset;
-    m_vkContext->m_vk.CmdBindIndexBuffer(m_vkCmdBuf,
-                                         buffer->m_vkBuffer,
-                                         offset,
-                                         m_vkIndexType);
+    m_vkContext->m_vk->CmdBindIndexBuffer(m_vkCmdBuf,
+                                          buffer->m_vkBuffer,
+                                          offset,
+                                          m_vkIndexType);
 }
 
-void RenderPass::setBindGroup(uint32_t groupIndex,
-                              BindGroup* bg,
-                              const uint32_t* dynamicOffsets,
-                              uint32_t dynamicOffsetCount)
+void RenderPassVulkan::setBindGroup(uint32_t groupIndex,
+                                    BindGroup* inBg,
+                                    const uint32_t* dynamicOffsets,
+                                    uint32_t dynamicOffsetCount)
 {
-    assert(bg != nullptr);
+    assert(inBg != nullptr);
     assert(m_currentPipeline != nullptr &&
            "setPipeline must be called before setBindGroup");
 
-    m_vkContext->m_vk.CmdBindDescriptorSets(
+    auto bg = lite_rtti_cast<BindGroupVulkan*>(inBg);
+    assert(bg != nullptr);
+    m_vkContext->m_vk->CmdBindDescriptorSets(
         m_vkCmdBuf,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         m_currentPipeline->m_vkPipelineLayout,
@@ -84,12 +92,12 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
     m_boundGroups[groupIndex] = ref_rcp(bg);
 }
 
-void RenderPass::setViewport(float x,
-                             float y,
-                             float width,
-                             float height,
-                             float minDepth,
-                             float maxDepth)
+void RenderPassVulkan::setViewport(float x,
+                                   float y,
+                                   float width,
+                                   float height,
+                                   float minDepth,
+                                   float maxDepth)
 {
     // Ore NDC convention: Y-up clip space, depth in [0, 1].
     // Vulkan's clip space is Y-down, so we flip the viewport with a negative
@@ -103,7 +111,7 @@ void RenderPass::setViewport(float x,
     vp.height = -height; // Negative height flips Y.
     vp.minDepth = minDepth;
     vp.maxDepth = maxDepth;
-    m_vkContext->m_vk.CmdSetViewport(m_vkCmdBuf, 0, 1, &vp);
+    m_vkContext->m_vk->CmdSetViewport(m_vkCmdBuf, 0, 1, &vp);
 
     // Match the other backends' implicit behaviour: scissor defaults to the
     // full viewport rectangle. Callers can override with setScissorRect().
@@ -123,66 +131,66 @@ void RenderPass::setViewport(float x,
                       static_cast<int32_t>(std::max(0.0f, y0))};
     scissor.extent = {static_cast<uint32_t>(std::max(0.0f, x1 - x0)),
                       static_cast<uint32_t>(std::max(0.0f, y1 - y0))};
-    m_vkContext->m_vk.CmdSetScissor(m_vkCmdBuf, 0, 1, &scissor);
+    m_vkContext->m_vk->CmdSetScissor(m_vkCmdBuf, 0, 1, &scissor);
 }
 
-void RenderPass::setScissorRect(uint32_t x,
-                                uint32_t y,
-                                uint32_t width,
-                                uint32_t height)
+void RenderPassVulkan::setScissorRect(uint32_t x,
+                                      uint32_t y,
+                                      uint32_t width,
+                                      uint32_t height)
 {
     VkRect2D scissor{};
     scissor.offset = {static_cast<int32_t>(x), static_cast<int32_t>(y)};
     scissor.extent = {width, height};
-    m_vkContext->m_vk.CmdSetScissor(m_vkCmdBuf, 0, 1, &scissor);
+    m_vkContext->m_vk->CmdSetScissor(m_vkCmdBuf, 0, 1, &scissor);
 }
 
-void RenderPass::setStencilReference(uint32_t ref)
+void RenderPassVulkan::setStencilReference(uint32_t ref)
 {
-    m_vkContext->m_vk.CmdSetStencilReference(m_vkCmdBuf,
-                                             VK_STENCIL_FACE_FRONT_AND_BACK,
-                                             ref);
+    m_vkContext->m_vk->CmdSetStencilReference(m_vkCmdBuf,
+                                              VK_STENCIL_FACE_FRONT_AND_BACK,
+                                              ref);
 }
 
-void RenderPass::setBlendColor(float r, float g, float b, float a)
+void RenderPassVulkan::setBlendColor(float r, float g, float b, float a)
 {
     float constants[4] = {r, g, b, a};
-    m_vkContext->m_vk.CmdSetBlendConstants(m_vkCmdBuf, constants);
+    m_vkContext->m_vk->CmdSetBlendConstants(m_vkCmdBuf, constants);
 }
 
-void RenderPass::draw(uint32_t vertexCount,
-                      uint32_t instanceCount,
-                      uint32_t firstVertex,
-                      uint32_t firstInstance)
+void RenderPassVulkan::draw(uint32_t vertexCount,
+                            uint32_t instanceCount,
+                            uint32_t firstVertex,
+                            uint32_t firstInstance)
 {
-    m_vkContext->m_vk.CmdDraw(m_vkCmdBuf,
-                              vertexCount,
-                              instanceCount,
-                              firstVertex,
-                              firstInstance);
+    m_vkContext->m_vk->CmdDraw(m_vkCmdBuf,
+                               vertexCount,
+                               instanceCount,
+                               firstVertex,
+                               firstInstance);
 }
 
-void RenderPass::drawIndexed(uint32_t indexCount,
-                             uint32_t instanceCount,
-                             uint32_t firstIndex,
-                             int32_t baseVertex,
-                             uint32_t firstInstance)
+void RenderPassVulkan::drawIndexed(uint32_t indexCount,
+                                   uint32_t instanceCount,
+                                   uint32_t firstIndex,
+                                   int32_t baseVertex,
+                                   uint32_t firstInstance)
 {
-    m_vkContext->m_vk.CmdDrawIndexed(m_vkCmdBuf,
-                                     indexCount,
-                                     instanceCount,
-                                     firstIndex,
-                                     baseVertex,
-                                     firstInstance);
+    m_vkContext->m_vk->CmdDrawIndexed(m_vkCmdBuf,
+                                      indexCount,
+                                      instanceCount,
+                                      firstIndex,
+                                      baseVertex,
+                                      firstInstance);
 }
 
-void RenderPass::finish()
+void RenderPassVulkan::finish()
 {
     if (m_finished)
         return;
     m_finished = true;
 
-    m_vkContext->m_vk.CmdEndRenderPass(m_vkCmdBuf);
+    m_vkContext->m_vk->CmdEndRenderPass(m_vkCmdBuf);
 
     // Transition color attachments COLOR_ATTACHMENT_OPTIMAL →
     // SHADER_READ_ONLY_OPTIMAL so callers (e.g. Rive drawImage) can sample.
@@ -218,7 +226,7 @@ void RenderPass::finish()
                                     m_vkColorLayerCount[i]};
         barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         barrier.dstAccessMask = 0; // visibility established in Rive's CB
-        m_vkContext->m_vk.CmdPipelineBarrier(
+        m_vkContext->m_vk->CmdPipelineBarrier(
             m_vkCmdBuf,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // just the layout transition
@@ -269,7 +277,7 @@ void RenderPass::finish()
         depthBarrier.srcAccessMask =
             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         depthBarrier.dstAccessMask = 0;
-        m_vkContext->m_vk.CmdPipelineBarrier(
+        m_vkContext->m_vk->CmdPipelineBarrier(
             m_vkCmdBuf,
             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
                 VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
@@ -292,12 +300,11 @@ void RenderPass::finish()
     }
 }
 
-RenderPass::~RenderPass() { finish(); }
+RenderPassVulkan::~RenderPassVulkan() { finish(); }
 
-RenderPass::RenderPass(RenderPass&& other) noexcept
+RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
 {
 #if defined(ORE_BACKEND_VK)
-    moveCrossBackendFieldsFrom(other);
     m_vkContext = other.m_vkContext;
     m_currentPipeline = std::move(other.m_currentPipeline);
     m_vkCmdBuf = other.m_vkCmdBuf;
@@ -320,21 +327,19 @@ RenderPass::RenderPass(RenderPass&& other) noexcept
 #endif
 }
 
-RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
+RenderPassVulkan& RenderPassVulkan::operator=(RenderPassVulkan&& other) noexcept
 {
     if (this != &other)
     {
         finish();
-        new (this) RenderPass(std::move(other));
+        new (this) RenderPassVulkan(std::move(other));
     }
     return *this;
 }
 
-void RenderPass::validate() const
+void RenderPassVulkan::validate() const
 {
     assert(!m_finished && "RenderPass has already been finished");
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

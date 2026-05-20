@@ -157,7 +157,8 @@ struct OreGMContext
             auto queue = (__bridge id<MTLCommandQueue>)TestingWindow::Get()
                              ->metalQueue();
             assert(queue != nil);
-            oreContext = rive::ore::ContextMetal::Make(impl->gpu(), queue);
+            impl->setCommandQueue(queue);
+            oreContext = impl->makeOreContext();
             return true;
         }
 #endif
@@ -165,29 +166,21 @@ struct OreGMContext
         if (b == TestingWindow::Backend::gl ||
             b == TestingWindow::Backend::angle)
         {
-            oreContext = rive::ore::ContextGL::Make();
+            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
 #if defined(ORE_BACKEND_D3D11)
         if (b == TestingWindow::Backend::d3d)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextD3DImpl>();
-            oreContext =
-                rive::ore::ContextD3D11::Make(impl->gpu(), impl->gpuContext());
+            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
 #if defined(ORE_BACKEND_D3D12)
         if (b == TestingWindow::Backend::d3d12)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextD3D12Impl>();
-            oreContext = rive::ore::ContextD3D12::Make(impl->device().Get(),
-                                                       impl->commandQueue());
+            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
@@ -195,13 +188,7 @@ struct OreGMContext
         if (b == TestingWindow::Backend::wgpu ||
             b == TestingWindow::Backend::dawn)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextWebGPUImpl>();
-            oreContext =
-                rive::ore::ContextWGPU::Make(impl->device(),
-                                             impl->queue(),
-                                             impl->capabilities().backendType);
+            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
@@ -213,22 +200,13 @@ struct OreGMContext
             auto* impl =
                 renderContext
                     ->static_impl_cast<rive::gpu::RenderContextVulkanImpl>();
-            rive::gpu::VulkanContext* vkCtx = impl->vulkanContext();
             auto* win = TestingWindow::Get();
             VkQueue queue = static_cast<VkQueue>(win->vulkanGraphicsQueue());
             uint32_t queueFamily = win->vulkanGraphicsQueueFamilyIndex();
-            auto pfnGetInstanceProcAddr =
-                reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-                    win->vulkanGetInstanceProcAddr());
-            if (queue == VK_NULL_HANDLE || pfnGetInstanceProcAddr == nullptr)
+            if (queue == VK_NULL_HANDLE)
                 return false;
-            oreContext = rive::ore::ContextVulkan::Make(vkCtx->instance,
-                                                        vkCtx->physicalDevice,
-                                                        vkCtx->device,
-                                                        queue,
-                                                        queueFamily,
-                                                        vkCtx->allocator(),
-                                                        pfnGetInstanceProcAddr);
+            impl->setCanvasQueue(queue, queueFamily);
+            oreContext = impl->makeOreContext();
             return true;
         }
 #endif

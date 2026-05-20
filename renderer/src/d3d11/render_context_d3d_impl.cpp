@@ -8,6 +8,7 @@
 
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include <rive/renderer/ore/ore_context_d3d11.hpp>
 #endif
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
@@ -1052,6 +1053,12 @@ rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+
+std::unique_ptr<rive::ore::Context> RenderContextD3DImpl::makeOreContext()
+{
+    return rive::ore::ContextD3D11::Make(m_gpu.Get(), m_gpuContext.Get());
+}
+
 #endif
 
 class BufferRingD3D : public BufferRing
