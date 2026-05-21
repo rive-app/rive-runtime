@@ -69,6 +69,10 @@ public:
     void blurred() override;
     bool worldPosition(Vec2D& outPosition) override;
     Artboard* focusableArtboard() const override { return artboard(); }
+    bool acceptsKeyboardInput() const override
+    {
+        return !m_keyboardListeners.empty() || !m_textInputListeners.empty();
+    }
 
     // Component overrides for update cycle
     void buildDependencies() override;

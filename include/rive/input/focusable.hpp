@@ -187,6 +187,12 @@ public:
 
     /// Returns whether the Focusable is currently eligible for focus traversal
     virtual bool isEligibleForFocusTraversal() const { return true; }
+
+    /// Returns true if this focusable consumes keyboard input — either
+    /// intrinsically (e.g. a text-editable input) or by having registered
+    /// key/text listeners. Hosts use this to decide whether to surface a
+    /// soft keyboard / IME when this element holds focus.
+    virtual bool acceptsKeyboardInput() const { return false; }
 };
 } // namespace rive
 #endif

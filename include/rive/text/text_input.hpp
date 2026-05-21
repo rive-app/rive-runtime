@@ -54,6 +54,7 @@ public:
     bool worldPosition(Vec2D& outPosition) override;
     bool worldBounds(AABB& outBounds) override;
     Artboard* focusableArtboard() const override { return artboard(); }
+    bool acceptsKeyboardInput() const override { return true; }
 
     /// Called when the user starts dragging on the text input.
     /// Places the cursor at the given world position.

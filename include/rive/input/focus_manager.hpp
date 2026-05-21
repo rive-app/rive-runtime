@@ -34,6 +34,7 @@ public:
     // === Focus State ===
 
     rcp<FocusNode> primaryFocus() const { return m_primaryFocus; }
+    FocusNode* primaryFocusPtr() const { return m_primaryFocus.get(); }
     void setFocus(rcp<FocusNode> node);
     void clearFocus();
 

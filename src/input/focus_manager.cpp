@@ -902,7 +902,7 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
                         {
                             return findNextFocusable(scope, forward);
                         }
-                        next = firstEligibleLeafFrom(traversable, true, this);
+                        next = nullptr;
                         break;
                 }
             }
@@ -950,14 +950,14 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
                         {
                             return findNextFocusable(scope, forward);
                         }
-                        next = firstEligibleLeafFrom(traversable, false, this);
+                        next = nullptr;
                         break;
                 }
             }
         }
     }
 
-    if (next != nullptr && next != current)
+    if (next != current)
     {
         const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
         return next;

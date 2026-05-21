@@ -2286,6 +2286,25 @@ void StateMachineInstance::setFocus(FocusData* focusData)
     }
 }
 
+StateMachineInstance::FocusState StateMachineInstance::focusState() const
+{
+    FocusState state;
+    const FocusManager* fm =
+        m_externalFocusManager ? m_externalFocusManager : &m_focusManager;
+    // primaryFocusPtr() avoids a refcount bump on this poll-friendly path.
+    FocusNode* focus = fm->primaryFocusPtr();
+    if (focus == nullptr)
+    {
+        return state;
+    }
+    state.hasFocus = true;
+    if (Focusable* focusable = focus->focusable())
+    {
+        state.expectsKeyboardInput = focusable->acceptsKeyboardInput();
+    }
+    return state;
+}
+
 void StateMachineInstance::processFocusEvents()
 {
     if (m_queuedFocusEvents.empty())
