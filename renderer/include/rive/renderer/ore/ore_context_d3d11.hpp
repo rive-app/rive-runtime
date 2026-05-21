@@ -45,6 +45,8 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::hlsl; }
+
     ContextD3D11(const ContextD3D11&) = delete;
     ContextD3D11& operator=(const ContextD3D11&) = delete;
 

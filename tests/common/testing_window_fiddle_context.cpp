@@ -17,8 +17,17 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 
 #include "fiddle_context.hpp"
 #include "common/offscreen_render_target.hpp"
-#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include <queue>
+
+#ifdef RIVE_ORE
+#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/render_context_impl.hpp"
+#endif
+
+#ifdef RIVE_VULKAN
+// For renderContextVulkanImpl()->vulkanContext() in the offscreen RT path.
+#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#endif
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -330,10 +339,23 @@ public:
                                        m_width,
                                        m_height,
                                        m_msaaSampleCount);
+
+#ifdef RIVE_ORE
+        // Backend-agnostic factory replaces the prior per-backend wiring.
+        if (auto* rc = m_fiddleContext->renderContextOrNull())
+        {
+            if (auto* impl = rc->impl())
+                m_oreContext = impl->makeOreContext();
+        }
+#endif
     }
 
     ~TestingWindowFiddleContext() override
     {
+#ifdef RIVE_ORE
+        // Release ORE before its backend device is gone.
+        m_oreContext.reset();
+#endif
         m_fiddleContext.reset();
         if (m_glfwWindow != nullptr)
         {
@@ -505,11 +527,37 @@ public:
         return glfwWindowShouldClose(m_glfwWindow);
     }
 
+#ifdef RIVE_ORE
+    void* getOreContext() const override { return m_oreContext.get(); }
+
+    void beginOreFrame() override
+    {
+        if (m_oreContext != nullptr)
+            m_oreContext->beginFrame();
+    }
+
+    void endOreFrame() override
+    {
+        if (m_oreContext == nullptr)
+            return;
+        if (auto* pass = m_oreContext->activeRenderPass())
+        {
+            if (!pass->isFinished())
+                pass->finish();
+            m_oreContext->setActiveRenderPass(nullptr);
+        }
+        m_oreContext->endFrame();
+    }
+#endif
+
 private:
     GLFWwindow* m_glfwWindow = nullptr;
     uint32_t m_msaaSampleCount = 0;
     BackendParams m_backendParams;
     std::unique_ptr<FiddleContext> m_fiddleContext;
+#ifdef RIVE_ORE
+    std::unique_ptr<rive::ore::Context> m_oreContext;
+#endif
 };
 
 TestingWindow* TestingWindow::MakeFiddleContext(

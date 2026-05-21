@@ -94,26 +94,26 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
-    // External-CB mode: Ore records into the host's VkCommandBuffer (already
-    // begun by the caller) instead of owning its own CB. The host retains
-    // ownership of BeginCommandBuffer/EndCommandBuffer/QueueSubmit and the
-    // frame fence. Contract: by the time beginFrame(externalCb) is called
-    // again for a new frame, the host must have waited on the prior frame's
-    // completion fence so deferred-destroy lists can be drained safely.
-    // Enables cross-engine read-after-write (e.g. Rive renders into a canvas
-    // then Ore samples it) that the owned-CB model cannot support, because
-    // all recordings land in a single submission.
+    ShaderTarget shaderTarget() const override { return ShaderTarget::spirv; }
+
+    // External-CB mode: Ore records into a host-owned CB and skips
+    // End/Submit/Fence. Host must wait on the prior frame before the next
+    // beginFrame(externalCb) so deferred-destroy can drain.
     void beginFrame(VkCommandBuffer externalCb);
 
-    // Called by Ore resource onRefCntReachedZero() implementations. If the
-    // context is currently in external-CB mode, the closure is queued to
-    // run after the host has submitted and waited on the current CB. In
-    // owned-CB mode the closure runs immediately.
+    // Defers a destroy closure until it's safe to run. Immediate in
+    // owned-CB mode; queued until next beginFrame in external-CB mode.
     void vkDeferDestroy(std::function<void()> destroy);
 
-    // Look up or create a VkRenderPass compatible with the given key.
-    // Called by makePipeline() (with DONT_CARE ops) and beginRenderPass().
     VkRenderPass getOrCreateRenderPass(const VKRenderPassKey&);
+
+    // Device-specific VkFormat for ambiguous TextureFormat values (e.g.
+    // depth24plusStencil8 picks D24S8 or D32S8 based on probe). Mirrors Dawn.
+    VkFormat vkFormatFor(TextureFormat fmt) const;
+
+    // Auto-reopens the owned CB if a script invokes ORE outside the host's
+    // begin/endFrame window. No-op in external-CB mode.
+    void ensureCmdBufRecording();
 
     ContextVulkan(const ContextVulkan&) = delete;
     ContextVulkan& operator=(const ContextVulkan&) = delete;
@@ -130,6 +130,8 @@ private:
     VkQueue m_vkQueue = VK_NULL_HANDLE;
     uint32_t m_vkQueueFamily = 0;
     VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
+    // Probed at Make() time. UNDEFINED until then so a stale read fails loudly.
+    VkFormat m_vkDepth24Stencil8Format = VK_FORMAT_UNDEFINED;
     VkCommandPool m_vkCommandPool = VK_NULL_HANDLE;
     VkCommandBuffer m_vkCommandBuffer = VK_NULL_HANDLE;
     // True while the current frame is recording into a host-provided CB.
@@ -138,6 +140,9 @@ private:
     bool m_vkExternalCmdBuf = false;
     VkDescriptorPool m_vkDescriptorPool = VK_NULL_HANDLE;
     VkFence m_vkFrameFence = VK_NULL_HANDLE;
+    // True between BeginCommandBuffer and EndCommandBuffer. Gates the
+    // auto-reopen path; orphan recordings get flushed at next beginFrame.
+    bool m_vkCmdBufRecording = false;
     // Framebuffers whose destruction is deferred until the next beginFrame()
     // fence-wait (they are still referenced by the in-flight command buffer
     // until the fence signals).
@@ -175,24 +180,37 @@ private:
     // ops.
     std::vector<std::pair<VKRenderPassKey, VkRenderPass>> m_vkRenderPassCache;
 
-    // Pending UNDEFINED → SHADER_READ_ONLY_OPTIMAL layout transitions for
-    // textures bound as sampled images in a BindGroup before their VkImage
-    // layout has been initialized by upload() or a render pass.  A render-
-    // target-capable texture that is sampled without first being rendered
-    // into would otherwise violate VUID-vkCmdDraw-None-09600 — the descriptor
-    // declares SHADER_READ_ONLY_OPTIMAL but the image is still
-    // VK_IMAGE_LAYOUT_UNDEFINED from creation.  Recorded in makeBindGroup()
-    // and flushed onto the frame command buffer at beginFrame() / at the
-    // start of beginRenderPass(), before any draw can reference the
-    // descriptor.  Matches WebGPU's lazy-initialize-on-first-use semantic.
-    // The rcp<Texture> pins the image alive until the barrier is recorded.
+    // Pending image-layout transitions to be emitted before the next render
+    // pass / draw.  Recorded in makeBindGroup() (each sampled view needs the
+    // image in SHADER_READ_ONLY_OPTIMAL at draw time) and in any path that
+    // leaves a texture in a non-default layout (initial UNDEFINED creation,
+    // depth/color attachments after a previous pass, etc.).  Flushed at
+    // beginFrame() and at the start of beginRenderPass() via a single
+    // vkCmdPipelineBarrier — barriers inside a render pass are restricted
+    // to declared self-dependencies, so any cross-pass transitions must be
+    // emitted between passes.  Mirrors Dawn's PrepareResourcesForSyncScope
+    // (src/dawn/native/vulkan/CommandBufferVk.cpp:444):  per-subresource
+    // last-known layout is read off the Texture, compared against the
+    // required usage at descriptor-write time, and a transition is queued
+    // only if the layouts differ.  The rcp<Texture> pins the image alive
+    // until the barrier is recorded.
     struct VkPendingImageTransition
     {
         rcp<Texture> texture;
         VkImageAspectFlags aspectMask;
+        VkImageLayout oldLayout;
+        VkImageLayout newLayout;
     };
     std::vector<VkPendingImageTransition> m_vkPendingInitialTransitions;
     void vkFlushPendingInitialTransitions();
+    // Queue a transition for `texture` from its current m_vkLayout to
+    // `newLayout` (typically SHADER_READ_ONLY_OPTIMAL for sampled use).
+    // No-op when the texture is already in the target layout.  Safe to
+    // call outside any active render pass; the transition is emitted by
+    // the next vkFlushPendingInitialTransitions().
+    void vkQueueTransitionToLayout(Texture* texture,
+                                   VkImageAspectFlags aspectMask,
+                                   VkImageLayout newLayout);
 
     // Drain framebuffers/staging buffers and deferred destroy closures from
     // the previous frame. Caller is responsible for ensuring the prior GPU

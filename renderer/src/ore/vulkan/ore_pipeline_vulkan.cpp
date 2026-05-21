@@ -103,7 +103,8 @@ static VkCullModeFlags oreCullModeToVk(CullMode c)
 
 static VkFrontFace oreWindingToVk(FaceWinding w)
 {
-    // Vulkan's default is counter-clockwise = front.
+    // Identity mapping. Vertex Y-flip is shader-baked (naga
+    // ADJUST_COORDINATE_SPACE), matching Dawn's WebGPU-on-Vulkan strategy.
     return (w == FaceWinding::counterClockwise)
                ? VK_FRONT_FACE_COUNTER_CLOCKWISE
                : VK_FRONT_FACE_CLOCKWISE;
@@ -478,6 +479,8 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     depthStencil.stencilTestEnable =
         hasDepthStencil && hasStencilLocal(desc.depthStencil.format) ? VK_TRUE
                                                                      : VK_FALSE;
+    pipeline->m_vkStencilTestEnabled =
+        depthStencil.stencilTestEnable == VK_TRUE;
     depthStencil.front = oreStencilFaceToVk(desc.stencilFront,
                                             desc.stencilReadMask,
                                             desc.stencilWriteMask);

@@ -4,7 +4,9 @@
 
 #include "testing_window.hpp"
 
-#ifndef RIVE_VULKAN
+// Stub out when rive_vk_bootstrap is unavailable; those builds supply
+// their own TestingWindow.
+#if !defined(RIVE_VULKAN) || defined(RIVE_NO_VK_BOOTSTRAP)
 
 TestingWindow* TestingWindow::MakeVulkanTexture(const BackendParams&)
 {

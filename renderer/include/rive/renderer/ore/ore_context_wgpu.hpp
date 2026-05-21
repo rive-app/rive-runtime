@@ -49,6 +49,8 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::wgsl; }
+
     // External-encoder mode: Ore records into the host's wgpu::CommandEncoder
     // (already created by the caller) instead of owning its own. The host
     // retains ownership of Finish()/Submit() and frame sequencing. Unlike

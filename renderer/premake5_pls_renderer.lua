@@ -7,6 +7,12 @@ newoption({
     trigger = 'with_vulkan',
     description = 'compile with support for vulkan',
 })
+
+-- Internal capability flag opted into by platform packages.
+newoption({
+    trigger = '_console_only_ore_vk',
+    description = 'internal: vulkan-only ORE build (set by platform packages)',
+})
 -- Guard this in an "if" (instead of filter()) so we don't download these repos when not building
 -- for Vulkan.
 if _OPTIONS['with_vulkan'] then

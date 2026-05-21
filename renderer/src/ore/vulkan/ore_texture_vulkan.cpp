@@ -157,6 +157,10 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     // the host's CB (external-CB mode). Resolved at call time so the same
     // Texture can span both modes across its lifetime.
     assert(m_vkOreContext != nullptr);
+    // Make sure the owned cb is in the recording state — scripts can call
+    // upload() outside a host-driven frame window (verify hooks during
+    // artboard construction, scripted shader effects during PLS draw).
+    m_vkOreContext->ensureCmdBufRecording();
     VkCommandBuffer cmdBuf = m_vkOreContext->m_vkCommandBuffer;
     auto pfnCmdPipelineBarrier = m_vkOreContext->m_vk->CmdPipelineBarrier;
     auto pfnCmdCopyBufferToImage = m_vkOreContext->m_vk->CmdCopyBufferToImage;

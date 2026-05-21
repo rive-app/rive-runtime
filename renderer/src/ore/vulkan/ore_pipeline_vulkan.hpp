@@ -22,6 +22,8 @@ private:
     VkPipeline m_vkPipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_vkPipelineLayout = VK_NULL_HANDLE;
     VkPrimitiveTopology m_vkTopology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    // Read by RenderPassVulkan::setPipeline to gate vkCmdSetStencilReference.
+    bool m_vkStencilTestEnabled = false;
     // Function pointers for cleanup (loaded by Context::makePipeline).
     PFN_vkDestroyPipeline m_vkDestroyPipeline = nullptr;
     PFN_vkDestroyPipelineLayout m_vkDestroyPipelineLayout = nullptr;

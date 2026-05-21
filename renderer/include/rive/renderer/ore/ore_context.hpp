@@ -28,6 +28,16 @@ class Texture;
 namespace rive::ore
 {
 
+// RSTB asset target ID. Wire format, must match editor export. 4 is unused.
+enum class ShaderTarget : uint8_t
+{
+    wgsl = 0,
+    glsl = 1,
+    msl = 2,
+    hlsl = 3,
+    spirv = 5,
+};
+
 // Backend-agnostic Ore graphics context.
 //
 // Held only via std::unique_ptr<Context>. Concrete subclasses live in
@@ -96,6 +106,9 @@ public:
     virtual rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                              uint32_t width,
                                              uint32_t height) = 0;
+
+    // Which RSTB shader variant this backend consumes.
+    virtual ShaderTarget shaderTarget() const = 0;
 
     // ------------------------------------------------------------------------
     // Cross-cutting state and accessors. Non-virtual; live on this base

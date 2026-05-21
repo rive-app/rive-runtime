@@ -34,6 +34,15 @@ void RenderPassVulkan::setPipeline(Pipeline* inPipeline)
     m_vkContext->m_vk->CmdBindPipeline(m_vkCmdBuf,
                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
                                        pipeline->m_vkPipeline);
+    // Re-emit pass-state stencil ref (default 0) so the dynamic state is
+    // set before any draw. WebGPU semantics: persists across pipeline binds.
+    if (pipeline->m_vkStencilTestEnabled)
+    {
+        m_vkContext->m_vk->CmdSetStencilReference(
+            m_vkCmdBuf,
+            VK_STENCIL_FACE_FRONT_AND_BACK,
+            m_vkStencilRef);
+    }
 }
 
 void RenderPassVulkan::setVertexBuffer(uint32_t slot,
@@ -99,29 +108,19 @@ void RenderPassVulkan::setViewport(float x,
                                    float minDepth,
                                    float maxDepth)
 {
-    // Ore NDC convention: Y-up clip space, depth in [0, 1].
-    // Vulkan's clip space is Y-down, so we flip the viewport with a negative
-    // height (VK_KHR_maintenance1). This is handled here rather than in the
-    // shader so that WGSL authors see a consistent Y-up coordinate system
-    // across all backends without any shader-level fixup.
+    // Positive-height viewport. WGSL Y-up clip space is achieved via
+    // shader-baked Y-flip (naga ADJUST_COORDINATE_SPACE); see oreWindingToVk.
     VkViewport vp{};
     vp.x = x;
-    vp.y = y + height; // Start at the bottom.
+    vp.y = y;
     vp.width = width;
-    vp.height = -height; // Negative height flips Y.
+    vp.height = height;
     vp.minDepth = minDepth;
     vp.maxDepth = maxDepth;
     m_vkContext->m_vk->CmdSetViewport(m_vkCmdBuf, 0, 1, &vp);
 
-    // Match the other backends' implicit behaviour: scissor defaults to the
-    // full viewport rectangle. Callers can override with setScissorRect().
-    // Vulkan's `VkRect2D` is integer-typed so we have to discretize the
-    // float-valued viewport. Use floor on the corner and ceil on the
-    // far edge so the scissor never clips the requested area, and clamp
-    // negative origins to 0 — `static_cast<uint32_t>` on a negative
-    // float is UB, and the previous `int32_t` cast truncated fractional
-    // pixels (e.g. y=0.5 → 0 vs height=255.5 → 255 dropped a pixel row
-    // on every fractional sub-rect).
+    // Scissor defaults to the viewport rect. Floor the origin and ceil the
+    // far edge so fractional viewports aren't clipped; clamp negatives to 0.
     const float x0 = std::floor(x);
     const float y0 = std::floor(y);
     const float x1 = std::ceil(x + width);
@@ -147,6 +146,7 @@ void RenderPassVulkan::setScissorRect(uint32_t x,
 
 void RenderPassVulkan::setStencilReference(uint32_t ref)
 {
+    m_vkStencilRef = ref;
     m_vkContext->m_vk->CmdSetStencilReference(m_vkCmdBuf,
                                               VK_STENCIL_FACE_FRONT_AND_BACK,
                                               ref);
@@ -243,6 +243,13 @@ void RenderPassVulkan::finish()
         if (m_vkColorRenderTargets[i] != nullptr)
             m_vkColorRenderTargets[i]->updateLastAccess(
                 kColorAttachmentWriteAccess);
+        // Mirror the layout transition in our per-Texture tracker so future
+        // makeBindGroup calls treat this texture as already in SRO.
+        if (auto* tex =
+                lite_rtti_cast<TextureVulkan*>(m_vkColorTextures[i].get()))
+        {
+            tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
     }
 
     // Transition depth attachment DEPTH_STENCIL_ATTACHMENT_OPTIMAL →
@@ -289,6 +296,10 @@ void RenderPassVulkan::finish()
             nullptr,
             1,
             &depthBarrier);
+        if (auto* tex = lite_rtti_cast<TextureVulkan*>(m_vkDepthTexture.get()))
+        {
+            tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
     }
 
     if (m_vkFramebuffer != VK_NULL_HANDLE)
@@ -297,6 +308,14 @@ void RenderPassVulkan::finish()
         // framebuffer until endFrame() submits and waits.
         m_vkContext->m_vkDeferredFramebuffers.push_back(m_vkFramebuffer);
         m_vkFramebuffer = VK_NULL_HANDLE;
+    }
+
+    // Defer bind-group destruction: the CB references their descriptor sets
+    // until endFrame() submits and the fence signals.
+    for (auto& bg : m_boundGroups)
+    {
+        if (bg)
+            m_vkContext->deferBindGroupDestroy(std::move(bg));
     }
 }
 
@@ -323,7 +342,16 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     memcpy(m_vkColorRenderTargets,
            other.m_vkColorRenderTargets,
            sizeof(m_vkColorRenderTargets));
+    for (uint32_t i = 0; i < 4; ++i)
+        m_vkColorTextures[i] = std::move(other.m_vkColorTextures[i]);
+    m_vkDepthImage = other.m_vkDepthImage;
+    m_vkDepthBaseLayer = other.m_vkDepthBaseLayer;
+    m_vkDepthLayerCount = other.m_vkDepthLayerCount;
+    m_vkDepthTexture = std::move(other.m_vkDepthTexture);
+    m_vkStencilRef = other.m_vkStencilRef;
     other.m_vkFramebuffer = VK_NULL_HANDLE;
+    other.m_vkDepthImage = VK_NULL_HANDLE;
+    other.m_vkStencilRef = 0;
 #endif
 }
 

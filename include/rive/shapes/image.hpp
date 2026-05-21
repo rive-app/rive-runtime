@@ -7,6 +7,19 @@
 
 namespace rive
 {
+
+enum class ImageFit : unsigned char
+{
+    resize,
+    contain,
+    cover,
+    fitWidth,
+    fitHeight,
+    none,
+    scaleDown,
+    fill,
+};
+
 class ImageAsset;
 class MeshDrawable;
 #ifdef TESTING

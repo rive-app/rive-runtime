@@ -91,6 +91,7 @@ function rive_tools_project(name, project_kind)
         yoga,
         libpng,
         zlib,
+        miniaudio,
     })
 
     if ndk then
@@ -98,8 +99,18 @@ function rive_tools_project(name, project_kind)
         links({ 'log', 'android' })
     end
 
-    if _OPTIONS['with_vulkan'] then
+    if _OPTIONS['with_vulkan'] and not _OPTIONS['_console_only_ore_vk'] then
+        -- Skip bootstrap on platforms that supply the Vulkan loader directly.
         dofile(RIVE_PLS_DIR .. '/rive_vk_bootstrap/bootstrap_project.lua')
+    end
+
+    -- Tools projects compile separately from rive_pls_renderer and need
+    -- their own externalincludedirs for ORE Vulkan headers.
+    if _OPTIONS['with_vulkan'] and _OPTIONS['_console_only_ore_vk'] then
+        externalincludedirs({
+            vulkan_headers .. '/include',
+            vulkan_memory_allocator .. '/include',
+        })
     end
 
     filter({ 'options:with_rive_scripting' })

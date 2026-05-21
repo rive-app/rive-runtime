@@ -11,6 +11,9 @@
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/assets/shader_asset.hpp"
+#include "rive/assets/script_asset.hpp"
+#include "rive/file.hpp"
+#include "rive/scripted/scripted_object.hpp"
 #include "rive/shapes/paint/color.hpp"
 
 #include <algorithm>
@@ -430,31 +433,10 @@ static Context* getOreContext(lua_State* L)
         static_cast<ScriptingContext*>(lua_getthreaddata(L))->oreContext());
 }
 
-/// Returns the RSTB `ShaderTarget` byte that matches the ore backend
-/// compiled into this build. Dispatches on `ORE_BACKEND_*` rather than
-/// host-OS macros (`__APPLE__` / `_WIN32`) so hosts whose backend doesn't
-/// match the host's "default" runtime API — e.g. the Linux GPU recorder
-/// (Vulkan, not GL) or Mac MoltenVK — pick the correct pre-compiled
-/// variant out of the RSTB table.
-///
-/// Target enum (must match `ShaderAsset` RSTB format):
-///   0 = WGSL passthrough, 1 = GLSL ES3, 2 = MSL, 3 = HLSL SM5,
-///   5 = SPIR-V
-static uint8_t currentShaderTarget()
+/// RSTB ShaderTarget the active ore backend consumes.
+static ShaderTarget currentShaderTarget(Context* oreCtx)
 {
-#if defined(ORE_BACKEND_METAL)
-    return 2; // MSL
-#elif defined(ORE_BACKEND_VK)
-    return 5; // SPIR-V
-#elif defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
-    return 3; // HLSL SM5, compiled to DXBC at runtime via D3DCompile
-#elif defined(ORE_BACKEND_WGPU)
-    return 0; // WGSL passthrough (Dawn + wagyu)
-#elif defined(ORE_BACKEND_GL)
-    return 1; // GLSL ES3
-#else
-    return 1;
-#endif
+    return oreCtx != nullptr ? oreCtx->shaderTarget() : ShaderTarget::glsl;
 }
 
 /// Try to create ShaderModules from a raw RSTB blob.
@@ -503,8 +485,8 @@ static bool makeShaderFromRstb(Context* oreCtx,
     if (!asset.decode(bytes, nullptr))
         return false;
 
-    uint8_t target = currentShaderTarget();
-    auto blob = asset.findShader(target);
+    ShaderTarget target = currentShaderTarget(oreCtx);
+    auto blob = asset.findShader(static_cast<uint8_t>(target));
     if (blob.empty())
         return false;
 
@@ -514,22 +496,21 @@ static bool makeShaderFromRstb(Context* oreCtx,
     // Binding-map sidecar (mandatory) + GL fixup sidecars (only present
     // for the GLSL source target). Every shipped shader carries a sidecar
     // paired with its source variant.
-    auto bindingMapTargetFor = [](uint8_t t) -> uint8_t {
+    auto bindingMapTargetFor = [](ShaderTarget t) -> uint8_t {
         switch (t)
         {
-            case 0:
+            case ShaderTarget::wgsl:
                 return 16;
-            case 1:
+            case ShaderTarget::glsl:
                 return 11;
-            case 2:
+            case ShaderTarget::msl:
                 return 10;
-            case 3:
+            case ShaderTarget::hlsl:
                 return 12;
-            case 5:
+            case ShaderTarget::spirv:
                 return 13;
-            default:
-                return 255;
         }
+        return 255;
     };
     uint8_t bmTarget = bindingMapTargetFor(target);
     auto bindingMapBlob =
@@ -537,10 +518,10 @@ static bool makeShaderFromRstb(Context* oreCtx,
     const uint8_t* bindingMapBytes =
         bindingMapBlob.empty() ? nullptr : bindingMapBlob.data();
     uint32_t bindingMapSize = static_cast<uint32_t>(bindingMapBlob.size());
-    auto vsGLFixupBlob =
-        (target == 1) ? asset.findShader(14) : Span<const uint8_t>{};
-    auto fsGLFixupBlob =
-        (target == 1) ? asset.findShader(15) : Span<const uint8_t>{};
+    auto vsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(14)
+                                                        : Span<const uint8_t>{};
+    auto fsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(15)
+                                                        : Span<const uint8_t>{};
     const uint8_t* vsGLFixupBytes =
         vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
     uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());
@@ -551,7 +532,7 @@ static bool makeShaderFromRstb(Context* oreCtx,
     // HLSL SM5 via SPIRV-Cross (D3D11/D3D12 on Windows).
     // Blob format: "vsEntry\0fsEntry\0vsHLSL\0fsHLSL"
     // Compiled to DXBC at runtime via D3DCompile in ensureD3DShaders().
-    if (target == 3)
+    if (target == ShaderTarget::hlsl)
     {
         // Parse: vsEntry\0
         const char* vsEntry = blobData;
@@ -690,8 +671,8 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
     // are handled correctly on all backends.
     if (fileAsset != nullptr && oreCtx != nullptr)
     {
-        uint8_t target = currentShaderTarget();
-        auto blob = fileAsset->findShader(target);
+        ShaderTarget target = currentShaderTarget(oreCtx);
+        auto blob = fileAsset->findShader(static_cast<uint8_t>(target));
         if (!blob.empty())
         {
             const char* blobData = reinterpret_cast<const char*>(blob.data());
@@ -701,32 +682,33 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
             // Sidecar lookup (mirrors makeShaderFromRstb above). The
             // sidecar is mandatory; absence here would assert in
             // `makeShaderModule::applyBindingMapFromDesc`.
-            auto bmTarget = [](uint8_t t) -> uint8_t {
+            auto bmTarget = [](ShaderTarget t) -> uint8_t {
                 switch (t)
                 {
-                    case 0:
+                    case ShaderTarget::wgsl:
                         return 16;
-                    case 1:
+                    case ShaderTarget::glsl:
                         return 11;
-                    case 2:
+                    case ShaderTarget::msl:
                         return 10;
-                    case 3:
+                    case ShaderTarget::hlsl:
                         return 12;
-                    case 5:
+                    case ShaderTarget::spirv:
                         return 13;
-                    default:
-                        return 255;
                 }
+                return 255;
             }(target);
             auto bmBlob = (bmTarget == 255) ? Span<const uint8_t>{}
                                             : fileAsset->findShader(bmTarget);
             const uint8_t* bindingMapBytes =
                 bmBlob.empty() ? nullptr : bmBlob.data();
             uint32_t bindingMapSize = static_cast<uint32_t>(bmBlob.size());
-            auto vsFixupBlob = (target == 1) ? fileAsset->findShader(14)
-                                             : Span<const uint8_t>{};
-            auto fsFixupBlob = (target == 1) ? fileAsset->findShader(15)
-                                             : Span<const uint8_t>{};
+            auto vsFixupBlob = (target == ShaderTarget::glsl)
+                                   ? fileAsset->findShader(14)
+                                   : Span<const uint8_t>{};
+            auto fsFixupBlob = (target == ShaderTarget::glsl)
+                                   ? fileAsset->findShader(15)
+                                   : Span<const uint8_t>{};
             const uint8_t* vsFixupBytes =
                 vsFixupBlob.empty() ? nullptr : vsFixupBlob.data();
             uint32_t vsFixupSize = static_cast<uint32_t>(vsFixupBlob.size());
@@ -734,8 +716,9 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 fsFixupBlob.empty() ? nullptr : fsFixupBlob.data();
             uint32_t fsFixupSize = static_cast<uint32_t>(fsFixupBlob.size());
 
-            // HLSL SM5 (target 3): split vsEntry/fsEntry/vsHLSL/fsHLSL.
-            if (target == 3)
+            // HLSL SM5: split vsEntry\0fsEntry\0vsHLSL\0fsHLSL.
+            // Depth-only shaders bake with empty fsEntry and no fsHLSL.
+            if (target == ShaderTarget::hlsl)
             {
                 const char* vsEntry = blobData;
                 const char* vsEnd =
@@ -749,15 +732,19 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     static_cast<const char*>(memchr(fsEntry, '\0', remaining));
                 if (!fsEnd)
                     return false;
+                const bool hasFragment = (fsEnd != fsEntry);
                 const char* vsHLSL = fsEnd + 1;
                 remaining = blobSize - static_cast<uint32_t>(vsHLSL - blobData);
                 const char* vsHLSLEnd =
                     static_cast<const char*>(memchr(vsHLSL, '\0', remaining));
                 if (!vsHLSLEnd)
-                    return false;
-                const char* fsHLSL = vsHLSLEnd + 1;
-                uint32_t fsHLSLSize =
-                    blobSize - static_cast<uint32_t>(fsHLSL - blobData);
+                {
+                    // Depth-only bake has no trailing null; vsHLSL fills the
+                    // rest of the blob.
+                    if (hasFragment)
+                        return false;
+                    vsHLSLEnd = blobData + blobSize;
+                }
 
                 ShaderModuleDesc vtxDesc;
                 vtxDesc.stage = ShaderStage::vertex;
@@ -770,18 +757,25 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 vtxDesc.shaderAssetId = assetId;
                 out->module = oreCtx->makeShaderModule(vtxDesc);
 
-                ShaderModuleDesc fragDesc;
-                fragDesc.stage = ShaderStage::fragment;
-                fragDesc.hlslSource = fsHLSL;
-                fragDesc.hlslSourceSize = fsHLSLSize;
-                fragDesc.hlslEntryPoint = fsEntry;
-                fragDesc.bindingMapBytes = bindingMapBytes;
-                fragDesc.bindingMapSize = bindingMapSize;
-                fragDesc.shaderAssetId = assetId;
-                out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
+                if (hasFragment)
+                {
+                    const char* fsHLSL = vsHLSLEnd + 1;
+                    uint32_t fsHLSLSize =
+                        blobSize - static_cast<uint32_t>(fsHLSL - blobData);
+
+                    ShaderModuleDesc fragDesc;
+                    fragDesc.stage = ShaderStage::fragment;
+                    fragDesc.hlslSource = fsHLSL;
+                    fragDesc.hlslSourceSize = fsHLSLSize;
+                    fragDesc.hlslEntryPoint = fsEntry;
+                    fragDesc.bindingMapBytes = bindingMapBytes;
+                    fragDesc.bindingMapSize = bindingMapSize;
+                    fragDesc.shaderAssetId = assetId;
+                    out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
+                }
             }
-            // GLSL ES3 (target 1): split vertex\0fragment.
-            else if (target == 1 && blobSize > 1)
+            // GLSL ES3: split vertex\0fragment.
+            else if (target == ShaderTarget::glsl && blobSize > 1)
             {
                 const char* sep = static_cast<const char*>(
                     memchr(blobData, '\0', blobSize - 1));
@@ -868,8 +862,37 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
 int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+
+    // Resolve the file-side ShaderAsset by name. Without this, Shader.new()
+    // falls back to the editor-only RSTB cache which is empty at runtime.
+    ShaderAsset* fileAsset = nullptr;
+    if (context != nullptr)
+    {
+        if (auto* scriptedObject = context->currentScriptedObject())
+        {
+            if (auto* scriptAsset = scriptedObject->scriptAsset())
+            {
+                if (File* file = scriptAsset->file())
+                {
+                    for (const auto& asset : file->assets())
+                    {
+                        if (asset->is<ShaderAsset>())
+                        {
+                            auto* sa = asset->as<ShaderAsset>();
+                            if (sa->name() == name)
+                            {
+                                fileAsset = sa;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     auto* scripted = lua_newrive<ScriptedShader>(L);
-    if (!lua_gpu_load_shader_by_name(scripted, context, name, nullptr))
+    if (!lua_gpu_load_shader_by_name(scripted, context, name, fileAsset))
     {
         lua_pop(L, 1);
         return 0;
@@ -3481,6 +3504,29 @@ int riveImageViewImpl(lua_State* L)
 
     return 1;
 }
+
+namespace rive
+{
+void rive_lua_closeOrphanRenderPass(lua_State* L)
+{
+    auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (context == nullptr)
+        return;
+    auto* oreCtx = static_cast<ore::Context*>(context->oreContext());
+    if (oreCtx == nullptr)
+        return;
+    auto* pass = oreCtx->activeRenderPass();
+    if (pass == nullptr || pass->isFinished())
+        return;
+    pass->finish();
+    oreCtx->setActiveRenderPass(nullptr);
+    lua_pushstring(L,
+                   "GPU render pass left open at script return. "
+                   "Call :finish() on render passes before returning.");
+    context->printError(L);
+    lua_pop(L, 1);
+}
+} // namespace rive
 
 #endif // RIVE_CANVAS && RIVE_ORE
 #endif // WITH_RIVE_SCRIPTING

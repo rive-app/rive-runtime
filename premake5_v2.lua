@@ -89,6 +89,19 @@ do
         yoga,
     })
 
+    -- ORE headers conditionally include <vulkan/vulkan.h> when
+    -- ORE_BACKEND_VK is defined; the rive base library transitively pulls
+    -- those headers in, so the Vulkan SDK paths need to be visible here too.
+    if _OPTIONS['with_vulkan'] and _OPTIONS['with_rive_canvas'] then
+        local dependency = require('dependency')
+        local vh = dependency.github('KhronosGroup/Vulkan-Headers',
+                                     'vulkan-sdk-1.4.321')
+        local vma = dependency.github(
+            'GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator',
+            'v3.3.0')
+        externalincludedirs({ vh .. '/include', vma .. '/include' })
+    end
+
     if _OPTIONS['with_microprofile'] then
       includedirs({microprofile})
     end
@@ -111,6 +124,13 @@ do
         -- (the visualization only works with MSVC-compiled projects, Clang-
         -- built projects don't work)
         files({ 'runtime.natvis' })
+    end
+
+    -- TODO: remove once simple_array.hpp migrates off std::is_pod.
+    -- Console toolchains OOM on the ~18k deprecation warnings otherwise.
+    filter({ 'options:_console_only_ore_vk' })
+    do
+        buildoptions({ '-Wno-deprecated-declarations' })
     end
 
     filter('options:not for_unreal')
@@ -209,8 +229,8 @@ do
     end
     filter({ 'options:with_rive_scripting', 'options:not with_rive_tools' })
     do
-        -- at runtime we only need signature verification
-        defines({ 'HYDRO_SIGN_VERIFY_ONLY' })
+        -- =1 required; an empty define evaluates to 0 on strict preprocessors.
+        defines({ 'HYDRO_SIGN_VERIFY_ONLY=1' })
     end
     filter({
         'options:with_rive_scripting',

@@ -1,5 +1,6 @@
 #pragma once
 #include "rive/renderer/ore/ore_render_pass.hpp"
+#include "rive/renderer/ore/ore_texture.hpp"
 #include "ore_pipeline_vulkan.hpp"
 #include "rive/refcnt.hpp"
 #include <vulkan/vulkan.h>
@@ -74,8 +75,13 @@ private:
     uint32_t m_vkColorLayerCount[4] = {};
     uint32_t m_vkColorCount = 0;
     gpu::RenderTargetVulkan* m_vkColorRenderTargets[4] = {}; // weak refs
+    // Pin textures alive until finish() updates m_vkLayout post-pass.
+    rcp<Texture> m_vkColorTextures[4];
     VkImage m_vkDepthImage = VK_NULL_HANDLE;
     uint32_t m_vkDepthBaseLayer = 0;
     uint32_t m_vkDepthLayerCount = 1;
+    rcp<Texture> m_vkDepthTexture;
+    // Pass-state stencil ref; re-emitted on every setPipeline.
+    uint32_t m_vkStencilRef = 0;
 };
 } // namespace rive::ore

@@ -48,6 +48,8 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
+
     ContextGL(const ContextGL&) = delete;
     ContextGL& operator=(const ContextGL&) = delete;
 

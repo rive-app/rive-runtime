@@ -42,6 +42,11 @@ do
     do
         files({ 'gm/ore_*.cpp' })
     end
+    -- Console builds: include ore GMs to exercise ORE_BACKEND_VK paths.
+    filter({ 'options:_console_only_ore_vk', 'options:with_rive_canvas' })
+    do
+        files({ 'gm/ore_*.cpp' })
+    end
     filter({})
     filter({ 'options:not no_tools_shader_hotloading' })
     do

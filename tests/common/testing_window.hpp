@@ -266,6 +266,14 @@ public:
     // WebGPU headers out of this cross-platform header.
     virtual void* wgpuCurrentCommandEncoder() const { return nullptr; }
 
+    // Host-managed ore::Context, or nullptr. Player wires into the file's
+    // ScriptingContext for GPUCanvas content.
+    virtual void* getOreContext() const { return nullptr; }
+
+    // Per-frame ORE driving; no-op on non-ORE harnesses.
+    virtual void beginOreFrame() {}
+    virtual void endOreFrame() {}
+
     virtual ~TestingWindow() {}
 
     static TestingWindow* MakeEGL(Backend,
@@ -282,6 +290,10 @@ public:
     static TestingWindow* MakeVulkanTexture(const BackendParams&);
     static TestingWindow* MakeAndroidVulkan(const BackendParams&,
                                             void* platformWindow);
+    // Hook for platforms without rive_vk_bootstrap; default returns nullptr.
+    // Platform packages override in their own TU + define
+    // RIVE_PLATFORM_TESTING_WINDOW.
+    static TestingWindow* MakePlatformVulkan(const BackendParams&);
     static TestingWindow* MakeWGPU(const BackendParams&);
     static TestingWindow* MakeSkia();
     static TestingWindow* MakeNULL();

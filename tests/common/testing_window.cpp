@@ -373,6 +373,13 @@ TestingWindow* TestingWindow::Init(Backend backend,
                 break;
             }
 #endif
+            // Hook for platforms without rive_vk_bootstrap.
+            if (auto* platformVulkanWindow =
+                    TestingWindow::MakePlatformVulkan(backendParams))
+            {
+                s_TestingWindow = platformVulkanWindow;
+                break;
+            }
             if (visibility == Visibility::headless)
             {
                 s_TestingWindow =
@@ -455,3 +462,12 @@ void TestingWindow::Destroy()
     delete s_TestingWindow;
     s_TestingWindow = nullptr;
 }
+
+// Default no-op; platforms with their own impl define
+// RIVE_PLATFORM_TESTING_WINDOW.
+#ifndef RIVE_PLATFORM_TESTING_WINDOW
+TestingWindow* TestingWindow::MakePlatformVulkan(const BackendParams&)
+{
+    return nullptr;
+}
+#endif

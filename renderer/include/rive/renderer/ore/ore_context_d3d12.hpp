@@ -49,6 +49,8 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::hlsl; }
+
     // External-CL mode: Ore records into the host's
     // ID3D12GraphicsCommandList (already reset and open) instead of owning
     // its own. The host retains ownership of Close/ExecuteCommandLists/the

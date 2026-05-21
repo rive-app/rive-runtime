@@ -3,6 +3,10 @@
 #include <vector>
 #include "rive/renderer/render_context.hpp"
 
+#ifdef RIVE_VULKAN
+#include <vulkan/vulkan.h>
+#endif
+
 struct GLFWwindow;
 
 namespace rive::gpu

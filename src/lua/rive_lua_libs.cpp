@@ -326,7 +326,11 @@ int rive_lua_pcall(lua_State* state, int nargs, int nresults)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
 
-    return context->pCall(state, nargs, nresults);
+    int ret = context->pCall(state, nargs, nresults);
+#ifdef RIVE_ORE
+    rive_lua_closeOrphanRenderPass(state);
+#endif
+    return ret;
 }
 
 int rive_lua_pcall_with_context(lua_State* state,
@@ -337,7 +341,11 @@ int rive_lua_pcall_with_context(lua_State* state,
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
     ScopedScriptedObjectContext scope(context, scriptedObject);
-    return context->pCall(state, nargs, nresults);
+    int ret = context->pCall(state, nargs, nresults);
+#ifdef RIVE_ORE
+    rive_lua_closeOrphanRenderPass(state);
+#endif
+    return ret;
 }
 
 int rive_lua_pushRef(lua_State* state, int ref)

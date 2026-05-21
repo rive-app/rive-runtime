@@ -66,7 +66,9 @@ static VkFormat oreFormatToVkLocal(TextureFormat fmt)
         case TextureFormat::depth16unorm:
             return VK_FORMAT_D16_UNORM;
         case TextureFormat::depth24plusStencil8:
-            return VK_FORMAT_D24_UNORM_S8_UINT;
+            // Resolve via ContextVulkan::vkFormatFor(); UNDEFINED here
+            // surfaces missing redirection during development.
+            return VK_FORMAT_UNDEFINED;
         case TextureFormat::depth32float:
             return VK_FORMAT_D32_SFLOAT;
         case TextureFormat::depth32floatStencil8:
@@ -89,6 +91,13 @@ static VkFormat oreFormatToVkLocal(TextureFormat fmt)
             return VK_FORMAT_ASTC_8x8_UNORM_BLOCK;
     }
     return VK_FORMAT_UNDEFINED;
+}
+
+VkFormat ContextVulkan::vkFormatFor(TextureFormat fmt) const
+{
+    if (fmt == TextureFormat::depth24plusStencil8)
+        return m_vkDepth24Stencil8Format;
+    return oreFormatToVkLocal(fmt);
 }
 
 static bool isDepthStencilFormatLocal(TextureFormat fmt)
@@ -146,6 +155,13 @@ ContextVulkan::~ContextVulkan()
     if (m_vk->device == VK_NULL_HANDLE)
         return;
 
+    // Flush an auto-reopened CB so recorded work completes and the CB
+    // doesn't reach pool destroy in the recording state.
+    if (m_vkCmdBufRecording && !m_vkExternalCmdBuf)
+    {
+        endFrame();
+    }
+
     // Wait for any in-flight GPU work before tearing down resources. Use
     // QueueWaitIdle to also cover the external-CB path where the host owns
     // the frame fence and may have submitted work Ore doesn't track.
@@ -197,6 +213,23 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     ctx->m_vkQueue = queue;
     ctx->m_vkQueueFamily = queueFamilyIndex;
     ctx->m_vmaAllocator = vk->allocator();
+
+    // Pick D24S8 if the device supports it for both attachment and sampling;
+    // else fall back to D32S8 (always supported per spec). Mirrors Dawn.
+    {
+        VkFormatProperties props{};
+        ctx->m_vk->GetPhysicalDeviceFormatProperties(
+            ctx->m_vk->physicalDevice,
+            VK_FORMAT_D24_UNORM_S8_UINT,
+            &props);
+        constexpr VkFormatFeatureFlags kNeed =
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
+            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        ctx->m_vkDepth24Stencil8Format =
+            ((props.optimalTilingFeatures & kNeed) == kNeed)
+                ? VK_FORMAT_D24_UNORM_S8_UINT
+                : VK_FORMAT_D32_SFLOAT_S8_UINT;
+    }
 
     // Command pool: reset-per-command-buffer for single-threaded use.
     VkCommandPoolCreateInfo poolCI{};
@@ -326,46 +359,130 @@ VkDescriptorSetLayout ContextVulkan::vkGetOrCreateEmptyDSL()
     return m_vkEmptyDSL;
 }
 
+void ContextVulkan::vkQueueTransitionToLayout(Texture* texture,
+                                              VkImageAspectFlags aspectMask,
+                                              VkImageLayout newLayout)
+{
+    if (texture == nullptr)
+        return;
+    auto* vkTex = lite_rtti_cast<TextureVulkan*>(texture);
+    if (vkTex == nullptr || vkTex->m_vkImage == VK_NULL_HANDLE)
+        return;
+    if (vkTex->m_vkLayout == newLayout)
+        return;
+    // De-dup against an existing pending entry for the same texture.
+    for (auto& existing : m_vkPendingInitialTransitions)
+    {
+        if (existing.texture.get() == texture)
+        {
+            existing.aspectMask |= aspectMask;
+            existing.newLayout = newLayout;
+            return;
+        }
+    }
+    m_vkPendingInitialTransitions.push_back({
+        ref_rcp(texture),
+        aspectMask,
+        vkTex->m_vkLayout,
+        newLayout,
+    });
+}
+
+// Stage flags + access masks compatible with `layout`. Mirrors Dawn's
+// VulkanPipelineStage() in src/dawn/native/vulkan/UtilsVulkan.cpp.
+static void pipelineStageAndAccessForLayout(VkImageLayout layout,
+                                            VkPipelineStageFlags* outStages,
+                                            VkAccessFlags* outAccess)
+{
+    switch (layout)
+    {
+        case VK_IMAGE_LAYOUT_UNDEFINED:
+            *outStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            *outAccess = 0;
+            return;
+        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+            *outStages = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            *outAccess = VK_ACCESS_TRANSFER_WRITE_BIT;
+            return;
+        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+            *outStages = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            *outAccess = VK_ACCESS_TRANSFER_READ_BIT;
+            return;
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            *outStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            *outAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            return;
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+            *outStages = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                         VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            *outAccess = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                         VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            return;
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            *outStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+            *outAccess = VK_ACCESS_SHADER_READ_BIT;
+            return;
+        default:
+            // Conservative fallback (GENERAL, PRESENT_SRC_KHR, etc.).
+            *outStages = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            *outAccess = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+            return;
+    }
+}
+
 void ContextVulkan::vkFlushPendingInitialTransitions()
 {
     if (m_vkPendingInitialTransitions.empty())
         return;
 
-    // Only transition textures that are still in UNDEFINED — another code
-    // path (upload(), a prior render pass attachment) may have moved the
-    // layout forward since we queued this entry.  Emitting UNDEFINED→
-    // SHADER_READ_ONLY on an already-initialized image would let the driver
-    // discard its contents.
     std::vector<VkImageMemoryBarrier> barriers;
     barriers.reserve(m_vkPendingInitialTransitions.size());
+    VkPipelineStageFlags srcStageAcc = 0;
+    VkPipelineStageFlags dstStageAcc = 0;
     for (const auto& pt : m_vkPendingInitialTransitions)
     {
-        auto texture = lite_rtti_cast<TextureVulkan*>(pt.texture.get());
-        if (texture->m_vkLayout != VK_IMAGE_LAYOUT_UNDEFINED)
+        auto* vkTex = lite_rtti_cast<TextureVulkan*>(pt.texture.get());
+        if (vkTex == nullptr)
             continue;
+        // Re-check current layout; an earlier batch entry or same-frame
+        // upload may have moved the texture since this was queued.
+        if (vkTex->m_vkLayout == pt.newLayout)
+            continue;
+
+        VkPipelineStageFlags srcStage, dstStage;
+        VkAccessFlags srcAccess, dstAccess;
+        pipelineStageAndAccessForLayout(vkTex->m_vkLayout,
+                                        &srcStage,
+                                        &srcAccess);
+        pipelineStageAndAccessForLayout(pt.newLayout, &dstStage, &dstAccess);
+        srcStageAcc |= srcStage;
+        dstStageAcc |= dstStage;
 
         VkImageMemoryBarrier b{};
         b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        b.srcAccessMask = 0;
-        b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        b.srcAccessMask = srcAccess;
+        b.dstAccessMask = dstAccess;
+        b.oldLayout = vkTex->m_vkLayout;
+        b.newLayout = pt.newLayout;
         b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        b.image = texture->m_vkImage;
+        b.image = vkTex->m_vkImage;
         b.subresourceRange.aspectMask = pt.aspectMask;
         b.subresourceRange.baseMipLevel = 0;
         b.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
         b.subresourceRange.baseArrayLayer = 0;
         b.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
         barriers.push_back(b);
-        texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vkTex->m_vkLayout = pt.newLayout;
     }
     if (!barriers.empty())
     {
         m_vk->CmdPipelineBarrier(m_vkCommandBuffer,
-                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 srcStageAcc,
+                                 dstStageAcc,
                                  0,
                                  0,
                                  nullptr,
@@ -379,6 +496,13 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
 
 void ContextVulkan::beginFrame()
 {
+    // Flush an auto-reopened CB before reset. Without this the
+    // ResetCommandBuffer below would discard scripted out-of-frame work.
+    if (m_vkCmdBufRecording && !m_vkExternalCmdBuf)
+    {
+        endFrame();
+    }
+
     // Release deferred BindGroups from last frame. endFrame() already
     // waited for GPU completion, so these are safe to destroy.
     m_deferredBindGroups.clear();
@@ -400,8 +524,11 @@ void ContextVulkan::beginFrame()
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // ONE_TIME_SUBMIT_BIT is safe: each recording is submitted once via
+    // endFrame() or the orphan-flush above.
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     m_vk->BeginCommandBuffer(m_vkCommandBuffer, &beginInfo);
+    m_vkCmdBufRecording = true;
 
     // Flush any lazy-init barriers queued between frames (e.g. BindGroups
     // created before beginFrame that referenced a still-UNDEFINED texture).
@@ -419,6 +546,7 @@ void ContextVulkan::beginFrame(VkCommandBuffer externalCb)
 
     m_vkCommandBuffer = externalCb;
     m_vkExternalCmdBuf = true;
+    m_vkCmdBufRecording = true;
 
     // Flush any lazy-init barriers queued before this frame.  Host has
     // already called BeginCommandBuffer on externalCb, so recording is safe.
@@ -448,6 +576,7 @@ void ContextVulkan::endFrame()
     }
 
     m_vk->EndCommandBuffer(m_vkCommandBuffer);
+    m_vkCmdBufRecording = false;
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -490,16 +619,19 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
     for (uint32_t i = 0; i < key.colorCount; ++i)
     {
         VkAttachmentDescription& a = attachments[attachIdx];
-        a.format = oreFormatToVkLocal(key.colorFormats[i]);
+        a.format = vkFormatFor(key.colorFormats[i]);
         a.samples = static_cast<VkSampleCountFlagBits>(key.sampleCount);
         a.loadOp = oreLoadOpToVk(key.colorLoadOps[i]);
         a.storeOp = oreStoreOpToVk(key.colorStoreOps[i]);
         a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        // After finish(), color images are always in SHADER_READ_ONLY_OPTIMAL.
-        // A subsequent LoadOp::load pass must start from that layout.
+        // For loadOp=load, beginRenderPass queues a transition to
+        // COLOR_ATTACHMENT_OPTIMAL (see vkQueueTransitionToLayout call near
+        // m_vkColorTextures assignment), so the renderpass must declare the
+        // matching initialLayout. finalLayout is the same, so subsequent
+        // loadOp=load passes don't need re-transition (lazy / Dawn-style).
         a.initialLayout = (key.colorLoadOps[i] == LoadOp::load)
-                              ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                              ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                               : VK_IMAGE_LAYOUT_UNDEFINED;
         a.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
@@ -524,7 +656,7 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
                 continue;
             }
             VkAttachmentDescription& a = attachments[attachIdx];
-            a.format = oreFormatToVkLocal(key.colorFormats[i]);
+            a.format = vkFormatFor(key.colorFormats[i]);
             a.samples = VK_SAMPLE_COUNT_1_BIT;
             a.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             a.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -543,7 +675,7 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
     if (key.hasDepth)
     {
         VkAttachmentDescription& a = attachments[attachIdx];
-        a.format = oreFormatToVkLocal(key.depthFormat);
+        a.format = vkFormatFor(key.depthFormat);
         a.samples = static_cast<VkSampleCountFlagBits>(key.sampleCount);
         a.loadOp = oreLoadOpToVk(key.depthLoadOp);
         a.storeOp = oreStoreOpToVk(key.depthStoreOp);
@@ -711,7 +843,7 @@ rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
     imgCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imgCI.flags = createFlags;
     imgCI.imageType = imageType;
-    imgCI.format = oreFormatToVkLocal(desc.format);
+    imgCI.format = vkFormatFor(desc.format);
     imgCI.extent = {desc.width, desc.height, 1};
     imgCI.mipLevels = desc.numMipmaps > 0 ? desc.numMipmaps : 1;
     imgCI.arrayLayers = arrayLayers;
@@ -792,7 +924,7 @@ rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
     viewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewCI.image = tex->m_vkImage;
     viewCI.viewType = viewType;
-    viewCI.format = oreFormatToVkLocal(tex->format());
+    viewCI.format = vkFormatFor(tex->format());
     viewCI.subresourceRange.aspectMask = aspectMask;
     viewCI.subresourceRange.baseMipLevel = desc.baseMipLevel;
     viewCI.subresourceRange.levelCount =
@@ -1119,27 +1251,19 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
             continue;
         assert(writeIdx < kMaxWrites && imgInfoIdx < kMaxWrites);
 
-        // Lazy-init: a renderTarget-capable texture that has never been
-        // uploaded or used as an attachment is still in
-        // VK_IMAGE_LAYOUT_UNDEFINED, but the descriptor below claims
-        // SHADER_READ_ONLY_OPTIMAL.  Queue an UNDEFINED → READ_ONLY
-        // barrier — flushed at beginFrame()/beginRenderPass() before any
-        // draw can reference this descriptor.  Mirrors WebGPU's
-        // lazy-initialize-on-first-use semantic.  The layout is updated
-        // at flush time, not here, so an intervening upload() still sees
-        // UNDEFINED and emits the correct upload barrier sequence.
-        auto baseTex = lite_rtti_cast<TextureVulkan*>(tex.view->texture());
-        if (baseTex->m_vkLayout == VK_IMAGE_LAYOUT_UNDEFINED)
-        {
-            VkImageAspectFlags aspect =
-                isDepthStencilFormatLocal(baseTex->format())
-                    ? (VK_IMAGE_ASPECT_DEPTH_BIT |
-                       (hasStencilLocal(baseTex->format())
-                            ? VK_IMAGE_ASPECT_STENCIL_BIT
-                            : 0))
-                    : VK_IMAGE_ASPECT_COLOR_BIT;
-            m_vkPendingInitialTransitions.push_back({ref_rcp(baseTex), aspect});
-        }
+        // Queue any-layout to SHADER_READ_ONLY_OPTIMAL transition;
+        // flushed before the next draw. Mirrors Dawn's
+        // PrepareResourcesForSyncScope.
+        Texture* baseTex = tex.view->texture();
+        VkImageAspectFlags aspect = isDepthStencilFormatLocal(baseTex->format())
+                                        ? (VK_IMAGE_ASPECT_DEPTH_BIT |
+                                           (hasStencilLocal(baseTex->format())
+                                                ? VK_IMAGE_ASPECT_STENCIL_BIT
+                                                : 0))
+                                        : VK_IMAGE_ASPECT_COLOR_BIT;
+        vkQueueTransitionToLayout(baseTex,
+                                  aspect,
+                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         VkDescriptorImageInfo& ii = imageInfos[imgInfoIdx++];
         auto view = lite_rtti_cast<TextureViewVulkan*>(tex.view);
@@ -1199,17 +1323,26 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
 // beginRenderPass
 // ============================================================================
 
+void ContextVulkan::ensureCmdBufRecording()
+{
+    // External-CB mode: host owns lifecycle. The cb might or might not be
+    // recording, but it's not ours to manage either way.
+    if (m_vkExternalCmdBuf)
+        return;
+    if (m_vkCmdBufRecording)
+        return;
+    beginFrame();
+}
+
 std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
     finishActiveRenderPass();
 
-    // Flush lazy-init barriers before we enter the render pass — barriers
-    // inside a render pass are restricted to declared self-dependencies,
-    // so any UNDEFINED → SHADER_READ_ONLY_OPTIMAL transitions recorded by
-    // makeBindGroup must be emitted here.
-    vkFlushPendingInitialTransitions();
+    // Auto-reopen the CB for mid-PLS scripted ORE calls; submitted by the
+    // next endFrame() or destructor.
+    ensureCmdBufRecording();
 
     std::unique_ptr<RenderPassVulkan> pass =
         std::make_unique<RenderPassVulkan>();
@@ -1249,6 +1382,14 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
             auto resolveView =
                 lite_rtti_cast<TextureViewVulkan*>(ca.resolveTarget);
             resolveViews[i] = resolveView->m_vkImageView;
+            // Mirror the render-pass auto-transition to SRO so a later
+            // makeBindGroup doesn't queue a discarding UNDEFINED transition.
+            if (auto* resolveTex =
+                    lite_rtti_cast<TextureVulkan*>(ca.resolveTarget->texture()))
+            {
+                resolveTex->m_vkLayout =
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            }
         }
         if (key.sampleCount == 1)
             key.sampleCount = tex->sampleCount();
@@ -1262,6 +1403,15 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         pass->m_vkColorBaseLayer[i] = view->baseLayer();
         pass->m_vkColorLayerCount[i] = view->layerCount();
         pass->m_vkColorRenderTargets[i] = view->m_vkRenderTarget;
+        pass->m_vkColorTextures[i] = ref_rcp(tex);
+        // loadOp=load requires COLOR_ATTACHMENT_OPTIMAL before the pass;
+        // other loadOps accept UNDEFINED so no pre-transition needed.
+        if (ca.loadOp == LoadOp::load)
+        {
+            vkQueueTransitionToLayout(tex,
+                                      VK_IMAGE_ASPECT_COLOR_BIT,
+                                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        }
     }
 
     // Resolve image views must be appended in the same order as the
@@ -1291,6 +1441,19 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         pass->m_vkDepthImage = dsTex->m_vkImage;
         pass->m_vkDepthBaseLayer = view->baseLayer();
         pass->m_vkDepthLayerCount = view->layerCount();
+        pass->m_vkDepthTexture = ref_rcp(dsTex);
+        // Same loadOp=load pre-transition as colors.
+        if (desc.depthStencil.depthLoadOp == LoadOp::load)
+        {
+            VkImageAspectFlags aspect =
+                VK_IMAGE_ASPECT_DEPTH_BIT |
+                (hasStencilLocal(dsTex->format()) ? VK_IMAGE_ASPECT_STENCIL_BIT
+                                                  : 0);
+            vkQueueTransitionToLayout(
+                dsTex,
+                aspect,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        }
         // Depth-only pass: no color attachments contributed dimensions.
         if (passWidth == 0)
         {
@@ -1350,9 +1513,52 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     rpBI.clearValueCount = attachCount;
     rpBI.pClearValues = clearValues;
 
+    // Flush any pending sampled-image transitions (queued by makeBindGroup
+    // and the loadOp=load attachment branches above) before entering the
+    // pass — barriers inside a pass are restricted to declared self-
+    // dependencies, so cross-pass image-layout work must land here.
+    vkFlushPendingInitialTransitions();
+
     m_vk->CmdBeginRenderPass(m_vkCommandBuffer,
                              &rpBI,
                              VK_SUBPASS_CONTENTS_INLINE);
+
+    // CmdBeginRenderPass auto-transitions each attachment from its
+    // initialLayout to the subpass-ref layout. Mirror that in our own
+    // per-Texture layout tracker so subsequent makeBindGroup calls (which
+    // queue ANY→SRO transitions) see the up-to-date layout.
+    for (uint32_t i = 0; i < desc.colorCount; ++i)
+    {
+        if (auto* tex = lite_rtti_cast<TextureVulkan*>(
+                pass->m_vkColorTextures[i].get()))
+        {
+            tex->m_vkLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+    }
+    if (auto* tex =
+            lite_rtti_cast<TextureVulkan*>(pass->m_vkDepthTexture.get()))
+    {
+        tex->m_vkLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+
+    // Default viewport + scissor: pipelines declare both as dynamic state,
+    // so a draw before the script calls setViewport/setScissorRect would
+    // trip VUID-vkCmdDraw*-None-07831/07832.
+    {
+        VkViewport vp{};
+        vp.x = 0.0f;
+        vp.y = 0.0f;
+        vp.width = static_cast<float>(passWidth);
+        vp.height = static_cast<float>(passHeight);
+        vp.minDepth = 0.0f;
+        vp.maxDepth = 1.0f;
+        m_vk->CmdSetViewport(m_vkCommandBuffer, 0, 1, &vp);
+
+        VkRect2D sc{};
+        sc.offset = {0, 0};
+        sc.extent = {passWidth, passHeight};
+        m_vk->CmdSetScissor(m_vkCommandBuffer, 0, 1, &sc);
+    }
 
     return pass;
 }

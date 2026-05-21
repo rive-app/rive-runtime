@@ -1349,6 +1349,12 @@ int rive_lua_pcall_with_context(lua_State* state,
 int rive_lua_pushRef(lua_State* state, int ref);
 void rive_lua_pop(lua_State* state, int count);
 
+#ifdef RIVE_ORE
+// Finishes any ORE render pass left open at script return and reports it
+// as a Lua error. Defined in src/lua/renderer/lua_gpu.cpp.
+void rive_lua_closeOrphanRenderPass(lua_State* state);
+#endif
+
 class ScriptingContext
 {
 public:

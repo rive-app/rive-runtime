@@ -11,6 +11,7 @@ namespace rive::ore
 {
 
 class Buffer;
+class Texture;
 class TextureView;
 class Sampler;
 class Pipeline;
