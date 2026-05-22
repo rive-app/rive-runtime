@@ -664,6 +664,10 @@ public:
     ArtboardInstance();
     ~ArtboardInstance() override;
 
+    /// Holds a reference to the File that vended this instance so the File
+    /// outlives the instance.
+    void file(rcp<const File> file);
+
     std::unique_ptr<LinearAnimationInstance> animationAt(size_t index);
     std::unique_ptr<LinearAnimationInstance> animationNamed(
         const std::string& name);
@@ -691,6 +695,9 @@ public:
     SMINumber* getNumber(const std::string& name, const std::string& path);
     SMITrigger* getTrigger(const std::string& name, const std::string& path);
     TextValueRun* getTextRun(const std::string& name, const std::string& path);
+
+private:
+    rcp<const File> m_file;
 };
 } // namespace rive
 

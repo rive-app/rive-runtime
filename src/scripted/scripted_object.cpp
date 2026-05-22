@@ -52,7 +52,7 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  ref_rcp(scriptAsset()->file()),
+                                  scriptAsset()->file(),
                                   std::move(artboardInstance),
                                   nullptr,
                                   dataContext());
@@ -463,11 +463,6 @@ void ScriptedObject::scriptDispose()
     {
         lua_unref(L, m_self);
         disposeScriptedContext();
-#ifdef TESTING
-        // Force GC to collect any ScriptedArtboard instances created via
-        // instance()
-        lua_gc(L, LUA_GCCOLLECT, 0);
-#endif
     }
     m_vm = nullptr;
     m_self = 0;

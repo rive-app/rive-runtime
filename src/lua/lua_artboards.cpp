@@ -16,7 +16,7 @@
 using namespace rive;
 
 ScriptReffedArtboard::ScriptReffedArtboard(
-    rcp<File> file,
+    File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
     rcp<DataContext> parentDataContext) :
@@ -57,7 +57,7 @@ ScriptReffedArtboard::~ScriptReffedArtboard()
     m_file = nullptr;
 }
 
-rive::rcp<rive::File> ScriptReffedArtboard::file() { return m_file; }
+rive::File* ScriptReffedArtboard::file() { return m_file; }
 
 Artboard* ScriptReffedArtboard::artboard() { return m_artboard.get(); }
 
@@ -388,7 +388,7 @@ static int artboard_newindex(lua_State* L)
 
 ScriptedArtboard::ScriptedArtboard(
     lua_State* L,
-    rcp<File> file,
+    File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
     rcp<DataContext> dataContext) :

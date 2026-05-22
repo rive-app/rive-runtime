@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/file.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
@@ -2683,6 +2684,8 @@ void Artboard::changed()
 ArtboardInstance::ArtboardInstance() {}
 
 ArtboardInstance::~ArtboardInstance() {}
+
+void ArtboardInstance::file(rcp<const File> file) { m_file = std::move(file); }
 
 std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(
     size_t index)

@@ -207,6 +207,9 @@ File::~File()
 #if defined(DEBUG)
     debugTotalFileCount--;
 #endif
+#ifdef WITH_RIVE_SCRIPTING
+    cleanupScriptingVM();
+#endif
     for (auto artboard : m_artboards)
     {
         delete artboard;
@@ -235,9 +238,6 @@ File::~File()
         delete physics;
     }
     delete m_backboard;
-#ifdef WITH_RIVE_SCRIPTING
-    cleanupScriptingVM();
-#endif
 }
 
 rcp<File> File::import(Span<const uint8_t> bytes,
@@ -805,6 +805,7 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
 #ifdef WITH_RIVE_SCRIPTING
         artboardInstance->scriptingVM(m_scriptingVM.get());
 #endif
+        artboardInstance->file(ref_rcp(this));
         return artboardInstance;
     }
     return nullptr;

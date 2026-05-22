@@ -82,7 +82,7 @@ TEST_CASE("Artboard:drawCanvas() is callable regardless of drawing phase",
     REQUIRE(artboard != nullptr);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  file,
+                                  file.get(),
                                   artboard->instance(),
                                   nullptr,
                                   nullptr);

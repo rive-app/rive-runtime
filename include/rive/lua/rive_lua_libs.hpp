@@ -970,19 +970,19 @@ private:
 class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
 {
 public:
-    ScriptReffedArtboard(rcp<File> file,
+    ScriptReffedArtboard(File* file,
                          std::unique_ptr<ArtboardInstance>&& artboardInstance,
                          rcp<ViewModelInstance> viewModelInstance,
                          rcp<DataContext> parentDataContext);
 
     ~ScriptReffedArtboard();
-    rive::rcp<rive::File> file();
+    rive::File* file();
     Artboard* artboard();
     StateMachineInstance* stateMachine();
     rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
 
 private:
-    rcp<File> m_file;
+    File* m_file;
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
@@ -992,7 +992,7 @@ class ScriptedArtboard
 {
 public:
     ScriptedArtboard(lua_State* L,
-                     rcp<File> file,
+                     File* file,
                      std::unique_ptr<ArtboardInstance>&& artboardInstance,
                      rcp<ViewModelInstance> viewModelInstance,
                      rcp<DataContext> dataContext);
