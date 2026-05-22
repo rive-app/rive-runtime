@@ -242,15 +242,12 @@ bool ScriptedObject::tryLuaUserInit(lua_State* L)
 {
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
-    m_contextPtr = lua_newrive<ScriptedContext>(L, this);
-    // Stack: [self, ScriptedContext]
-    m_context = lua_ref(L, -1);
-    rive_lua_pop(L, 1);
-    // Stack: [self]
     lua_getfield(L, -1, "init");
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]
+    // Reuse the ScriptedContext created during ensureScriptInitialized so
+    // the generator and init() both see the same Context instance.
     rive_lua_pushRef(L, m_context);
     // Stack: [self, field, self, ScriptedContext]
     auto pCallResult = rive_lua_pcall_with_context(L, this, 2, 1);
@@ -320,14 +317,43 @@ bool ScriptedObject::ensureScriptInitialized(ScriptingVM* vm)
             return false;
         }
     }
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 0, 1)) !=
+
+    // Create the Context userdata before calling the generator so scripts
+    // can request resources at construction time (e.g.
+    // `return { canvas = context:gpuCanvas() }`). The same Context is
+    // reused in tryLuaUserInit when init(self, context) is called, so a
+    // script only ever sees one Context per scripted-object lifetime.
+    // Stack: [generator]
+    m_contextPtr = lua_newrive<ScriptedContext>(L, this);
+    // Stack: [generator, context]
+    m_context = lua_ref(L, -1);
+    // Stack: [generator, context]  (lua_ref does not pop)
+
+    // m_vm is not yet assigned here, so disposeScriptedContext() cannot
+    // resolve a lua_State via state(). Unref/clear directly on failure.
+    auto disposeContextDirect = [&]() {
+        if (m_contextPtr != nullptr)
+        {
+            m_contextPtr->clearScriptedObject();
+            m_contextPtr = nullptr;
+        }
+        if (m_context != 0)
+        {
+            lua_unref(L, m_context);
+            m_context = 0;
+        }
+    };
+
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 1, 1)) !=
         LUA_OK)
     {
+        disposeContextDirect();
         rive_lua_pop(L, 1);
         return false;
     }
     if (static_cast<lua_Type>(lua_type(L, -1)) != LUA_TTABLE)
     {
+        disposeContextDirect();
         rive_lua_pop(L, 1);
         return false;
     }

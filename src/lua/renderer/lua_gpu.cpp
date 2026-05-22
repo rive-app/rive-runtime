@@ -2625,25 +2625,33 @@ static StoreOp lua_tostoreop_str(const char* s)
     return StoreOp::store;
 }
 
-// context:beginRenderPass(desc) — open a render pass.
+// canvas:beginRenderPass(desc) — open a render pass against this canvas.
 //
 // `desc` is required: at least one color attachment or a depthStencil
 // attachment must be supplied. Every attachment carries its own view, and
 // sampleCount is derived from those views (all attachments must share one
 // sampleCount, matching WebGPU validation).
-int context_beginrenderpass(lua_State* L)
+//
+// Color attachment `view` is optional: when omitted it defaults to the
+// receiving canvas's own colorView. Provide an explicit view for cases
+// where the target differs (e.g. MSAA: view = msaa:view(),
+// resolveTarget = canvas:colorView()).
+int gpucanvas_beginrenderpass(lua_State* L)
 {
+    auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
+
     Context* oreCtx = getOreContext(L);
     if (oreCtx == nullptr)
     {
-        luaL_error(L, "context:beginRenderPass() requires a GPU context");
+        luaL_error(L, "GPUCanvas:beginRenderPass() requires a GPU context");
     }
 
     auto* scriptingContext =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
     if (scriptingContext == nullptr || !scriptingContext->canvasDrawingPhase())
     {
-        luaL_error(L, "context:beginRenderPass() called outside drawing phase");
+        luaL_error(L,
+                   "GPUCanvas:beginRenderPass() called outside drawing phase");
     }
 
     luaL_checktype(L, 2, LUA_TTABLE);
@@ -2693,26 +2701,39 @@ int context_beginrenderpass(lua_State* L)
             int slot = passDesc.colorCount++;
 
             lua_getfield(L, -1, "view");
+            ore::TextureView* viewPtr = nullptr;
             if (lua_isnil(L, -1))
             {
-                luaL_error(L,
-                           "beginRenderPass: color[%d].view is required — "
-                           "every color attachment needs an explicit "
-                           "GPUTextureView",
-                           slot + 1);
+                // Sugar: omitting `view` defaults to the receiving canvas's
+                // own colorView. Errors only if the canvas is deferred
+                // (zero-sized — no backing texture).
+                if (!self->oreColorView)
+                {
+                    luaL_error(L,
+                               "beginRenderPass: color[%d].view omitted but "
+                               "the receiving canvas has no backing texture "
+                               "(zero-sized). Call canvas:resize(w, h) "
+                               "before drawing, or pass an explicit view.",
+                               slot + 1);
+                }
+                viewPtr = self->oreColorView.get();
             }
-            auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-            if (!tv || !tv->view)
+            else
             {
-                luaL_error(L,
-                           "beginRenderPass: color[%d].view is not a valid "
-                           "GPUTextureView",
-                           slot + 1);
+                auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
+                if (!tv || !tv->view)
+                {
+                    luaL_error(L,
+                               "beginRenderPass: color[%d].view is not a "
+                               "valid GPUTextureView",
+                               slot + 1);
+                }
+                viewPtr = tv->view.get();
             }
-            passDesc.colorAttachments[slot].view = tv->view.get();
+            passDesc.colorAttachments[slot].view = viewPtr;
             char colorLabel[32];
             snprintf(colorLabel, sizeof(colorLabel), "color[%d]", slot + 1);
-            recordSampleCount(tv->view->texture()->sampleCount(), colorLabel);
+            recordSampleCount(viewPtr->texture()->sampleCount(), colorLabel);
             lua_pop(L, 1); // view
 
             // resolveTarget (optional — for MSAA). Source view must be
@@ -2900,7 +2921,8 @@ int context_beginrenderpass(lua_State* L)
 
 // Recreate the underlying RenderCanvas at a new size, then re-wrap its backing
 // texture for use in ORE render passes.  The handle's `.image` ref continues to
-// point to the updated canvas image.
+// point to the updated canvas image. Resizing to zero in either dimension
+// drops the backing texture and leaves the canvas in a deferred state.
 static int gpucanvashandle_resize(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
@@ -2917,6 +2939,21 @@ static int gpucanvashandle_resize(lua_State* L)
         luaL_error(L, "GPUCanvas: GPU context not initialized");
     }
 
+    if (w == 0 || h == 0)
+    {
+        if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
+        {
+            lua_unref(self->m_L, self->m_imageRef);
+            self->m_imageRef = LUA_NOREF;
+        }
+        self->canvas = nullptr;
+        self->oreColorView = nullptr;
+        return 0;
+    }
+
+    // Allocate and wrap the new backing BEFORE touching the existing
+    // canvas/view/imageRef. If either step throws (via luaL_error), the
+    // canvas keeps its previous, still-valid backing.
     auto newCanvas = self->renderCtx->makeRenderCanvas(w, h);
     if (!newCanvas)
     {
@@ -2928,7 +2965,6 @@ static int gpucanvashandle_resize(lua_State* L)
         luaL_error(L, "GPUCanvas:resize() failed to wrap canvas texture");
     }
 
-    // Update the image ref to point to the new canvas
     if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
     {
         lua_unref(self->m_L, self->m_imageRef);
@@ -2951,8 +2987,9 @@ static int gpucanvashandle_colorview(lua_State* L)
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
     if (!self->oreColorView)
     {
-        lua_pushnil(L);
-        return 1;
+        luaL_error(L,
+                   "GPUCanvas:colorView() called on a zero-sized canvas; "
+                   "call canvas:resize(w, h) first");
     }
     auto* tv = lua_newrive<ScriptedGPUTextureView>(L);
     tv->view = self->oreColorView;
@@ -2973,14 +3010,14 @@ static int gpucanvashandle_index(lua_State* L)
         lua_pushnil(L);
         return 1;
     }
-    if (strcmp(key, "width") == 0 && self->canvas)
+    if (strcmp(key, "width") == 0)
     {
-        lua_pushnumber(L, self->canvas->width());
+        lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
         return 1;
     }
-    if (strcmp(key, "height") == 0 && self->canvas)
+    if (strcmp(key, "height") == 0)
     {
-        lua_pushnumber(L, self->canvas->height());
+        lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
         return 1;
     }
     if (strcmp(key, "format") == 0)
@@ -3009,6 +3046,8 @@ static int gpucanvashandle_namecall(lua_State* L)
                 return gpucanvashandle_colorview(L);
             case (int)LuaAtoms::resize:
                 return gpucanvashandle_resize(L);
+            case (int)LuaAtoms::beginRenderPass:
+                return gpucanvas_beginrenderpass(L);
             default:
                 break;
         }
@@ -3024,8 +3063,9 @@ static int gpucanvashandle_namecall(lua_State* L)
 // Canvas (2D Rive renderer canvas)
 // ============================================================================
 
-// Recreate the underlying RenderCanvas at a new size.  Must not be called
-// between beginFrame() and endFrame().
+// Recreate the underlying RenderCanvas at a new size. Must not be called
+// between beginFrame() and endFrame(). Resizing to zero in either dimension
+// drops the backing texture and leaves the canvas in a deferred state.
 static int canvashandle_resize(lua_State* L)
 {
     auto* self = lua_torive<ScriptedCanvas>(L, 1);
@@ -3041,6 +3081,20 @@ static int canvashandle_resize(lua_State* L)
         luaL_error(L, "Canvas:resize() called during an active frame");
     }
 
+    if (w == 0 || h == 0)
+    {
+        if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
+        {
+            lua_unref(self->m_L, self->m_imageRef);
+            self->m_imageRef = LUA_NOREF;
+        }
+        self->canvas = nullptr;
+        return 0;
+    }
+
+    // Allocate the new backing BEFORE touching the existing canvas/imageRef.
+    // If makeRenderCanvas throws (via luaL_error), the canvas keeps its
+    // previous, still-valid backing.
     auto newCanvas = self->renderCtx->makeRenderCanvas(w, h);
     if (!newCanvas)
     {
@@ -3088,7 +3142,9 @@ static int canvashandle_beginframe(lua_State* L)
     }
     if (!self->canvas)
     {
-        luaL_error(L, "Canvas:beginFrame() — canvas is null");
+        luaL_error(L,
+                   "Canvas:beginFrame() called on a zero-sized canvas; "
+                   "call canvas:resize(w, h) first");
     }
 
     gpu::RenderContext::FrameDescriptor desc{};
@@ -3185,14 +3241,14 @@ static int canvashandle_index(lua_State* L)
         lua_pushnil(L);
         return 1;
     }
-    if (strcmp(key, "width") == 0 && self->canvas)
+    if (strcmp(key, "width") == 0)
     {
-        lua_pushnumber(L, self->canvas->width());
+        lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
         return 1;
     }
-    if (strcmp(key, "height") == 0 && self->canvas)
+    if (strcmp(key, "height") == 0)
     {
-        lua_pushnumber(L, self->canvas->height());
+        lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
         return 1;
     }
     luaL_error(L, "%s is not a valid property of Canvas", key);

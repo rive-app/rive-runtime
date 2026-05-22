@@ -360,13 +360,23 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::canvas:
             {
                 // context:canvas({ width = w, height = h, clearColor = c })
-                luaL_checktype(L, 2, LUA_TTABLE);
-                lua_getfield(L, 2, "width");
-                uint32_t cw = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
-                lua_getfield(L, 2, "height");
-                uint32_t ch = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                // Descriptor is optional; missing or zero width/height yields
+                // a deferred canvas with no backing texture. Use :resize() to
+                // allocate once the real layout size is known.
+                uint32_t cw = 0;
+                uint32_t ch = 0;
+                if (!lua_isnoneornil(L, 2))
+                {
+                    luaL_checktype(L, 2, LUA_TTABLE);
+                    lua_getfield(L, 2, "width");
+                    if (!lua_isnil(L, -1))
+                        cw = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                    lua_getfield(L, 2, "height");
+                    if (!lua_isnil(L, -1))
+                        ch = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                }
 #ifndef RIVE_CANVAS
                 (void)cw;
                 (void)ch;
@@ -385,6 +395,15 @@ static int context_namecall(lua_State* L)
                         "setRenderContext() first");
                     return 0;
                 }
+                auto* handle = lua_newrive<ScriptedCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = renderCtx;
+
+                if (cw == 0 || ch == 0)
+                {
+                    return 1;
+                }
+
                 auto canvas = renderCtx->makeRenderCanvas(cw, ch);
                 if (!canvas)
                 {
@@ -393,10 +412,7 @@ static int context_namecall(lua_State* L)
                         "context:canvas() failed to create RenderCanvas");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedCanvas>(L);
-                handle->m_L = L;
                 handle->canvas = std::move(canvas);
-                handle->renderCtx = renderCtx;
                 // Create a ScriptedImage backed by canvas->renderImage() so
                 // the script can composite it with renderer:drawImage()
                 auto* img = lua_newrive<ScriptedImage>(L);
@@ -410,13 +426,23 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::gpuCanvas:
             {
                 // context:gpuCanvas({ width = w, height = h })
-                luaL_checktype(L, 2, LUA_TTABLE);
-                lua_getfield(L, 2, "width");
-                uint32_t gw = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
-                lua_getfield(L, 2, "height");
-                uint32_t gh = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                // Descriptor is optional; missing or zero width/height yields
+                // a deferred canvas with no backing texture. Use :resize() to
+                // allocate once the real layout size is known.
+                uint32_t gw = 0;
+                uint32_t gh = 0;
+                if (!lua_isnoneornil(L, 2))
+                {
+                    luaL_checktype(L, 2, LUA_TTABLE);
+                    lua_getfield(L, 2, "width");
+                    if (!lua_isnil(L, -1))
+                        gw = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                    lua_getfield(L, 2, "height");
+                    if (!lua_isnil(L, -1))
+                        gh = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                }
 #if !defined(RIVE_CANVAS) || !defined(RIVE_ORE)
                 (void)gw;
                 (void)gh;
@@ -447,6 +473,15 @@ static int context_namecall(lua_State* L)
                         "scriptingWorkspaceSetOreContext() before requestVM()");
                     return 0;
                 }
+                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = gpuRenderCtx;
+
+                if (gw == 0 || gh == 0)
+                {
+                    return 1;
+                }
+
                 auto canvas = gpuRenderCtx->makeRenderCanvas(gw, gh);
                 if (!canvas)
                 {
@@ -463,11 +498,8 @@ static int context_namecall(lua_State* L)
                         "context:gpuCanvas() failed to wrap canvas texture");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
-                handle->m_L = L;
                 handle->canvas = std::move(canvas);
                 handle->oreColorView = std::move(colorView);
-                handle->renderCtx = gpuRenderCtx;
 
                 auto* img = lua_newrive<ScriptedImage>(L);
                 img->image = ref_rcp(
@@ -477,19 +509,6 @@ static int context_namecall(lua_State* L)
                 return 1;
 #endif
             }
-            case (int)LuaAtoms::beginRenderPass:
-            {
-#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
-                extern int context_beginrenderpass(lua_State * L);
-                return context_beginrenderpass(L);
-#else
-                luaL_error(L,
-                           "context:beginRenderPass() requires a RIVE_CANVAS "
-                           "+ RIVE_ORE build");
-                return 0;
-#endif
-            }
-
             case (int)LuaAtoms::features:
                 return lua_push_gpu_features(L);
 
