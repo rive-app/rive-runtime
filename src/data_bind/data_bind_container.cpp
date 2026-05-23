@@ -54,24 +54,45 @@ bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
 
 void DataBindContainer::removeDataBind(DataBind* dataBind)
 {
-    m_dataBinds.erase(
-        std::remove(m_dataBinds.begin(), m_dataBinds.end(), dataBind),
-        m_dataBinds.end());
-    m_persistingDataBinds.erase(std::remove(m_persistingDataBinds.begin(),
-                                            m_persistingDataBinds.end(),
-                                            dataBind),
-                                m_persistingDataBinds.end());
-    m_dirtyDataBinds.erase(
-        std::remove(m_dirtyDataBinds.begin(), m_dirtyDataBinds.end(), dataBind),
-        m_dirtyDataBinds.end());
-    m_pendingDirtyDataBinds.erase(std::remove(m_pendingDirtyDataBinds.begin(),
-                                              m_pendingDirtyDataBinds.end(),
-                                              dataBind),
-                                  m_pendingDirtyDataBinds.end());
+    // Defer removal if we're mid-iteration in updateDataBinds; erasing from
+    // m_persistingDataBinds / m_dirtyDataBinds here would invalidate the
+    // active iterators.
+    if (m_isProcessing)
+    {
+        m_pendingRemovals.push_back(dataBind);
+        return;
+    }
+    auto eraseOne = [dataBind](std::vector<DataBind*>& v) {
+        v.erase(std::remove(v.begin(), v.end(), dataBind), v.end());
+    };
+    eraseOne(m_dataBinds);
+    if (dataBind->inPersistingList())
+    {
+        eraseOne(m_persistingDataBinds);
+        dataBind->inPersistingList(false);
+    }
+    if (dataBind->inDirtyList())
+    {
+        // Membership flag doesn't distinguish dirty vs pending-dirty, so check
+        // both — but only when the flag says one of them contains it.
+        eraseOne(m_dirtyDataBinds);
+        eraseOne(m_pendingDirtyDataBinds);
+        dataBind->inDirtyList(false);
+    }
+    dataBind->container(nullptr);
 }
 
 void DataBindContainer::addDataBind(DataBind* dataBind)
 {
+    // Defer if we're mid-iteration in updateDataBinds; push_back on
+    // m_persistingDataBinds during iteration could reallocate and invalidate
+    // the active range-for iterator, and the synchronous updateDataBind() call
+    // below would re-enter the update machinery.
+    if (m_isProcessing)
+    {
+        m_pendingAdditions.push_back(dataBind);
+        return;
+    }
     m_dataBinds.push_back(dataBind);
     // Any data bind that is applied to source needs to be updated regardless of
     // it having dirt or not. The reason is that they depend on changes of the
@@ -81,6 +102,7 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
     if (dataBind->toSource())
     {
         m_persistingDataBinds.push_back(dataBind);
+        dataBind->inPersistingList(true);
     }
     dataBind->container(this);
     if (m_dataContext && dataBind->is<DataBindContext>())
@@ -121,6 +143,15 @@ void DataBindContainer::updateDataBind(DataBind* dataBind,
 
 void DataBindContainer::updateDataBinds(bool applyTargetToSource)
 {
+    // Reject recursive entry. The defer-add / defer-remove machinery depends
+    // on m_isProcessing remaining true for the duration of the outer call.
+    // A nested call would flip m_isProcessing to false on its return, causing
+    // subsequent add/remove calls in the outer iteration to take the immediate
+    // path and invalidate the active iterators.
+    if (m_isProcessing)
+    {
+        return;
+    }
     if (m_persistingDataBinds.size() == 0 && m_dirtyDataBinds.size() == 0)
     {
         return;
@@ -138,17 +169,35 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
         // data binds on this list don't need to apply target to source because
         // any data bind that applies to source is collected on the
         // m_persistingDataBinds list
+        dataBind->inDirtyList(false);
         updateDataBind(dataBind, false);
     }
     m_dirtyDataBinds.clear();
     if (m_pendingDirtyDataBinds.size() > 0)
     {
-
-        m_dirtyDataBinds.assign(m_pendingDirtyDataBinds.begin(),
-                                m_pendingDirtyDataBinds.end());
-        m_pendingDirtyDataBinds.clear();
+        m_dirtyDataBinds.swap(m_pendingDirtyDataBinds);
     }
     m_isProcessing = false;
+    // Flush additions before removals so a same-tick add-then-remove of the
+    // same bind resolves in chronological order (add wins, then remove).
+    if (!m_pendingAdditions.empty())
+    {
+        std::vector<DataBind*> additions;
+        additions.swap(m_pendingAdditions);
+        for (auto* dataBind : additions)
+        {
+            addDataBind(dataBind);
+        }
+    }
+    if (!m_pendingRemovals.empty())
+    {
+        std::vector<DataBind*> removals;
+        removals.swap(m_pendingRemovals);
+        for (auto* dataBind : removals)
+        {
+            removeDataBind(dataBind);
+        }
+    }
 }
 
 void DataBindContainer::sortDataBinds()
@@ -175,11 +224,12 @@ void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
     {
         return;
     }
+    if (dataBind->inDirtyList())
+    {
+        return;
+    }
     auto& insertingList =
         m_isProcessing ? m_pendingDirtyDataBinds : m_dirtyDataBinds;
-    auto itr = std::find(insertingList.begin(), insertingList.end(), dataBind);
-    if (itr == insertingList.end())
-    {
-        insertingList.push_back(dataBind);
-    }
+    insertingList.push_back(dataBind);
+    dataBind->inDirtyList(true);
 }
