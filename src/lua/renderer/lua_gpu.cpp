@@ -1048,16 +1048,29 @@ static int gpubuffer_namecall(lua_State* L)
     return 0;
 }
 
+static void gpubuffer_direct_size(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGPUBuffer*)udata)->buffer->size());
+}
+
 static int gpubuffer_index(lua_State* L)
 {
-    auto* self = lua_torive<ScriptedGPUBuffer>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "size") == 0)
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
     {
-        lua_pushnumber(L, self->buffer->size());
-        return 1;
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
     }
-    luaL_error(L, "%s is not a valid property of GPUBuffer", key);
+    auto* self = lua_torive<ScriptedGPUBuffer>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::size:
+            lua_pushnumber(L, self->buffer->size());
+            return 1;
+    }
+    luaL_error(L, "'%s' is not a valid index of GPUBuffer", key);
     return 0;
 }
 
@@ -1358,44 +1371,67 @@ static int gputexture_namecall(lua_State* L)
     return 0;
 }
 
+static void gputexture_direct_width(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGPUTexture*)udata)->texture->width());
+}
+
+static void gputexture_direct_height(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGPUTexture*)udata)->texture->height());
+}
+
 static int gputexture_index(lua_State* L)
 {
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
     auto* self = lua_torive<ScriptedGPUTexture>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "width") == 0)
+    switch (atom)
     {
-        lua_pushnumber(L, self->texture->width());
-        return 1;
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, self->texture->width());
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, self->texture->height());
+            return 1;
+        case (int)LuaAtoms::format:
+            lua_pushstring(L,
+                           lua_totextureformatstring(self->texture->format()));
+            return 1;
     }
-    if (strcmp(key, "height") == 0)
-    {
-        lua_pushnumber(L, self->texture->height());
-        return 1;
-    }
-    if (strcmp(key, "format") == 0)
-    {
-        lua_pushstring(L, lua_totextureformatstring(self->texture->format()));
-        return 1;
-    }
-    luaL_error(L, "%s is not a valid property of GPUTexture", key);
+    luaL_error(L, "'%s' is not a valid index of GPUTexture", key);
     return 0;
 }
 
 static int gputextureview_index(lua_State* L)
 {
-    auto* self = lua_torive<ScriptedGPUTextureView>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "format") == 0)
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
     {
-        if (self->view && self->view->texture())
-            lua_pushstring(
-                L,
-                lua_totextureformatstring(self->view->texture()->format()));
-        else
-            lua_pushnil(L);
-        return 1;
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
     }
-    luaL_error(L, "%s is not a valid property of GPUTextureView", key);
+    auto* self = lua_torive<ScriptedGPUTextureView>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::format:
+            if (self->view && self->view->texture())
+                lua_pushstring(
+                    L,
+                    lua_totextureformatstring(self->view->texture()->format()));
+            else
+                lua_pushnil(L);
+            return 1;
+    }
+    luaL_error(L, "'%s' is not a valid index of GPUTextureView", key);
     return 0;
 }
 
@@ -2996,41 +3032,56 @@ static int gpucanvashandle_colorview(lua_State* L)
     return 1;
 }
 
+static void gpucanvashandle_direct_width(void* udata, void* result)
+{
+    auto* self = (ScriptedGPUCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->width() : 0);
+}
+
+static void gpucanvashandle_direct_height(void* udata, void* result)
+{
+    auto* self = (ScriptedGPUCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->height()
+                                                   : 0);
+}
+
 static int gpucanvashandle_index(lua_State* L)
 {
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "image") == 0)
+    switch (atom)
     {
-        if (self->m_imageRef != LUA_NOREF)
-        {
-            rive_lua_pushRef(L, self->m_imageRef);
-            return 1;
-        }
-        lua_pushnil(L);
-        return 1;
-    }
-    if (strcmp(key, "width") == 0)
-    {
-        lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
-        return 1;
-    }
-    if (strcmp(key, "height") == 0)
-    {
-        lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
-        return 1;
-    }
-    if (strcmp(key, "format") == 0)
-    {
-        if (self->oreColorView && self->oreColorView->texture())
-            lua_pushstring(L,
-                           lua_totextureformatstring(
-                               self->oreColorView->texture()->format()));
-        else
+        case (int)LuaAtoms::image:
+            if (self->m_imageRef != LUA_NOREF)
+            {
+                rive_lua_pushRef(L, self->m_imageRef);
+                return 1;
+            }
             lua_pushnil(L);
-        return 1;
+            return 1;
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
+            return 1;
+        case (int)LuaAtoms::format:
+            if (self->oreColorView && self->oreColorView->texture())
+                lua_pushstring(L,
+                               lua_totextureformatstring(
+                                   self->oreColorView->texture()->format()));
+            else
+                lua_pushnil(L);
+            return 1;
     }
-    luaL_error(L, "%s is not a valid property of GPUCanvas", key);
+    luaL_error(L, "'%s' is not a valid index of GPUCanvas", key);
     return 0;
 }
 
@@ -3227,31 +3278,48 @@ static int canvashandle_endframe(lua_State* L)
     return 0;
 }
 
+static void canvashandle_direct_width(void* udata, void* result)
+{
+    auto* self = (ScriptedCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->width() : 0);
+}
+
+static void canvashandle_direct_height(void* udata, void* result)
+{
+    auto* self = (ScriptedCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->height()
+                                                   : 0);
+}
+
 static int canvashandle_index(lua_State* L)
 {
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
     auto* self = lua_torive<ScriptedCanvas>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "image") == 0)
+    switch (atom)
     {
-        if (self->m_imageRef != LUA_NOREF)
-        {
-            rive_lua_pushRef(L, self->m_imageRef);
+        case (int)LuaAtoms::image:
+            if (self->m_imageRef != LUA_NOREF)
+            {
+                rive_lua_pushRef(L, self->m_imageRef);
+                return 1;
+            }
+            lua_pushnil(L);
             return 1;
-        }
-        lua_pushnil(L);
-        return 1;
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
+            return 1;
     }
-    if (strcmp(key, "width") == 0)
-    {
-        lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
-        return 1;
-    }
-    if (strcmp(key, "height") == 0)
-    {
-        lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
-        return 1;
-    }
-    luaL_error(L, "%s is not a valid property of Canvas", key);
+    luaL_error(L, "'%s' is not a valid index of Canvas", key);
     return 0;
 }
 
@@ -3363,6 +3431,11 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUBuffer::luaTag,
+                                           "size",
+                                           gpubuffer_direct_size);
     }
 
     // GPUTexture
@@ -3375,6 +3448,15 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUTexture::luaTag,
+                                           "width",
+                                           gputexture_direct_width);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUTexture::luaTag,
+                                           "height",
+                                           gputexture_direct_height);
     }
 
     // GPUSampler
@@ -3443,6 +3525,15 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUCanvas::luaTag,
+                                           "width",
+                                           gpucanvashandle_direct_width);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUCanvas::luaTag,
+                                           "height",
+                                           gpucanvashandle_direct_height);
     }
 
     // Canvas (no public constructor — created via context:canvas())
@@ -3455,6 +3546,15 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedCanvas::luaTag,
+                                           "width",
+                                           canvashandle_direct_width);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedCanvas::luaTag,
+                                           "height",
+                                           canvashandle_direct_height);
     }
 
     return 0;

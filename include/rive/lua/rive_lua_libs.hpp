@@ -871,6 +871,10 @@ public:
     void pushGradient(lua_State* L);
     void pushColor(lua_State* L);
 
+    float thickness() const { return m_thickness; }
+    float feather() const { return m_feather; }
+    ColorInt color() const { return m_color; }
+
 protected:
     RenderPaintStyle m_style = RenderPaintStyle::fill;
     rcp<RenderShader> m_gradient;

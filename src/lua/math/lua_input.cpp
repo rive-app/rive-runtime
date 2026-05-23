@@ -29,6 +29,48 @@ static const char* hit_listener_type_string(int raw)
     return "unknown";
 }
 
+static void pointer_event_direct_id(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedPointerEvent*)udata)->m_id);
+}
+
+static void pointer_event_direct_position(void* udata, void* result)
+{
+    auto* self = (ScriptedPointerEvent*)udata;
+    lua_userdatadirectfield_setvector(result,
+                                      self->m_position.x,
+                                      self->m_position.y,
+                                      0.0f
+#if LUA_VECTOR_SIZE == 4
+                                      ,
+                                      0.0f
+#endif
+    );
+}
+
+static void pointer_event_direct_previousPosition(void* udata, void* result)
+{
+    auto* self = (ScriptedPointerEvent*)udata;
+    lua_userdatadirectfield_setvector(result,
+                                      self->m_previousPosition.x,
+                                      self->m_previousPosition.y,
+                                      0.0f
+#if LUA_VECTOR_SIZE == 4
+                                      ,
+                                      0.0f
+#endif
+    );
+}
+
+static void pointer_event_direct_timeStamp(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedPointerEvent*)udata)->m_timeStamp);
+}
+
 static int pointer_event_index(lua_State* L)
 {
     int atom;
@@ -136,6 +178,24 @@ int luaopen_rive_input(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPointerEvent::luaTag,
+                                           "id",
+                                           pointer_event_direct_id);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPointerEvent::luaTag,
+                                           "position",
+                                           pointer_event_direct_position);
+        lua_registeruserdatadirectfieldget(
+            L,
+            ScriptedPointerEvent::luaTag,
+            "previousPosition",
+            pointer_event_direct_previousPosition);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPointerEvent::luaTag,
+                                           "timeStamp",
+                                           pointer_event_direct_timeStamp);
     }
 
     rive_lua_register_listener_invocation_types(L);

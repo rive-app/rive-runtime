@@ -8,6 +8,18 @@
 
 using namespace rive;
 
+static void blob_direct_size(void* udata, void* result)
+{
+    auto* self = (ScriptedBlob*)udata;
+    BlobAsset* asset = self->asset ? self->asset->as<BlobAsset>() : nullptr;
+    if (!asset)
+    {
+        lua_userdatadirectfield_setnil(result);
+        return;
+    }
+    lua_userdatadirectfield_setnumber(result, (double)asset->bytes().size());
+}
+
 static int blob_index(lua_State* L)
 {
     auto blob = lua_torive<ScriptedBlob>(L, 1);
@@ -63,6 +75,11 @@ int luaopen_rive_blob(lua_State* L)
     lua_setfield(L, -2, "__index");
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
+
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedBlob::luaTag,
+                                       "size",
+                                       blob_direct_size);
 
     return 0;
 }

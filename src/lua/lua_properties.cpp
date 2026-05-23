@@ -1264,6 +1264,46 @@ int ScriptedEnumValues::pushLength()
     return 1;
 }
 
+// Direct field getters: dispatched by LOP_GETTABLEKS on `prop.value` /
+// `list.length`. Slow paths (property_*_index) remain reachable for
+// computed-key access and lua_getfield from C.
+
+static void property_number_direct_value(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyNumber*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setnumber(
+        result,
+        iv ? iv->as<ViewModelInstanceNumber>()->propertyValue() : 0);
+}
+
+static void property_color_direct_value(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyColor*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setnumber(
+        result,
+        iv ? (unsigned)iv->as<ViewModelInstanceColor>()->propertyValue() : 0);
+}
+
+static void property_boolean_direct_value(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyBoolean*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setboolean(
+        result,
+        iv ? (iv->as<ViewModelInstanceBoolean>()->propertyValue() ? 1 : 0) : 0);
+}
+
+static void property_list_direct_length(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyList*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setnumber(
+        result,
+        iv ? (double)iv->as<ViewModelInstanceList>()->listItems().size() : 0);
+}
+
 static int property_list_index(lua_State* L)
 {
     int atom;
@@ -1627,6 +1667,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyNumber::luaTag,
+                                           "value",
+                                           property_number_direct_value);
     }
 
     {
@@ -1643,6 +1688,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyColor::luaTag,
+                                           "value",
+                                           property_color_direct_value);
     }
 
     {
@@ -1675,6 +1725,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyBoolean::luaTag,
+                                           "value",
+                                           property_boolean_direct_value);
     }
 
     {
@@ -1714,6 +1769,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyList::luaTag,
+                                           "length",
+                                           property_list_direct_length);
     }
 
     {

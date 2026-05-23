@@ -312,6 +312,32 @@ const ShapePaint* ScriptedNode::shapePaint()
     return nullptr;
 }
 
+// Direct field getters bypass the __index Lua frame. They are dispatched by
+// LOP_GETTABLEKS via global_State::udatadirectfields[tag]. Only fields that
+// read a primitive without allocation or side effects belong here; the
+// __index slow path still handles every other key.
+
+static void artboard_direct_width(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedArtboard*)udata)->artboard()->width());
+}
+
+static void artboard_direct_height(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedArtboard*)udata)->artboard()->height());
+}
+
+static void artboard_direct_frameOrigin(void* udata, void* result)
+{
+    lua_userdatadirectfield_setboolean(
+        result,
+        ((ScriptedArtboard*)udata)->artboard()->frameOrigin() ? 1 : 0);
+}
+
 static int artboard_index(lua_State* L)
 {
     int atom;
@@ -452,6 +478,67 @@ int ScriptedAnimation::setTime(std::string mode)
     m_animation->time(m_animation->animation()->globalToLocalSeconds(seconds));
     m_animation->apply();
     return 0;
+}
+
+static void node_direct_x(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedNode*)udata)->component()->x());
+}
+
+static void node_direct_y(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedNode*)udata)->component()->y());
+}
+
+static void node_direct_rotation(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedNode*)udata)->component()->rotation());
+}
+
+static void node_direct_scaleX(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedNode*)udata)->component()->scaleX());
+}
+
+static void node_direct_scaleY(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedNode*)udata)->component()->scaleY());
+}
+
+static void node_direct_position(void* udata, void* result)
+{
+    auto component = ((ScriptedNode*)udata)->component();
+    lua_userdatadirectfield_setvector(result,
+                                      component->x(),
+                                      component->y(),
+                                      0.0f
+#if LUA_VECTOR_SIZE == 4
+                                      ,
+                                      0.0f
+#endif
+    );
+}
+
+static void node_direct_scale(void* udata, void* result)
+{
+    auto component = ((ScriptedNode*)udata)->component();
+    lua_userdatadirectfield_setvector(result,
+                                      component->scaleX(),
+                                      component->scaleY(),
+                                      0.0f
+#if LUA_VECTOR_SIZE == 4
+                                      ,
+                                      0.0f
+#endif
+    );
 }
 
 static int node_index(lua_State* L)
@@ -740,6 +827,12 @@ static int node_namecall(lua_State* L)
     return 0;
 }
 
+static void animation_direct_duration(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedAnimation*)udata)->duration());
+}
+
 static int animation_index(lua_State* L)
 {
     int atom;
@@ -813,6 +906,19 @@ int luaopen_rive_artboards(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
 
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedArtboard::luaTag,
+                                       "width",
+                                       artboard_direct_width);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedArtboard::luaTag,
+                                       "height",
+                                       artboard_direct_height);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedArtboard::luaTag,
+                                       "frameOrigin",
+                                       artboard_direct_frameOrigin);
+
     lua_register_rive<ScriptedNode>(L);
 
     lua_pushcfunction(L, node_index, nullptr);
@@ -827,6 +933,35 @@ int luaopen_rive_artboards(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
 
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "x",
+                                       node_direct_x);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "y",
+                                       node_direct_y);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "rotation",
+                                       node_direct_rotation);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "scaleX",
+                                       node_direct_scaleX);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "scaleY",
+                                       node_direct_scaleY);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "position",
+                                       node_direct_position);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedNode::luaTag,
+                                       "scale",
+                                       node_direct_scale);
+
     lua_register_rive<ScriptedAnimation>(L);
     lua_pushcfunction(L, animation_index, nullptr);
     lua_setfield(L, -2, "__index");
@@ -834,6 +969,11 @@ int luaopen_rive_artboards(lua_State* L)
     lua_pushcfunction(L, animation_namecall, nullptr);
     lua_setfield(L, -2, "__namecall");
     lua_pop(L, 1); // pop the metatable
+
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedAnimation::luaTag,
+                                       "duration",
+                                       animation_direct_duration);
 
     return 0;
 }

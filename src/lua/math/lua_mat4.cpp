@@ -194,6 +194,17 @@ static int mat4_newindex_field(lua_State* L,
     return -1;
 }
 
+// Direct field getters for the "mRC" matrix-element names (m11..m44). The
+// slow path's strtol-based numeric-string fallback ('1'..'16') is still
+// reachable for callers that prefer the array-style form.
+template <int ColumnMajorIndex>
+static void mat4_direct_m(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedMat4*)udata)->value[ColumnMajorIndex]);
+}
+
 static int mat4_index(lua_State* L)
 {
     auto mat = lua_torive<ScriptedMat4>(L, 1);
@@ -396,6 +407,26 @@ int luaopen_rive_mat4(lua_State* L)
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop metatable
+
+    uint8_t tag = ScriptedMat4::luaTag;
+    // m[row][col] is 1-indexed; column-major storage means
+    // index = (col-1)*4 + (row-1).
+    lua_registeruserdatadirectfieldget(L, tag, "m11", mat4_direct_m<0>);
+    lua_registeruserdatadirectfieldget(L, tag, "m21", mat4_direct_m<1>);
+    lua_registeruserdatadirectfieldget(L, tag, "m31", mat4_direct_m<2>);
+    lua_registeruserdatadirectfieldget(L, tag, "m41", mat4_direct_m<3>);
+    lua_registeruserdatadirectfieldget(L, tag, "m12", mat4_direct_m<4>);
+    lua_registeruserdatadirectfieldget(L, tag, "m22", mat4_direct_m<5>);
+    lua_registeruserdatadirectfieldget(L, tag, "m32", mat4_direct_m<6>);
+    lua_registeruserdatadirectfieldget(L, tag, "m42", mat4_direct_m<7>);
+    lua_registeruserdatadirectfieldget(L, tag, "m13", mat4_direct_m<8>);
+    lua_registeruserdatadirectfieldget(L, tag, "m23", mat4_direct_m<9>);
+    lua_registeruserdatadirectfieldget(L, tag, "m33", mat4_direct_m<10>);
+    lua_registeruserdatadirectfieldget(L, tag, "m43", mat4_direct_m<11>);
+    lua_registeruserdatadirectfieldget(L, tag, "m14", mat4_direct_m<12>);
+    lua_registeruserdatadirectfieldget(L, tag, "m24", mat4_direct_m<13>);
+    lua_registeruserdatadirectfieldget(L, tag, "m34", mat4_direct_m<14>);
+    lua_registeruserdatadirectfieldget(L, tag, "m44", mat4_direct_m<15>);
     return 1;
 }
 

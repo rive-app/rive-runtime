@@ -167,6 +167,81 @@ static int scripted_invocation_namecall(lua_State* L)
     return 0;
 }
 
+static void keyboard_invocation_direct_key(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)(int)((ScriptedKeyboardInvocation*)udata)->m_key);
+}
+
+static void keyboard_invocation_direct_shift(void* udata, void* result)
+{
+    auto* k = (ScriptedKeyboardInvocation*)udata;
+    lua_userdatadirectfield_setboolean(
+        result,
+        (k->m_modifiers & KeyModifiers::shift) == KeyModifiers::shift ? 1 : 0);
+}
+
+static void keyboard_invocation_direct_control(void* udata, void* result)
+{
+    auto* k = (ScriptedKeyboardInvocation*)udata;
+    lua_userdatadirectfield_setboolean(
+        result,
+        (k->m_modifiers & KeyModifiers::ctrl) == KeyModifiers::ctrl ? 1 : 0);
+}
+
+static void keyboard_invocation_direct_alt(void* udata, void* result)
+{
+    auto* k = (ScriptedKeyboardInvocation*)udata;
+    lua_userdatadirectfield_setboolean(
+        result,
+        (k->m_modifiers & KeyModifiers::alt) == KeyModifiers::alt ? 1 : 0);
+}
+
+static void keyboard_invocation_direct_meta(void* udata, void* result)
+{
+    auto* k = (ScriptedKeyboardInvocation*)udata;
+    lua_userdatadirectfield_setboolean(
+        result,
+        (k->m_modifiers & KeyModifiers::meta) == KeyModifiers::meta ? 1 : 0);
+}
+
+static void focus_invocation_direct_isFocus(void* udata, void* result)
+{
+    lua_userdatadirectfield_setboolean(
+        result,
+        ((ScriptedFocusInvocation*)udata)->m_isFocus ? 1 : 0);
+}
+
+static void reported_event_invocation_direct_delaySeconds(void* udata,
+                                                          void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedReportedEventInvocation*)udata)->m_delaySeconds);
+}
+
+static void gamepad_invocation_direct_deviceId(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGamepadInvocation*)udata)->m_deviceId);
+}
+
+static void gamepad_invocation_direct_buttonMask(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGamepadInvocation*)udata)->m_buttonMask);
+}
+
+static void gamepad_invocation_direct_axis0(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedGamepadInvocation*)udata)->m_axis0);
+}
+
 static int keyboard_invocation_index(lua_State* L)
 {
     int atom;
@@ -342,6 +417,30 @@ void rive_lua_register_listener_invocation_types(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
 
+    {
+        uint8_t tag = ScriptedKeyboardInvocation::luaTag;
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "key",
+                                           keyboard_invocation_direct_key);
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "shift",
+                                           keyboard_invocation_direct_shift);
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "control",
+                                           keyboard_invocation_direct_control);
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "alt",
+                                           keyboard_invocation_direct_alt);
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "meta",
+                                           keyboard_invocation_direct_meta);
+    }
+
     lua_register_rive<ScriptedTextInputInvocation>(L);
     lua_pushcfunction(L, text_input_invocation_index, nullptr);
     lua_setfield(L, -2, "__index");
@@ -354,11 +453,22 @@ void rive_lua_register_listener_invocation_types(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
 
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedFocusInvocation::luaTag,
+                                       "isFocus",
+                                       focus_invocation_direct_isFocus);
+
     lua_register_rive<ScriptedReportedEventInvocation>(L);
     lua_pushcfunction(L, reported_event_invocation_index, nullptr);
     lua_setfield(L, -2, "__index");
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
+
+    lua_registeruserdatadirectfieldget(
+        L,
+        ScriptedReportedEventInvocation::luaTag,
+        "delaySeconds",
+        reported_event_invocation_direct_delaySeconds);
 
     lua_register_rive<ScriptedViewModelChangeInvocation>(L);
     lua_setreadonly(L, -1, true);
@@ -369,6 +479,23 @@ void rive_lua_register_listener_invocation_types(lua_State* L)
     lua_setfield(L, -2, "__index");
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
+
+    {
+        uint8_t tag = ScriptedGamepadInvocation::luaTag;
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "deviceId",
+                                           gamepad_invocation_direct_deviceId);
+        lua_registeruserdatadirectfieldget(
+            L,
+            tag,
+            "buttonMask",
+            gamepad_invocation_direct_buttonMask);
+        lua_registeruserdatadirectfieldget(L,
+                                           tag,
+                                           "axis0",
+                                           gamepad_invocation_direct_axis0);
+    }
 
     lua_register_rive<ScriptedNoneInvocation>(L);
     lua_setreadonly(L, -1, true);
