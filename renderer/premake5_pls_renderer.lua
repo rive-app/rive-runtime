@@ -418,9 +418,16 @@ do
         files({ 'src/metal/metal_nop.cpp' })
     end
 
+    -- decoders/include must be on the include path unconditionally —
+    -- renderer sources reference rive/decoders/astc_footprints.hpp even on
+    -- --no-rive-decoders builds. The header is pure inline (no link dep)
+    -- so exposing it costs nothing. Reset filter so this applies
+    -- project-wide, not just under the previous `nop-obj-c` filter.
+    filter({})
+    includedirs({ '../decoders/include' })
+
     filter({ 'options:not no-rive-decoders' })
     do
-        includedirs({ '../decoders/include' })
         defines({ 'RIVE_DECODERS' })
     end
 
@@ -433,6 +440,24 @@ do
     filter({ 'options:not no-rive-decoders', 'options:not no_rive_ktx2' })
     do
         defines({ 'RIVE_KTX2' })
+    end
+
+    -- Mirror per-family decoder flags into the renderer so the
+    -- `#ifdef RIVE_*_DECODER` test-path branches in render_context.cpp
+    -- compile when the decoder lib was built with these flags.
+    filter({ 'options:with_rive_bc_decoder' })
+    do
+        defines({ 'RIVE_BC_DECODER' })
+    end
+
+    filter({ 'options:with_rive_astc_decoder' })
+    do
+        defines({ 'RIVE_ASTC_DECODER' })
+    end
+
+    filter({ 'options:with_rive_etc_decoder' })
+    do
+        defines({ 'RIVE_ETC_DECODER' })
     end
 
     filter('system:windows')

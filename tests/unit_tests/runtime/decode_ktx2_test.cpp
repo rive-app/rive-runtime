@@ -16,7 +16,7 @@
 //   ...mip data
 namespace
 {
-constexpr uint8_t kKtx2Identifier[12] = {
+constexpr uint8_t Ktx2Identifier[12] = {
     0xAB,
     0x4B,
     0x54,
@@ -48,8 +48,8 @@ std::vector<uint8_t> buildSkeletonKtx2(uint32_t vkFormat,
 {
     std::vector<uint8_t> buf;
     buf.insert(buf.end(),
-               kKtx2Identifier,
-               kKtx2Identifier + sizeof(kKtx2Identifier));
+               Ktx2Identifier,
+               Ktx2Identifier + sizeof(Ktx2Identifier));
 
     appendLE<uint32_t>(buf, vkFormat);
     appendLE<uint32_t>(buf, 1); // typeSize

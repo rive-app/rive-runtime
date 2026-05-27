@@ -229,9 +229,20 @@ public:
     void* nativeHandle() const override { return (void*)vkImage(); }
 
     // Deferred mechanism for uploading image data without a command buffer.
+    //
+    // Single-region upload: one VkBufferImageCopy covering mip 0 in full.
+    // If the texture has more than one mip level, generateMipmaps() is
+    // called on apply (suitable for the PNG/JPEG path).
     void scheduleUpload(const void* imageDataRGBAPremul,
                         size_t imageDataSizeInBytes);
     void scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul);
+
+    // Multi-region upload: caller hands over a staging buffer and the full
+    // list of VkBufferImageCopy regions (typically one per mip level).
+    // No automatic mipmap generation — the caller is responsible for
+    // supplying every level that exists in the texture.
+    void scheduleUpload(rcp<vkutil::Buffer> stagingBuffer,
+                        std::vector<VkBufferImageCopy> regions);
 
     void barrier(VkCommandBuffer,
                  const ImageAccess& dstAccess,
@@ -315,6 +326,8 @@ protected:
     ImageAccess m_lastAccess;
 
     rcp<vkutil::Buffer> m_imageUploadBuffer;
+    // When non-empty, overrides the default single-region/auto-mip path.
+    std::vector<VkBufferImageCopy> m_imageUploadRegions;
 
     // Simple mechanism for caching and reusing a descriptor set for this
     // texture within a frame.

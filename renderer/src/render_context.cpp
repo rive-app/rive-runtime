@@ -173,14 +173,28 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
         encodedBytes[0] == 0xAB && encodedBytes[1] == 0x4B &&
         encodedBytes[2] == 0x54 && encodedBytes[3] == 0x58)
     {
+        const Ktx2HwSupport hwSupport = {
+            platformFeatures().supportsTextureCompressionBC,
+            platformFeatures().supportsTextureCompressionASTC,
+            platformFeatures().supportsTextureCompressionETC2,
+        };
         Ktx2DecodeResult ktx2;
-        if (DecodeKtx2(encodedBytes.data(), encodedBytes.size(), ktx2))
+        if (DecodeKtx2(encodedBytes.data(),
+                       encodedBytes.size(),
+                       ktx2,
+                       hwSupport))
         {
+            // KTX2 provides the full level chain (or just level 0). The
+            // backends never auto-generate; whatever the file ships with is
+            // exactly what gets uploaded.
             texture = m_impl->makeImageTexture(ktx2.pixelWidth,
                                                ktx2.pixelHeight,
                                                ktx2.levelCount,
                                                ktx2.format,
-                                               ktx2.blocks.data());
+                                               ktx2.blocks.data(),
+                                               ktx2.blockWidth,
+                                               ktx2.blockHeight,
+                                               ktx2.srgb);
         }
     }
 #endif
@@ -203,7 +217,11 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
                                                height,
                                                mipLevelCount,
                                                GPUTextureFormat::rgba32,
-                                               bitmap->bytes());
+                                               bitmap->bytes(),
+                                               /*blockWidth=*/1,
+                                               /*blockHeight=*/1,
+                                               /*srgb=*/false,
+                                               /*generateRemainingMips=*/true);
         }
     }
 #endif

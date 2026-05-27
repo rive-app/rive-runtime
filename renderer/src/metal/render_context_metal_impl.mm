@@ -4,6 +4,8 @@
 
 #include "rive/renderer/metal/render_context_metal_impl.h"
 
+#include "rive/decoders/astc_footprints.hpp"
+
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
 #ifdef RIVE_CANVAS
@@ -829,12 +831,18 @@ public:
                      uint32_t width,
                      uint32_t height,
                      uint32_t mipLevelCount,
-                     const uint8_t imageDataRGBAPremul[]) :
-        Texture(width, height)
+                     const uint8_t imageData[],
+                     MTLPixelFormat pixelFormat = MTLPixelFormatRGBA8Unorm,
+                     uint8_t blockWidth = 1,
+                     uint8_t blockHeight = 1,
+                     uint32_t bytesPerBlock = 4,
+                     bool generateRemainingMips = false) :
+        Texture(width, height),
+        m_mipsDirty(generateRemainingMips && mipLevelCount > 1)
     {
         // Create the texture.
         MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-        desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+        desc.pixelFormat = pixelFormat;
         desc.width = width;
         desc.height = height;
         desc.mipmapLevelCount = mipLevelCount;
@@ -842,12 +850,29 @@ public:
         desc.textureType = MTLTextureType2D;
         m_texture = [gpu newTextureWithDescriptor:desc];
 
-        // Specify the top-level image in the mipmap chain.
-        MTLRegion region = MTLRegionMake2D(0, 0, width, height);
-        [m_texture replaceRegion:region
-                     mipmapLevel:0
-                       withBytes:imageDataRGBAPremul
-                     bytesPerRow:width * 4];
+        // Upload mip 0 only when the caller asks for auto-mipgen
+        // (generateRemainingMips=true). Otherwise upload every level the
+        // texture was created with from the caller-supplied tight blob.
+        const uint32_t levelsToUpload =
+            generateRemainingMips ? 1u : mipLevelCount;
+        const uint8_t* src = imageData;
+        for (uint32_t i = 0; i < levelsToUpload; ++i)
+        {
+            const uint32_t logW = std::max<uint32_t>(1u, width >> i);
+            const uint32_t logH = std::max<uint32_t>(1u, height >> i);
+            const uint32_t blocksX = (logW + blockWidth - 1) / blockWidth;
+            const uint32_t blocksY = (logH + blockHeight - 1) / blockHeight;
+            const NSUInteger bytesPerRow =
+                static_cast<NSUInteger>(blocksX) * bytesPerBlock;
+            const size_t levelBytes =
+                static_cast<size_t>(bytesPerRow) * blocksY;
+            MTLRegion region = MTLRegionMake2D(0, 0, logW, logH);
+            [m_texture replaceRegion:region
+                         mipmapLevel:i
+                           withBytes:src
+                         bytesPerRow:bytesPerRow];
+            src += levelBytes;
+        }
     }
 
     void ensureMipmaps(id<MTLCommandBuffer> commandBuffer) const
@@ -881,16 +906,67 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageData[],
+    uint8_t blockWidth,
+    uint8_t blockHeight,
+    [[maybe_unused]] bool srgb,
+    bool generateRemainingMips)
 {
-    if (format != GPUTextureFormat::rgba32)
-    {
-        assert(!"unsupported format");
-        return nullptr;
-    }
+    MTLPixelFormat pixelFormat = MTLPixelFormatRGBA8Unorm;
+    uint32_t bytesPerBlock = 4;
+    bool isCompressed = false;
 
-    return make_rcp<TextureMetalImpl>(
-        m_gpu, width, height, mipLevelCount, imageDataRGBAPremul);
+    switch (format)
+    {
+        case GPUTextureFormat::rgba32:
+            assert(blockWidth == 1 && blockHeight == 1);
+            break;
+#if !TARGET_OS_IPHONE
+        case GPUTextureFormat::bc7:
+            pixelFormat = MTLPixelFormatBC7_RGBAUnorm;
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+#endif
+        case GPUTextureFormat::astc:
+        {
+            // MTLPixelFormat ASTC LDR enums are sequential in Vulkan/GL
+            // footprint order, starting at MTLPixelFormatASTC_4x4_LDR.
+            const int idx = rive::astcFootprintIndex(blockWidth, blockHeight);
+            if (idx < 0)
+            {
+                assert(!"unsupported ASTC block footprint");
+                return nullptr;
+            }
+            pixelFormat =
+                static_cast<MTLPixelFormat>(MTLPixelFormatASTC_4x4_LDR + idx);
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+        }
+        case GPUTextureFormat::etc2:
+            // ETC2 RGBA8: 8 bytes EAC alpha + 8 bytes ETC2 RGB = 16/block.
+            pixelFormat = MTLPixelFormatEAC_RGBA8;
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+        default:
+            assert(!"unsupported format");
+            return nullptr;
+    }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "generateMipmapsForTexture is undefined on compressed formats");
+
+    return make_rcp<TextureMetalImpl>(m_gpu,
+                                      width,
+                                      height,
+                                      mipLevelCount,
+                                      imageData,
+                                      pixelFormat,
+                                      blockWidth,
+                                      blockHeight,
+                                      bytesPerBlock,
+                                      generateRemainingMips);
 }
 
 #ifdef RIVE_CANVAS

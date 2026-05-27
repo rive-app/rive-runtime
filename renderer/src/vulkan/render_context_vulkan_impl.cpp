@@ -4,6 +4,8 @@
 
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 
+#include "rive/decoders/astc_footprints.hpp"
+
 #include "vulkan_shaders.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
@@ -92,22 +94,112 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageData[],
+    uint8_t blockWidth,
+    uint8_t blockHeight,
+    [[maybe_unused]] bool srgb,
+    bool generateRemainingMips)
 {
-    if (format != GPUTextureFormat::rgba32)
-    {
-        assert(!"unsupported format");
-        return nullptr;
-    }
+    // Sampler path treats texels as sRGB-encoded bytes (matches PNG path's
+    // GL_RGBA8 / VK_FORMAT_R8G8B8A8_UNORM upload). Don't pick the GPU sRGB
+    // view here — would auto-linearise on sample and double-darken.
+    VkFormat vkFormat;
+    uint32_t bytesPerBlock = 16;
+    [[maybe_unused]] bool isCompressed = false;
 
-    auto texture = m_vk->makeTexture2D(
+    switch (format)
+    {
+        case GPUTextureFormat::rgba32:
+            vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+            assert(blockWidth == 1 && blockHeight == 1);
+            bytesPerBlock = 4;
+            break;
+        case GPUTextureFormat::bc7:
+            vkFormat = VK_FORMAT_BC7_UNORM_BLOCK;
+            isCompressed = true;
+            break;
+        case GPUTextureFormat::etc2:
+            // ETC2 RGBA8: 8 bytes EAC alpha + 8 bytes ETC2 RGB = 16/block.
+            vkFormat = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+            isCompressed = true;
+            break;
+        case GPUTextureFormat::astc:
         {
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent = {width, height},
-            .mipLevels = mipLevelCount,
-        },
-        "RenderContext imageTexture");
-    texture->scheduleUpload(imageDataRGBAPremul, height * width * 4);
+            const int idx = rive::astcFootprintIndex(blockWidth, blockHeight);
+            if (idx < 0)
+            {
+                assert(!"unsupported ASTC block footprint");
+                return nullptr;
+            }
+
+            vkFormat =
+                static_cast<VkFormat>(VK_FORMAT_ASTC_4x4_UNORM_BLOCK + 2 * idx);
+            isCompressed = true;
+            break;
+        }
+        default:
+            assert(!"unsupported format");
+            return nullptr;
+    }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "vkCmdBlitImage mipgen is undefined on compressed formats");
+
+    auto texture = m_vk->makeTexture2D({.format = vkFormat,
+                                        .extent = {width, height},
+                                        .mipLevels = mipLevelCount},
+                                       "RenderContext imageTexture");
+
+    if (imageData == nullptr)
+    {
+        return texture;
+    }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "vkCmdBlitImage mipgen is undefined on compressed formats");
+
+    if (generateRemainingMips)
+    {
+        // Upload mip 0 only; vkutil's single-region scheduleUpload calls
+        // generateMipmaps to fill the rest.
+        const size_t mip0Bytes =
+            static_cast<size_t>(width) * height * bytesPerBlock;
+        texture->scheduleUpload(imageData, mip0Bytes);
+        return texture;
+    }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "vkCmdBlitImage mipgen is undefined on compressed formats");
+
+    // Multi-mip: pre-compute per-level regions in the source blob.
+    std::vector<VkBufferImageCopy> regions;
+    regions.reserve(mipLevelCount);
+    size_t srcOffset = 0;
+    for (uint32_t i = 0; i < mipLevelCount; ++i)
+    {
+        const uint32_t logW = std::max<uint32_t>(1u, width >> i);
+        const uint32_t logH = std::max<uint32_t>(1u, height >> i);
+        const uint32_t blocksX = (logW + blockWidth - 1) / blockWidth;
+        const uint32_t blocksY = (logH + blockHeight - 1) / blockHeight;
+        const size_t levelBytes =
+            static_cast<size_t>(blocksX) * blocksY * bytesPerBlock;
+        regions.push_back({.bufferOffset = static_cast<VkDeviceSize>(srcOffset),
+                           .imageSubresource =
+                               {
+                                   .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                   .mipLevel = i,
+                                   .layerCount = 1,
+                               },
+                           .imageExtent = {logW, logH, 1}});
+        srcOffset += levelBytes;
+    }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "vkCmdBlitImage mipgen is undefined on compressed formats");
+
+    // Stage all levels into one buffer, then hand the region list over.
+    rcp<vkutil::Buffer> staging = m_vk->makeBuffer(
+        {.size = srcOffset, .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT},
+        vkutil::Mappability::writeOnly);
+    std::memcpy(staging->contents(), imageData, srcOffset);
+    staging->flushContents();
+    texture->scheduleUpload(std::move(staging), std::move(regions));
     return texture;
 }
 

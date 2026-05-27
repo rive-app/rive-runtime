@@ -54,7 +54,11 @@ public:
                                   uint32_t height,
                                   uint32_t mipLevelCount,
                                   GPUTextureFormat format,
-                                  const uint8_t imageDataRGBAPremul[]) override;
+                                  const uint8_t imageData[],
+                                  uint8_t blockWidth = 1,
+                                  uint8_t blockHeight = 1,
+                                  bool srgb = false,
+                                  bool generateRemainingMips = false) override;
 
     // Takes ownership of textureID and responsibility for deleting it.
     rcp<Texture> adoptImageTexture(uint32_t width,

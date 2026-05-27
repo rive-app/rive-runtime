@@ -909,7 +909,8 @@ public:
                    UINT height,
                    UINT mipLevelCount,
                    GPUTextureFormat format,
-                   const uint8_t imageDataRGBAPremul[]) :
+                   const uint8_t imageDataRGBAPremul[],
+                   bool generateRemainingMips) :
         Texture(width, height)
     {
         if (format == GPUTextureFormat::bc7)
@@ -955,29 +956,48 @@ public:
         }
         else if (format == GPUTextureFormat::rgba32)
         {
+            // GENERATE_MIPS flag + RTV binding are only needed when the
+            // GPU is going to fill in the chain. For the KTX2-supplied
+            // chain (caller-provided mips) it's pure overhead.
+            const UINT miscFlags =
+                generateRemainingMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0u;
+            const UINT bindFlags =
+                generateRemainingMips
+                    ? (D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET)
+                    : D3D11_BIND_SHADER_RESOURCE;
             m_texture = renderContextImpl->makeSimple2DTexture(
                 DXGI_FORMAT_R8G8B8A8_UNORM,
                 width,
                 height,
                 mipLevelCount,
-                D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-                D3D11_RESOURCE_MISC_GENERATE_MIPS);
+                bindFlags,
+                miscFlags);
 
-            // Specify the top-level image in the mipmap chain.
-            D3D11_BOX box;
-            box.left = 0;
-            box.right = width;
-            box.top = 0;
-            box.bottom = height;
-            box.front = 0;
-            box.back = 1;
-            renderContextImpl->gpuContext()->UpdateSubresource(
-                m_texture.Get(),
-                0,
-                &box,
-                imageDataRGBAPremul,
-                width * 4,
-                0);
+            const uint8_t* src = imageDataRGBAPremul;
+            const UINT levelsToUpload =
+                generateRemainingMips ? 1u : mipLevelCount;
+            UINT W = width;
+            UINT H = height;
+            for (UINT i = 0; i < levelsToUpload; ++i)
+            {
+                D3D11_BOX box;
+                box.left = 0;
+                box.right = W;
+                box.top = 0;
+                box.bottom = H;
+                box.front = 0;
+                box.back = 1;
+                renderContextImpl->gpuContext()->UpdateSubresource(
+                    m_texture.Get(),
+                    i,
+                    &box,
+                    src,
+                    W * 4,
+                    0);
+                src += static_cast<size_t>(W) * H * 4;
+                W = std::max<UINT>(1u, W >> 1);
+                H = std::max<UINT>(1u, H >> 1);
+            }
         }
         else
         {
@@ -990,8 +1010,11 @@ public:
             NULL,
             m_srv.ReleaseAndGetAddressOf()));
 
-        if (format == GPUTextureFormat::rgba32)
+        if (format == GPUTextureFormat::rgba32 && generateRemainingMips &&
+            mipLevelCount > 1)
+        {
             renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
+        }
     }
 
     ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
@@ -1014,14 +1037,19 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageDataRGBAPremul[],
+    uint8_t /*blockWidth*/,
+    uint8_t /*blockHeight*/,
+    bool /*srgb*/,
+    bool generateRemainingMips)
 {
     return make_rcp<TextureD3DImpl>(this,
                                     width,
                                     height,
                                     mipLevelCount,
                                     format,
-                                    imageDataRGBAPremul);
+                                    imageDataRGBAPremul,
+                                    generateRemainingMips);
 }
 
 rcp<Texture> RenderContextD3DImpl::adoptImageTexture(

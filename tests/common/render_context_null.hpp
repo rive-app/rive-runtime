@@ -38,7 +38,11 @@ private:
         uint32_t height,
         uint32_t mipLevelCount,
         rive::GPUTextureFormat format,
-        const uint8_t imageDataRGBA[]) override;
+        const uint8_t imageData[],
+        uint8_t blockWidth = 1,
+        uint8_t blockHeight = 1,
+        bool srgb = false,
+        bool generateRemainingMips = false) override;
 
     std::unique_ptr<rive::gpu::BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) override;

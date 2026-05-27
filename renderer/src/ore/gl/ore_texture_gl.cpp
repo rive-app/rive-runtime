@@ -71,19 +71,12 @@ static GLenum oreFormatToGLInternal(TextureFormat fmt)
             return GL_COMPRESSED_RGB8_ETC2;
         case TextureFormat::etc2rgba8:
             return GL_COMPRESSED_RGBA8_ETC2_EAC;
-#ifdef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
         case TextureFormat::astc4x4:
             return GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
         case TextureFormat::astc6x6:
             return GL_COMPRESSED_RGBA_ASTC_6x6_KHR;
         case TextureFormat::astc8x8:
             return GL_COMPRESSED_RGBA_ASTC_8x8_KHR;
-#else
-        case TextureFormat::astc4x4:
-        case TextureFormat::astc6x6:
-        case TextureFormat::astc8x8:
-            RIVE_UNREACHABLE();
-#endif
     }
     RIVE_UNREACHABLE();
 }

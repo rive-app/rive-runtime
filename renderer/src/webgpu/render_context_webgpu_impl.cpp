@@ -4,6 +4,8 @@
 
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
+#include "rive/decoders/astc_footprints.hpp"
+
 #include "rive/renderer/draw.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
@@ -2230,22 +2232,69 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageData[],
+    uint8_t blockWidth,
+    uint8_t blockHeight,
+    bool /*srgb*/,
+    bool generateRemainingMips)
 {
-    if (format != GPUTextureFormat::rgba32)
+    wgpu::TextureFormat wgpuFormat = wgpu::TextureFormat::RGBA8Unorm;
+    uint32_t bytesPerBlock = 4;
+
+    bool isCompressed = false;
+
+    switch (format)
     {
-        assert(!"unsupported format");
-        return nullptr;
+        case GPUTextureFormat::rgba32:
+            assert(blockWidth == 1 && blockHeight == 1);
+            break;
+        case GPUTextureFormat::bc7:
+            wgpuFormat = wgpu::TextureFormat::BC7RGBAUnorm;
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+        case GPUTextureFormat::astc:
+        {
+            // wgpu ASTC enums are sequential in spec footprint order
+            // starting at ASTC4x4Unorm. SRGB variant lives one entry later.
+            const int idx = rive::astcFootprintIndex(blockWidth, blockHeight);
+            if (idx < 0)
+            {
+                assert(!"unsupported ASTC block footprint");
+                return nullptr;
+            }
+            wgpuFormat = static_cast<wgpu::TextureFormat>(
+                static_cast<uint32_t>(wgpu::TextureFormat::ASTC4x4Unorm) +
+                2 * idx);
+
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+        }
+        case GPUTextureFormat::etc2:
+
+            wgpuFormat = wgpu::TextureFormat::ETC2RGBA8Unorm;
+            bytesPerBlock = 16;
+
+            break;
+        default:
+            assert(!"unsupported format");
+            return nullptr;
     }
+
+    assert(!(generateRemainingMips && isCompressed) &&
+           "WebGPU mip generation is undefined on compressed formats");
+
     wgpu::TextureDescriptor textureDesc = {
         .usage =
             wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
         .dimension = wgpu::TextureDimension::e2D,
         .size = {width, height},
-        .format = wgpu::TextureFormat::RGBA8Unorm,
+        .format = wgpuFormat,
+
         .mipLevelCount = mipLevelCount,
     };
-    if (mipLevelCount > 1)
+    if (generateRemainingMips && mipLevelCount > 1)
     {
 #ifdef RIVE_WAGYU
         // Wagyu generates mipmaps with copies.
@@ -2258,16 +2307,30 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
 
     wgpu::Texture texture = m_device.CreateTexture(&textureDesc);
 
-    wgpu::TexelCopyTextureInfo dest = {.texture = texture};
-    wgpu::TexelCopyBufferLayout layout = {.bytesPerRow = width * 4};
-    wgpu::Extent3D extent = {width, height};
-    m_queue.WriteTexture(&dest,
-                         imageDataRGBAPremul,
-                         height * width * 4,
-                         &layout,
-                         &extent);
+    // Upload mip 0 only when caller wants auto-mipgen; otherwise upload all.
+    const uint32_t levelsToUpload = generateRemainingMips ? 1u : mipLevelCount;
+    size_t srcOffset = 0;
+    for (uint32_t i = 0; i < levelsToUpload; ++i)
+    {
+        const uint32_t logW = std::max<uint32_t>(1u, width >> i);
+        const uint32_t logH = std::max<uint32_t>(1u, height >> i);
+        const uint32_t blocksX = (logW + blockWidth - 1) / blockWidth;
+        const uint32_t blocksY = (logH + blockHeight - 1) / blockHeight;
+        const uint32_t bytesPerRow = blocksX * bytesPerBlock;
+        const size_t levelBytes = static_cast<size_t>(bytesPerRow) * blocksY;
 
-    if (mipLevelCount > 1)
+        wgpu::TexelCopyTextureInfo dest = {.texture = texture, .mipLevel = i};
+        wgpu::TexelCopyBufferLayout layout = {.bytesPerRow = bytesPerRow};
+        wgpu::Extent3D extent = {logW, logH};
+        m_queue.WriteTexture(&dest,
+                             imageData + srcOffset,
+                             levelBytes,
+                             &layout,
+                             &extent);
+        srcOffset += levelBytes;
+    }
+
+    if (generateRemainingMips && mipLevelCount > 1)
     {
         generateMipmaps(texture);
     }

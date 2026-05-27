@@ -52,12 +52,26 @@ public:
 
     // this is called in the case of the default Bitmap class being used to
     // decode images so that it can be converted into a backend specific image.
+    // For compressed `format`s, `blockWidth`/`blockHeight` give the format's
+    // block footprint (e.g. 4x4 for BC7 and ASTC 4x4) and `srgb` selects the
+    // sRGB variant of the format. For rgba32 these are ignored.
+    //
+    // `mipLevelCount` is the number of stored mip levels in `imageData`,
+    // packed largest-first with no inter-level padding. When
+    // `generateRemainingMips` is true (PNG/JPEG path), only mip 0 bytes are
+    // expected in `imageData` and the backend fills the remaining levels
+    // via GPU blits. When false (KTX2 path), the caller has supplied the
+    // full chain and the backend uploads it verbatim.
     virtual rcp<Texture> makeImageTexture(
         uint32_t width,
         uint32_t height,
         uint32_t mipLevelCount,
         GPUTextureFormat format,
-        const uint8_t imageDataRGBAPremul[]) = 0;
+        const uint8_t imageData[],
+        uint8_t blockWidth = 1,
+        uint8_t blockHeight = 1,
+        bool srgb = false,
+        bool generateRemainingMips = false) = 0;
 
 #ifdef RIVE_CANVAS
     // Creates a RenderCanvas: a GPU texture usable as both a render target
