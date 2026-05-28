@@ -5,6 +5,7 @@
 #include "rive/input/focus_manager.hpp"
 #include "rive/artboard.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/math/aabb.hpp"
 #include <algorithm>
@@ -626,6 +627,23 @@ bool FocusManager::textInput(const std::string& text)
     while (node != nullptr)
     {
         if (node->textInput(text))
+        {
+            return true;
+        }
+        node = node->parent();
+    }
+    return false;
+}
+
+bool FocusManager::gamepadDispatch(
+    const ListenerInvocation& invocation,
+    ScriptedDrawable** outDispatchedScriptedDrawable)
+{
+    dropFocusIfFocusTargetHidden();
+    FocusNode* node = m_primaryFocus.get();
+    while (node != nullptr)
+    {
+        if (node->gamepadDispatch(invocation, outDispatchedScriptedDrawable))
         {
             return true;
         }

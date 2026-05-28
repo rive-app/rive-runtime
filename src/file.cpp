@@ -34,6 +34,7 @@
 #include "rive/importers/state_transition_importer.hpp"
 #include "rive/importers/state_machine_layer_component_importer.hpp"
 #include "rive/importers/transition_viewmodel_condition_importer.hpp"
+#include "rive/importers/listener_input_type_gamepad_importer.hpp"
 #include "rive/importers/listener_input_type_keyboard_importer.hpp"
 #include "rive/importers/listener_input_type_semantic_importer.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
@@ -479,6 +480,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         object->as<ListenerInputTypeKeyboard>());
                 stackType = ListenerInputTypeKeyboardBase::typeKey;
                 break;
+            case ListenerInputTypeGamepadBase::typeKey:
+                stackObject =
+                    std::make_unique<ListenerInputTypeGamepadImporter>(
+                        object->as<ListenerInputTypeGamepad>());
+                stackType = ListenerInputTypeGamepadBase::typeKey;
+                break;
             case ListenerInputTypeSemanticBase::typeKey:
                 stackObject =
                     std::make_unique<ListenerInputTypeSemanticImporter>(
@@ -757,6 +764,11 @@ void File::cleanupScriptingVM()
         }
     }
 #endif
+    // ScriptedObjects only hold a raw ScriptingVM* (see
+    // ScriptingVM::registerScriptedObject), so dropping our rcp here is the
+    // only thing keeping the VM alive from File's side. If Dart still holds
+    // its own rcp<ScriptingVM> (editor flow), the VM and lua_State stay
+    // alive until Dart releases too. ~ScriptingVM handles lua_close.
     m_scriptingVM = nullptr;
 }
 #endif

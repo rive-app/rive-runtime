@@ -5,6 +5,7 @@
 #include "rive/advancing_component.hpp"
 #include "rive/text/raw_text_input.hpp"
 #include "rive/text/text_interface.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/input/focusable.hpp"
 #include <cmath>
 
@@ -49,6 +50,9 @@ public:
                   bool isPressed,
                   bool isRepeat) override;
     bool textInput(const std::string& text) override;
+    bool gamepadDispatch(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
     void focused() override;
     void blurred() override;
     bool worldPosition(Vec2D& outPosition) override;

@@ -257,6 +257,10 @@ bool ScriptedObject::tryLuaUserInit(lua_State* L)
         disposeScriptedContext();
         // Stack: [self, status]
         rive_lua_pop(L, 2);
+        if (m_vm != nullptr)
+        {
+            m_vm->unregisterScriptedObject(this);
+        }
         m_vm = nullptr;
         m_self = 0;
         return false;
@@ -266,6 +270,10 @@ bool ScriptedObject::tryLuaUserInit(lua_State* L)
         lua_unref(L, m_self);
         disposeScriptedContext();
         rive_lua_pop(L, 2);
+        if (m_vm != nullptr)
+        {
+            m_vm->unregisterScriptedObject(this);
+        }
         m_vm = nullptr;
         m_self = 0;
         return false;
@@ -285,11 +293,7 @@ bool ScriptedObject::ensureScriptInitialized(ScriptingVM* vm)
     {
         return false;
     }
-#if defined(WITH_RIVE_TOOLS)
-    if (m_self != 0 && m_vm.get() == vm)
-#else
     if (m_self != 0 && m_vm == vm)
-#endif
     {
         rive_lua_pop(L, 1);
         return true;
@@ -305,6 +309,7 @@ bool ScriptedObject::ensureScriptInitialized(ScriptingVM* vm)
 
         disposeTrackedProperties();
         disposeScriptedContext();
+        m_vm->unregisterScriptedObject(this);
     }
     m_userLuaInitDone = false;
 
@@ -358,11 +363,11 @@ bool ScriptedObject::ensureScriptInitialized(ScriptingVM* vm)
         return false;
     }
     m_self = lua_ref(L, -1);
-#ifdef WITH_RIVE_TOOLS
-    m_vm = ref_rcp(vm);
-#else
     m_vm = vm;
-#endif
+    if (vm != nullptr)
+    {
+        vm->registerScriptedObject(this);
+    }
     rive_lua_pop(L, 1);
     return true;
 }
@@ -464,7 +469,11 @@ void ScriptedObject::scriptDispose()
         lua_unref(L, m_self);
         disposeScriptedContext();
     }
-    m_vm = nullptr;
+    if (m_vm != nullptr)
+    {
+        m_vm->unregisterScriptedObject(this);
+        m_vm = nullptr;
+    }
     m_self = 0;
     m_userLuaInitDone = false;
 }

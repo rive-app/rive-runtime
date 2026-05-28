@@ -2,7 +2,9 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/file.hpp"
 #include "rive/artboard.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/input/focus_manager.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/node.hpp"
@@ -134,6 +136,50 @@ static int apply_pointer_event(lua_State* L, int atom)
     return 1;
 }
 
+static int apply_gamepad_event(lua_State* L, int atom)
+{
+    auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
+    auto result = 0;
+    auto stateMachine = scriptedArtboard->stateMachine();
+    if (stateMachine)
+    {
+        auto dispatch = [&](const ListenerInvocation& invocation) {
+            ScriptedDrawable* dispatched = nullptr;
+            (void)stateMachine->focusManager()->gamepadDispatch(invocation,
+                                                                &dispatched);
+            result = (int)stateMachine->broadcastGamepadToScriptedDrawables(
+                invocation,
+                dispatched);
+        };
+        switch (atom)
+        {
+            case (int)LuaAtoms::gamepadConnected:
+            {
+                auto* connected = lua_torive<ScriptedGamepadConnected>(L, 2);
+                dispatch(ListenerInvocation::gamepadConnected(
+                    connected->m_snapshot));
+                break;
+            }
+            case (int)LuaAtoms::gamepadEvent:
+            {
+                auto* event = lua_torive<ScriptedGamepadEvent>(L, 2);
+                dispatch(ListenerInvocation::gamepadEvent(event->m_data));
+                break;
+            }
+            case (int)LuaAtoms::gamepadDisconnected:
+            {
+                auto* disconnected =
+                    lua_torive<ScriptedGamepadDisconnected>(L, 2);
+                dispatch(ListenerInvocation::gamepadDisconnected(
+                    disconnected->m_deviceId));
+                break;
+            }
+        }
+    }
+    lua_pushinteger(L, result);
+    return 1;
+}
+
 static int artboard_advance(lua_State* L)
 {
     auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
@@ -232,6 +278,12 @@ static int artboard_namecall(lua_State* L)
             case (int)LuaAtoms::pointerExit:
             {
                 return apply_pointer_event(L, atom);
+            }
+            case (int)LuaAtoms::gamepadEvent:
+            case (int)LuaAtoms::gamepadConnected:
+            case (int)LuaAtoms::gamepadDisconnected:
+            {
+                return apply_gamepad_event(L, atom);
             }
         }
     }

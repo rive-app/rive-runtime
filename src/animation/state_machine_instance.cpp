@@ -743,6 +743,13 @@ public:
         }
     }
 
+    HitResult processGamepadInvocation(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable* alreadyDispatched) override
+    {
+        return HitResult::none;
+    }
+
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit,
@@ -909,6 +916,25 @@ public:
         }
         return false;
     }
+    HitResult processGamepadInvocation(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable* alreadyDispatched) override
+    {
+        auto hitResult = HitResult::none;
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>())
+            {
+                auto nestedStateMachine =
+                    nestedAnimation->as<NestedStateMachine>();
+                nestedStateMachine->stateMachineInstance()
+                    ->broadcastGamepadToScriptedDrawables(invocation,
+                                                          alreadyDispatched);
+            }
+        }
+        return hitResult;
+    }
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit,
@@ -980,6 +1006,7 @@ public:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
                         case ListenerType::semanticAction:
+                        case ListenerType::gamepad:
                             break;
                     }
                 }
@@ -1007,6 +1034,7 @@ public:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
                         case ListenerType::semanticAction:
+                        case ListenerType::gamepad:
                             break;
                     }
                 }
@@ -1126,6 +1154,7 @@ public:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
                         case ListenerType::semanticAction:
+                        case ListenerType::gamepad:
                             break;
                     }
                 }
@@ -1152,9 +1181,53 @@ public:
                         case ListenerType::blur:
                         case ListenerType::keyboard:
                         case ListenerType::semanticAction:
+                        case ListenerType::gamepad:
                             break;
                     }
                 }
+                if ((hitResult == HitResult::none &&
+                     (itemHitResult == HitResult::hit ||
+                      itemHitResult == HitResult::hitOpaque)) ||
+                    (hitResult == HitResult::hit &&
+                     itemHitResult == HitResult::hitOpaque))
+                {
+                    hitResult = itemHitResult;
+                }
+                if (hitResult == HitResult::hitOpaque)
+                {
+                    runningCanHit = false;
+                }
+            }
+        }
+        return hitResult;
+    }
+    HitResult processGamepadInvocation(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable* alreadyDispatched) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        HitResult hitResult = HitResult::none;
+        bool runningCanHit = true;
+        if (componentList->isCollapsed())
+        {
+            return hitResult;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr)
+            {
+                HitResult itemHitResult = HitResult::none;
+                if (runningCanHit)
+                {
+                    itemHitResult =
+                        stateMachine->broadcastGamepadToScriptedDrawables(
+                            invocation,
+                            alreadyDispatched);
+                }
+
                 if ((hitResult == HitResult::none &&
                      (itemHitResult == HitResult::hit ||
                       itemHitResult == HitResult::hitOpaque)) ||
@@ -1842,6 +1915,28 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
             m_listenerGroups.push_back(std::move(listenerGroup));
         }
+        if (listener->hasListener(ListenerType::gamepad))
+        {
+            auto target = m_artboardInstance->resolve(listener->targetId());
+            auto node = target->as<Node>();
+            FocusData* focusData = nullptr;
+            for (auto child : node->children())
+            {
+                if (child->is<FocusData>())
+                {
+                    focusData = child->as<FocusData>();
+                    break;
+                }
+            }
+            if (focusData != nullptr)
+            {
+                auto gamepadGroup =
+                    std::make_unique<GamepadListenerGroup>(focusData,
+                                                           listener,
+                                                           this);
+                m_gamepadListenerGroups.push_back(std::move(gamepadGroup));
+            }
+        }
     }
 
     std::vector<ListenerGroupProvider*> componentProvidedListenerGroups;
@@ -1958,12 +2053,18 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         scriptedPair.second->dataContext(m_artboardInstance->dataContext());
     }
     initScriptedObjects();
-    // Register Scripted objects as keyboard and text targets when expected
+    // Register Scripted objects as keyboard and text targets when expected,
+    // and collect every scripted drawable that wants gamepad events so we can
+    // broadcast to it later regardless of focus.
     for (auto object : instance->objects<ContainerComponent>())
     {
         auto scriptedObject = ScriptedObject::from(object);
-        if (scriptedObject && (scriptedObject->wantsKeyboardInput() ||
-                               scriptedObject->wantsTextInput()))
+        if (!scriptedObject)
+        {
+            continue;
+        }
+        if (scriptedObject->wantsKeyboardInput() ||
+            scriptedObject->wantsTextInput())
         {
             for (auto& child : object->as<ContainerComponent>()->children())
             {
@@ -1980,6 +2081,14 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     break;
                 }
             }
+        }
+        if ((scriptedObject->wantsGamePadConnect() ||
+             scriptedObject->wantsGamePadDisconnect() ||
+             scriptedObject->wantsGamePadEvent()) &&
+            object->is<ScriptedDrawable>())
+        {
+            m_gamepadScriptedDrawables.push_back(
+                object->as<ScriptedDrawable>());
         }
     }
     sortHitComponents();
@@ -2019,6 +2128,7 @@ StateMachineInstance::~StateMachineInstance()
     {
         m_artboardInstance->cleanupSemanticTree();
     }
+    m_embedderGamepads.clear();
 
     unbind();
     for (auto inst : m_inputInstances)

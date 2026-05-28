@@ -11,6 +11,8 @@
 #include "rive_file_reader.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/animation/listener_invocation.hpp"
+#include "rive/input/gamepad_snapshot.hpp"
 
 namespace rive
 {
@@ -21,6 +23,7 @@ class MockFocusable : public Focusable
 public:
     int keyInputCount = 0;
     int textInputCount = 0;
+    int gamepadDispatchCount = 0;
     int focusedCount = 0;
     int blurredCount = 0;
     std::string lastText;
@@ -41,6 +44,13 @@ public:
     {
         textInputCount++;
         lastText = text;
+        return returnValue;
+    }
+
+    bool gamepadDispatch(const ListenerInvocation&,
+                         ScriptedDrawable** = nullptr) override
+    {
+        gamepadDispatchCount++;
         return returnValue;
     }
 
@@ -293,6 +303,11 @@ TEST_CASE("FocusManager input routing", "[FocusManager]")
     // No focus, input not handled
     CHECK(manager.keyInput(Key::a, KeyModifiers::none, true, false) == false);
     CHECK(manager.textInput("hello") == false);
+    GamepadSnapshot snap{};
+    snap.deviceId = 1;
+    snap.buttonMask = 1;
+    CHECK(manager.gamepadDispatch(ListenerInvocation::gamepadConnected(snap)) ==
+          false);
 
     manager.setFocus(node);
 
@@ -304,6 +319,10 @@ TEST_CASE("FocusManager input routing", "[FocusManager]")
     CHECK(manager.textInput("world") == true);
     CHECK(focusable.textInputCount == 1);
     CHECK(focusable.lastText == "world");
+
+    CHECK(manager.gamepadDispatch(ListenerInvocation::gamepadConnected(snap)) ==
+          true);
+    CHECK(focusable.gamepadDispatchCount == 1);
 }
 
 TEST_CASE("FocusManager traversal basic", "[FocusManager]")

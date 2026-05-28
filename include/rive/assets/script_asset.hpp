@@ -88,6 +88,9 @@ private:
     static const int m_drawsCanvasBit = 1 << 15;
     static const int m_wantsKeyboardInputBit = 1 << 16;
     static const int m_wantsTextInputBit = 1 << 17;
+    static const int m_wantsGamepadConnect = 1 << 18;
+    static const int m_wantsGamepadDisconnect = 1 << 19;
+    static const int m_wantsGamepadEvent = 1 << 20;
 
     int m_implementedMethods = 0;
 
@@ -107,7 +110,8 @@ public:
         return (m_implementedMethods &
                 (m_wantsPointerDownBit | m_wantsPointerMoveBit |
                  m_wantsPointerUpBit | m_wantsPointerExitBit |
-                 m_wantsPointerCancelBit)) != 0;
+                 m_wantsPointerCancelBit | m_wantsGamepadConnect |
+                 m_wantsGamepadDisconnect | m_wantsGamepadEvent)) != 0;
     }
     bool advances() { return (m_implementedMethods & m_advancesBit) != 0; }
     bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
@@ -140,6 +144,18 @@ public:
     bool wantsPointerCancel()
     {
         return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
+    }
+    bool wantsGamePadConnect()
+    {
+        return (m_implementedMethods & m_wantsGamepadConnect) != 0;
+    }
+    bool wantsGamePadDisconnect()
+    {
+        return (m_implementedMethods & m_wantsGamepadDisconnect) != 0;
+    }
+    bool wantsGamePadEvent()
+    {
+        return (m_implementedMethods & m_wantsGamepadEvent) != 0;
     }
     bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
     bool inits() { return (m_implementedMethods & m_initsBit) != 0; }

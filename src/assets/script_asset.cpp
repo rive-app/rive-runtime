@@ -148,6 +148,25 @@ bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
             m_implementedMethods |= m_wantsPointerExitBit;
         }
         rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(
+                lua_getfield(state, -1, "gamepadConnected")) == LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsGamepadConnect;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(lua_getfield(state, -1, "gamepadEvent")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsGamepadEvent;
+        }
+        rive_lua_pop(state, 1);
+        if (static_cast<lua_Type>(
+                lua_getfield(state, -1, "gamepadDisconnected")) ==
+            LUA_TFUNCTION)
+        {
+            m_implementedMethods |= m_wantsGamepadDisconnect;
+        }
+        rive_lua_pop(state, 1);
         if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) ==
             LUA_TFUNCTION)
         {

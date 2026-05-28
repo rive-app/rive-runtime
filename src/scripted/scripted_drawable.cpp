@@ -1,5 +1,6 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #endif
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
@@ -74,6 +75,63 @@ std::vector<HitComponent*> ScriptedDrawable::hitComponents(
     return std::vector<HitComponent*>{hitComponent};
 }
 
+bool ScriptedDrawable::gamepadDispatch(const ListenerInvocation& inv)
+{
+    if (m_vm == nullptr || !state())
+    {
+        return false;
+    }
+    lua_State* L = state();
+    const char* method = nullptr;
+    switch (inv.kind())
+    {
+        case ListenerInvocationKind::gamepadConnected:
+            method = "gamepadConnected";
+            break;
+        case ListenerInvocationKind::gamepadEvent:
+            method = "gamepadEvent";
+            break;
+        case ListenerInvocationKind::gamepadDisconnected:
+            method = "gamepadDisconnected";
+            break;
+        default:
+            return false;
+    }
+    rive_lua_pushRef(L, m_self);
+    lua_getfield(L, -1, method);
+    if (static_cast<lua_Type>(lua_type(L, -1)) != LUA_TFUNCTION)
+    {
+        rive_lua_pop(L, 2);
+        return false;
+    }
+    lua_pushvalue(L, -2);
+    if (const GamepadConnectedInvocation* c = inv.asGamepadConnected())
+    {
+        lua_newrive<ScriptedGamepadConnected>(L, c->snapshot);
+    }
+    else if (const GamepadEventInvocation* e = inv.asGamepadEvent())
+    {
+        lua_newrive<ScriptedGamepadEvent>(L, *e);
+    }
+    else if (const GamepadDisconnectedInvocation* d =
+                 inv.asGamepadDisconnected())
+    {
+        lua_newrive<ScriptedGamepadDisconnected>(L, d->deviceId);
+    }
+    else
+    {
+        rive_lua_pop(L, 3);
+        return false;
+    }
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
+        LUA_OK)
+    {
+        rive_lua_pop(L, 1);
+    }
+    rive_lua_pop(L, 1);
+    return true;
+}
+
 HitResult HitScriptedDrawable::processEvent(Vec2D position,
                                             ListenerType hitType,
                                             bool canHit,
@@ -117,6 +175,19 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     }
     rive_lua_pop(state, 1);
     return hitResult;
+}
+
+HitResult HitScriptedDrawable::processGamepadInvocation(
+    const ListenerInvocation&,
+    ScriptedDrawable*)
+{
+    // Gamepad dispatch to ScriptedDrawables runs through
+    // StateMachineInstance::broadcastGamepadToScriptedDrawables's walk over
+    // m_gamepadScriptedDrawables — that list includes gamepad-only scripts
+    // (which never enter m_hitComponents because hitComponents() is gated on
+    // listensToPointerEvents()). Returning none here avoids double-dispatch
+    // for drawables that handle both pointer and gamepad.
+    return HitResult::none;
 }
 
 bool ScriptedDrawable::keyInput(Key key,
@@ -232,6 +303,14 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
                                             float timeStamp,
                                             int pointerId)
 {
+    return HitResult::none;
+}
+
+HitResult HitScriptedDrawable::processGamepadInvocation(
+    const ListenerInvocation& invocation,
+    ScriptedDrawable* alreadyDispatched)
+{
+    // TODO: implement
     return HitResult::none;
 }
 

@@ -272,14 +272,21 @@ enum class LuaAtoms : int16_t
     isReportedEvent,
     isViewModelChange,
     isNone,
-    isGamepad,
+    isGamepadConnected,
+    isGamepadEvent,
+    isGamepadDisconnected,
     asPointerEvent,
     asKeyboardEvent,
     asTextInput,
     asFocus,
     asReportedEvent,
     asViewModelChange,
-    asGamepad,
+    asGamepadConnected,
+    asGamepadEvent,
+    asGamepadDisconnected,
+    gamepadEvent,
+    gamepadConnected,
+    gamepadDisconnected,
     asNone,
     key,
     alt,
@@ -290,7 +297,6 @@ enum class LuaAtoms : int16_t
     delaySeconds,
     deviceId,
     buttonMask,
-    axis0,
     remove,
     removeAt,
     removeAllOf,
@@ -340,6 +346,44 @@ enum class LuaAtoms : int16_t
     transformVec4,
     writeToBuffer,
     invertAffine,
+
+    // Gamepad
+    axes,
+    gamepadMapping,
+    mapping,
+    isStandardMapping,
+    buttons,
+    buttonPressed,
+    buttonValue,
+    axis,
+    west,
+    south,
+    north,
+    east,
+    leftShoulder,
+    rightShoulder,
+    gamepadBack,
+    gamepadForward,
+    leftStickButton,
+    rightStickButton,
+    dpadUp,
+    dpadDown,
+    dpadLeft,
+    dpadRight,
+    leftStick,
+    rightStick,
+    start,
+    leftTrigger,
+    rightTrigger,
+    leftTriggerPressed,
+    rightTriggerPressed,
+    changeKind,
+    changeIndex,
+    changeValue,
+    hasStandardButtonIntent,
+    hasStandardAxisIntent,
+    intentButton,
+    intentAxis,
 };
 
 struct ScriptedMat2D
@@ -1822,20 +1866,43 @@ public:
     static constexpr bool hasMetatable = true;
 };
 
-class ScriptedGamepadInvocation
+class ScriptedGamepadConnected
 {
 public:
-    ScriptedGamepadInvocation(int deviceId, uint64_t buttonMask, float axis0) :
-        m_deviceId(deviceId), m_buttonMask(buttonMask), m_axis0(axis0)
+    explicit ScriptedGamepadConnected(const GamepadSnapshot& snapshot) :
+        m_snapshot(snapshot)
     {}
 
-    static constexpr uint8_t luaTag = LUA_T_COUNT + 60;
-    static constexpr const char* luaName = "GamepadInvocation";
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 48;
+    static constexpr const char* luaName = "GamepadConnected";
+    static constexpr bool hasMetatable = true;
+
+    GamepadSnapshot m_snapshot;
+};
+
+class ScriptedGamepadEvent
+{
+public:
+    explicit ScriptedGamepadEvent(const GamepadEventInvocation& v) : m_data(v)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 63;
+    static constexpr const char* luaName = "GamepadEvent";
+    static constexpr bool hasMetatable = true;
+
+    GamepadEventInvocation m_data;
+};
+
+class ScriptedGamepadDisconnected
+{
+public:
+    explicit ScriptedGamepadDisconnected(int deviceId) : m_deviceId(deviceId) {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 64;
+    static constexpr const char* luaName = "GamepadDisconnected";
     static constexpr bool hasMetatable = true;
 
     int m_deviceId;
-    uint64_t m_buttonMask;
-    float m_axis0;
 };
 
 class ScriptedNoneInvocation

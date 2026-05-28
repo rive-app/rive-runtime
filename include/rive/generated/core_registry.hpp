@@ -46,6 +46,7 @@
 #include "rive/animation/listener_trigger_change.hpp"
 #include "rive/animation/listener_types/listener_input_type.hpp"
 #include "rive/animation/listener_types/listener_input_type_event.hpp"
+#include "rive/animation/listener_types/listener_input_type_gamepad.hpp"
 #include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
 #include "rive/animation/listener_types/listener_input_type_semantic.hpp"
 #include "rive/animation/listener_types/listener_input_type_text.hpp"
@@ -206,6 +207,7 @@
 #include "rive/event.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/foreground_layout_drawable.hpp"
+#include "rive/inputs/gamepad_input.hpp"
 #include "rive/inputs/keyboard_input.hpp"
 #include "rive/inputs/semantic_input.hpp"
 #include "rive/inputs/user_input.hpp"
@@ -605,6 +607,8 @@ public:
                 return new ListenerInputType();
             case ListenerInputTypeEventBase::typeKey:
                 return new ListenerInputTypeEvent();
+            case ListenerInputTypeGamepadBase::typeKey:
+                return new ListenerInputTypeGamepad();
             case ListenerInputTypeKeyboardBase::typeKey:
                 return new ListenerInputTypeKeyboard();
             case ListenerInputTypeTextBase::typeKey:
@@ -883,6 +887,8 @@ public:
                 return new AudioEvent();
             case UserInputBase::typeKey:
                 return new UserInput();
+            case GamepadInputBase::typeKey:
+                return new GamepadInput();
             case KeyboardInputBase::typeKey:
                 return new KeyboardInput();
             case SemanticInputBase::typeKey:
@@ -1665,6 +1671,18 @@ public:
                 break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
+                break;
+            case GamepadInputBase::kindPropertyKey:
+                object->as<GamepadInputBase>()->kind(value);
+                break;
+            case GamepadInputBase::mappingPropertyKey:
+                object->as<GamepadInputBase>()->mapping(value);
+                break;
+            case GamepadInputBase::inputIndexPropertyKey:
+                object->as<GamepadInputBase>()->inputIndex(value);
+                break;
+            case GamepadInputBase::buttonPhasePropertyKey:
+                object->as<GamepadInputBase>()->buttonPhase(value);
                 break;
             case KeyboardInputBase::keyTypePropertyKey:
                 object->as<KeyboardInputBase>()->keyType(value);
@@ -3554,6 +3572,14 @@ public:
                 return object->as<ScriptAssetBase>()->generatorFunctionRef();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
+            case GamepadInputBase::kindPropertyKey:
+                return object->as<GamepadInputBase>()->kind();
+            case GamepadInputBase::mappingPropertyKey:
+                return object->as<GamepadInputBase>()->mapping();
+            case GamepadInputBase::inputIndexPropertyKey:
+                return object->as<GamepadInputBase>()->inputIndex();
+            case GamepadInputBase::buttonPhasePropertyKey:
+                return object->as<GamepadInputBase>()->buttonPhase();
             case KeyboardInputBase::keyTypePropertyKey:
                 return object->as<KeyboardInputBase>()->keyType();
             case KeyboardInputBase::keyPhasePropertyKey:
@@ -4471,6 +4497,10 @@ public:
             case FileAssetBase::assetIdPropertyKey:
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
+            case GamepadInputBase::kindPropertyKey:
+            case GamepadInputBase::mappingPropertyKey:
+            case GamepadInputBase::inputIndexPropertyKey:
+            case GamepadInputBase::buttonPhasePropertyKey:
             case KeyboardInputBase::keyTypePropertyKey:
             case KeyboardInputBase::keyPhasePropertyKey:
             case KeyboardInputBase::modifiersPropertyKey:
@@ -5291,6 +5321,14 @@ public:
                 return object->is<ScriptAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
+            case GamepadInputBase::kindPropertyKey:
+                return object->is<GamepadInputBase>();
+            case GamepadInputBase::mappingPropertyKey:
+                return object->is<GamepadInputBase>();
+            case GamepadInputBase::inputIndexPropertyKey:
+                return object->is<GamepadInputBase>();
+            case GamepadInputBase::buttonPhasePropertyKey:
+                return object->is<GamepadInputBase>();
             case KeyboardInputBase::keyTypePropertyKey:
                 return object->is<KeyboardInputBase>();
             case KeyboardInputBase::keyPhasePropertyKey:

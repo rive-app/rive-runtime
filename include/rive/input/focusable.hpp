@@ -8,6 +8,9 @@
 
 namespace rive
 {
+class ListenerInvocation;
+class ScriptedDrawable;
+
 enum class KeyModifiers : uint8_t
 {
     none = 0,
@@ -172,6 +175,15 @@ public:
                           bool isPressed,
                           bool isRepeat) = 0;
     virtual bool textInput(const std::string& text) = 0;
+
+    /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
+    /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
+    /// `ScriptedDrawable` that ended up receiving the event so callers can
+    /// avoid re-dispatching to it during a broadcast pass.
+    virtual bool gamepadDispatch(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr);
+
     virtual void focused() = 0;
     virtual void blurred() = 0;
 

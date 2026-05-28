@@ -32,11 +32,14 @@ protected:
     ScriptedContext* m_contextPtr = nullptr;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
-#ifdef WITH_RIVE_TOOLS
-    rcp<ScriptingVM> m_vm = nullptr; // Ref-counted for editor
-#else
-    ScriptingVM* m_vm = nullptr; // Non-owning for runtime
-#endif
+    // Non-owning. ScriptingVM tracks every ScriptedObject that points at it
+    // (via registerScriptedObject in ensureScriptInitialized) and nulls these
+    // out from ~ScriptingVM. Holding it as rcp would create a cycle:
+    // ScriptingVM → lua_State → ScriptedArtboard userdata →
+    // ScriptReffedArtboard → inner ArtboardInstance → ScriptedObject →
+    // rcp<ScriptingVM>.
+    ScriptingVM* m_vm = nullptr;
+    friend class ScriptingVM;
 #endif
     bool inUpdatePhase() const { return m_inUpdatePhase; }
     void setInUpdatePhase(bool value) { m_inUpdatePhase = value; }
