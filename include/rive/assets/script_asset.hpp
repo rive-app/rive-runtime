@@ -94,12 +94,11 @@ private:
 
     int m_implementedMethods = 0;
 
-protected:
-#ifdef WITH_RIVE_SCRIPTING
-    bool verifyImplementation(ScriptedObject* object, lua_State* state);
-#endif
-
 public:
+    // Bits 0-20 hold the method flags (see ScriptAsset::serializedImplemented
+    // Methods, which the editor serializes and the runtime reads directly).
+    static const uint32_t methodMask = (1u << 21) - 1;
+
     int implementedMethods() { return m_implementedMethods; }
     void implementedMethods(int implemented)
     {

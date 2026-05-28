@@ -48,6 +48,18 @@
       "description": "Topological order from compilation — scripts with lower values are depended on by scripts with higher values. Not exported to runtime; the order is inherent in the position the ScriptAsset is written into the .riv.",
       "runtime": false,
       "journal": false
+    },
+    "serializedImplementedMethods": {
+      "type": "uint",
+      "initialValue": "2097151",
+      "key": {
+        "int": 1022,
+        "string": "serializedimplementedmethods"
+      },
+      "description": "Bitfield of the optional script methods (init/draw/drawCanvas/advance/etc.) the editor detected by executing the generator. Bit layout matches OptionalScriptedMethods (bits 0-20). The runtime reads these directly instead of detecting at load. Defaults to all bits set ((1<<21)-1 = 2097151) so files exported before this property existed behave as 'implements everything' and rely on graceful dispatch (each callback no-ops when the method isn't actually present).",
+      "coop": false,
+      "exportsToRuntimeConditionally": true,
+      "journal": false
     }
   }
 }

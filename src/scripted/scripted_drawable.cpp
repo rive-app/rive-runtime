@@ -42,17 +42,25 @@ void ScriptedDrawable::draw(Renderer* renderer)
     // Stack: [scriptedRenderer]
     rive_lua_pushRef(L, m_self);
     // Stack: [scriptedRenderer, self]
-    lua_getfield(L, -1, "draw");
-    // Stack: [scriptedRenderer, self, "draw"]
-    lua_pushvalue(L, -2);
-    // Stack: [scriptedRenderer, self, "draw", self]
-    lua_pushvalue(L, -4);
-    // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
-        LUA_OK)
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "draw")) == LUA_TFUNCTION)
     {
-        // Stack: [scriptedRenderer, self, status]
-        rive_lua_pop(L, 1);
+        // Stack: [scriptedRenderer, self, "draw"]
+        lua_pushvalue(L, -2);
+        // Stack: [scriptedRenderer, self, "draw", self]
+        lua_pushvalue(L, -4);
+        // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
+        if (static_cast<lua_Status>(
+                rive_lua_pcall_with_context(L, this, 2, 0)) != LUA_OK)
+        {
+            // Stack: [scriptedRenderer, self, status]
+            rive_lua_pop(L, 1);
+        }
+    }
+    else
+    {
+        // draw is assumed for legacy files but not implemented; no-op (the
+        // save/transform above stay balanced with the restore below).
+        rive_lua_pop(L, 1); // non-function field
     }
     scriptedRenderer->end();
     // Stack: [scriptedRenderer, self]
@@ -157,7 +165,9 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     if (static_cast<lua_Type>(lua_getfield(state, -1, mName.c_str())) !=
         LUA_TFUNCTION)
     {
-        fprintf(stderr, "expected %s to be a function\n", mName.c_str());
+        // The pointer handler is assumed present for legacy files (all-bits
+        // default) but isn't actually implemented: report "not hit" so the
+        // state machine keeps walking other hit targets.
         rive_lua_pop(state, 1);
     }
     else
@@ -208,7 +218,13 @@ bool ScriptedDrawable::keyInput(Key key,
     // Stack: []
     rive_lua_pushRef(L, self());
     // Stack: [self]
-    lua_getfield(L, -1, "keyboardEvent");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "keyboardEvent")) !=
+        LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; no-op.
+        rive_lua_pop(L, 2); // non-function field + self
+        return shouldStopPropagation;
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]
@@ -255,7 +271,13 @@ bool ScriptedDrawable::textInput(const std::string& text)
     // Stack: []
     rive_lua_pushRef(L, self());
     // Stack: [self]
-    lua_getfield(L, -1, "textEvent");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "textEvent")) !=
+        LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; no-op.
+        rive_lua_pop(L, 2); // non-function field + self
+        return shouldStopPropagation;
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]

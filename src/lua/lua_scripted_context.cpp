@@ -453,6 +453,18 @@ static int context_namecall(lua_State* L)
 #else
                 auto* gpuScriptingCtx =
                     static_cast<ScriptingContext*>(lua_getthreaddata(L));
+                if (gpuScriptingCtx->gpuCanvasDeferOnly())
+                {
+                    // Headless detection (editor method-detection VM): there is
+                    // no real RenderContext/GPU device. Hand back a deferred
+                    // canvas with no backing texture regardless of requested
+                    // size, so a generator that creates a sized canvas at
+                    // construction runs without reaching makeRenderCanvas.
+                    auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
+                    handle->m_L = L;
+                    handle->renderCtx = nullptr;
+                    return 1;
+                }
                 auto* gpuRenderCtx = static_cast<gpu::RenderContext*>(
                     gpuScriptingCtx->renderContext());
                 if (gpuRenderCtx == nullptr)
@@ -515,7 +527,7 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::preferredCanvasFormat:
                 return lua_push_preferred_canvas_format(L);
 
-            case (int)LuaAtoms::loadShader:
+            case (int)LuaAtoms::shader:
             {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
                 const char* shaderName = luaL_checkstring(L, 2);

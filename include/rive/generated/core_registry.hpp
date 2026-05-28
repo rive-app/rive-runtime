@@ -387,12 +387,18 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case ViewModelInstanceBase::typeKey:
-                return new ViewModelInstance();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelInstanceBase::typeKey:
+                return new ViewModelInstance();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -405,18 +411,12 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -1668,6 +1668,10 @@ public:
                 break;
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 object->as<ScriptAssetBase>()->generatorFunctionRef(value);
+                break;
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
+                object->as<ScriptAssetBase>()->serializedImplementedMethods(
+                    value);
                 break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
@@ -3570,6 +3574,9 @@ public:
                 return object->as<FileAssetBase>()->assetId();
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->as<ScriptAssetBase>()->generatorFunctionRef();
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
+                return object->as<ScriptAssetBase>()
+                    ->serializedImplementedMethods();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
             case GamepadInputBase::kindPropertyKey:
@@ -4496,6 +4503,7 @@ public:
             case CustomPropertyEnumBase::enumIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
             case GamepadInputBase::kindPropertyKey:
             case GamepadInputBase::mappingPropertyKey:
@@ -5318,6 +5326,8 @@ public:
             case FileAssetBase::assetIdPropertyKey:
                 return object->is<FileAssetBase>();
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
+                return object->is<ScriptAssetBase>();
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
                 return object->is<ScriptAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();

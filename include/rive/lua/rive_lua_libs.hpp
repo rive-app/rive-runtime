@@ -325,7 +325,7 @@ enum class LuaAtoms : int16_t
     gpuCanvas,
     drawCanvas,
     features,
-    loadShader,
+    shader,
     format,
     preferredCanvasFormat,
 
@@ -1470,6 +1470,13 @@ public:
     void setCanvasDrawingPhase(bool value) { m_canvasDrawingPhase = value; }
     bool canvasDrawingPhase() const { return m_canvasDrawingPhase; }
 
+    // When set, context:gpuCanvas() always returns a deferred (texture-less)
+    // canvas regardless of requested size, never calling makeRenderCanvas.
+    // Used by the editor's headless method-detection VM, which has no GPU
+    // device / RenderContext. Default false: normal runtimes allocate.
+    void setGpuCanvasDeferOnly(bool value) { m_gpuCanvasDeferOnly = value; }
+    bool gpuCanvasDeferOnly() const { return m_gpuCanvasDeferOnly; }
+
     // WebGL/WASM only: GL context handle saved at riveGPUBeginFrame so
     // riveGPUEndFrame can restore the caller's context afterwards.
     void setPrevGLContext(intptr_t h) { m_prevGLContext = h; }
@@ -1495,6 +1502,7 @@ private:
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
     bool m_canvasDrawingPhase = false;
+    bool m_gpuCanvasDeferOnly = false;
     intptr_t m_prevGLContext = 0;
 #ifdef __EMSCRIPTEN__
     int m_glHandle = 0;

@@ -47,10 +47,13 @@ void ScriptedListenerAction::performStateful(
         return;
     }
     rive_lua_pushRef(L, m_self);
-    if (performsAction())
+    // Stack: [self]
+    // Probe the fields directly (rather than gating on performs()/
+    // performsAction(), which are assumed-present for legacy files):
+    // performAction takes precedence over perform, matching prior behavior.
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "performAction")) ==
+        LUA_TFUNCTION)
     {
-        // Stack: [self]
-        lua_getfield(L, -1, "performAction");
         // Stack: [self, performAction]
         lua_pushvalue(L, -2);
         rive_lua_push_scripted_invocation(L, invocation);
@@ -64,23 +67,33 @@ void ScriptedListenerAction::performStateful(
             // Stack: [self, status]
             lua_pop(L, 1);
         }
+        // Stack: [self]
     }
-    else if (performs())
+    else
     {
-        lua_getfield(L, -1, "perform");
-        // Stack: [self, perform]
-        lua_pushvalue(L, -2);
-        // Stack: [self, perform, self]
-        rive_lua_push_pointer_arg_for_perform(L, invocation);
-        // Stack: [self, perform, self, pointerEvent]
-        if (static_cast<lua_Status>(rive_lua_pcall_with_context(
-                L,
-                const_cast<ScriptedListenerAction*>(this),
-                2,
-                0)) != LUA_OK)
+        lua_pop(L, 1); // non-function performAction field -> [self]
+        if (static_cast<lua_Type>(lua_getfield(L, -1, "perform")) ==
+            LUA_TFUNCTION)
         {
-            // Stack: [self, status]
-            lua_pop(L, 1);
+            // Stack: [self, perform]
+            lua_pushvalue(L, -2);
+            // Stack: [self, perform, self]
+            rive_lua_push_pointer_arg_for_perform(L, invocation);
+            // Stack: [self, perform, self, pointerEvent]
+            if (static_cast<lua_Status>(rive_lua_pcall_with_context(
+                    L,
+                    const_cast<ScriptedListenerAction*>(this),
+                    2,
+                    0)) != LUA_OK)
+            {
+                // Stack: [self, status]
+                lua_pop(L, 1);
+            }
+            // Stack: [self]
+        }
+        else
+        {
+            lua_pop(L, 1); // non-function perform field -> [self]
         }
     }
     // Stack: [self]

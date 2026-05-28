@@ -183,7 +183,13 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds)
         return false;
     }
     rive_lua_pushRef(L, m_self);
-    lua_getfield(L, -1, "advance");
+    // implementedMethods may be assumed for legacy files (all-bits default); if
+    // the field isn't actually a function, treat it as not implemented.
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "advance")) != LUA_TFUNCTION)
+    {
+        rive_lua_pop(L, 2); // non-function field + self
+        return false;
+    }
     lua_pushvalue(L, -2);
     lua_pushnumber(L, elapsedSeconds);
     if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
@@ -205,7 +211,12 @@ void ScriptedObject::scriptDrawCanvas()
         return;
     }
     rive_lua_pushRef(L, m_self);
-    lua_getfield(L, -1, "drawCanvas");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "drawCanvas")) !=
+        LUA_TFUNCTION)
+    {
+        rive_lua_pop(L, 2); // non-function field + self
+        return;
+    }
     lua_pushvalue(L, -2);
     if (static_cast<lua_Status>(rive_lua_pcall(L, 1, 0)) != LUA_OK)
     {
@@ -222,11 +233,18 @@ void ScriptedObject::scriptUpdate()
     {
         return;
     }
-    m_inUpdatePhase = true;
     // Stack: []
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
-    lua_getfield(L, -1, "update");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "update")) != LUA_TFUNCTION)
+    {
+        // Not actually implemented (assumed for legacy files); no-op. The
+        // update phase never started, so there's no flag to reset.
+        rive_lua_pop(L, 2); // non-function field + self
+        return;
+    }
+    // Only inside the update phase while the callback actually runs.
+    m_inUpdatePhase = true;
     // Stack: [self, field] Swap self and field
     lua_insert(L, -2);
     // Stack: [field, self]
@@ -242,7 +260,13 @@ bool ScriptedObject::tryLuaUserInit(lua_State* L)
 {
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
-    lua_getfield(L, -1, "init");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "init")) != LUA_TFUNCTION)
+    {
+        // init is optional and not implemented (assumed for legacy files);
+        // nothing to run — the object is considered initialized.
+        rive_lua_pop(L, 2); // non-function field + self
+        return true;
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]

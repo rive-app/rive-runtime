@@ -277,7 +277,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"gpuCanvas", (int16_t)LuaAtoms::gpuCanvas},
     {"features", (int16_t)LuaAtoms::features},
     {"drawCanvas", (int16_t)LuaAtoms::drawCanvas},
-    {"loadShader", (int16_t)LuaAtoms::loadShader},
+    {"shader", (int16_t)LuaAtoms::shader},
     {"format", (int16_t)LuaAtoms::format},
     {"preferredCanvasFormat", (int16_t)LuaAtoms::preferredCanvasFormat},
     {"andThen", (int16_t)LuaAtoms::andThen},

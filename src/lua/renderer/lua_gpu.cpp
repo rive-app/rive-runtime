@@ -863,7 +863,7 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
 
-    // Resolve the file-side ShaderAsset by name. Without this, Shader.new()
+    // Resolve the file-side ShaderAsset by name. Without this, the lookup
     // falls back to the editor-only RSTB cache which is empty at runtime.
     ShaderAsset* fileAsset = nullptr;
     if (context != nullptr)
@@ -896,20 +896,6 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
     {
         lua_pop(L, 1);
         return 0;
-    }
-    return 1;
-}
-
-static int shader_construct(lua_State* L)
-{
-    // Argument 1 is the name of a pre-compiled WGSL shader asset that was
-    // bundled with the Rive file (set via the "wgslAssetName" field in the
-    // editor).  Raw WGSL source strings are NOT accepted at runtime; shaders
-    // must be pre-compiled and embedded as assets.
-    const char* name = luaL_checkstring(L, 1);
-    if (lua_gpu_push_shader_by_name(L, name) == 0)
-    {
-        luaL_error(L, "Shader.new: no shader asset named '%s' found", name);
     }
     return 1;
 }
@@ -3396,8 +3382,8 @@ static void register_type_with_constructor(lua_State* L,
 
 int luaopen_rive_gpu(lua_State* L)
 {
-    static const luaL_Reg shaderStatics[] = {{"new", shader_construct},
-                                             {nullptr, nullptr}};
+    // Shader has no constructor; shaders are obtained via context:shader(name).
+    static const luaL_Reg shaderStatics[] = {{nullptr, nullptr}};
     static const luaL_Reg gpuBufferStatics[] = {{"new", gpubuffer_construct},
                                                 {nullptr, nullptr}};
     static const luaL_Reg gpuTextureStatics[] = {{"new", gputexture_construct},
