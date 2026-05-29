@@ -24,6 +24,13 @@ static int vector_index(lua_State* L)
             case '2':
                 lua_pushnumber(L, vec[1]);
                 return 1;
+            case 'z':
+            case '3':
+                // Luau's vector type stores 3 components; .z is reachable
+                // intrinsically through the VM's named-axis fastpath, but
+                // numeric `[3]` indexing routes through this metamethod.
+                lua_pushnumber(L, vec[2]);
+                return 1;
             default:
                 break;
         }

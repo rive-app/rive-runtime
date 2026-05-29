@@ -1,0 +1,8 @@
+{
+  "name": "ListenerInputTypeGamepad",
+  "key": {
+    "int": 973,
+    "string": "listenerinputtypegamepad"
+  },
+  "extends": "animation/listener_types/listener_input_type.json"
+}

@@ -1,5 +1,6 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
@@ -9,6 +10,7 @@
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
@@ -87,6 +89,14 @@ static void pushViewModelInstanceValue(lua_State* L,
             lua_pushinteger(L, listIndexProp->propertyValue());
             break;
         }
+        case ViewModelInstanceAssetImageBase::typeKey:
+        {
+            lua_newrive<ScriptedPropertyImage>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceAssetImage>()));
+            break;
+        }
         default:
             lua_pushnil(L);
             break;
@@ -130,6 +140,7 @@ void ScriptedProperty::clearListeners()
         {
             lua_unref(m_state, listener.userdata);
         }
+        lua_unref(m_state, listener.propertySelfRef);
     }
     m_listeners.clear();
 }
@@ -222,15 +233,21 @@ int ScriptedProperty::addListener()
 {
     if (lua_isfunction(m_state, 2))
     {
+        lua_pushvalue(m_state, 1);
+        int propertySelfRef = lua_ref(m_state, -1);
+        lua_pop(m_state, 1);
         int callbackRef = lua_ref(m_state, 2);
-        m_listeners.push_back({callbackRef});
+        m_listeners.push_back({callbackRef, 0, propertySelfRef});
         return 0;
     }
     else if (lua_isfunction(m_state, 3))
     {
+        lua_pushvalue(m_state, 1);
+        int propertySelfRef = lua_ref(m_state, -1);
+        lua_pop(m_state, 1);
         int userdataRef = lua_ref(m_state, 2);
         int callbackRef = lua_ref(m_state, 3);
-        m_listeners.push_back({callbackRef, userdataRef});
+        m_listeners.push_back({callbackRef, userdataRef, propertySelfRef});
         return 0;
     }
 
@@ -265,6 +282,7 @@ int ScriptedProperty::removeListener()
             {
                 lua_unref(m_state, listener.userdata);
             }
+            lua_unref(m_state, listener.propertySelfRef);
             itr = m_listeners.erase(itr);
         }
         else
@@ -440,6 +458,11 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                                                            m_state,
                                                            nullptr,
                                                            nullptr);
+                    break;
+                case ViewModelPropertyAssetImageBase::typeKey:
+                    lua_newrive<ScriptedPropertyImage>(m_state,
+                                                       m_state,
+                                                       nullptr);
                     break;
                 case ViewModelPropertySymbolListIndexBase::typeKey:
                     lua_pushinteger(m_state, 1);
@@ -817,6 +840,14 @@ static int vm_namecall(lua_State* L)
                 assert(vm->state() == L);
                 return vm->pushIndex();
             }
+            case (int)LuaAtoms::getImage:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name,
+                                     ViewModelInstanceAssetImageBase::typeKey);
+            }
             case (int)LuaAtoms::instance:
             case (int)LuaAtoms::newAtom:
             {
@@ -888,6 +919,9 @@ static int property_namecall(lua_State* L)
                 break;
             case ScriptedPropertyList::luaTag:
                 name = ScriptedPropertyList::luaName;
+                break;
+            case ScriptedPropertyImage::luaTag:
+                name = ScriptedPropertyImage::luaName;
                 break;
             default:
                 luaL_typeerror(L, 1, name);
@@ -1160,6 +1194,46 @@ int ScriptedPropertyList::pushValue(int index)
     return 1;
 }
 
+ScriptedPropertyImage::ScriptedPropertyImage(
+    lua_State* L,
+    rcp<ViewModelInstanceAssetImage> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+void ScriptedPropertyImage::setValue(ScriptedImage* scriptedImage)
+{
+    if (!m_instanceValue)
+    {
+        return;
+    }
+    m_instanceValue->as<ViewModelInstanceAssetImage>()->value(
+        scriptedImage != nullptr ? scriptedImage->image.get() : nullptr);
+}
+
+int ScriptedPropertyImage::pushValue()
+{
+    if (m_instanceValue)
+    {
+        auto vmi = m_instanceValue->as<ViewModelInstanceAssetImage>();
+        auto asset = vmi->asset();
+        if (asset != nullptr && asset->renderImage() != nullptr)
+        {
+            // Use the out-of-line `ScriptedImage::luaNew` factory rather
+            // than `lua_newrive<ScriptedImage>` directly: when ore is
+            // enabled, ScriptedImage holds an `rcp<ore::TextureView>` and
+            // its destructor needs the full TextureView definition (this
+            // TU only sees the forward decl in `rive_lua_libs.hpp`). The
+            // factory lives in `lua_gpu.cpp` / `lua_image.cpp` where the
+            // ore headers are visible.
+            auto scriptedImage = ScriptedImage::luaNew(m_state);
+            scriptedImage->image = ref_rcp(asset->renderImage());
+            return 1;
+        }
+    }
+    lua_pushnil(m_state);
+    return 1;
+}
+
 int ScriptedEnumValues::pushValue(int index)
 {
     if (m_dataEnum && m_state)
@@ -1188,6 +1262,46 @@ int ScriptedEnumValues::pushLength()
         lua_pushinteger(m_state, 0);
     }
     return 1;
+}
+
+// Direct field getters: dispatched by LOP_GETTABLEKS on `prop.value` /
+// `list.length`. Slow paths (property_*_index) remain reachable for
+// computed-key access and lua_getfield from C.
+
+static void property_number_direct_value(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyNumber*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setnumber(
+        result,
+        iv ? iv->as<ViewModelInstanceNumber>()->propertyValue() : 0);
+}
+
+static void property_color_direct_value(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyColor*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setnumber(
+        result,
+        iv ? (unsigned)iv->as<ViewModelInstanceColor>()->propertyValue() : 0);
+}
+
+static void property_boolean_direct_value(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyBoolean*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setboolean(
+        result,
+        iv ? (iv->as<ViewModelInstanceBoolean>()->propertyValue() ? 1 : 0) : 0);
+}
+
+static void property_list_direct_length(void* udata, void* result)
+{
+    auto* p = (ScriptedPropertyList*)udata;
+    auto* iv = p->instanceValue();
+    lua_userdatadirectfield_setnumber(
+        result,
+        iv ? (double)iv->as<ViewModelInstanceList>()->listItems().size() : 0);
 }
 
 static int property_list_index(lua_State* L)
@@ -1450,6 +1564,53 @@ static int property_enum_newindex(lua_State* L)
     return 0;
 }
 
+static int property_image_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyImage = lua_torive<ScriptedPropertyImage>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            assert(propertyImage->state() == L);
+            return propertyImage->pushValue();
+        default:
+            return 0;
+    }
+}
+
+static int property_image_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyImage = lua_torive<ScriptedPropertyImage>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+        {
+            auto image = lua_torive<ScriptedImage>(L, 3);
+            propertyImage->setValue(image);
+            break;
+        }
+        default:
+            return 0;
+    }
+
+    return 0;
+}
+
 static int vm_eq(lua_State* L)
 {
     auto lhs = lua_torive<ScriptedViewModel>(L, 1);
@@ -1506,6 +1667,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyNumber::luaTag,
+                                           "value",
+                                           property_number_direct_value);
     }
 
     {
@@ -1522,6 +1688,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyColor::luaTag,
+                                           "value",
+                                           property_color_direct_value);
     }
 
     {
@@ -1554,6 +1725,11 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyBoolean::luaTag,
+                                           "value",
+                                           property_boolean_direct_value);
     }
 
     {
@@ -1590,6 +1766,27 @@ int luaopen_rive_properties(lua_State* L)
 
         lua_pushcfunction(L, property_list_index, nullptr);
         lua_setfield(L, -2, "__index");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedPropertyList::luaTag,
+                                           "length",
+                                           property_list_direct_length);
+    }
+
+    {
+        lua_register_rive<ScriptedPropertyImage>(L);
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_pushcfunction(L, property_image_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, property_image_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable

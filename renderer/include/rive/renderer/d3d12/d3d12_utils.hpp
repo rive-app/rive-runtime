@@ -84,6 +84,17 @@ public:
     void markSrvToIndex(ID3D12Device* device,
                         D3D12TextureArray* resource,
                         UINT index);
+    // Write a null-resource SRV descriptor at `index` so the slot is valid for
+    // SetGraphicsRootDescriptorTable even when the source resource isn't
+    // currently allocated. Without this, recycled cpu-heap slots can retain
+    // descriptors pointing at released resources and trip GPU-Based Validation
+    // (id=1042) when the SRV table is bound.
+    void markNullTexture2DSrvToIndex(ID3D12Device* device,
+                                     UINT index,
+                                     DXGI_FORMAT format);
+    void markNullStructuredBufferSrvToIndex(ID3D12Device* device,
+                                            UINT index,
+                                            UINT elementByteStride);
     void markUavToIndex(ID3D12Device* device,
                         D3D12Texture* resource,
                         DXGI_FORMAT format,

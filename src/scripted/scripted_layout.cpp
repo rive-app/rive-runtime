@@ -8,14 +8,14 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedLayout::scriptInit(ScriptingVM* vm)
+
+void ScriptedLayout::didHydrateScriptInputs()
 {
-    ScriptedDrawable::scriptInit(vm);
+    ScriptedDrawable::didHydrateScriptInputs();
     if (parent() != nullptr && parent()->is<LayoutComponent>())
     {
         parent()->as<LayoutComponent>()->markLayoutNodeDirty(true);
     }
-    return true;
 }
 
 void ScriptedLayout::callScriptedResize(Vec2D size)
@@ -28,7 +28,12 @@ void ScriptedLayout::callScriptedResize(Vec2D size)
     // Stack: []
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
-    lua_getfield(L, -1, "resize");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "resize")) != LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; no-op.
+        rive_lua_pop(L, 2); // non-function field + self
+        return;
+    }
     // Stack: [self, function]
     lua_pushvalue(L, -2);
     // Stack: [self, function, self]
@@ -60,7 +65,13 @@ Vec2D ScriptedLayout::measureLayout(float width,
     // Stack: []
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
-    lua_getfield(L, -1, "measure");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "measure")) != LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; report no measurement
+        // (same as !measures()).
+        rive_lua_pop(L, 2); // non-function field + self
+        return Vec2D(0, 0);
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]

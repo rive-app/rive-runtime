@@ -116,6 +116,22 @@ void FocusData::removeTextInputListener(KeyboardListener* listener)
     }
 }
 
+void FocusData::addGamepadListener(GamepadListener* listener)
+{
+    m_gamepadListeners.push_back(listener);
+}
+
+void FocusData::removeGamepadListener(GamepadListener* listener)
+{
+    auto it = std::find(m_gamepadListeners.begin(),
+                        m_gamepadListeners.end(),
+                        listener);
+    if (it != m_gamepadListeners.end())
+    {
+        m_gamepadListeners.erase(it);
+    }
+}
+
 void FocusData::focus()
 {
     // Note: In C++ runtime, focus() needs a FocusManager to set focus.
@@ -146,6 +162,21 @@ bool FocusData::textInput(const std::string& text)
     for (auto* listener : m_textInputListeners)
     {
         if (listener->textInput(text))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FocusData::gamepadDispatch(
+    const ListenerInvocation& invocation,
+    ScriptedDrawable** outDispatchedScriptedDrawable)
+{
+    for (auto* listener : m_gamepadListeners)
+    {
+        if (listener->gamepadDispatch(invocation,
+                                      outDispatchedScriptedDrawable))
         {
             return true;
         }

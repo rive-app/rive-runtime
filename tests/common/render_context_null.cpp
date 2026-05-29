@@ -64,7 +64,11 @@ rcp<Texture> RenderContextNULL::makeImageTexture(uint32_t width,
                                                  uint32_t height,
                                                  uint32_t mipLevelCount,
                                                  GPUTextureFormat format,
-                                                 const uint8_t imageDataRGBA[])
+                                                 const uint8_t imageData[],
+                                                 uint8_t blockWidth,
+                                                 uint8_t blockHeight,
+                                                 bool srgb,
+                                                 bool generateRemainingMips)
 {
     return make_rcp<Texture>(width, height);
 }

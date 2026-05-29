@@ -120,7 +120,7 @@ else
 
     # Only use default arguments if RIVE_PREMAKE_ARGS is unset (not just empty).
     if [ -z "${RIVE_PREMAKE_ARGS+null_detector_string}" ]; then
-        RIVE_PREMAKE_ARGS="--with_rive_text --with_rive_layout"
+        RIVE_PREMAKE_ARGS="--with_rive_text --with_rive_layout --with_rive_canvas"
     fi
 
     while [[ $# -gt 0 ]]; do
@@ -227,19 +227,29 @@ pushd "$SCRIPT_DIR/dependencies" > /dev/null
 # sure we rebuild if this script runs for a different tag.
 RIVE_PREMAKE_TAG="${RIVE_PREMAKE_TAG:-v5.0.0-beta7}"
 PREMAKE_INSTALL_DIR="$SCRIPT_DIR/dependencies/premake-core/bin/${RIVE_PREMAKE_TAG}_release"
-if [ ! -f "$PREMAKE_INSTALL_DIR/premake5" ]; then
-    echo Building Premake...
-    rm -fr premake-core # Wipe out a prior checkout if it exists without a premake5 binary.
-    git clone --depth 1 --branch $RIVE_PREMAKE_TAG https://github.com/premake/premake-core.git
-    pushd premake-core > /dev/null
-    case "$HOST_MACHINE" in
-        mac_arm64) make -f Bootstrap.mak osx PLATFORM=ARM ;;
-        mac_x64) make -f Bootstrap.mak osx ;;
-        windows) ./Bootstrap.bat ;;
-        *) make -f Bootstrap.mak linux ;;
-    esac
-    cp -r bin/release $PREMAKE_INSTALL_DIR
-    popd > /dev/null
+if [ ! -f "$PREMAKE_INSTALL_DIR/premake5" ] && [ ! -f "$PREMAKE_INSTALL_DIR/premake5.exe" ]; then
+    if [[ $HOST_MACHINE == "windows" ]]; then
+        echo Downloading prebuilt Premake...
+        PREMAKE_VERSION="${RIVE_PREMAKE_TAG#v}"
+        PREMAKE_ZIP="premake-${PREMAKE_VERSION}-windows.zip"
+        mkdir -p "$PREMAKE_INSTALL_DIR"
+        curl -fL -o "$PREMAKE_ZIP" \
+            "https://github.com/premake/premake-core/releases/download/${RIVE_PREMAKE_TAG}/${PREMAKE_ZIP}"
+        unzip -o "$PREMAKE_ZIP" -d "$PREMAKE_INSTALL_DIR"
+        rm "$PREMAKE_ZIP"
+    else
+        echo Building Premake...
+        rm -fr premake-core # Wipe out a prior checkout if it exists without a premake5 binary.
+        git clone --depth 1 --branch $RIVE_PREMAKE_TAG https://github.com/premake/premake-core.git
+        pushd premake-core > /dev/null
+        case "$HOST_MACHINE" in
+            mac_arm64) make -f Bootstrap.mak osx PLATFORM=ARM ;;
+            mac_x64) make -f Bootstrap.mak osx ;;
+            *) make -f Bootstrap.mak linux ;;
+        esac
+        cp -r bin/release $PREMAKE_INSTALL_DIR
+        popd > /dev/null
+    fi
 fi
 export PATH="$PREMAKE_INSTALL_DIR:$PATH"
 

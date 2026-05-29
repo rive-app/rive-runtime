@@ -1,6 +1,7 @@
 #ifndef _RIVE_SCRIPTED_DRAWABLE_HPP_
 #define _RIVE_SCRIPTED_DRAWABLE_HPP_
 #include "rive/generated/scripted/scripted_drawable_base.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/assets/script_asset.hpp"
@@ -21,7 +22,7 @@ class ScriptedDrawable : public ScriptedDrawableBase,
 {
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(ScriptingVM* vm) override;
+    void didHydrateScriptInputs() override;
 #endif
     void draw(Renderer* renderer) override;
     void update(ComponentDirt value) override;
@@ -56,6 +57,9 @@ public:
     bool worldToLocal(Vec2D world, Vec2D* local);
     void markNeedsUpdate() override;
     bool willDraw() override;
+#ifdef WITH_RIVE_SCRIPTING
+    bool gamepadDispatch(const ListenerInvocation& invocation);
+#endif
     Component* component() override { return this; }
     bool keyInput(Key key,
                   KeyModifiers modifiers,
@@ -93,6 +97,9 @@ public:
                            bool canHit,
                            float timeStamp,
                            int pointerId) override;
+    HitResult processGamepadInvocation(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable* alreadyDispatched) override;
 };
 } // namespace rive
 

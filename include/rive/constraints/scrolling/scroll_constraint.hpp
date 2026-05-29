@@ -29,7 +29,9 @@ private:
     ScrollVirtualizer* m_virtualizer = nullptr;
     std::vector<LayoutNodeProvider*> m_layoutChildren;
     int m_childConstraintAppliedCount = 0;
+    bool m_hasListChildren = false;
 
+    AABB boundsForFlatIndex(size_t index);
     Vec2D positionAtIndex(float index);
     float indexAtPosition(Vec2D pos);
     float maxOffsetXForPercent();

@@ -4,9 +4,14 @@
 
 #include "rive/renderer/metal/render_context_metal_impl.h"
 
+#include "rive/decoders/astc_footprints.hpp"
+
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_metal.hpp"
+#endif
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
@@ -495,6 +500,20 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 #endif
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
+    // Texture compression support varies by Apple platform family.
+#if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS) ||      \
+    defined(RIVE_IOS_SIMULATOR) || defined(RIVE_XROS_SIMULATOR) ||             \
+    defined(RIVE_APPLETVOS_SIMULATOR)
+    // iOS/tvOS/visionOS: ETC2 and ASTC are always supported.
+    m_platformFeatures.supportsTextureCompressionETC2 = true;
+    m_platformFeatures.supportsTextureCompressionASTC = true;
+#else
+    // macOS: BC is always supported; ASTC only on Apple Silicon.
+    m_platformFeatures.supportsTextureCompressionBC = true;
+    m_platformFeatures.supportsTextureCompressionASTC =
+        [m_gpu supportsFamily:MTLGPUFamilyApple1];
+#endif
+
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_XROS_SIMULATOR) || \
     defined(RIVE_APPLETVOS) || defined(RIVE_APPLETVOS_SIMULATOR)
     // Atomic barriers are never used on iOS, but if we ever did need them, we
@@ -812,12 +831,18 @@ public:
                      uint32_t width,
                      uint32_t height,
                      uint32_t mipLevelCount,
-                     const uint8_t imageDataRGBAPremul[]) :
-        Texture(width, height)
+                     const uint8_t imageData[],
+                     MTLPixelFormat pixelFormat = MTLPixelFormatRGBA8Unorm,
+                     uint8_t blockWidth = 1,
+                     uint8_t blockHeight = 1,
+                     uint32_t bytesPerBlock = 4,
+                     bool generateRemainingMips = false) :
+        Texture(width, height),
+        m_mipsDirty(generateRemainingMips && mipLevelCount > 1)
     {
         // Create the texture.
         MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-        desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+        desc.pixelFormat = pixelFormat;
         desc.width = width;
         desc.height = height;
         desc.mipmapLevelCount = mipLevelCount;
@@ -825,12 +850,29 @@ public:
         desc.textureType = MTLTextureType2D;
         m_texture = [gpu newTextureWithDescriptor:desc];
 
-        // Specify the top-level image in the mipmap chain.
-        MTLRegion region = MTLRegionMake2D(0, 0, width, height);
-        [m_texture replaceRegion:region
-                     mipmapLevel:0
-                       withBytes:imageDataRGBAPremul
-                     bytesPerRow:width * 4];
+        // Upload mip 0 only when the caller asks for auto-mipgen
+        // (generateRemainingMips=true). Otherwise upload every level the
+        // texture was created with from the caller-supplied tight blob.
+        const uint32_t levelsToUpload =
+            generateRemainingMips ? 1u : mipLevelCount;
+        const uint8_t* src = imageData;
+        for (uint32_t i = 0; i < levelsToUpload; ++i)
+        {
+            const uint32_t logW = std::max<uint32_t>(1u, width >> i);
+            const uint32_t logH = std::max<uint32_t>(1u, height >> i);
+            const uint32_t blocksX = (logW + blockWidth - 1) / blockWidth;
+            const uint32_t blocksY = (logH + blockHeight - 1) / blockHeight;
+            const NSUInteger bytesPerRow =
+                static_cast<NSUInteger>(blocksX) * bytesPerBlock;
+            const size_t levelBytes =
+                static_cast<size_t>(bytesPerRow) * blocksY;
+            MTLRegion region = MTLRegionMake2D(0, 0, logW, logH);
+            [m_texture replaceRegion:region
+                         mipmapLevel:i
+                           withBytes:src
+                         bytesPerRow:bytesPerRow];
+            src += levelBytes;
+        }
     }
 
     void ensureMipmaps(id<MTLCommandBuffer> commandBuffer) const
@@ -852,6 +894,7 @@ public:
     {}
 
     id<MTLTexture> texture() const { return m_texture; }
+    void* nativeHandle() const override { return (__bridge void*)m_texture; }
 
 private:
     id<MTLTexture> m_texture;
@@ -863,18 +906,70 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageData[],
+    uint8_t blockWidth,
+    uint8_t blockHeight,
+    [[maybe_unused]] bool srgb,
+    bool generateRemainingMips)
 {
-    if (format != GPUTextureFormat::rgba32)
-    {
-        assert(!"unsupported format");
-        return nullptr;
-    }
+    MTLPixelFormat pixelFormat = MTLPixelFormatRGBA8Unorm;
+    uint32_t bytesPerBlock = 4;
+    bool isCompressed = false;
 
-    return make_rcp<TextureMetalImpl>(
-        m_gpu, width, height, mipLevelCount, imageDataRGBAPremul);
+    switch (format)
+    {
+        case GPUTextureFormat::rgba32:
+            assert(blockWidth == 1 && blockHeight == 1);
+            break;
+#if !TARGET_OS_IPHONE
+        case GPUTextureFormat::bc7:
+            pixelFormat = MTLPixelFormatBC7_RGBAUnorm;
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+#endif
+        case GPUTextureFormat::astc:
+        {
+            // MTLPixelFormat ASTC LDR enums are sequential in Vulkan/GL
+            // footprint order, starting at MTLPixelFormatASTC_4x4_LDR.
+            const int idx = rive::astcFootprintIndex(blockWidth, blockHeight);
+            if (idx < 0)
+            {
+                assert(!"unsupported ASTC block footprint");
+                return nullptr;
+            }
+            pixelFormat =
+                static_cast<MTLPixelFormat>(MTLPixelFormatASTC_4x4_LDR + idx);
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+        }
+        case GPUTextureFormat::etc2:
+            // ETC2 RGBA8: 8 bytes EAC alpha + 8 bytes ETC2 RGB = 16/block.
+            pixelFormat = MTLPixelFormatEAC_RGBA8;
+            bytesPerBlock = 16;
+            isCompressed = true;
+            break;
+        default:
+            assert(!"unsupported format");
+            return nullptr;
+    }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "generateMipmapsForTexture is undefined on compressed formats");
+
+    return make_rcp<TextureMetalImpl>(m_gpu,
+                                      width,
+                                      height,
+                                      mipLevelCount,
+                                      imageData,
+                                      pixelFormat,
+                                      blockWidth,
+                                      blockHeight,
+                                      bytesPerBlock,
+                                      generateRemainingMips);
 }
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
                                                            uint32_t height)
 {
@@ -903,6 +998,13 @@ rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+
+std::unique_ptr<rive::ore::Context> RenderContextMetalImpl::makeOreContext()
+{
+    assert(m_commandQueue);
+    return rive::ore::ContextMetal::Make(m_gpu, m_commandQueue);
+}
+#endif
 
 std::unique_ptr<BufferRing> RenderContextMetalImpl::makeUniformBufferRing(
     size_t capacityInBytes)
@@ -1104,6 +1206,30 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     }
 
     return pipelineIter->second.get();
+}
+
+void* RenderContextMetalImpl::makeCommandBuffer()
+{
+    if (m_commandQueue == nil)
+    {
+        return nullptr;
+    }
+    // __bridge_retained: transfers ARC ownership to the void* so it stays alive
+    // until commitCommandBuffer() releases it.
+    return (__bridge_retained void*)[m_commandQueue commandBuffer];
+}
+
+void RenderContextMetalImpl::commitCommandBuffer(void* commandBuffer)
+{
+    if (commandBuffer == nullptr)
+    {
+        return;
+    }
+    // __bridge_transfer: reclaims ARC ownership, balancing the
+    // __bridge_retained in makeCommandBuffer().
+    id<MTLCommandBuffer> mtlCmdBuffer =
+        (__bridge_transfer id<MTLCommandBuffer>)commandBuffer;
+    [mtlCmdBuffer commit];
 }
 
 void RenderContextMetalImpl::prepareToFlush(uint64_t nextFrameNumber,
@@ -1668,13 +1794,13 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
             [encoder setFragmentSamplerState:m_imageSamplers[batch.imageSampler
                                                                  .asKey()]
-                                     atIndex:IMAGE_SAMPLER_IDX];
+                                     atIndex:IMAGE_TEXTURE_IDX];
         }
         else
         {
             [encoder setFragmentSamplerState:
                          m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY]
-                                     atIndex:IMAGE_SAMPLER_IDX];
+                                     atIndex:IMAGE_TEXTURE_IDX];
         }
 
         // Issue any barriers if needed.

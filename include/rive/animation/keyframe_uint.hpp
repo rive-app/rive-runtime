@@ -8,11 +8,13 @@ class KeyFrameUint : public KeyFrameUintBase
 {
 public:
     void apply(Core* object, int propertyKey, float mix) override;
-    void applyInterpolation(Core* object,
-                            int propertyKey,
-                            float seconds,
-                            const KeyFrame* nextFrame,
-                            float mix) override;
+    void applyInterpolation(
+        Core* object,
+        int propertyKey,
+        float seconds,
+        const KeyFrame* nextFrame,
+        float mix,
+        const LinearAnimationInstance* context = nullptr) override;
 };
 } // namespace rive
 

@@ -78,6 +78,9 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 }
 
 #include "catch.hpp"
+#include <rive/assets/audio_asset.hpp>
+#include <rive/assets/font_asset.hpp>
+#include <rive/assets/script_asset.hpp>
 
 using namespace rive;
 
@@ -478,6 +481,51 @@ TEST_CASE("draw loops", "[CommandQueue]")
     serverThread.join();
 }
 
+class TestAssetsFileLoader : public rive::FileAssetLoader
+{
+public:
+    bool loadContents(FileAsset& asset,
+                      Span<const uint8_t> inBandBytes,
+                      Factory* factory) override
+    {
+        CHECK((asset.is<ImageAsset>() || asset.is<AudioAsset>() ||
+               asset.is<FontAsset>() || asset.is<ScriptAsset>()));
+        m_called = true;
+        return false;
+    }
+
+    bool m_called = false;
+};
+
+static void server_thread_file_loader(rcp<CommandQueue> commandQueue,
+                                      rcp<TestAssetsFileLoader> loader)
+{
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(std::move(commandQueue),
+                         nullContext.get(),
+                         std::move(loader));
+    server.serveUntilDisconnect();
+}
+
+TEST_CASE("test support for all asset types", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    auto loader = make_rcp<TestAssetsFileLoader>();
+    std::thread serverThread(server_thread_file_loader, commandQueue, loader);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    wait_for_server(commandQueue.get());
+
+    CHECK(loader->m_called);
+
+    commandQueue->disconnect();
+    serverThread.join();
+};
+
 TEST_CASE("wait for server race condition", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
@@ -568,6 +616,59 @@ TEST_CASE("draw happens once per poll", "[CommandQueue]")
     CHECK(test == 2);
     server.processCommands();
     CHECK(test == 2);
+
+    commandQueue->disconnect();
+}
+
+TEST_CASE("cancelDraw prevents pending draw from running", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    int drawCount = 0;
+    auto drawLambda = [&drawCount](DrawKey, CommandServer*) { ++drawCount; };
+    DrawKey drawKey = commandQueue->createDrawKey();
+
+    commandQueue->draw(drawKey, drawLambda);
+    commandQueue->cancelDraw(drawKey);
+
+    server.processCommands();
+
+    CHECK(drawCount == 0);
+
+    commandQueue->disconnect();
+}
+
+TEST_CASE("cancelDraw only cancels the matching draw key", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    int drawCountA = 0;
+    int drawCountB = 0;
+    auto drawLambdaA = [&drawCountA](DrawKey, CommandServer*) { ++drawCountA; };
+    auto drawLambdaB = [&drawCountB](DrawKey, CommandServer*) { ++drawCountB; };
+    DrawKey drawKeyA = commandQueue->createDrawKey();
+    DrawKey drawKeyB = commandQueue->createDrawKey();
+
+    commandQueue->draw(drawKeyA, drawLambdaA);
+    commandQueue->draw(drawKeyB, drawLambdaB);
+    commandQueue->cancelDraw(drawKeyA);
+
+    server.processCommands();
+
+    CHECK(drawCountA == 0);
+    CHECK(drawCountB == 1);
+
+    commandQueue->draw(drawKeyA, drawLambdaA);
+    server.processCommands();
+
+    CHECK(drawCountA == 1);
+    CHECK(drawCountB == 1);
 
     commandQueue->disconnect();
 }
@@ -1876,6 +1977,32 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
             CHECK(imageProperty != nullptr);
             CHECK(imageProperty->testing_value() == image);
         });
+
+    // Setting a null image handle should clear the property.
+    commandQueue->setViewModelInstanceImage(tester.m_handle,
+                                            "Test Image",
+                                            RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([handle = tester.m_handle](CommandServer* server) {
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto imageProperty = viewModel->propertyImage("Test Image");
+        CHECK(imageProperty != nullptr);
+        CHECK(imageProperty->testing_value() == nullptr);
+    });
+
+    // Setting a null artboard handle should clear the property.
+    commandQueue->setViewModelInstanceArtboard(tester.m_handle,
+                                               "Test Artboard",
+                                               RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([handle = tester.m_handle](CommandServer* server) {
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto artboardProperty = viewModel->propertyArtboard("Test Artboard");
+        CHECK(artboardProperty != nullptr);
+        CHECK(artboardProperty->testing_value() == nullptr);
+    });
 
     // We should set / get in order as it goes through the list.
     for (int i = 0; i < 10; ++i)
@@ -4784,6 +4911,66 @@ TEST_CASE("global Listener", "[CommandQueue]")
     CHECK_CALLBACK(globalAudioSourceListener, onAudioSourceDeleted);
     CHECK_CALLBACK(globalRenderImageListener, onRenderImageDeleted);
 
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+static void local_server_thread(CommandServer* server)
+{
+    server->testing_overrideThreadID(std::this_thread::get_id());
+    server->serveUntilDisconnect();
+}
+
+TEST_CASE("sync pointer events", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    std::unique_ptr<CommandServer> server =
+        std::make_unique<CommandServer>(commandQueue, nullContext.get());
+    std::thread serverThread(local_server_thread, server.get());
+
+    std::ifstream stream("assets/pointer_events.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle =
+        commandQueue->instantiateArtboardNamed(fileHandle, "art-1");
+    auto stateMachineHandle =
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "sm-1");
+
+    commandQueue->advanceStateMachine(stateMachineHandle, 0.0f);
+
+    wait_for_server(commandQueue.get());
+    // Cause as much contention as you can.
+    for (int i = 0; i < 20; ++i)
+    {
+        Vec2D pos(50.0f + i * 10.0f, 50.0f + i * 10.0f);
+        commandQueue->pointerDown(stateMachineHandle, {.position = pos});
+        commandQueue->pointerUp(stateMachineHandle, {.position = pos});
+        commandQueue->pointerMove(stateMachineHandle, {.position = pos});
+
+        commandQueue->advanceStateMachine(stateMachineHandle, 0.1f);
+
+        server->pointerDownSynchronized(stateMachineHandle, {.position = pos});
+        server->pointerUpSynchronized(stateMachineHandle, {.position = pos});
+        server->pointerMoveSynchronized(stateMachineHandle, {.position = pos});
+    }
+
+    commandQueue->deleteStateMachine(stateMachineHandle);
+
+    server->pointerDownSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerUpSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerMoveSynchronized(stateMachineHandle, {.position = {}});
+
+    wait_for_server(commandQueue.get());
+
+    // Test bad handles
+    server->pointerDownSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerUpSynchronized(stateMachineHandle, {.position = {}});
+    server->pointerMoveSynchronized(stateMachineHandle, {.position = {}});
+
+    wait_for_server(commandQueue.get());
     commandQueue->disconnect();
     serverThread.join();
 }

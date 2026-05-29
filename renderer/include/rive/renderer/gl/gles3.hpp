@@ -156,6 +156,25 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 
 #endif // RIVE_WEBGL
 
+// KHR_texture_compression_astc_ldr is core on GLES 3.2 but ships as an
+// extension elsewhere. Some GL headers (e.g. unextended <GLES3/gl3.h>, and
+// the Windows release-clang config) define only a subset of the footprint
+// enums, so guard each symbol individually rather than via the extension
+// macro. UNORM enums are contiguous from 0x93B0 in spec order. Only the
+// footprints Rive currently uses are declared here.
+#ifndef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
+#define GL_COMPRESSED_RGBA_ASTC_4x4_KHR 0x93B0
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_6x6_KHR
+#define GL_COMPRESSED_RGBA_ASTC_6x6_KHR 0x93B4
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_8x8_KHR
+#define GL_COMPRESSED_RGBA_ASTC_8x8_KHR 0x93B7
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_12x12_KHR
+#define GL_COMPRESSED_RGBA_ASTC_12x12_KHR 0x93BD
+#endif
+
 #if defined(RIVE_ANDROID) || defined(RIVE_IOS_GLES) || defined(RIVE_WEBGL)
 // GLES 3.1 functionality is pulled in as an extension. Define these to avoid
 // compile errors, even if we won't use them.
@@ -253,6 +272,13 @@ struct GLCapabilities
     bool EXT_shader_pixel_local_storage2 : 1;
     bool INTEL_fragment_shader_ordering : 1;
     bool QCOM_shader_framebuffer_fetch_noncoherent : 1;
+
+    // Texture compression extensions.
+    bool EXT_texture_compression_s3tc : 1; // BC1/BC2/BC3
+    bool EXT_texture_compression_bptc : 1; // BC7
+    bool KHR_texture_compression_astc_ldr : 1;
+    // ETC2 is core in GLES 3.0+; tracked here for desktop GL (ARB_ES3_compat).
+    bool supportsETC2 : 1;
 };
 
 #ifdef RIVE_ANDROID

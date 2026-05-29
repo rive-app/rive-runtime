@@ -6,7 +6,10 @@
 
 #include "rive/renderer/d3d/d3d_constants.hpp"
 
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include <rive/renderer/ore/ore_context_d3d11.hpp>
+#endif
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
 
@@ -509,6 +512,8 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         d3dCapabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+    // BC1–BC7 are required at D3D feature level 11.0+.
+    m_platformFeatures.supportsTextureCompressionBC = true;
 
     // Create a default raster state for path and offscreen draws.
     D3D11_RASTERIZER_DESC rasterDesc;
@@ -904,7 +909,8 @@ public:
                    UINT height,
                    UINT mipLevelCount,
                    GPUTextureFormat format,
-                   const uint8_t imageDataRGBAPremul[]) :
+                   const uint8_t imageDataRGBAPremul[],
+                   bool generateRemainingMips) :
         Texture(width, height)
     {
         if (format == GPUTextureFormat::bc7)
@@ -950,29 +956,48 @@ public:
         }
         else if (format == GPUTextureFormat::rgba32)
         {
+            // GENERATE_MIPS flag + RTV binding are only needed when the
+            // GPU is going to fill in the chain. For the KTX2-supplied
+            // chain (caller-provided mips) it's pure overhead.
+            const UINT miscFlags =
+                generateRemainingMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0u;
+            const UINT bindFlags =
+                generateRemainingMips
+                    ? (D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET)
+                    : D3D11_BIND_SHADER_RESOURCE;
             m_texture = renderContextImpl->makeSimple2DTexture(
                 DXGI_FORMAT_R8G8B8A8_UNORM,
                 width,
                 height,
                 mipLevelCount,
-                D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-                D3D11_RESOURCE_MISC_GENERATE_MIPS);
+                bindFlags,
+                miscFlags);
 
-            // Specify the top-level image in the mipmap chain.
-            D3D11_BOX box;
-            box.left = 0;
-            box.right = width;
-            box.top = 0;
-            box.bottom = height;
-            box.front = 0;
-            box.back = 1;
-            renderContextImpl->gpuContext()->UpdateSubresource(
-                m_texture.Get(),
-                0,
-                &box,
-                imageDataRGBAPremul,
-                width * 4,
-                0);
+            const uint8_t* src = imageDataRGBAPremul;
+            const UINT levelsToUpload =
+                generateRemainingMips ? 1u : mipLevelCount;
+            UINT W = width;
+            UINT H = height;
+            for (UINT i = 0; i < levelsToUpload; ++i)
+            {
+                D3D11_BOX box;
+                box.left = 0;
+                box.right = W;
+                box.top = 0;
+                box.bottom = H;
+                box.front = 0;
+                box.back = 1;
+                renderContextImpl->gpuContext()->UpdateSubresource(
+                    m_texture.Get(),
+                    i,
+                    &box,
+                    src,
+                    W * 4,
+                    0);
+                src += static_cast<size_t>(W) * H * 4;
+                W = std::max<UINT>(1u, W >> 1);
+                H = std::max<UINT>(1u, H >> 1);
+            }
         }
         else
         {
@@ -985,14 +1010,21 @@ public:
             NULL,
             m_srv.ReleaseAndGetAddressOf()));
 
-        if (format == GPUTextureFormat::rgba32)
+        if (format == GPUTextureFormat::rgba32 && generateRemainingMips &&
+            mipLevelCount > 1)
+        {
             renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
+        }
     }
 
     ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
     ID3D11ShaderResourceView* const* srvAddressOf() const
     {
         return m_srv.GetAddressOf();
+    }
+    void* nativeHandle() const override
+    {
+        return static_cast<void*>(m_texture.Get());
     }
 
 private:
@@ -1005,14 +1037,19 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageDataRGBAPremul[],
+    uint8_t /*blockWidth*/,
+    uint8_t /*blockHeight*/,
+    bool /*srgb*/,
+    bool generateRemainingMips)
 {
     return make_rcp<TextureD3DImpl>(this,
                                     width,
                                     height,
                                     mipLevelCount,
                                     format,
-                                    imageDataRGBAPremul);
+                                    imageDataRGBAPremul,
+                                    generateRemainingMips);
 }
 
 rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
@@ -1023,6 +1060,7 @@ rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
     return make_rcp<TextureD3DImpl>(this, image, width, height);
 }
 
+#ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
                                                          uint32_t height)
 {
@@ -1043,6 +1081,13 @@ rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+
+std::unique_ptr<rive::ore::Context> RenderContextD3DImpl::makeOreContext()
+{
+    return rive::ore::ContextD3D11::Make(m_gpu.Get(), m_gpuContext.Get());
+}
+
+#endif
 
 class BufferRingD3D : public BufferRing
 {
@@ -1512,6 +1557,7 @@ static D3D11_RECT make_scissor(const TAABB<uint16_t> scissor)
 
 void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
+    RIVE_PROF_GPUNAME_L(0, "RiveFlush");
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetD3D*>(desc.renderTarget);
 
@@ -1655,7 +1701,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        RIVE_PROF_GPUNAME("Tessellate Curves");
+        RIVE_PROF_GPUNAME_L(1, "Tessellate Curves");
 
         ID3D11Buffer* tessSpanBuffer =
             flush_buffer(m_gpuContext.Get(), tessSpanBufferRing());
@@ -1739,7 +1785,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
-        RIVE_PROF_GPUNAME("atlasRender");
+        RIVE_PROF_GPUNAME_L(1, "atlasRender");
 
         float clearZero[4]{};
         m_gpuContext->ClearRenderTargetView(m_atlasTextureRTV.Get(), clearZero);
@@ -1825,7 +1871,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // Setup and clear the PLS textures.
     {
-        RIVE_PROF_GPUNAME("clearPLSTextures");
+        RIVE_PROF_GPUNAME_L(1, "clearPLSTextures");
         switch (desc.colorLoadAction)
         {
 
@@ -1887,7 +1933,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    RIVE_PROF_GPUNAME("DrawList");
+    RIVE_PROF_GPUNAME_L(1, "DrawList");
 
     // Execute the DrawList.
     ID3D11RenderTargetView* targetRTV =
@@ -1996,7 +2042,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                    ImageSampler::MAX_SAMPLER_PERMUTATIONS);
             ID3D11SamplerState* samplers[1] = {
                 m_samplerStates[batch.imageSampler.asKey()].Get()};
-            m_gpuContext->PSSetSamplers(IMAGE_SAMPLER_IDX, 1, samplers);
+            m_gpuContext->PSSetSamplers(IMAGE_TEXTURE_IDX, 1, samplers);
         }
 
         switch (drawType)
@@ -2019,7 +2065,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                                 &drawUniforms,
                                                 0,
                                                 0);
-                RIVE_PROF_GPUNAME("Patches");
+                RIVE_PROF_GPUNAME_L(2, "Patches");
                 m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
                                                    batch.elementCount,
                                                    PatchBaseIndex(drawType),
@@ -2034,15 +2080,16 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->RSSetState(
                     m_backCulledRasterState[desc.wireframe].Get());
-                RIVE_PROF_GPUNAME(drawType == DrawType::atlasBlit
-                                      ? "atlasBlit"
-                                      : "interiorTriangulation");
+                RIVE_PROF_GPUNAME_L(2,
+                                    drawType == DrawType::atlasBlit
+                                        ? "atlasBlit"
+                                        : "interiorTriangulation");
                 m_gpuContext->Draw(batch.elementCount, batch.baseElement);
                 break;
             }
             case DrawType::imageRect:
             {
-                RIVE_PROF_GPUNAME("imageRect");
+                RIVE_PROF_GPUNAME_L(2, "imageRect");
 
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2065,7 +2112,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::imageMesh:
             {
-                RIVE_PROF_GPUNAME("imageMesh");
+                RIVE_PROF_GPUNAME_L(2, "imageMesh");
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
                                         RenderBufferD3DImpl*,
                                         batch.vertexBuffer);
@@ -2107,7 +2154,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::renderPassResolve:
             {
-                RIVE_PROF_GPUNAME("renderPassResolve");
+                RIVE_PROF_GPUNAME_L(1, "renderPassResolve");
 
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 m_gpuContext->IASetPrimitiveTopology(
@@ -2165,7 +2212,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
         !renderTarget->targetTextureSupportsUAV())
     {
-        RIVE_PROF_GPUNAME("blit_sub_rect");
+        RIVE_PROF_GPUNAME_L(1, "blit_sub_rect");
 
         // We rendered to an offscreen UAV and did not resolve to the
         // renderTarget. Copy back to the main target.

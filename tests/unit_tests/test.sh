@@ -107,8 +107,50 @@ mkdir -p silvers/tarnished
 
 OUT_DIR="out/$CONFIG"
 
+# Run the unit tests with a watchdog that captures stacks if the binary
+# hangs (macOS only, when no other UTILITY wrapper is in use). On hang we
+# dump `sample`, `vmmap`, and `ps -M` to the log, then SIGABRT so CI fails
+# with diagnostics instead of timing out blind.
+run_with_watchdog() {
+    if [[ $machine != "macosx" ]]; then
+        "$@"
+        return $?
+    fi
+
+    export MallocNanoZone=0
+    export ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}verbosity=2:print_stats=1"
+
+    "$@" &
+    local test_pid=$!
+    (
+        sleep 300
+        if kill -0 "$test_pid" 2>/dev/null; then
+            echo "==== HANG DETECTED at $(date) — capturing diagnostics ===="
+            echo "---- sample (5s) ----"
+            /usr/bin/sample "$test_pid" 5 -mayDie 2>&1 || true
+            echo "---- vmmap --summary ----"
+            /usr/bin/vmmap --summary "$test_pid" 2>&1 | head -200 || true
+            echo "---- ps -M ----"
+            /bin/ps -M "$test_pid" 2>&1 || true
+            echo "==== killing ===="
+            kill -ABRT "$test_pid"
+        fi
+    ) &
+    local watch_pid=$!
+
+    local status=0
+    wait "$test_pid" || status=$?
+    kill "$watch_pid" 2>/dev/null || true
+    wait "$watch_pid" 2>/dev/null || true
+    return $status
+}
+
 # Actually run the unit tests
-$UTILITY $OUT_DIR/unit_tests "$MATCH"
+if [[ -z $UTILITY ]]; then
+    run_with_watchdog $OUT_DIR/unit_tests "$MATCH"
+else
+    $UTILITY $OUT_DIR/unit_tests "$MATCH"
+fi
 
 if [[ $COVERAGE = "true" ]]; then
   if [[ $machine = "macosx" ]]; then

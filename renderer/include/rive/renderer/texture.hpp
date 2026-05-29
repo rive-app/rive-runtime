@@ -24,6 +24,12 @@ public:
     // this class.
     uint32_t textureResourceHash() const { return m_textureResourceHash; }
 
+    // Returns the backend-native texture handle (id<MTLTexture>, GLuint,
+    // VkImage, etc.) as a void pointer.  Used by
+    // ore::Context::wrapRiveTexture() to bridge Rive renderer images into the
+    // Ore GPU abstraction. Default returns nullptr (backend must override).
+    virtual void* nativeHandle() const { return nullptr; }
+
 protected:
     uint32_t m_width;
     uint32_t m_height;

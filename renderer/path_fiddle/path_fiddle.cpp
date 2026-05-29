@@ -849,7 +849,7 @@ static void update_window_title(double fps,
 void riveMainLoop()
 {
     RIVE_PROF_FRAME()
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(0)
 
 #ifdef __EMSCRIPTEN__
     {

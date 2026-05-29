@@ -6,6 +6,7 @@ namespace rive
 {
 class KeyFrame;
 class KeyedCallbackReporter;
+class LinearAnimationInstance;
 class KeyedProperty : public KeyedPropertyBase
 {
 public:
@@ -22,8 +23,14 @@ public:
                               float secondsTo,
                               bool isAtStartFrame) const;
 
-    /// Apply interpolating key frames.
-    void apply(Core* object, float time, float mix);
+    /// Apply interpolating key frames. `context` is the running
+    /// LinearAnimationInstance, propagated so scripted interpolators can vend
+    /// per-(LAI, keyframe) stateful clones. Default-null keeps direct callers
+    /// (tests, hold animations) source-compatible.
+    void apply(Core* object,
+               float time,
+               float mix,
+               const LinearAnimationInstance* context = nullptr);
 
     StatusCode import(ImportStack& importStack) override;
     KeyFrame* first() const

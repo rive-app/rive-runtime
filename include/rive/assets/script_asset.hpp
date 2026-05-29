@@ -28,7 +28,8 @@ enum ScriptProtocol
     converter,
     pathEffect,
     listenerAction,
-    transitionCondition
+    transitionCondition,
+    interpolator
 };
 
 #ifdef WITH_RIVE_SCRIPTING
@@ -46,6 +47,15 @@ public:
     virtual ~ScriptInput();
     virtual void initScriptedValue();
     virtual bool validateForScriptInit() = 0;
+    /// Inputs that need a DataContext (VM paths, VM-resolved artboards) must
+    /// return true here without requiring binding; resolution runs in
+    /// hydrateScriptInput().
+    virtual bool validateForColdScriptInit();
+    /// Resolve bind-time inputs and push into Lua (called after data bind).
+    virtual bool hydrateScriptInput();
+    /// Non-mutating checks that hydrateScriptInput can succeed for every input;
+    /// hydrateScriptInputs validates all before pushing any.
+    virtual bool validateHydrationPrerequisites();
     static ScriptInput* from(Core* component);
     DataBind* dataBind() { return m_dataBind; }
     void dataBind(DataBind* dataBind, bool ownsDataBind = false)
@@ -75,17 +85,20 @@ private:
     static const int m_resizesBit = 1 << 12;
     static const int m_listenerPerforms = 1 << 13;
     static const int m_listenerPerformsAction = 1 << 14;
-    static const int m_wantsKeyboardInputBit = 1 << 15;
-    static const int m_wantsTextInputBit = 1 << 16;
+    static const int m_drawsCanvasBit = 1 << 15;
+    static const int m_wantsKeyboardInputBit = 1 << 16;
+    static const int m_wantsTextInputBit = 1 << 17;
+    static const int m_wantsGamepadConnect = 1 << 18;
+    static const int m_wantsGamepadDisconnect = 1 << 19;
+    static const int m_wantsGamepadEvent = 1 << 20;
 
     int m_implementedMethods = 0;
 
-protected:
-#ifdef WITH_RIVE_SCRIPTING
-    bool verifyImplementation(ScriptedObject* object, lua_State* state);
-#endif
-
 public:
+    // Bits 0-20 hold the method flags (see ScriptAsset::serializedImplemented
+    // Methods, which the editor serializes and the runtime reads directly).
+    static const uint32_t methodMask = (1u << 21) - 1;
+
     int implementedMethods() { return m_implementedMethods; }
     void implementedMethods(int implemented)
     {
@@ -96,7 +109,8 @@ public:
         return (m_implementedMethods &
                 (m_wantsPointerDownBit | m_wantsPointerMoveBit |
                  m_wantsPointerUpBit | m_wantsPointerExitBit |
-                 m_wantsPointerCancelBit)) != 0;
+                 m_wantsPointerCancelBit | m_wantsGamepadConnect |
+                 m_wantsGamepadDisconnect | m_wantsGamepadEvent)) != 0;
     }
     bool advances() { return (m_implementedMethods & m_advancesBit) != 0; }
     bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
@@ -130,6 +144,18 @@ public:
     {
         return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
     }
+    bool wantsGamePadConnect()
+    {
+        return (m_implementedMethods & m_wantsGamepadConnect) != 0;
+    }
+    bool wantsGamePadDisconnect()
+    {
+        return (m_implementedMethods & m_wantsGamepadDisconnect) != 0;
+    }
+    bool wantsGamePadEvent()
+    {
+        return (m_implementedMethods & m_wantsGamepadEvent) != 0;
+    }
     bool draws() { return (m_implementedMethods & m_drawsBit) != 0; }
     bool inits() { return (m_implementedMethods & m_initsBit) != 0; }
     bool dataConverts()
@@ -139,6 +165,10 @@ public:
     bool dataReverseConverts()
     {
         return (m_implementedMethods & m_dataReverseConvertsBit) != 0;
+    }
+    bool drawsCanvas()
+    {
+        return (m_implementedMethods & m_drawsCanvasBit) != 0;
     }
     bool wantsKeyboardInput()
     {
@@ -184,8 +214,6 @@ class ScriptAsset : public ScriptAssetBase,
 
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    friend class ScriptAssetImporter;
-
     bool verified() const override { return m_verified; }
     Span<uint8_t> moduleBytecode() override { return m_bytecode; }
 #endif
@@ -221,7 +249,6 @@ private:
     File* m_file = nullptr;
 #ifdef WITH_RIVE_SCRIPTING
     bool m_scriptRegistered = false;
-    bool m_verified = false;
     SimpleArray<uint8_t> m_bytecode;
     bool m_initted = false;
 #endif

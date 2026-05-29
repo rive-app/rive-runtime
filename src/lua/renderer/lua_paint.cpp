@@ -495,6 +495,32 @@ static int paint_index(lua_State* L)
     }
 }
 
+// Direct field getters bypass the __index Lua frame. They are dispatched by
+// LOP_GETTABLEKS via global_State::udatadirectfields[tag] when the field-name
+// string matches a registered handler. Slow path (paint_index) still handles
+// every other field, so anything that returns a string, userdata, or requires
+// allocation must NOT be registered here.
+
+static void paint_direct_thickness(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedPaintData*)udata)->thickness());
+}
+
+static void paint_direct_feather(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedPaintData*)udata)->feather());
+}
+
+static void paint_direct_color(void* udata, void* result)
+{
+    // Matches the slow path: lua_pushunsigned stores ColorInt as lua_Number.
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedPaintData*)udata)->color());
+}
+
 static int paint_copy(lua_State* L)
 {
     int argCount = lua_gettop(L);
@@ -539,6 +565,16 @@ static const luaL_Reg paintStaticMethods[] = {
     {NULL, NULL},
 };
 
+static void registerPaintDirectFieldGetters(lua_State* L, int tag)
+{
+    lua_registeruserdatadirectfieldget(L,
+                                       tag,
+                                       "thickness",
+                                       paint_direct_thickness);
+    lua_registeruserdatadirectfieldget(L, tag, "feather", paint_direct_feather);
+    lua_registeruserdatadirectfieldget(L, tag, "color", paint_direct_color);
+}
+
 int luaopen_rive_paint(lua_State* L)
 {
     lua_register_rive<ScriptedPaintData>(L);
@@ -547,6 +583,8 @@ int luaopen_rive_paint(lua_State* L)
     lua_setfield(L, -2, "__index");
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
+
+    registerPaintDirectFieldGetters(L, ScriptedPaintData::luaTag);
 
     luaL_register(L, ScriptedPaint::luaName, paintStaticMethods);
     lua_register_rive<ScriptedPaint>(L);
@@ -562,6 +600,8 @@ int luaopen_rive_paint(lua_State* L)
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
+
+    registerPaintDirectFieldGetters(L, ScriptedPaint::luaTag);
 
     return 1;
 }

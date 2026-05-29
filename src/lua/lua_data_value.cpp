@@ -119,6 +119,66 @@ static int property_namecall_atom(lua_State* L,
     return 0;
 }
 
+// Direct field getters dispatched per-tag. Each ScriptedDataValue subtype has
+// its own luaTag, so we can register without needing the inner tag switch the
+// slow path uses.
+
+static void data_value_number_direct_value(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        self->dataValue()->as<DataValueNumber>()->value());
+}
+
+static void data_value_boolean_direct_value(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setboolean(
+        result,
+        self->dataValue()->as<DataValueBoolean>()->value() ? 1 : 0);
+}
+
+static void data_value_color_direct_value(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)self->dataValue()->as<DataValueColor>()->value());
+}
+
+static void data_value_color_direct_red(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)self->dataValue()->as<DataValueColor>()->red());
+}
+
+static void data_value_color_direct_green(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)self->dataValue()->as<DataValueColor>()->green());
+}
+
+static void data_value_color_direct_blue(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)self->dataValue()->as<DataValueColor>()->blue());
+}
+
+static void data_value_color_direct_alpha(void* udata, void* result)
+{
+    auto* self = (ScriptedDataValue*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)self->dataValue()->as<DataValueColor>()->alpha());
+}
+
 static int data_value_index(lua_State* L)
 {
     int atom;
@@ -360,6 +420,11 @@ int luaopen_rive_data_values(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueNumber::luaTag,
+                                           "value",
+                                           data_value_number_direct_value);
     }
     {
         lua_register_rive<ScriptedDataValueString>(L);
@@ -390,6 +455,11 @@ int luaopen_rive_data_values(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueBoolean::luaTag,
+                                           "value",
+                                           data_value_boolean_direct_value);
     }
     {
         lua_register_rive<ScriptedDataValueColor>(L);
@@ -405,6 +475,27 @@ int luaopen_rive_data_values(lua_State* L)
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueColor::luaTag,
+                                           "value",
+                                           data_value_color_direct_value);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueColor::luaTag,
+                                           "red",
+                                           data_value_color_direct_red);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueColor::luaTag,
+                                           "green",
+                                           data_value_color_direct_green);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueColor::luaTag,
+                                           "blue",
+                                           data_value_color_direct_blue);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedDataValueColor::luaTag,
+                                           "alpha",
+                                           data_value_color_direct_alpha);
     }
 
     return 1;

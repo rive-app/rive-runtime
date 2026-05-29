@@ -273,7 +273,7 @@ void ContourMeasure::getSegment(float startDist,
                                 RawPath* dst,
                                 bool startWithMove) const
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
 
     // sanitize the inputs
     startDist = std::max(0.f, startDist);

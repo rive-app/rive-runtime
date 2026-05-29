@@ -3,7 +3,7 @@
  */
 #include <string>
 #include "rive/renderer/render_context.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
 #include <dxgiformat.h>
 
 namespace rive::gpu

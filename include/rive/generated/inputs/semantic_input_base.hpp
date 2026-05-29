@@ -2,8 +2,6 @@
 #define _RIVE_SEMANTIC_INPUT_BASE_HPP_
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/inputs/user_input.hpp"
-
-#include <cstdint>
 namespace rive
 {
 class SemanticInputBase : public UserInput
@@ -14,6 +12,8 @@ protected:
 public:
     static const uint16_t typeKey = 670;
 
+    /// Helper to quickly determine if a core object extends another without
+    /// RTTI at runtime.
     bool isTypeOf(uint16_t typeKey) const override
     {
         switch (typeKey)

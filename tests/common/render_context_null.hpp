@@ -5,7 +5,11 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
+
+#ifdef RIVE_CANVAS
+#include "rive/renderer/ore/ore_context.hpp"
+#endif
 
 class RenderContextNULL : public rive::gpu::RenderContextHelperImpl
 {
@@ -13,6 +17,13 @@ public:
     static std::unique_ptr<rive::gpu::RenderContext> MakeContext();
 
     RenderContextNULL();
+
+#ifdef RIVE_CANVAS
+    std::unique_ptr<rive::ore::Context> makeOreContext() override
+    {
+        return nullptr;
+    }
+#endif
 
     rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width,
                                                         uint32_t height);
@@ -27,7 +38,11 @@ private:
         uint32_t height,
         uint32_t mipLevelCount,
         rive::GPUTextureFormat format,
-        const uint8_t imageDataRGBA[]) override;
+        const uint8_t imageData[],
+        uint8_t blockWidth = 1,
+        uint8_t blockHeight = 1,
+        bool srgb = false,
+        bool generateRemainingMips = false) override;
 
     std::unique_ptr<rive::gpu::BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) override;

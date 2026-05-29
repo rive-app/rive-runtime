@@ -59,6 +59,13 @@ function rive_tools_project(name, project_kind)
 
     fatalwarnings { "All" }
 
+    -- Solves link order issue on linux
+    filter({ 'system:linux'})
+    do
+        linkgroups("On")
+    end
+    filter({ })
+    
     defines({
         'SK_GL',
         'GL_SILENCE_DEPRECATION', -- For glReadPixels()
@@ -84,6 +91,7 @@ function rive_tools_project(name, project_kind)
         yoga,
         libpng,
         zlib,
+        miniaudio,
     })
 
     if ndk then
@@ -91,8 +99,18 @@ function rive_tools_project(name, project_kind)
         links({ 'log', 'android' })
     end
 
-    if _OPTIONS['with_vulkan'] then
+    if _OPTIONS['with_vulkan'] and not _OPTIONS['_console_only_ore_vk'] then
+        -- Skip bootstrap on platforms that supply the Vulkan loader directly.
         dofile(RIVE_PLS_DIR .. '/rive_vk_bootstrap/bootstrap_project.lua')
+    end
+
+    -- Tools projects compile separately from rive_pls_renderer and need
+    -- their own externalincludedirs for ORE Vulkan headers.
+    if _OPTIONS['with_vulkan'] and _OPTIONS['_console_only_ore_vk'] then
+        externalincludedirs({
+            vulkan_headers .. '/include',
+            vulkan_memory_allocator .. '/include',
+        })
     end
 
     filter({ 'options:with_rive_scripting' })
@@ -100,6 +118,13 @@ function rive_tools_project(name, project_kind)
         includedirs({
             luau .. '/VM/include',
         })
+    end
+
+    -- When scripting is enabled, librive.a contains lua_promise.o and
+    -- lua_image_decode.o which reference luau symbols.
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
+    do
+        links({ 'luau_vm' })
     end
 
     filter({ 'system:windows or macosx or linux', 'options:not for_unreal'  })
@@ -135,6 +160,11 @@ function rive_tools_project(name, project_kind)
             '_WINSOCK_DEPRECATED_NO_WARNINGS',
             'UNICODE',
         })
+        if rive_target_os == 'windows' then
+            externalincludedirs({
+                dx12_headers .. '/include/directx',
+            })
+        end
     end
 
     filter('system:android')
@@ -235,6 +265,10 @@ function rive_tools_project(name, project_kind)
             'Dbghelp',
             'd3dcompiler',
             'ws2_32',
+            'gdi32',
+            'shell32',
+            'advapi32',
+            'user32',
         })
     end
 
@@ -267,6 +301,14 @@ function rive_tools_project(name, project_kind)
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:android' })
     do
         links({ 'EGL', 'GLESv3', 'log' })
+        -- Support 16 KB page sizes
+        -- Necessary for NDK r27, can remove when upgrading to r28+
+            -- See: https://developer.android.com/guide/practices/page-sizes#compile-r27-lower
+        -- See: https://android.googlesource.com/platform/ndk/+/master/docs/BuildSystemMaintainers.md#page-sizes
+        linkoptions({
+            '-Wl,-z,max-page-size=16384',
+            '-Wl,-z,common-page-size=16384',
+        })
     end
 
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-dawn' })
@@ -292,7 +334,7 @@ function rive_tools_project(name, project_kind)
         'system:windows',
     })
     do
-        links({ 'dxguid' })
+        links({ 'dxguid', 'onecore' })
     end
 
     filter({

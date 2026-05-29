@@ -41,11 +41,10 @@ void ScriptedDataConverter::disposeScriptInputs()
 }
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDataConverter::scriptInit(ScriptingVM* vm)
+
+void ScriptedDataConverter::didHydrateScriptInputs()
 {
-    ScriptedObject::scriptInit(vm);
     addScriptedDirt(ComponentDirt::Bindings);
-    return true;
 }
 
 bool ScriptedDataConverter::pushDataValue(DataValue* value)
@@ -98,8 +97,14 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
     // Stack: []
     rive_lua_pushRef(L, m_self);
     // Stack: [self]
-    lua_getfield(L, -1, method.c_str());
-
+    if (static_cast<lua_Type>(lua_getfield(L, -1, method.c_str())) !=
+        LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; pass the value through
+        // unchanged (same as !dataConverts()).
+        rive_lua_pop(L, 2); // non-function field + self
+        return value;
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]

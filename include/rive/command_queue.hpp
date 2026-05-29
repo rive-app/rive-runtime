@@ -606,6 +606,10 @@ public:
     // will be run per pollCommands.
     void draw(DrawKey, CommandServerDrawCallback);
 
+    // Cancel a pending draw for the given key if it has already been admitted
+    // to the current coalesced draw batch.
+    void cancelDraw(DrawKey);
+
 #ifdef TESTING
     // Sends a commandLoopBreak command to the server. This will cause the
     // processCommands to return even if there are more commands to consume.
@@ -613,7 +617,6 @@ public:
     // return. To continue processing commands, another call to processCommands
     // is required.
     void testing_commandLoopBreak();
-
     FileListener* testing_getFileListener(FileHandle);
     ArtboardListener* testing_getArtboardListener(ArtboardHandle);
     StateMachineListener* testing_getStateMachineListener(StateMachineHandle);
@@ -839,6 +842,7 @@ private:
         bindViewModelInstance,
         runOnce,
         draw,
+        cancelDraw,
         pointerMove,
         pointerDown,
         pointerUp,

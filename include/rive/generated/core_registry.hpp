@@ -46,6 +46,7 @@
 #include "rive/animation/listener_trigger_change.hpp"
 #include "rive/animation/listener_types/listener_input_type.hpp"
 #include "rive/animation/listener_types/listener_input_type_event.hpp"
+#include "rive/animation/listener_types/listener_input_type_gamepad.hpp"
 #include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
 #include "rive/animation/listener_types/listener_input_type_semantic.hpp"
 #include "rive/animation/listener_types/listener_input_type_text.hpp"
@@ -114,6 +115,8 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/manifest_asset.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/assets/shader_asset.hpp"
+#include "rive/assets/text_asset.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/backboard.hpp"
 #include "rive/bones/bone.hpp"
@@ -204,6 +207,7 @@
 #include "rive/event.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/foreground_layout_drawable.hpp"
+#include "rive/inputs/gamepad_input.hpp"
 #include "rive/inputs/keyboard_input.hpp"
 #include "rive/inputs/semantic_input.hpp"
 #include "rive/inputs/user_input.hpp"
@@ -232,6 +236,7 @@
 #include "rive/script_input_viewmodel_property.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/semantic/semantic_data.hpp"
@@ -382,12 +387,18 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case ViewModelInstanceBase::typeKey:
-                return new ViewModelInstance();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelInstanceBase::typeKey:
+                return new ViewModelInstance();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -400,18 +411,12 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -462,6 +467,8 @@ public:
                 return new ScriptedDrawable();
             case ScriptedDataConverterBase::typeKey:
                 return new ScriptedDataConverter();
+            case ScriptedInterpolatorBase::typeKey:
+                return new ScriptedInterpolator();
             case ScriptedLayoutBase::typeKey:
                 return new ScriptedLayout();
             case ScriptedPathEffectBase::typeKey:
@@ -600,6 +607,8 @@ public:
                 return new ListenerInputType();
             case ListenerInputTypeEventBase::typeKey:
                 return new ListenerInputTypeEvent();
+            case ListenerInputTypeGamepadBase::typeKey:
+                return new ListenerInputTypeGamepad();
             case ListenerInputTypeKeyboardBase::typeKey:
                 return new ListenerInputTypeKeyboard();
             case ListenerInputTypeTextBase::typeKey:
@@ -866,6 +875,8 @@ public:
                 return new ManifestAsset();
             case ImageAssetBase::typeKey:
                 return new ImageAsset();
+            case ShaderAssetBase::typeKey:
+                return new ShaderAsset();
             case FontAssetBase::typeKey:
                 return new FontAsset();
             case AudioAssetBase::typeKey:
@@ -876,6 +887,8 @@ public:
                 return new AudioEvent();
             case UserInputBase::typeKey:
                 return new UserInput();
+            case GamepadInputBase::typeKey:
+                return new GamepadInput();
             case KeyboardInputBase::typeKey:
                 return new KeyboardInput();
             case SemanticInputBase::typeKey:
@@ -1020,6 +1033,9 @@ public:
                 break;
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedDataConverterBase>()->scriptAssetId(value);
+                break;
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
+                object->as<ScriptedInterpolatorBase>()->scriptAssetId(value);
                 break;
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedPathEffectBase>()->scriptAssetId(value);
@@ -1653,8 +1669,24 @@ public:
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 object->as<ScriptAssetBase>()->generatorFunctionRef(value);
                 break;
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
+                object->as<ScriptAssetBase>()->serializedImplementedMethods(
+                    value);
+                break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
+                break;
+            case GamepadInputBase::kindPropertyKey:
+                object->as<GamepadInputBase>()->kind(value);
+                break;
+            case GamepadInputBase::mappingPropertyKey:
+                object->as<GamepadInputBase>()->mapping(value);
+                break;
+            case GamepadInputBase::inputIndexPropertyKey:
+                object->as<GamepadInputBase>()->inputIndex(value);
+                break;
+            case GamepadInputBase::buttonPhasePropertyKey:
+                object->as<GamepadInputBase>()->buttonPhase(value);
                 break;
             case KeyboardInputBase::keyTypePropertyKey:
                 object->as<KeyboardInputBase>()->keyType(value);
@@ -1746,8 +1778,8 @@ public:
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 object->as<FileAssetBase>()->cdnBaseUrl(value);
                 break;
-            case ScriptAssetBase::folderPathPropertyKey:
-                object->as<ScriptAssetBase>()->folderPath(value);
+            case TextAssetBase::folderPathPropertyKey:
+                object->as<TextAssetBase>()->folderPath(value);
                 break;
         }
     }
@@ -1835,6 +1867,9 @@ public:
             case NestedArtboardBase::isPausedPropertyKey:
                 object->as<NestedArtboardBase>()->isPaused(value);
                 break;
+            case NestedArtboardBase::isStatefulPropertyKey:
+                object->as<NestedArtboardBase>()->isStateful(value);
+                break;
             case AxisBase::normalizedPropertyKey:
                 object->as<AxisBase>()->normalized(value);
                 break;
@@ -1911,9 +1946,6 @@ public:
                 break;
             case LayoutComponentBase::clipPropertyKey:
                 object->as<LayoutComponentBase>()->clip(value);
-                break;
-            case ArtboardBase::isStatefulPropertyKey:
-                object->as<ArtboardBase>()->isStateful(value);
                 break;
             case SemanticDataBase::isExpandablePropertyKey:
             {
@@ -2976,6 +3008,9 @@ public:
     {
         switch (propertyKey)
         {
+            case ViewModelInstanceTriggerBase::firePropertyKey:
+                object->as<ViewModelInstanceTriggerBase>()->fire(value);
+                break;
             case CustomPropertyTriggerBase::firePropertyKey:
                 object->as<CustomPropertyTriggerBase>()->fire(value);
                 break;
@@ -3086,6 +3121,8 @@ public:
                 return object->as<ScriptedDrawableBase>()->scriptAssetId();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedDataConverterBase>()->scriptAssetId();
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
+                return object->as<ScriptedInterpolatorBase>()->scriptAssetId();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedPathEffectBase>()->scriptAssetId();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
@@ -3537,8 +3574,19 @@ public:
                 return object->as<FileAssetBase>()->assetId();
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->as<ScriptAssetBase>()->generatorFunctionRef();
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
+                return object->as<ScriptAssetBase>()
+                    ->serializedImplementedMethods();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
+            case GamepadInputBase::kindPropertyKey:
+                return object->as<GamepadInputBase>()->kind();
+            case GamepadInputBase::mappingPropertyKey:
+                return object->as<GamepadInputBase>()->mapping();
+            case GamepadInputBase::inputIndexPropertyKey:
+                return object->as<GamepadInputBase>()->inputIndex();
+            case GamepadInputBase::buttonPhasePropertyKey:
+                return object->as<GamepadInputBase>()->buttonPhase();
             case KeyboardInputBase::keyTypePropertyKey:
                 return object->as<KeyboardInputBase>()->keyType();
             case KeyboardInputBase::keyPhasePropertyKey:
@@ -3605,8 +3653,8 @@ public:
                 return object->as<AssetBase>()->name();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->as<FileAssetBase>()->cdnBaseUrl();
-            case ScriptAssetBase::folderPathPropertyKey:
-                return object->as<ScriptAssetBase>()->folderPath();
+            case TextAssetBase::folderPathPropertyKey:
+                return object->as<TextAssetBase>()->folderPath();
         }
         return "";
     }
@@ -3674,6 +3722,8 @@ public:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
             case NestedArtboardBase::isPausedPropertyKey:
                 return object->as<NestedArtboardBase>()->isPaused();
+            case NestedArtboardBase::isStatefulPropertyKey:
+                return object->as<NestedArtboardBase>()->isStateful();
             case AxisBase::normalizedPropertyKey:
                 return object->as<AxisBase>()->normalized();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -3727,8 +3777,6 @@ public:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
                 return object->as<LayoutComponentBase>()->clip();
-            case ArtboardBase::isStatefulPropertyKey:
-                return object->as<ArtboardBase>()->isStateful();
             case DataBindPathBase::isRelativePropertyKey:
                 return object->as<DataBindPathBase>()->isRelative();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
@@ -4257,6 +4305,7 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
             case ScriptedDrawableBase::scriptAssetIdPropertyKey:
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
             case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
@@ -4454,7 +4503,12 @@ public:
             case CustomPropertyEnumBase::enumIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
+            case GamepadInputBase::kindPropertyKey:
+            case GamepadInputBase::mappingPropertyKey:
+            case GamepadInputBase::inputIndexPropertyKey:
+            case GamepadInputBase::buttonPhasePropertyKey:
             case KeyboardInputBase::keyTypePropertyKey:
             case KeyboardInputBase::keyPhasePropertyKey:
             case KeyboardInputBase::modifiersPropertyKey:
@@ -4484,7 +4538,7 @@ public:
             case TextValueRunBase::textPropertyKey:
             case AssetBase::namePropertyKey:
             case FileAssetBase::cdnBaseUrlPropertyKey:
-            case ScriptAssetBase::folderPathPropertyKey:
+            case TextAssetBase::folderPathPropertyKey:
                 return CoreStringType::id;
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
             case CustomPropertyColorBase::propertyValuePropertyKey:
@@ -4511,6 +4565,7 @@ public:
             case ScrollConstraintBase::interactivePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case NestedArtboardBase::isPausedPropertyKey:
+            case NestedArtboardBase::isStatefulPropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -4536,7 +4591,6 @@ public:
             case FocusDataBase::canTraversePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
-            case ArtboardBase::isStatefulPropertyKey:
             case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
@@ -4789,6 +4843,7 @@ public:
     {
         switch (propertyKey)
         {
+            case ViewModelInstanceTriggerBase::firePropertyKey:
             case CustomPropertyTriggerBase::firePropertyKey:
             case NestedTriggerBase::firePropertyKey:
             case EventBase::triggerPropertyKey:
@@ -4882,6 +4937,8 @@ public:
                 return object->is<ScriptedDrawableBase>();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedDataConverterBase>();
+            case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
+                return object->is<ScriptedInterpolatorBase>();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedPathEffectBase>();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
@@ -5270,8 +5327,18 @@ public:
                 return object->is<FileAssetBase>();
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
                 return object->is<ScriptAssetBase>();
+            case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
+                return object->is<ScriptAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
+            case GamepadInputBase::kindPropertyKey:
+                return object->is<GamepadInputBase>();
+            case GamepadInputBase::mappingPropertyKey:
+                return object->is<GamepadInputBase>();
+            case GamepadInputBase::inputIndexPropertyKey:
+                return object->is<GamepadInputBase>();
+            case GamepadInputBase::buttonPhasePropertyKey:
+                return object->is<GamepadInputBase>();
             case KeyboardInputBase::keyTypePropertyKey:
                 return object->is<KeyboardInputBase>();
             case KeyboardInputBase::keyPhasePropertyKey:
@@ -5328,8 +5395,8 @@ public:
                 return object->is<AssetBase>();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->is<FileAssetBase>();
-            case ScriptAssetBase::folderPathPropertyKey:
-                return object->is<ScriptAssetBase>();
+            case TextAssetBase::folderPathPropertyKey:
+                return object->is<TextAssetBase>();
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceColorBase>();
             case CustomPropertyColorBase::propertyValuePropertyKey:
@@ -5377,6 +5444,8 @@ public:
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->is<ScrollBarConstraintBase>();
             case NestedArtboardBase::isPausedPropertyKey:
+                return object->is<NestedArtboardBase>();
+            case NestedArtboardBase::isStatefulPropertyKey:
                 return object->is<NestedArtboardBase>();
             case AxisBase::normalizedPropertyKey:
                 return object->is<AxisBase>();
@@ -5428,8 +5497,6 @@ public:
                 return object->is<CustomPropertyBooleanBase>();
             case LayoutComponentBase::clipPropertyKey:
                 return object->is<LayoutComponentBase>();
-            case ArtboardBase::isStatefulPropertyKey:
-                return object->is<ArtboardBase>();
             case SemanticDataBase::isExpandablePropertyKey:
                 return object->is<SemanticDataBase>();
             case SemanticDataBase::isSelectablePropertyKey:
@@ -5928,6 +5995,8 @@ public:
                 return object->is<DrawableAssetBase>();
             case ExportAudioBase::volumePropertyKey:
                 return object->is<ExportAudioBase>();
+            case ViewModelInstanceTriggerBase::firePropertyKey:
+                return object->is<ViewModelInstanceTriggerBase>();
             case CustomPropertyTriggerBase::firePropertyKey:
                 return object->is<CustomPropertyTriggerBase>();
             case NestedTriggerBase::firePropertyKey:

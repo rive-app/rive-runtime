@@ -18,12 +18,20 @@ namespace rive
 class CommandServer::CommandFileAssetLoader : public FileAssetLoader
 {
 public:
-    CommandFileAssetLoader(CommandServer* server) : m_server(server) {}
+    CommandFileAssetLoader(CommandServer* server,
+                           rcp<rive::FileAssetLoader> internalLoader) :
+        m_server(server), m_internalLoader(internalLoader)
+    {}
 
     virtual bool loadContents(FileAsset& asset,
                               Span<const uint8_t> inBandBytes,
                               Factory* factory) override
     {
+        if (m_internalLoader)
+        {
+            if (m_internalLoader->loadContents(asset, inBandBytes, factory))
+                return true;
+        }
         if (asset.is<ImageAsset>())
         {
             // No need for another if because as just asserts the above
@@ -57,7 +65,6 @@ public:
                 return false;
             }
         }
-
         else if (asset.is<FontAsset>())
         {
             auto fontAsset = asset.as<FontAsset>();
@@ -73,14 +80,12 @@ public:
                 return false;
             }
         }
-
         else if (asset.is<ScriptAsset>())
         {
             // Script assets cannot currently be added externally.
             // Let the file loader handle it.
             return false;
         }
-
         else
         {
             fprintf(stderr,
@@ -177,6 +182,7 @@ private:
     std::unordered_map<std::string, RenderImageHandle> m_imageAssets;
     std::unordered_map<std::string, AudioSourceHandle> m_audioAssets;
     std::unordered_map<std::string, FontHandle> m_fontAssets;
+    rcp<FileAssetLoader> m_internalLoader;
 };
 
 std::ostream& operator<<(std::ostream& os, DataType t)
@@ -261,16 +267,85 @@ bool CommandServer::testing_globalFontContains(std::string name)
 #endif
 
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
-                             Factory* factory) :
+                             Factory* factory,
+                             rcp<rive::FileAssetLoader> internalLoader) :
     m_commandQueue(std::move(commandBuffer)),
     m_factory(factory),
 #ifndef NDEBUG
     m_threadID(std::this_thread::get_id()),
 #endif
-    m_fileAssetLoader(make_rcp<CommandFileAssetLoader>(this))
+    m_fileAssetLoader(
+        make_rcp<CommandFileAssetLoader>(this, std::move(internalLoader)))
 {}
 
 CommandServer::~CommandServer() {}
+
+rive::HitResult CommandServer::pointerDownSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->pointerDown(pos,
+                                                       pointerEvent.pointerId);
+        }
+    }
+
+    return rive::HitResult::none;
+}
+
+rive::HitResult CommandServer::pointerMoveSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->pointerMove(pos,
+                                                       0,
+                                                       pointerEvent.pointerId);
+        }
+    }
+
+    return rive::HitResult::none;
+}
+
+rive::HitResult CommandServer::pointerUpSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->pointerUp(pos,
+                                                     pointerEvent.pointerId);
+        }
+    }
+
+    return rive::HitResult::none;
+}
 
 File* CommandServer::getFile(FileHandle handle) const
 {
@@ -316,12 +391,20 @@ rcp<BindableArtboard> CommandServer::getBindableArtboard(
     return it != m_artboards.end() ? it->second : nullptr;
 }
 
+rcp<CommandServer::SynchronizedStateMachine> CommandServer::
+    getStateMachineWrapper(StateMachineHandle handle)
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    auto it = m_stateMachines.find(handle);
+    return it != m_stateMachines.end() ? it->second : nullptr;
+}
+
 StateMachineInstance* CommandServer::getStateMachineInstance(
     StateMachineHandle handle) const
 {
     assert(std::this_thread::get_id() == m_threadID);
     auto it = m_stateMachines.find(handle);
-    return it != m_stateMachines.end() ? it->second.get() : nullptr;
+    return it != m_stateMachines.end() ? it->second->instance.get() : nullptr;
 }
 
 ViewModelInstanceRuntime* CommandServer::getViewModelInstance(
@@ -1544,7 +1627,12 @@ bool CommandServer::processCommands()
                             name.empty() ? artboard->defaultStateMachine()
                                          : artboard->stateMachineNamed(name))
                     {
-                        m_stateMachines[handle] = std::move(stateMachine);
+                        std::unique_lock<std::mutex> accesLock(
+                            m_stateMachineAccessMutex);
+                        m_stateMachines[handle] =
+                            make_rcp<SynchronizedStateMachine>(
+                                std::move(stateMachine));
+                        accesLock.unlock();
                         assert(m_artboardDependencies.find(artboardHandle) !=
                                m_artboardDependencies.end());
                         m_artboardDependencies[artboardHandle].push_back(
@@ -1595,12 +1683,14 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 lock.unlock();
 
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
                     if (auto viewModelInstance =
                             getViewModelInstance(viewModel))
                     {
-                        stateMachine->bindViewModelInstance(
+                        std::unique_lock<std::mutex> accesLock(
+                            stateMachineWrapper->m_mutex);
+                        stateMachineWrapper->instance->bindViewModelInstance(
                             viewModelInstance->instance());
                     }
                     else
@@ -1638,10 +1728,12 @@ bool CommandServer::processCommands()
                 commandStream >> timeToAdvance;
                 lock.unlock();
 
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto wrapper = getStateMachineWrapper(handle))
                 {
-                    if (!stateMachine->advanceAndApply(timeToAdvance))
+                    std::unique_lock<std::mutex> advanceLock(wrapper->m_mutex);
+                    if (!wrapper->instance->advanceAndApply(timeToAdvance))
                     {
+                        advanceLock.unlock();
                         std::unique_lock<std::mutex> messageLock(
                             m_commandQueue->m_messageMutex);
                         messageStream
@@ -1675,8 +1767,10 @@ bool CommandServer::processCommands()
                 auto it = m_stateMachines.find(handle);
                 if (it != m_stateMachines.end())
                 {
-                    it->second.get()->dispose();
+                    std::unique_lock<std::mutex> accesLock(
+                        m_stateMachineAccessMutex);
                     m_stateMachines.erase(it);
+                    accesLock.unlock();
                 }
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
@@ -1705,6 +1799,15 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_drawCallbacks >> drawCallback;
                 lock.unlock();
                 m_uniqueDraws[drawKey] = std::move(drawCallback);
+                break;
+            }
+
+            case CommandQueue::Command::cancelDraw:
+            {
+                DrawKey drawKey;
+                commandStream >> drawKey;
+                lock.unlock();
+                m_uniqueDraws.erase(drawKey);
                 break;
             }
 
@@ -2135,7 +2238,7 @@ bool CommandServer::processCommands()
                 ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
                 ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
                 RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
-                ArtboardHandle artboadHandle = RIVE_NULL_HANDLE;
+                ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
                 uint64_t requestId;
                 CommandQueue::ViewModelInstanceData value;
 
@@ -2169,7 +2272,7 @@ bool CommandServer::processCommands()
                         commandStream >> imageHandle;
                         break;
                     case DataType::artboard:
-                        commandStream >> artboadHandle;
+                        commandStream >> artboardHandle;
                         break;
                     default:
                         RIVE_UNREACHABLE();
@@ -2379,11 +2482,15 @@ bool CommandServer::processCommands()
                         }
                         case DataType::assetImage:
                         {
-                            if (auto image = getImage(imageHandle))
+                            if (auto imageProperty =
+                                    viewModelInstance->propertyImage(
+                                        value.metaData.name))
                             {
-                                if (auto imageProperty =
-                                        viewModelInstance->propertyImage(
-                                            value.metaData.name))
+                                if (imageHandle == RIVE_NULL_HANDLE)
+                                {
+                                    imageProperty->value(nullptr);
+                                }
+                                else if (auto image = getImage(imageHandle))
                                 {
                                     imageProperty->value(image);
                                 }
@@ -2394,8 +2501,10 @@ bool CommandServer::processCommands()
                                         handle,
                                         requestId,
                                         CommandQueue::Message::viewModelError)
-                                        << "Could not find "
-                                           "image property at path "
+                                        << "Could not find image "
+                                        << imageHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
                                         << value.metaData.name;
                                 }
                             }
@@ -2406,21 +2515,25 @@ bool CommandServer::processCommands()
                                     handle,
                                     requestId,
                                     CommandQueue::Message::viewModelError)
-                                    << "Could not find image " << imageHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
+                                    << "Could not find "
+                                       "image property at path "
                                     << value.metaData.name;
                             }
                             break;
                         }
                         case DataType::artboard:
                         {
-                            if (auto bindableArtboard =
-                                    getBindableArtboard(artboadHandle))
+                            if (auto artboardProperty =
+                                    viewModelInstance->propertyArtboard(
+                                        value.metaData.name))
                             {
-                                if (auto artboardProperty =
-                                        viewModelInstance->propertyArtboard(
-                                            value.metaData.name))
+                                if (artboardHandle == RIVE_NULL_HANDLE)
+                                {
+                                    artboardProperty->value(nullptr);
+                                }
+                                else if (auto bindableArtboard =
+                                             getBindableArtboard(
+                                                 artboardHandle))
                                 {
                                     artboardProperty->value(bindableArtboard);
                                 }
@@ -2431,8 +2544,10 @@ bool CommandServer::processCommands()
                                         handle,
                                         requestId,
                                         CommandQueue::Message::viewModelError)
-                                        << "Could not find "
-                                           "artboard property at path "
+                                        << "Could not find artboard "
+                                        << artboardHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
                                         << value.metaData.name;
                                 }
                             }
@@ -2443,10 +2558,8 @@ bool CommandServer::processCommands()
                                     handle,
                                     requestId,
                                     CommandQueue::Message::viewModelError)
-                                    << "Could not find artboard "
-                                    << artboadHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
+                                    << "Could not find "
+                                       "artboard property at path "
                                     << value.metaData.name;
                             }
                             break;
@@ -2752,13 +2865,17 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerMove(position,
-                                              0.0f,
-                                              pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerMove(
+                        position,
+                        0.0f,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2782,11 +2899,16 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerDown(position, pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerDown(
+                        position,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2810,11 +2932,16 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerUp(position, pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerUp(
+                        position,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2838,11 +2965,16 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
-                if (auto stateMachine = getStateMachineInstance(handle))
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
                 {
-                    Vec2D position =
-                        cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerExit(position, pointerEvent.pointerId);
+                    Vec2D position = cursorPosForPointerEvent(
+                        stateMachineWrapper->instance.get(),
+                        pointerEvent);
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->pointerExit(
+                        position,
+                        pointerEvent.pointerId);
                 }
                 else
                 {
@@ -2971,5 +3103,10 @@ bool CommandServer::processCommands()
     checkPropertySubscriptions();
 
     return !m_wasDisconnectReceived;
+}
+CommandServer::SynchronizedStateMachine::~SynchronizedStateMachine()
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    instance->dispose();
 }
 }; // namespace rive

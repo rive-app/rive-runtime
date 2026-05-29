@@ -9,6 +9,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/hit_info.hpp"
 #include "rive/input/focusable.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/span.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/resetting_component.hpp"
@@ -67,6 +68,7 @@ public:
     int referencedArtboardId() override;
     void referencedArtboard(Artboard* artboard) override;
     size_t artboardCount() override { return 1; }
+    int type() const override { return coreType(); }
     ArtboardInstance* artboardInstance(int index = 0) override
     {
         return m_Instance.get();
@@ -128,6 +130,11 @@ public:
     // Focusable interface - delegates to nested state machines
     bool keyInput(Key, KeyModifiers, bool, bool) override { return false; };
     bool textInput(const std::string&) override { return false; };
+    bool gamepadDispatch(const ListenerInvocation&,
+                         ScriptedDrawable** = nullptr) override
+    {
+        return false;
+    }
     void focused() override {}
     void blurred() override {}
     Artboard* focusableArtboard() const override { return artboard(); }

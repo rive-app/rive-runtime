@@ -120,6 +120,13 @@ public:
 
     id<MTLDevice> gpu() const { return m_gpu; }
 
+    // Set the command queue used by makeCommandBuffer(). Must be called
+    // before any ScriptedCanvas flush if canvas support is needed.
+    void setCommandQueue(id<MTLCommandQueue> queue) { m_commandQueue = queue; }
+
+    void* makeCommandBuffer() override;
+    void commitCommandBuffer(void* commandBuffer) override;
+
     rcp<RenderTargetMetal> makeRenderTarget(MTLPixelFormat,
                                             uint32_t width,
                                             uint32_t height);
@@ -132,10 +139,17 @@ public:
                                   uint32_t height,
                                   uint32_t mipLevelCount,
                                   GPUTextureFormat format,
-                                  const uint8_t imageDataRGBAPremul[]) override;
+                                  const uint8_t imageData[],
+                                  uint8_t blockWidth = 1,
+                                  uint8_t blockHeight = 1,
+                                  bool srgb = false,
+                                  bool generateRemainingMips = false) override;
 
+#ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
+#endif
 
     // Atomic mode requires a barrier between overlapping draws. We have to
     // implement this barrier in various different ways, depending on which
@@ -213,6 +227,7 @@ private:
 
     const ContextOptions m_contextOptions;
     const id<MTLDevice> m_gpu;
+    id<MTLCommandQueue> m_commandQueue = nil;
 
     MetalFeatures m_metalFeatures;
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;

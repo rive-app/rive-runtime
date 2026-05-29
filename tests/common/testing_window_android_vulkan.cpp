@@ -128,6 +128,38 @@ public:
         return m_renderTarget.get();
     }
 
+    void* vulkanGraphicsQueue() const override
+    {
+        if (!vk() || !m_device)
+            return VK_NULL_HANDLE;
+        auto pfnGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
+            vk()->GetDeviceProcAddr(vk()->device, "vkGetDeviceQueue"));
+        if (!pfnGetDeviceQueue)
+            return VK_NULL_HANDLE;
+        VkQueue queue = VK_NULL_HANDLE;
+        pfnGetDeviceQueue(vk()->device,
+                          m_device->graphicsQueueFamilyIndex(),
+                          0,
+                          &queue);
+        return queue;
+    }
+    uint32_t vulkanGraphicsQueueFamilyIndex() const override
+    {
+        return m_device ? m_device->graphicsQueueFamilyIndex() : 0;
+    }
+    void* vulkanGetInstanceProcAddr() const override
+    {
+        return m_instance ? reinterpret_cast<void*>(
+                                m_instance->getVkGetInstanceProcAddrPtr())
+                          : nullptr;
+    }
+    void* vulkanCurrentCommandBuffer() const override
+    {
+        if (m_swapchain == nullptr || !m_swapchain->isFrameStarted())
+            return nullptr;
+        return m_swapchain->currentCommandBuffer();
+    }
+
     void resize(int width, int height) override
     {
         TestingWindow::resize(width, height);
@@ -410,6 +442,12 @@ private:
                                                         m_windowSurface,
                                                         swapOpts);
         assert(m_swapchain != nullptr);
+
+        // Enable canvas pre-pass support
+        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+        // for canvas rendering.
+        impl()->setCanvasQueue(m_swapchain->graphicsQueue(),
+                               m_device->graphicsQueueFamilyIndex());
 
         m_androidWindowWidth = m_swapchain->width();
         m_androidWindowHeight = m_swapchain->height();

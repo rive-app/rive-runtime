@@ -8,9 +8,27 @@ filter({ 'options:with_rive_text' })
 do
     defines({ 'WITH_RIVE_TEXT' })
 end
+filter({ 'options:with_rive_canvas' })
+do
+    defines({ 'RIVE_CANVAS' })
+end
 filter({ 'options:with_rive_scripting' })
 do
     defines({ 'WITH_RIVE_SCRIPTING' })
+end
+filter({ 'options:with_rive_test_signature' })
+do
+    -- Swaps `g_scriptVerificationPublicKey` for the public key that
+    -- corresponds to `SampleSigningContext._samplePrivateKey` in Dart,
+    -- so .riv files signed locally via the sample keypair verify.
+    -- NEVER enable on shipping builds — it accepts .rivs any attacker
+    -- could produce.
+    defines({ 'WITH_RIVE_TEST_SIGNATURE' })
+end
+filter({ 'options:track_rive_shader_id' })
+do
+    -- Stores ShaderAsset::assetId() on each ore::ShaderModule.
+    defines({ 'TRACK_RIVE_SHADER_ID' })
 end
 filter({ 'options:with_rive_audio=system' })
 do
@@ -71,6 +89,19 @@ do
         yoga,
     })
 
+    -- ORE headers conditionally include <vulkan/vulkan.h> when
+    -- ORE_BACKEND_VK is defined; the rive base library transitively pulls
+    -- those headers in, so the Vulkan SDK paths need to be visible here too.
+    if _OPTIONS['with_vulkan'] and _OPTIONS['with_rive_canvas'] then
+        local dependency = require('dependency')
+        local vh = dependency.github('KhronosGroup/Vulkan-Headers',
+                                     'vulkan-sdk-1.4.321')
+        local vma = dependency.github(
+            'GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator',
+            'v3.3.0')
+        externalincludedirs({ vh .. '/include', vma .. '/include' })
+    end
+
     if _OPTIONS['with_microprofile'] then
       includedirs({microprofile})
     end
@@ -93,6 +124,13 @@ do
         -- (the visualization only works with MSVC-compiled projects, Clang-
         -- built projects don't work)
         files({ 'runtime.natvis' })
+    end
+
+    -- TODO: remove once simple_array.hpp migrates off std::is_pod.
+    -- Console toolchains OOM on the ~18k deprecation warnings otherwise.
+    filter({ 'options:_console_only_ore_vk' })
+    do
+        buildoptions({ '-Wno-deprecated-declarations' })
     end
 
     filter('options:not for_unreal')
@@ -154,6 +192,11 @@ do
             buildoptions({ '-Wshorten-64-to-32', '-fprofile-instr-generate', '-fcoverage-mapping' })
         end
     end
+    filter({ 'options:with_rive_scripting', 'options:not no-rive-decoders' })
+    do
+        defines({ 'RIVE_DECODERS' })
+        includedirs({ 'decoders/include' })
+    end
     filter({ 'options:with_rive_scripting' })
     do
         includedirs({
@@ -164,10 +207,30 @@ do
             libhydrogen .. '/libhydrogen.c',
         })
     end
+    filter({ 'options:with_rive_canvas' })
+    do
+        -- lua_gpu.cpp and lua_scripted_context.cpp include renderer (C++17) headers.
+        includedirs({ 'renderer/include' })
+        cppdialect('C++17')
+    end
+    -- On Apple, ore_context.hpp imports Metal.h (ORE_BACKEND_METAL is globally
+    -- defined), which requires ObjC++ compilation. Swap .cpp files for .mm
+    -- wrappers so they are compiled as ObjC++.
+    -- Also undefine the GL globals that bleed in from pls_renderer.lua —
+    -- the runtime rive project only uses Metal on macOS/iOS.
+    filter({ 'system:macosx or system:ios', 'options:with_rive_canvas' })
+    do
+        -- Swap .cpp for .mm wrappers: ore_context.hpp imports <Metal/Metal.h>
+        -- (via ORE_BACKEND_METAL) which is only valid in ObjC++ files.
+        removefiles({ 'src/lua/lua_scripted_context.cpp' })
+        removefiles({ 'src/lua/renderer/lua_gpu.cpp' })
+        files({ 'src/lua/lua_scripted_context_apple.mm' })
+        files({ 'src/lua/renderer/lua_gpu_apple.mm' })
+    end
     filter({ 'options:with_rive_scripting', 'options:not with_rive_tools' })
     do
-        -- at runtime we only need signature verification
-        defines({ 'HYDRO_SIGN_VERIFY_ONLY' })
+        -- =1 required; an empty define evaluates to 0 on strict preprocessors.
+        defines({ 'HYDRO_SIGN_VERIFY_ONLY=1' })
     end
     filter({
         'options:with_rive_scripting',
@@ -200,6 +263,12 @@ newoption({
 })
 
 newoption({
+    trigger = 'with_rive_test_signature',
+    description = 'Test-only: accept .riv files signed by the Dart '
+        .. 'SampleSigningContext keypair. Do not enable on shipping builds.',
+})
+
+newoption({
     trigger = 'with_rive_text',
     description = 'Compiles in text features.',
 })
@@ -217,6 +286,16 @@ newoption({
 })
 
 newoption({
+    trigger = 'with_rive_canvas',
+    description = 'Compiles in RenderCanvas and Ore GPU abstraction layer.',
+})
+
+newoption({
     trigger = 'with_rive_docs',
     description = 'Indicates building for use with the docs generator.',
+})
+
+newoption({
+    trigger = 'track_rive_shader_id',
+    description = 'Stores ShaderAsset::assetId() on each ore::ShaderModule.',
 })

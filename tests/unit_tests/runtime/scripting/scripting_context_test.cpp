@@ -547,3 +547,488 @@ TEST_CASE("Provide data context and view model instance to artboard",
 
     CHECK(silver.matches("viewmodel_instance_to_artboard"));
 }
+
+TEST_CASE("context methods error on disposed context", "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+function testDisposed(context: Context)
+  context:markNeedsUpdate()
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    // Create a context and dispose it before calling methods
+    auto* ctx = lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    int ctxIdx = lua_gettop(L);
+    ctx->clearScriptedObject();
+    CHECK(ctx->scriptedObject() == nullptr);
+
+    // Calling a method on a disposed context should error
+    {
+        lua_getglobal(L, "testDisposed");
+        lua_pushvalue(L, ctxIdx);
+        int result = lua_pcall(L, 1, 0, 0);
+        CHECK(result == LUA_ERRRUN);
+        // Error message should mention "disposed context"
+        const char* err = lua_tostring(L, -1);
+        CHECK(err != nullptr);
+        CHECK(std::string(err).find("disposed context") != std::string::npos);
+        lua_pop(L, 1); // pop error
+    }
+
+    lua_pop(L, 1); // pop ctx
+    CHECK(top == lua_gettop(L));
+}
+
+TEST_CASE("context:viewModel returns nil with no data context", "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local result = "not_called"
+
+function testViewModel(context: Context)
+  local vm = context:viewModel()
+  if vm == nil then
+    result = "nil"
+  else
+    result = "found"
+  end
+end
+
+function getResult(): string
+  return result
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testViewModel");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:rootViewModel returns nil with no data context",
+          "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local result = "not_called"
+
+function testRootViewModel(context: Context)
+  local vm = context:rootViewModel()
+  if vm == nil then
+    result = "nil"
+  else
+    result = "found"
+  end
+end
+
+function getResult(): string
+  return result
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testRootViewModel");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:dataContext returns nil with no data context", "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local result = "not_called"
+
+function testDataContext(context: Context)
+  local dc = context:dataContext()
+  if dc == nil then
+    result = "nil"
+  else
+    result = "found"
+  end
+end
+
+function getResult(): string
+  return result
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testDataContext");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:features returns fallback table without RIVE_CANVAS",
+          "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local featuresTable = nil
+
+function testFeatures(context: Context)
+  featuresTable = context:features()
+end
+
+function getFeatures()
+  return featuresTable
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testFeatures");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    // Verify features table was returned with expected fallback values
+    {
+        lua_getglobal(L, "getFeatures");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(lua_istable(L, -1));
+
+        // Check boolean fields default to false
+        lua_getfield(L, -1, "bc");
+        CHECK(lua_toboolean(L, -1) == 0);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "etc2");
+        CHECK(lua_toboolean(L, -1) == 0);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "astc");
+        CHECK(lua_toboolean(L, -1) == 0);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "anisotropicFiltering");
+        CHECK(lua_toboolean(L, -1) == 0);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "texture3D");
+        CHECK(lua_toboolean(L, -1) == 0);
+        lua_pop(L, 1);
+
+        // Check numeric fields have expected defaults
+        lua_getfield(L, -1, "maxTextureSize2D");
+        CHECK(lua_tonumber(L, -1) == 4096);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "maxTextureSizeCube");
+        CHECK(lua_tonumber(L, -1) == 4096);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "maxTextureSize3D");
+        CHECK(lua_tonumber(L, -1) == 256);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "maxColorAttachments");
+        CHECK(lua_tonumber(L, -1) == 4);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "maxUniformBufferSize");
+        CHECK(lua_tonumber(L, -1) == 16384);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "maxSamplers");
+        CHECK(lua_tonumber(L, -1) == 16);
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "maxSamples");
+        CHECK(lua_tonumber(L, -1) == 4);
+        lua_pop(L, 1);
+
+        lua_pop(L, 1); // pop table
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:preferredCanvasFormat returns platform format",
+          "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local format = nil
+
+function testFormat(context: Context)
+  format = context:preferredCanvasFormat()
+end
+
+function getFormat(): string
+  return format
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testFormat");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getFormat");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        std::string format = lua_tostring(L, -1);
+#if defined(_WIN32)
+        CHECK(format == "bgra8unorm");
+#else
+        CHECK(format == "rgba8unorm");
+#endif
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context invalid method raises error", "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+function testInvalidMethod(context: Context)
+  context:thisMethodDoesNotExist()
+end
+)",
+        1,
+        true); // errorOk = true
+
+    lua_State* L = vm.state();
+
+    lua_getglobal(L, "testInvalidMethod");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    int result = lua_pcall(L, 1, 0, 0);
+    CHECK(result != LUA_OK);
+    // Error message should mention invalid method
+    const char* error = lua_tostring(L, -1);
+    CHECK(std::string(error).find("is not a valid method") !=
+          std::string::npos);
+    lua_pop(L, 1);
+}
+
+TEST_CASE("context:blob returns nil when no script asset", "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local result = "not_called"
+
+function testBlob(context: Context)
+  local b = context:blob("anyname")
+  if b == nil then
+    result = "nil"
+  else
+    result = "found"
+  end
+end
+
+function getResult(): string
+  return result
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testBlob");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:blob returns nil for non-existent blob", "[scripting]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/walle.riv", &silver);
+    REQUIRE(file != nullptr);
+
+    ScriptedObjectWithFile scriptedObjectWithFile;
+    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+
+    ScriptingTest vm(
+        R"(
+local result = "not_called"
+
+function testBlob(context: Context)
+  local b = context:blob("nonexistent_blob")
+  if b == nil then
+    result = "nil"
+  else
+    result = "found"
+  end
+end
+
+function getResult(): string
+  return result
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testBlob");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:markNeedsUpdate on context without dataContext",
+          "[scripting]")
+{
+    // markNeedsUpdate should work regardless of dataContext
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+function testMark(context: Context)
+  context:markNeedsUpdate()
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testMark");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+        CHECK(scriptedObjectTest.needsUpdate());
+    }
+}
+
+TEST_CASE("ScriptingContext ore/render context default to null", "[scripting]")
+{
+    // Guard against regression where ore/render context were static globals.
+    // A freshly created VM must start with null ore and render context — not
+    // inheriting any previously set value from another VM or a prior run.
+    ScriptingTest vm("-- empty");
+    ScriptingContext* ctx = vm.vm()->context();
+    REQUIRE(ctx != nullptr);
+    CHECK(ctx->oreContext() == nullptr);
+    CHECK(ctx->renderContext() == nullptr);
+}
+
+TEST_CASE("ScriptingContext ore/render context are per-instance", "[scripting]")
+{
+    // Two independent VMs must not share ore or render context state.
+    // This guards against any static/global storage of these pointers.
+    ScriptingTest vmA("-- a");
+    ScriptingTest vmB("-- b");
+
+    ScriptingContext* ctxA = vmA.vm()->context();
+    ScriptingContext* ctxB = vmB.vm()->context();
+    REQUIRE(ctxA != nullptr);
+    REQUIRE(ctxB != nullptr);
+    REQUIRE(ctxA != ctxB);
+
+    // Use distinct sentinel values so a cross-write would be detectable.
+    int sentinelA = 0xA;
+    int sentinelB = 0xB;
+    ctxA->setOreContext(&sentinelA);
+    ctxA->setRenderContext(&sentinelA);
+    ctxB->setOreContext(&sentinelB);
+    ctxB->setRenderContext(&sentinelB);
+
+    // Each context must hold only its own value.
+    CHECK(ctxA->oreContext() == &sentinelA);
+    CHECK(ctxA->renderContext() == &sentinelA);
+    CHECK(ctxB->oreContext() == &sentinelB);
+    CHECK(ctxB->renderContext() == &sentinelB);
+}
+
+TEST_CASE("ScriptingContext ore context survives set/clear cycle",
+          "[scripting]")
+{
+    ScriptingTest vm("-- empty");
+    ScriptingContext* ctx = vm.vm()->context();
+    REQUIRE(ctx != nullptr);
+
+    int sentinel = 42;
+    ctx->setOreContext(&sentinel);
+    CHECK(ctx->oreContext() == &sentinel);
+
+    ctx->setOreContext(nullptr);
+    CHECK(ctx->oreContext() == nullptr);
+}

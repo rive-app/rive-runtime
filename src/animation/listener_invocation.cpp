@@ -71,15 +71,25 @@ ListenerInvocation ListenerInvocation::none()
     return ListenerInvocation(ListenerInvocationStorage(NoneInvocation{}));
 }
 
-ListenerInvocation ListenerInvocation::gamepad(int deviceId,
-                                               uint64_t buttonMask,
-                                               float axis0)
+ListenerInvocation ListenerInvocation::gamepadConnected(
+    const GamepadSnapshot& snapshot)
 {
-    GamepadInvocation g;
-    g.deviceId = deviceId;
-    g.buttonMask = buttonMask;
-    g.axis0 = axis0;
-    return ListenerInvocation(ListenerInvocationStorage(std::move(g)));
+    GamepadConnectedInvocation c;
+    c.snapshot = snapshot;
+    return ListenerInvocation(ListenerInvocationStorage(std::move(c)));
+}
+
+ListenerInvocation ListenerInvocation::gamepadEvent(
+    GamepadEventInvocation value)
+{
+    return ListenerInvocation(ListenerInvocationStorage(std::move(value)));
+}
+
+ListenerInvocation ListenerInvocation::gamepadDisconnected(int deviceId)
+{
+    GamepadDisconnectedInvocation d;
+    d.deviceId = deviceId;
+    return ListenerInvocation(ListenerInvocationStorage(std::move(d)));
 }
 
 ListenerInvocation ListenerInvocation::semantic(SemanticListenerGroup* group,

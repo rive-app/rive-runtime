@@ -40,6 +40,7 @@ class ScrollPhysics;
 class ViewModelRuntime;
 class BindableArtboard;
 class ScriptingVM;
+class ScriptedInterpolator;
 
 ///
 /// Tracks the success/failure result when importing a Rive file.
@@ -255,6 +256,7 @@ public:
 
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
+    std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
 
     /// The file's backboard. All Rive files have a single backboard
     /// where the artboards live.
@@ -266,6 +268,7 @@ private:
     std::vector<DataConverter*> m_DataConverters;
 
     std::vector<KeyFrameInterpolator*> m_keyframeInterpolators;
+    std::vector<ScriptedInterpolator*> m_scriptedInterpolators;
     std::vector<ScrollPhysics*> m_scrollPhysics;
 
     /// List of artboards in the file. Each artboard encapsulates a set of

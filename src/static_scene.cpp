@@ -21,7 +21,7 @@ float StaticScene::durationSeconds() const { return 0; }
 
 bool StaticScene::advanceAndApply(float seconds)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(1)
     // We ignore the 'seconds' argument because it's not an animated scene
     m_artboardInstance->advance(0);
     return true;

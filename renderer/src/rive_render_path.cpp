@@ -162,7 +162,7 @@ static void chop_cubic_at_uniform_rotation(RawPath* path,
                                            int numChops,
                                            const Mat2D& rotationMatrix)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
     math::CubicCoeffs coeffs(p);
     float2 tangent = simd::load2f(&tangents[0]);
     float4 rotation = simd::load4f(rotationMatrix.values());
@@ -251,7 +251,7 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     float feather,
     float matrixMaxScale)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Since curvature is what breaks 1-dimensional feathering along the normal
     // vector, chop into segments that rotate no more than a certain threshold.
     constexpr static int POLAR_JOIN_PRECISION = 2;

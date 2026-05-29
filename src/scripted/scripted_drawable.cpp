@@ -1,5 +1,6 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #endif
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
@@ -8,12 +9,11 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_SCRIPTING
-bool ScriptedDrawable::scriptInit(ScriptingVM* vm)
+
+void ScriptedDrawable::didHydrateScriptInputs()
 {
     m_isAdvanceActive = true;
-    ScriptedObject::scriptInit(vm);
     addDirt(ComponentDirt::Paint);
-    return true;
 }
 
 void ScriptedDrawable::draw(Renderer* renderer)
@@ -42,17 +42,25 @@ void ScriptedDrawable::draw(Renderer* renderer)
     // Stack: [scriptedRenderer]
     rive_lua_pushRef(L, m_self);
     // Stack: [scriptedRenderer, self]
-    lua_getfield(L, -1, "draw");
-    // Stack: [scriptedRenderer, self, "draw"]
-    lua_pushvalue(L, -2);
-    // Stack: [scriptedRenderer, self, "draw", self]
-    lua_pushvalue(L, -4);
-    // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
-        LUA_OK)
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "draw")) == LUA_TFUNCTION)
     {
-        // Stack: [scriptedRenderer, self, status]
-        rive_lua_pop(L, 1);
+        // Stack: [scriptedRenderer, self, "draw"]
+        lua_pushvalue(L, -2);
+        // Stack: [scriptedRenderer, self, "draw", self]
+        lua_pushvalue(L, -4);
+        // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
+        if (static_cast<lua_Status>(
+                rive_lua_pcall_with_context(L, this, 2, 0)) != LUA_OK)
+        {
+            // Stack: [scriptedRenderer, self, status]
+            rive_lua_pop(L, 1);
+        }
+    }
+    else
+    {
+        // draw is assumed for legacy files but not implemented; no-op (the
+        // save/transform above stay balanced with the restore below).
+        rive_lua_pop(L, 1); // non-function field
     }
     scriptedRenderer->end();
     // Stack: [scriptedRenderer, self]
@@ -73,6 +81,63 @@ std::vector<HitComponent*> ScriptedDrawable::hitComponents(
     }
     auto* hitComponent = new HitScriptedDrawable(this, sm);
     return std::vector<HitComponent*>{hitComponent};
+}
+
+bool ScriptedDrawable::gamepadDispatch(const ListenerInvocation& inv)
+{
+    if (m_vm == nullptr || !state())
+    {
+        return false;
+    }
+    lua_State* L = state();
+    const char* method = nullptr;
+    switch (inv.kind())
+    {
+        case ListenerInvocationKind::gamepadConnected:
+            method = "gamepadConnected";
+            break;
+        case ListenerInvocationKind::gamepadEvent:
+            method = "gamepadEvent";
+            break;
+        case ListenerInvocationKind::gamepadDisconnected:
+            method = "gamepadDisconnected";
+            break;
+        default:
+            return false;
+    }
+    rive_lua_pushRef(L, m_self);
+    lua_getfield(L, -1, method);
+    if (static_cast<lua_Type>(lua_type(L, -1)) != LUA_TFUNCTION)
+    {
+        rive_lua_pop(L, 2);
+        return false;
+    }
+    lua_pushvalue(L, -2);
+    if (const GamepadConnectedInvocation* c = inv.asGamepadConnected())
+    {
+        lua_newrive<ScriptedGamepadConnected>(L, c->snapshot);
+    }
+    else if (const GamepadEventInvocation* e = inv.asGamepadEvent())
+    {
+        lua_newrive<ScriptedGamepadEvent>(L, *e);
+    }
+    else if (const GamepadDisconnectedInvocation* d =
+                 inv.asGamepadDisconnected())
+    {
+        lua_newrive<ScriptedGamepadDisconnected>(L, d->deviceId);
+    }
+    else
+    {
+        rive_lua_pop(L, 3);
+        return false;
+    }
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
+        LUA_OK)
+    {
+        rive_lua_pop(L, 1);
+    }
+    rive_lua_pop(L, 1);
+    return true;
 }
 
 HitResult HitScriptedDrawable::processEvent(Vec2D position,
@@ -100,7 +165,9 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     if (static_cast<lua_Type>(lua_getfield(state, -1, mName.c_str())) !=
         LUA_TFUNCTION)
     {
-        fprintf(stderr, "expected %s to be a function\n", mName.c_str());
+        // The pointer handler is assumed present for legacy files (all-bits
+        // default) but isn't actually implemented: report "not hit" so the
+        // state machine keeps walking other hit targets.
         rive_lua_pop(state, 1);
     }
     else
@@ -118,6 +185,19 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     }
     rive_lua_pop(state, 1);
     return hitResult;
+}
+
+HitResult HitScriptedDrawable::processGamepadInvocation(
+    const ListenerInvocation&,
+    ScriptedDrawable*)
+{
+    // Gamepad dispatch to ScriptedDrawables runs through
+    // StateMachineInstance::broadcastGamepadToScriptedDrawables's walk over
+    // m_gamepadScriptedDrawables — that list includes gamepad-only scripts
+    // (which never enter m_hitComponents because hitComponents() is gated on
+    // listensToPointerEvents()). Returning none here avoids double-dispatch
+    // for drawables that handle both pointer and gamepad.
+    return HitResult::none;
 }
 
 bool ScriptedDrawable::keyInput(Key key,
@@ -138,7 +218,13 @@ bool ScriptedDrawable::keyInput(Key key,
     // Stack: []
     rive_lua_pushRef(L, self());
     // Stack: [self]
-    lua_getfield(L, -1, "keyboardEvent");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "keyboardEvent")) !=
+        LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; no-op.
+        rive_lua_pop(L, 2); // non-function field + self
+        return shouldStopPropagation;
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]
@@ -185,7 +271,13 @@ bool ScriptedDrawable::textInput(const std::string& text)
     // Stack: []
     rive_lua_pushRef(L, self());
     // Stack: [self]
-    lua_getfield(L, -1, "textEvent");
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "textEvent")) !=
+        LUA_TFUNCTION)
+    {
+        // Assumed for legacy files but not implemented; no-op.
+        rive_lua_pop(L, 2); // non-function field + self
+        return shouldStopPropagation;
+    }
     // Stack: [self, field]
     lua_pushvalue(L, -2);
     // Stack: [self, field, self]
@@ -233,6 +325,14 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
                                             float timeStamp,
                                             int pointerId)
 {
+    return HitResult::none;
+}
+
+HitResult HitScriptedDrawable::processGamepadInvocation(
+    const ListenerInvocation& invocation,
+    ScriptedDrawable* alreadyDispatched)
+{
+    // TODO: implement
     return HitResult::none;
 }
 
@@ -326,6 +426,10 @@ Core* ScriptedDrawable::clone() const
 
 void ScriptedDrawable::markNeedsUpdate()
 {
+    if (inUpdatePhase())
+    {
+        return;
+    }
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 

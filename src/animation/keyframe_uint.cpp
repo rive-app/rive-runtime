@@ -12,7 +12,9 @@ void KeyFrameUint::applyInterpolation(Core* object,
                                       int propertyKey,
                                       float currentTime,
                                       const KeyFrame* nextFrame,
-                                      float mix)
+                                      float mix,
+                                      const LinearAnimationInstance* context)
 {
+    (void)context;
     CoreRegistry::setUint(object, propertyKey, value());
 }

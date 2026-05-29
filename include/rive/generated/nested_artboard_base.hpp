@@ -42,12 +42,14 @@ public:
     static const uint16_t isPausedPropertyKey = 895;
     static const uint16_t speedPropertyKey = 907;
     static const uint16_t quantizePropertyKey = 908;
+    static const uint16_t isStatefulPropertyKey = 1014;
 
 protected:
     uint32_t m_ArtboardId = -1;
     bool m_IsPaused = false;
     float m_Speed = 1.0f;
     float m_Quantize = -1.0f;
+    bool m_IsStateful = false;
 
 public:
     inline uint32_t artboardId() const { return m_ArtboardId; }
@@ -97,6 +99,17 @@ public:
         quantizeChanged();
     }
 
+    inline bool isStateful() const { return m_IsStateful; }
+    void isStateful(bool value)
+    {
+        if (m_IsStateful == value)
+        {
+            return;
+        }
+        m_IsStateful = value;
+        isStatefulChanged();
+    }
+
     Core* clone() const override;
     void copy(const NestedArtboardBase& object)
     {
@@ -105,6 +118,7 @@ public:
         m_IsPaused = object.m_IsPaused;
         m_Speed = object.m_Speed;
         m_Quantize = object.m_Quantize;
+        m_IsStateful = object.m_IsStateful;
         Drawable::copy(object);
     }
 
@@ -127,6 +141,9 @@ public:
             case quantizePropertyKey:
                 m_Quantize = CoreDoubleType::deserialize(reader);
                 return true;
+            case isStatefulPropertyKey:
+                m_IsStateful = CoreBoolType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -137,6 +154,7 @@ protected:
     virtual void isPausedChanged() {}
     virtual void speedChanged() {}
     virtual void quantizeChanged() {}
+    virtual void isStatefulChanged() {}
 };
 } // namespace rive
 

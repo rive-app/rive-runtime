@@ -164,6 +164,7 @@ public:
     static TestingWindow* Get();
     static void Set(TestingWindow* inWindow);
     static void Destroy();
+    static Backend backend() { return s_Backend; }
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
@@ -234,6 +235,45 @@ public:
 
     virtual void hotloadShaders() {}
 
+#if defined(__APPLE__) && !defined(RIVE_UNREAL)
+    // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
+    // this cross-platform header (same pattern as externalCommandBuffer).
+    virtual void* metalQueue() const { return nullptr; }
+#endif
+
+#ifdef RIVE_VULKAN
+    // Vulkan accessors for ORE VK backend initialization in GMs.
+    virtual void* vulkanGraphicsQueue() const { return nullptr; }
+    virtual uint32_t vulkanGraphicsQueueFamilyIndex() const { return 0; }
+    virtual void* vulkanGetInstanceProcAddr() const { return nullptr; }
+    // Returns the host's currently-recording VkCommandBuffer (as void*) so
+    // Ore can record into it via ore::ContextVulkan::beginFrame(externalCb).
+    // Returns nullptr on non-Vulkan harnesses or when no CB is open.
+    virtual void* vulkanCurrentCommandBuffer() const { return nullptr; }
+#endif
+
+    // Returns the host's currently-recording ID3D12GraphicsCommandList (as
+    // void*) so Ore can record into it via
+    // ore::ContextD3D12::beginFrame(externalCl). Returns nullptr on non-D3D12
+    // harnesses or when no CL is open. Typed as void* to avoid leaking d3d12.h
+    // into this cross-platform header.
+    virtual void* d3d12CurrentCommandList() const { return nullptr; }
+
+    // Returns the host's currently-recording wgpu::CommandEncoder (as a raw
+    // WGPUCommandEncoder handle, i.e. void*) so Ore can record into it via
+    // ore::ContextWGPU::beginFrame(externalEncoder). Returns nullptr on
+    // non-WGPU harnesses or when no encoder is open. Typed as void* to keep
+    // WebGPU headers out of this cross-platform header.
+    virtual void* wgpuCurrentCommandEncoder() const { return nullptr; }
+
+    // Host-managed ore::Context, or nullptr. Player wires into the file's
+    // ScriptingContext for GPUCanvas content.
+    virtual void* getOreContext() const { return nullptr; }
+
+    // Per-frame ORE driving; no-op on non-ORE harnesses.
+    virtual void beginOreFrame() {}
+    virtual void endOreFrame() {}
+
     virtual ~TestingWindow() {}
 
     static TestingWindow* MakeEGL(Backend,
@@ -250,6 +290,10 @@ public:
     static TestingWindow* MakeVulkanTexture(const BackendParams&);
     static TestingWindow* MakeAndroidVulkan(const BackendParams&,
                                             void* platformWindow);
+    // Hook for platforms without rive_vk_bootstrap; default returns nullptr.
+    // Platform packages override in their own TU + define
+    // RIVE_PLATFORM_TESTING_WINDOW.
+    static TestingWindow* MakePlatformVulkan(const BackendParams&);
     static TestingWindow* MakeWGPU(const BackendParams&);
     static TestingWindow* MakeSkia();
     static TestingWindow* MakeNULL();
@@ -257,6 +301,8 @@ public:
 protected:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
+
+    static Backend s_Backend;
 };
 
 #endif

@@ -152,22 +152,25 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         },
         {
             .binding = GRAD_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_linearSampler,
         },
         {
             .binding = FEATHER_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags =
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_linearSampler,
         },
         {
             .binding = ATLAS_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_linearSampler,
         },
     };
 
@@ -186,13 +189,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
     VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
         {
             .binding = IMAGE_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = IMAGE_SAMPLER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
@@ -209,44 +206,6 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
                                              nullptr,
                                              &m_perDrawDescriptorSetLayout));
 
-    // Every shader uses the same immutable sampler layout.
-    VkDescriptorSetLayoutBinding immutableSamplerLayoutBindings[] = {
-        {
-            .binding = GRAD_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_linearSampler,
-        },
-        {
-            .binding = FEATHER_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags =
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_linearSampler,
-        },
-        {
-            .binding = ATLAS_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_linearSampler,
-        },
-    };
-
-    VkDescriptorSetLayoutCreateInfo immutableSamplerLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = std::size(immutableSamplerLayoutBindings),
-        .pBindings = immutableSamplerLayoutBindings,
-    };
-
-    VK_CHECK(m_vk->CreateDescriptorSetLayout(
-        m_vk->device,
-        &immutableSamplerLayoutInfo,
-        nullptr,
-        &m_immutableSamplerDescriptorSetLayout));
-
     // For when a set isn't used at all by a shader.
     VkDescriptorSetLayoutCreateInfo emptyLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -261,12 +220,8 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
     // Create static descriptor sets.
     VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
         {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1, // m_nullImageTexture
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 4, // grad, feather, atlas, image samplers
         },
     };
 
@@ -300,35 +255,13 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         m_nullImageDescriptorSet,
         {
             .dstBinding = IMAGE_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        },
-        {{
-            .imageView = nullTextureView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-
-    m_vk->updateImageDescriptorSets(
-        m_nullImageDescriptorSet,
-        {
-            .dstBinding = IMAGE_SAMPLER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
             .sampler = m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY],
+            .imageView = nullTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
-
-    // Create an empty descriptor set for IMMUTABLE_SAMPLER_BINDINGS_SET. Vulkan
-    // requires this even though the samplers are all immutable.
-    VkDescriptorSetAllocateInfo immutableSamplerDescriptorSetInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = m_staticDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &m_immutableSamplerDescriptorSetLayout,
-    };
-
-    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
-                                          &immutableSamplerDescriptorSetInfo,
-                                          &m_immutableSamplerDescriptorSet));
 }
 
 PipelineManagerVulkan::~PipelineManagerVulkan()
@@ -340,9 +273,6 @@ PipelineManagerVulkan::~PipelineManagerVulkan()
                                      nullptr);
     m_vk->DestroyDescriptorSetLayout(m_vk->device,
                                      m_perDrawDescriptorSetLayout,
-                                     nullptr);
-    m_vk->DestroyDescriptorSetLayout(m_vk->device,
-                                     m_immutableSamplerDescriptorSetLayout,
                                      nullptr);
     m_vk->DestroyDescriptorSetLayout(m_vk->device,
                                      m_emptyDescriptorSetLayout,

@@ -25,6 +25,16 @@
       },
       "description": "Quality percentage for this image mutation",
       "runtime": false
+    },
+    "mips": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 1013,
+        "string": "mips"
+      },
+      "description": "Whether to generate a full mip chain. Only applies to BC7.",
+      "runtime": false
     }
   }
 }

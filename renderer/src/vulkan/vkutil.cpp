@@ -41,6 +41,7 @@ const char* string_from_vk_result(VkResult result)
         STR_CASE(ERROR_INCOMPATIBLE_DISPLAY_KHR);
         STR_CASE(ERROR_NATIVE_WINDOW_IN_USE_KHR);
         STR_CASE(ERROR_VALIDATION_FAILED_EXT);
+        STR_CASE(ERROR_OUT_OF_POOL_MEMORY);
         default:
             return "<unknown>";
     }
@@ -345,20 +346,19 @@ void Texture2D::scheduleUpload(const void* imageDataRGBAPremul,
 void Texture2D::scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul)
 {
     m_imageUploadBuffer = std::move(imageBufferRGBAPremul);
+    m_imageUploadRegions.clear();
+}
+
+void Texture2D::scheduleUpload(rcp<vkutil::Buffer> stagingBuffer,
+                               std::vector<VkBufferImageCopy> regions)
+{
+    m_imageUploadBuffer = std::move(stagingBuffer);
+    m_imageUploadRegions = std::move(regions);
 }
 
 void Texture2D::applyImageUploadBuffer(VkCommandBuffer commandBuffer)
 {
     assert(m_imageUploadBuffer != nullptr);
-
-    VkBufferImageCopy bufferImageCopy = {
-        .imageSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-        .imageExtent = {width(), height(), 1},
-    };
 
     barrier(commandBuffer,
             {
@@ -368,19 +368,53 @@ void Texture2D::applyImageUploadBuffer(VkCommandBuffer commandBuffer)
             },
             vkutil::ImageAccessAction::invalidateContents);
 
-    m_image->vk()->CmdCopyBufferToImage(commandBuffer,
-                                        *m_imageUploadBuffer,
-                                        *m_image,
-                                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                        1,
-                                        &bufferImageCopy);
-
-    generateMipmaps(commandBuffer,
-                    {
-                        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .accessMask = VK_ACCESS_SHADER_READ_BIT,
-                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    });
+    if (!m_imageUploadRegions.empty())
+    {
+        // Caller-supplied per-level regions. No automatic mip generation —
+        // every level present in the texture must have a region.
+        m_image->vk()->CmdCopyBufferToImage(
+            commandBuffer,
+            *m_imageUploadBuffer,
+            *m_image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            static_cast<uint32_t>(m_imageUploadRegions.size()),
+            m_imageUploadRegions.data());
+        // All mips already written — transition straight to shader-read.
+        barrier(commandBuffer,
+                {
+                    .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .accessMask = VK_ACCESS_SHADER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                });
+        m_imageUploadRegions.clear();
+    }
+    else
+    {
+        // Single-region upload (mip 0 full extent). Caller relies on
+        // generateMipmaps to fill remaining levels.
+        VkBufferImageCopy bufferImageCopy = {
+            .imageSubresource =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .layerCount = 1,
+                },
+            .imageExtent = {width(), height(), 1},
+        };
+        m_image->vk()->CmdCopyBufferToImage(
+            commandBuffer,
+            *m_imageUploadBuffer,
+            *m_image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &bufferImageCopy);
+        generateMipmaps(
+            commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                .accessMask = VK_ACCESS_SHADER_READ_BIT,
+                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            });
+    }
 
     m_imageUploadBuffer = nullptr;
 }

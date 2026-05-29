@@ -137,6 +137,21 @@ static int color_lerp(lua_State* L)
     return 1;
 }
 
+static int color_toFloat(lua_State* L)
+{
+    uint32_t color = luaL_checkunsigned(L, 1);
+    lua_createtable(L, 4, 0);
+    lua_pushnumber(L, colorRed(color) / 255.0);
+    lua_rawseti(L, -2, 1);
+    lua_pushnumber(L, colorGreen(color) / 255.0);
+    lua_rawseti(L, -2, 2);
+    lua_pushnumber(L, colorBlue(color) / 255.0);
+    lua_rawseti(L, -2, 3);
+    lua_pushnumber(L, colorAlpha(color) / 255.0);
+    lua_rawseti(L, -2, 4);
+    return 1;
+}
+
 static const luaL_Reg colorStaticMethods[] = {{"red", color_red},
                                               {"green", color_green},
                                               {"blue", color_blue},
@@ -145,6 +160,7 @@ static const luaL_Reg colorStaticMethods[] = {{"red", color_red},
                                               {"lerp", color_lerp},
                                               {"rgb", color_rgb},
                                               {"rgba", color_rgba},
+                                              {"toFloat", color_toFloat},
                                               {nullptr, nullptr}};
 
 int luaopen_rive_color(lua_State* L)

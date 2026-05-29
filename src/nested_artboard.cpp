@@ -139,6 +139,7 @@ void NestedArtboard::updateArtboard(
             m_referencedArtboard = nullptr;
         }
         m_Instance = nullptr;
+        m_statefulViewModelInstance = nullptr;
         return;
     }
 
@@ -159,6 +160,33 @@ void NestedArtboard::updateArtboard(
                 nestedStateMachine)); // take ownership
         }
         referencedArtboard(artboardInstance.release());
+
+        if (isStateful())
+        {
+            const bool cacheStale =
+                m_statefulViewModelInstance == nullptr ||
+                m_statefulViewModelInstance->viewModelId() !=
+                    artboard->viewModelId();
+            if (cacheStale)
+            {
+                auto vm = m_file != nullptr
+                              ? m_file->viewModel(artboard->viewModelId())
+                              : nullptr;
+                m_statefulViewModelInstance =
+                    vm != nullptr ? m_file->createDefaultViewModelInstance(vm)
+                                  : nullptr;
+                if (m_statefulViewModelInstance != nullptr)
+                {
+                    m_file->completeViewModelProperties(
+                        m_statefulViewModelInstance.get());
+                }
+            }
+        }
+        else
+        {
+            m_statefulViewModelInstance = nullptr;
+        }
+
         if (viewModelInstanceArtboard->boundViewModelInstance())
         {
             bindViewModelInstance(
@@ -502,7 +530,7 @@ void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
 {
     m_viewModelInstance = viewModelInstance;
     auto instance = artboardInstance(0);
-    if (instance && !instance->isStateful())
+    if (instance && !isStateful())
     {
         auto dataContext = instance->dataContext();
         if (dataContext != nullptr)

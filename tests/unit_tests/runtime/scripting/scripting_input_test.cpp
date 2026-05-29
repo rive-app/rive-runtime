@@ -5,6 +5,8 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
+#include "rive/script_input_number.hpp"
+#include "rive/script_input_viewmodel_property.hpp"
 #include "utils/no_op_renderer.hpp"
 #include "rive/layout/layout_enums.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
@@ -520,15 +522,18 @@ end
     drawable.implementedMethods(drawable.implementedMethods() |
                                 (1 << 9)); // m_initsBit
 
-    // scriptInit expects the factory function on the stack
-    // ScriptingTest already left it there, so we can call scriptInit directly
-    // Call ScriptedObject::scriptInit directly to avoid addDirt which requires
-    // an artboard
-    CHECK(drawable.ScriptedObject::scriptInit(vm.vm()));
+    // ensureScriptInitialized expects the factory function on the stack
+    // ScriptingTest already left it there, so we can call
+    // ensureScriptInitialized directly Call
+    // ScriptedObject::ensureScriptInitialized directly to avoid addDirt which
+    // requires an artboard
+    CHECK(drawable.ScriptedObject::ensureScriptInitialized(vm.vm()));
+    drawable.ScriptedObject::hydrateScriptInputs();
 
     // Manually set implemented methods flags since we're not using ScriptAsset
     // Check if advance function exists and set the flag
-    // After scriptInit, the self table is stored in m_self, so we can push it
+    // After ensureScriptInitialized, the self table is stored in m_self, so we
+    // can push it
     {
         rive_lua_pushRef(L, drawable.self());
         lua_getfield(L, -1, "advance");
@@ -600,13 +605,14 @@ end
     layout.implementedMethods(layout.implementedMethods() |
                               (1 << 9)); // m_initsBit
 
-    // scriptInit expects the factory function on the stack
-    // Call ScriptedObject::scriptInit directly to avoid addDirt which requires
-    // an artboard
-    CHECK(layout.ScriptedObject::scriptInit(vm.vm()));
+    // ensureScriptInitialized expects the factory function on the stack
+    // Call ScriptedObject::ensureScriptInitialized directly to avoid addDirt
+    // which requires an artboard
+    CHECK(layout.ScriptedObject::ensureScriptInitialized(vm.vm()));
+    layout.ScriptedObject::hydrateScriptInputs();
 
     // Manually set implemented methods flags
-    // After scriptInit, the self table is stored in m_self
+    // After ensureScriptInitialized, the self table is stored in m_self
     {
         rive_lua_pushRef(L, layout.self());
         lua_getfield(L, -1, "advance");
@@ -706,19 +712,20 @@ end
     converter->implementedMethods(converter->implementedMethods() |
                                   (1 << 9)); // m_initsBit
 
-    // scriptInit expects the factory function on the stack
-    // Verify stack state before calling scriptInit
+    // ensureScriptInitialized expects the factory function on the stack
+    // Verify stack state before calling ensureScriptInitialized
     REQUIRE(lua_gettop(L) == stackTop);
     REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    REQUIRE(converter->ScriptedObject::scriptInit(vm.vm()));
+    REQUIRE(converter->ScriptedObject::ensureScriptInitialized(vm.vm()));
+    converter->ScriptedObject::hydrateScriptInputs();
     converter->addScriptedDirt(ComponentDirt::Bindings);
 
     // Verify self() is valid before using it
     REQUIRE(converter->self() != 0);
 
     // Manually set implemented methods flags
-    // After scriptInit, the self table is stored in m_self
+    // After ensureScriptInitialized, the self table is stored in m_self
     {
         rive_lua_pushRef(L, converter->self());
         REQUIRE(lua_type(L, -1) == LUA_TTABLE); // Verify we got a valid table
@@ -798,7 +805,8 @@ end
     ScriptedObjectTest object;
     object.implementedMethods(object.implementedMethods() | (1 << 9));
     object.dataContext(make_rcp<DataContext>(viewModelInstance));
-    REQUIRE(object.scriptInit(vm.vm()));
+    REQUIRE(object.ensureScriptInitialized(vm.vm()));
+    object.hydrateScriptInputs();
 
     ViewModelInstanceViewModel vmInput;
     vmInput.referenceViewModelInstance(viewModelInstance);
@@ -866,4 +874,149 @@ TEST_CASE(
     REQUIRE(machine != nullptr);
     machine->bindViewModelInstance(vmi);
     machine->advanceAndApply(0.0f);
+}
+
+TEST_CASE("ensureScriptInitialized then hydrate twice keeps same self ref",
+          "[scripting]")
+{
+    ScriptingTest vm(
+        R"(type MyNode = {
+  count: Input<number>,
+}
+
+function init(self: MyNode, context: Context): boolean
+  return true
+end
+
+function advance(self: MyNode, seconds: number): boolean
+  return true
+end
+
+function draw(self: MyNode, renderer: Renderer)
+end
+
+return function(): Node<MyNode>
+  return {
+    init = init,
+    advance = advance,
+    draw = draw,
+    count = 0,
+  }
+end
+)");
+    lua_State* L = vm.state();
+    REQUIRE(lua_gettop(L) >= 1);
+    ScriptedDrawable drawable;
+    drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
+
+    CHECK(drawable.ensureScriptInitialized(vm.vm()));
+    int selfRef = drawable.self();
+    REQUIRE(selfRef != 0);
+    CHECK(drawable.hydrateScriptInputs());
+    CHECK(drawable.self() == selfRef);
+    CHECK(drawable.hydrateScriptInputs());
+    CHECK(drawable.self() == selfRef);
+    drawable.scriptDispose();
+}
+
+TEST_CASE(
+    "hydrateScriptInputs runs Lua init without DataContext when inputs allow",
+    "[scripting]")
+{
+    ScriptingTest vm(
+        R"(type MyNode = {
+  x: Input<number>,
+}
+
+function init(self: MyNode, context: Context): boolean
+  self.initRan = true
+  return true
+end
+
+function advance(self: MyNode, seconds: number): boolean
+  return true
+end
+
+function draw(self: MyNode, renderer: Renderer)
+end
+
+return function(): Node<MyNode>
+  return {
+    init = init,
+    advance = advance,
+    draw = draw,
+    x = 0,
+  }
+end
+)");
+    lua_State* L = vm.state();
+    REQUIRE(lua_gettop(L) >= 1);
+    ScriptedDrawable drawable;
+    drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
+
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm()));
+    REQUIRE(drawable.hydrateScriptInputs());
+
+    rive_lua_pushRef(L, drawable.self());
+    REQUIRE(lua_getfield(L, -1, "initRan") == LUA_TBOOLEAN);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 2);
+
+    drawable.scriptDispose();
+}
+
+TEST_CASE("hydration preflight fails atomically when VM input cannot resolve",
+          "[scripting]")
+{
+    ScriptingTest vm(
+        R"(type MyNode = {
+  count: Input<number>,
+}
+
+function init(self: MyNode, context: Context): boolean
+  return true
+end
+
+function advance(self: MyNode, seconds: number): boolean
+  return true
+end
+
+function draw(self: MyNode, renderer: Renderer)
+end
+
+return function(): Node<MyNode>
+  return {
+    init = init,
+    advance = advance,
+    draw = draw,
+    count = 7,
+  }
+end
+)");
+    lua_State* L = vm.state();
+    REQUIRE(lua_gettop(L) >= 1);
+
+    ScriptedDrawable drawable;
+    drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
+
+    auto* numInput = new ScriptInputNumber();
+    numInput->name("count");
+    numInput->propertyValue(999.0f);
+    drawable.addProperty(numInput);
+
+    auto* vmInput = new ScriptInputViewModelProperty();
+    vmInput->name("vmBound");
+    drawable.addProperty(vmInput);
+
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm()));
+    CHECK_FALSE(drawable.hydrateScriptInputs());
+
+    rive_lua_pushRef(L, drawable.self());
+    REQUIRE(lua_getfield(L, -1, "count") == LUA_TNUMBER);
+    CHECK(lua_tonumber(L, -1) == 7.0);
+    lua_pop(L, 2);
+
+    drawable.scriptDispose();
+    delete numInput;
+    delete vmInput;
 }

@@ -5,6 +5,7 @@
 #include "rive/refcnt.hpp"
 #include "rive/span.hpp"
 #include <memory>
+#include <unordered_set>
 
 struct lua_State;
 
@@ -12,6 +13,7 @@ namespace rive
 {
 class ModuleDetails;
 class ScriptingContext;
+class ScriptedObject;
 
 class ScriptingVM : public RefCnt<ScriptingVM>
 {
@@ -20,6 +22,20 @@ public:
     explicit ScriptingVM(std::unique_ptr<ScriptingContext> context);
 
     ~ScriptingVM();
+
+    // Closes the lua_State synchronously and runs all userdata finalizers.
+    // Idempotent. Called from ~ScriptingVM but exposed so call sites that
+    // need teardown to be observable (e.g. between editor file swaps) can
+    // force it.
+    void closeLuaState();
+
+    // ScriptedObject holds a non-owning raw ScriptingVM*. These methods let
+    // the VM track which ScriptedObjects point at it so ~ScriptingVM (and
+    // closeLuaState) can null those pointers before cascading lua_close
+    // finalizers tear down the ScriptedObjects via their owning userdatas.
+    // Otherwise those finalizers would dereference an already-freed VM.
+    void registerScriptedObject(ScriptedObject* obj);
+    void unregisterScriptedObject(ScriptedObject* obj);
 
     ScriptingContext* context() { return m_ownedContext.get(); }
     lua_State* state() const { return m_state; }
@@ -71,6 +87,7 @@ public:
 private:
     lua_State* m_state;
     std::unique_ptr<ScriptingContext> m_ownedContext;
+    std::unordered_set<ScriptedObject*> m_scriptedObjects;
 };
 
 } // namespace rive

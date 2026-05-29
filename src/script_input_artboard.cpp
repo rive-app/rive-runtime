@@ -51,6 +51,19 @@ void ScriptInputArtboard::initScriptedValue()
     syncReferencedArtboard();
 }
 
+bool ScriptInputArtboard::validateForColdScriptInit() { return true; }
+
+bool ScriptInputArtboard::validateHydrationPrerequisites()
+{
+    return m_referencedArtboard != nullptr;
+}
+
+bool ScriptInputArtboard::hydrateScriptInput()
+{
+    initScriptedValue();
+    return m_referencedArtboard != nullptr;
+}
+
 void ScriptInputArtboard::syncReferencedArtboard()
 {
 

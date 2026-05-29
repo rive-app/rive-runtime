@@ -26,6 +26,15 @@
       },
       "runtime": false,
       "coop": false
+    },
+    "fire": {
+      "type": "callback",
+      "animates": true,
+      "key": {
+        "int": 1016,
+        "string": "fire"
+      },
+      "description": "Callback type used for keying the trigger"
     }
   }
 }

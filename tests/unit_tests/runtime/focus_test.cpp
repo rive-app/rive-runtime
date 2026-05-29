@@ -11,6 +11,8 @@
 #include "rive_file_reader.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/animation/listener_invocation.hpp"
+#include "rive/input/gamepad_snapshot.hpp"
 
 namespace rive
 {
@@ -21,6 +23,7 @@ class MockFocusable : public Focusable
 public:
     int keyInputCount = 0;
     int textInputCount = 0;
+    int gamepadDispatchCount = 0;
     int focusedCount = 0;
     int blurredCount = 0;
     std::string lastText;
@@ -41,6 +44,13 @@ public:
     {
         textInputCount++;
         lastText = text;
+        return returnValue;
+    }
+
+    bool gamepadDispatch(const ListenerInvocation&,
+                         ScriptedDrawable** = nullptr) override
+    {
+        gamepadDispatchCount++;
         return returnValue;
     }
 
@@ -293,6 +303,11 @@ TEST_CASE("FocusManager input routing", "[FocusManager]")
     // No focus, input not handled
     CHECK(manager.keyInput(Key::a, KeyModifiers::none, true, false) == false);
     CHECK(manager.textInput("hello") == false);
+    GamepadSnapshot snap{};
+    snap.deviceId = 1;
+    snap.buttonMask = 1;
+    CHECK(manager.gamepadDispatch(ListenerInvocation::gamepadConnected(snap)) ==
+          false);
 
     manager.setFocus(node);
 
@@ -304,6 +319,10 @@ TEST_CASE("FocusManager input routing", "[FocusManager]")
     CHECK(manager.textInput("world") == true);
     CHECK(focusable.textInputCount == 1);
     CHECK(focusable.lastText == "world");
+
+    CHECK(manager.gamepadDispatch(ListenerInvocation::gamepadConnected(snap)) ==
+          true);
+    CHECK(focusable.gamepadDispatchCount == 1);
 }
 
 TEST_CASE("FocusManager traversal basic", "[FocusManager]")
@@ -717,12 +736,195 @@ TEST_CASE("FocusActionTraversal perform unknown traversalKind defaults to next",
     CHECK(fm->primaryFocus() == node2);
 }
 
+TEST_CASE(
+    "StateMachineInstance exposes hasFocusNodes, focusNext, focusPrevious from focusManager",
+    "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable f1, f2;
+    auto node1 = make_rcp<FocusNode>(&f1);
+    auto node2 = make_rcp<FocusNode>(&f2);
+
+    CHECK(smi.hasFocusNodes() == false);
+
+    smi.focusManager()->addChild(nullptr, node1);
+    smi.focusManager()->addChild(nullptr, node2);
+    smi.focusManager()->setFocus(node1);
+
+    CHECK(smi.hasFocusNodes() == true);
+    CHECK(smi.focusNext() == true);
+    CHECK(smi.focusPrevious() == true);
+}
+
 TEST_CASE("FocusActionTraversal perform ignores null StateMachineInstance",
           "[FocusActionTraversal]")
 {
     FocusActionTraversal action;
     action.traversalKind(0);
     action.perform(nullptr, ListenerInvocation::none());
+}
+
+// Mock Focusable that reports it accepts keyboard input.
+class KeyboardAcceptingFocusable : public MockFocusable
+{
+public:
+    bool acceptsKeyboardInput() const override { return true; }
+};
+
+TEST_CASE("Focusable::acceptsKeyboardInput defaults to false", "[Focusable]")
+{
+    MockFocusable f;
+    CHECK(f.acceptsKeyboardInput() == false);
+
+    KeyboardAcceptingFocusable kf;
+    CHECK(kf.acceptsKeyboardInput() == true);
+}
+
+TEST_CASE("StateMachineInstance::focusState reports no focus when nothing is "
+          "focused",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    auto state = smi.focusState();
+    CHECK(state.hasFocus == false);
+    CHECK(state.expectsKeyboardInput == false);
+}
+
+TEST_CASE("StateMachineInstance::focusState reports focused non-keyboard "
+          "focusable",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable f;
+    auto node = make_rcp<FocusNode>(&f);
+    smi.focusManager()->addChild(nullptr, node);
+    smi.focusManager()->setFocus(node);
+
+    auto state = smi.focusState();
+    CHECK(state.hasFocus == true);
+    CHECK(state.expectsKeyboardInput == false);
+}
+
+TEST_CASE("StateMachineInstance::focusState reports keyboard expectation when "
+          "focused focusable accepts keys",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    KeyboardAcceptingFocusable kf;
+    auto node = make_rcp<FocusNode>(&kf);
+    smi.focusManager()->addChild(nullptr, node);
+    smi.focusManager()->setFocus(node);
+
+    auto state = smi.focusState();
+    CHECK(state.hasFocus == true);
+    CHECK(state.expectsKeyboardInput == true);
+}
+
+TEST_CASE("StateMachineInstance::focusState clears when focus is cleared",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    KeyboardAcceptingFocusable kf;
+    auto node = make_rcp<FocusNode>(&kf);
+    smi.focusManager()->addChild(nullptr, node);
+    smi.focusManager()->setFocus(node);
+
+    REQUIRE(smi.focusState().hasFocus == true);
+
+    smi.focusManager()->clearFocus();
+
+    auto state = smi.focusState();
+    CHECK(state.hasFocus == false);
+    CHECK(state.expectsKeyboardInput == false);
+}
+
+TEST_CASE("StateMachineInstance::focusState tracks switches between focusables",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable plain;
+    KeyboardAcceptingFocusable kf;
+    auto plainNode = make_rcp<FocusNode>(&plain);
+    auto kfNode = make_rcp<FocusNode>(&kf);
+    smi.focusManager()->addChild(nullptr, plainNode);
+    smi.focusManager()->addChild(nullptr, kfNode);
+
+    smi.focusManager()->setFocus(plainNode);
+    {
+        auto state = smi.focusState();
+        CHECK(state.hasFocus == true);
+        CHECK(state.expectsKeyboardInput == false);
+    }
+
+    smi.focusManager()->setFocus(kfNode);
+    {
+        auto state = smi.focusState();
+        CHECK(state.hasFocus == true);
+        CHECK(state.expectsKeyboardInput == true);
+    }
+
+    smi.focusManager()->setFocus(plainNode);
+    {
+        auto state = smi.focusState();
+        CHECK(state.hasFocus == true);
+        CHECK(state.expectsKeyboardInput == false);
+    }
+}
+
+TEST_CASE("StateMachineInstance::focusState uses external focus manager when "
+          "set",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    FocusManager external;
+    KeyboardAcceptingFocusable kf;
+    auto node = make_rcp<FocusNode>(&kf);
+    external.addChild(nullptr, node);
+    external.setFocus(node);
+
+    // Before swapping, internal manager has nothing focused.
+    CHECK(smi.focusState().hasFocus == false);
+
+    smi.setExternalFocusManager(&external);
+
+    auto state = smi.focusState();
+    CHECK(state.hasFocus == true);
+    CHECK(state.expectsKeyboardInput == true);
 }
 
 } // namespace rive
@@ -789,6 +991,7 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
     artboard->draw(renderer.get());
     silver.addFrame();
     focusManager->focusNext();
+    focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
     silver.addFrame();
@@ -804,6 +1007,7 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
     artboard->draw(renderer.get());
     silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
     focusManager->focusNext();
     artboard->draw(renderer.get());
     silver.addFrame();
@@ -1094,7 +1298,10 @@ TEST_CASE("Focus traversal listener actions", "[silver]")
     artboard->draw(renderer.get());
     silver.addFrame();
 
-    // Click on Prev
+    // Click on Prev twice to reenter focus tree
+    stateMachine->pointerDown(rive::Vec2D(60, 450));
+    stateMachine->pointerUp(rive::Vec2D(60, 450));
+    stateMachine->advanceAndApply(0.016f);
     stateMachine->pointerDown(rive::Vec2D(60, 450));
     stateMachine->pointerUp(rive::Vec2D(60, 450));
     stateMachine->advanceAndApply(0.016f);
@@ -1139,4 +1346,55 @@ TEST_CASE("Focus traversal listener actions", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("focus_traversal"));
+}
+
+TEST_CASE("Focus traversal clears focus when it reaches edge of root scope",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/focusable_element.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->focusManager()->focusNext();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("focusable_element"));
 }

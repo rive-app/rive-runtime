@@ -31,6 +31,9 @@ private:
     std::vector<DataBind*> m_persistingDataBinds;
     std::vector<DataBind*> m_dirtyDataBinds;
     std::vector<DataBind*> m_pendingDirtyDataBinds;
+    std::vector<DataBind*> m_pendingAdditions;
+    std::vector<DataBind*> m_pendingRemovals;
+    DataContext* m_dataContext = nullptr;
     bool m_isProcessing = false;
 };
 } // namespace rive

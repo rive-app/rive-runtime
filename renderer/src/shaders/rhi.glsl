@@ -147,12 +147,12 @@ $typedef $uint ushort;
     $Texture2D<half> NAME, $SamplerState SAMPLER_NAME
 #define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
 
-// SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler
+// SAMPLER_LINEAR is the same as SAMPLER because in d3d11, sampler
 // parameters are defined at the API level.
 #define SAMPLER(IDX, NAME) $SamplerState NAME;
 #define SAMPLER_LINEAR SAMPLER
-#define SAMPLER_MIPMAP SAMPLER
 #define SAMPLER_DYNAMIC(SET, IDX, NAME) SAMPLER(IDX, NAME)
+#define SAMPLER_DYNAMIC_IMAGE(NAME) SAMPLER(IMAGE_TEXTURE_IDX, NAME)
 
 #ifdef SOURCE_TEXTURE_MSAA
 #define TEXEL_FETCH_MS(NAME, LEVEL, COORD) NAME.Load(COORD, LEVEL)

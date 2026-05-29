@@ -23,6 +23,9 @@ public:
         const ScriptInputViewModelPropertyBase& object) override;
     void initScriptedValue() override;
     bool validateForScriptInit() override;
+    bool validateForColdScriptInit() override;
+    bool hydrateScriptInput() override;
+    bool validateHydrationPrerequisites() override;
     StatusCode import(ImportStack& importStack) override;
     StatusCode onAddedClean(CoreContext* context) override;
 };

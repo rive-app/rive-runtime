@@ -247,6 +247,34 @@ static int path_namecall(lua_State* L)
     return 0;
 }
 
+static void contour_measure_direct_length(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedContourMeasure*)udata)->measure()->length());
+}
+
+static void contour_measure_direct_isClosed(void* udata, void* result)
+{
+    lua_userdatadirectfield_setboolean(
+        result,
+        ((ScriptedContourMeasure*)udata)->measure()->isClosed() ? 1 : 0);
+}
+
+static void path_measure_direct_length(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        ((ScriptedPathMeasure*)udata)->measure()->length());
+}
+
+static void path_measure_direct_isClosed(void* udata, void* result)
+{
+    lua_userdatadirectfield_setboolean(
+        result,
+        ((ScriptedPathMeasure*)udata)->measure()->isClosed() ? 1 : 0);
+}
+
 // ContourMeasure methods
 static int contour_measure_length(lua_State* L)
 {
@@ -640,6 +668,15 @@ int luaopen_rive_path(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
 
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedContourMeasure::luaTag,
+                                       "length",
+                                       contour_measure_direct_length);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedContourMeasure::luaTag,
+                                       "isClosed",
+                                       contour_measure_direct_isClosed);
+
     // Register PathMeasure
     lua_register_rive<ScriptedPathMeasure>(L);
     lua_pushcfunction(L, path_measure_index, nullptr);
@@ -648,6 +685,15 @@ int luaopen_rive_path(lua_State* L)
     lua_setfield(L, -2, "__namecall");
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
+
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedPathMeasure::luaTag,
+                                       "length",
+                                       path_measure_direct_length);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedPathMeasure::luaTag,
+                                       "isClosed",
+                                       path_measure_direct_isClosed);
 
     return 1;
 }

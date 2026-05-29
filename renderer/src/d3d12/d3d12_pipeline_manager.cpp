@@ -437,7 +437,7 @@ void D3D12PipelineManager::compileAtlasPipeline()
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R32_FLOAT;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R16_FLOAT;
     psoDesc.SampleDesc.Count = 1;
 
     VERIFY_OK(device()->CreateGraphicsPipelineState(

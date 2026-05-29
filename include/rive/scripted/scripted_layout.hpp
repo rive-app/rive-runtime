@@ -16,7 +16,7 @@ private:
 
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    bool scriptInit(ScriptingVM* vm) override;
+    void didHydrateScriptInputs() override;
 #endif
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,

@@ -71,6 +71,15 @@
       },
       "description": "FPS at which the nested state machine will be quantized. -1 means no quantizaztion.",
       "bindable": true
+    },
+    "isStateful": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 1014,
+        "string": "isstateful"
+      },
+      "description": "If true, the Component will have a Viewmodel instance created at runtime separate from the VM tree."
     }
   }
 }

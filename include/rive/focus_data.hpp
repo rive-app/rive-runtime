@@ -1,8 +1,10 @@
 #ifndef _RIVE_FOCUS_DATA_HPP_
 #define _RIVE_FOCUS_DATA_HPP_
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/component_dirt.hpp"
 #include "rive/generated/focus_data_base.hpp"
 #include "rive/input/focus_node.hpp"
+#include "rive/input/gamepad_listener.hpp"
 #include "rive/input/keyboard_listener.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/math/aabb.hpp"
@@ -39,6 +41,9 @@ public:
     /// Unregister a text input listener.
     void removeTextInputListener(KeyboardListener* listener);
 
+    void addGamepadListener(GamepadListener* listener);
+    void removeGamepadListener(GamepadListener* listener);
+
     /// Programmatically focus this node.
     void focus();
 
@@ -65,10 +70,17 @@ public:
                   bool isPressed,
                   bool isRepeat) override;
     bool textInput(const std::string& text) override;
+    bool gamepadDispatch(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
     void focused() override;
     void blurred() override;
     bool worldPosition(Vec2D& outPosition) override;
     Artboard* focusableArtboard() const override { return artboard(); }
+    bool acceptsKeyboardInput() const override
+    {
+        return !m_keyboardListeners.empty() || !m_textInputListeners.empty();
+    }
 
     // Component overrides for update cycle
     void buildDependencies() override;
@@ -90,6 +102,7 @@ private:
     std::vector<FocusListener*> m_focusListeners;
     std::vector<KeyboardListener*> m_keyboardListeners;
     std::vector<KeyboardListener*> m_textInputListeners;
+    std::vector<GamepadListener*> m_gamepadListeners;
 };
 } // namespace rive
 

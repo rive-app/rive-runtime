@@ -61,6 +61,21 @@ public:
         return enums::is_flag_set(m_drawContents,
                                   gpu::DrawContents::opaquePaint);
     }
+    bool isClipUpdate() const
+    {
+        return enums::is_flag_set(m_drawContents,
+                                  gpu::DrawContents::clipUpdate);
+    }
+    bool hasActiveClip() const
+    {
+        return enums::is_flag_set(m_drawContents,
+                                  gpu::DrawContents::activeClip);
+    }
+    bool hasAdvancedBlend() const
+    {
+        return enums::is_flag_set(m_drawContents,
+                                  gpu::DrawContents::advancedBlend);
+    }
     uint32_t clipID() const { return m_clipID; }
     bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }
     const gpu::ClipRectInverseMatrix* clipRectInverseMatrix() const
@@ -131,8 +146,8 @@ public:
     //
     // NOTE: Subpasses are not necessarily rendered one after the other.
     // Separate, non-overlapping draws may have gotten sorted between subpasses.
-    virtual void pushToRenderContext(RenderContext::LogicalFlush*,
-                                     int subpassIndex) = 0;
+    virtual gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
+                                                int subpassIndex) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the
     // client calls this method before clearing the drawList to release all our
@@ -177,6 +192,7 @@ protected:
     // WebGL msaa), this is a linked list of all the draws from a single batch
     // whose bounding boxes needs to be blitted to the "dstRead" texture before
     // drawing.
+public:
     const Draw mutable* m_nextDstRead = nullptr;
 };
 
@@ -287,8 +303,8 @@ public:
     bool allocateResources(RenderContext::LogicalFlush*) override;
     void countSubpasses() override;
 
-    void pushToRenderContext(RenderContext::LogicalFlush*,
-                             int subpassIndex) override;
+    gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
+                                        int subpassIndex) override;
 
     // Called after pushToRenderContext(), and only when this draw uses an atlas
     // for tessellation. In the CoverageType::atlas case, pushToRenderContext()
@@ -334,7 +350,7 @@ protected:
 
     // Calls LogicalFlush::pushOuterCubicsDraw() or
     // LogicalFlush::pushMidpointFanDraw() for this PathDraw.
-    void pushTessellationDraw(
+    gpu::DrawBatch& pushTessellationDraw(
         RenderContext::LogicalFlush*,
         uint32_t tessVertexCount,
         uint32_t tessLocation,
@@ -478,8 +494,8 @@ public:
 
     float opacity() const { return m_opacity; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*,
-                             int subpassIndex) override;
+    gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
+                                        int subpassIndex) override;
 
 protected:
     const float m_opacity;
@@ -506,8 +522,8 @@ public:
     uint32_t indexCount() const { return m_indexCount; }
     float opacity() const { return m_opacity; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*,
-                             int subpassIndex) override;
+    gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
+                                        int subpassIndex) override;
 
     void releaseRefs() override;
 
@@ -537,8 +553,8 @@ public:
 
     uint32_t previousClipID() const { return m_previousClipID; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*,
-                             int subpassIndex) override;
+    gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
+                                        int subpassIndex) override;
 
 protected:
     const uint32_t m_previousClipID;

@@ -1,7 +1,9 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/async/work_pool.hpp"
 #include "lualib.h"
+#include <stdio.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
@@ -21,6 +23,7 @@ int luaopen_rive_data_context(lua_State* L);
 int luaopen_rive_input(lua_State* L);
 int luaopen_rive_contex(lua_State* L);
 int luaopen_rive_audio(lua_State* L);
+extern "C" int luaopen_rive_buffer_ext(lua_State* L);
 
 std::unordered_map<std::string, int16_t> atoms = {
     {"length", (int16_t)LuaAtoms::length},
@@ -101,6 +104,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"getViewModel", (int16_t)LuaAtoms::getViewModel},
     {"getEnum", (int16_t)LuaAtoms::getEnum},
     {"getIndex", (int16_t)LuaAtoms::getIndex},
+    {"getImage", (int16_t)LuaAtoms::getImage},
     {"values", (int16_t)LuaAtoms::values},
     {"addListener", (int16_t)LuaAtoms::addListener},
     {"removeListener", (int16_t)LuaAtoms::removeListener},
@@ -168,14 +172,21 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"isReportedEvent", (int16_t)LuaAtoms::isReportedEvent},
     {"isViewModelChange", (int16_t)LuaAtoms::isViewModelChange},
     {"isNone", (int16_t)LuaAtoms::isNone},
-    {"isGamepad", (int16_t)LuaAtoms::isGamepad},
+    {"isGamepadConnected", (int16_t)LuaAtoms::isGamepadConnected},
+    {"isGamepadEvent", (int16_t)LuaAtoms::isGamepadEvent},
+    {"isGamepadDisconnected", (int16_t)LuaAtoms::isGamepadDisconnected},
     {"asPointerEvent", (int16_t)LuaAtoms::asPointerEvent},
     {"asKeyboardEvent", (int16_t)LuaAtoms::asKeyboardEvent},
     {"asTextInput", (int16_t)LuaAtoms::asTextInput},
     {"asFocus", (int16_t)LuaAtoms::asFocus},
     {"asReportedEvent", (int16_t)LuaAtoms::asReportedEvent},
     {"asViewModelChange", (int16_t)LuaAtoms::asViewModelChange},
-    {"asGamepad", (int16_t)LuaAtoms::asGamepad},
+    {"asGamepadConnected", (int16_t)LuaAtoms::asGamepadConnected},
+    {"asGamepadEvent", (int16_t)LuaAtoms::asGamepadEvent},
+    {"asGamepadDisconnected", (int16_t)LuaAtoms::asGamepadDisconnected},
+    {"gamepadEvent", (int16_t)LuaAtoms::gamepadEvent},
+    {"gamepadConnected", (int16_t)LuaAtoms::gamepadConnected},
+    {"gamepadDisconnected", (int16_t)LuaAtoms::gamepadDisconnected},
     {"asNone", (int16_t)LuaAtoms::asNone},
     {"key", (int16_t)LuaAtoms::key},
     {"shift", (int16_t)LuaAtoms::shift},
@@ -187,10 +198,45 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"delaySeconds", (int16_t)LuaAtoms::delaySeconds},
     {"deviceId", (int16_t)LuaAtoms::deviceId},
     {"buttonMask", (int16_t)LuaAtoms::buttonMask},
-    {"axis0", (int16_t)LuaAtoms::axis0},
     {"remove", (int16_t)LuaAtoms::remove},
     {"removeAt", (int16_t)LuaAtoms::removeAt},
     {"removeAllOf", (int16_t)LuaAtoms::removeAllOf},
+    {"axes", (int16_t)LuaAtoms::axes},
+    {"gamepadMapping", (int16_t)LuaAtoms::gamepadMapping},
+    {"mapping", (int16_t)LuaAtoms::mapping},
+    {"isStandardMapping", (int16_t)LuaAtoms::isStandardMapping},
+    {"buttons", (int16_t)LuaAtoms::buttons},
+    {"buttonPressed", (int16_t)LuaAtoms::buttonPressed},
+    {"buttonValue", (int16_t)LuaAtoms::buttonValue},
+    {"axis", (int16_t)LuaAtoms::axis},
+    {"west", (int16_t)LuaAtoms::west},
+    {"south", (int16_t)LuaAtoms::south},
+    {"north", (int16_t)LuaAtoms::north},
+    {"east", (int16_t)LuaAtoms::east},
+    {"leftShoulder", (int16_t)LuaAtoms::leftShoulder},
+    {"rightShoulder", (int16_t)LuaAtoms::rightShoulder},
+    {"back", (int16_t)LuaAtoms::gamepadBack},
+    {"forward", (int16_t)LuaAtoms::gamepadForward},
+    {"leftStickButton", (int16_t)LuaAtoms::leftStickButton},
+    {"rightStickButton", (int16_t)LuaAtoms::rightStickButton},
+    {"dpadUp", (int16_t)LuaAtoms::dpadUp},
+    {"dpadDown", (int16_t)LuaAtoms::dpadDown},
+    {"dpadLeft", (int16_t)LuaAtoms::dpadLeft},
+    {"dpadRight", (int16_t)LuaAtoms::dpadRight},
+    {"start", (int16_t)LuaAtoms::start},
+    {"leftStick", (int16_t)LuaAtoms::leftStick},
+    {"rightStick", (int16_t)LuaAtoms::rightStick},
+    {"leftTrigger", (int16_t)LuaAtoms::leftTrigger},
+    {"rightTrigger", (int16_t)LuaAtoms::rightTrigger},
+    {"leftTriggerPressed", (int16_t)LuaAtoms::leftTriggerPressed},
+    {"rightTriggerPressed", (int16_t)LuaAtoms::rightTriggerPressed},
+    {"changeKind", (int16_t)LuaAtoms::changeKind},
+    {"changeIndex", (int16_t)LuaAtoms::changeIndex},
+    {"changeValue", (int16_t)LuaAtoms::changeValue},
+    {"hasStandardButtonIntent", (int16_t)LuaAtoms::hasStandardButtonIntent},
+    {"hasStandardAxisIntent", (int16_t)LuaAtoms::hasStandardAxisIntent},
+    {"intentButton", (int16_t)LuaAtoms::intentButton},
+    {"intentAxis", (int16_t)LuaAtoms::intentAxis},
     {"audio", (int16_t)LuaAtoms::audio},
     {"play", (int16_t)LuaAtoms::play},
     {"playAtTime", (int16_t)LuaAtoms::playAtTime},
@@ -207,6 +253,46 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"time", (int16_t)LuaAtoms::time},
     {"timeFrame", (int16_t)LuaAtoms::timeFrame},
     {"sampleRate", (int16_t)LuaAtoms::sampleRate},
+    // GPU
+    {"write", (int16_t)LuaAtoms::write},
+    {"upload", (int16_t)LuaAtoms::upload},
+    {"view", (int16_t)LuaAtoms::view},
+    {"setPipeline", (int16_t)LuaAtoms::setPipeline},
+    {"setVertexBuffer", (int16_t)LuaAtoms::setVertexBuffer},
+    {"setIndexBuffer", (int16_t)LuaAtoms::setIndexBuffer},
+    {"setBindGroup", (int16_t)LuaAtoms::setBindGroup},
+    {"setViewport", (int16_t)LuaAtoms::setViewport},
+    {"setScissorRect", (int16_t)LuaAtoms::setScissorRect},
+    {"setStencilReference", (int16_t)LuaAtoms::setStencilReference},
+    {"drawIndexed", (int16_t)LuaAtoms::drawIndexed},
+    {"finish", (int16_t)LuaAtoms::finish},
+    {"beginRenderPass", (int16_t)LuaAtoms::beginRenderPass},
+    {"beginFrame", (int16_t)LuaAtoms::beginFrame},
+    {"endFrame", (int16_t)LuaAtoms::endFrame},
+    {"colorView", (int16_t)LuaAtoms::colorView},
+    {"depthView", (int16_t)LuaAtoms::depthView},
+    {"setBlendColor", (int16_t)LuaAtoms::setBlendColor},
+    {"resize", (int16_t)LuaAtoms::resize},
+    {"canvas", (int16_t)LuaAtoms::canvas},
+    {"gpuCanvas", (int16_t)LuaAtoms::gpuCanvas},
+    {"features", (int16_t)LuaAtoms::features},
+    {"drawCanvas", (int16_t)LuaAtoms::drawCanvas},
+    {"shader", (int16_t)LuaAtoms::shader},
+    {"format", (int16_t)LuaAtoms::format},
+    {"preferredCanvasFormat", (int16_t)LuaAtoms::preferredCanvasFormat},
+    {"andThen", (int16_t)LuaAtoms::andThen},
+    {"catch", (int16_t)LuaAtoms::catch_},
+    {"finally", (int16_t)LuaAtoms::finally_},
+    {"cancel", (int16_t)LuaAtoms::cancel},
+    {"onCancel", (int16_t)LuaAtoms::onCancel},
+    {"getStatus", (int16_t)LuaAtoms::getStatus},
+    {"decodeImage", (int16_t)LuaAtoms::decodeImage},
+    // Mat4
+    {"transpose", (int16_t)LuaAtoms::transpose},
+    {"transformPoint", (int16_t)LuaAtoms::transformPoint},
+    {"transformVec4", (int16_t)LuaAtoms::transformVec4},
+    {"writeToBuffer", (int16_t)LuaAtoms::writeToBuffer},
+    {"invertAffine", (int16_t)LuaAtoms::invertAffine},
 };
 
 static const luaL_Reg lualibs[] = {
@@ -228,6 +314,7 @@ static const luaL_Reg lualibs[] = {
     {"context", luaopen_rive_contex},
     {"dataContext", luaopen_rive_data_context},
     {"audio", luaopen_rive_audio},
+    {"promise", luaopen_rive_promise},
     {NULL, NULL},
 };
 
@@ -253,6 +340,11 @@ int luaopen_rive(lua_State* L)
         lua_pushstring(L, lib->name);
         lua_call(L, 1, 0);
     }
+
+    // Extend the buffer library with SIMD-accelerated functions
+    // (readf16, writef16, stridedcopy, convert).
+    luaopen_rive_buffer_ext(L);
+
     return 0;
 }
 
@@ -276,7 +368,11 @@ int rive_lua_pcall(lua_State* state, int nargs, int nresults)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
 
-    return context->pCall(state, nargs, nresults);
+    int ret = context->pCall(state, nargs, nresults);
+#ifdef RIVE_ORE
+    rive_lua_closeOrphanRenderPass(state);
+#endif
+    return ret;
 }
 
 int rive_lua_pcall_with_context(lua_State* state,
@@ -287,7 +383,11 @@ int rive_lua_pcall_with_context(lua_State* state,
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
     ScopedScriptedObjectContext scope(context, scriptedObject);
-    return context->pCall(state, nargs, nresults);
+    int ret = context->pCall(state, nargs, nresults);
+#ifdef RIVE_ORE
+    rive_lua_closeOrphanRenderPass(state);
+#endif
+    return ret;
 }
 
 int rive_lua_pushRef(lua_State* state, int ref)
@@ -423,7 +523,51 @@ ScriptingVM::ScriptingVM(std::unique_ptr<ScriptingContext> context) :
     init(m_state, m_ownedContext.get());
 }
 
-ScriptingVM::~ScriptingVM() { lua_close(m_state); }
+ScriptingVM::~ScriptingVM() { closeLuaState(); }
+
+void ScriptingVM::closeLuaState()
+{
+    if (m_state == nullptr)
+    {
+        return;
+    }
+    // Cancel async tasks before closing Lua state to prevent callbacks
+    // from accessing dead state.
+    if (m_ownedContext)
+        m_ownedContext->shutdownAsyncForState(m_state);
+
+    // Null every registered ScriptedObject's back-pointer before the lua
+    // teardown cascade. Once m_vm is gone, ScriptedObject::state() returns
+    // nullptr, so scriptDispose() (called from cascading destruction inside
+    // lua_close) skips its lua_unref / disposeScriptedContext calls. Those
+    // calls would otherwise dereference Lua userdatas (ScriptedContext, ref
+    // tables) that lua_close has already freed in earlier sweep iterations.
+    for (ScriptedObject* obj : m_scriptedObjects)
+    {
+        obj->m_vm = nullptr;
+    }
+    m_scriptedObjects.clear();
+
+    lua_State* state = m_state;
+    m_state = nullptr;
+    lua_close(state);
+}
+
+void ScriptingVM::registerScriptedObject(ScriptedObject* obj)
+{
+    if (obj != nullptr)
+    {
+        m_scriptedObjects.insert(obj);
+    }
+}
+
+void ScriptingVM::unregisterScriptedObject(ScriptedObject* obj)
+{
+    if (obj != nullptr)
+    {
+        m_scriptedObjects.erase(obj);
+    }
+}
 
 void ScriptingVM::replaceContext(std::unique_ptr<ScriptingContext> newContext)
 {
@@ -772,6 +916,19 @@ void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
 }
 
 #ifdef WITH_RIVE_TOOLS
+void ScriptingContext::registerShaderRstb(std::string name,
+                                          std::vector<uint8_t> bytes)
+{
+    m_shaderRstbs[std::move(name)] = std::move(bytes);
+}
+
+const std::vector<uint8_t>* ScriptingContext::findShaderRstb(
+    const std::string& name) const
+{
+    auto it = m_shaderRstbs.find(name);
+    return it != m_shaderRstbs.end() ? &it->second : nullptr;
+}
+
 void ScriptingContext::setGeneratorRef(uint32_t assetId, int ref)
 {
     m_assetGeneratorRefs[assetId] = ref;
@@ -819,6 +976,42 @@ void ScriptingContext::disposeOrphanScriptedProperties()
     m_orphanScriptedProperties.clear();
 }
 #endif
+
+// ── WorkPool integration ───────────────────────────────────────────────────
+// getGlobalWorkPool() is defined in work_pool.cpp (shared singleton).
+
+WorkPool* ScriptingContext::workPool()
+{
+    if (m_ownerId == 0)
+        m_ownerId = WorkPool::nextOwnerId();
+    return getGlobalWorkPool().get();
+}
+
+// Forward-declared in lua_image_decode.cpp (WASM only).
+#ifdef __EMSCRIPTEN__
+extern void wasm_cancelPendingDecodes(lua_State* mainThread);
+#endif
+
+void ScriptingContext::shutdownAsync()
+{
+    if (m_ownerId != 0)
+    {
+        auto& pool = getGlobalWorkPoolIfExists();
+        if (pool)
+            pool->cancelAllForOwner(m_ownerId);
+        m_ownerId = 0;
+    }
+}
+
+// Called from ~ScriptingVM before lua_close. On WASM, also cancel
+// browser-native image decodes that bypass WorkPool.
+void ScriptingContext::shutdownAsyncForState(lua_State* mainThread)
+{
+    shutdownAsync();
+#ifdef __EMSCRIPTEN__
+    wasm_cancelPendingDecodes(mainThread);
+#endif
+}
 
 bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,

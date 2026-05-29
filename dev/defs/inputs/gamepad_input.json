@@ -1,0 +1,46 @@
+{
+  "name": "GamepadInput",
+  "key": {
+    "int": 974,
+    "string": "gamepadinput"
+  },
+  "extends": "inputs/user_input.json",
+  "properties": {
+    "kind": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1021,
+        "string": "kind"
+      },
+      "description": "Which gamepad event kind this filter selects (button, axis, connected, disconnected); see GamepadInputKind"
+    },
+    "mapping": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1018,
+        "string": "mapping"
+      },
+      "description": "How inputIndex is interpreted for button/axis kinds: 0 = W3C standard slot, 1 = raw W3C index"
+    },
+    "inputIndex": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1019,
+        "string": "inputindex"
+      },
+      "description": "Button or axis index; meaning depends on kind and mapping"
+    },
+    "buttonPhase": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 1020,
+        "string": "buttonphase"
+      },
+      "description": "bit flag for button phases to match (down, up); only used when kind = button"
+    }
+  }
+}

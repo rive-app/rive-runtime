@@ -45,6 +45,44 @@ void ScriptInputViewModelProperty::initScriptedValue()
 
 bool ScriptInputViewModelProperty::validateForScriptInit()
 {
+    // Binding validation happens in hydrateScriptInput(); cold init does not
+    // require a resolved view-model property.
+    m_viewModelInstanceValue = nullptr;
+    return true;
+}
+
+bool ScriptInputViewModelProperty::validateForColdScriptInit()
+{
+    m_viewModelInstanceValue = nullptr;
+    return true;
+}
+
+bool ScriptInputViewModelProperty::validateHydrationPrerequisites()
+{
+    auto scriptedObj = scriptedObject();
+    if (scriptedObj == nullptr)
+    {
+        return false;
+    }
+    auto dataContext = scriptedObj->dataContext();
+    if (dataContext == nullptr)
+    {
+        return false;
+    }
+    if (m_dataBindPath == nullptr)
+    {
+        return false;
+    }
+    auto instanceValue = dataContext->getViewModelProperty(m_dataBindPath);
+    if (instanceValue == nullptr)
+    {
+        return false;
+    }
+    return instanceValue->viewModelProperty() != nullptr;
+}
+
+bool ScriptInputViewModelProperty::hydrateScriptInput()
+{
     m_viewModelInstanceValue = nullptr;
     auto scriptedObj = scriptedObject();
     if (scriptedObj == nullptr)
@@ -71,6 +109,7 @@ bool ScriptInputViewModelProperty::validateForScriptInit()
         return false;
     }
     m_viewModelInstanceValue = instanceValue;
+    initScriptedValue();
     return true;
 }
 

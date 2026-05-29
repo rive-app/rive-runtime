@@ -132,16 +132,8 @@
       },
       "description": "List of timelines and state machines currenty open.",
       "runtime": false,
-      "coop": false
-    },
-    "isStateful": {
-      "type": "bool",
-      "initialValue": "false",
-      "key": {
-        "int": 951,
-        "string": "isstateful"
-      },
-      "description": "If true, the Artboard will have a Viewmodel instance created at runtime seperate from the VM tree."
+      "coop": false,
+      "journal": false
     }
   }
 }

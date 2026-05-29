@@ -7,12 +7,9 @@
 #include <algorithm>
 #include <cstring>
 
-// This translation unit contains the FFI-free portion of BindingMap: the
-// serialization (toBlob/fromBlob), sort/finalize, and lookup. The `fromFFI`
-// method — which depends on the `naga_compiled_*` symbols exposed by the
-// naga_ffi Rust library — lives in a separate translation unit
-// (ore_binding_map_ffi.cpp) so that linkers can dead-strip it in builds
-// (e.g. unit_tests) that don't link naga_ffi.
+// BindingMap serialization (toBlob/fromBlob), sort/finalize, and lookup.
+// All construction at runtime goes through `fromBlob` against an RSTB
+// sidecar; the editor-side toolchain produces the blob via `toBlob`.
 
 namespace rive::ore
 {
@@ -44,11 +41,11 @@ namespace
 //
 // Forward compat: a newer writer may emit entries larger than the current
 // reader knows about by bumping entry_size. The reader skips the trailing
-// unknown bytes per entry. New fields are always *appended* at the tail —
-// no reserved-for-future slots inside the known prefix, since entry_size
+// unknown bytes per entry. New fields are always *appended* at the tail.
+// No reserved-for-future slots inside the known prefix, since entry_size
 // already gives us self-describing append-only growth. Any mismatch that
 // matters semantically (blob_version or allocator_version) is a loud
-// error — see RFC §14.4 / §14.6.
+// error.
 
 constexpr size_t kBlobHeaderSize = 8;
 constexpr uint16_t kEntryWireSize = 14;
@@ -83,8 +80,6 @@ inline void writeU32LE(uint8_t* p, uint32_t v)
 
 } // namespace
 
-// NOTE: `BindingMap::fromFFI` lives in ore_binding_map_ffi.cpp.
-
 // Runtime API: fromBlob trusts its input to be sorted (toBlob iterates
 // m_entries in canonical order). No sort on the hot path.
 bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
@@ -102,7 +97,7 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
     const uint8_t blobVer = data[0];
     const uint8_t allocVer = data[1];
     if (blobVer != kBlobVersion)
-        return false; // RFC §14.4: never silent-fallback.
+        return false; // Never silent-fallback on a malformed blob.
     if (allocVer != kAllocatorVersion)
         return false;
 

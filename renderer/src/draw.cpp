@@ -425,7 +425,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                              float modulatedOpacity,
                              RawPath* scratchPath)
 {
-    RIVE_PROF_SCOPE();
+    RIVE_PROF_SCOPE_L(2);
     assert(path != nullptr);
     assert(paint != nullptr);
 
@@ -733,7 +733,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
 
 void PathDraw::releaseRefs()
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     Draw::releaseRefs();
     RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();
@@ -743,7 +743,7 @@ void PathDraw::releaseRefs()
 void PathDraw::initForMidpointFan(RenderContext* context,
                                   const RiveRenderPaint* paint)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Only call init() once.
     assert((m_resourceCounts.midpointFanTessVertexCount |
             m_resourceCounts.outerCubicTessVertexCount) == 0);
@@ -1370,7 +1370,7 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
                                             RawPath* scratchPath,
                                             TriangulatorAxis triangulatorAxis)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
     POP_DISABLE_CLANG_SIMD_ABI_WARNING()
@@ -1391,7 +1391,7 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
 
 bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     const RenderContext::FrameDescriptor& frameDesc = flush->frameDescriptor();
 
     // Allocate a gradient if needed. Do this first since it's more expensive to
@@ -1476,7 +1476,7 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
 
 void PathDraw::countSubpasses()
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     m_subpassCount = 1;
     m_prepassCount = 0;
 
@@ -1550,10 +1550,11 @@ void PathDraw::countSubpasses()
     }
 }
 
-void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                   int subpassIndex)
+gpu::DrawBatch* PathDraw::pushToRenderContext(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Make sure the rawPath in our path reference hasn't changed since we began
     // holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
@@ -1566,7 +1567,7 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
         m_resourceCounts.midpointFanTessVertexCount);
     if (tessVertexCount == 0)
     {
-        return;
+        return nullptr;
     }
 
     if (m_pathID == 0)
@@ -1591,7 +1592,9 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                 uint32_t tessLocation =
                     allocateTessellationVertices(flush, tessVertexCount);
                 pushTessellationData(flush, tessVertexCount, tessLocation);
-                pushTessellationDraw(flush, tessVertexCount, tessLocation);
+                return &pushTessellationDraw(flush,
+                                             tessVertexCount,
+                                             tessLocation);
             }
             else
             {
@@ -1601,8 +1604,7 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         subpassIndex == 1) ||
                        (m_coverageType == CoverageType::clockwise &&
                         (subpassIndex == 0 || subpassIndex == 2)));
-                RIVE_DEBUG_CODE(m_numInteriorTriangleVerticesPushed +=)
-                flush->pushInteriorTriangulationDraw(
+                gpu::DrawBatch* batch = flush->pushInteriorTriangulationDraw(
                     this,
                     m_pathID,
                     (m_coverageType == CoverageType::clockwise)
@@ -1613,14 +1615,18 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         : gpu::WindingFaces::all,
                     (subpassIndex == 0) // => CoverageType::clockwise
                         ? gpu::ShaderMiscFlags::borrowedCoveragePass
-                        : gpu::ShaderMiscFlags::none);
+                        : gpu::ShaderMiscFlags::none RIVE_DEBUG_CODE(
+                              ,
+                              &m_numInteriorTriangleVerticesPushed));
                 assert(m_numInteriorTriangleVerticesPushed <=
                        m_triangulator->maxVertexCount());
+                return batch;
             }
-            break;
+            RIVE_UNREACHABLE();
         }
 
         case CoverageType::clockwiseAtomic:
+        {
             if (m_prepassCount != 0)
             {
                 // The subpass and prepass each emit half the vertices.
@@ -1635,44 +1641,46 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                     assert(!isStroke());
                     m_prepassTessLocation =
                         allocateTessellationVertices(flush, tessVertexCount);
-                    pushTessellationDraw(
+                    return &pushTessellationDraw(
                         flush,
                         tessVertexCount,
                         m_prepassTessLocation,
                         gpu::ShaderMiscFlags::borrowedCoveragePass);
-                    break;
 
                 case 0: // Tessellation (midpointFan or outerCubic).
                 {
                     uint32_t tessLocation =
                         allocateTessellationVertices(flush, tessVertexCount);
                     pushTessellationData(flush, tessVertexCount, tessLocation);
-                    pushTessellationDraw(flush, tessVertexCount, tessLocation);
-                    break;
+                    return &pushTessellationDraw(flush,
+                                                 tessVertexCount,
+                                                 tessLocation);
                 }
 
                 case -2: // Interior triangles (borrowed).
                 case 1:  // Interior triangles.
+                {
                     assert(!isStroke());
                     assert(m_triangulator != nullptr);
-                    RIVE_DEBUG_CODE(m_numInteriorTriangleVerticesPushed +=)
-                    flush->pushInteriorTriangulationDraw(
-                        this,
-                        m_pathID,
-                        m_prepassCount == 0 ? gpu::WindingFaces::all
-                        : subpassIndex < 0  ? gpu::WindingFaces::negative
-                                            : gpu::WindingFaces::positive,
-                        subpassIndex < 0
-                            ? gpu::ShaderMiscFlags::borrowedCoveragePass
-                            : gpu::ShaderMiscFlags::none);
+                    gpu::DrawBatch* batch =
+                        flush->pushInteriorTriangulationDraw(
+                            this,
+                            m_pathID,
+                            m_prepassCount == 0 ? gpu::WindingFaces::all
+                            : subpassIndex < 0  ? gpu::WindingFaces::negative
+                                                : gpu::WindingFaces::positive,
+                            subpassIndex < 0
+                                ? gpu::ShaderMiscFlags::borrowedCoveragePass
+                                : gpu::ShaderMiscFlags::none RIVE_DEBUG_CODE(
+                                      ,
+                                      &m_numInteriorTriangleVerticesPushed));
                     assert(m_numInteriorTriangleVerticesPushed <=
                            m_triangulator->maxVertexCount());
-                    break;
-
-                default:
-                    RIVE_UNREACHABLE();
+                    return batch;
+                }
             }
-            break;
+            RIVE_UNREACHABLE();
+        }
 
         case CoverageType::msaa:
         {
@@ -1712,11 +1720,10 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
             gpu::DrawType msaaDrawType =
                 isStroke() ? gpu::DrawType::msaaStrokes
                            : MSAA_FILL_TYPES[passCount - 1][passIdx];
-            flush->pushMidpointFanDraw(this,
-                                       msaaDrawType,
-                                       tessVertexCount,
-                                       m_msaaTessLocation);
-            break;
+            return &flush->pushMidpointFanDraw(this,
+                                               msaaDrawType,
+                                               tessVertexCount,
+                                               m_msaaTessLocation);
         }
 
         case CoverageType::atlas:
@@ -1725,28 +1732,30 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
             // offscreen atlas is handled separately, outside the subpass
             // system.
             assert(subpassIndex == 0);
-            flush->pushAtlasBlit(this, m_pathID);
-            break;
+            return &flush->pushAtlasBlit(this, m_pathID);
     }
+
+    RIVE_UNREACHABLE();
 }
 
-void PathDraw::pushTessellationDraw(RenderContext::LogicalFlush* flush,
-                                    uint32_t tessVertexCount,
-                                    uint32_t tessLocation,
-                                    gpu::ShaderMiscFlags shaderMiscFlags)
+gpu::DrawBatch& PathDraw::pushTessellationDraw(
+    RenderContext::LogicalFlush* flush,
+    uint32_t tessVertexCount,
+    uint32_t tessLocation,
+    gpu::ShaderMiscFlags shaderMiscFlags)
 {
     if (m_triangulator != nullptr)
     {
         assert(!isStroke());
-        flush->pushOuterCubicsDraw(this,
-                                   gpu::DrawType::outerCurvePatches,
-                                   tessVertexCount,
-                                   tessLocation,
-                                   shaderMiscFlags);
+        return flush->pushOuterCubicsDraw(this,
+                                          gpu::DrawType::outerCurvePatches,
+                                          tessVertexCount,
+                                          tessLocation,
+                                          shaderMiscFlags);
     }
     else
     {
-        flush->pushMidpointFanDraw(
+        return flush->pushMidpointFanDraw(
             this,
             isFeatheredFill() ? gpu::DrawType::midpointFanCenterAAPatches
                               : gpu::DrawType::midpointFanPatches,
@@ -1760,7 +1769,7 @@ void PathDraw::pushAtlasTessellation(RenderContext::LogicalFlush* flush,
                                      uint32_t* tessVertexCount,
                                      uint32_t* tessBaseVertex)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     assert(m_coverageType == CoverageType::atlas);
     assert(m_resourceCounts.outerCubicTessVertexCount == 0 ||
            m_resourceCounts.midpointFanTessVertexCount == 0);
@@ -1783,7 +1792,7 @@ void PathDraw::pushTessellationData(RenderContext::LogicalFlush* flush,
                                     uint32_t tessVertexCount,
                                     uint32_t tessLocation)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     // Determine where to fill in forward and mirrored tessellations.
     uint32_t forwardTessVertexCount, forwardTessLocation,
         mirroredTessVertexCount, mirroredTessLocation;
@@ -1880,7 +1889,7 @@ void PathDraw::pushTessellationData(RenderContext::LogicalFlush* flush,
 void PathDraw::pushMidpointFanTessellationData(
     RenderContext::TessellationWriter* tessWriter)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
     for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
@@ -2268,7 +2277,7 @@ void PathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     uint32_t strokeCapSegmentCount,
     uint32_t contourIDWithFlags)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(3)
     // Reverse the cubic and push it with zero parametric and polar segments,
     // and a 180-degree join tangent. This results in a solitary join,
     // positioned immediately before the provided cubic, that looks like the
@@ -2293,7 +2302,7 @@ void PathDraw::iterateInteriorTriangulation(
     TriangulatorAxis triangulatorAxis,
     RenderContext::TessellationWriter* tessWriter)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();
     assert(!rawPath.empty());
@@ -2549,11 +2558,12 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
     m_resourceCounts.imageDrawCount = 1;
 }
 
-void ImageRectDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                        int subpassIndex)
+gpu::DrawBatch* ImageRectDraw::pushToRenderContext(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex)
 {
     assert(subpassIndex == 0);
-    flush->pushImageRectDraw(this);
+    return &flush->pushImageRectDraw(this);
 }
 
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
@@ -2585,11 +2595,12 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
     m_resourceCounts.imageDrawCount = 1;
 }
 
-void ImageMeshDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                        int subpassIndex)
+gpu::DrawBatch* ImageMeshDraw::pushToRenderContext(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex)
 {
     assert(subpassIndex == 0);
-    flush->pushImageMeshDraw(this);
+    return &flush->pushImageMeshDraw(this);
 }
 
 void ImageMeshDraw::releaseRefs()
@@ -2628,10 +2639,11 @@ ClipReset::ClipReset(RenderContext* context,
     m_resourceCounts.maxTriangleVertexCount = 6;
 }
 
-void ClipReset::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                    int subpassIndex)
+gpu::DrawBatch* ClipReset::pushToRenderContext(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex)
 {
     assert(subpassIndex == 0);
-    flush->pushClipResetDraw(this);
+    return &flush->pushClipResetDraw(this);
 }
 } // namespace rive::gpu

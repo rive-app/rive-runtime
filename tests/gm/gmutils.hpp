@@ -102,6 +102,9 @@ rive::rcp<rive::RenderPath> renderPathFromRawPath(
 class PathBuilder
 {
 public:
+    PathBuilder() = default;
+    PathBuilder(rive::FillRule fillRule) : m_Path(fillRule) {}
+
     static Path Rect(rive::AABB rect, PathDirection dir = PathDirection::cw)
     {
         return PathBuilder().addRect(rect, dir).detach();

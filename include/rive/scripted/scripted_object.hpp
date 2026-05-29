@@ -32,16 +32,28 @@ protected:
     ScriptedContext* m_contextPtr = nullptr;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
-#ifdef WITH_RIVE_TOOLS
-    rcp<ScriptingVM> m_vm = nullptr; // Ref-counted for editor
-#else
-    ScriptingVM* m_vm = nullptr; // Non-owning for runtime
+    // Non-owning. ScriptingVM tracks every ScriptedObject that points at it
+    // (via registerScriptedObject in ensureScriptInitialized) and nulls these
+    // out from ~ScriptingVM. Holding it as rcp would create a cycle:
+    // ScriptingVM → lua_State → ScriptedArtboard userdata →
+    // ScriptReffedArtboard → inner ArtboardInstance → ScriptedObject →
+    // rcp<ScriptingVM>.
+    ScriptingVM* m_vm = nullptr;
+    friend class ScriptingVM;
 #endif
-#endif
+    bool inUpdatePhase() const { return m_inUpdatePhase; }
+    void setInUpdatePhase(bool value) { m_inUpdatePhase = value; }
+
 private:
     rcp<DataContext> m_dataContext = nullptr;
     std::vector<ScriptedProperty*> m_trackedScriptedProperties;
+    bool m_inUpdatePhase = false;
+#ifdef WITH_RIVE_SCRIPTING
+    bool m_userLuaInitDone = false;
+    bool tryLuaUserInit(lua_State* L);
+#endif
     void disposeScriptedContext();
+    void disposeTrackedProperties();
 
 public:
     virtual ~ScriptedObject() { scriptDispose(); }
@@ -54,14 +66,29 @@ public:
     void setViewModelInput(std::string name, ViewModelInstanceValue* value);
     void trigger(std::string name);
     bool scriptAdvance(float elapsedSeconds);
+    void scriptDrawCanvas();
     void scriptUpdate();
     void reinit();
+#ifdef WITH_RIVE_SCRIPTING
+    bool userLuaInitDone() { return m_userLuaInitDone; }
+    void resetLuaInit() { m_userLuaInitDone = false; }
+#else
+    bool userLuaInitDone() { return true; }
+    void resetLuaInit() {}
+#endif
     virtual void markNeedsUpdate();
     virtual rcp<DataContext> dataContext() { return m_dataContext; }
     void dataContext(rcp<DataContext> value) { m_dataContext = value; }
 #ifdef WITH_RIVE_SCRIPTING
-    virtual bool scriptInit(ScriptingVM* vm);
+    /// Load Lua factory result into m_self once per VM; does not push inputs or
+    /// call Lua init(); use hydrateScriptInputs() after data bind.
+    bool ensureScriptInitialized(ScriptingVM* vm);
+    /// Resolve inputs from DataContext and push into Lua; runs Lua init() once
+    /// after first successful hydration when implemented.
+    bool hydrateScriptInputs();
     lua_State* state() const { return m_vm ? m_vm->state() : nullptr; }
+#else
+    bool hydrateScriptInputs() { return true; }
 #endif
     void scriptDispose();
     virtual bool addScriptedDirt(ComponentDirt value, bool recurse = false) = 0;
@@ -95,6 +122,10 @@ public:
         return m_trackedScriptedProperties;
     }
     virtual bool addDataBindFromScriptedObject(DataBind*) { return false; }
+#ifdef WITH_RIVE_SCRIPTING
+    /// Called after hydrateScriptInputs() succeeds;
+    virtual void didHydrateScriptInputs() {}
+#endif
 };
 } // namespace rive
 

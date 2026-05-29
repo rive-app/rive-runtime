@@ -15,6 +15,39 @@ end
 rive_tools_project('gms', 'RiveTool')
 do
     files({ 'gm/*.cpp'})
+    -- Ore GM tests need Obj-C++ on Apple (ore headers include <Metal/Metal.h>).
+    -- .mm wrappers #include the .cpp files so every Apple generator compiles
+    -- them as Obj-C++ without needing compileas or buildoptions hacks.
+    -- On non-Apple, ore GMs are excluded from the gm/*.cpp glob but re-added
+    -- per-platform as the corresponding Ore backend lands.
+    removefiles({ 'gm/ore_*.cpp' })
+    -- render_canvas GMs use RenderContext::makeRenderCanvas which is gated
+    -- behind RIVE_CANVAS; only compile them when with_rive_canvas is on.
+    filter({ 'options:not with_rive_canvas' })
+    do
+        removefiles({ 'gm/render_canvas*.cpp' })
+    end
+    filter('system:macosx or ios')
+    do
+        files({ 'gm/*.mm' })
+        buildoptions({ '-fobjc-arc' })
+    end
+    -- D3D11 Ore backend: include ore GMs on Windows when with_rive_canvas is on.
+    filter({ 'system:windows', 'options:with_rive_canvas' })
+    do
+        files({ 'gm/ore_*.cpp' })
+    end
+    -- GL Ore backend: include ore GMs on Android/Emscripten/Linux.
+    filter({ 'system:android or emscripten or linux', 'options:with_rive_canvas' })
+    do
+        files({ 'gm/ore_*.cpp' })
+    end
+    -- Console builds: include ore GMs to exercise ORE_BACKEND_VK paths.
+    filter({ 'options:_console_only_ore_vk', 'options:with_rive_canvas' })
+    do
+        files({ 'gm/ore_*.cpp' })
+    end
+    filter({})
     filter({ 'options:not no_tools_shader_hotloading' })
     do
         files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })

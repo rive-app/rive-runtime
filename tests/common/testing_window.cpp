@@ -31,6 +31,7 @@ extern "C"
 
 // Call TestingWindow::Destroy if you want to delete the window singleton
 TestingWindow* s_TestingWindow = nullptr;
+TestingWindow::Backend TestingWindow::s_Backend = TestingWindow::Backend::null;
 
 const char* TestingWindow::BackendName(Backend backend)
 {
@@ -372,6 +373,13 @@ TestingWindow* TestingWindow::Init(Backend backend,
                 break;
             }
 #endif
+            // Hook for platforms without rive_vk_bootstrap.
+            if (auto* platformVulkanWindow =
+                    TestingWindow::MakePlatformVulkan(backendParams))
+            {
+                s_TestingWindow = platformVulkanWindow;
+                break;
+            }
             if (visibility == Visibility::headless)
             {
                 s_TestingWindow =
@@ -432,6 +440,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
         abort();
     }
 
+    s_Backend = backend;
     return s_TestingWindow;
 }
 
@@ -453,3 +462,12 @@ void TestingWindow::Destroy()
     delete s_TestingWindow;
     s_TestingWindow = nullptr;
 }
+
+// Default no-op; platforms with their own impl define
+// RIVE_PLATFORM_TESTING_WINDOW.
+#ifndef RIVE_PLATFORM_TESTING_WINDOW
+TestingWindow* TestingWindow::MakePlatformVulkan(const BackendParams&)
+{
+    return nullptr;
+}
+#endif

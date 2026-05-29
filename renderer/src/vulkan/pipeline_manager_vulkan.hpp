@@ -45,10 +45,6 @@ public:
     {
         return m_perDrawDescriptorSetLayout;
     }
-    VkDescriptorSetLayout immutableSamplerDescriptorSetLayout() const
-    {
-        return m_immutableSamplerDescriptorSetLayout;
-    }
     VkDescriptorSetLayout emptyDescriptorSetLayout() const
     {
         return m_emptyDescriptorSetLayout;
@@ -60,10 +56,6 @@ public:
     VkDescriptorSet nullImageDescriptorSet() const
     {
         return m_nullImageDescriptorSet;
-    }
-    VkDescriptorSet immutableSamplerDescriptorSet() const
-    {
-        return m_immutableSamplerDescriptorSet;
     }
 
     enum class PLSBackingType : bool
@@ -142,15 +134,11 @@ private:
     // mode, all other shaders use the same shared descriptor set layouts.
     VkDescriptorSetLayout m_perFlushDescriptorSetLayout;
     VkDescriptorSetLayout m_perDrawDescriptorSetLayout;
-    VkDescriptorSetLayout m_immutableSamplerDescriptorSetLayout;
     VkDescriptorSetLayout m_emptyDescriptorSetLayout; // For when a set isn't
                                                       // used by a shader.
     VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
                                              // change between frames.
     VkDescriptorSet m_nullImageDescriptorSet;
-    VkDescriptorSet m_immutableSamplerDescriptorSet; // Empty since samplers are
-                                                     // immutable, but also
-                                                     // required by Vulkan.
 };
 
 } // namespace rive::gpu

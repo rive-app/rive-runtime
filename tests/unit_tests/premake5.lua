@@ -57,6 +57,7 @@ do
         '../../decoders/include',
         '../../renderer/include',
         '../../renderer/src',
+        '../../../texture_compressor/src',
         harfbuzz .. '/src',
         miniaudio,
         yoga,
@@ -88,6 +89,7 @@ do
         'renderer/**.cpp', -- the renderer tests
         '../../utils/**.cpp', -- no_op utils
         '../common/render_context_null.cpp',
+        '../../../texture_compressor/src/write_ktx2.cpp',
     })
 
     filter('system:linux')

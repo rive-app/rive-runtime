@@ -32,6 +32,11 @@ struct VulkanFeatures
 
     // Indicates a nonconformant driver, like MoltenVK.
     bool VK_KHR_portability_subset = false;
+
+    // VkPhysicalDeviceFeatures – texture compression.
+    bool textureCompressionBC = false;       // BC1/BC2/BC3/BC7
+    bool textureCompressionASTC_LDR = false; // ASTC LDR
+    bool textureCompressionETC2 = false;     // ETC2
 };
 
 // Wraps a VkDevice, function dispatch table, and VMA library instance.
@@ -62,10 +67,13 @@ public:
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
     F(GetPhysicalDeviceProperties)                                             \
+    F(GetPhysicalDeviceFeatures)                                               \
     F(SetDebugUtilsObjectNameEXT)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
+    F(AllocateCommandBuffers)                                                  \
     F(AllocateDescriptorSets)                                                  \
+    F(BeginCommandBuffer)                                                      \
     F(CmdBeginRenderPass)                                                      \
     F(CmdBindDescriptorSets)                                                   \
     F(CmdBindIndexBuffer)                                                      \
@@ -73,6 +81,8 @@ public:
     F(CmdBindVertexBuffers)                                                    \
     F(CmdBlitImage)                                                            \
     F(CmdClearColorImage)                                                      \
+    F(CmdSetStencilReference)                                                  \
+    F(CmdSetBlendConstants)                                                    \
     F(CmdCopyBufferToImage)                                                    \
     F(CmdDraw)                                                                 \
     F(CmdDrawIndexed)                                                          \
@@ -82,17 +92,21 @@ public:
     F(CmdPipelineBarrier)                                                      \
     F(CmdSetScissor)                                                           \
     F(CmdSetViewport)                                                          \
+    F(CreateCommandPool)                                                       \
     F(CreateDescriptorPool)                                                    \
     F(CreateDescriptorSetLayout)                                               \
     F(CreateFramebuffer)                                                       \
+    F(CreateFence)                                                             \
     F(CreateGraphicsPipelines)                                                 \
     F(CreateImageView)                                                         \
     F(CreatePipelineLayout)                                                    \
     F(CreateRenderPass)                                                        \
     F(CreateSampler)                                                           \
     F(CreateShaderModule)                                                      \
+    F(DestroyCommandPool)                                                      \
     F(DestroyDescriptorPool)                                                   \
     F(DestroyDescriptorSetLayout)                                              \
+    F(DestroyFence)                                                            \
     F(DestroyFramebuffer)                                                      \
     F(DestroyImageView)                                                        \
     F(DestroyPipeline)                                                         \
@@ -100,8 +114,16 @@ public:
     F(DestroyRenderPass)                                                       \
     F(DestroySampler)                                                          \
     F(DestroyShaderModule)                                                     \
+    F(EndCommandBuffer)                                                        \
+    F(FreeCommandBuffers)                                                      \
+    F(FreeDescriptorSets)                                                      \
+    F(QueueSubmit)                                                             \
+    F(QueueWaitIdle)                                                           \
+    F(ResetCommandBuffer)                                                      \
     F(ResetDescriptorPool)                                                     \
-    F(UpdateDescriptorSets)
+    F(ResetFences)                                                             \
+    F(UpdateDescriptorSets)                                                    \
+    F(WaitForFences)
 
 #define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
     RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)

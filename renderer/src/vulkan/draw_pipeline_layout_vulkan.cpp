@@ -115,20 +115,19 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
     VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
         pipelineManager->perFlushDescriptorSetLayout(),
         pipelineManager->perDrawDescriptorSetLayout(),
-        pipelineManager->immutableSamplerDescriptorSetLayout(),
         m_plsTextureDescriptorSetLayout,
     };
     static_assert(COLOR_PLANE_IDX == 0);
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
-    static_assert(BINDINGS_SET_COUNT == 4);
+    static_assert(VULKAN_BINDINGS_SET_COUNT == 3);
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = m_plsTextureDescriptorSetLayout != VK_NULL_HANDLE
-                              ? BINDINGS_SET_COUNT
-                              : BINDINGS_SET_COUNT - 1u,
+                              ? VULKAN_BINDINGS_SET_COUNT
+                              : VULKAN_BINDINGS_SET_COUNT - 1u,
         .pSetLayouts = pipelineDescriptorSetLayouts,
     };
 

@@ -26,6 +26,8 @@ public:
         metalOptions.disableFramebufferReads = backendParams.atomic;
         m_renderContext =
             RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
+        m_renderContext->static_impl_cast<RenderContextMetalImpl>()
+            ->setCommandQueue(m_queue);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
@@ -87,6 +89,12 @@ public:
                                 : m_renderTarget.get(),
             .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer,
         });
+        // Commit the command buffer now so the buffer ring lock is released
+        // immediately (via the completed handler). Allocate a fresh one for
+        // any subsequent work in endFrame(). Without this, multiple canvas
+        // flushes before endFrame() would deadlock on the buffer ring.
+        [m_flushCommandBuffer commit];
+        m_flushCommandBuffer = [m_queue commandBuffer];
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
@@ -143,6 +151,8 @@ public:
 
         m_flushCommandBuffer = nil;
     }
+
+    void* metalQueue() const override { return (__bridge void*)m_queue; }
 
 private:
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();

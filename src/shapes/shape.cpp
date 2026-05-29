@@ -136,7 +136,7 @@ void Shape::addToRawPath(RawPath& path, const Mat2D* transform)
 
 void Shape::draw(Renderer* renderer)
 {
-    RIVE_PROF_SCOPE()
+    RIVE_PROF_SCOPE_L(2)
     auto needsSaveOperation = m_needsSaveOperation || m_ShapePaints.size() > 1;
     for (auto shapePaint : m_ShapePaints)
     {

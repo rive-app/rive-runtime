@@ -21,6 +21,10 @@ public:
         static const std::vector<Component*> emptyVec;
         return emptyVec;
     }
+    const std::vector<CustomProperty*>& customProperties() const
+    {
+        return m_customProperties;
+    }
 };
 } // namespace rive
 

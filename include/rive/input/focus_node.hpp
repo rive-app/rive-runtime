@@ -16,6 +16,7 @@ namespace rive
 {
 
 class FocusManager; // Forward declaration
+class ListenerInvocation;
 
 enum class EdgeBehavior : uint8_t
 {
@@ -124,6 +125,16 @@ public:
     bool textInput(const std::string& text)
     {
         return m_focusable ? m_focusable->textInput(text) : false;
+    }
+
+    bool gamepadDispatch(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr)
+    {
+        return m_focusable
+                   ? m_focusable->gamepadDispatch(invocation,
+                                                  outDispatchedScriptedDrawable)
+                   : false;
     }
 
     void focused()

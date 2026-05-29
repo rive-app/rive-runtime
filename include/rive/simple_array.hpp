@@ -6,6 +6,7 @@
 #define _RIVE_SIMPLE_ARRAY_HPP_
 
 #include "rive/rive_types.hpp"
+#include "rive/core/type_conversions.hpp"
 
 #include <initializer_list>
 #include <type_traits>
@@ -77,18 +78,35 @@ template <typename T> class SimpleArray
 {
 public:
     SimpleArray() : m_ptr(nullptr), m_size(0) {}
-    SimpleArray(size_t size) :
-        m_ptr(static_cast<T*>(malloc(size * sizeof(T)))), m_size(size)
+    SimpleArray(size_t size) : m_ptr(nullptr), m_size(0)
     {
-        SimpleArrayHelper<T>::DefaultConstructArray(m_ptr, m_ptr + m_size);
+        size_t bytes;
+        if (size != 0 && checkedMul<size_t>(size, sizeof(T), &bytes))
+        {
+            m_ptr = static_cast<T*>(malloc(bytes));
+            if (m_ptr != nullptr)
+            {
+                m_size = size;
+                SimpleArrayHelper<T>::DefaultConstructArray(m_ptr,
+                                                            m_ptr + m_size);
 #ifdef TESTING
-        SimpleArrayTesting::mallocCount++;
+                SimpleArrayTesting::mallocCount++;
 #endif
+            }
+        }
     }
     SimpleArray(const T* ptr, size_t size) : SimpleArray(size)
     {
-        assert(ptr <= ptr + size);
-        SimpleArrayHelper<T>::CopyConstructArray(ptr, ptr + size, m_ptr);
+        // Early-return on the empty state: the delegated ctor clamps
+        // m_size to 0 on overflow / OOM, and we must avoid any pointer
+        // arithmetic or memcpy when ptr may be null with m_size == 0.
+        if (m_size == 0)
+        {
+            return;
+        }
+        assert(ptr != nullptr);
+        assert(ptr <= ptr + m_size);
+        SimpleArrayHelper<T>::CopyConstructArray(ptr, ptr + m_size, m_ptr);
     }
 
     constexpr SimpleArray(const SimpleArray<T>& other) :

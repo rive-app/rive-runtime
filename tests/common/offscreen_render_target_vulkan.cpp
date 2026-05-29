@@ -70,7 +70,7 @@ private:
                 // can get the RGB order wrong when resolving BGRA multisampled
                 // data.
                 (riveRenderable || vk->physicalDeviceProperties().vendorID ==
-                                       VULKAN_VENDOR_QUALCOMM)
+                                       rive::gpu::vkutil::vendors::Qualcomm)
                     ? VK_FORMAT_R8G8B8A8_UNORM
                     : VK_FORMAT_B8G8R8A8_UNORM,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
@@ -98,6 +98,17 @@ private:
             return m_renderImage.get();
         }
 
+        VkImage targetImage() const override { return texture()->vkImage(); }
+        VkImageView targetImageView() const override
+        {
+            return texture()->vkImageView();
+        }
+
+        void updateLastAccess(const rive::gpu::vkutil::ImageAccess& a) override
+        {
+            texture()->lastAccess() = a;
+        }
+
         VkImage accessTargetImage(
             VkCommandBuffer commandBuffer,
             const rive::gpu::vkutil::ImageAccess& dstAccess,
@@ -119,7 +130,7 @@ private:
         }
 
     private:
-        rive::gpu::vkutil::Texture2D* texture()
+        rive::gpu::vkutil::Texture2D* texture() const
         {
             return static_cast<rive::gpu::vkutil::Texture2D*>(
                 m_renderImage->getTexture());

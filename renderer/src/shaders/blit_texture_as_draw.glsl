@@ -47,7 +47,7 @@ FRAG_TEXTURE_BLOCK_END
 
 #ifdef @USE_FILTERING
 DYNAMIC_SAMPLER_BLOCK_BEGIN
-SAMPLER_DYNAMIC(PER_DRAW_BINDINGS_SET, IMAGE_SAMPLER_IDX, blitSampler)
+SAMPLER_DYNAMIC_IMAGE(blitSampler)
 DYNAMIC_SAMPLER_BLOCK_END
 #endif
 
@@ -56,7 +56,8 @@ FRAG_DATA_MAIN(half4, @blitFragmentMain)
     half4 srcColor;
 #ifdef @USE_FILTERING
     VARYING_UNPACK(v_texCoord, float2);
-    srcColor = TEXTURE_SAMPLE_LOD(@sourceTexture, blitSampler, v_texCoord, .0);
+    srcColor =
+        TEXTURE_SAMPLE_DYNAMIC_LOD(@sourceTexture, blitSampler, v_texCoord, .0);
 #elif defined(@SOURCE_TEXTURE_MSAA)
     srcColor = (TEXEL_FETCH_MS(@sourceTexture, 0, int2(floor(_fragCoord.xy))) +
                 TEXEL_FETCH_MS(@sourceTexture, 1, int2(floor(_fragCoord.xy))) +

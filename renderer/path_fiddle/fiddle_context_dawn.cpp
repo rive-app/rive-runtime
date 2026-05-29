@@ -66,12 +66,11 @@ class FiddleContextDawnPLS : public FiddleContext
 public:
     FiddleContextDawnPLS(FiddleContextOptions options) : m_options(options)
     {
-        // optionally use WGPUInstanceDescriptor::nextInChain for
-        // WGPUDawnTogglesDescriptor with various toggles enabled or
-        // disabled:
-        // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Toggles.cpp
+        // Enable blocking waits to simplify our Dawn backend.
+        constexpr auto timedWaitAny = WGPUInstanceFeatureName_TimedWaitAny;
         WGPUInstanceDescriptor instanceDescriptor = {
-            .capabilities = {.timedWaitAnyEnable = true},
+            .requiredFeatureCount = 1,
+            .requiredFeatures = &timedWaitAny,
         };
         m_instance =
             wgpu::Instance::Acquire(wgpuCreateInstance(&instanceDescriptor));
@@ -135,8 +134,8 @@ public:
             assert(m_surface && "Failed to create WebGPU surface");
 
             WGPURequestAdapterOptions options = {
-                .compatibleSurface = m_surface.Get(),
                 .powerPreference = WGPUPowerPreference_HighPerformance,
+                .compatibleSurface = m_surface.Get(),
             };
 
             WGPUAdapter adapter = nullptr;
