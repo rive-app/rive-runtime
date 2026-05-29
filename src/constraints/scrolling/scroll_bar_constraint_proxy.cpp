@@ -14,6 +14,13 @@ bool ThumbDraggableProxy::drag(Vec2D mousePosition, float timeStamp)
 bool ThumbDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
 {
     m_lastPosition = mousePosition;
+    m_constraint->scrollConstraint()->isScrollBarDragging(true);
+    return true;
+}
+
+bool ThumbDraggableProxy::endDrag(Vec2D mousePosition, float timeStamp)
+{
+    m_constraint->scrollConstraint()->isScrollBarDragging(false);
     return true;
 }
 

@@ -67,8 +67,8 @@ std::unique_ptr<Bitmap> decode_texture([[maybe_unused]] const uint8_t* blocks,
             return decode_bc_texture(blocks, byteCount, width, height, format);
 #else
             fprintf(stderr,
-                "BC texture not supported "
-                "(build with --with_rive_bc_decoder)\n");
+                    "BC texture not supported "
+                    "(build with --with_rive_bc_decoder)\n");
             return nullptr;
 #endif
 
@@ -77,8 +77,8 @@ std::unique_ptr<Bitmap> decode_texture([[maybe_unused]] const uint8_t* blocks,
             return decode_etc_texture(blocks, byteCount, width, height, format);
 #else
             fprintf(stderr,
-                "ETC texture not supported "
-                "(build with --with_rive_etc_decoder)\n");
+                    "ETC texture not supported "
+                    "(build with --with_rive_etc_decoder)\n");
             return nullptr;
 #endif
 

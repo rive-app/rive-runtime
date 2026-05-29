@@ -417,6 +417,22 @@ float ScrollConstraint::maxOffsetYForPercent()
     return infinite() ? contentHeight() : maxOffsetY();
 }
 
+float ScrollConstraint::velocityX()
+{
+    return m_physics != nullptr ? m_physics->speed().x : 0.0f;
+}
+
+float ScrollConstraint::velocityY()
+{
+    return m_physics != nullptr ? m_physics->speed().y : 0.0f;
+}
+
+bool ScrollConstraint::scrollActive()
+{
+    return m_isDragging || m_isScrollBarDragging ||
+           (m_physics != nullptr && m_physics->isRunning());
+}
+
 float ScrollConstraint::scrollPercentX()
 {
     return maxOffsetX() != 0 ? scrollOffsetX() / maxOffsetXForPercent() : 0;

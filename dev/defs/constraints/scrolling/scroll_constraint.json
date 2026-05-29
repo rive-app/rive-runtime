@@ -131,6 +131,39 @@
       },
       "description": "Minimum threshold in pixels to trigger the scrolling behavior",
       "bindable": true
+    },
+    "velocityX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 1023,
+        "string": "velocityx"
+      },
+      "description": "Velocity in the x direction when the constraint is scrolling",
+      "bindable": true,
+      "passthrough": true
+    },
+    "velocityY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 1024,
+        "string": "velocityy"
+      },
+      "description": "Velocity in the y direction when the constraint is scrolling",
+      "bindable": true,
+      "passthrough": true
+    },
+    "scrollActive": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 1025,
+        "string": "scrollactive"
+      },
+      "description": "Whether the scroll constraint is being dragged, is scrolling, or is being moved by a scrollbar constraint",
+      "bindable": true,
+      "passthrough": true
     }
   }
 }
