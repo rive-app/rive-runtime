@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/refcnt.hpp"
+#include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
@@ -19,7 +19,7 @@ namespace rive::ore
 
 class Context;
 
-class ShaderModule : public RefCnt<ShaderModule>,
+class ShaderModule : public rive::gpu::GPUResource,
                      public ENABLE_LITE_RTTI(ShaderModule)
 {
 public:
@@ -124,15 +124,14 @@ public:
 
     virtual ~ShaderModule() = default;
 
-    // Default: immediately free. No backend currently needs deferred
-    // destruction for shader modules.
-    virtual void onRefCntReachedZero() const { delete this; }
-
 protected:
     friend class Context;
     friend class Pipeline;
 
-    ShaderModule() = default;
+    ShaderModule() : rive::gpu::GPUResource(nullptr) {}
+    ShaderModule(rcp<rive::gpu::GPUResourceManager> manager) :
+        rive::gpu::GPUResource(std::move(manager))
+    {}
 };
 
 } // namespace rive::ore

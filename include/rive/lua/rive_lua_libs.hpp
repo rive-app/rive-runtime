@@ -327,7 +327,6 @@ enum class LuaAtoms : int16_t
     features,
     shader,
     format,
-    preferredCanvasFormat,
 
     // Promise
     andThen,
@@ -2162,11 +2161,6 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name);
 // available, otherwise returns conservative defaults. Always returns 1.
 // Implemented in lua_scripted_context.cpp.
 int lua_push_gpu_features(lua_State* L);
-
-// Push the platform's preferred canvas color format (a string like
-// "bgra8unorm" or "rgba8unorm") onto the Lua stack. Always returns 1.
-// Implemented in lua_scripted_context.cpp.
-int lua_push_preferred_canvas_format(lua_State* L);
 
 #endif
 #endif

@@ -92,7 +92,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_MIXED_KIND_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── UBO: yellow (1, 1, 0, 1). Shader multiplies this by the
         // sampled texel, so a wrong UBO bind zeroes the red or green
@@ -226,7 +226,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         oreTex->upload(uploadDesc);
 
@@ -248,7 +248,7 @@ public:
         pass->draw(3); // fullscreen triangle
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

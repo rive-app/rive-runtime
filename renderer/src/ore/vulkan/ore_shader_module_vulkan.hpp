@@ -10,9 +10,10 @@ class ShaderModuleVulkan
     : public LITE_RTTI_OVERRIDE(ShaderModule, ShaderModuleVulkan)
 {
 public:
-    ShaderModuleVulkan() = default;
-    ~ShaderModuleVulkan() override = default;
-    void onRefCntReachedZero() const override;
+    ShaderModuleVulkan(rcp<rive::gpu::GPUResourceManager> manager) :
+        lite_rtti_override(std::move(manager))
+    {}
+    ~ShaderModuleVulkan() override;
 
 private:
     friend class ContextVulkan;

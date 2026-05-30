@@ -3,6 +3,7 @@
  */
 
 #include "ore_texture_vulkan.hpp"
+#include "ore_buffer_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include <vk_mem_alloc.h>
@@ -160,7 +161,6 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     // Make sure the owned cb is in the recording state — scripts can call
     // upload() outside a host-driven frame window (verify hooks during
     // artboard construction, scripted shader effects during PLS draw).
-    m_vkOreContext->ensureCmdBufRecording();
     VkCommandBuffer cmdBuf = m_vkOreContext->m_vkCommandBuffer;
     auto pfnCmdPipelineBarrier = m_vkOreContext->m_vk->CmdPipelineBarrier;
     auto pfnCmdCopyBufferToImage = m_vkOreContext->m_vk->CmdCopyBufferToImage;
@@ -184,17 +184,22 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     allocCI.usage = VMA_MEMORY_USAGE_CPU_ONLY;
     allocCI.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+    m_stagingBuffer =
+        rcp<BufferVulkan>(new BufferVulkan(m_manager,
+                                           static_cast<uint32_t>(uploadSize),
+                                           BufferUsage::upload));
+    m_stagingBuffer->m_vk = m_vk;
+
     VmaAllocationInfo allocInfo{};
-    VkBuffer stagingBuf = VK_NULL_HANDLE;
-    VmaAllocation stagingAlloc = VK_NULL_HANDLE;
-    vmaCreateBuffer(m_vmaAllocator,
+    vmaCreateBuffer(m_vk->allocator(),
                     &bufCI,
                     &allocCI,
-                    &stagingBuf,
-                    &stagingAlloc,
+                    &m_stagingBuffer->m_vkBuffer,
+                    &m_stagingBuffer->m_vmaAllocation,
                     &allocInfo);
+    m_stagingBuffer->m_vkMappedPtr = allocInfo.pMappedData;
 
-    memcpy(allocInfo.pMappedData, data.data, static_cast<size_t>(uploadSize));
+    m_stagingBuffer->update(data.data, static_cast<uint32_t>(uploadSize), 0);
 
     // Transition to TRANSFER_DST.
     transitionLayout(pfnCmdPipelineBarrier,
@@ -234,7 +239,7 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     region.imageExtent = {data.width > 0 ? data.width : m_width, height, depth};
 
     pfnCmdCopyBufferToImage(cmdBuf,
-                            stagingBuf,
+                            m_stagingBuffer->m_vkBuffer,
                             m_vkImage,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                             1,
@@ -250,59 +255,24 @@ void TextureVulkan::upload(const TextureDataDesc& data)
                      m_numMipmaps,
                      m_depthOrArrayLayers);
     m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    // The staging buffer must stay alive until the frame command buffer has
-    // been submitted and the GPU is done with it.  Defer destruction to
-    // Context::endFrame(), which submits the command buffer and waits on the
-    // fence before cleaning up.
-    m_vkOreContext->m_vkDeferredStagingBuffers.push_back(
-        {stagingBuf, stagingAlloc});
 }
 
-void TextureVulkan::onRefCntReachedZero() const
+TextureVulkan::~TextureVulkan()
 {
     // Only destroy VMA-owned images (borrowed textures have
     // m_vmaAllocation==null).
-    VmaAllocator allocator = m_vmaAllocator;
-    VkImage image = m_vkImage;
-    VmaAllocation alloc = m_vmaAllocation;
-    ContextVulkan* ctx = m_vkOreContext;
-
-    auto destroy = [=]() {
-        if (image != VK_NULL_HANDLE && alloc != VK_NULL_HANDLE)
-            vmaDestroyImage(allocator, image, alloc);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkImage != VK_NULL_HANDLE && m_vmaAllocation != VK_NULL_HANDLE)
+        vmaDestroyImage(m_vk->allocator(), m_vkImage, m_vmaAllocation);
 }
 
 // ============================================================================
 // TextureView
 // ============================================================================
 
-void TextureViewVulkan::onRefCntReachedZero() const
+TextureViewVulkan::~TextureViewVulkan()
 {
-    VkDevice dev = m_vkDevice;
-    VkImageView view = m_vkImageView;
-    auto destroyFn = m_vkDestroyImageView;
-    ContextVulkan* ctx = m_vkOreContext;
-
-    auto destroy = [=]() {
-        if (view != VK_NULL_HANDLE && destroyFn != nullptr)
-            destroyFn(dev, view, nullptr);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkImageView != VK_NULL_HANDLE && m_vkDestroyImageView != nullptr)
+        m_vkDestroyImageView(m_vkDevice, m_vkImageView, nullptr);
 }
 
 } // namespace rive::ore

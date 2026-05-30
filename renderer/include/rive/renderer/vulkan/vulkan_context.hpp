@@ -144,6 +144,10 @@ public:
     rcp<vkutil::Buffer> makeBuffer(const VkBufferCreateInfo&,
                                    vkutil::Mappability);
     rcp<vkutil::Image> makeImage(const VkImageCreateInfo&, const char* name);
+    // Adopts an externally-owned VkImage; does not free it on destruction.
+    rcp<vkutil::Image> makeExternalImage(VkImage existingImage,
+                                         const VkImageCreateInfo&,
+                                         const char* name);
     rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>, const char* name);
     rcp<vkutil::ImageView> makeImageView(rcp<vkutil::Image>,
                                          const VkImageViewCreateInfo&,
@@ -151,6 +155,9 @@ public:
     rcp<vkutil::ImageView> makeExternalImageView(const VkImageViewCreateInfo&,
                                                  const char* name);
     rcp<vkutil::Texture2D> makeTexture2D(const VkImageCreateInfo&,
+                                         const char* name);
+    // Builds a Texture2D over a pre-allocated (typically external) Image.
+    rcp<vkutil::Texture2D> makeTexture2D(rcp<vkutil::Image> existingImage,
                                          const char* name);
     rcp<vkutil::Framebuffer> makeFramebuffer(const VkFramebufferCreateInfo&);
 

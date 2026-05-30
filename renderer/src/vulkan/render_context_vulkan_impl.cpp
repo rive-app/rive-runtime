@@ -203,6 +203,45 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     return texture;
 }
 
+rcp<Texture> RenderContextVulkanImpl::adoptImageTexture(VkImage image,
+                                                        uint32_t width,
+                                                        uint32_t height,
+                                                        VkFormat format)
+{
+    if (image == VK_NULL_HANDLE || width == 0 || height == 0)
+    {
+        return nullptr;
+    }
+
+    VkImageCreateInfo info = {
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent = {width, height, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+    };
+
+    auto externalImage =
+        m_vk->makeExternalImage(image, info, "adopted external image");
+    auto texture =
+        m_vk->makeTexture2D(std::move(externalImage), "adopted external image");
+
+    // Caller is required to transition the image to SHADER_READ_ONLY_OPTIMAL
+    // before this call (Unity does this via AccessTexture with
+    // kUnityVulkanResourceAccess_PipelineBarrier). Pre-seed lastAccess so
+    // Rive doesn't redundantly barrier from UNDEFINED, which would discard
+    // the source contents.
+    texture->overrideLastAccess({
+        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .accessMask = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    });
+
+    return texture;
+}
+
 // A RenderTargetVulkan backed by a vkutil::Texture2D. Used by RenderCanvas.
 // The texture is shared with a RiveRenderImage for compositing.
 class RenderTargetVulkanTexture : public RenderTargetVulkan
@@ -282,10 +321,7 @@ rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
 }
 std::unique_ptr<rive::ore::Context> RenderContextVulkanImpl::makeOreContext()
 {
-    assert(m_canvasQueue != VK_NULL_HANDLE);
-    return rive::ore::ContextVulkan::Make(m_vk,
-                                          m_canvasQueue,
-                                          m_canvasQueueFamilyIndex);
+    return rive::ore::ContextVulkan::Make(m_vk);
 }
 #endif
 

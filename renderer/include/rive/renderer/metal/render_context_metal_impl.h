@@ -145,6 +145,12 @@ public:
                                   bool srgb = false,
                                   bool generateRemainingMips = false) override;
 
+    // Wrap an externally-owned MTLTexture as a Rive Texture for sampling.
+    // No upload, no allocation; the wrapper retains the MTLTexture via ARC.
+    rcp<Texture> adoptImageTexture(id<MTLTexture> texture,
+                                   uint32_t width,
+                                   uint32_t height);
+
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;

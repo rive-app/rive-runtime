@@ -8,11 +8,31 @@
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <functional>
 #include <utility>
-#include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
 namespace rive::ore
 {
+
+// Refcounted VkDescriptorPool. Dies in one shot when its last ref
+// (ContextVulkan or any BindGroupVulkan) is released.
+class DescriptorPoolGeneration : public RefCnt<DescriptorPoolGeneration>
+{
+public:
+    static constexpr uint32_t kMaxSetsPerGeneration = 256;
+
+    DescriptorPoolGeneration(rcp<rive::gpu::VulkanContext> vk);
+    ~DescriptorPoolGeneration();
+
+    // Returns VK_NULL_HANDLE if this generation is full.
+    VkDescriptorSet tryAllocate(VkDescriptorSetLayout dsl);
+
+    bool hasCapacity() const { return m_setsAllocated < kMaxSetsPerGeneration; }
+
+private:
+    rcp<rive::gpu::VulkanContext> m_vk;
+    VkDescriptorPool m_vkPool = VK_NULL_HANDLE;
+    uint32_t m_setsAllocated = 0;
+};
 
 // Key used to cache VkRenderPass objects (one per unique format+load/store
 // combination). Stored by value — small enough for linear scan.
@@ -64,9 +84,7 @@ public:
     // The caller is responsible for creating all Vulkan objects and the VMA
     // allocator. Ore does not manage device lifetime.
     static std::unique_ptr<ContextVulkan> Make(
-        const rcp<rive::gpu::VulkanContext> vk,
-        VkQueue queue,
-        uint32_t queueFamilyIndex);
+        const rcp<rive::gpu::VulkanContext> vk);
 
     ~ContextVulkan() override;
 
@@ -85,7 +103,7 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -96,24 +114,11 @@ public:
 
     ShaderTarget shaderTarget() const override { return ShaderTarget::spirv; }
 
-    // External-CB mode: Ore records into a host-owned CB and skips
-    // End/Submit/Fence. Host must wait on the prior frame before the next
-    // beginFrame(externalCb) so deferred-destroy can drain.
-    void beginFrame(VkCommandBuffer externalCb);
-
-    // Defers a destroy closure until it's safe to run. Immediate in
-    // owned-CB mode; queued until next beginFrame in external-CB mode.
-    void vkDeferDestroy(std::function<void()> destroy);
-
     VkRenderPass getOrCreateRenderPass(const VKRenderPassKey&);
 
     // Device-specific VkFormat for ambiguous TextureFormat values (e.g.
     // depth24plusStencil8 picks D24S8 or D32S8 based on probe). Mirrors Dawn.
     VkFormat vkFormatFor(TextureFormat fmt) const;
-
-    // Auto-reopens the owned CB if a script invokes ORE outside the host's
-    // begin/endFrame window. No-op in external-CB mode.
-    void ensureCmdBufRecording();
 
     ContextVulkan(const ContextVulkan&) = delete;
     ContextVulkan& operator=(const ContextVulkan&) = delete;
@@ -123,49 +128,26 @@ private:
     friend class BindGroupVulkan;
     friend class TextureVulkan;
 
-    ContextVulkan(const rcp<rive::gpu::VulkanContext> vk) : m_vk(vk) {}
+    ContextVulkan(const rcp<rive::gpu::VulkanContext> vk) :
+        Context(vk), m_vk(vk)
+    {}
 
     const rcp<rive::gpu::VulkanContext> m_vk;
 
     VkQueue m_vkQueue = VK_NULL_HANDLE;
     uint32_t m_vkQueueFamily = 0;
-    VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
     // Probed at Make() time. UNDEFINED until then so a stale read fails loudly.
     VkFormat m_vkDepth24Stencil8Format = VK_FORMAT_UNDEFINED;
     VkCommandPool m_vkCommandPool = VK_NULL_HANDLE;
     VkCommandBuffer m_vkCommandBuffer = VK_NULL_HANDLE;
-    // True while the current frame is recording into a host-provided CB.
-    // endFrame() skips End/Submit/Wait when set; next beginFrame() drains
-    // deferred destroys.
-    bool m_vkExternalCmdBuf = false;
+
     VkDescriptorPool m_vkDescriptorPool = VK_NULL_HANDLE;
     VkFence m_vkFrameFence = VK_NULL_HANDLE;
     // True between BeginCommandBuffer and EndCommandBuffer. Gates the
     // auto-reopen path; orphan recordings get flushed at next beginFrame.
     bool m_vkCmdBufRecording = false;
-    // Framebuffers whose destruction is deferred until the next beginFrame()
-    // fence-wait (they are still referenced by the in-flight command buffer
-    // until the fence signals).
-    std::vector<VkFramebuffer> m_vkDeferredFramebuffers;
-    // Staging buffers whose destruction is deferred until endFrame() submits
-    // and waits on the fence. Texture::upload() records copy commands into
-    // the frame command buffer, so the staging buffer must stay alive until
-    // the command buffer finishes executing.
-    struct DeferredVmaBuffer
-    {
-        VkBuffer buffer;
-        VmaAllocation allocation;
-    };
-    std::vector<DeferredVmaBuffer> m_vkDeferredStagingBuffers;
-    // Generic deferred-destroy closures (pipelines, samplers, etc.) for
-    // external-CB mode, where Ore cannot vkDestroy* an object the moment its
-    // refcount reaches zero because the host's CB still references it.
-    std::vector<std::function<void()>> m_vkDeferredDestroys;
-    // Persistent descriptor pool for long-lived BindGroup objects. Created
-    // with VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT so individual
-    // sets can be freed in BindGroup::onRefCntReachedZero() without affecting
-    // other allocations.
-    VkDescriptorPool m_vkPersistentDescriptorPool = VK_NULL_HANDLE;
+    // Active generation. makeBindGroup rolls a new one when full.
+    rcp<DescriptorPoolGeneration> m_currentDescriptorPool;
 
     // Lazy-created shared empty `VkDescriptorSetLayout`. Substituted for null
     // entries in `PipelineDesc::bindGroupLayouts[]` so Vulkan's
@@ -211,11 +193,6 @@ private:
     void vkQueueTransitionToLayout(Texture* texture,
                                    VkImageAspectFlags aspectMask,
                                    VkImageLayout newLayout);
-
-    // Drain framebuffers/staging buffers and deferred destroy closures from
-    // the previous frame. Caller is responsible for ensuring the prior GPU
-    // work has completed (via our fence or the host's).
-    void vkDrainDeferred();
 };
 
 } // namespace rive::ore

@@ -139,6 +139,9 @@ RenderContext::~RenderContext()
     // Delete the logical flushes before the block allocators let go of their
     // allocations.
     m_logicalFlushes.clear();
+#ifdef RIVE_CANVAS
+    m_oreContext.reset();
+#endif
 }
 
 const gpu::PlatformFeatures& RenderContext::platformFeatures() const
@@ -158,6 +161,12 @@ rcp<RenderCanvas> RenderContext::makeRenderCanvas(uint32_t width,
                                                   uint32_t height)
 {
     return m_impl->makeRenderCanvas(width, height);
+}
+rive::ore::Context* RenderContext::getOreContext()
+{
+    if (m_oreContext == nullptr)
+        m_oreContext = m_impl->makeOreContext();
+    return m_oreContext.get();
 }
 #endif
 

@@ -204,6 +204,14 @@ void ScriptedProperty::dispose()
 
 void ScriptedProperty::valueChanged()
 {
+    if (m_listeners.empty())
+    {
+        return;
+    }
+    if (!lua_checkstack(m_state, (int)(m_listeners.size() * 2 + LUA_MINSTACK)))
+    {
+        return;
+    }
     // This works because we don't actually call as we go (or we could
     // invalidate listeners if a callback registers a new or removes a
     // listener). Instead, we build up the call stack and then call for each

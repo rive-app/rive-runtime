@@ -28,6 +28,63 @@ namespace rive::ore
 {
 
 // ============================================================================
+// DescriptorPoolGeneration
+// ============================================================================
+
+DescriptorPoolGeneration::DescriptorPoolGeneration(
+    rcp<rive::gpu::VulkanContext> vk) :
+    m_vk(std::move(vk))
+{
+    // Sized for the per-layout max from ore_vulkan_dsl.
+    constexpr uint32_t kPerType =
+        kMaxSetsPerGeneration * kVkMaxBindingsPerGroup;
+    VkDescriptorPoolSize poolSizes[] = {
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kPerType},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, kPerType},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, kPerType},
+        {VK_DESCRIPTOR_TYPE_SAMPLER, kPerType},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kPerType},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, kPerType},
+    };
+    VkDescriptorPoolCreateInfo ci{
+        VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    // Whole-pool destroy only, no FREE_DESCRIPTOR_SET_BIT.
+    ci.maxSets = kMaxSetsPerGeneration;
+    ci.poolSizeCount = sizeof(poolSizes) / sizeof(poolSizes[0]);
+    ci.pPoolSizes = poolSizes;
+    if (m_vk->CreateDescriptorPool(m_vk->device, &ci, nullptr, &m_vkPool) !=
+        VK_SUCCESS)
+    {
+        m_vkPool = VK_NULL_HANDLE;
+    }
+}
+
+DescriptorPoolGeneration::~DescriptorPoolGeneration()
+{
+    if (m_vkPool != VK_NULL_HANDLE)
+        m_vk->DestroyDescriptorPool(m_vk->device, m_vkPool, nullptr);
+}
+
+VkDescriptorSet DescriptorPoolGeneration::tryAllocate(VkDescriptorSetLayout dsl)
+{
+    if (m_vkPool == VK_NULL_HANDLE || !hasCapacity())
+        return VK_NULL_HANDLE;
+    VkDescriptorSetAllocateInfo allocInfo{
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+    allocInfo.descriptorPool = m_vkPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &dsl;
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    if (m_vk->AllocateDescriptorSets(m_vk->device, &allocInfo, &set) !=
+        VK_SUCCESS)
+    {
+        return VK_NULL_HANDLE;
+    }
+    ++m_setsAllocated;
+    return set;
+}
+
+// ============================================================================
 // Enum → VkFormat helper (shared with ore_texture_vulkan.cpp via header,
 // but declared again here as a file-local helper for the render pass builder).
 // ============================================================================
@@ -155,13 +212,6 @@ ContextVulkan::~ContextVulkan()
     if (m_vk->device == VK_NULL_HANDLE)
         return;
 
-    // Flush an auto-reopened CB so recorded work completes and the CB
-    // doesn't reach pool destroy in the recording state.
-    if (m_vkCmdBufRecording && !m_vkExternalCmdBuf)
-    {
-        endFrame();
-    }
-
     // Wait for any in-flight GPU work before tearing down resources. Use
     // QueueWaitIdle to also cover the external-CB path where the host owns
     // the frame fence and may have submitted work Ore doesn't track.
@@ -169,14 +219,6 @@ ContextVulkan::~ContextVulkan()
         m_vk->QueueWaitIdle(m_vkQueue);
     if (m_vkFrameFence != VK_NULL_HANDLE)
         m_vk->DestroyFence(m_vk->device, m_vkFrameFence, nullptr);
-
-    // Drop any BindGroups that were deferred past the final endFrame(). Their
-    // descriptor sets live in m_vkPersistentDescriptorPool and must go away
-    // before that pool is destroyed below, otherwise validation flags leaked
-    // VkDescriptorSets at vkDestroyDevice time.
-    m_deferredBindGroups.clear();
-
-    vkDrainDeferred();
 
     // Drain the render pass cache.
     for (auto& [key, rp] : m_vkRenderPassCache)
@@ -186,12 +228,8 @@ ContextVulkan::~ContextVulkan()
     if (m_vkDescriptorPool != VK_NULL_HANDLE)
         m_vk->DestroyDescriptorPool(m_vk->device, m_vkDescriptorPool, nullptr);
 
-    // The persistent pool backs BindGroups (allocated lazily in makeBindGroup).
-    // Destroying it implicitly frees any remaining descriptor sets it owns.
-    if (m_vkPersistentDescriptorPool != VK_NULL_HANDLE)
-        m_vk->DestroyDescriptorPool(m_vk->device,
-                                    m_vkPersistentDescriptorPool,
-                                    nullptr);
+    // Generations stay alive via bind group refs.
+    m_currentDescriptorPool = nullptr;
 
     if (m_vkEmptyDSL != VK_NULL_HANDLE)
         m_vk->DestroyDescriptorSetLayout(m_vk->device, m_vkEmptyDSL, nullptr);
@@ -205,14 +243,11 @@ ContextVulkan::~ContextVulkan()
 // ============================================================================
 
 std::unique_ptr<ContextVulkan> ContextVulkan::Make(
-    const rcp<rive::gpu::VulkanContext> vk,
-    VkQueue queue,
-    uint32_t queueFamilyIndex)
+    const rcp<rive::gpu::VulkanContext> vk)
 {
     auto ctx = std::unique_ptr<ContextVulkan>(new ContextVulkan(vk));
-    ctx->m_vkQueue = queue;
-    ctx->m_vkQueueFamily = queueFamilyIndex;
-    ctx->m_vmaAllocator = vk->allocator();
+    ctx->m_vkQueue = VK_NULL_HANDLE;
+    ctx->m_vkQueueFamily = 0;
 
     // Pick D24S8 if the device supports it for both attachment and sampling;
     // else fall back to D32S8 (always supported per spec). Mirrors Dawn.
@@ -235,7 +270,7 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     VkCommandPoolCreateInfo poolCI{};
     poolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    poolCI.queueFamilyIndex = queueFamilyIndex;
+    poolCI.queueFamilyIndex = ctx->m_vkQueueFamily;
     ctx->m_vk->CreateCommandPool(ctx->m_vk->device,
                                  &poolCI,
                                  nullptr,
@@ -318,29 +353,6 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
 // ============================================================================
 // Frame lifecycle
 // ============================================================================
-
-void ContextVulkan::vkDrainDeferred()
-{
-    for (VkFramebuffer fb : m_vkDeferredFramebuffers)
-        m_vk->DestroyFramebuffer(m_vk->device, fb, nullptr);
-    m_vkDeferredFramebuffers.clear();
-
-    for (auto& buf : m_vkDeferredStagingBuffers)
-        vmaDestroyBuffer(m_vmaAllocator, buf.buffer, buf.allocation);
-    m_vkDeferredStagingBuffers.clear();
-
-    for (auto& destroy : m_vkDeferredDestroys)
-        destroy();
-    m_vkDeferredDestroys.clear();
-}
-
-void ContextVulkan::vkDeferDestroy(std::function<void()> destroy)
-{
-    if (m_vkExternalCmdBuf)
-        m_vkDeferredDestroys.push_back(std::move(destroy));
-    else
-        destroy();
-}
 
 // Lazy-create a shared empty `VkDescriptorSetLayout`. Used to fill null
 // slots in a pipeline's `pSetLayouts[]` when the user supplies a sparse
@@ -494,58 +506,17 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
     m_vkPendingInitialTransitions.clear();
 }
 
-void ContextVulkan::beginFrame()
+void ContextVulkan::beginFrame(const FrameDescriptor& desc)
 {
-    // Flush an auto-reopened CB before reset. Without this the
-    // ResetCommandBuffer below would discard scripted out-of-frame work.
-    if (m_vkCmdBufRecording && !m_vkExternalCmdBuf)
-    {
-        endFrame();
-    }
+    assert(desc.externalCommandBuffer != VK_NULL_HANDLE);
 
-    // Release deferred BindGroups from last frame. endFrame() already
-    // waited for GPU completion, so these are safe to destroy.
-    m_deferredBindGroups.clear();
-
-    // If the previous frame was external, its endFrame() skipped draining.
-    if (!m_vkDeferredFramebuffers.empty() ||
-        !m_vkDeferredStagingBuffers.empty())
-    {
-        vkDrainDeferred();
-    }
-
-    m_vkExternalCmdBuf = false;
-
-    // Reset the descriptor pool — all sets from last frame are invalid.
-    m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
-
-    // Begin the frame command buffer.
-    m_vk->ResetCommandBuffer(m_vkCommandBuffer, 0);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    // ONE_TIME_SUBMIT_BIT is safe: each recording is submitted once via
-    // endFrame() or the orphan-flush above.
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    m_vk->BeginCommandBuffer(m_vkCommandBuffer, &beginInfo);
-    m_vkCmdBufRecording = true;
-
-    // Flush any lazy-init barriers queued between frames (e.g. BindGroups
-    // created before beginFrame that referenced a still-UNDEFINED texture).
-    vkFlushPendingInitialTransitions();
-}
-
-void ContextVulkan::beginFrame(VkCommandBuffer externalCb)
-{
-    assert(externalCb != VK_NULL_HANDLE);
-
-    m_deferredBindGroups.clear();
-    vkDrainDeferred();
+    m_manager->advanceFrameNumber(desc.currentFrameNumber,
+                                  desc.safeFrameNumber);
 
     m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
 
-    m_vkCommandBuffer = externalCb;
-    m_vkExternalCmdBuf = true;
+    m_vkCommandBuffer =
+        static_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     m_vkCmdBufRecording = true;
 
     // Flush any lazy-init barriers queued before this frame.  Host has
@@ -553,44 +524,9 @@ void ContextVulkan::beginFrame(VkCommandBuffer externalCb)
     vkFlushPendingInitialTransitions();
 }
 
-void ContextVulkan::waitForGPU()
-{
-#if defined(ORE_BACKEND_VK)
-    if (m_vkFrameFence != VK_NULL_HANDLE)
-        m_vk->WaitForFences(m_vk->device,
-                            1,
-                            &m_vkFrameFence,
-                            VK_TRUE,
-                            UINT64_MAX);
-#endif
-}
+void ContextVulkan::waitForGPU() {}
 
-void ContextVulkan::endFrame()
-{
-    if (m_vkExternalCmdBuf)
-    {
-        // External-CB mode: host owns End/Submit/fence. Deferred destroys
-        // wait until the next beginFrame() when the host has waited on the
-        // prior submission.
-        return;
-    }
-
-    m_vk->EndCommandBuffer(m_vkCommandBuffer);
-    m_vkCmdBufRecording = false;
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_vkCommandBuffer;
-    m_vk->ResetFences(m_vk->device, 1, &m_vkFrameFence);
-    m_vk->QueueSubmit(m_vkQueue, 1, &submitInfo, m_vkFrameFence);
-    // Wait for GPU completion before returning — callers destroy Ore
-    // resources (textures, views, pipelines) after endFrame(), and those
-    // must not be in use by the GPU.  Matches D3D12's endFrame() behavior.
-    m_vk->WaitForFences(m_vk->device, 1, &m_vkFrameFence, VK_TRUE, UINT64_MAX);
-
-    vkDrainDeferred();
-}
+void ContextVulkan::endFrame() {}
 
 // ============================================================================
 // getOrCreateRenderPass
@@ -749,10 +685,10 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
 
 rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 {
-    auto buffer = rcp<BufferVulkan>(new BufferVulkan(desc.size, desc.usage));
+    auto buffer =
+        rcp<BufferVulkan>(new BufferVulkan(m_manager, desc.size, desc.usage));
     buffer->m_vkDevice = m_vk->device;
-    buffer->m_vmaAllocator = m_vmaAllocator;
-    buffer->m_vkOreContext = this;
+    buffer->m_vk = m_vk;
 
     VkBufferUsageFlags usage = 0;
     switch (desc.usage)
@@ -765,6 +701,9 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
             break;
         case BufferUsage::uniform:
             usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+            break;
+        case BufferUsage::upload:
+            usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
             break;
     }
 
@@ -779,7 +718,7 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
     allocCI.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VmaAllocationInfo allocInfo{};
-    vmaCreateBuffer(m_vmaAllocator,
+    vmaCreateBuffer(m_vk->allocator(),
                     &bufCI,
                     &allocCI,
                     &buffer->m_vkBuffer,
@@ -801,9 +740,9 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
 
 rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
 {
-    auto texture = rcp<TextureVulkan>(new TextureVulkan(desc));
+    auto texture = rcp<TextureVulkan>(new TextureVulkan(m_manager, desc));
     texture->m_vkDevice = m_vk->device;
-    texture->m_vmaAllocator = m_vmaAllocator;
+    texture->m_vk = m_vk;
     texture->m_vkOreContext = this;
 
     VkImageUsageFlags usage =
@@ -855,7 +794,7 @@ rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
     VmaAllocationCreateInfo allocCI{};
     allocCI.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    vmaCreateImage(m_vmaAllocator,
+    vmaCreateImage(m_vk->allocator(),
                    &imgCI,
                    &allocCI,
                    &texture->m_vkImage,
@@ -876,10 +815,9 @@ rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
     if (!tex)
         return nullptr;
 
-    auto view =
-        rcp<TextureViewVulkan>(new TextureViewVulkan(ref_rcp(tex), desc));
+    auto view = rcp<TextureViewVulkan>(
+        new TextureViewVulkan(m_manager, ref_rcp(tex), desc));
     view->m_vkDevice = m_vk->device;
-    view->m_vkOreContext = this;
 
     VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     switch (desc.aspect)
@@ -945,9 +883,8 @@ rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
 
 rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
 {
-    auto sampler = rcp<SamplerVulkan>(new SamplerVulkan());
+    auto sampler = rcp<SamplerVulkan>(new SamplerVulkan(m_manager));
     sampler->m_vkDevice = m_vk->device;
-    sampler->m_vkOreContext = this;
 
     auto filterToVk = [](Filter f) {
         return f == Filter::linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
@@ -1024,7 +961,7 @@ rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
 
 rcp<ShaderModule> ContextVulkan::makeShaderModule(const ShaderModuleDesc& desc)
 {
-    auto module = rcp<ShaderModuleVulkan>(new ShaderModuleVulkan());
+    auto module = rcp<ShaderModuleVulkan>(new ShaderModuleVulkan(m_manager));
     module->m_vkDevice = m_vk->device;
 
     VkShaderModuleCreateInfo smCI{};
@@ -1062,7 +999,8 @@ rcp<BindGroupLayout> ContextVulkan::makeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayoutVulkan>(new BindGroupLayoutVulkan());
+    auto layout =
+        rcp<BindGroupLayoutVulkan>(new BindGroupLayoutVulkan(m_manager));
     layout->m_context = this;
     layout->m_groupIndex = desc.groupIndex;
     layout->m_entries.reserve(desc.entryCount);
@@ -1108,7 +1046,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         return nullptr;
     }
 
-    auto bg = rcp<BindGroupVulkan>(new BindGroupVulkan());
+    auto bg = rcp<BindGroupVulkan>(new BindGroupVulkan(m_manager));
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
 
@@ -1121,46 +1059,23 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
     }
     bg->m_dynamicOffsetCount = dynamicCount;
 
-    // Lazily create the persistent descriptor pool (supports
-    // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT so individual sets can
-    // be freed when the BindGroup is destroyed).
-    if (m_vkPersistentDescriptorPool == VK_NULL_HANDLE)
-    {
-        VkDescriptorPoolSize poolSizes[] = {
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256},
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 256},
-            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 256},
-            {VK_DESCRIPTOR_TYPE_SAMPLER, 256},
-        };
-        VkDescriptorPoolCreateInfo ci{
-            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        ci.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        ci.maxSets = 256;
-        ci.poolSizeCount = 4;
-        ci.pPoolSizes = poolSizes;
-        m_vk->CreateDescriptorPool(m_vk->device,
-                                   &ci,
-                                   nullptr,
-                                   &m_vkPersistentDescriptorPool);
-    }
-
-    // Allocate a descriptor set from the persistent pool using the layout's
-    // pre-built VkDescriptorSetLayout.
     VkDescriptorSetLayout dsl = layout->m_vkDSL;
-    VkDescriptorSetAllocateInfo allocInfo{
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-    allocInfo.descriptorPool = m_vkPersistentDescriptorPool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &dsl;
-
-    VkResult result = m_vk->AllocateDescriptorSets(m_vk->device,
-                                                   &allocInfo,
-                                                   &bg->m_vkDescriptorSet);
-    if (result != VK_SUCCESS)
+    if (m_currentDescriptorPool == nullptr)
     {
-        // Allocation failed — pool may be exhausted.
+        m_currentDescriptorPool = make_rcp<DescriptorPoolGeneration>(m_vk);
+    }
+    bg->m_vkDescriptorSet = m_currentDescriptorPool->tryAllocate(dsl);
+    if (bg->m_vkDescriptorSet == VK_NULL_HANDLE)
+    {
+        // Capacity or driver refusal. Roll a fresh generation and retry.
+        m_currentDescriptorPool = make_rcp<DescriptorPoolGeneration>(m_vk);
+        bg->m_vkDescriptorSet = m_currentDescriptorPool->tryAllocate(dsl);
+    }
+    if (bg->m_vkDescriptorSet == VK_NULL_HANDLE)
+    {
         return nullptr;
     }
+    bg->m_pool = m_currentDescriptorPool;
 
     // Build VkWriteDescriptorSet entries for each binding. Vulkan binding
     // numbers equal WGSL `@binding` directly (Vulkan is per-set namespaced).
@@ -1323,26 +1238,11 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
 // beginRenderPass
 // ============================================================================
 
-void ContextVulkan::ensureCmdBufRecording()
-{
-    // External-CB mode: host owns lifecycle. The cb might or might not be
-    // recording, but it's not ours to manage either way.
-    if (m_vkExternalCmdBuf)
-        return;
-    if (m_vkCmdBufRecording)
-        return;
-    beginFrame();
-}
-
 std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
     finishActiveRenderPass();
-
-    // Auto-reopen the CB for mid-PLS scripted ORE calls; submitted by the
-    // next endFrame() or destructor.
-    ensureCmdBufRecording();
 
     std::unique_ptr<RenderPassVulkan> pass =
         std::make_unique<RenderPassVulkan>();
@@ -1465,18 +1365,14 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     VkRenderPass renderPass = getOrCreateRenderPass(key);
 
     // Framebuffer.
-    VkFramebufferCreateInfo fbCI{};
-    fbCI.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    fbCI.renderPass = renderPass;
-    fbCI.attachmentCount = attachCount;
-    fbCI.pAttachments = attachViews;
-    fbCI.width = passWidth;
-    fbCI.height = passHeight;
-    fbCI.layers = 1;
-    m_vk->CreateFramebuffer(m_vk->device,
-                            &fbCI,
-                            nullptr,
-                            &pass->m_vkFramebuffer);
+    pass->m_framebuffer = m_vk->makeFramebuffer({
+        .renderPass = renderPass,
+        .attachmentCount = attachCount,
+        .pAttachments = attachViews,
+        .width = passWidth,
+        .height = passHeight,
+        .layers = 1,
+    });
 
     // Clear values — must match the attachment ordering that
     // `getOrCreateRenderPass` builds: [color × N][resolve × R][depth?].
@@ -1507,7 +1403,7 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     VkRenderPassBeginInfo rpBI{};
     rpBI.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpBI.renderPass = renderPass;
-    rpBI.framebuffer = pass->m_vkFramebuffer;
+    rpBI.framebuffer = *pass->m_framebuffer;
     rpBI.renderArea.offset = {0, 0};
     rpBI.renderArea.extent = {passWidth, passHeight};
     rpBI.clearValueCount = attachCount;
@@ -1610,9 +1506,10 @@ rcp<TextureView> ContextVulkan::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.sampleCount = 1;
 
     // Borrow the VkImage — the RenderCanvas owns it.
-    auto texture = rcp<TextureVulkan>(new TextureVulkan(texDesc));
+    auto texture = rcp<TextureVulkan>(new TextureVulkan(m_manager, texDesc));
     texture->m_vkImage = image;
-    // Mark as not VMA-owned so onRefCntReachedZero skips the VMA free.
+    texture->m_vk = m_vk;
+    // Mark as not VMA-owned so the destructor skips the VMA free.
     texture->m_vmaAllocation = VK_NULL_HANDLE;
     texture->m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     // No destroy pointers needed — caller (canvas) owns the image lifetime.
@@ -1626,9 +1523,8 @@ rcp<TextureView> ContextVulkan::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.layerCount = 1;
 
     auto view = rcp<TextureViewVulkan>(
-        new TextureViewVulkan(std::move(texture), viewDesc));
+        new TextureViewVulkan(m_manager, std::move(texture), viewDesc));
     view->m_vkImageView = imageView;
-    view->m_vkOreContext = this;
     // No destroy pointer — caller owns the image view lifetime.
     // Store the back-ref so RenderPass::finish() can update Rive's layout
     // tracking after the Ore render pass transitions the image.
@@ -1670,8 +1566,9 @@ rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
            "wrapRiveTexture requires an open frame: call beginFrame() first");
     vkTex->prepareForFragmentShaderRead(m_vkCommandBuffer);
 
-    auto texture = rcp<TextureVulkan>(new TextureVulkan(texDesc));
+    auto texture = rcp<TextureVulkan>(new TextureVulkan(m_manager, texDesc));
     texture->m_vkImage = image;
+    texture->m_vk = m_vk;
     texture->m_vmaAllocation = VK_NULL_HANDLE; // Borrowed, not VMA-owned.
     texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -1684,9 +1581,8 @@ rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.layerCount = 1;
 
     auto view = rcp<TextureViewVulkan>(
-        new TextureViewVulkan(std::move(texture), viewDesc));
+        new TextureViewVulkan(m_manager, std::move(texture), viewDesc));
     view->m_vkImageView = imageView;
-    view->m_vkOreContext = this;
     return view;
 }
 

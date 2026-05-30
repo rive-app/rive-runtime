@@ -74,7 +74,7 @@ public:
             return;
 
 #ifdef ORE_IMAGE_VIEW_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── 1. Create a 4×4 test image as an ore texture.
         uint8_t pixels[4 * 4 * 4];
@@ -181,7 +181,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         // Upload must happen after beginFrame() so the command buffer is
         // in the recording state.
@@ -206,7 +206,7 @@ public:
         pass->draw(6); // fullscreen quad — 2 triangles
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // ── 8. Composite into main framebuffer ──

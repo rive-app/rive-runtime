@@ -10,8 +10,7 @@ class PipelineGL : public LITE_RTTI_OVERRIDE(Pipeline, PipelineGL)
 {
 public:
     PipelineGL(const PipelineDesc& desc) : lite_rtti_override(desc) {}
-    ~PipelineGL() override = default;
-    void onRefCntReachedZero() const override;
+    ~PipelineGL() override;
 
 private:
     friend class ContextGL;

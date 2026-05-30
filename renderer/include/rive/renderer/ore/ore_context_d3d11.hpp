@@ -36,7 +36,7 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -55,7 +55,7 @@ private:
     friend class BindGroupD3D11;
     friend class TextureD3D11;
 
-    ContextD3D11() = default;
+    ContextD3D11() : Context(nullptr) {}
 
     // D3D11 implementation helpers — defined in ore_context_d3d11.cpp.
     rcp<Buffer> d3d11MakeBuffer(const BufferDesc& desc);

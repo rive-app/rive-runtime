@@ -51,7 +51,7 @@ public:
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
         constexpr uint32_t kSize = 128;
 
         // Create 3 render target textures.
@@ -94,7 +94,7 @@ public:
         auto mrtPipeline = ctx.makePipeline(pipeDesc);
 
         // Render to all 3 targets in a single MRT pass.
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         RenderPassDesc rpDesc{};
         for (int i = 0; i < 3; ++i)
@@ -197,7 +197,7 @@ public:
             blitPass->finish();
         }
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite the canvas into the main framebuffer via the original

@@ -301,22 +301,6 @@ void RenderPassVulkan::finish()
             tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
     }
-
-    if (m_vkFramebuffer != VK_NULL_HANDLE)
-    {
-        // Defer destruction — the command buffer still references this
-        // framebuffer until endFrame() submits and waits.
-        m_vkContext->m_vkDeferredFramebuffers.push_back(m_vkFramebuffer);
-        m_vkFramebuffer = VK_NULL_HANDLE;
-    }
-
-    // Defer bind-group destruction: the CB references their descriptor sets
-    // until endFrame() submits and the fence signals.
-    for (auto& bg : m_boundGroups)
-    {
-        if (bg)
-            m_vkContext->deferBindGroupDestroy(std::move(bg));
-    }
 }
 
 RenderPassVulkan::~RenderPassVulkan() { finish(); }
@@ -327,7 +311,7 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     m_vkContext = other.m_vkContext;
     m_currentPipeline = std::move(other.m_currentPipeline);
     m_vkCmdBuf = other.m_vkCmdBuf;
-    m_vkFramebuffer = other.m_vkFramebuffer;
+    m_framebuffer = std::move(other.m_framebuffer);
     m_vkIndexBuffer = other.m_vkIndexBuffer;
     m_vkIndexType = other.m_vkIndexType;
     m_vkIndexOffset = other.m_vkIndexOffset;
@@ -349,7 +333,6 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     m_vkDepthLayerCount = other.m_vkDepthLayerCount;
     m_vkDepthTexture = std::move(other.m_vkDepthTexture);
     m_vkStencilRef = other.m_vkStencilRef;
-    other.m_vkFramebuffer = VK_NULL_HANDLE;
     other.m_vkDepthImage = VK_NULL_HANDLE;
     other.m_vkStencilRef = 0;
 #endif

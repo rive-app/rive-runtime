@@ -164,9 +164,16 @@ private:
 
     Image(rcp<VulkanContext>, const VkImageCreateInfo&, const char* name);
 
+    // Adopts an externally-owned VkImage; destructor leaves it untouched
+    // (m_vmaAllocation stays null).
+    Image(rcp<VulkanContext>,
+          VkImage externalImage,
+          const VkImageCreateInfo&,
+          const char* name);
+
     VkImageCreateInfo m_info;
-    VmaAllocation m_vmaAllocation;
-    VkImage m_vkImage;
+    VmaAllocation m_vmaAllocation = VK_NULL_HANDLE;
+    VkImage m_vkImage = VK_NULL_HANDLE;
 };
 
 class ImageView : public Resource
@@ -314,12 +321,21 @@ public:
         m_cachedDescriptorSetSampler = sampler;
     }
 
+    // Sets the cached layout/access for an externally-managed image whose
+    // current state is known (so Rive skips a redundant first barrier).
+    void overrideLastAccess(const ImageAccess& a) { m_lastAccess = a; }
+
 protected:
     friend class ::rive::gpu::VulkanContext;
 
     void applyImageUploadBuffer(VkCommandBuffer);
 
     Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo, const char* name);
+
+    // Adopts an externally-allocated Image; owns only the derived ImageView.
+    Texture2D(rcp<VulkanContext> vk,
+              rcp<Image> existingImage,
+              const char* name);
 
     rcp<Image> m_image;
     rcp<ImageView> m_imageView;

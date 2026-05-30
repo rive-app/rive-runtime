@@ -114,6 +114,24 @@ public:
         return m_renderTarget.get();
     }
 
+    void* getCommandBuffer() override { return &m_commandEncoder; }
+
+    void beginOreFrame(rive::ore::Context* oreContext) override
+    {
+        m_commandEncoder = m_device.CreateCommandEncoder();
+        // Ore move-takes the encoder, pass a copy so we retain our ref.
+        wgpu::CommandEncoder borrowed = m_commandEncoder;
+        oreContext->beginFrame({.externalCommandBuffer = &borrowed});
+    }
+
+    void endOreFrame(rive::ore::Context* oreContext) override
+    {
+        FiddleContext::endOreFrame(oreContext);
+        auto commands = m_commandEncoder.Finish();
+        m_queue.Submit(1, &commands);
+        m_commandEncoder = nullptr;
+    }
+
     void onSizeChanged(GLFWwindow* window,
                        int width,
                        int height,
@@ -410,6 +428,7 @@ private:
     wgpu::Adapter m_adapter = nullptr;
     wgpu::Device m_device = nullptr;
     wgpu::Queue m_queue = nullptr;
+    wgpu::CommandEncoder m_commandEncoder = nullptr;
     bool m_surfaceIsConfigured = false;
 
     WGPUSurfaceTexture m_currentSurfaceTexture = {};

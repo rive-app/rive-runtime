@@ -10,13 +10,12 @@ namespace rive::ore
 
 #if defined(ORE_BACKEND_GL)
 
-void PipelineGL::onRefCntReachedZero() const
+PipelineGL::~PipelineGL()
 {
     if (m_glProgram != 0)
     {
         glDeleteProgram(m_glProgram);
     }
-    delete this;
 }
 
 #endif // ORE_BACKEND_GL

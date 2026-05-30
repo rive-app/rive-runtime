@@ -38,7 +38,7 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -57,7 +57,7 @@ private:
     friend class BindGroupMetal;
     friend class TextureMetal;
 
-    ContextMetal() = default;
+    ContextMetal() : Context(nullptr) {}
 
     // Metal implementation helpers — defined in ore_context_metal.mm.
     // The public make*/begin*/wrap* overrides delegate to these.
@@ -77,6 +77,8 @@ private:
     id<MTLDevice> m_mtlDevice = nil;
     id<MTLCommandQueue> m_mtlQueue = nil;
     id<MTLCommandBuffer> m_mtlCommandBuffer = nil;
+
+    std::vector<rcp<BindGroup>> m_deferredBindGroups;
 };
 
 } // namespace rive::ore

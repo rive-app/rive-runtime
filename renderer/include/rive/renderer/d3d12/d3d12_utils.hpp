@@ -232,6 +232,16 @@ public:
     UINT64 height() const { return m_desc.Height; }
     DXGI_FORMAT format() const { return m_desc.Format; }
 
+    // Optional SRV format override for externally-adopted textures whose
+    // typed view is not derivable from desc().Format (e.g. TYPELESS storage
+    // or picking the sRGB variant). UNKNOWN = auto-infer.
+    void setSrvViewFormat(DXGI_FORMAT format) { m_srvViewFormat = format; }
+    DXGI_FORMAT srvViewFormat() const { return m_srvViewFormat; }
+
+private:
+    DXGI_FORMAT m_srvViewFormat = DXGI_FORMAT_UNKNOWN;
+
+public:
     // USE WITH CAUTION !! this force release the ID3D12Resource held by this
     // texture. Be sure that it is no longer needed or in any active command
     // list

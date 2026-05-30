@@ -32,6 +32,7 @@ enum class BufferUsage : uint8_t
     vertex,
     index,
     uniform,
+    upload,
 };
 
 enum class ShaderLanguage : uint8_t

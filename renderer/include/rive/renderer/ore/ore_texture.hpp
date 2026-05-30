@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/refcnt.hpp"
+#include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
@@ -13,7 +13,7 @@ namespace rive::ore
 
 class Context;
 
-class Texture : public RefCnt<Texture>, public ENABLE_LITE_RTTI(Texture)
+class Texture : public rive::gpu::GPUResource, public ENABLE_LITE_RTTI(Texture)
 {
 public:
     uint32_t width() const { return m_width; }
@@ -29,16 +29,26 @@ public:
 
     virtual ~Texture() = default;
 
-    // Default: immediately free. Backends that need deferred GPU-resource
-    // destruction (D3D12, Vulkan) override this.
-    virtual void onRefCntReachedZero() const { delete this; }
-
 protected:
     friend class Context;
     friend class TextureView;
     friend class RenderPass;
 
     Texture(const TextureDesc& desc) :
+        rive::gpu::GPUResource(nullptr),
+        m_width(desc.width),
+        m_height(desc.height),
+        m_depthOrArrayLayers(desc.depthOrArrayLayers),
+        m_format(desc.format),
+        m_type(desc.type),
+        m_renderTarget(desc.renderTarget),
+        m_numMipmaps(desc.numMipmaps),
+        m_sampleCount(desc.sampleCount)
+    {}
+
+    Texture(rcp<rive::gpu::GPUResourceManager> manager,
+            const TextureDesc& desc) :
+        rive::gpu::GPUResource(std::move(manager)),
         m_width(desc.width),
         m_height(desc.height),
         m_depthOrArrayLayers(desc.depthOrArrayLayers),
@@ -59,7 +69,7 @@ protected:
     uint32_t m_sampleCount;
 };
 
-class TextureView : public RefCnt<TextureView>,
+class TextureView : public rive::gpu::GPUResource,
                     public ENABLE_LITE_RTTI(TextureView)
 {
 public:
@@ -73,15 +83,25 @@ public:
 
     virtual ~TextureView() = default;
 
-    // Default: immediately free. Backends that need deferred GPU-resource
-    // destruction (D3D12, Vulkan) override this.
-    virtual void onRefCntReachedZero() const { delete this; }
-
 protected:
     friend class Context;
     friend class RenderPass;
 
     TextureView(rcp<Texture> texture, const TextureViewDesc& desc) :
+        rive::gpu::GPUResource(nullptr),
+        m_texture(std::move(texture)),
+        m_dimension(desc.dimension),
+        m_aspect(desc.aspect),
+        m_baseMipLevel(desc.baseMipLevel),
+        m_mipCount(desc.mipCount),
+        m_baseLayer(desc.baseLayer),
+        m_layerCount(desc.layerCount)
+    {}
+
+    TextureView(rcp<rive::gpu::GPUResourceManager> manager,
+                rcp<Texture> texture,
+                const TextureViewDesc& desc) :
+        rive::gpu::GPUResource(std::move(manager)),
         m_texture(std::move(texture)),
         m_dimension(desc.dimension),
         m_aspect(desc.aspect),

@@ -69,7 +69,7 @@ public:
             return;
 
 #ifdef ORE_LAYOUT_REUSE_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         struct Uniforms
         {
@@ -168,7 +168,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -199,7 +199,7 @@ public:
 
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

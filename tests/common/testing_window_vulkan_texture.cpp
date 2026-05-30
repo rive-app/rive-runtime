@@ -255,7 +255,8 @@ private:
                                 m_instance->getVkGetInstanceProcAddrPtr())
                           : nullptr;
     }
-    void* vulkanCurrentCommandBuffer() const override
+
+    void* getCurrentCommandBuffer() const override
     {
         // Per the base-class contract: return nullptr when no CB is open.
         // The handle exposed by VulkanFrameSynchronizer is allocated up front
@@ -269,6 +270,41 @@ private:
             !m_frameSynchronizer->isFrameStarted())
             return nullptr;
         return m_frameSynchronizer->currentCommandBuffer();
+    }
+
+    void* getOreContext() const override
+    {
+        return m_renderContext->getOreContext();
+    }
+
+    void beginOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+        if (!m_frameSynchronizer->isFrameStarted())
+        {
+            VK_CHECK(m_frameSynchronizer->beginFrame());
+
+            m_renderTarget->setTargetImageView(
+                m_frameSynchronizer->vkImageView(),
+                m_frameSynchronizer->vkImage(),
+                m_frameSynchronizer->lastAccess());
+        }
+
+        oreContext->beginFrame(
+            {.externalCommandBuffer =
+                 m_frameSynchronizer->currentCommandBuffer(),
+             .safeFrameNumber = m_frameSynchronizer->safeFrameNumber(),
+             .currentFrameNumber = m_frameSynchronizer->currentFrameNumber()});
+    }
+
+    void endOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+        oreContext->endFrame();
+        auto lastAccess = m_renderTarget->targetLastAccess();
+        VK_CHECK(m_frameSynchronizer->endFrame(lastAccess));
     }
 
     const BackendParams m_backendParams;

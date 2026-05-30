@@ -11,7 +11,9 @@ class ShaderModuleD3D12
     : public LITE_RTTI_OVERRIDE(ShaderModule, ShaderModuleD3D12)
 {
 public:
-    ShaderModuleD3D12() = default;
+    ShaderModuleD3D12(rcp<rive::gpu::GPUResourceManager> manager) :
+        lite_rtti_override(std::move(manager))
+    {}
     ~ShaderModuleD3D12() override = default;
 
 private:

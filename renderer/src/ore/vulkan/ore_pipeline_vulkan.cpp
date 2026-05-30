@@ -241,60 +241,26 @@ static VkStencilOpState oreStencilFaceToVk(const StencilFaceState& s,
 }
 
 // ============================================================================
-// Pipeline::onRefCntReachedZero
-//
-// Phase E: per-group VkDescriptorSetLayouts are now owned by BindGroupLayout
-// objects (referenced by m_layouts[]). Pipeline only destroys its own
-// VkPipeline + VkPipelineLayout; DSL teardown is handled by
-// BindGroupLayout::onRefCntReachedZero when its rcp drops.
+// PipelineVulkan destructor
 // ============================================================================
 
-void PipelineVulkan::onRefCntReachedZero() const
+PipelineVulkan::~PipelineVulkan()
 {
-    VkDevice dev = m_vkDevice;
-    VkPipeline pipe = m_vkPipeline;
-    VkPipelineLayout layout = m_vkPipelineLayout;
-    auto destroyPipe = m_vkDestroyPipeline;
-    auto destroyLayout = m_vkDestroyPipelineLayout;
-    ContextVulkan* ctx = m_vkOreContext;
-
-    auto destroy = [=]() {
-        if (pipe != VK_NULL_HANDLE && destroyPipe != nullptr)
-            destroyPipe(dev, pipe, nullptr);
-        if (layout != VK_NULL_HANDLE && destroyLayout != nullptr)
-            destroyLayout(dev, layout, nullptr);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkPipeline != VK_NULL_HANDLE && m_vkDestroyPipeline != nullptr)
+        m_vkDestroyPipeline(m_vkDevice, m_vkPipeline, nullptr);
+    if (m_vkPipelineLayout != VK_NULL_HANDLE &&
+        m_vkDestroyPipelineLayout != nullptr)
+        m_vkDestroyPipelineLayout(m_vkDevice, m_vkPipelineLayout, nullptr);
 }
 
 // ============================================================================
-// BindGroupLayout::onRefCntReachedZero (Vulkan)
+// BindGroupLayoutVulkan destructor
 // ============================================================================
 
-void BindGroupLayoutVulkan::onRefCntReachedZero() const
+BindGroupLayoutVulkan::~BindGroupLayoutVulkan()
 {
-    VkDevice dev = m_vkDevice;
-    VkDescriptorSetLayout dsl = m_vkDSL;
-    auto destroyDSL = m_vkDestroyDescriptorSetLayout;
-    ContextVulkan* ctx = static_cast<ContextVulkan*>(m_context);
-
-    auto destroy = [=]() {
-        if (dsl != VK_NULL_HANDLE && destroyDSL != nullptr)
-            destroyDSL(dev, dsl, nullptr);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkDSL != VK_NULL_HANDLE && m_vkDestroyDescriptorSetLayout != nullptr)
+        m_vkDestroyDescriptorSetLayout(m_vkDevice, m_vkDSL, nullptr);
 }
 
 // ============================================================================
@@ -306,9 +272,8 @@ void BindGroupLayoutVulkan::onRefCntReachedZero() const
 rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
                                           std::string* outError)
 {
-    auto pipeline = rcp<PipelineVulkan>(new PipelineVulkan(desc));
+    auto pipeline = rcp<PipelineVulkan>(new PipelineVulkan(m_manager, desc));
     pipeline->m_vkDevice = m_vk->device;
-    pipeline->m_vkOreContext = this;
     pipeline->m_vkTopology = oreTopologyToVk(desc.topology);
 
     // --- Validate user-supplied layouts against shader binding map ---

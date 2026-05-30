@@ -28,16 +28,6 @@ void BufferD3D12::update(const void* data, uint32_t size, uint32_t offset)
     memcpy(static_cast<uint8_t*>(m_d3dMappedPtr) + offset, data, size);
 }
 
-void BufferD3D12::onRefCntReachedZero() const
-{
-    ContextD3D12* ctx = m_d3dOreContext;
-    auto destroy = [p = const_cast<BufferD3D12*>(this)]() { delete p; };
-    if (ctx != nullptr)
-        ctx->d3dDeferDestroy(std::move(destroy));
-    else
-        destroy();
-}
-
 #endif // D3D12-only
 
 } // namespace rive::ore

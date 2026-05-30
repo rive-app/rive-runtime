@@ -114,6 +114,15 @@ public:
 
     rcp<Texture> adoptImageTexture(rcp<D3D12Texture> imageTexture);
 
+    // Wraps an externally-owned ID3D12Resource as a Rive Texture. Initial
+    // state is PIXEL_SHADER_RESOURCE; viewFormat overrides the SRV view
+    // format (UNKNOWN = auto-infer from the resource desc).
+    rcp<Texture> adoptImageTexture(
+        ID3D12Resource* resource,
+        uint32_t width,
+        uint32_t height,
+        DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN);
+
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;

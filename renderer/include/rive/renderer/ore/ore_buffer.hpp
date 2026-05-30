@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/refcnt.hpp"
+#include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
@@ -13,7 +13,7 @@ namespace rive::ore
 
 class Context;
 
-class Buffer : public RefCnt<Buffer>, public ENABLE_LITE_RTTI(Buffer)
+class Buffer : public rive::gpu::GPUResource, public ENABLE_LITE_RTTI(Buffer)
 {
 public:
     uint32_t size() const { return m_size; }
@@ -25,15 +25,19 @@ public:
 
     virtual ~Buffer() = default;
 
-    // Default: immediately free the CPU object. Backends that need deferred
-    // GPU-resource destruction (D3D12, Vulkan) override this.
-    virtual void onRefCntReachedZero() const { delete this; }
-
 protected:
     friend class Context;
     friend class RenderPass;
 
-    Buffer(uint32_t size, BufferUsage usage) : m_size(size), m_usage(usage) {}
+    Buffer(uint32_t size, BufferUsage usage) :
+        rive::gpu::GPUResource(nullptr), m_size(size), m_usage(usage)
+    {}
+
+    Buffer(rcp<rive::gpu::GPUResourceManager> manager,
+           uint32_t size,
+           BufferUsage usage) :
+        rive::gpu::GPUResource(std::move(manager)), m_size(size), m_usage(usage)
+    {}
 
     uint32_t m_size;
     BufferUsage m_usage;

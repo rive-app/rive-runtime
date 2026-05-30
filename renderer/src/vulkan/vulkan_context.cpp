@@ -99,6 +99,14 @@ rcp<vkutil::Image> VulkanContext::makeImage(const VkImageCreateInfo& info,
     return rcp(new vkutil::Image(ref_rcp(this), info, name));
 }
 
+rcp<vkutil::Image> VulkanContext::makeExternalImage(
+    VkImage existingImage,
+    const VkImageCreateInfo& info,
+    const char* name)
+{
+    return rcp(new vkutil::Image(ref_rcp(this), existingImage, info, name));
+}
+
 rcp<vkutil::Framebuffer> VulkanContext::makeFramebuffer(
     const VkFramebufferCreateInfo& info)
 {
@@ -178,6 +186,14 @@ rcp<vkutil::Texture2D> VulkanContext::makeTexture2D(
 {
     return rcp<vkutil::Texture2D>(
         new vkutil::Texture2D(ref_rcp(this), info, name));
+}
+
+rcp<vkutil::Texture2D> VulkanContext::makeTexture2D(
+    rcp<vkutil::Image> existingImage,
+    const char* name)
+{
+    return rcp<vkutil::Texture2D>(
+        new vkutil::Texture2D(ref_rcp(this), std::move(existingImage), name));
 }
 
 void VulkanContext::updateImageDescriptorSets(

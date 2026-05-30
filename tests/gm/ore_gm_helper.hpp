@@ -127,22 +127,14 @@ inline bool isOreBackendActive()
 // based on the active TestingWindow backend.
 struct OreGMContext
 {
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-    std::unique_ptr<rive::ore::Context> oreContext;
-#endif
-
     // Creates the Ore context from the active TestingWindow's render context.
     // Returns false if the backend doesn't match or context creation fails.
     bool ensureContext(rive::gpu::RenderContext* renderContext)
     {
+
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        if (oreContext != nullptr)
-            return true;
-
         if (!renderContext || !isOreBackendActive())
             return false;
 
@@ -158,7 +150,6 @@ struct OreGMContext
                              ->metalQueue();
             assert(queue != nil);
             impl->setCommandQueue(queue);
-            oreContext = impl->makeOreContext();
             return true;
         }
 #endif
@@ -166,21 +157,18 @@ struct OreGMContext
         if (b == TestingWindow::Backend::gl ||
             b == TestingWindow::Backend::angle)
         {
-            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
 #if defined(ORE_BACKEND_D3D11)
         if (b == TestingWindow::Backend::d3d)
         {
-            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
 #if defined(ORE_BACKEND_D3D12)
         if (b == TestingWindow::Backend::d3d12)
         {
-            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
@@ -188,7 +176,6 @@ struct OreGMContext
         if (b == TestingWindow::Backend::wgpu ||
             b == TestingWindow::Backend::dawn)
         {
-            oreContext = renderContext->impl()->makeOreContext();
             return true;
         }
 #endif
@@ -197,16 +184,6 @@ struct OreGMContext
             b == TestingWindow::Backend::moltenvk ||
             b == TestingWindow::Backend::swiftshader)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextVulkanImpl>();
-            auto* win = TestingWindow::Get();
-            VkQueue queue = static_cast<VkQueue>(win->vulkanGraphicsQueue());
-            uint32_t queueFamily = win->vulkanGraphicsQueueFamilyIndex();
-            if (queue == VK_NULL_HANDLE)
-                return false;
-            impl->setCanvasQueue(queue, queueFamily);
-            oreContext = impl->makeOreContext();
             return true;
         }
 #endif
@@ -222,79 +199,14 @@ struct OreGMContext
     // cross-engine read-after-write (e.g. Rive renders into a canvas then
     // Ore samples it) by keeping Rive and Ore in the same submission.
     // Falls back to owned-CB mode when no external CB is available.
-    void beginFrame()
+    void beginFrame(rive::gpu::RenderContext* renderContext)
     {
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        assert(oreContext != nullptr);
-#if defined(ORE_BACKEND_VK)
-        auto b = TestingWindow::backend();
-        if (b == TestingWindow::Backend::vk ||
-            b == TestingWindow::Backend::moltenvk ||
-            b == TestingWindow::Backend::swiftshader)
-        {
-            VkCommandBuffer cb = static_cast<VkCommandBuffer>(
-                TestingWindow::Get()->vulkanCurrentCommandBuffer());
-            if (cb != VK_NULL_HANDLE)
-            {
-                static_cast<rive::ore::ContextVulkan*>(oreContext.get())
-                    ->beginFrame(cb);
-                return;
-            }
-        }
-#endif
-#if defined(ORE_BACKEND_D3D12)
-        if (TestingWindow::backend() == TestingWindow::Backend::d3d12)
-        {
-            auto* cl = static_cast<ID3D12GraphicsCommandList*>(
-                TestingWindow::Get()->d3d12CurrentCommandList());
-            if (cl != nullptr)
-            {
-                static_cast<rive::ore::ContextD3D12*>(oreContext.get())
-                    ->beginFrame(cl);
-                return;
-            }
-        }
-#endif
-#if defined(ORE_BACKEND_WGPU)
-        {
-            auto b = TestingWindow::backend();
-            if (b == TestingWindow::Backend::wgpu ||
-                b == TestingWindow::Backend::dawn)
-            {
-                auto rawEncoder = static_cast<WGPUCommandEncoder>(
-                    TestingWindow::Get()->wgpuCurrentCommandEncoder());
-                if (rawEncoder != nullptr)
-                {
-                    // AddRef the host's encoder so we own a ref to hand to
-                    // Ore; Acquire() takes ownership of that ref without
-                    // incrementing again. Matches RenderContextWebGPUImpl's
-                    // externalCommandBuffer adoption pattern.
-#if (defined(RIVE_WEBGPU) && RIVE_WEBGPU > 1) || defined(RIVE_DAWN)
-                    wgpuCommandEncoderAddRef(rawEncoder);
-#else
-                    wgpuCommandEncoderReference(rawEncoder);
-#endif
-                    static_cast<rive::ore::ContextWGPU*>(oreContext.get())
-                        ->beginFrame(wgpu::CommandEncoder::Acquire(rawEncoder));
-                    return;
-                }
-            }
-        }
-#endif
-        oreContext->beginFrame();
-#endif
+        TestingWindow::Get()->beginOreFrame();
     }
 
-    void endFrame()
+    void endFrame(rive::gpu::RenderContext* renderContext)
     {
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        assert(oreContext != nullptr);
-        oreContext->endFrame();
-#endif
+        TestingWindow::Get()->endOreFrame();
     }
 };
 

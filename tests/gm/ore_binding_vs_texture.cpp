@@ -76,7 +76,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_VS_TEXTURE_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── UBO: white tint. Multiplier passes the VS sample through
         // unchanged on a correct bind. If FS-stage UBO binding regresses,
@@ -207,7 +207,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         oreTex->upload(uploadDesc);
 
@@ -229,7 +229,7 @@ public:
         pass->draw(3); // fullscreen triangle
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

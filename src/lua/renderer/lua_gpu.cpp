@@ -879,7 +879,10 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
                         if (asset->is<ShaderAsset>())
                         {
                             auto* sa = asset->as<ShaderAsset>();
-                            if (sa->name() == name)
+                            // match folderPath/name or bare name
+                            const std::string& fp = sa->folderPath();
+                            if (sa->name() == name ||
+                                (!fp.empty() && fp + "/" + sa->name() == name))
                             {
                                 fileAsset = sa;
                                 break;
@@ -1513,20 +1516,7 @@ static int gpusampler_construct(lua_State* L)
 // GPUBindGroup
 // ============================================================================
 
-ScriptedGPUBindGroup::~ScriptedGPUBindGroup()
-{
-    // If the BindGroup has a context, defer its destruction until after
-    // endFrame() so the GPU is done with any command buffers referencing it.
-    // The rcp<> is moved into the context's deferred queue, keeping the
-    // BindGroup alive. When endFrame() clears the queue, refcount drops
-    // to zero and onRefCntReachedZero() does a simple delete.
-    if (bindGroup && bindGroup->context())
-    {
-        bindGroup->context()->deferBindGroupDestroy(std::move(bindGroup));
-        return;
-    }
-    // No context (or null) — drop immediately; rcp destructor handles it.
-}
+ScriptedGPUBindGroup::~ScriptedGPUBindGroup() {}
 
 // ============================================================================
 // GPUBindGroupLayout.new — explicit BindGroupLayout (Phase E).
@@ -3059,12 +3049,16 @@ static int gpucanvashandle_index(lua_State* L)
             lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
             return 1;
         case (int)LuaAtoms::format:
+            // Realized canvas reports its texture format. Deferred canvas
+            // reports the format makeRenderCanvas always allocates.
             if (self->oreColorView && self->oreColorView->texture())
                 lua_pushstring(L,
                                lua_totextureformatstring(
                                    self->oreColorView->texture()->format()));
             else
-                lua_pushnil(L);
+                lua_pushstring(
+                    L,
+                    lua_totextureformatstring(TextureFormat::rgba8unorm));
             return 1;
     }
     luaL_error(L, "'%s' is not a valid index of GPUCanvas", key);

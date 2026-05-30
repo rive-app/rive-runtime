@@ -253,16 +253,13 @@ std::unique_ptr<ContextGL> ContextGL::Make()
     return ctx;
 }
 
-void ContextGL::beginFrame()
+void ContextGL::beginFrame(const FrameDescriptor&)
 {
-    // Release deferred BindGroups from last frame. By beginFrame() the
-    // caller has waited for the previous frame's GPU work to complete.
-    m_deferredBindGroups.clear();
-
     // Save GL state that Ore will modify, so Rive's PLS renderer state is
     // preserved across an Ore render pass.
     glGetIntegerv(GL_CURRENT_PROGRAM, &m_savedState.program);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &m_savedState.arrayBuffer);
+    glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &m_savedState.uniformBuffer);
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &m_savedState.framebuffer);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &m_savedState.vertexArray);
     // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT saved here because
@@ -298,6 +295,11 @@ void ContextGL::endFrame()
     {
         glBindBuffer(GL_ARRAY_BUFFER, m_savedState.arrayBuffer);
     }
+    if (m_savedState.uniformBuffer == 0 ||
+        glIsBuffer(m_savedState.uniformBuffer) == GL_TRUE)
+    {
+        glBindBuffer(GL_UNIFORM_BUFFER, m_savedState.uniformBuffer);
+    }
     // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT restored here.
     // It is VAO state — binding the saved VAO above already restored the
     // element buffer association. Explicitly binding it here would modify
@@ -330,6 +332,9 @@ rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
             break;
         case BufferUsage::uniform:
             buffer->m_glTarget = GL_UNIFORM_BUFFER;
+            break;
+        case BufferUsage::upload:
+            RIVE_UNREACHABLE();
             break;
     }
 
@@ -896,7 +901,7 @@ rcp<BindGroupLayout> ContextGL::makeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout());
+    auto layout = rcp<BindGroupLayout>(new BindGroupLayout(nullptr));
     layout->m_context = this;
     layout->m_groupIndex = desc.groupIndex;
     layout->m_entries.reserve(desc.entryCount);

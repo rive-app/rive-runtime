@@ -1,5 +1,6 @@
 #pragma once
 #include "rive/renderer/ore/ore_render_pass.hpp"
+#include "rive/renderer/vulkan/vkutil.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "ore_pipeline_vulkan.hpp"
 #include "rive/refcnt.hpp"
@@ -66,7 +67,7 @@ private:
     ContextVulkan* m_vkContext = nullptr; // weak ref
     rcp<PipelineVulkan> m_currentPipeline;
     VkCommandBuffer m_vkCmdBuf = VK_NULL_HANDLE;
-    VkFramebuffer m_vkFramebuffer = VK_NULL_HANDLE;
+    rcp<rive::gpu::vkutil::Framebuffer> m_framebuffer;
     VkBuffer m_vkIndexBuffer = VK_NULL_HANDLE;
     VkIndexType m_vkIndexType = VK_INDEX_TYPE_UINT16;
     uint32_t m_vkIndexOffset = 0;

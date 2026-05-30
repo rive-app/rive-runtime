@@ -9,9 +9,8 @@ class TextureGL : public LITE_RTTI_OVERRIDE(Texture, TextureGL)
 {
 public:
     TextureGL(const TextureDesc& desc) : lite_rtti_override(desc) {}
-    ~TextureGL() override = default;
+    ~TextureGL() override;
     void upload(const TextureDataDesc& data) override;
-    void onRefCntReachedZero() const override;
 
 private:
     friend class ContextGL;
@@ -27,8 +26,7 @@ public:
     TextureViewGL(rcp<Texture> texture, const TextureViewDesc& desc) :
         lite_rtti_override(std::move(texture), desc)
     {}
-    ~TextureViewGL() override = default;
-    void onRefCntReachedZero() const override;
+    ~TextureViewGL() override;
 
 private:
     friend class ContextGL;

@@ -85,7 +85,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_DYNAMIC_UBO_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── One buffer with two 256-byte ranges. Range A holds the
         // values u_a should read; range B the values u_b should read.
@@ -179,7 +179,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -199,7 +199,7 @@ public:
         pass->draw(3); // fullscreen triangle
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

@@ -969,6 +969,17 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
                                       generateRemainingMips);
 }
 
+rcp<Texture> RenderContextMetalImpl::adoptImageTexture(id<MTLTexture> texture,
+                                                       uint32_t width,
+                                                       uint32_t height)
+{
+    if (texture == nil || width == 0 || height == 0)
+    {
+        return nullptr;
+    }
+    return make_rcp<TextureMetalImpl>(texture, width, height);
+}
+
 #ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
                                                            uint32_t height)
