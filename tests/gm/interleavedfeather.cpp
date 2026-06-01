@@ -60,7 +60,12 @@ public:
                 paint->feather(expf(rando.f32(4)));
             }
             renderer->save();
-            renderer->translate(rando.f32(0, 1000), rando.f32(0, 1000));
+            // Sequence Rand calls into named locals — C++ doesn't specify
+            // argument evaluation order, so passing them directly causes
+            // the random draws to interleave differently across compilers.
+            float tx = rando.f32(0, 1000);
+            float ty = rando.f32(0, 1000);
+            renderer->translate(tx, ty);
             float s = rando.f32(.25f, .5f);
             renderer->scale(s, s);
             renderer->rotate(rando.f32(math::PI * 2));

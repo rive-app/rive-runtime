@@ -22,6 +22,22 @@ ScriptedImage* ScriptedImage::luaNew(lua_State* L)
 }
 #endif
 
+static void image_direct_width(void* udata, void* result)
+{
+    auto* self = (ScriptedImage*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->image ? (double)self->image->width()
+                                                  : 0);
+}
+
+static void image_direct_height(void* udata, void* result)
+{
+    auto* self = (ScriptedImage*)udata;
+    lua_userdatadirectfield_setnumber(
+        result,
+        self->image ? (double)self->image->height() : 0);
+}
+
 static int image_index(lua_State* L)
 {
     auto image = lua_torive<ScriptedImage>(L, 1);
@@ -129,6 +145,15 @@ int luaopen_rive_image(lua_State* L)
     lua_setfield(L, -2, "__index");
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1);
+
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedImage::luaTag,
+                                       "width",
+                                       image_direct_width);
+    lua_registeruserdatadirectfieldget(L,
+                                       ScriptedImage::luaTag,
+                                       "height",
+                                       image_direct_height);
 
     lua_pushcfunction(L, imagesampler_construct, ScriptedImageSampler::luaName);
     lua_setfield(L, LUA_GLOBALSINDEX, ScriptedImageSampler::luaName);

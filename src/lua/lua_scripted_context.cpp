@@ -118,26 +118,6 @@ int lua_push_gpu_features(lua_State* L)
     return 1;
 }
 
-// Push the platform's preferred canvas color format onto the Lua stack as a
-// string. makeRenderCanvas() hardcodes RGBA8 on Metal so that Rive's internal
-// PLS shaders (which work in RGBA space) can render into the canvas without
-// format-dependent swizzling.
-//   Metal  (macOS/iOS)  → rgba8unorm (off-screen canvas, not a CAMetalLayer
-//                        surface)
-//   D3D11/D3D12        → bgra8unorm
-//   Vulkan/GL/WebGPU   → rgba8unorm (safe default; actual format may vary —
-//                        query canvas.format for the authoritative value once
-//                        a canvas has been created)
-int lua_push_preferred_canvas_format(lua_State* L)
-{
-#if defined(_WIN32)
-    lua_pushstring(L, "bgra8unorm");
-#else
-    lua_pushstring(L, "rgba8unorm");
-#endif
-    return 1;
-}
-
 ScriptedContext::ScriptedContext(ScriptedObject* scriptedObject) :
     m_scriptedObject(scriptedObject)
 {}
@@ -360,13 +340,23 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::canvas:
             {
                 // context:canvas({ width = w, height = h, clearColor = c })
-                luaL_checktype(L, 2, LUA_TTABLE);
-                lua_getfield(L, 2, "width");
-                uint32_t cw = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
-                lua_getfield(L, 2, "height");
-                uint32_t ch = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                // Descriptor is optional; missing or zero width/height yields
+                // a deferred canvas with no backing texture. Use :resize() to
+                // allocate once the real layout size is known.
+                uint32_t cw = 0;
+                uint32_t ch = 0;
+                if (!lua_isnoneornil(L, 2))
+                {
+                    luaL_checktype(L, 2, LUA_TTABLE);
+                    lua_getfield(L, 2, "width");
+                    if (!lua_isnil(L, -1))
+                        cw = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                    lua_getfield(L, 2, "height");
+                    if (!lua_isnil(L, -1))
+                        ch = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                }
 #ifndef RIVE_CANVAS
                 (void)cw;
                 (void)ch;
@@ -385,6 +375,15 @@ static int context_namecall(lua_State* L)
                         "setRenderContext() first");
                     return 0;
                 }
+                auto* handle = lua_newrive<ScriptedCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = renderCtx;
+
+                if (cw == 0 || ch == 0)
+                {
+                    return 1;
+                }
+
                 auto canvas = renderCtx->makeRenderCanvas(cw, ch);
                 if (!canvas)
                 {
@@ -393,10 +392,7 @@ static int context_namecall(lua_State* L)
                         "context:canvas() failed to create RenderCanvas");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedCanvas>(L);
-                handle->m_L = L;
                 handle->canvas = std::move(canvas);
-                handle->renderCtx = renderCtx;
                 // Create a ScriptedImage backed by canvas->renderImage() so
                 // the script can composite it with renderer:drawImage()
                 auto* img = lua_newrive<ScriptedImage>(L);
@@ -410,13 +406,23 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::gpuCanvas:
             {
                 // context:gpuCanvas({ width = w, height = h })
-                luaL_checktype(L, 2, LUA_TTABLE);
-                lua_getfield(L, 2, "width");
-                uint32_t gw = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
-                lua_getfield(L, 2, "height");
-                uint32_t gh = (uint32_t)luaL_checknumber(L, -1);
-                lua_pop(L, 1);
+                // Descriptor is optional; missing or zero width/height yields
+                // a deferred canvas with no backing texture. Use :resize() to
+                // allocate once the real layout size is known.
+                uint32_t gw = 0;
+                uint32_t gh = 0;
+                if (!lua_isnoneornil(L, 2))
+                {
+                    luaL_checktype(L, 2, LUA_TTABLE);
+                    lua_getfield(L, 2, "width");
+                    if (!lua_isnil(L, -1))
+                        gw = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                    lua_getfield(L, 2, "height");
+                    if (!lua_isnil(L, -1))
+                        gh = (uint32_t)luaL_checknumber(L, -1);
+                    lua_pop(L, 1);
+                }
 #if !defined(RIVE_CANVAS) || !defined(RIVE_ORE)
                 (void)gw;
                 (void)gh;
@@ -427,6 +433,18 @@ static int context_namecall(lua_State* L)
 #else
                 auto* gpuScriptingCtx =
                     static_cast<ScriptingContext*>(lua_getthreaddata(L));
+                if (gpuScriptingCtx->gpuCanvasDeferOnly())
+                {
+                    // Headless detection (editor method-detection VM): there is
+                    // no real RenderContext/GPU device. Hand back a deferred
+                    // canvas with no backing texture regardless of requested
+                    // size, so a generator that creates a sized canvas at
+                    // construction runs without reaching makeRenderCanvas.
+                    auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
+                    handle->m_L = L;
+                    handle->renderCtx = nullptr;
+                    return 1;
+                }
                 auto* gpuRenderCtx = static_cast<gpu::RenderContext*>(
                     gpuScriptingCtx->renderContext());
                 if (gpuRenderCtx == nullptr)
@@ -447,6 +465,15 @@ static int context_namecall(lua_State* L)
                         "scriptingWorkspaceSetOreContext() before requestVM()");
                     return 0;
                 }
+                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = gpuRenderCtx;
+
+                if (gw == 0 || gh == 0)
+                {
+                    return 1;
+                }
+
                 auto canvas = gpuRenderCtx->makeRenderCanvas(gw, gh);
                 if (!canvas)
                 {
@@ -463,85 +490,9 @@ static int context_namecall(lua_State* L)
                         "context:gpuCanvas() failed to wrap canvas texture");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
-                handle->m_L = L;
                 handle->canvas = std::move(canvas);
                 handle->oreColorView = std::move(colorView);
-                handle->renderCtx = gpuRenderCtx;
 
-                // Optional MSAA: context:gpuCanvas({ ..., sampleCount = 4 })
-                lua_getfield(L, 2, "sampleCount");
-                uint32_t gpuCanvasSamples =
-                    lua_isnumber(L, -1)
-                        ? static_cast<uint32_t>(lua_tonumber(L, -1))
-                        : 1;
-                lua_pop(L, 1);
-                if (gpuCanvasSamples > 1)
-                {
-                    if ((gpuCanvasSamples & (gpuCanvasSamples - 1)) != 0)
-                        luaL_error(L,
-                                   "gpuCanvas sampleCount must be a power of "
-                                   "two (got %u)",
-                                   gpuCanvasSamples);
-                    uint32_t maxSamples = oreCtx->features().maxSamples;
-                    if (gpuCanvasSamples > maxSamples)
-                        luaL_error(L,
-                                   "gpuCanvas sampleCount %u exceeds device "
-                                   "maximum of %u — query "
-                                   "context:features().maxSamples first",
-                                   gpuCanvasSamples,
-                                   maxSamples);
-                }
-                if (gpuCanvasSamples > 1)
-                {
-                    ore::TextureDesc msaaDesc;
-                    msaaDesc.width = gw;
-                    msaaDesc.height = gh;
-                    msaaDesc.format = handle->oreColorView->texture()->format();
-                    msaaDesc.renderTarget = true;
-                    msaaDesc.sampleCount = gpuCanvasSamples;
-                    msaaDesc.label = "GPUCanvasMSAAColor";
-                    handle->oreMSAAColorTexture = oreCtx->makeTexture(msaaDesc);
-                    if (!handle->oreMSAAColorTexture)
-                    {
-                        luaL_error(
-                            L,
-                            "context:gpuCanvas() failed to create MSAA color "
-                            "texture (sampleCount=%u)",
-                            gpuCanvasSamples);
-                        return 0;
-                    }
-                    ore::TextureViewDesc msaaViewDesc;
-                    msaaViewDesc.texture = handle->oreMSAAColorTexture.get();
-                    handle->oreMSAAColorView =
-                        oreCtx->makeTextureView(msaaViewDesc);
-
-                    // Depth buffer — sampleCount must match the MSAA color
-                    // attachment or Metal/Vulkan will reject the render pass.
-                    ore::TextureDesc depthDesc;
-                    depthDesc.width = gw;
-                    depthDesc.height = gh;
-                    depthDesc.format = ore::TextureFormat::depth32float;
-                    depthDesc.renderTarget = true;
-                    depthDesc.sampleCount = gpuCanvasSamples;
-                    depthDesc.label = "GPUCanvasMSAADepth";
-                    handle->oreDepthTexture = oreCtx->makeTexture(depthDesc);
-                    if (!handle->oreDepthTexture)
-                    {
-                        luaL_error(
-                            L,
-                            "context:gpuCanvas() failed to create MSAA depth "
-                            "texture (sampleCount=%u)",
-                            gpuCanvasSamples);
-                        return 0;
-                    }
-                    ore::TextureViewDesc depthViewDesc;
-                    depthViewDesc.texture = handle->oreDepthTexture.get();
-                    handle->oreDepthView =
-                        oreCtx->makeTextureView(depthViewDesc);
-                }
-                // Create a ScriptedImage backed by canvas->renderImage() so
-                // the script can composite it with renderer:drawImage()
                 auto* img = lua_newrive<ScriptedImage>(L);
                 img->image = ref_rcp(
                     static_cast<RenderImage*>(handle->canvas->renderImage()));
@@ -553,10 +504,7 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::features:
                 return lua_push_gpu_features(L);
 
-            case (int)LuaAtoms::preferredCanvasFormat:
-                return lua_push_preferred_canvas_format(L);
-
-            case (int)LuaAtoms::loadShader:
+            case (int)LuaAtoms::shader:
             {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
                 const char* shaderName = luaL_checkstring(L, 2);
@@ -576,7 +524,11 @@ static int context_namecall(lua_State* L)
                             if (asset->is<ShaderAsset>())
                             {
                                 auto* sa = asset->as<ShaderAsset>();
-                                if (sa->name() == shaderName)
+                                // match folderPath/name or bare name
+                                const std::string& fp = sa->folderPath();
+                                if (sa->name() == shaderName ||
+                                    (!fp.empty() &&
+                                     fp + "/" + sa->name() == shaderName))
                                 {
                                     fileAsset = sa;
                                     break;
@@ -597,42 +549,7 @@ static int context_namecall(lua_State* L)
                     return 1;
                 }
                 lua_pop(L, 1);
-
-                // Legacy-compat fallback: pre-ShaderAsset .riv files pack
-                // WGSL shaders into ScriptAssets. Detect by RSTB magic and
-                // build the shader from those raw bytes.
-                if (scriptAsset != nullptr)
-                {
-                    File* file = scriptAsset->file();
-                    if (file != nullptr)
-                    {
-                        for (const auto& asset : file->assets())
-                        {
-                            if (!asset->is<ScriptAsset>())
-                                continue;
-                            auto* sa = asset->as<ScriptAsset>();
-                            if (sa->name() != shaderName)
-                                continue;
-                            auto bc = sa->moduleBytecode();
-                            if (bc.size() < 4 || bc[0] != 'R' || bc[1] != 'S' ||
-                                bc[2] != 'T' || bc[3] != 'B')
-                                continue;
-                            auto* legacyScripted =
-                                lua_newrive<ScriptedShader>(L);
-                            if (lua_gpu_make_shader_from_rstb(
-                                    legacyScripted,
-                                    scriptingCtx,
-                                    bc.data(),
-                                    static_cast<uint32_t>(bc.size())))
-                            {
-                                return 1;
-                            }
-                            lua_pop(L, 1);
-                            break;
-                        }
-                    }
-                }
-                return 0; // return nil — shader not found or compile failed
+                return 0; // return nil, shader not found or compile failed
 #else
                 return 0;
 #endif

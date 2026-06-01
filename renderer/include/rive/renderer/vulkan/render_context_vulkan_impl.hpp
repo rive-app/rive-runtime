@@ -84,11 +84,24 @@ public:
                                   uint32_t height,
                                   uint32_t mipLevelCount,
                                   GPUTextureFormat format,
-                                  const uint8_t imageDataRGBAPremul[]) override;
+                                  const uint8_t imageData[],
+                                  uint8_t blockWidth = 1,
+                                  uint8_t blockHeight = 1,
+                                  bool srgb = false,
+                                  bool generateRemainingMips = false) override;
+
+    // Adopts an externally-owned VkImage as a Rive Texture. Caller owns the
+    // VkImage and must leave it in SHADER_READ_ONLY_OPTIMAL before the next
+    // Rive sample; the first barrier is suppressed accordingly.
+    rcp<Texture> adoptImageTexture(VkImage image,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   VkFormat format);
 
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
     void hotloadShaders(rive::Span<const uint32_t> spirvData);

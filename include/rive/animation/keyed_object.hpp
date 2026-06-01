@@ -7,6 +7,7 @@ namespace rive
 class Artboard;
 class KeyedProperty;
 class KeyedCallbackReporter;
+class LinearAnimationInstance;
 class KeyedObject : public KeyedObjectBase
 {
 public:
@@ -20,7 +21,10 @@ public:
                               float secondsFrom,
                               float secondsTo,
                               bool isAtStartFrame) const;
-    void apply(Artboard* coreContext, float time, float mix);
+    void apply(Artboard* coreContext,
+               float time,
+               float mix,
+               const LinearAnimationInstance* context = nullptr);
 
     StatusCode import(ImportStack& importStack) override;
 

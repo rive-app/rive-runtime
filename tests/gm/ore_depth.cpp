@@ -96,7 +96,7 @@ public:
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
         constexpr uint32_t kSize = 256;
 
         // Create a RenderCanvas to render into.
@@ -167,7 +167,7 @@ public:
         // Render all three quads in draw order (red, green, blue).
         // Blue is drawn last but is farthest (z=0.8), so it should be
         // occluded in overlapping areas by red (z=0.2) and green (z=0.5).
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         RenderPassDesc rpDesc{};
         rpDesc.colorAttachments[0].view = colorTarget.get();
@@ -182,14 +182,14 @@ public:
         rpDesc.label = "ore_depth_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setVertexBuffer(0, vbo.get());
-        pass.setViewport(0, 0, kSize, kSize);
+        pass->setPipeline(pipeline.get());
+        pass->setVertexBuffer(0, vbo.get());
+        pass->setViewport(0, 0, kSize, kSize);
         // Draw all 18 vertices (3 quads x 6 vertices each).
-        pass.draw(18);
-        pass.finish();
+        pass->draw(18);
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite the canvas into the main framebuffer via the original

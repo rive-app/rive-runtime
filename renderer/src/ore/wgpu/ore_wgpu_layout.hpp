@@ -134,9 +134,9 @@ inline wgpu::BindGroupLayoutEntry makeWGPUBGLEntry(
             e.texture.multisampled = textureMultisampled;
             break;
         case ResourceKind::StorageTexture:
-            // Ore doesn't ship storage textures on day 1 (RFC §13).
-            // When it does, `format` and `access` come from WGSL
-            // reflection — stubbed here for forward-compat. Using the
+            // Ore doesn't ship storage textures on day 1. When it does,
+            // `format` and `access` come from WGSL reflection. Stubbed
+            // here for forward-compat. Using the
             // C enum constant through a cast because Dawn spells this
             // `Rgba8Unorm` while wagyu spells it `RGBA8Unorm`; the
             // underlying `WGPUTextureFormat_RGBA8Unorm` is stable

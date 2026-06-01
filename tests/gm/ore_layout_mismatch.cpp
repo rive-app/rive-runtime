@@ -67,7 +67,7 @@ public:
             return;
 
 #ifdef ORE_LAYOUT_MISMATCH_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         auto shader = ore_gm::loadShader(ctx, ore_gm::kBindingWitness);
         if (!shader.vsModule)
@@ -187,7 +187,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
         ca.loadOp = LoadOp::clear;
@@ -201,10 +201,10 @@ public:
         rpDesc.label = "ore_layout_mismatch_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setViewport(0, 0, 128, 128);
-        pass.finish();
+        pass->setViewport(0, 0, 128, 128);
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

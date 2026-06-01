@@ -105,16 +105,20 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
         text.render(renderer);
 
         Rand rando;
-        for (size_t i = 0; i < 30; ++i)
+        for (size_t j = 0; j < 30; ++j)
         {
             Path star;
             star->fillRule(FillRule::clockwise);
-            rivegm::path_add_star(star,
-                                  rando.u32(2, 4) * 2 + 1,
-                                  rando.f32(),
-                                  1);
+            // Sequence Rand calls into named locals — C++ doesn't specify
+            // argument evaluation order, so passing them directly causes the
+            // draws to interleave differently across compilers.
+            uint32_t numPts = rando.u32(2, 4) * 2 + 1;
+            float phase = rando.f32();
+            rivegm::path_add_star(star, numPts, phase, 1);
             renderer->save();
-            renderer->translate(rando.f32(-50, 750), rando.f32(-50, 350));
+            float tx = rando.f32(-50, 750);
+            float ty = rando.f32(-50, 350);
+            renderer->translate(tx, ty);
             float s = rando.f32(50, 100);
             renderer->scale(s, s);
             float f = rando.f32(.1f, .5f);

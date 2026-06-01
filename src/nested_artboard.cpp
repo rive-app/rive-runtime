@@ -161,7 +161,7 @@ void NestedArtboard::updateArtboard(
         }
         referencedArtboard(artboardInstance.release());
 
-        if (artboard->isStateful())
+        if (isStateful())
         {
             const bool cacheStale =
                 m_statefulViewModelInstance == nullptr ||
@@ -530,7 +530,7 @@ void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
 {
     m_viewModelInstance = viewModelInstance;
     auto instance = artboardInstance(0);
-    if (instance && !instance->isStateful())
+    if (instance && !isStateful())
     {
         auto dataContext = instance->dataContext();
         if (dataContext != nullptr)

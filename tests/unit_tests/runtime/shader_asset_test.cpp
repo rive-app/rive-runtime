@@ -4,6 +4,7 @@
 
 #include "rive/assets/shader_asset.hpp"
 #include "rive/simple_array.hpp"
+#include <array>
 #include <catch.hpp>
 #include <cstring>
 #include <vector>
@@ -11,19 +12,18 @@
 namespace rive
 {
 
-// Helper to build a minimal RSTB v2 binary.
+// Helper to build a minimal RSTB v3 binary.
+//   variants: vector of (target, blobData) pairs.
+//   sections: vector of (tag, sectionData) pairs written verbatim after the
+//             variant descriptors with a u16 length prefix.
 static std::vector<uint8_t> makeRSTB(
     uint16_t version,
-    // Each shader: {shaderId, {{target, blobData}, ...}}
-    const std::vector<
-        std::pair<uint32_t,
-                  std::vector<std::pair<uint8_t, std::vector<uint8_t>>>>>&
-        shaders,
+    const std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& variants,
+    const std::vector<std::pair<uint8_t, std::vector<uint8_t>>>& sections = {},
     uint32_t magic = 0x52535442u)
 {
     std::vector<uint8_t> out;
 
-    // Header: magic(u32LE) + version(u16LE) + shader_count(u16LE)
     auto pushU32 = [&](uint32_t v) {
         out.push_back(v & 0xFF);
         out.push_back((v >> 8) & 0xFF);
@@ -35,57 +35,30 @@ static std::vector<uint8_t> makeRSTB(
         out.push_back((v >> 8) & 0xFF);
     };
 
+    // Header: magic + version + variant_count + section_count.
     pushU32(magic);
     pushU16(version);
-    pushU16(static_cast<uint16_t>(shaders.size()));
+    out.push_back(static_cast<uint8_t>(variants.size()));
+    out.push_back(static_cast<uint8_t>(sections.size()));
 
-    // Collect all blob data and compute offsets relative to blob section start.
+    // Variant descriptors with offsets relative to blob section.
     std::vector<uint8_t> blobSection;
-    // We need to write entries with blob offsets, so pre-compute them.
-    struct VariantInfo
+    for (auto& [target, blob] : variants)
     {
-        uint8_t target;
-        uint32_t blobOffset;
-        uint32_t blobSize;
-    };
-    struct ShaderInfo
-    {
-        uint32_t shaderId;
-        std::vector<VariantInfo> variants;
-    };
-    std::vector<ShaderInfo> infos;
-
-    for (auto& [shaderId, variants] : shaders)
-    {
-        ShaderInfo si;
-        si.shaderId = shaderId;
-        for (auto& [target, blob] : variants)
-        {
-            VariantInfo vi;
-            vi.target = target;
-            vi.blobOffset = static_cast<uint32_t>(blobSection.size());
-            vi.blobSize = static_cast<uint32_t>(blob.size());
-            blobSection.insert(blobSection.end(), blob.begin(), blob.end());
-            si.variants.push_back(vi);
-        }
-        infos.push_back(std::move(si));
+        out.push_back(target);
+        pushU32(static_cast<uint32_t>(blobSection.size()));
+        pushU32(static_cast<uint32_t>(blob.size()));
+        blobSection.insert(blobSection.end(), blob.begin(), blob.end());
     }
 
-    // Write shader entries.
-    for (auto& si : infos)
+    // Tagged sections: tag(u8) + length(u16) + data[length].
+    for (auto& [tag, data] : sections)
     {
-        pushU32(si.shaderId);
-        out.push_back(static_cast<uint8_t>(si.variants.size()));
-        out.push_back(0); // section_count = 0 (no tagged sections)
-        for (auto& vi : si.variants)
-        {
-            out.push_back(vi.target);
-            pushU32(vi.blobOffset);
-            pushU32(vi.blobSize);
-        }
+        out.push_back(tag);
+        pushU16(static_cast<uint16_t>(data.size()));
+        out.insert(out.end(), data.begin(), data.end());
     }
 
-    // Append blob section.
     out.insert(out.end(), blobSection.begin(), blobSection.end());
     return out;
 }
@@ -112,21 +85,24 @@ TEST_CASE("ShaderAsset-fileExtension", "[ShaderAsset]")
     CHECK(asset.fileExtension() == "rstb");
 }
 
+// Wrap raw RSTB bytes in an unsigned SignedContentHeader envelope (flags=0)
+// to match ShaderAsset::decode's expected input.
+static SimpleArray<uint8_t> envelope(const std::vector<uint8_t>& rstb)
+{
+    std::vector<uint8_t> out;
+    out.push_back(0x00);
+    out.insert(out.end(), rstb.begin(), rstb.end());
+    return SimpleArray<uint8_t>(out.data(), out.size());
+}
+
 TEST_CASE("ShaderAsset-decode-valid", "[ShaderAsset]")
 {
     std::vector<uint8_t> blob = {0xDE, 0xAD, 0xBE, 0xEF, 0x42};
-    auto rstb = makeRSTB(2, {{100, {{2, blob}}}});
-
-    // Prepend the SignedContentHeader envelope (unsigned, flags=0) so the
-    // input matches ShaderAsset::decode's expected format.
-    std::vector<uint8_t> enveloped;
-    enveloped.push_back(0x00);
-    enveloped.insert(enveloped.end(), rstb.begin(), rstb.end());
-    SimpleArray<uint8_t> data(enveloped.data(), enveloped.size());
+    auto data = envelope(makeRSTB(3, {{2, blob}}));
     ShaderAsset asset;
     CHECK(asset.decode(data, nullptr) == true);
 
-    auto result = asset.findShader(100, 2);
+    auto result = asset.findShader(2);
     REQUIRE(result.size() == 5);
     CHECK(result[0] == 0xDE);
     CHECK(result[1] == 0xAD);
@@ -137,26 +113,15 @@ TEST_CASE("ShaderAsset-decode-valid", "[ShaderAsset]")
 
 TEST_CASE("ShaderAsset-decode-bad-magic", "[ShaderAsset]")
 {
-    auto rstb = makeRSTB(2, {}, 0xBADBAD00u);
-    // Prepend the SignedContentHeader envelope (unsigned, flags=0) so the
-    // input matches ShaderAsset::decode's expected format.
-    std::vector<uint8_t> enveloped;
-    enveloped.push_back(0x00);
-    enveloped.insert(enveloped.end(), rstb.begin(), rstb.end());
-    SimpleArray<uint8_t> data(enveloped.data(), enveloped.size());
+    auto data = envelope(makeRSTB(3, {}, {}, 0xBADBAD00u));
     ShaderAsset asset;
     CHECK(asset.decode(data, nullptr) == false);
 }
 
 TEST_CASE("ShaderAsset-decode-bad-version", "[ShaderAsset]")
 {
-    auto rstb = makeRSTB(99, {});
-    // Prepend the SignedContentHeader envelope (unsigned, flags=0) so the
-    // input matches ShaderAsset::decode's expected format.
-    std::vector<uint8_t> enveloped;
-    enveloped.push_back(0x00);
-    enveloped.insert(enveloped.end(), rstb.begin(), rstb.end());
-    SimpleArray<uint8_t> data(enveloped.data(), enveloped.size());
+    // v2 is no longer accepted.
+    auto data = envelope(makeRSTB(2, {}));
     ShaderAsset asset;
     CHECK(asset.decode(data, nullptr) == false);
 }
@@ -172,58 +137,186 @@ TEST_CASE("ShaderAsset-decode-truncated", "[ShaderAsset]")
 
 TEST_CASE("ShaderAsset-findShader-miss", "[ShaderAsset]")
 {
-    auto rstb = makeRSTB(2, {{100, {{2, {0xAA}}}}});
-    // Prepend the SignedContentHeader envelope (unsigned, flags=0) so the
-    // input matches ShaderAsset::decode's expected format.
-    std::vector<uint8_t> enveloped;
-    enveloped.push_back(0x00);
-    enveloped.insert(enveloped.end(), rstb.begin(), rstb.end());
-    SimpleArray<uint8_t> data(enveloped.data(), enveloped.size());
+    auto data = envelope(makeRSTB(3, {{2, {0xAA}}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
 
-    // Wrong shaderId
-    CHECK(asset.findShader(999, 2).empty());
-    // Wrong target
-    CHECK(asset.findShader(100, 0).empty());
+    CHECK(asset.findShader(0).empty());
+    CHECK(asset.findShader(99).empty());
+    REQUIRE(asset.findShader(2).size() == 1);
 }
 
-TEST_CASE("ShaderAsset-multiple-shaders", "[ShaderAsset]")
+TEST_CASE("ShaderAsset-multiple-targets", "[ShaderAsset]")
 {
-    std::vector<uint8_t> blob1 = {0x11, 0x22};
-    std::vector<uint8_t> blob2 = {0x33, 0x44, 0x55};
-    std::vector<uint8_t> blob3 = {0x66};
-    std::vector<uint8_t> blob4 = {0x77, 0x88, 0x99, 0xAA};
+    std::vector<uint8_t> blob0 = {0x11, 0x22};
+    std::vector<uint8_t> blob1 = {0x33, 0x44, 0x55};
+    std::vector<uint8_t> blob2 = {0x66};
+    std::vector<uint8_t> blob3 = {0x77, 0x88, 0x99, 0xAA};
 
-    // Shader 1 has targets 0 and 1; shader 2 has targets 2 and 3.
-    auto rstb = makeRSTB(
-        2,
-        {{1, {{0, blob1}, {1, blob2}}}, {2, {{2, blob3}, {3, blob4}}}});
-
-    // Prepend the SignedContentHeader envelope (unsigned, flags=0) so the
-    // input matches ShaderAsset::decode's expected format.
-    std::vector<uint8_t> enveloped;
-    enveloped.push_back(0x00);
-    enveloped.insert(enveloped.end(), rstb.begin(), rstb.end());
-    SimpleArray<uint8_t> data(enveloped.data(), enveloped.size());
+    auto data =
+        envelope(makeRSTB(3, {{0, blob0}, {1, blob1}, {2, blob2}, {3, blob3}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
 
-    auto r1 = asset.findShader(1, 0);
-    REQUIRE(r1.size() == 2);
-    CHECK(r1[0] == 0x11);
+    auto r0 = asset.findShader(0);
+    REQUIRE(r0.size() == 2);
+    CHECK(r0[0] == 0x11);
 
-    auto r2 = asset.findShader(1, 1);
-    REQUIRE(r2.size() == 3);
-    CHECK(r2[0] == 0x33);
+    auto r1 = asset.findShader(1);
+    REQUIRE(r1.size() == 3);
+    CHECK(r1[0] == 0x33);
 
-    auto r3 = asset.findShader(2, 2);
-    REQUIRE(r3.size() == 1);
-    CHECK(r3[0] == 0x66);
+    auto r2 = asset.findShader(2);
+    REQUIRE(r2.size() == 1);
+    CHECK(r2[0] == 0x66);
 
-    auto r4 = asset.findShader(2, 3);
-    REQUIRE(r4.size() == 4);
-    CHECK(r4[0] == 0x77);
+    auto r3 = asset.findShader(3);
+    REQUIRE(r3.size() == 4);
+    CHECK(r3[0] == 0x77);
+}
+
+// Tag 1 section data: pair_count(u8) + N * (texGroup, texBinding,
+// sampGroup, sampBinding).
+static std::vector<uint8_t> makeTexSamplerPairsTag(
+    const std::vector<std::array<uint8_t, 4>>& pairs)
+{
+    std::vector<uint8_t> out;
+    out.push_back(static_cast<uint8_t>(pairs.size()));
+    for (auto& p : pairs)
+    {
+        out.push_back(p[0]);
+        out.push_back(p[1]);
+        out.push_back(p[2]);
+        out.push_back(p[3]);
+    }
+    return out;
+}
+
+TEST_CASE("ShaderAsset-decode-texture-sampler-pairs", "[ShaderAsset]")
+{
+    auto pairs =
+        makeTexSamplerPairsTag({{0, 1, 0, 2}, {1, 3, 1, 4}, {2, 5, 2, 6}});
+    auto data = envelope(makeRSTB(3, {{2, {0xAA}}}, {{1, pairs}}));
+    ShaderAsset asset;
+    REQUIRE(asset.decode(data, nullptr) == true);
+
+    auto out = asset.textureSamplerPairs();
+    REQUIRE(out.size() == 3);
+    CHECK(out[0].texGroup == 0);
+    CHECK(out[0].texBinding == 1);
+    CHECK(out[0].sampGroup == 0);
+    CHECK(out[0].sampBinding == 2);
+    CHECK(out[1].texBinding == 3);
+    CHECK(out[2].sampBinding == 6);
+
+    // The variant blob still resolves correctly after the tagged section.
+    auto blob = asset.findShader(2);
+    REQUIRE(blob.size() == 1);
+    CHECK(blob[0] == 0xAA);
+}
+
+TEST_CASE("ShaderAsset-decode-no-sections-empty-pairs", "[ShaderAsset]")
+{
+    auto data = envelope(makeRSTB(3, {{2, {0x42}}}));
+    ShaderAsset asset;
+    REQUIRE(asset.decode(data, nullptr) == true);
+    CHECK(asset.textureSamplerPairs().size() == 0);
+}
+
+TEST_CASE("ShaderAsset-decode-unknown-tag-skipped", "[ShaderAsset]")
+{
+    // Tag 99 (unknown). Reader must skip the section without failing,
+    // and pairs must remain empty.
+    std::vector<uint8_t> bogusSection = {0xDE, 0xAD, 0xBE, 0xEF};
+    auto data = envelope(makeRSTB(3, {{2, {0x42}}}, {{99, bogusSection}}));
+    ShaderAsset asset;
+    REQUIRE(asset.decode(data, nullptr) == true);
+    CHECK(asset.textureSamplerPairs().size() == 0);
+    auto blob = asset.findShader(2);
+    REQUIRE(blob.size() == 1);
+    CHECK(blob[0] == 0x42);
+}
+
+TEST_CASE("ShaderAsset-decode-truncated-section-header", "[ShaderAsset]")
+{
+    // Build a valid RSTB then chop bytes so the section header (3 bytes)
+    // doesn't fit. Header(8) + Variant(9) = 17 bytes before the section,
+    // and we claim section_count=1 so the reader will look for a section.
+    auto rstb = makeRSTB(3, {{2, {0x42}}}, {{1, {0}}});
+    // Truncate to leave only 1 byte where the 3-byte section header
+    // should be. Section header starts at offset 17.
+    rstb.resize(17 + 1);
+    auto data = envelope(rstb);
+    ShaderAsset asset;
+    CHECK(asset.decode(data, nullptr) == false);
+}
+
+TEST_CASE("ShaderAsset-decode-truncated-section-data", "[ShaderAsset]")
+{
+    // Section claims length=10 but only 2 data bytes follow.
+    auto rstb = makeRSTB(3, {{2, {0x42}}});
+    // Bump section_count from 0 to 1.
+    rstb[7] = 1;
+    // Append a section header claiming 10 data bytes but supply only 2.
+    rstb.push_back(1);    // tag
+    rstb.push_back(10);   // length lo
+    rstb.push_back(0);    // length hi
+    rstb.push_back(0xAA); // data byte 1
+    rstb.push_back(0xBB); // data byte 2
+    auto data = envelope(rstb);
+    ShaderAsset asset;
+    CHECK(asset.decode(data, nullptr) == false);
+}
+
+TEST_CASE("ShaderAsset-decode-rejects-out-of-range-variant", "[ShaderAsset]")
+{
+    // Build a valid 1-variant RSTB then patch the variant's blob_size to
+    // a value that runs past m_bytes. Decode must fail rather than store
+    // an entry that findShader would later return as a Span past the buf.
+    auto rstb = makeRSTB(3, {{2, {0xAA}}});
+    // Variant descriptor starts at byte 8: target(u8) + blob_offset(u32)
+    // + blob_size(u32). blob_size lives at bytes 13..16.
+    rstb[13] = 0xFF;
+    rstb[14] = 0xFF;
+    rstb[15] = 0xFF;
+    rstb[16] = 0x7F;
+    auto data = envelope(rstb);
+    ShaderAsset asset;
+    CHECK(asset.decode(data, nullptr) == false);
+    CHECK(asset.findShader(2).empty());
+}
+
+TEST_CASE("ShaderAsset-decode-rejects-overflowing-variant", "[ShaderAsset]")
+{
+    // blob_offset = 0xFFFFFFF0, blob_size = 0x20. Naive uint32_t addition
+    // wraps to 0x10 and a non-overflow-aware bounds check would pass.
+    auto rstb = makeRSTB(3, {{2, {0xAA}}});
+    rstb[9] = 0xF0;
+    rstb[10] = 0xFF;
+    rstb[11] = 0xFF;
+    rstb[12] = 0xFF;
+    rstb[13] = 0x20;
+    rstb[14] = 0x00;
+    rstb[15] = 0x00;
+    rstb[16] = 0x00;
+    auto data = envelope(rstb);
+    ShaderAsset asset;
+    CHECK(asset.decode(data, nullptr) == false);
+}
+
+TEST_CASE("ShaderAsset-decode-pair-count-mismatch-ignored", "[ShaderAsset]")
+{
+    // Section claims pair_count=5 but only carries enough bytes for 2.
+    // Reader should skip the pair payload (length insufficient) but not
+    // fail the overall decode; subsequent variants still resolve.
+    std::vector<uint8_t> badPairs = {5, 0, 1, 0, 2, 1, 3, 1, 4};
+    auto data = envelope(makeRSTB(3, {{2, {0xAA}}}, {{1, badPairs}}));
+    ShaderAsset asset;
+    REQUIRE(asset.decode(data, nullptr) == true);
+    CHECK(asset.textureSamplerPairs().size() == 0);
+    auto blob = asset.findShader(2);
+    REQUIRE(blob.size() == 1);
+    CHECK(blob[0] == 0xAA);
 }
 
 } // namespace rive

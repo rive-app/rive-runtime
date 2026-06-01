@@ -183,13 +183,18 @@ public:
         return make_rcp<RenderTargetD3D>(this, width, height);
     }
 
-    rcp<Texture> adoptImageTexture(ComPtr<ID3D11Texture2D> image,
-                                   uint32_t width,
-                                   uint32_t height);
+    // viewFormat lets callers force an SRV view format (e.g. picking the
+    // sRGB variant of a TYPELESS or UNORM source); UNKNOWN auto-infers.
+    rcp<Texture> adoptImageTexture(
+        ComPtr<ID3D11Texture2D> image,
+        uint32_t width,
+        uint32_t height,
+        DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN);
 
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
     const D3DCapabilities& d3dCapabilities() const { return m_d3dCapabilities; }
@@ -223,7 +228,11 @@ private:
                                   uint32_t height,
                                   uint32_t mipLevelCount,
                                   GPUTextureFormat,
-                                  const uint8_t imageDataRGBAPremul[]) override;
+                                  const uint8_t imageData[],
+                                  uint8_t blockWidth = 1,
+                                  uint8_t blockHeight = 1,
+                                  bool srgb = false,
+                                  bool generateRemainingMips = false) override;
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) override;

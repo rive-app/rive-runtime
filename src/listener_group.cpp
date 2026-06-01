@@ -3,6 +3,7 @@
 #include "rive/constraints/scrolling/scroll_bar_constraint.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/listener_group.hpp"
+#include "rive/profiler/rive_profile.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 
@@ -233,7 +234,6 @@ ProcessEventResult ListenerGroup::processEvent(
     }
     if (shouldPerformChanges)
     {
-
         _listener->performChanges(
             stateMachineInstance,
             ListenerInvocation::pointer(
@@ -244,6 +244,20 @@ ProcessEventResult ListenerGroup::processEvent(
                 timeStamp));
         stateMachineInstance->markNeedsAdvance();
         consume();
+
+#ifdef RIVE_MICROPROFILE
+        if (RiveProfile::instance().logFlags() &
+            ProfileLogListenerPerformChanges)
+        {
+            RiveProfile::instance().recordListenerPerformChange(
+                stateMachineInstance->artboard()->name(),
+                stateMachineInstance->name(),
+                _listener->name(),
+                static_cast<uint32_t>(listenerTypeMatched),
+                static_cast<uint32_t>(hitEvent),
+                pointerId);
+        }
+#endif
     }
     previousPosition->x = position.x;
     previousPosition->y = position.y;

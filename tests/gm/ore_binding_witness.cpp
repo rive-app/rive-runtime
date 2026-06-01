@@ -24,7 +24,7 @@
  *
  * Both resources are packed into a single BindGroup at groupIndex=0 so
  * the test specifically exercises multiple UBOs with non-dense bindings
- * in the same group — the exact case RFC §11.1 witnesses.
+ * in the same group.
  */
 
 #include "gm.hpp"
@@ -70,7 +70,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_WITNESS_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── UBOs. Each holds a vec4 color. WGSL UBOs require 16-byte
         // alignment of the struct; vec4<f32> is already 16 bytes.
@@ -160,7 +160,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -174,13 +174,13 @@ public:
         rpDesc.label = "ore_binding_witness_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(0, bg.get());
-        pass.setViewport(0, 0, 128, 128);
-        pass.draw(3); // fullscreen triangle
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(0, bg.get());
+        pass->setViewport(0, 0, 128, 128);
+        pass->draw(3); // fullscreen triangle
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite into the main framebuffer.

@@ -204,7 +204,7 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
                            ? std::floor(endTarget / sectionSize)
                            : 0;
         float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
-                                 ? std::fmod(endTarget, sectionSize)
+                                 ? math::positive_mod(endTarget, sectionSize)
                                  : endTarget;
         float maxTarget = rangeMax == std::numeric_limits<float>::infinity()
                               ? std::numeric_limits<float>::infinity()

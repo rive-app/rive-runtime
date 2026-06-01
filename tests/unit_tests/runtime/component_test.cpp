@@ -280,7 +280,10 @@ TEST_CASE("Stateful Component nested in stateful", "[silver]")
 
     CHECK(silver.matches("stateful_nested"));
 }
-
+/*
+// Disable this test for now. Initially we decided not to create stateful
+// VM instances for each list item to reduce overhead. This may change in
+// the future and we can revisit this test at that point.
 TEST_CASE("Stateful Component list with input/output bridge binds", "[silver]")
 {
     rive::SerializingFactory silver;
@@ -474,7 +477,7 @@ TEST_CASE("Stateful Component list with input/output bridge binds", "[silver]")
 
     CHECK(silver.matches("stateful_list_props"));
 }
-
+*/
 TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
           "property",
           "[silver]")
@@ -743,4 +746,36 @@ TEST_CASE("Stateful Component list bridge binds clean up on item remove",
     REQUIRE(buttonsList->listItems().size() == 0);
 
     CHECK(silver.matches("stateful_list_props_lifecycle"));
+}
+
+TEST_CASE("Stateful Component Keyed Triggers", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/stateful_keyed_trigger.riv", &silver);
+
+    auto artboard = file->artboardNamed("Artboard");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+    CHECK(silver.matches("stateful_keyed_trigger"));
 }

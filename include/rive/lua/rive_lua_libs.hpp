@@ -10,6 +10,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/math/mat4.hpp"
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/path_measure.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
@@ -271,14 +272,21 @@ enum class LuaAtoms : int16_t
     isReportedEvent,
     isViewModelChange,
     isNone,
-    isGamepad,
+    isGamepadConnected,
+    isGamepadEvent,
+    isGamepadDisconnected,
     asPointerEvent,
     asKeyboardEvent,
     asTextInput,
     asFocus,
     asReportedEvent,
     asViewModelChange,
-    asGamepad,
+    asGamepadConnected,
+    asGamepadEvent,
+    asGamepadDisconnected,
+    gamepadEvent,
+    gamepadConnected,
+    gamepadDisconnected,
     asNone,
     key,
     alt,
@@ -289,7 +297,6 @@ enum class LuaAtoms : int16_t
     delaySeconds,
     deviceId,
     buttonMask,
-    axis0,
     remove,
     removeAt,
     removeAllOf,
@@ -318,9 +325,8 @@ enum class LuaAtoms : int16_t
     gpuCanvas,
     drawCanvas,
     features,
-    loadShader,
+    shader,
     format,
-    preferredCanvasFormat,
 
     // Promise
     andThen,
@@ -332,6 +338,51 @@ enum class LuaAtoms : int16_t
 
     // Image decode
     decodeImage,
+
+    // Mat4
+    transpose,
+    transformPoint,
+    transformVec4,
+    writeToBuffer,
+    invertAffine,
+
+    // Gamepad
+    axes,
+    gamepadMapping,
+    mapping,
+    isStandardMapping,
+    buttons,
+    buttonPressed,
+    buttonValue,
+    axis,
+    west,
+    south,
+    north,
+    east,
+    leftShoulder,
+    rightShoulder,
+    gamepadBack,
+    gamepadForward,
+    leftStickButton,
+    rightStickButton,
+    dpadUp,
+    dpadDown,
+    dpadLeft,
+    dpadRight,
+    leftStick,
+    rightStick,
+    start,
+    leftTrigger,
+    rightTrigger,
+    leftTriggerPressed,
+    rightTriggerPressed,
+    changeKind,
+    changeIndex,
+    changeValue,
+    hasStandardButtonIntent,
+    hasStandardAxisIntent,
+    intentButton,
+    intentAxis,
 };
 
 struct ScriptedMat2D
@@ -353,6 +404,21 @@ struct ScriptedMat2D
 
 static_assert(std::is_trivially_destructible<ScriptedMat2D>::value,
               "ScriptedMat2D must be trivially destructible");
+
+struct ScriptedMat4
+{
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 62;
+    static constexpr const char* luaName = "Mat4";
+    static constexpr bool hasMetatable = true;
+
+    ScriptedMat4() {}
+    ScriptedMat4(const Mat4& mat) : value(mat) {}
+
+    rive::Mat4 value;
+};
+
+static_assert(std::is_trivially_destructible<ScriptedMat4>::value,
+              "ScriptedMat4 must be trivially destructible");
 
 class ScriptedPathCommand
 {
@@ -645,20 +711,20 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 46;
     static constexpr const char* luaName = "GPURenderPass";
     static constexpr bool hasMetatable = true;
+    // Out-of-line: unique_ptr<ore::RenderPass> needs the complete type at
+    // destructor instantiation, and we clear the context's active-pass
+    // slot if the wrapper is GC'd without :finish() so a stale pointer
+    // doesn't survive into the next beginRenderPass.
     ~ScriptedGPURenderPass();
-    // `pass` is owned by `ScriptedGPUCanvas::m_activePass`. To prevent
-    // the canvas from being GC'd before this render pass — which would
-    // delete `m_activePass` and dangle this pointer — the constructor
-    // site stores a Lua ref to the owning canvas in `m_canvasRef`,
-    // released by `~ScriptedGPURenderPass`.
-    ore::RenderPass* pass = nullptr;
+    std::unique_ptr<ore::RenderPass> pass;
+    // Borrowed; Context outlives every wrapper. Used by ~dtor to clear
+    // the active-pass slot if it still points at our pass.
+    ore::Context* m_context = nullptr;
     bool m_finished = false;
     bool m_pipelineSet = false;
     uint32_t sampleCount = 1; // for pipeline sampleCount validation
     std::string label;
     uint32_t drawCallCount = 0;
-    lua_State* m_L = nullptr;
-    int m_canvasRef = LUA_NOREF;
 };
 
 class ScriptedGPUTextureView
@@ -681,18 +747,12 @@ public:
     static constexpr bool hasMetatable = true;
     ~ScriptedGPUCanvas();
     rcp<gpu::RenderCanvas> canvas;
-    // 1× resolve target (platform backing texture).
+    // 1× presentation target. Same role as a WebGPU surface texture:
+    // single-sampled, format determined by the platform. MSAA color +
+    // depth are user-allocated and passed in via the RenderPassDesc.
     rcp<ore::TextureView> oreColorView;
-    // MSAA color attachment — non-null when canvas was created with sampleCount
-    // > 1.
-    rcp<ore::Texture> oreMSAAColorTexture;
-    rcp<ore::TextureView> oreMSAAColorView;
-    rcp<ore::Texture> oreDepthTexture;
-    rcp<ore::TextureView> oreDepthView;
     lua_State* m_L = nullptr;
     int m_imageRef = LUA_NOREF;
-    ore::RenderPass* m_activePass = nullptr; // heap-allocated, owned by this
-    std::string m_activePassLabel; // label of m_activePass for diagnostics
     gpu::RenderContext* renderCtx = nullptr; // needed for resize()
 };
 
@@ -854,6 +914,10 @@ public:
     void pushGradient(lua_State* L);
     void pushColor(lua_State* L);
 
+    float thickness() const { return m_thickness; }
+    float feather() const { return m_feather; }
+    ColorInt color() const { return m_color; }
+
 protected:
     RenderPaintStyle m_style = RenderPaintStyle::fill;
     rcp<RenderShader> m_gradient;
@@ -953,19 +1017,19 @@ private:
 class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
 {
 public:
-    ScriptReffedArtboard(rcp<File> file,
+    ScriptReffedArtboard(File* file,
                          std::unique_ptr<ArtboardInstance>&& artboardInstance,
                          rcp<ViewModelInstance> viewModelInstance,
                          rcp<DataContext> parentDataContext);
 
     ~ScriptReffedArtboard();
-    rive::rcp<rive::File> file();
+    rive::File* file();
     Artboard* artboard();
     StateMachineInstance* stateMachine();
     rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
 
 private:
-    rcp<File> m_file;
+    File* m_file;
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
@@ -975,7 +1039,7 @@ class ScriptedArtboard
 {
 public:
     ScriptedArtboard(lua_State* L,
-                     rcp<File> file,
+                     File* file,
                      std::unique_ptr<ArtboardInstance>&& artboardInstance,
                      rcp<ViewModelInstance> viewModelInstance,
                      rcp<DataContext> dataContext);
@@ -1332,6 +1396,12 @@ int rive_lua_pcall_with_context(lua_State* state,
 int rive_lua_pushRef(lua_State* state, int ref);
 void rive_lua_pop(lua_State* state, int count);
 
+#ifdef RIVE_ORE
+// Finishes any ORE render pass left open at script return and reports it
+// as a Lua error. Defined in src/lua/renderer/lua_gpu.cpp.
+void rive_lua_closeOrphanRenderPass(lua_State* state);
+#endif
+
 class ScriptingContext
 {
 public:
@@ -1394,6 +1464,18 @@ public:
     void setOreFrameOpen(bool open) { m_oreFrameOpen = open; }
     bool oreFrameOpen() const { return m_oreFrameOpen; }
 
+    // True while Artboard::drawCanvases() is actively walking scripted
+    // objects to invoke their drawCanvas() Lua callbacks.
+    void setCanvasDrawingPhase(bool value) { m_canvasDrawingPhase = value; }
+    bool canvasDrawingPhase() const { return m_canvasDrawingPhase; }
+
+    // When set, context:gpuCanvas() always returns a deferred (texture-less)
+    // canvas regardless of requested size, never calling makeRenderCanvas.
+    // Used by the editor's headless method-detection VM, which has no GPU
+    // device / RenderContext. Default false: normal runtimes allocate.
+    void setGpuCanvasDeferOnly(bool value) { m_gpuCanvasDeferOnly = value; }
+    bool gpuCanvasDeferOnly() const { return m_gpuCanvasDeferOnly; }
+
     // WebGL/WASM only: GL context handle saved at riveGPUBeginFrame so
     // riveGPUEndFrame can restore the caller's context afterwards.
     void setPrevGLContext(intptr_t h) { m_prevGLContext = h; }
@@ -1418,6 +1500,8 @@ private:
     void* m_renderContext = nullptr;
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
+    bool m_canvasDrawingPhase = false;
+    bool m_gpuCanvasDeferOnly = false;
     intptr_t m_prevGLContext = 0;
 #ifdef __EMSCRIPTEN__
     int m_glHandle = 0;
@@ -1488,6 +1572,32 @@ public:
 private:
     ScriptingContext* m_context;
     ScriptedObject* m_previous;
+};
+
+class ScopedCanvasDrawingPhase
+{
+public:
+    ScopedCanvasDrawingPhase(ScriptingContext* context) :
+        m_context(context),
+        m_previous(context == nullptr ? false : context->canvasDrawingPhase())
+    {
+        if (m_context != nullptr)
+        {
+            m_context->setCanvasDrawingPhase(true);
+        }
+    }
+
+    ~ScopedCanvasDrawingPhase()
+    {
+        if (m_context != nullptr)
+        {
+            m_context->setCanvasDrawingPhase(m_previous);
+        }
+    }
+
+private:
+    ScriptingContext* m_context;
+    bool m_previous;
 };
 
 class ScriptedDataValue
@@ -1763,20 +1873,43 @@ public:
     static constexpr bool hasMetatable = true;
 };
 
-class ScriptedGamepadInvocation
+class ScriptedGamepadConnected
 {
 public:
-    ScriptedGamepadInvocation(int deviceId, uint64_t buttonMask, float axis0) :
-        m_deviceId(deviceId), m_buttonMask(buttonMask), m_axis0(axis0)
+    explicit ScriptedGamepadConnected(const GamepadSnapshot& snapshot) :
+        m_snapshot(snapshot)
     {}
 
-    static constexpr uint8_t luaTag = LUA_T_COUNT + 60;
-    static constexpr const char* luaName = "GamepadInvocation";
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 48;
+    static constexpr const char* luaName = "GamepadConnected";
+    static constexpr bool hasMetatable = true;
+
+    GamepadSnapshot m_snapshot;
+};
+
+class ScriptedGamepadEvent
+{
+public:
+    explicit ScriptedGamepadEvent(const GamepadEventInvocation& v) : m_data(v)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 63;
+    static constexpr const char* luaName = "GamepadEvent";
+    static constexpr bool hasMetatable = true;
+
+    GamepadEventInvocation m_data;
+};
+
+class ScriptedGamepadDisconnected
+{
+public:
+    explicit ScriptedGamepadDisconnected(int deviceId) : m_deviceId(deviceId) {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 64;
+    static constexpr const char* luaName = "GamepadDisconnected";
     static constexpr bool hasMetatable = true;
 
     int m_deviceId;
-    uint64_t m_buttonMask;
-    float m_axis0;
 };
 
 class ScriptedNoneInvocation
@@ -2016,14 +2149,6 @@ bool lua_gpu_load_shader_by_name(rive::ScriptedShader* out,
                                  const char* name,
                                  rive::ShaderAsset* fileAsset);
 
-// Build a ScriptedShader directly from raw RSTB bytes. Used by the legacy
-// `loadShader` fallback for .riv files that packed WGSL shaders into
-// ScriptAsset containers before the ShaderAsset split.
-bool lua_gpu_make_shader_from_rstb(rive::ScriptedShader* out,
-                                   rive::ScriptingContext* context,
-                                   const uint8_t* data,
-                                   uint32_t len);
-
 // Compile a shader by name and push the resulting ScriptedShader onto the
 // Lua stack. Returns 1 on success, 0 on failure. Declared here (implemented
 // in lua_gpu.cpp) so callers that only have a forward-declaration of
@@ -2036,11 +2161,6 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name);
 // available, otherwise returns conservative defaults. Always returns 1.
 // Implemented in lua_scripted_context.cpp.
 int lua_push_gpu_features(lua_State* L);
-
-// Push the platform's preferred canvas color format (a string like
-// "bgra8unorm" or "rgba8unorm") onto the Lua stack. Always returns 1.
-// Implemented in lua_scripted_context.cpp.
-int lua_push_preferred_canvas_format(lua_State* L);
 
 #endif
 #endif

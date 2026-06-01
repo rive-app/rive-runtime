@@ -55,7 +55,7 @@ public:
             return;
 
 #ifdef ORE_DEPTH_ONLY_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         auto shader = ore_gm::loadShader(ctx, ore_gm::kTriangle);
         if (!shader.vsModule)
@@ -181,7 +181,7 @@ public:
             auto vbuf = ctx.makeBuffer(bd);
             vbuf->update(verts, sizeof(verts));
 
-            m_ore.beginFrame();
+            m_ore.beginFrame(renderContext);
 
             RenderPassDesc rp{};
             rp.colorCount = 0; // depth-only pass
@@ -193,11 +193,11 @@ public:
 
             ctx.clearLastError();
             auto pass = ctx.beginRenderPass(rp);
-            pass.setPipeline(depthOnlyPipeline.get());
-            pass.setVertexBuffer(0, vbuf.get());
-            pass.setViewport(0, 0, 64, 64);
-            pass.draw(3);
-            pass.finish();
+            pass->setPipeline(depthOnlyPipeline.get());
+            pass->setVertexBuffer(0, vbuf.get());
+            pass->setViewport(0, 0, 64, 64);
+            pass->draw(3);
+            pass->finish();
 
             if (!ctx.lastError().empty())
             {
@@ -207,7 +207,7 @@ public:
                 ok = false;
             }
 
-            m_ore.endFrame();
+            m_ore.endFrame(renderContext);
             ore_gm::invalidateGLStateAfterOre(renderContext);
         }
 
@@ -219,7 +219,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
         ca.loadOp = LoadOp::clear;
@@ -233,10 +233,10 @@ public:
         rpDesc.label = "ore_depth_only_pipeline_result";
 
         auto resultPass = ctx.beginRenderPass(rpDesc);
-        resultPass.setViewport(0, 0, 128, 128);
-        resultPass.finish();
+        resultPass->setViewport(0, 0, 128, 128);
+        resultPass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

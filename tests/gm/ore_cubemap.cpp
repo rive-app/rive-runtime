@@ -68,7 +68,7 @@ public:
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
         constexpr uint32_t kFaceSize = 64;
 
         // Create cubemap texture.
@@ -102,7 +102,7 @@ public:
         auto cubeView = ctx.makeTextureView(cubeViewDesc);
 
         // Fill each cube face with a unique color using clear.
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         for (int i = 0; i < 6; ++i)
         {
@@ -118,7 +118,7 @@ public:
             rpDesc.label = "cube_face_pass";
 
             auto pass = ctx.beginRenderPass(rpDesc);
-            pass.finish();
+            pass->finish();
         }
 
         // Now sample the cubemap and render a 3x2 grid showing all faces.
@@ -187,14 +187,14 @@ public:
         auto sampBG = ctx.makeBindGroup(sampBGDesc);
 
         auto samplePass = ctx.beginRenderPass(samplePassDesc);
-        samplePass.setPipeline(cubeSamplePipeline.get());
-        samplePass.setBindGroup(1, texBG.get());
-        samplePass.setBindGroup(2, sampBG.get());
-        samplePass.setViewport(0, 0, 192, 128);
-        samplePass.draw(3);
-        samplePass.finish();
+        samplePass->setPipeline(cubeSamplePipeline.get());
+        samplePass->setBindGroup(1, texBG.get());
+        samplePass->setBindGroup(2, sampBG.get());
+        samplePass->setViewport(0, 0, 192, 128);
+        samplePass->draw(3);
+        samplePass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite the canvas into the main framebuffer via the original

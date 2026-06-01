@@ -185,3 +185,39 @@ TEST_CASE("Text follow path modifier", "[silver]")
 
     CHECK(silver.matches("text_follow_path_shape_length"));
 }
+
+TEST_CASE("Follow path constraint with path as target", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/follow_path_constraint.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.16f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("follow_path_constraint"));
+}

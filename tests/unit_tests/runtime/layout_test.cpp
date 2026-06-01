@@ -685,3 +685,30 @@ TEST_CASE("Layout fixed/fill scale type round trip preserves units", "[silver]")
 
     CHECK(silver.matches("layout_fixed_fill"));
 }
+
+TEST_CASE("Top-level hug artboard computes size from children", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_hug_artboard.riv", &silver);
+    auto artboard = file->artboardNamed("HugArtboard");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    artboard->advance(0.0f);
+
+    silver.frameSize(artboard->layoutWidth(), artboard->layoutHeight());
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Hug artboard should derive its size from children, not its
+    // authored width/height.
+    REQUIRE(artboard->layoutWidth() == Approx(302.63f).margin(0.01f));
+    REQUIRE(artboard->layoutHeight() == Approx(100.0f).margin(0.01f));
+
+    CHECK(silver.matches("layout_hug_artboard"));
+}

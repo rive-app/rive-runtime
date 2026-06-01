@@ -68,7 +68,7 @@ public:
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
         // Create a RenderCanvas to render into.
         auto canvas = renderContext->makeRenderCanvas(256, 256);
         if (!canvas)
@@ -121,7 +121,7 @@ public:
         auto pipeline = ctx.makePipeline(pipeDesc);
 
         // Render the triangle via Ore.
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = colorTarget.get();
@@ -135,13 +135,13 @@ public:
         rpDesc.label = "ore_triangle_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setVertexBuffer(0, vbo.get());
-        pass.setViewport(0, 0, 256, 256);
-        pass.draw(3);
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setVertexBuffer(0, vbo.get());
+        pass->setViewport(0, 0, 256, 256);
+        pass->draw(3);
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite the canvas into the main framebuffer via the original

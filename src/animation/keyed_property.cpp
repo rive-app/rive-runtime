@@ -97,7 +97,10 @@ void KeyedProperty::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
     }
 }
 
-void KeyedProperty::apply(Core* object, float seconds, float mix)
+void KeyedProperty::apply(Core* object,
+                          float seconds,
+                          float mix,
+                          const LinearAnimationInstance* context)
 {
     assert(!m_keyFrames.empty());
 
@@ -141,7 +144,8 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
                                                   pk,
                                                   seconds,
                                                   toFrame,
-                                                  actualMix);
+                                                  actualMix,
+                                                  context);
                 }
             }
         }

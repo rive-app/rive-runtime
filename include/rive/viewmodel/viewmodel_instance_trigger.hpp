@@ -26,6 +26,10 @@ public:
     ViewModelTriggerChanged m_changedCallback = nullptr;
 #endif
 
+    void fire(const CallbackData& value) override
+    {
+        propertyValue(propertyValue() + 1);
+    }
     void trigger() { propertyValue(propertyValue() + 1); }
     void applyValue(DataValueInteger*);
 };

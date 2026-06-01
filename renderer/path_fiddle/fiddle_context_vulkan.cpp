@@ -124,6 +124,35 @@ public:
         return m_renderTarget.get();
     }
 
+    void* getCommandBuffer() override
+    {
+        return m_swapchain->currentCommandBuffer();
+    }
+
+    void beginOreFrame(rive::ore::Context* oreContext) override
+    {
+        if (!m_swapchain->isFrameStarted())
+        {
+            VK_CHECK(m_swapchain->beginFrame());
+
+            m_renderTarget->setTargetImageView(
+                m_swapchain->currentVkImageView(),
+                m_swapchain->currentVkImage(),
+                m_swapchain->currentLastAccess());
+        }
+
+        oreContext->beginFrame(
+            {.externalCommandBuffer = m_swapchain->currentCommandBuffer(),
+             .safeFrameNumber = m_swapchain->safeFrameNumber(),
+             .currentFrameNumber = m_swapchain->currentFrameNumber()});
+    }
+    void endOreFrame(rive::ore::Context* oreContext) override
+    {
+        FiddleContext::endOreFrame(oreContext);
+        auto lastAccess = m_renderTarget->targetLastAccess();
+        VK_CHECK(m_swapchain->endFrame(lastAccess));
+    }
+
     void onSizeChanged(GLFWwindow* window,
                        int width,
                        int height,

@@ -32,15 +32,22 @@ protected:
     ScriptedContext* m_contextPtr = nullptr;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
-#ifdef WITH_RIVE_TOOLS
-    rcp<ScriptingVM> m_vm = nullptr; // Ref-counted for editor
-#else
-    ScriptingVM* m_vm = nullptr; // Non-owning for runtime
+    // Non-owning. ScriptingVM tracks every ScriptedObject that points at it
+    // (via registerScriptedObject in ensureScriptInitialized) and nulls these
+    // out from ~ScriptingVM. Holding it as rcp would create a cycle:
+    // ScriptingVM → lua_State → ScriptedArtboard userdata →
+    // ScriptReffedArtboard → inner ArtboardInstance → ScriptedObject →
+    // rcp<ScriptingVM>.
+    ScriptingVM* m_vm = nullptr;
+    friend class ScriptingVM;
 #endif
-#endif
+    bool inUpdatePhase() const { return m_inUpdatePhase; }
+    void setInUpdatePhase(bool value) { m_inUpdatePhase = value; }
+
 private:
     rcp<DataContext> m_dataContext = nullptr;
     std::vector<ScriptedProperty*> m_trackedScriptedProperties;
+    bool m_inUpdatePhase = false;
 #ifdef WITH_RIVE_SCRIPTING
     bool m_userLuaInitDone = false;
     bool tryLuaUserInit(lua_State* L);
@@ -64,8 +71,10 @@ public:
     void reinit();
 #ifdef WITH_RIVE_SCRIPTING
     bool userLuaInitDone() { return m_userLuaInitDone; }
+    void resetLuaInit() { m_userLuaInitDone = false; }
 #else
     bool userLuaInitDone() { return true; }
+    void resetLuaInit() {}
 #endif
     virtual void markNeedsUpdate();
     virtual rcp<DataContext> dataContext() { return m_dataContext; }

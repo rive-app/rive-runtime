@@ -139,11 +139,22 @@ public:
                                   uint32_t height,
                                   uint32_t mipLevelCount,
                                   GPUTextureFormat format,
-                                  const uint8_t imageDataRGBAPremul[]) override;
+                                  const uint8_t imageData[],
+                                  uint8_t blockWidth = 1,
+                                  uint8_t blockHeight = 1,
+                                  bool srgb = false,
+                                  bool generateRemainingMips = false) override;
+
+    // Wrap an externally-owned MTLTexture as a Rive Texture for sampling.
+    // No upload, no allocation; the wrapper retains the MTLTexture via ARC.
+    rcp<Texture> adoptImageTexture(id<MTLTexture> texture,
+                                   uint32_t width,
+                                   uint32_t height);
 
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
+    std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
     // Atomic mode requires a barrier between overlapping draws. We have to

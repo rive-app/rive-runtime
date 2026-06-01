@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_buffer.hpp"
+#include "ore_buffer_d3d11.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -10,9 +10,9 @@
 namespace rive::ore
 {
 
-#if defined(ORE_BACKEND_D3D11) && !defined(ORE_BACKEND_D3D12)
+#if defined(ORE_BACKEND_D3D11)
 
-void Buffer::update(const void* data, uint32_t size, uint32_t offset)
+void BufferD3D11::update(const void* data, uint32_t size, uint32_t offset)
 {
     assert(offset + size <= m_size);
     assert(m_d3d11Context != nullptr);
@@ -36,9 +36,6 @@ void Buffer::update(const void* data, uint32_t size, uint32_t offset)
     memcpy(static_cast<uint8_t*>(mapped.pData) + offset, data, size);
     m_d3d11Context->Unmap(m_d3d11Buffer.Get(), 0);
 }
-
-void Buffer::onRefCntReachedZero() const { delete this; }
-
 #endif // ORE_BACKEND_D3D11 && !ORE_BACKEND_D3D12
 
 } // namespace rive::ore

@@ -1,4 +1,5 @@
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/constraints/scrolling/scroll_constraint_proxy.hpp"
 #include "rive/constraints/scrolling/scroll_virtualizer.hpp"
 #include "rive/constraints/transform_constraint.hpp"
@@ -256,21 +257,21 @@ std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
     {
         return snappingPoints;
     }
-    for (auto child : content()->children())
+    for (auto child : scrollChildren())
     {
-        auto c = LayoutNodeProvider::from(child);
-        if (c != nullptr)
+        if (child == nullptr)
         {
-            size_t count = c->numLayoutNodes();
-            for (int j = 0; j < count; j++)
+            continue;
+        }
+        int nodeCount = (int)child->numLayoutNodes();
+        for (int j = 0; j < nodeCount; j++)
+        {
+            auto bounds = child->layoutBoundsForNode(j);
+            if (isBoundsCollapsed(bounds))
             {
-                auto bounds = c->layoutBoundsForNode(j);
-                if (isBoundsCollapsed(bounds))
-                {
-                    continue;
-                }
-                snappingPoints.push_back(Vec2D(bounds.left(), bounds.top()));
+                continue;
             }
+            snappingPoints.push_back(Vec2D(bounds.left(), bounds.top()));
         }
     }
     return snappingPoints;
@@ -324,6 +325,7 @@ std::vector<DraggableProxy*> ScrollConstraint::draggables()
 void ScrollConstraint::buildDependencies()
 {
     Super::buildDependencies();
+    m_hasListChildren = false;
     for (auto child : content()->children())
     {
         auto layout = LayoutNodeProvider::from(child);
@@ -331,6 +333,10 @@ void ScrollConstraint::buildDependencies()
         {
             addDependent(child);
             layout->addLayoutConstraint(static_cast<LayoutConstraint*>(this));
+        }
+        if (child->is<ArtboardComponentList>())
+        {
+            m_hasListChildren = true;
         }
     }
 }
@@ -411,6 +417,22 @@ float ScrollConstraint::maxOffsetYForPercent()
     return infinite() ? contentHeight() : maxOffsetY();
 }
 
+float ScrollConstraint::velocityX()
+{
+    return m_physics != nullptr ? m_physics->speed().x : 0.0f;
+}
+
+float ScrollConstraint::velocityY()
+{
+    return m_physics != nullptr ? m_physics->speed().y : 0.0f;
+}
+
+bool ScrollConstraint::scrollActive()
+{
+    return m_isDragging || m_isScrollBarDragging ||
+           (m_physics != nullptr && m_physics->isRunning());
+}
+
 float ScrollConstraint::scrollPercentX()
 {
     return maxOffsetX() != 0 ? scrollOffsetX() / maxOffsetXForPercent() : 0;
@@ -468,42 +490,158 @@ void ScrollConstraint::setScrollIndex(float value)
 
 Vec2D ScrollConstraint::positionAtIndex(float index)
 {
+    if (!std::isfinite(index))
+    {
+        return Vec2D();
+    }
     auto count = scrollItemCount();
     if (content() == nullptr || count == 0)
     {
         return Vec2D();
     }
-    uint32_t i = 0;
     Vec2D contentGap = gap();
     float normalizedIndex = infinite() ? std::fmod(index, (float)count) : index;
     float floorIndex = std::floor(normalizedIndex);
-    LayoutNodeProvider* lastChild = nullptr;
-    for (auto child : scrollChildren())
+    float mod = normalizedIndex - floorIndex;
+    uint32_t targetIndex = (uint32_t)floorIndex;
+    if (targetIndex >= (uint32_t)count)
+    {
+        return Vec2D();
+    }
+
+    // No list children: O(1) direct index into scrollChildren.
+    if (!m_hasListChildren)
+    {
+        // Target is visible — return its position with fractional offset.
+        auto bounds = boundsForFlatIndex(targetIndex);
+        if (!isBoundsCollapsed(bounds))
+        {
+            return Vec2D(-bounds.left() - (bounds.width() + contentGap.x) * mod,
+                         -bounds.top() -
+                             (bounds.height() + contentGap.y) * mod);
+        }
+        // Target is collapsed — walk forward to next visible item.
+        for (uint32_t k = targetIndex + 1; k < (uint32_t)count; k++)
+        {
+            auto b = boundsForFlatIndex(k);
+            if (!isBoundsCollapsed(b))
+            {
+                return Vec2D(-b.left(), -b.top());
+            }
+        }
+        if (infinite())
+        {
+            // Carousel: wrap around from the beginning.
+            for (uint32_t k = 0; k < targetIndex; k++)
+            {
+                auto b = boundsForFlatIndex(k);
+                if (!isBoundsCollapsed(b))
+                {
+                    return Vec2D(-b.left(), -b.top());
+                }
+            }
+        }
+        else
+        {
+            // End of list: walk backward to last visible item.
+            for (int k = (int)targetIndex - 1; k >= 0; k--)
+            {
+                auto b = boundsForFlatIndex(k);
+                if (!isBoundsCollapsed(b))
+                {
+                    return Vec2D(-b.left(), -b.top());
+                }
+            }
+        }
+        return Vec2D();
+    }
+
+    // Has list children: single-pass through nested child→node structure.
+    auto& children = scrollChildren();
+    uint32_t flatIndex = 0;
+    Vec2D lastVisibleBeforeTarget;
+    bool hasVisibleBeforeTarget = false;
+    bool reachedTarget = false;
+
+    for (auto child : children)
     {
         if (child == nullptr)
         {
             continue;
         }
-        size_t count = child->numLayoutNodes();
-        if ((uint32_t)floorIndex < i + count)
+        int nodeCount = (int)child->numLayoutNodes();
+        for (int j = 0; j < nodeCount; j++, flatIndex++)
         {
-            float mod = normalizedIndex - floorIndex;
-            auto bounds = child->layoutBoundsForNode(floorIndex - i);
-            return Vec2D(-bounds.left() - (bounds.width() + contentGap.x) * mod,
-                         -bounds.top() -
-                             (bounds.height() + contentGap.y) * mod);
+            auto bounds = child->layoutBoundsForNode(j);
+            // Before target: track last visible for backward fallback.
+            if (flatIndex < targetIndex)
+            {
+                if (!isBoundsCollapsed(bounds))
+                {
+                    lastVisibleBeforeTarget =
+                        Vec2D(-bounds.left(), -bounds.top());
+                    hasVisibleBeforeTarget = true;
+                }
+                continue;
+            }
+            // At target: return position if visible, otherwise keep walking.
+            if (flatIndex == targetIndex)
+            {
+                reachedTarget = true;
+                if (!isBoundsCollapsed(bounds))
+                {
+                    return Vec2D(
+                        -bounds.left() - (bounds.width() + contentGap.x) * mod,
+                        -bounds.top() - (bounds.height() + contentGap.y) * mod);
+                }
+                continue;
+            }
+            // Past target: return first visible item found.
+            if (!isBoundsCollapsed(bounds))
+            {
+                return Vec2D(-bounds.left(), -bounds.top());
+            }
         }
-        lastChild = child;
-        i += count;
     }
-    if (lastChild == nullptr)
+
+    if (!reachedTarget)
     {
         return Vec2D();
     }
 
-    auto bounds =
-        lastChild->layoutBoundsForNode((int)lastChild->numLayoutNodes() - 1);
-    return Vec2D(-bounds.left(), -bounds.top());
+    // No visible item after target.
+    if (infinite())
+    {
+        // Carousel: wrap around from the beginning.
+        flatIndex = 0;
+        for (auto child : children)
+        {
+            if (child == nullptr)
+            {
+                continue;
+            }
+            int nodeCount = (int)child->numLayoutNodes();
+            for (int j = 0; j < nodeCount; j++, flatIndex++)
+            {
+                if (flatIndex >= targetIndex)
+                {
+                    return Vec2D();
+                }
+                auto bounds = child->layoutBoundsForNode(j);
+                if (!isBoundsCollapsed(bounds))
+                {
+                    return Vec2D(-bounds.left(), -bounds.top());
+                }
+            }
+        }
+    }
+    else if (hasVisibleBeforeTarget)
+    {
+        // End of list: fall back to last visible item before target.
+        return lastVisibleBeforeTarget;
+    }
+
+    return Vec2D();
 }
 
 float ScrollConstraint::indexAtPosition(Vec2D pos)
@@ -512,8 +650,43 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
     {
         return 0;
     }
-    float i = 0.0f;
     Vec2D contentGap = gap();
+    if (!m_hasListChildren)
+    {
+        size_t count = scrollChildren().size();
+        if (constrainsHorizontal())
+        {
+            for (size_t i = 0; i < count; i++)
+            {
+                auto bounds = scrollChildren()[i]->layoutBoundsForNode(0);
+                float step = bounds.width() + contentGap.x;
+                if (pos.x > -bounds.left() - step)
+                {
+                    return step != 0
+                               ? (float)i + (-pos.x - bounds.left()) / step
+                               : (float)i;
+                }
+            }
+            return (float)count;
+        }
+        else if (constrainsVertical())
+        {
+            for (size_t i = 0; i < count; i++)
+            {
+                auto bounds = scrollChildren()[i]->layoutBoundsForNode(0);
+                float step = bounds.height() + contentGap.y;
+                if (pos.y > -bounds.top() - step)
+                {
+                    return step != 0 ? (float)i + (-pos.y - bounds.top()) / step
+                                     : (float)i;
+                }
+            }
+            return (float)count;
+        }
+        return 0;
+    }
+    // Has list children: nested iteration visiting each node once.
+    float flatIndex = 0.0f;
     if (constrainsHorizontal())
     {
         for (auto child : scrollChildren())
@@ -522,19 +695,21 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
             {
                 continue;
             }
-            size_t count = child->numLayoutNodes();
-            for (int j = 0; j < count; j++)
+            int nodeCount = (int)child->numLayoutNodes();
+            for (int j = 0; j < nodeCount; j++)
             {
                 auto bounds = child->layoutBoundsForNode(j);
-                if (pos.x > -bounds.left() - (bounds.width() + contentGap.x))
+                float step = bounds.width() + contentGap.x;
+                if (pos.x > -bounds.left() - step)
                 {
-                    return (i + j) + (-pos.x - bounds.left()) /
-                                         (bounds.width() + contentGap.x);
+                    return step != 0 ? (flatIndex + j) +
+                                           (-pos.x - bounds.left()) / step
+                                     : (flatIndex + j);
                 }
             }
-            i += count;
+            flatIndex += nodeCount;
         }
-        return i;
+        return flatIndex;
     }
     else if (constrainsVertical())
     {
@@ -544,19 +719,22 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
             {
                 continue;
             }
-            size_t count = child->numLayoutNodes();
-            for (int j = 0; j < count; j++)
+            int nodeCount = (int)child->numLayoutNodes();
+            for (int j = 0; j < nodeCount; j++)
             {
                 auto bounds = child->layoutBoundsForNode(j);
-                if (pos.y > -bounds.top() - (bounds.height() + contentGap.y))
+                float step = bounds.height() + contentGap.y;
+                if (pos.y > -bounds.top() - step)
                 {
-                    return (i + j) + (-pos.y - bounds.top()) /
-                                         (bounds.height() + contentGap.y);
+                    return step != 0 ? (flatIndex + j) +
+                                           (-pos.y - bounds.top()) / step
+                                     : (flatIndex + j);
+                    (bounds.height() + contentGap.y);
                 }
             }
-            i += count;
+            flatIndex += nodeCount;
         }
-        return i;
+        return flatIndex;
     }
     return 0;
 }
@@ -569,6 +747,10 @@ bool ScrollConstraint::isBoundsCollapsed(AABB bounds)
 
 size_t ScrollConstraint::scrollItemCount()
 {
+    if (!m_hasListChildren)
+    {
+        return scrollChildren().size();
+    }
     size_t count = 0;
     for (auto child : scrollChildren())
     {
@@ -579,6 +761,34 @@ size_t ScrollConstraint::scrollItemCount()
         count += child->numLayoutNodes();
     }
     return count;
+}
+
+AABB ScrollConstraint::boundsForFlatIndex(size_t index)
+{
+    auto& children = scrollChildren();
+    if (!m_hasListChildren)
+    {
+        if (index < children.size() && children[index] != nullptr)
+        {
+            return children[index]->layoutBoundsForNode(0);
+        }
+        return AABB();
+    }
+    size_t flatIndex = 0;
+    for (auto child : children)
+    {
+        if (child == nullptr)
+        {
+            continue;
+        }
+        size_t nodeCount = child->numLayoutNodes();
+        if (index < flatIndex + nodeCount)
+        {
+            return child->layoutBoundsForNode((int)(index - flatIndex));
+        }
+        flatIndex += nodeCount;
+    }
+    return AABB();
 }
 
 Vec2D ScrollConstraint::gap()

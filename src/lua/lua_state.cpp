@@ -4,6 +4,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include <stdio.h>
 using namespace rive;
 

@@ -2,19 +2,29 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_wgpu.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 #include "rive/rive_types.hpp"
+
+#if RIVE_WEBGPU == 1
+namespace wgpu
+{
+using TexelCopyBufferInfo = ImageCopyBuffer;
+using TexelCopyTextureInfo = ImageCopyTexture;
+using TexelCopyBufferLayout = TextureDataLayout;
+using ShaderSourceWGSL = ShaderModuleWGSLDescriptor;
+}; // namespace wgpu
+#endif
 
 namespace rive::ore
 {
 
-void Texture::upload(const TextureDataDesc& data)
+void TextureWGPU::upload(const TextureDataDesc& data)
 {
     assert(m_wgpuTexture != nullptr);
     assert(data.data != nullptr);
-
     wgpu::TexelCopyTextureInfo dst{};
+
     dst.texture = m_wgpuTexture;
     dst.mipLevel = data.mipLevel;
     dst.origin = {data.x, data.y, data.layer};
@@ -53,6 +63,7 @@ void Texture::upload(const TextureDataDesc& data)
         // any caller-provided row padding is correctly skipped.
         uint32_t packedRowBytes = data.width * bpt;
         wgpu::TexelCopyBufferLayout rowLayout{};
+
         rowLayout.bytesPerRow = WGPU_COPY_STRIDE_UNDEFINED;
         rowLayout.rowsPerImage = WGPU_COPY_STRIDE_UNDEFINED;
         wgpu::Extent3D rowExtent{data.width, 1, 1};
@@ -78,18 +89,6 @@ void Texture::upload(const TextureDataDesc& data)
 
     uint32_t dataSize = actualBytesPerRow * rowsPerImage * data.depth;
     m_wgpuQueue.WriteTexture(&dst, data.data, dataSize, &layout, &extent);
-}
-
-void Texture::onRefCntReachedZero() const
-{
-    // wgpu::Texture RAII destructor releases the GPU resource.
-    delete this;
-}
-
-void TextureView::onRefCntReachedZero() const
-{
-    // wgpu::TextureView RAII destructor releases the GPU resource.
-    delete this;
 }
 
 } // namespace rive::ore

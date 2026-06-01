@@ -2,7 +2,8 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_d3d12.hpp"
+#include "ore_buffer_d3d12.hpp"
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "rive/rive_types.hpp"
 
@@ -16,12 +17,7 @@ using Microsoft::WRL::ComPtr;
 namespace rive::ore
 {
 
-// --- Public method definitions (D3D12-only builds) ---
-// When both D3D11 and D3D12 are compiled, the combined
-// ore_context_d3d11_d3d12.cpp file provides these methods with dispatch.
-#if defined(ORE_BACKEND_D3D12) && !defined(ORE_BACKEND_D3D11)
-
-void Texture::upload(const TextureDataDesc& data)
+void TextureD3D12::upload(const TextureDataDesc& data)
 {
 #if defined(ORE_BACKEND_D3D12)
     assert(m_d3dTexture != nullptr);
@@ -32,15 +28,6 @@ void Texture::upload(const TextureDataDesc& data)
     assert(data.data != nullptr);
 
     ContextD3D12* ctx = m_d3dOreContext;
-
-    // Open the upload command list if not already recording.
-    if (!ctx->m_d3dUploadListOpen)
-    {
-        ctx->m_d3dUploadAllocator->Reset();
-        ctx->m_d3dUploadCmdList->Reset(ctx->m_d3dUploadAllocator.Get(),
-                                       nullptr);
-        ctx->m_d3dUploadListOpen = true;
-    }
 
     // Compute the placed footprint for the requested subresource.
     // D3D12 subresource index formula:
@@ -83,20 +70,24 @@ void Texture::upload(const TextureDataDesc& data)
     bufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
     bufDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-    ComPtr<ID3D12Resource> staging;
+    m_uploadBuffer =
+        rcp<BufferD3D12>(new BufferD3D12(m_manager,
+                                         static_cast<uint32_t>(totalBytes),
+                                         BufferUsage::upload));
+
     [[maybe_unused]] HRESULT hr = m_d3dDevice->CreateCommittedResource(
         &uploadHeap,
         D3D12_HEAP_FLAG_NONE,
         &bufDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(staging.GetAddressOf()));
+        IID_PPV_ARGS(m_uploadBuffer->m_d3dBuffer.GetAddressOf()));
     assert(SUCCEEDED(hr) && "Texture::upload: staging buffer creation failed");
 
     // Map and copy row by row, respecting the D3D12 pitch alignment.
     void* mapped = nullptr;
     D3D12_RANGE readRange = {0, 0};
-    staging->Map(0, &readRange, &mapped);
+    m_uploadBuffer->m_d3dBuffer->Map(0, &readRange, &mapped);
 
     const uint8_t* src = static_cast<const uint8_t*>(data.data);
     uint8_t* dst = static_cast<uint8_t*>(mapped);
@@ -106,7 +97,7 @@ void Texture::upload(const TextureDataDesc& data)
     for (UINT row = 0; row < numRows; ++row)
         memcpy(dst + row * dstRow, src + row * srcRow, (size_t)rowBytes);
 
-    staging->Unmap(0, nullptr);
+    m_uploadBuffer->m_d3dBuffer->Unmap(0, nullptr);
 
     // If the texture is not in COPY_DEST state, transition it.
     if (m_d3dCurrentState != D3D12_RESOURCE_STATE_COPY_DEST)
@@ -118,7 +109,7 @@ void Texture::upload(const TextureDataDesc& data)
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
         barrier.Transition.Subresource =
             D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        ctx->m_d3dUploadCmdList->ResourceBarrier(1, &barrier);
+        ctx->m_d3dCmdList->ResourceBarrier(1, &barrier);
         m_d3dCurrentState = D3D12_RESOURCE_STATE_COPY_DEST;
     }
 
@@ -129,7 +120,7 @@ void Texture::upload(const TextureDataDesc& data)
     dst_loc.SubresourceIndex = subresource;
 
     D3D12_TEXTURE_COPY_LOCATION src_loc = {};
-    src_loc.pResource = staging.Get();
+    src_loc.pResource = m_uploadBuffer->m_d3dBuffer.Get();
     src_loc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
     src_loc.PlacedFootprint = footprint;
 
@@ -141,7 +132,7 @@ void Texture::upload(const TextureDataDesc& data)
     box.bottom = data.y + data.height;
     box.back = data.z + data.depth;
 
-    ctx->m_d3dUploadCmdList
+    ctx->m_d3dCmdList
         ->CopyTextureRegion(&dst_loc, data.x, data.y, data.z, &src_loc, &box);
 
     // Transition to PIXEL_SHADER_RESOURCE so it's ready to sample without
@@ -155,38 +146,11 @@ void Texture::upload(const TextureDataDesc& data)
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
         barrier.Transition.Subresource =
             D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        ctx->m_d3dUploadCmdList->ResourceBarrier(1, &barrier);
+        ctx->m_d3dCmdList->ResourceBarrier(1, &barrier);
         m_d3dCurrentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     }
-
-    // Keep the staging buffer alive until the GPU is done (freed in
-    // endFrame/FlushUploads).
-    ctx->m_d3dPendingUploads.push_back(std::move(staging));
 #else
     (void)data;
 #endif
 }
-
-void Texture::onRefCntReachedZero() const
-{
-    ContextD3D12* ctx = m_d3dOreContext;
-    auto destroy = [p = const_cast<Texture*>(this)]() { delete p; };
-    if (ctx != nullptr)
-        ctx->d3dDeferDestroy(std::move(destroy));
-    else
-        destroy();
-}
-
-void TextureView::onRefCntReachedZero() const
-{
-    ContextD3D12* ctx = m_d3dOreContext;
-    auto destroy = [p = const_cast<TextureView*>(this)]() { delete p; };
-    if (ctx != nullptr)
-        ctx->d3dDeferDestroy(std::move(destroy));
-    else
-        destroy();
-}
-
-#endif // D3D12-only
-
 } // namespace rive::ore

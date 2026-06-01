@@ -74,7 +74,7 @@ void PropertyRecorder::complete(VectorBinaryWriter& writer,
                                 BinaryDataReader& reader,
                                 std::vector<uint8_t>& buffer)
 {
-    reader.complete(&buffer.front(), writer.size());
+    reader.complete(buffer.data(), writer.size());
 }
 
 void PropertyRecorder::recordArtboard(const Artboard* artboard)
@@ -312,7 +312,7 @@ int PropertyRecorder::getObjectId(const Artboard* artboard, Core* object)
 void PropertyRecorder::apply(StateMachineInstance* stateMachineInstace)
 {
     int index = 0;
-    m_binaryReaderSM.reset(&m_WriteBufferSM.front());
+    m_binaryReaderSM.reset(m_WriteBufferSM.data());
     while (!m_binaryReaderSM.isEOF() && index < 20)
     {
         auto inputType = m_binaryReaderSM.readVarUint32();
@@ -342,7 +342,7 @@ void PropertyRecorder::apply(StateMachineInstance* stateMachineInstace)
 
 void PropertyRecorder::apply(Artboard* artboard)
 {
-    m_binaryReader.reset(&m_WriteBuffer.front());
+    m_binaryReader.reset(m_WriteBuffer.data());
     while (!m_binaryReader.isEOF())
     {
         auto objectId = m_binaryReader.readVarUint32();

@@ -1,6 +1,6 @@
 local dependency = require('dependency')
-local luau = dependency.github('luigi-rosso/luau', 'rive_0_35')
-local libhydrogen = dependency.github('luigi-rosso/libhydrogen', 'rive_0_1')
+local luau = dependency.github('luigi-rosso/luau', 'rive_0_36')
+local libhydrogen = dependency.github('luigi-rosso/libhydrogen', 'rive_0_2')
 
 dofile('rive_build_config.lua')
 
@@ -50,12 +50,14 @@ do
 
         includedirs({
             luau .. '/Compiler/include',
+            luau .. '/Bytecode/include',
             luau .. '/Ast/include',
             luau .. '/Common/include',
         })
 
         files({
             luau .. '/Compiler/src/**.cpp',
+            luau .. '/Bytecode/src/**.cpp',
             luau .. '/Ast/src/**.cpp',
             luau .. '/Common/src/**.cpp',
         })

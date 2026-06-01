@@ -8,6 +8,7 @@
 
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include <rive/renderer/ore/ore_context_d3d11.hpp>
 #endif
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
@@ -890,16 +891,46 @@ rcp<RenderBuffer> RenderContextD3DImpl::makeRenderBuffer(
 class TextureD3DImpl : public Texture
 {
 public:
+    // viewFormat = DXGI_FORMAT_UNKNOWN → infer (TYPELESS storage gets
+    // mapped to its UNORM variant; other formats use desc.Format as-is).
+    // Pass an explicit format to override (e.g. Unity sRGB RTs).
     TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
                    ComPtr<ID3D11Texture2D> image,
                    UINT width,
-                   UINT height) :
+                   UINT height,
+                   DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN) :
         Texture(width, height), m_texture(image)
     {
-        // Create a view.
+        D3D11_TEXTURE2D_DESC desc;
+        m_texture->GetDesc(&desc);
+        if (viewFormat == DXGI_FORMAT_UNKNOWN)
+        {
+            switch (desc.Format)
+            {
+                case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+                    viewFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+                    break;
+                case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+                    viewFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+                    break;
+                case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+                    viewFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                    break;
+                default:
+                    viewFormat = desc.Format;
+                    break;
+            }
+        }
+        const D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+            .Format = viewFormat,
+            .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+            .Texture2D = {.MostDetailedMip = 0, .MipLevels = desc.MipLevels},
+        };
+        const D3D11_SHADER_RESOURCE_VIEW_DESC* srvDescPtr =
+            (viewFormat == desc.Format) ? nullptr : &srvDesc;
         VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
             m_texture.Get(),
-            NULL,
+            srvDescPtr,
             m_srv.ReleaseAndGetAddressOf()));
     }
 
@@ -908,7 +939,8 @@ public:
                    UINT height,
                    UINT mipLevelCount,
                    GPUTextureFormat format,
-                   const uint8_t imageDataRGBAPremul[]) :
+                   const uint8_t imageDataRGBAPremul[],
+                   bool generateRemainingMips) :
         Texture(width, height)
     {
         if (format == GPUTextureFormat::bc7)
@@ -954,29 +986,48 @@ public:
         }
         else if (format == GPUTextureFormat::rgba32)
         {
+            // GENERATE_MIPS flag + RTV binding are only needed when the
+            // GPU is going to fill in the chain. For the KTX2-supplied
+            // chain (caller-provided mips) it's pure overhead.
+            const UINT miscFlags =
+                generateRemainingMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0u;
+            const UINT bindFlags =
+                generateRemainingMips
+                    ? (D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET)
+                    : D3D11_BIND_SHADER_RESOURCE;
             m_texture = renderContextImpl->makeSimple2DTexture(
                 DXGI_FORMAT_R8G8B8A8_UNORM,
                 width,
                 height,
                 mipLevelCount,
-                D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-                D3D11_RESOURCE_MISC_GENERATE_MIPS);
+                bindFlags,
+                miscFlags);
 
-            // Specify the top-level image in the mipmap chain.
-            D3D11_BOX box;
-            box.left = 0;
-            box.right = width;
-            box.top = 0;
-            box.bottom = height;
-            box.front = 0;
-            box.back = 1;
-            renderContextImpl->gpuContext()->UpdateSubresource(
-                m_texture.Get(),
-                0,
-                &box,
-                imageDataRGBAPremul,
-                width * 4,
-                0);
+            const uint8_t* src = imageDataRGBAPremul;
+            const UINT levelsToUpload =
+                generateRemainingMips ? 1u : mipLevelCount;
+            UINT W = width;
+            UINT H = height;
+            for (UINT i = 0; i < levelsToUpload; ++i)
+            {
+                D3D11_BOX box;
+                box.left = 0;
+                box.right = W;
+                box.top = 0;
+                box.bottom = H;
+                box.front = 0;
+                box.back = 1;
+                renderContextImpl->gpuContext()->UpdateSubresource(
+                    m_texture.Get(),
+                    i,
+                    &box,
+                    src,
+                    W * 4,
+                    0);
+                src += static_cast<size_t>(W) * H * 4;
+                W = std::max<UINT>(1u, W >> 1);
+                H = std::max<UINT>(1u, H >> 1);
+            }
         }
         else
         {
@@ -989,8 +1040,11 @@ public:
             NULL,
             m_srv.ReleaseAndGetAddressOf()));
 
-        if (format == GPUTextureFormat::rgba32)
+        if (format == GPUTextureFormat::rgba32 && generateRemainingMips &&
+            mipLevelCount > 1)
+        {
             renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
+        }
     }
 
     ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
@@ -1013,22 +1067,28 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageDataRGBAPremul[],
+    uint8_t /*blockWidth*/,
+    uint8_t /*blockHeight*/,
+    bool /*srgb*/,
+    bool generateRemainingMips)
 {
     return make_rcp<TextureD3DImpl>(this,
                                     width,
                                     height,
                                     mipLevelCount,
                                     format,
-                                    imageDataRGBAPremul);
+                                    imageDataRGBAPremul,
+                                    generateRemainingMips);
 }
 
 rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
     ComPtr<ID3D11Texture2D> image,
     uint32_t width,
-    uint32_t height)
+    uint32_t height,
+    DXGI_FORMAT viewFormat)
 {
-    return make_rcp<TextureD3DImpl>(this, image, width, height);
+    return make_rcp<TextureD3DImpl>(this, image, width, height, viewFormat);
 }
 
 #ifdef RIVE_CANVAS
@@ -1052,6 +1112,12 @@ rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
 }
+
+std::unique_ptr<rive::ore::Context> RenderContextD3DImpl::makeOreContext()
+{
+    return rive::ore::ContextD3D11::Make(m_gpu.Get(), m_gpuContext.Get());
+}
+
 #endif
 
 class BufferRingD3D : public BufferRing

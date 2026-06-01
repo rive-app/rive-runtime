@@ -112,6 +112,25 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 
 #endif // RIVE_WEBGL
 
+// KHR_texture_compression_astc_ldr is core on GLES 3.2 but ships as an
+// extension elsewhere. Some GL headers (e.g. unextended <GLES3/gl3.h>, and
+// the Windows release-clang config) define only a subset of the footprint
+// enums, so guard each symbol individually rather than via the extension
+// macro. UNORM enums are contiguous from 0x93B0 in spec order. Only the
+// footprints Rive currently uses are declared here.
+#ifndef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
+#define GL_COMPRESSED_RGBA_ASTC_4x4_KHR 0x93B0
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_6x6_KHR
+#define GL_COMPRESSED_RGBA_ASTC_6x6_KHR 0x93B4
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_8x8_KHR
+#define GL_COMPRESSED_RGBA_ASTC_8x8_KHR 0x93B7
+#endif
+#ifndef GL_COMPRESSED_RGBA_ASTC_12x12_KHR
+#define GL_COMPRESSED_RGBA_ASTC_12x12_KHR 0x93BD
+#endif
+
 #if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
 // GLES 3.1 functionality is pulled in as an extension. Define these to avoid
 // compile errors, even if we won't use them.

@@ -3,12 +3,13 @@
  */
 
 #include "rive/renderer/ore/ore_context_metal.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_render_pass.hpp"
+#include "ore_bind_group_metal.hpp"
+#include "ore_buffer_metal.hpp"
+#include "ore_pipeline_metal.hpp"
+#include "ore_render_pass_metal.hpp"
+#include "ore_sampler_metal.hpp"
+#include "ore_shader_module_metal.hpp"
+#include "ore_texture_metal.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/metal/render_context_metal_impl.h"
 #include "rive/rive_types.hpp"
@@ -281,24 +282,6 @@ static MTLStencilOperation oreStencilOpToMTL(StencilOp op)
     RIVE_UNREACHABLE();
 }
 
-static MTLPrimitiveType orePrimitiveTopologyToMTL(PrimitiveTopology topo)
-{
-    switch (topo)
-    {
-        case PrimitiveTopology::pointList:
-            return MTLPrimitiveTypePoint;
-        case PrimitiveTopology::lineList:
-            return MTLPrimitiveTypeLine;
-        case PrimitiveTopology::lineStrip:
-            return MTLPrimitiveTypeLineStrip;
-        case PrimitiveTopology::triangleList:
-            return MTLPrimitiveTypeTriangle;
-        case PrimitiveTopology::triangleStrip:
-            return MTLPrimitiveTypeTriangleStrip;
-    }
-    RIVE_UNREACHABLE();
-}
-
 static MTLVertexFormat oreVertexFormatToMTL(VertexFormat fmt)
 {
     switch (fmt)
@@ -337,46 +320,6 @@ static MTLVertexFormat oreVertexFormatToMTL(VertexFormat fmt)
             return MTLVertexFormatHalf4;
         case VertexFormat::uint32:
             return MTLVertexFormatUInt;
-        case VertexFormat::uint32x2:
-            return MTLVertexFormatUInt2;
-        case VertexFormat::uint32x3:
-            return MTLVertexFormatUInt3;
-        case VertexFormat::uint32x4:
-            return MTLVertexFormatUInt4;
-        case VertexFormat::sint32:
-            return MTLVertexFormatInt;
-        case VertexFormat::sint32x2:
-            return MTLVertexFormatInt2;
-        case VertexFormat::sint32x3:
-            return MTLVertexFormatInt3;
-        case VertexFormat::sint32x4:
-            return MTLVertexFormatInt4;
-    }
-    RIVE_UNREACHABLE();
-}
-
-static MTLCullMode oreCullModeToMTL(CullMode mode)
-{
-    switch (mode)
-    {
-        case CullMode::none:
-            return MTLCullModeNone;
-        case CullMode::front:
-            return MTLCullModeFront;
-        case CullMode::back:
-            return MTLCullModeBack;
-    }
-    RIVE_UNREACHABLE();
-}
-
-static MTLWinding oreWindingToMTL(FaceWinding winding)
-{
-    switch (winding)
-    {
-        case FaceWinding::clockwise:
-            return MTLWindingClockwise;
-        case FaceWinding::counterClockwise:
-            return MTLWindingCounterClockwise;
     }
     RIVE_UNREACHABLE();
 }
@@ -393,20 +336,6 @@ static MTLColorWriteMask oreColorWriteMaskToMTL(ColorWriteMask mask)
     if ((mask & ColorWriteMask::alpha) != ColorWriteMask::none)
         mtl |= MTLColorWriteMaskAlpha;
     return mtl;
-}
-
-static MTLIndexType oreIndexFormatToMTL(IndexFormat format)
-{
-    switch (format)
-    {
-        case IndexFormat::uint16:
-            return MTLIndexTypeUInt16;
-        case IndexFormat::uint32:
-            return MTLIndexTypeUInt32;
-        case IndexFormat::none:
-            break;
-    }
-    RIVE_UNREACHABLE();
 }
 
 // Metal uses a single [[buffer(n)]] namespace for both vertex buffers and
@@ -485,7 +414,7 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 
 inline rcp<Buffer> ContextMetal::mtlMakeBuffer(const BufferDesc& desc)
 {
-    auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
+    auto buffer = rcp<BufferMetal>(new BufferMetal(desc.size, desc.usage));
     if (desc.data)
     {
         buffer->m_mtlBuffer =
@@ -558,7 +487,7 @@ inline rcp<Texture> ContextMetal::mtlMakeTexture(const TextureDesc& desc)
         td.usage |= MTLTextureUsagePixelFormatView;
     }
 
-    auto texture = rcp<Texture>(new Texture(desc));
+    auto texture = rcp<TextureMetal>(new TextureMetal(desc));
 #if RIVE_OBJC_EXCEPTIONS
     @try
     {
@@ -587,10 +516,10 @@ inline rcp<Texture> ContextMetal::mtlMakeTexture(const TextureDesc& desc)
 inline rcp<TextureView> ContextMetal::mtlMakeTextureView(
     const TextureViewDesc& desc)
 {
-    Texture* tex = desc.texture;
+    auto tex = lite_rtti_cast<TextureMetal*>(desc.texture);
     assert(tex != nullptr);
 
-    auto view = rcp<TextureView>(new TextureView(ref_rcp(tex), desc));
+    auto view = rcp<TextureViewMetal>(new TextureViewMetal(ref_rcp(tex), desc));
 
     if (tex->m_mtlTexture.textureType == MTLTextureType2DMultisample)
         return view;
@@ -649,7 +578,7 @@ inline rcp<Sampler> ContextMetal::mtlMakeSampler(const SamplerDesc& desc)
         sd.label = @(desc.label);
     }
 
-    auto sampler = rcp<Sampler>(new Sampler());
+    auto sampler = rcp<SamplerMetal>(new SamplerMetal());
     sampler->m_mtlSampler = [m_mtlDevice newSamplerStateWithDescriptor:sd];
     return sampler;
 }
@@ -657,7 +586,7 @@ inline rcp<Sampler> ContextMetal::mtlMakeSampler(const SamplerDesc& desc)
 inline rcp<ShaderModule> ContextMetal::mtlMakeShaderModule(
     const ShaderModuleDesc& desc)
 {
-    auto module = rcp<ShaderModule>(new ShaderModule());
+    auto module = rcp<ShaderModuleMetal>(new ShaderModuleMetal());
 
     NSError* err = nil;
     NSString* source = [[NSString alloc] initWithBytes:desc.code
@@ -679,7 +608,7 @@ inline rcp<ShaderModule> ContextMetal::mtlMakeShaderModule(
 inline rcp<Pipeline> ContextMetal::mtlMakePipeline(const PipelineDesc& desc,
                                                    std::string* outError)
 {
-    auto pipeline = rcp<Pipeline>(new Pipeline(desc));
+    auto pipeline = rcp<PipelineMetal>(new PipelineMetal(desc));
 
     // --- Validate user-supplied layouts against shader binding map ---
     {
@@ -703,14 +632,16 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(const PipelineDesc& desc,
     MTLRenderPipelineDescriptor* rpd =
         [[MTLRenderPipelineDescriptor alloc] init];
 
+    auto vertexModule = lite_rtti_cast<ShaderModuleMetal*>(desc.vertexModule);
+    assert(vertexModule != nullptr);
     // Vertex function.
-    if (desc.vertexModule->m_mtlLibrary == nil)
+    if (vertexModule->m_mtlLibrary == nil)
     {
         if (outError)
             *outError = "vertex shader library is nil";
         return nullptr;
     }
-    rpd.vertexFunction = [desc.vertexModule->m_mtlLibrary
+    rpd.vertexFunction = [vertexModule->m_mtlLibrary
         newFunctionWithName:@(desc.vertexEntryPoint)];
     if (rpd.vertexFunction == nil)
     {
@@ -724,15 +655,16 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(const PipelineDesc& desc,
     }
     // Fragment function. Depth-only pipelines leave it nil — Metal allows
     // a vertex-only pipeline that writes only depth.
-    if (desc.fragmentModule != nullptr)
+    if (auto fragmentModule =
+            lite_rtti_cast<ShaderModuleMetal*>(desc.fragmentModule))
     {
-        if (desc.fragmentModule->m_mtlLibrary == nil)
+        if (fragmentModule->m_mtlLibrary == nil)
         {
             if (outError)
                 *outError = "fragment shader library is nil";
             return nullptr;
         }
-        rpd.fragmentFunction = [desc.fragmentModule->m_mtlLibrary
+        rpd.fragmentFunction = [fragmentModule->m_mtlLibrary
             newFunctionWithName:@(desc.fragmentEntryPoint)];
         if (rpd.fragmentFunction == nil)
         {
@@ -917,7 +849,7 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
         return nullptr;
     }
 
-    auto bg = rcp<BindGroup>(new BindGroup());
+    auto bg = rcp<BindGroupMetal>(new BindGroupMetal());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
 
@@ -971,12 +903,14 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     };
 
     uint32_t nBufs = std::min(desc.uboCount, 8u);
+    bg->m_mtlBuffers.reserve(nBufs);
     for (uint32_t i = 0; i < nBufs; i++)
     {
         const auto& u = desc.ubos[i];
-        bg->m_retainedBuffers.push_back(ref_rcp(u.buffer));
-        BindGroup::MTLBufferBinding binding;
-        binding.buffer = u.buffer->m_mtlBuffer;
+        auto* buf = lite_rtti_cast<BufferMetal*>(u.buffer);
+        assert(buf);
+        BindGroupMetal::MTLBufferBinding binding;
+        binding.buffer = buf->m_mtlBuffer;
         binding.offset = u.offset;
         binding.binding = u.slot;
         if (!lookupStages(u.slot,
@@ -988,49 +922,56 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
         if (binding.hasDynamicOffset)
             bg->m_dynamicOffsetCount++;
         bg->m_mtlBuffers.push_back(binding);
+        bg->m_retainedBuffers.push_back(ref_rcp(u.buffer));
     }
     // Sort UBOs by WGSL @binding so dynamicOffsets[] is consumed in
     // BindGroupLayout-entry order (WebGPU contract).
     std::sort(bg->m_mtlBuffers.begin(),
               bg->m_mtlBuffers.end(),
-              [](const BindGroup::MTLBufferBinding& a,
-                 const BindGroup::MTLBufferBinding& b) {
+              [](const BindGroupMetal::MTLBufferBinding& a,
+                 const BindGroupMetal::MTLBufferBinding& b) {
                   return a.binding < b.binding;
               });
 
     uint32_t nTexs = std::min(desc.textureCount, 8u);
+    bg->m_mtlTextures.reserve(nTexs);
     for (uint32_t i = 0; i < nTexs; i++)
     {
         const auto& t = desc.textures[i];
-        bg->m_retainedViews.push_back(ref_rcp(t.view));
-        BindGroup::MTLTextureBinding binding;
-        binding.texture = t.view->mtlTexture();
+        auto* view = lite_rtti_cast<TextureViewMetal*>(t.view);
+        assert(view);
+        BindGroupMetal::MTLTextureBinding binding;
+        binding.texture = view->mtlTexture();
         if (!lookupStages(t.slot,
                           BindingKind::sampledTexture,
                           &binding.vsSlot,
                           &binding.fsSlot))
             continue;
         bg->m_mtlTextures.push_back(binding);
+        bg->m_retainedViews.push_back(ref_rcp(t.view));
     }
 
     uint32_t nSamps = std::min(desc.samplerCount, 8u);
+    bg->m_mtlSamplers.reserve(nSamps);
     for (uint32_t i = 0; i < nSamps; i++)
     {
         const auto& s = desc.samplers[i];
-        bg->m_retainedSamplers.push_back(ref_rcp(s.sampler));
-        BindGroup::MTLSamplerBinding binding;
-        binding.sampler = s.sampler->m_mtlSampler;
+        auto* samp = lite_rtti_cast<SamplerMetal*>(s.sampler);
+        assert(samp);
+        BindGroupMetal::MTLSamplerBinding binding;
+        binding.sampler = samp->m_mtlSampler;
         if (!lookupStages(
                 s.slot, BindingKind::sampler, &binding.vsSlot, &binding.fsSlot))
             continue;
         bg->m_mtlSamplers.push_back(binding);
+        bg->m_retainedSamplers.push_back(ref_rcp(s.sampler));
     }
 
     return bg;
 }
 
-inline RenderPass ContextMetal::mtlBeginRenderPass(const RenderPassDesc& desc,
-                                                   std::string* outError)
+inline std::unique_ptr<RenderPass> ContextMetal::mtlBeginRenderPass(
+    const RenderPassDesc& desc, std::string* outError)
 {
     assert(m_mtlCommandBuffer != nil);
 
@@ -1040,11 +981,14 @@ inline RenderPass ContextMetal::mtlBeginRenderPass(const RenderPassDesc& desc,
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
         const auto& ca = desc.colorAttachments[i];
-        id<MTLTexture> mtlTex = ca.view->mtlTexture();
+        auto* view = lite_rtti_cast<TextureViewMetal*>(ca.view);
+        assert(view);
+        id<MTLTexture> mtlTex = view->mtlTexture();
+        auto* baseTex = static_cast<TextureMetal*>(view->texture());
         rpd.colorAttachments[i].texture = mtlTex;
-        bool hasView = (mtlTex != ca.view->texture()->mtlTexture());
-        rpd.colorAttachments[i].level = hasView ? 0 : ca.view->baseMipLevel();
-        rpd.colorAttachments[i].slice = hasView ? 0 : ca.view->baseLayer();
+        bool hasView = (mtlTex != baseTex->mtlTexture());
+        rpd.colorAttachments[i].level = hasView ? 0 : view->baseMipLevel();
+        rpd.colorAttachments[i].slice = hasView ? 0 : view->baseLayer();
         rpd.colorAttachments[i].loadAction = oreLoadOpToMTL(ca.loadOp);
         rpd.colorAttachments[i].storeAction = oreStoreOpToMTL(ca.storeOp);
         rpd.colorAttachments[i].clearColor = MTLClearColorMake(
@@ -1052,14 +996,18 @@ inline RenderPass ContextMetal::mtlBeginRenderPass(const RenderPassDesc& desc,
 
         if (ca.resolveTarget)
         {
-            id<MTLTexture> resolveTex = ca.resolveTarget->mtlTexture();
+            auto* resolveView =
+                lite_rtti_cast<TextureViewMetal*>(ca.resolveTarget);
+            assert(resolveView);
+            id<MTLTexture> resolveTex = resolveView->mtlTexture();
             rpd.colorAttachments[i].resolveTexture = resolveTex;
-            bool resolveHasView =
-                (resolveTex != ca.resolveTarget->texture()->mtlTexture());
+            auto* resolveBaseTex =
+                static_cast<TextureMetal*>(resolveView->texture());
+            bool resolveHasView = (resolveTex != resolveBaseTex->mtlTexture());
             rpd.colorAttachments[i].resolveLevel =
-                resolveHasView ? 0 : ca.resolveTarget->baseMipLevel();
+                resolveHasView ? 0 : resolveView->baseMipLevel();
             rpd.colorAttachments[i].resolveSlice =
-                resolveHasView ? 0 : ca.resolveTarget->baseLayer();
+                resolveHasView ? 0 : resolveView->baseLayer();
             // Honor the user's storeOp on the MSAA buffer: when they
             // ask for `Store` AND a resolve target, use Metal's
             // combined `StoreAndMultisampleResolve` so the MSAA
@@ -1076,29 +1024,30 @@ inline RenderPass ContextMetal::mtlBeginRenderPass(const RenderPassDesc& desc,
 
     if (desc.depthStencil.view)
     {
-        id<MTLTexture> depthTex = desc.depthStencil.view->mtlTexture();
-        bool depthHasView =
-            (depthTex != desc.depthStencil.view->texture()->mtlTexture());
+        auto* dsView =
+            lite_rtti_cast<TextureViewMetal*>(desc.depthStencil.view);
+        assert(dsView);
+        id<MTLTexture> depthTex = dsView->mtlTexture();
+        auto* dsTex = static_cast<TextureMetal*>(dsView->texture());
+        bool depthHasView = (depthTex != dsTex->mtlTexture());
         rpd.depthAttachment.texture = depthTex;
-        rpd.depthAttachment.level =
-            depthHasView ? 0 : desc.depthStencil.view->baseMipLevel();
-        rpd.depthAttachment.slice =
-            depthHasView ? 0 : desc.depthStencil.view->baseLayer();
+        rpd.depthAttachment.level = depthHasView ? 0 : dsView->baseMipLevel();
+        rpd.depthAttachment.slice = depthHasView ? 0 : dsView->baseLayer();
         rpd.depthAttachment.loadAction =
             oreLoadOpToMTL(desc.depthStencil.depthLoadOp);
         rpd.depthAttachment.storeAction =
             oreStoreOpToMTL(desc.depthStencil.depthStoreOp);
         rpd.depthAttachment.clearDepth = desc.depthStencil.depthClearValue;
 
-        TextureFormat depthFmt = desc.depthStencil.view->texture()->format();
+        TextureFormat depthFmt = dsTex->format();
         if (depthFmt == TextureFormat::depth24plusStencil8 ||
             depthFmt == TextureFormat::depth32floatStencil8)
         {
             rpd.stencilAttachment.texture = depthTex;
             rpd.stencilAttachment.level =
-                depthHasView ? 0 : desc.depthStencil.view->baseMipLevel();
+                depthHasView ? 0 : dsView->baseMipLevel();
             rpd.stencilAttachment.slice =
-                depthHasView ? 0 : desc.depthStencil.view->baseLayer();
+                depthHasView ? 0 : dsView->baseLayer();
             rpd.stencilAttachment.loadAction =
                 oreLoadOpToMTL(desc.depthStencil.stencilLoadOp);
             rpd.stencilAttachment.storeAction =
@@ -1125,11 +1074,10 @@ inline RenderPass ContextMetal::mtlBeginRenderPass(const RenderPassDesc& desc,
         encoder.label = @(desc.label);
     }
 
-    RenderPass pass;
-    pass.m_context = this;
-    pass.m_mtlEncoder = encoder;
-    pass.m_mtlCommandBuffer = m_mtlCommandBuffer;
-    pass.populateAttachmentMetadata(desc);
+    auto pass = std::make_unique<RenderPassMetal>(this);
+    pass->m_mtlEncoder = encoder;
+    pass->m_mtlCommandBuffer = m_mtlCommandBuffer;
+    pass->populateAttachmentMetadata(desc);
     return pass;
 }
 
@@ -1155,7 +1103,7 @@ inline rcp<TextureView> ContextMetal::mtlWrapCanvasTexture(
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureMetal>(new TextureMetal(texDesc));
     texture->m_mtlTexture = mtlTexture;
 
     TextureViewDesc viewDesc{};
@@ -1166,7 +1114,8 @@ inline rcp<TextureView> ContextMetal::mtlWrapCanvasTexture(
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewMetal>(
+        new TextureViewMetal(std::move(texture), viewDesc));
     view->m_mtlTextureView = mtlTexture;
     return view;
 }
@@ -1192,7 +1141,7 @@ std::unique_ptr<ContextMetal> ContextMetal::Make(id<MTLDevice> device,
     return ctx;
 }
 
-void ContextMetal::beginFrame()
+void ContextMetal::beginFrame(const FrameDescriptor&)
 {
     m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
 }
@@ -1324,8 +1273,8 @@ rcp<BindGroupLayout> ContextMetal::makeBindGroupLayout(
 // beginRenderPass
 // ============================================================================
 
-RenderPass ContextMetal::beginRenderPass(const RenderPassDesc& desc,
-                                         std::string* outError)
+std::unique_ptr<RenderPass> ContextMetal::beginRenderPass(
+    const RenderPassDesc& desc, std::string* outError)
 {
     finishActiveRenderPass();
     return mtlBeginRenderPass(desc, outError);
@@ -1360,7 +1309,7 @@ rcp<TextureView> ContextMetal::wrapRiveTexture(gpu::Texture* gpuTex,
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureMetal>(new TextureMetal(texDesc));
     texture->m_mtlTexture = mtlTex; // Borrow — caller owns via RenderImage.
 
     TextureViewDesc viewDesc{};
@@ -1371,7 +1320,8 @@ rcp<TextureView> ContextMetal::wrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewMetal>(
+        new TextureViewMetal(std::move(texture), viewDesc));
     view->m_mtlTextureView = mtlTex;
     return view;
 }

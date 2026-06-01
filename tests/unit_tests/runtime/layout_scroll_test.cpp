@@ -4,7 +4,9 @@
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "utils/no_op_factory.hpp"
+#include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
@@ -169,6 +171,76 @@ TEST_CASE("ScrollConstraint list", "[layoutscroll]")
     REQUIRE(scroll->maxOffsetY() == -460.0f);
 }
 
+TEST_CASE("Carousel snap swipe right settles past index 0", "[silver]")
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_scroll_snap.riv", &silver);
+
+    auto artboard = file->artboard("main")->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto renderer = silver.makeRenderer();
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    float centerY = artboard->height() / 2.0f;
+    float startX = artboard->width() / 2.0f;
+    float dt = 0.016f;
+
+    // Swipe right: use whole-second timestamps so they survive long long
+    // truncation in the physics accumulator.
+    float swipeDistance = 1500.0f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(startX, centerY), time);
+    smi->pointerDown(rive::Vec2D(startX, centerY));
+    time += 1.0f;
+
+    int steps = 4;
+    for (int i = 1; i <= steps; i++)
+    {
+        silver.addFrame();
+        float x = startX + (swipeDistance * i / steps);
+        smi->pointerMove(rive::Vec2D(x, centerY), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+
+    smi->pointerUp(rive::Vec2D(startX + swipeDistance, centerY));
+
+    // Capture frames while physics settles.
+    for (int i = 0; i < 300; i++)
+    {
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+        if (!smi->artboard()
+                 ->find<rive::ScrollConstraint>()[0]
+                 ->physics()
+                 ->isRunning())
+        {
+            break;
+        }
+    }
+
+    CHECK(silver.matches("layout_scroll_snap_carousel"));
+
+    rive::File::deterministicMode = false;
+}
+
 TEST_CASE("ScrollConstraint nearestSnapOffsetInDirection", "[layoutscroll]")
 {
     auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
@@ -219,4 +291,74 @@ TEST_CASE("ScrollConstraint nearestSnapOffsetInDirection", "[layoutscroll]")
         scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, 0.0f),
                                              rive::Vec2D(0.0f, -220.0f));
     REQUIRE(onSnap.y == -220.0f);
+}
+
+TEST_CASE("ScrollConstraint scrollIndex with hidden items", "[silver]")
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/layout/layout_scroll_visibility.riv", &silver);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto vis2 = vmi->propertyValue("vis2")->as<rive::ViewModelInstanceEnum>();
+    auto vis3 = vmi->propertyValue("vis3")->as<rive::ViewModelInstanceEnum>();
+    auto vis4 = vmi->propertyValue("vis4")->as<rive::ViewModelInstanceEnum>();
+
+    auto renderer = silver.makeRenderer();
+    float dt = 1.0f / 60.0f;
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Run 300 frames, toggling visibility at key moments.
+    for (int frame = 0; frame < 300; frame++)
+    {
+        // Hide item 2 at frame 30.
+        if (frame == 30)
+        {
+            vis2->value(1);
+        }
+        // Hide item 3 at frame 90.
+        if (frame == 90)
+        {
+            vis3->value(1);
+        }
+        // Show item 2 again at frame 150.
+        if (frame == 150)
+        {
+            vis2->value(0);
+        }
+        // Hide item 4 at frame 210.
+        if (frame == 210)
+        {
+            vis4->value(1);
+        }
+        // Show all at frame 270.
+        if (frame == 270)
+        {
+            vis2->value(0);
+            vis3->value(0);
+            vis4->value(0);
+        }
+
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("layout_scroll_visibility"));
+
+    rive::File::deterministicMode = false;
 }

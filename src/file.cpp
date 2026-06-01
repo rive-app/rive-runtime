@@ -34,6 +34,7 @@
 #include "rive/importers/state_transition_importer.hpp"
 #include "rive/importers/state_machine_layer_component_importer.hpp"
 #include "rive/importers/transition_viewmodel_condition_importer.hpp"
+#include "rive/importers/listener_input_type_gamepad_importer.hpp"
 #include "rive/importers/listener_input_type_keyboard_importer.hpp"
 #include "rive/importers/listener_input_type_semantic_importer.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
@@ -76,6 +77,7 @@
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/data_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -206,6 +208,9 @@ File::~File()
 #if defined(DEBUG)
     debugTotalFileCount--;
 #endif
+#ifdef WITH_RIVE_SCRIPTING
+    cleanupScriptingVM();
+#endif
     for (auto artboard : m_artboards)
     {
         delete artboard;
@@ -234,9 +239,6 @@ File::~File()
         delete physics;
     }
     delete m_backboard;
-#ifdef WITH_RIVE_SCRIPTING
-    cleanupScriptingVM();
-#endif
 }
 
 rcp<File> File::import(Span<const uint8_t> bytes,
@@ -478,6 +480,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         object->as<ListenerInputTypeKeyboard>());
                 stackType = ListenerInputTypeKeyboardBase::typeKey;
                 break;
+            case ListenerInputTypeGamepadBase::typeKey:
+                stackObject =
+                    std::make_unique<ListenerInputTypeGamepadImporter>(
+                        object->as<ListenerInputTypeGamepad>());
+                stackType = ListenerInputTypeGamepadBase::typeKey;
+                break;
             case ListenerInputTypeSemanticBase::typeKey:
                 stackObject =
                     std::make_unique<ListenerInputTypeSemanticImporter>(
@@ -585,6 +593,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedPathEffect::typeKey:
             case ScriptedListenerAction::typeKey:
             case ScriptedTransitionCondition::typeKey:
+            case ScriptedInterpolator::typeKey:
             {
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
@@ -634,6 +643,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 m_keyframeInterpolators.push_back(
                     object->as<KeyFrameInterpolator>());
             }
+            if (object->is<ScriptedInterpolator>())
+            {
+                m_scriptedInterpolators.push_back(
+                    object->as<ScriptedInterpolator>());
+            }
         }
         else if (object->is<ScrollPhysics>())
         {
@@ -681,18 +695,6 @@ void File::registerScripts()
         {
             for (auto scriptAsset : scripts)
             {
-                // Legacy-compat: .riv files exported before the ShaderAsset
-                // split (typeKey 970) pack WGSL RSTB blobs into ScriptAssets.
-                // Detect by RSTB magic "RSTB" (0x52535442 LE) and skip —
-                // the shader lookup path picks them up by name via the
-                // fallback in loadShader.
-                auto bc = scriptAsset->moduleBytecode();
-                if (bc.size() >= 4 && bc[0] == 'R' && bc[1] == 'S' &&
-                    bc[2] == 'T' && bc[3] == 'B')
-                {
-                    continue;
-                }
-
                 // At runtime, if the script is verified, add it to be
                 // registered with the VM. At edit time, the script will
                 // have already been registered, so this won't run.
@@ -709,6 +711,15 @@ void File::registerScripts()
             // Perform registration - ScriptingContext will handle dependencies
             // and retries
             vm->performRegistration();
+        }
+
+        for (auto& interpolator : m_scriptedInterpolators)
+        {
+            auto scriptAsset = interpolator->scriptAsset();
+            if (scriptAsset != nullptr)
+            {
+                scriptAsset->initScriptedObject(interpolator);
+            }
         }
     }
 }
@@ -728,7 +739,7 @@ lua_State* File::scriptingState()
 
 void File::setScriptingVM(rcp<ScriptingVM> vm)
 {
-#if defined(WITH_RIVE_TOOLS)
+#ifdef WITH_RIVE_TOOLS
     if (m_scriptingVM != nullptr)
     {
         ScriptingContext* context = m_scriptingVM->context();
@@ -743,7 +754,7 @@ void File::setScriptingVM(rcp<ScriptingVM> vm)
 
 void File::cleanupScriptingVM()
 {
-#if defined(WITH_RIVE_TOOLS)
+#ifdef WITH_RIVE_TOOLS
     if (m_scriptingVM != nullptr)
     {
         ScriptingContext* context = m_scriptingVM->context();
@@ -753,6 +764,11 @@ void File::cleanupScriptingVM()
         }
     }
 #endif
+    // ScriptedObjects only hold a raw ScriptingVM* (see
+    // ScriptingVM::registerScriptedObject), so dropping our rcp here is the
+    // only thing keeping the VM alive from File's side. If Dart still holds
+    // its own rcp<ScriptingVM> (editor flow), the VM and lua_State stay
+    // alive until Dart releases too. ~ScriptingVM handles lua_close.
     m_scriptingVM = nullptr;
 }
 #endif
@@ -793,22 +809,36 @@ std::string File::artboardNameAt(size_t index) const
     return ab ? ab->name() : "";
 }
 
+std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
+{
+    if (ab)
+    {
+        auto artboardInstance = ab->instance();
+#ifdef WITH_RIVE_SCRIPTING
+        artboardInstance->scriptingVM(m_scriptingVM.get());
+#endif
+        artboardInstance->file(ref_rcp(this));
+        return artboardInstance;
+    }
+    return nullptr;
+}
+
 std::unique_ptr<ArtboardInstance> File::artboardDefault() const
 {
     auto ab = this->artboard();
-    return ab ? ab->instance() : nullptr;
+    return instanceArtboard(ab);
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const
 {
     auto ab = this->artboard(index);
-    return ab ? ab->instance() : nullptr;
+    return instanceArtboard(ab);
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 {
     auto ab = this->artboard(name);
-    return ab ? ab->instance() : nullptr;
+    return instanceArtboard(ab);
 }
 
 rcp<BindableArtboard> File::bindableArtboardNamed(std::string name) const

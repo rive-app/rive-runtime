@@ -11,6 +11,8 @@
 
 #include "common/testing_window.hpp"
 #include "rive/renderer/render_context.hpp"
+#include <array>
+#include <cassert>
 #include <cstdio>
 #include <cstring>
 #include <unordered_map>
@@ -125,22 +127,14 @@ inline bool isOreBackendActive()
 // based on the active TestingWindow backend.
 struct OreGMContext
 {
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-    std::unique_ptr<rive::ore::Context> oreContext;
-#endif
-
     // Creates the Ore context from the active TestingWindow's render context.
     // Returns false if the backend doesn't match or context creation fails.
     bool ensureContext(rive::gpu::RenderContext* renderContext)
     {
+
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        if (oreContext != nullptr)
-            return true;
-
         if (!renderContext || !isOreBackendActive())
             return false;
 
@@ -155,7 +149,7 @@ struct OreGMContext
             auto queue = (__bridge id<MTLCommandQueue>)TestingWindow::Get()
                              ->metalQueue();
             assert(queue != nil);
-            oreContext = rive::ore::ContextMetal::Make(impl->gpu(), queue);
+            impl->setCommandQueue(queue);
             return true;
         }
 #endif
@@ -163,29 +157,18 @@ struct OreGMContext
         if (b == TestingWindow::Backend::gl ||
             b == TestingWindow::Backend::angle)
         {
-            oreContext = rive::ore::ContextGL::Make();
             return true;
         }
 #endif
 #if defined(ORE_BACKEND_D3D11)
         if (b == TestingWindow::Backend::d3d)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextD3DImpl>();
-            oreContext =
-                rive::ore::ContextD3D11::Make(impl->gpu(), impl->gpuContext());
             return true;
         }
 #endif
 #if defined(ORE_BACKEND_D3D12)
         if (b == TestingWindow::Backend::d3d12)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextD3D12Impl>();
-            oreContext = rive::ore::ContextD3D12::Make(impl->device().Get(),
-                                                       impl->commandQueue());
             return true;
         }
 #endif
@@ -193,13 +176,6 @@ struct OreGMContext
         if (b == TestingWindow::Backend::wgpu ||
             b == TestingWindow::Backend::dawn)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextWebGPUImpl>();
-            oreContext =
-                rive::ore::ContextWGPU::Make(impl->device(),
-                                             impl->queue(),
-                                             impl->capabilities().backendType);
             return true;
         }
 #endif
@@ -208,25 +184,6 @@ struct OreGMContext
             b == TestingWindow::Backend::moltenvk ||
             b == TestingWindow::Backend::swiftshader)
         {
-            auto* impl =
-                renderContext
-                    ->static_impl_cast<rive::gpu::RenderContextVulkanImpl>();
-            rive::gpu::VulkanContext* vkCtx = impl->vulkanContext();
-            auto* win = TestingWindow::Get();
-            VkQueue queue = static_cast<VkQueue>(win->vulkanGraphicsQueue());
-            uint32_t queueFamily = win->vulkanGraphicsQueueFamilyIndex();
-            auto pfnGetInstanceProcAddr =
-                reinterpret_cast<PFN_vkGetInstanceProcAddr>(
-                    win->vulkanGetInstanceProcAddr());
-            if (queue == VK_NULL_HANDLE || pfnGetInstanceProcAddr == nullptr)
-                return false;
-            oreContext = rive::ore::ContextVulkan::Make(vkCtx->instance,
-                                                        vkCtx->physicalDevice,
-                                                        vkCtx->device,
-                                                        queue,
-                                                        queueFamily,
-                                                        vkCtx->allocator(),
-                                                        pfnGetInstanceProcAddr);
             return true;
         }
 #endif
@@ -242,79 +199,14 @@ struct OreGMContext
     // cross-engine read-after-write (e.g. Rive renders into a canvas then
     // Ore samples it) by keeping Rive and Ore in the same submission.
     // Falls back to owned-CB mode when no external CB is available.
-    void beginFrame()
+    void beginFrame(rive::gpu::RenderContext* renderContext)
     {
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        assert(oreContext != nullptr);
-#if defined(ORE_BACKEND_VK)
-        auto b = TestingWindow::backend();
-        if (b == TestingWindow::Backend::vk ||
-            b == TestingWindow::Backend::moltenvk ||
-            b == TestingWindow::Backend::swiftshader)
-        {
-            VkCommandBuffer cb = static_cast<VkCommandBuffer>(
-                TestingWindow::Get()->vulkanCurrentCommandBuffer());
-            if (cb != VK_NULL_HANDLE)
-            {
-                static_cast<rive::ore::ContextVulkan*>(oreContext.get())
-                    ->beginFrame(cb);
-                return;
-            }
-        }
-#endif
-#if defined(ORE_BACKEND_D3D12)
-        if (TestingWindow::backend() == TestingWindow::Backend::d3d12)
-        {
-            auto* cl = static_cast<ID3D12GraphicsCommandList*>(
-                TestingWindow::Get()->d3d12CurrentCommandList());
-            if (cl != nullptr)
-            {
-                static_cast<rive::ore::ContextD3D12*>(oreContext.get())
-                    ->beginFrame(cl);
-                return;
-            }
-        }
-#endif
-#if defined(ORE_BACKEND_WGPU)
-        {
-            auto b = TestingWindow::backend();
-            if (b == TestingWindow::Backend::wgpu ||
-                b == TestingWindow::Backend::dawn)
-            {
-                auto rawEncoder = static_cast<WGPUCommandEncoder>(
-                    TestingWindow::Get()->wgpuCurrentCommandEncoder());
-                if (rawEncoder != nullptr)
-                {
-                    // AddRef the host's encoder so we own a ref to hand to
-                    // Ore; Acquire() takes ownership of that ref without
-                    // incrementing again. Matches RenderContextWebGPUImpl's
-                    // externalCommandBuffer adoption pattern.
-#if (defined(RIVE_WEBGPU) && RIVE_WEBGPU > 1) || defined(RIVE_DAWN)
-                    wgpuCommandEncoderAddRef(rawEncoder);
-#else
-                    wgpuCommandEncoderReference(rawEncoder);
-#endif
-                    static_cast<rive::ore::ContextWGPU*>(oreContext.get())
-                        ->beginFrame(wgpu::CommandEncoder::Acquire(rawEncoder));
-                    return;
-                }
-            }
-        }
-#endif
-        oreContext->beginFrame();
-#endif
+        TestingWindow::Get()->beginOreFrame();
     }
 
-    void endFrame()
+    void endFrame(rive::gpu::RenderContext* renderContext)
     {
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        assert(oreContext != nullptr);
-        oreContext->endFrame();
-#endif
+        TestingWindow::Get()->endOreFrame();
     }
 };
 
@@ -435,26 +327,29 @@ struct OreGMShaderResult
     const char* fsEntryPoint = "fs_main";
 };
 
-// Reuse ShaderAsset for RSTB parsing — single source of truth for
-// the binary format (handles v1 and v2, including tagged metadata sections).
-inline rive::ShaderAsset& getRstbAsset()
+// Lazy per-shader ShaderAsset cache. The fixture header
+// `ore_gm_shaders.rstb.hpp` embeds N single-shader RSTB v3 blobs concatenated
+// with an offset table indexed by `OreGMShader`.
+inline rive::ShaderAsset& getRstbAssetForShader(uint32_t shaderId)
 {
-    static rive::ShaderAsset asset;
-    static bool parsed = false;
-    if (!parsed)
+    static std::array<rive::ShaderAsset, ore_gm_shaders::kShaderCount> assets;
+    static std::array<bool, ore_gm_shaders::kShaderCount> parsed{};
+    assert(shaderId < ore_gm_shaders::kShaderCount);
+    if (!parsed[shaderId])
     {
-        parsed = true;
-        // ShaderAsset::decode expects a SignedContentHeader envelope
-        // (`[flags:1][sig:64?][RSTB...]`). ore_gm_rstb_test emits raw RSTB,
-        // so prepend an unsigned envelope (flags=0, no signature).
-        rive::SimpleArray<uint8_t> data(ore_gm_shaders::kDataLen + 1);
+        parsed[shaderId] = true;
+        // ShaderAsset::decode expects a SignedContentHeader envelope. Prepend
+        // an unsigned envelope (flags=0) around the per-shader RSTB slice.
+        uint32_t off = ore_gm_shaders::kShaderOffsets[shaderId];
+        uint32_t size = ore_gm_shaders::kShaderOffsets[shaderId + 1] - off;
+        rive::SimpleArray<uint8_t> data(size + 1);
         data[0] = 0x00;
-        memcpy(data.data() + 1,
-               ore_gm_shaders::kData,
-               ore_gm_shaders::kDataLen);
-        asset.decode(data, nullptr);
+        memcpy(data.data() + 1, ore_gm_shaders::kShaderData + off, size);
+        bool ok = assets[shaderId].decode(data, nullptr);
+        assert(ok && "ore_gm fixture decode failed");
+        (void)ok;
     }
-    return asset;
+    return assets[shaderId];
 }
 
 /// Map TestingWindow backend to RSTB ShaderTarget.
@@ -504,11 +399,11 @@ inline std::pair<const char*, const char*> wgslEntryPoints(uint32_t shaderId)
     }
 }
 
-/// RSTB ShaderTarget IDs (RFC §8.1). The full table for both the
-/// shader-source variants and the per-target binding-map sidecars is
-/// scattered across `ore_gm_rstb_test.cpp` (writer side) and
-/// `shaderTargetForBackend` / `bindingMapTargetFor` (reader side); kept
-/// here so a single grep finds every magic number.
+/// RSTB ShaderTarget IDs. The full table for both the shader-source
+/// variants and the per-target binding-map sidecars is scattered across
+/// `ore_gm_rstb_test.cpp` (writer side) and `shaderTargetForBackend` /
+/// `bindingMapTargetFor` (reader side); kept here so a single grep finds
+/// every magic number.
 ///
 ///   Source variants (the compiled shader bytes):
 ///     0  WGSL              (passthrough WGSL for the WGPU backend)
@@ -520,7 +415,7 @@ inline std::pair<const char*, const char*> wgslEntryPoints(uint32_t shaderId)
 ///     6-9 reserved — future source variants
 ///
 ///   Binding-map sidecars (paired 1:1 with a source target;
-///   `findShader(id, sidecarTarget)` returns the `ore::BindingMap` blob
+///   `findShader(sidecarTarget)` returns the `ore::BindingMap` blob
 ///   the runtime parses with `BindingMap::fromBlob`):
 ///     10 MSL binding map        (paired with source 2)
 ///     11 GLSL binding map       (paired with source 1)
@@ -559,36 +454,30 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     using namespace rive::ore;
     OreGMShaderResult result{};
 
-    auto& asset = getRstbAsset();
+    auto& asset = getRstbAssetForShader(shaderId);
     uint8_t target = shaderTargetForBackend();
 
-    auto blob = asset.findShader(shaderId, target);
+    auto blob = asset.findShader(target);
     if (blob.empty())
         return result;
 
     const char* blobData = reinterpret_cast<const char*>(blob.data());
     uint32_t blobSize = static_cast<uint32_t>(blob.size());
 
-    // Look up the binding-map sidecar — required by `makeShaderModule`
-    // (RFC §14.4). `bindingMapTargetFor` returns 255 only for source
-    // targets we don't ship; for any active runtime target there must be
-    // a paired sidecar in the RSTB.
+    // Binding-map sidecar (mandatory).
     uint8_t bmTarget = bindingMapTargetFor(target);
-    auto bindingMapBlob = (bmTarget == 255)
-                              ? rive::Span<const uint8_t>{}
-                              : asset.findShader(shaderId, bmTarget);
+    auto bindingMapBlob = (bmTarget == 255) ? rive::Span<const uint8_t>{}
+                                            : asset.findShader(bmTarget);
     assert(bmTarget == 255 || !bindingMapBlob.empty());
     const uint8_t* bindingMapBytes =
         bindingMapBlob.empty() ? nullptr : bindingMapBlob.data();
     uint32_t bindingMapSize = static_cast<uint32_t>(bindingMapBlob.size());
 
-    // GL program-link fixup tables (sidecar targets 14 = VS, 15 = FS).
-    // Only the GLSL source target carries them; lookup is a cheap no-op
-    // for other backends.
-    auto vsGLFixupBlob = (target == 1) ? asset.findShader(shaderId, 14)
-                                       : rive::Span<const uint8_t>{};
-    auto fsGLFixupBlob = (target == 1) ? asset.findShader(shaderId, 15)
-                                       : rive::Span<const uint8_t>{};
+    // GL program-link fixup tables (only present for GLSL source target).
+    auto vsGLFixupBlob =
+        (target == 1) ? asset.findShader(14) : rive::Span<const uint8_t>{};
+    auto fsGLFixupBlob =
+        (target == 1) ? asset.findShader(15) : rive::Span<const uint8_t>{};
     const uint8_t* vsGLFixupBytes =
         vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
     uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());

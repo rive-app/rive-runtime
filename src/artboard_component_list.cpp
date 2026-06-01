@@ -190,6 +190,24 @@ ArtboardInstance* ArtboardComponentList::artboardInstance(int index)
     }
     return nullptr;
 }
+int ArtboardComponentList::indexOfArtboardInstance(
+    ArtboardInstance* instance) const
+{
+    if (instance == nullptr)
+    {
+        return -1;
+    }
+    for (size_t i = 0; i < m_listItems.size(); ++i)
+    {
+        auto itr = m_artboardInstancesMap.find(m_listItems[i]);
+        if (itr != m_artboardInstancesMap.end() &&
+            itr->second.get() == instance)
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
 StateMachineInstance* ArtboardComponentList::stateMachineInstance(int index)
 {
     if (!virtualizationEnabled())
@@ -1247,14 +1265,10 @@ void ArtboardComponentList::bindArtboard(
         auto dataContext = mainArtboard->dataContext();
         rcp<ViewModelInstance> viewModelInstance = nullptr;
 
-        // Check if the source artboard is stateful - if so, create a new
-        // instance for it (takes priority over any existing list item
-        // instance). Clone the list item's instance when available so we
-        // pick up its property values; otherwise fall back to the default.
         if (m_file != nullptr)
         {
             auto source = artboardInstance->artboardSource();
-            if (source != nullptr && source->isStateful())
+            if (m_useStatefulInstances && source != nullptr)
             {
                 auto listItemInstance = listItem->viewModelInstance();
                 if (listItemInstance != nullptr)

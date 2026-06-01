@@ -2,23 +2,23 @@
  * Copyright 2022 Rive
  */
 
-// undef GENERATE_PREMULTIPLIED_PAINT_COLORS first because this file gets
+// undef GENERATE_UNMULTIPLIED_PAINT_COLORS first because this file gets
 // included multiple times with different defines in the Metal library.
-#undef GENERATE_PREMULTIPLIED_PAINT_COLORS
+#undef GENERATE_UNMULTIPLIED_PAINT_COLORS
 
 #ifdef @NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
 // The specific fragment shader we're being compiled for expects un-multiplied
 // paint colors all the time.
-#define GENERATE_PREMULTIPLIED_PAINT_COLORS false
+#define GENERATE_UNMULTIPLIED_PAINT_COLORS true
 #elif defined(@ENABLE_ADVANCED_BLEND)
 // If advanced blend is enabled, we generate unmultiplied paint colors in the
 // shader. Otherwise we would have to just turn around and unmultiply them in
 // order to run the blend equation.
-#define GENERATE_PREMULTIPLIED_PAINT_COLORS !@ENABLE_ADVANCED_BLEND
+#define GENERATE_UNMULTIPLIED_PAINT_COLORS @ENABLE_ADVANCED_BLEND
 #else
 // As long as advanced blend is not enabled, it's more efficient for the shader
 // to generate premultiplied paint colors from the start.
-#define GENERATE_PREMULTIPLIED_PAINT_COLORS true
+#define GENERATE_UNMULTIPLIED_PAINT_COLORS false
 #endif
 
 // undef COVERAGE_TYPE first because this file gets included multiple times with
@@ -241,8 +241,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
         half4 color = unpackUnorm4x8(paintData.y);
-        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
+        {
+            // naga can't handle "if (!SpecConst)" when transpiling spv to wgsl.
+            // Use this if -> else construct instead so we don't have to negate
+            // a specialization constant.
+        }
+        else
+        {
             color.rgb *= color.a;
+        }
         v_paint = float4(color);
     }
 #if defined(@ENABLE_CLIPPING) && !defined(@ATLAS_BLIT)
@@ -384,12 +392,12 @@ INLINE half4 find_paint_color(float4 paint,
     if (paint.a >= .0) // Is the paint a solid color?
     {
         // The vertex shader will have premultiplied 'paint' (or not) based on
-        // GENERATE_PREMULTIPLIED_PAINT_COLORS.
+        // GENERATE_UNMULTIPLIED_PAINT_COLORS.
         color = cast_float4_to_half4(paint);
-        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
-            color *= coverage;
-        else
+        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
             color.a *= coverage;
+        else
+            color *= coverage;
     }
     else if (paint.a > -1.) // Is paint is a gradient (linear or radial)?
     {
@@ -409,8 +417,16 @@ INLINE half4 find_paint_color(float4 paint,
         color.a *= coverage;
         // Gradients are always unmultiplied so we don't lose color data while
         // doing the hardware filter.
-        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
+        {
+            // naga can't handle "if (!SpecConst)" when transpiling spv to wgsl.
+            // Use this if -> else construct instead so we don't have to
+            // negate a specialization constant.
+        }
+        else
+        {
             color.rgb *= color.a;
+        }
     }
     else // The paint is an image.
     {
@@ -422,10 +438,10 @@ INLINE half4 find_paint_color(float4 paint,
         half opacity = paint.b * coverage;
         // Images are always premultiplied so the (transparent) background color
         // doesn't bleed into the edges during the hardware filter.
-        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
-            color *= opacity;
-        else
+        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
             color = make_half4(unmultiply_rgb(color), color.a * opacity);
+        else
+            color *= opacity;
     }
     return color;
 }

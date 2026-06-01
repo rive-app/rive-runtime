@@ -8,6 +8,7 @@ namespace rive
 class Artboard;
 class KeyedObject;
 class KeyedCallbackReporter;
+class LinearAnimationInstance;
 
 class LinearAnimation : public LinearAnimationBase
 {
@@ -22,7 +23,15 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
     void addKeyedObject(std::unique_ptr<KeyedObject>);
-    void apply(Artboard* artboard, float time, float mix = 1.0f) const;
+    /// `context` is the running LinearAnimationInstance, threaded down so
+    /// scripted interpolators can vend per-(LAI, keyframe) stateful clones.
+    /// Default-null keeps direct callers (state-machine hold animations,
+    /// tests) source-compatible — they degrade to identity for any scripted
+    /// interpolators in the snapshot.
+    void apply(Artboard* artboard,
+               float time,
+               float mix = 1.0f,
+               const LinearAnimationInstance* context = nullptr) const;
 
     Loop loop() const { return (Loop)loopValue(); }
 

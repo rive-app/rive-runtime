@@ -3,7 +3,7 @@
  */
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_gl.hpp"
 #include "rive/rive_types.hpp"
 
 namespace rive::ore
@@ -71,19 +71,12 @@ static GLenum oreFormatToGLInternal(TextureFormat fmt)
             return GL_COMPRESSED_RGB8_ETC2;
         case TextureFormat::etc2rgba8:
             return GL_COMPRESSED_RGBA8_ETC2_EAC;
-#ifdef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
         case TextureFormat::astc4x4:
             return GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
         case TextureFormat::astc6x6:
             return GL_COMPRESSED_RGBA_ASTC_6x6_KHR;
         case TextureFormat::astc8x8:
             return GL_COMPRESSED_RGBA_ASTC_8x8_KHR;
-#else
-        case TextureFormat::astc4x4:
-        case TextureFormat::astc6x6:
-        case TextureFormat::astc8x8:
-            RIVE_UNREACHABLE();
-#endif
     }
     RIVE_UNREACHABLE();
 }
@@ -157,34 +150,31 @@ static GLenum oreFormatToGLType(TextureFormat fmt)
     }
 }
 
-static bool isDepthFormat(TextureFormat fmt)
-{
-    return fmt == TextureFormat::depth16unorm ||
-           fmt == TextureFormat::depth24plusStencil8 ||
-           fmt == TextureFormat::depth32float ||
-           fmt == TextureFormat::depth32floatStencil8;
-}
+// static bool isDepthFormat(TextureFormat fmt)
+//{
+//     return fmt == TextureFormat::depth16unorm ||
+//            fmt == TextureFormat::depth24plusStencil8 ||
+//            fmt == TextureFormat::depth32float ||
+//            fmt == TextureFormat::depth32floatStencil8;
+// }
 
-static GLenum oreTextureTypeToGLTarget(TextureType type)
-{
-    switch (type)
-    {
-        case TextureType::texture2D:
-            return GL_TEXTURE_2D;
-        case TextureType::cube:
-            return GL_TEXTURE_CUBE_MAP;
-        case TextureType::texture3D:
-            return GL_TEXTURE_3D;
-        case TextureType::array2D:
-            return GL_TEXTURE_2D_ARRAY;
-    }
-    RIVE_UNREACHABLE();
-}
+// static GLenum oreTextureTypeToGLTarget(TextureType type)
+//{
+//     switch (type)
+//     {
+//         case TextureType::texture2D:
+//             return GL_TEXTURE_2D;
+//         case TextureType::cube:
+//             return GL_TEXTURE_CUBE_MAP;
+//         case TextureType::texture3D:
+//             return GL_TEXTURE_3D;
+//         case TextureType::array2D:
+//             return GL_TEXTURE_2D_ARRAY;
+//     }
+//     RIVE_UNREACHABLE();
+// }
 
-// Block-compressed format detection. For these formats, `bytesPerRow` is
-// the byte size of a row of compressed *blocks* (4×4 for BC1/BC3/BC7/ETC2/
-// ASTC4x4, 6×6 / 8×8 for the corresponding ASTC variants), and the upload
-// path must go through `glCompressedTexSubImage*` with `imageSize` bytes.
+// Block-compressed format detection.
 static bool isCompressedFormat(TextureFormat fmt)
 {
     switch (fmt)
@@ -203,40 +193,22 @@ static bool isCompressedFormat(TextureFormat fmt)
     }
 }
 
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
+#if defined(ORE_BACKEND_GL)
 
-void Texture::upload(const TextureDataDesc& data)
+void TextureGL::upload(const TextureDataDesc& data)
 {
     assert(m_glTexture != 0);
     assert(data.data != nullptr);
 
-    // GLES3 has no `GL_BGRA8` internal format, and uploading BGRA bytes
-    // through `GL_RGBA + GL_UNSIGNED_BYTE` silently swizzles channels
-    // (red ↔ blue) in the resulting texture. Reject explicitly here
-    // rather than letting the corruption render. Callers that need
-    // BGRA-source data on GL should pre-swizzle in software or use
-    // `rgba8unorm`. (BGRA *render targets* — e.g. canvas wrapping —
-    // remain valid since they don't go through this upload path.)
     assert(m_format != TextureFormat::bgra8unorm &&
            "GLES3 cannot upload BGRA pixels — "
            "pre-swizzle to rgba8unorm or use a different format");
 
-    // Force the active unit to GL_TEXTURE0 before a transient bind. See
-    // Context::makeTexture() for the full rationale — Rive PLS reserves
-    // units 8..14 and a naked glBindTexture() on one of those units would
-    // clobber Rive's state.
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(m_glTarget, m_glTexture);
 
     GLenum internalFmt = oreFormatToGLInternal(m_format);
 
-    // Compressed formats route through `glCompressedTexSubImage*` with a
-    // byte count, not format/type. `bytesPerRow * rowsPerImage` is the
-    // total compressed byte size for one slice; multiply by `depth` for
-    // 3D / array uploads. Pre-fix the GL backend always called
-    // `glTexSubImage*` regardless of format — uploads of any compressed
-    // texture (ETC2/BC/ASTC) failed silently with `GL_INVALID_OPERATION`.
     if (isCompressedFormat(m_format))
     {
         const uint32_t imageSize =
@@ -289,12 +261,6 @@ void Texture::upload(const TextureDataDesc& data)
     GLenum format = oreFormatToGLFormat(m_format);
     GLenum type = oreFormatToGLType(m_format);
 
-    // Honor `bytesPerRow` / `rowsPerImage` for non-tightly-packed source
-    // data via `GL_UNPACK_ROW_LENGTH` / `GL_UNPACK_IMAGE_HEIGHT`. Save +
-    // restore so we don't trash the host's pixel-store state. Pre-fix the
-    // GL backend ignored these fields — uploads from a sub-rect of a
-    // larger source buffer (or from a layout that pads rows) read garbage
-    // bytes between rows.
     GLint savedRowLength = 0, savedImageHeight = 0;
     glGetIntegerv(GL_UNPACK_ROW_LENGTH, &savedRowLength);
     glGetIntegerv(GL_UNPACK_IMAGE_HEIGHT, &savedImageHeight);
@@ -349,14 +315,13 @@ void Texture::upload(const TextureDataDesc& data)
                         data.data);
     }
 
-    // Restore host pixel-store state.
     glPixelStorei(GL_UNPACK_ROW_LENGTH, savedRowLength);
     glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, savedImageHeight);
 
     glBindTexture(m_glTarget, 0);
 }
 
-void Texture::onRefCntReachedZero() const
+TextureGL::~TextureGL()
 {
     if (m_glRenderbuffer != 0 && m_glOwnsTexture)
     {
@@ -368,19 +333,17 @@ void Texture::onRefCntReachedZero() const
         GLuint tex = m_glTexture;
         glDeleteTextures(1, &tex);
     }
-    delete this;
 }
 
-void TextureView::onRefCntReachedZero() const
+TextureViewGL::~TextureViewGL()
 {
     if (m_glTextureView != 0)
     {
         GLuint tex = m_glTextureView;
         glDeleteTextures(1, &tex);
     }
-    delete this;
 }
 
-#endif // ORE_BACKEND_GL && !ORE_BACKEND_METAL
+#endif // ORE_BACKEND_GL
 
 } // namespace rive::ore

@@ -7,7 +7,7 @@
 #include "rive/renderer/ore/ore_context.hpp"
 
 #include <webgpu/webgpu_cpp.h>
-#ifndef RIVE_DAWN
+#ifdef RIVE_WAGYU
 #include <webgpu/webgpu_wagyu.h>
 #endif
 
@@ -36,10 +36,11 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -47,6 +48,8 @@ public:
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,
                                      uint32_t height) override;
+
+    ShaderTarget shaderTarget() const override { return ShaderTarget::wgsl; }
 
     // External-encoder mode: Ore records into the host's wgpu::CommandEncoder
     // (already created by the caller) instead of owning its own. The host
@@ -69,11 +72,11 @@ public:
     ContextWGPU& operator=(const ContextWGPU&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassWGPU;
+    friend class BindGroupWGPU;
+    friend class TextureWGPU;
 
-    ContextWGPU() = default;
+    ContextWGPU() : Context(nullptr) {}
 
     enum class WGPUBackend
     {
@@ -84,9 +87,6 @@ private:
     wgpu::Device m_wgpuDevice;
     wgpu::Queue m_wgpuQueue;
     wgpu::CommandEncoder m_wgpuCommandEncoder;
-    // True while the current frame is recording into a host-provided encoder.
-    // endFrame() skips Finish()/Submit() when set.
-    bool m_wgpuExternalEncoder = false;
 };
 
 } // namespace rive::ore

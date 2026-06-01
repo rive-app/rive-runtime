@@ -3,13 +3,13 @@
  */
 
 #include "rive/renderer/ore/ore_context_d3d11.hpp"
-#include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_render_pass.hpp"
+#include "ore_bind_group_d3d11.hpp"
+#include "ore_buffer_d3d11.hpp"
+#include "ore_texture_d3d11.hpp"
+#include "ore_sampler_d3d11.hpp"
+#include "ore_shader_module_d3d11.hpp"
+#include "ore_pipeline_d3d11.hpp"
+#include "ore_render_pass_d3d11.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/d3d11/render_context_d3d_impl.hpp"
 #include "rive/rive_types.hpp"
@@ -412,20 +412,6 @@ static DXGI_FORMAT oreVertexFormatToDXGI(VertexFormat fmt)
             return DXGI_FORMAT_R16G16B16A16_FLOAT;
         case VertexFormat::uint32:
             return DXGI_FORMAT_R32_UINT;
-        case VertexFormat::uint32x2:
-            return DXGI_FORMAT_R32G32_UINT;
-        case VertexFormat::uint32x3:
-            return DXGI_FORMAT_R32G32B32_UINT;
-        case VertexFormat::uint32x4:
-            return DXGI_FORMAT_R32G32B32A32_UINT;
-        case VertexFormat::sint32:
-            return DXGI_FORMAT_R32_SINT;
-        case VertexFormat::sint32x2:
-            return DXGI_FORMAT_R32G32_SINT;
-        case VertexFormat::sint32x3:
-            return DXGI_FORMAT_R32G32B32_SINT;
-        case VertexFormat::sint32x4:
-            return DXGI_FORMAT_R32G32B32A32_SINT;
     }
     RIVE_UNREACHABLE();
 }
@@ -449,7 +435,7 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
         return nullptr;
     }
 
-    auto buffer = rcp<Buffer>(new Buffer(desc.size, desc.usage));
+    auto buffer = rcp<BufferD3D11>(new BufferD3D11(desc.size, desc.usage));
     buffer->m_d3d11Context = m_d3d11Context.Get();
 
     D3D11_BUFFER_DESC bd{};
@@ -475,6 +461,7 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
         case BufferUsage::index:
             bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
             break;
+        case BufferUsage::upload:
         case BufferUsage::uniform:
             // Constant buffers must be a multiple of 16 bytes.
             bd.ByteWidth = (desc.size + 15u) & ~15u;
@@ -530,7 +517,7 @@ rcp<Texture> ContextD3D11::d3d11MakeTexture(const TextureDesc& desc)
         return nullptr;
     }
 
-    auto texture = rcp<Texture>(new Texture(desc));
+    auto texture = rcp<TextureD3D11>(new TextureD3D11(desc));
     texture->m_d3d11Context = m_d3d11Context.Get();
 
     UINT bindFlags = D3D11_BIND_SHADER_RESOURCE;
@@ -609,11 +596,11 @@ rcp<Texture> ContextD3D11::d3d11MakeTexture(const TextureDesc& desc)
 
 rcp<TextureView> ContextD3D11::d3d11MakeTextureView(const TextureViewDesc& desc)
 {
-    Texture* tex = desc.texture;
+    TextureD3D11* tex = lite_rtti_cast<TextureD3D11*>(desc.texture);
     if (!tex)
         return nullptr;
 
-    auto view = rcp<TextureView>(new TextureView(ref_rcp(tex), desc));
+    auto view = rcp<TextureViewD3D11>(new TextureViewD3D11(ref_rcp(tex), desc));
 
     const D3D11FormatInfo fmtInfo = oreFormatInfo(tex->format());
 
@@ -786,7 +773,7 @@ rcp<Sampler> ContextD3D11::d3d11MakeSampler(const SamplerDesc& desc)
     sd.MinLOD = desc.minLod;
     sd.MaxLOD = desc.maxLod;
 
-    auto sampler = rcp<Sampler>(new Sampler());
+    auto sampler = rcp<SamplerD3D11>(new SamplerD3D11());
     HRESULT hr = m_d3d11Device->CreateSamplerState(
         &sd,
         sampler->m_d3dSampler.ReleaseAndGetAddressOf());
@@ -802,24 +789,16 @@ rcp<Sampler> ContextD3D11::d3d11MakeSampler(const SamplerDesc& desc)
 rcp<ShaderModule> ContextD3D11::d3d11MakeShaderModule(
     const ShaderModuleDesc& desc)
 {
-    auto module = rcp<ShaderModule>(new ShaderModule());
+    auto module = rcp<ShaderModuleD3D11>(new ShaderModuleD3D11());
     module->m_stage = desc.stage;
 
-    // Store HLSL source for runtime D3DCompile if provided. AMD drivers
-    // require DXBC to be compiled in the same process context where it's
-    // used — pre-compiled DXBC from a build step causes driver crashes.
-    if (desc.hlslSource && desc.hlslSourceSize > 0)
-    {
-        module->m_hlslSource =
-            std::string(desc.hlslSource, desc.hlslSourceSize);
-        if (desc.hlslEntryPoint)
-            module->m_hlslEntryPoint = desc.hlslEntryPoint;
-    }
-    else if (desc.code && desc.codeSize > 0)
-    {
-        const uint8_t* code = static_cast<const uint8_t*>(desc.code);
-        module->m_bytecode.assign(code, code + desc.codeSize);
-    }
+    // HLSL source compiled at first pipeline use via ensureD3DShaders.
+    // AMD drivers crash on cross-process DXBC, so we never ingest it.
+    assert(desc.hlslSource && desc.hlslSourceSize > 0 &&
+           "ShaderModuleDesc::hlslSource is required for the D3D11 backend");
+    module->m_hlslSource = std::string(desc.hlslSource, desc.hlslSourceSize);
+    if (desc.hlslEntryPoint)
+        module->m_hlslEntryPoint = desc.hlslEntryPoint;
 
     module->applyBindingMapFromDesc(desc);
     return module;
@@ -832,7 +811,7 @@ rcp<ShaderModule> ContextD3D11::d3d11MakeShaderModule(
 rcp<Pipeline> ContextD3D11::d3d11MakePipeline(const PipelineDesc& desc,
                                               std::string* outError)
 {
-    auto pipeline = rcp<Pipeline>(new Pipeline(desc));
+    auto pipeline = rcp<PipelineD3D11>(new PipelineD3D11(desc));
 
     // --- Validate user-supplied layouts against shader binding map ---
     {
@@ -856,12 +835,15 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(const PipelineDesc& desc,
     // Keep ShaderModules alive for the lifetime of the Pipeline.
     // The Luau GC can destroy the ScriptedShader (which owns the
     // ShaderModule rcp) at any time after script init.
-    pipeline->m_vsModule = ref_rcp(desc.vertexModule);
-    if (desc.fragmentModule != nullptr)
-        pipeline->m_psModule = ref_rcp(desc.fragmentModule);
+    auto vertexModule = lite_rtti_cast<ShaderModuleD3D11*>(desc.vertexModule);
+    auto fragmentModule =
+        lite_rtti_cast<ShaderModuleD3D11*>(desc.fragmentModule);
+    pipeline->m_vsModule = ref_rcp(vertexModule);
+    if (fragmentModule != nullptr)
+        pipeline->m_psModule = ref_rcp(fragmentModule);
 
     std::string compileErr;
-    desc.vertexModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
+    vertexModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
     if (!compileErr.empty())
     {
         setLastError("Ore D3D11 VS: %s", compileErr.c_str());
@@ -869,9 +851,9 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(const PipelineDesc& desc,
             *outError = m_lastError;
         return nullptr;
     }
-    if (desc.fragmentModule != nullptr)
+    if (fragmentModule != nullptr)
     {
-        desc.fragmentModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
+        fragmentModule->ensureD3DShaders(m_d3d11Device.Get(), &compileErr);
         if (!compileErr.empty())
         {
             setLastError("Ore D3D11 PS: %s", compileErr.c_str());
@@ -881,9 +863,9 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(const PipelineDesc& desc,
         }
     }
 
-    pipeline->m_d3dVS = desc.vertexModule->m_d3dVertexShader.Get();
+    pipeline->m_d3dVS = vertexModule->m_d3dVertexShader.Get();
     if (desc.fragmentModule != nullptr)
-        pipeline->m_d3dPS = desc.fragmentModule->m_d3dPixelShader.Get();
+        pipeline->m_d3dPS = fragmentModule->m_d3dPixelShader.Get();
 
     if (!pipeline->m_d3dVS ||
         (desc.fragmentModule != nullptr && !pipeline->m_d3dPS))
@@ -928,7 +910,7 @@ rcp<Pipeline> ContextD3D11::d3d11MakePipeline(const PipelineDesc& desc,
             }
         }
 
-        const auto& vsBytecode = desc.vertexModule->m_bytecode;
+        const auto& vsBytecode = vertexModule->m_bytecode;
         HRESULT hr = m_d3d11Device->CreateInputLayout(
             elements,
             elementCount,
@@ -1077,7 +1059,7 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
         return nullptr;
     }
 
-    auto bg = rcp<BindGroup>(new BindGroup());
+    auto bg = rcp<BindGroupD3D11>(new BindGroupD3D11());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
 
@@ -1136,8 +1118,10 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     for (uint32_t i = 0; i < nBufs; ++i)
     {
         const auto& entry = desc.ubos[i];
-        BindGroup::D3D11UBOBinding binding{};
-        binding.buffer = entry.buffer->m_d3d11Buffer.Get();
+        BindGroupD3D11::D3D11UBOBinding binding{};
+        auto buffer = lite_rtti_cast<BufferD3D11*>(entry.buffer);
+        assert(buffer);
+        binding.buffer = buffer->m_d3d11Buffer.Get();
         binding.binding = entry.slot;
         if (!lookupStages(entry.slot,
                           BindingKind::uniformBuffer,
@@ -1159,8 +1143,8 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     // `desc.ubos[]` ordering (WebGPU contract; matches Dawn).
     std::sort(bg->m_d3d11UBOs.begin(),
               bg->m_d3d11UBOs.end(),
-              [](const BindGroup::D3D11UBOBinding& a,
-                 const BindGroup::D3D11UBOBinding& b) {
+              [](const BindGroupD3D11::D3D11UBOBinding& a,
+                 const BindGroupD3D11::D3D11UBOBinding& b) {
                   return a.binding < b.binding;
               });
 
@@ -1170,8 +1154,10 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     for (uint32_t i = 0; i < nTexs; ++i)
     {
         const auto& entry = desc.textures[i];
-        BindGroup::D3D11TexBinding binding{};
-        binding.srv = entry.view->m_d3dSRV.Get();
+        BindGroupD3D11::D3D11TexBinding binding{};
+        auto view = lite_rtti_cast<TextureViewD3D11*>(entry.view);
+        assert(view);
+        binding.srv = view->m_d3dSRV.Get();
         if (!lookupStages(entry.slot,
                           BindingKind::sampledTexture,
                           &binding.vsSlot,
@@ -1187,8 +1173,10 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     for (uint32_t i = 0; i < nSamps; ++i)
     {
         const auto& entry = desc.samplers[i];
-        BindGroup::D3D11SamplerBinding binding{};
-        binding.sampler = entry.sampler->m_d3dSampler.Get();
+        BindGroupD3D11::D3D11SamplerBinding binding{};
+        auto sampler = lite_rtti_cast<SamplerD3D11*>(entry.sampler);
+        assert(sampler);
+        binding.sampler = sampler->m_d3dSampler.Get();
         if (!lookupStages(entry.slot,
                           BindingKind::sampler,
                           &binding.vsSlot,
@@ -1215,7 +1203,7 @@ rcp<BindGroupLayout> ContextD3D11::d3d11MakeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout());
+    auto layout = rcp<BindGroupLayout>(new BindGroupLayout(nullptr));
     // D3D11 layouts use immediate-delete (no deferred destroy needed —
     // no GPU handle to outlive a command list). Leave m_context = nullptr.
     layout->m_groupIndex = desc.groupIndex;
@@ -1229,19 +1217,25 @@ rcp<BindGroupLayout> ContextD3D11::d3d11MakeBindGroupLayout(
 // d3d11BeginRenderPass
 // ============================================================================
 
-RenderPass ContextD3D11::d3d11BeginRenderPass(const RenderPassDesc& desc,
-                                              std::string* outError)
+std::unique_ptr<RenderPass> ContextD3D11::d3d11BeginRenderPass(
+    const RenderPassDesc& desc,
+    std::string* outError)
 {
     // Collect RTVs and DSV.
     ID3D11RenderTargetView* rtvs[4] = {};
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
-        rtvs[i] = desc.colorAttachments[i].view->m_d3dRTV.Get();
+        auto view =
+            lite_rtti_cast<TextureViewD3D11*>(desc.colorAttachments[i].view);
+        assert(view);
+        rtvs[i] = view->m_d3dRTV.Get();
     }
 
-    ID3D11DepthStencilView* dsv = desc.depthStencil.view
-                                      ? desc.depthStencil.view->m_d3dDSV.Get()
-                                      : nullptr;
+    ID3D11DepthStencilView* dsv = nullptr;
+    if (auto view = lite_rtti_cast<TextureViewD3D11*>(desc.depthStencil.view))
+    {
+        dsv = view->m_d3dDSV.Get();
+    }
 
     m_d3d11Context->OMSetRenderTargets(desc.colorCount, rtvs, dsv);
 
@@ -1311,29 +1305,36 @@ RenderPass ContextD3D11::d3d11BeginRenderPass(const RenderPassDesc& desc,
         }
     }
 
-    RenderPass pass;
-    pass.m_context = this;
-    pass.m_d3d11Context = m_d3d11Context.Get();
-    pass.populateAttachmentMetadata(desc);
+    std::unique_ptr<RenderPassD3D11> pass = std::make_unique<RenderPassD3D11>();
+    pass->m_context = this;
+    pass->m_d3d11Context = m_d3d11Context.Get();
+    pass->populateAttachmentMetadata(desc);
 
     // Record MSAA resolve pairs for finish(). Subresource index follows
     // D3D11's formula: mipLevel + (arraySlice * mipCount).
-    pass.m_d3d11ResolveCount = 0;
+    pass->m_d3d11ResolveCount = 0;
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
         const auto& ca = desc.colorAttachments[i];
         if (ca.resolveTarget && ca.view)
         {
-            auto& entry = pass.m_d3d11Resolves[pass.m_d3d11ResolveCount++];
-            entry.msaa = ca.view->texture()->m_d3d11Texture.Get();
-            entry.resolve = ca.resolveTarget->texture()->m_d3d11Texture.Get();
+            auto& entry = pass->m_d3d11Resolves[pass->m_d3d11ResolveCount++];
+            auto view = lite_rtti_cast<TextureViewD3D11*>(ca.view);
+            assert(view);
+            auto texture = lite_rtti_cast<TextureD3D11*>(view->texture());
+            assert(texture);
+            entry.msaa = texture->m_d3d11Texture.Get();
+            auto resolveTexture =
+                lite_rtti_cast<TextureD3D11*>(ca.resolveTarget->texture());
+            assert(resolveTexture);
+            entry.resolve = resolveTexture->m_d3d11Texture.Get();
             entry.format =
                 oreFormatInfo(ca.resolveTarget->texture()->format()).resource;
-            const uint32_t msaaMipCount = ca.view->texture()->numMipmaps();
+            const uint32_t msaaMipCount = view->texture()->numMipmaps();
             const uint32_t resolveMipCount =
                 ca.resolveTarget->texture()->numMipmaps();
             entry.msaaSubresource =
-                ca.view->baseMipLevel() + ca.view->baseLayer() * msaaMipCount;
+                view->baseMipLevel() + view->baseLayer() * msaaMipCount;
             entry.resolveSubresource =
                 ca.resolveTarget->baseMipLevel() +
                 ca.resolveTarget->baseLayer() * resolveMipCount;
@@ -1384,7 +1385,7 @@ rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureD3D11>(new TextureD3D11(texDesc));
     texture->m_d3d11Texture = d3dTex; // Borrow — RenderCanvas owns it.
     texture->m_d3d11Context = m_d3d11Context.Get();
 
@@ -1396,7 +1397,8 @@ rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewD3D11>(
+        new TextureViewD3D11(std::move(texture), viewDesc));
     // Borrow the existing RTV from the D3D render target (AddRefs via ComPtr).
     view->m_d3dRTV = d3dTarget->targetRTV();
     return view;
@@ -1443,7 +1445,7 @@ rcp<TextureView> ContextD3D11::d3d11WrapRiveTexture(gpu::Texture* gpuTex,
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<Texture>(new Texture(texDesc));
+    auto texture = rcp<TextureD3D11>(new TextureD3D11(texDesc));
     texture->m_d3d11Texture = d3dTex; // Borrow — caller owns via RenderImage.
     texture->m_d3d11Context = m_d3d11Context.Get();
 
@@ -1455,7 +1457,8 @@ rcp<TextureView> ContextD3D11::d3d11WrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.baseLayer = 0;
     viewDesc.layerCount = 1;
 
-    auto view = rcp<TextureView>(new TextureView(std::move(texture), viewDesc));
+    auto view = rcp<TextureViewD3D11>(
+        new TextureViewD3D11(std::move(texture), viewDesc));
     // Create an SRV for sampling. The canvas path borrows an existing RTV,
     // but for image sampling we need a ShaderResourceView.
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1524,11 +1527,7 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(ID3D11Device* device,
     return ctx;
 }
 
-void ContextD3D11::beginFrame()
-{
-    // Release deferred BindGroups from last frame. By beginFrame() the
-    // caller has waited for the previous frame's GPU work to complete.
-    m_deferredBindGroups.clear();
+void ContextD3D11::beginFrame(const FrameDescriptor&) {
 } // D3D11 immediate context has no command buffer.
 
 void ContextD3D11::waitForGPU() {} // D3D11 immediate context is synchronous.
@@ -1577,8 +1576,9 @@ rcp<BindGroupLayout> ContextD3D11::makeBindGroupLayout(
     return d3d11MakeBindGroupLayout(desc);
 }
 
-RenderPass ContextD3D11::beginRenderPass(const RenderPassDesc& desc,
-                                         std::string* outError)
+std::unique_ptr<RenderPass> ContextD3D11::beginRenderPass(
+    const RenderPassDesc& desc,
+    std::string* outError)
 {
     finishActiveRenderPass();
     return d3d11BeginRenderPass(desc, outError);

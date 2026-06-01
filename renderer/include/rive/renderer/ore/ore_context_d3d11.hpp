@@ -32,10 +32,11 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -44,15 +45,17 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::hlsl; }
+
     ContextD3D11(const ContextD3D11&) = delete;
     ContextD3D11& operator=(const ContextD3D11&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassD3D11;
+    friend class BindGroupD3D11;
+    friend class TextureD3D11;
 
-    ContextD3D11() = default;
+    ContextD3D11() : Context(nullptr) {}
 
     // D3D11 implementation helpers — defined in ore_context_d3d11.cpp.
     rcp<Buffer> d3d11MakeBuffer(const BufferDesc& desc);
@@ -65,8 +68,8 @@ private:
     rcp<BindGroup> d3d11MakeBindGroup(const BindGroupDesc& desc);
     rcp<BindGroupLayout> d3d11MakeBindGroupLayout(
         const BindGroupLayoutDesc& desc);
-    RenderPass d3d11BeginRenderPass(const RenderPassDesc& desc,
-                                    std::string* outError);
+    std::unique_ptr<RenderPass> d3d11BeginRenderPass(const RenderPassDesc& desc,
+                                                     std::string* outError);
     rcp<TextureView> d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas);
     rcp<TextureView> d3d11WrapRiveTexture(gpu::Texture* gpuTex,
                                           uint32_t w,

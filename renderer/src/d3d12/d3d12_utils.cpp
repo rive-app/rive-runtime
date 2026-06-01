@@ -195,13 +195,36 @@ void D3D12DescriptorHeap::markSrvToIndex(ID3D12Device* device,
 {
     assert(m_type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+    // Honor caller-supplied SRV format override (e.g. picking sRGB for an
+    // externally-adopted Unity RT); otherwise map TYPELESS to its UNORM
+    // variant since CreateShaderResourceView rejects TYPELESS sources.
+    DXGI_FORMAT viewFormat = resource->srvViewFormat();
+    if (viewFormat == DXGI_FORMAT_UNKNOWN)
+    {
+        viewFormat = resource->desc().Format;
+        switch (viewFormat)
+        {
+            case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+                viewFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+                break;
+            case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+                viewFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+                break;
+            case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+                viewFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                break;
+            default:
+                break;
+        }
+    }
+
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = resource->desc().MipLevels;
     srvDesc.Texture2D.PlaneSlice = 0;
-    srvDesc.Format = resource->desc().Format;
+    srvDesc.Format = viewFormat;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
         m_heap->GetCPUDescriptorHandleForHeapStart(),

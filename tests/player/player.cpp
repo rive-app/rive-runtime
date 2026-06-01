@@ -14,6 +14,10 @@
 #include "rive/file.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/raw_text.hpp"
+#ifdef WITH_RIVE_SCRIPTING
+#include "rive/lua/rive_lua_libs.hpp"
+#include "rive/lua/scripting_vm.hpp"
+#endif
 #include "assets/roboto_flex.ttf.hpp"
 #include <stdio.h>
 #include <fstream>
@@ -174,6 +178,23 @@ public:
         m_rivName = std::move(rivName);
         m_file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
         assert(m_file);
+
+#ifdef WITH_RIVE_SCRIPTING
+        // Wire contexts before artboard instantiation; verify hooks may
+        // call context:gpuCanvas() during construction.
+        if (auto* vm = m_file->scriptingVM())
+        {
+            if (auto* sctx = vm->context())
+            {
+                sctx->setRenderContext(TestingWindow::Get()->renderContext());
+                if (void* ore = TestingWindow::Get()->getOreContext())
+                {
+                    sctx->setOreContext(ore);
+                }
+            }
+        }
+#endif
+
         m_artboard = m_file->artboardDefault();
         assert(m_artboard);
         m_scene = m_artboard->defaultStateMachine();
@@ -254,7 +275,12 @@ public:
             advanceDeltaTime = 1.0f / 120;
         }
 
+        // ORE auto-reopens its CB if a scripted shader re-enters during PLS
+        // draw, so we only mark the primary frame here.
+        TestingWindow::Get()->beginOreFrame();
         m_scene->advanceAndApply(paused ? 0 : advanceDeltaTime);
+        m_artboard->drawCanvases();
+        TestingWindow::Get()->endOreFrame();
 
         copiesLeft = std::max(copiesLeft, 0);
         copiesAbove = std::max(copiesAbove, 0);
@@ -317,12 +343,14 @@ public:
                         m_artboard->bounds());
         float spacingPx = spacing * 5 + 150;
         renderer->translate(-spacingPx * copiesLeft, -spacingPx * copiesAbove);
+        // drawInternal skips drawCanvases (we pre-passed above), matching
+        // the Flutter widget's prepassCanvases + paint pattern.
         for (int y = -copiesAbove; y <= copiesBelow; ++y)
         {
             renderer->save();
             for (int x = -copiesLeft; x <= copiesRight; ++x)
             {
-                m_artboard->draw(renderer.get());
+                m_artboard->drawInternal(renderer.get());
                 renderer->translate(spacingPx, 0);
             }
             renderer->restore();
@@ -498,7 +526,7 @@ int main(int argc, const char* argv[])
     TestingWindow::BackendParams backendParams;
     bool onlyUbershaders = false;
 
-    for (int i = 0; i < argc; ++i)
+    for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "--test_harness") == 0)
         {

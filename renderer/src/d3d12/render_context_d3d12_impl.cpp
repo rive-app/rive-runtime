@@ -6,6 +6,7 @@
 #include "rive/renderer/d3d/d3d_constants.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_d3d12.hpp"
 #endif
 #include "rive/profiler/profiler_macros.h"
 #include "rive/renderer/d3d/d3d_utils.hpp"
@@ -14,6 +15,7 @@
 #include "shaders/d3d/root.sig"
 
 #include <sstream>
+#include <vector>
 #include <D3DCompiler.h>
 
 // this is defined here instead of root_sig becaise the gpu does not care about
@@ -114,26 +116,30 @@ public:
     {
         DXGI_FORMAT d3dFormat = d3d_utils::convert_format(format);
 
-        m_gpuTexture = manager->make2DTexture(
-            width,
-            height,
-            mipLevel,
-            d3dFormat,
-            D3D12_RESOURCE_FLAG_NONE,
-            usesCommandList ? D3D12_RESOURCE_STATE_COMMON
-                            : D3D12_RESOURCE_STATE_COPY_DEST);
+        // Always create in COMMON. Both upload paths drive the texture
+        // through the copy command list which uses enhanced barriers, and
+        // enhanced barriers require COMMON layout (LEGACY_COPY_DEST is
+        // rejected as INCOMPATIBLE_BARRIER_LAYOUT). The copy itself
+        // promotes COMMON→COPY_DEST implicitly.
+        std::ignore = usesCommandList;
+        m_gpuTexture = manager->make2DTexture(width,
+                                              height,
+                                              mipLevel,
+                                              d3dFormat,
+                                              D3D12_RESOURCE_FLAG_NONE,
+                                              D3D12_RESOURCE_STATE_COMMON);
 
         if (format == GPUTextureFormat::bc7)
         {
-            // imageData contains already compressed data, so we can directly
-            // upload it to the GPU All mip levels are in this sequentially
+            // imageData contains pre-compressed BC7 blocks, level 0 first,
+            // levels packed tight (no inter-level padding). Copy each level
+            // into its placed-subresource slot in the upload buffer.
             auto desc = m_gpuTexture->resource()->GetDesc();
 
-            UINT numRows = 0;
-            UINT64 rowSizeInBytes = 0;
-            UINT64 totalBytes = 0;
-
             m_subresourceFootprints.resize(mipLevel);
+            std::vector<UINT> numRows(mipLevel);
+            std::vector<UINT64> rowSizeInBytes(mipLevel);
+            UINT64 totalBytes = 0;
 
             manager->device()->GetCopyableFootprints(
                 &desc,
@@ -141,8 +147,8 @@ public:
                 mipLevel,                       // Number of mips
                 0,                              // Base offset
                 m_subresourceFootprints.data(), // One footprint per mip
-                &numRows,
-                &rowSizeInBytes,
+                numRows.data(),
+                rowSizeInBytes.data(),
                 &totalBytes);
 
             m_uploadBuffer = manager->makeUploadBuffer(
@@ -155,12 +161,20 @@ public:
             for (UINT mip = 0; mip < mipLevel; ++mip)
             {
                 const auto& fp = m_subresourceFootprints[mip].Footprint;
-
-                UINT64 mipSize = fp.RowPitch * fp.Height;
-
-                memcpy(dst + m_subresourceFootprints[mip].Offset, src, mipSize);
-
-                src += mipSize; // advance to next mip in your BC7 blob
+                // RowPitch is padded to D3D12_TEXTURE_DATA_PITCH_ALIGNMENT
+                // (256). Source rows are tight (rowSizeInBytes). Copy one
+                // block-row at a time so we don't overflow the upload slot
+                // and don't read past the source mip.
+                uint8_t* dstMip = dst + m_subresourceFootprints[mip].Offset;
+                const UINT64 srcRowBytes = rowSizeInBytes[mip];
+                const UINT rows = numRows[mip];
+                for (UINT row = 0; row < rows; ++row)
+                {
+                    memcpy(dstMip + row * fp.RowPitch,
+                           src + row * srcRowBytes,
+                           srcRowBytes);
+                }
+                src += srcRowBytes * rows;
             }
         }
         else if (format == GPUTextureFormat::rgba32)
@@ -768,7 +782,11 @@ rcp<Texture> RenderContextD3D12Impl::makeImageTexture(
     uint32_t height,
     uint32_t mipLevelCount,
     GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+    const uint8_t imageDataRGBAPremul[],
+    uint8_t /*blockWidth*/,
+    uint8_t /*blockHeight*/,
+    bool /*srgb*/,
+    bool /*generateRemainingMips*/)
 {
     return make_rcp<TextureD3D12Impl>(m_resourceManager.get(),
                                       width,
@@ -783,6 +801,26 @@ rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(
     rcp<D3D12Texture> imageTexture)
 {
     return make_rcp<TextureD3D12Impl>(std::move(imageTexture));
+}
+
+rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(ID3D12Resource* resource,
+                                                       uint32_t width,
+                                                       uint32_t height,
+                                                       DXGI_FORMAT viewFormat)
+{
+    if (resource == nullptr || width == 0 || height == 0)
+    {
+        return nullptr;
+    }
+    // ComPtr adds a transient ref dropped when our wrapper destructs; the
+    // real lifetime stays with the original owner (e.g. Unity).
+    ComPtr<ID3D12Resource> comResource(resource);
+    auto d3dTex =
+        make_rcp<D3D12Texture>(m_resourceManager,
+                               std::move(comResource),
+                               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    d3dTex->setSrvViewFormat(viewFormat);
+    return adoptImageTexture(std::move(d3dTex));
 }
 
 #ifdef RIVE_CANVAS
@@ -806,6 +844,11 @@ rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+
+std::unique_ptr<rive::ore::Context> RenderContextD3D12Impl::makeOreContext()
+{
+    return rive::ore::ContextD3D12::Make(m_resourceManager, m_device.Get());
 }
 #endif
 

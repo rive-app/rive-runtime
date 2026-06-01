@@ -3,24 +3,22 @@
  */
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
+#include "ore_sampler_gl.hpp"
 
 namespace rive::ore
 {
 
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
+#if defined(ORE_BACKEND_GL)
 
-void Sampler::onRefCntReachedZero() const
+SamplerGL::~SamplerGL()
 {
     if (m_glSampler != 0)
     {
         GLuint samp = m_glSampler;
         glDeleteSamplers(1, &samp);
     }
-    delete this;
 }
 
-#endif // ORE_BACKEND_GL && !ORE_BACKEND_METAL
+#endif // ORE_BACKEND_GL
 
 } // namespace rive::ore

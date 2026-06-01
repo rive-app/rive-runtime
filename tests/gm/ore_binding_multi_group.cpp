@@ -82,7 +82,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_MULTI_GROUP_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── Two UBOs: u_a = red (1, 0, 0, 1), u_b = green (0, 1, 0, 1). ──
         // Sum in fragment shader = pure yellow (1, 1, 0, 1). Any per-group
@@ -182,7 +182,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -196,14 +196,14 @@ public:
         rpDesc.label = "ore_binding_multi_group_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(0, bgA.get());
-        pass.setBindGroup(1, bgB.get());
-        pass.setViewport(0, 0, 128, 128);
-        pass.draw(3); // fullscreen triangle
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(0, bgA.get());
+        pass->setBindGroup(1, bgB.get());
+        pass->setViewport(0, 0, 128, 128);
+        pass->draw(3); // fullscreen triangle
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

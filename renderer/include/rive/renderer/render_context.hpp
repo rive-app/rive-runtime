@@ -9,6 +9,7 @@
 #include "rive/renderer/rive_render_factory.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context.hpp"
 #endif
 #include "rive/renderer/render_target.hpp"
 #include "rive/renderer/shader_compilation_mode.hpp"
@@ -307,6 +308,7 @@ public:
     // Creates a RenderCanvas: a GPU texture usable as both a render target
     // (for rendering into) and a render image (for compositing into draws).
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height);
+    rive::ore::Context* getOreContext();
 #endif
 
 private:
@@ -390,9 +392,12 @@ private:
     // order to support the returned coverage buffer prefix.
     // (clockwiseAtomic mode only.)
     uint32_t incrementCoverageBufferPrefix(bool* needsCoverageBufferClear);
-
     const std::unique_ptr<RenderContextImpl> m_impl;
     const size_t m_maxPathID;
+
+#ifdef RIVE_CANVAS
+    std::unique_ptr<rive::ore::Context> m_oreContext = nullptr;
+#endif
 
     ResourceAllocationCounts m_currentResourceAllocations;
     ResourceAllocationCounts m_maxRecentResourceRequirements;

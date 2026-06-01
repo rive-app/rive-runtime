@@ -13,6 +13,10 @@
 namespace rive::ore
 {
 
+class RenderPassGL;
+class BindGroupGL;
+class TextureGL;
+
 class ContextGL : public Context
 {
 public:
@@ -31,10 +35,11 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -43,15 +48,17 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
+
     ContextGL(const ContextGL&) = delete;
     ContextGL& operator=(const ContextGL&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassGL;
+    friend class BindGroupGL;
+    friend class TextureGL;
 
-    ContextGL() = default;
+    ContextGL() : Context(nullptr) {}
 
     // GL state tracking for save/restore at frame boundaries.
     // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally excluded — it is VAO
@@ -60,6 +67,7 @@ private:
     {
         int program = 0;
         int arrayBuffer = 0;
+        int uniformBuffer = 0;
         int framebuffer = 0;
         int vertexArray = 0;
     } m_savedState;

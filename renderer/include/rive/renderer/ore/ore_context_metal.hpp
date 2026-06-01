@@ -11,6 +11,10 @@
 namespace rive::ore
 {
 
+class RenderPassMetal;
+class BindGroupMetal;
+class TextureMetal;
+
 class ContextMetal : public Context
 {
 public:
@@ -30,10 +34,11 @@ public:
                                std::string* outError = nullptr) override;
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override;
 
-    RenderPass beginRenderPass(const RenderPassDesc& desc,
-                               std::string* outError = nullptr) override;
+    std::unique_ptr<RenderPass> beginRenderPass(
+        const RenderPassDesc& desc,
+        std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -42,15 +47,17 @@ public:
                                      uint32_t width,
                                      uint32_t height) override;
 
+    ShaderTarget shaderTarget() const override { return ShaderTarget::msl; }
+
     ContextMetal(const ContextMetal&) = delete;
     ContextMetal& operator=(const ContextMetal&) = delete;
 
 private:
-    friend class RenderPass;
-    friend class BindGroup;
-    friend class Texture;
+    friend class RenderPassMetal;
+    friend class BindGroupMetal;
+    friend class TextureMetal;
 
-    ContextMetal() = default;
+    ContextMetal() : Context(nullptr) {}
 
     // Metal implementation helpers — defined in ore_context_metal.mm.
     // The public make*/begin*/wrap* overrides delegate to these.
@@ -63,13 +70,15 @@ private:
     rcp<Pipeline> mtlMakePipeline(const PipelineDesc& desc,
                                   std::string* outError);
     rcp<BindGroup> mtlMakeBindGroup(const BindGroupDesc& desc);
-    RenderPass mtlBeginRenderPass(const RenderPassDesc& desc,
-                                  std::string* outError);
+    std::unique_ptr<RenderPass> mtlBeginRenderPass(const RenderPassDesc& desc,
+                                                   std::string* outError);
     rcp<TextureView> mtlWrapCanvasTexture(gpu::RenderCanvas* canvas);
 
     id<MTLDevice> m_mtlDevice = nil;
     id<MTLCommandQueue> m_mtlQueue = nil;
     id<MTLCommandBuffer> m_mtlCommandBuffer = nil;
+
+    std::vector<rcp<BindGroup>> m_deferredBindGroups;
 };
 
 } // namespace rive::ore

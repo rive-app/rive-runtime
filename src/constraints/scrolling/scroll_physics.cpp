@@ -45,6 +45,7 @@ void ScrollPhysics::reset()
                 std::chrono::high_resolution_clock::now().time_since_epoch())
                 .count();
     }
+    m_speed = Vec2D();
     m_acceleration = Vec2D();
     stop();
 }

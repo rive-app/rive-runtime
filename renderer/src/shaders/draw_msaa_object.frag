@@ -72,14 +72,6 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     // finish the the the alpha portion of the blend mode.
     color.rgb *= color.a;
     // clang-format off
-#elif defined(@SPEC_CONST_NONE) && defined(@FIXED_FUNCTION_COLOR_OUTPUT) && !defined(@DRAW_IMAGE_MESH)
-    // clang-format on
-    // in WebGPU with no specialization constants (when SPEC_CONST_NONE) is
-    // true), ENABLE_ADVANCED_BLEND is always set to true, so the vertex
-    // shader will not premultiply the color (Except with image meshes, where
-    // it's always premultiplied). Premultiply it now to get the correct color
-    // for srcOver blending.
-    color.rgb *= color.a;
 #endif
 
     // Certain platforms give us less control of the format of what we are

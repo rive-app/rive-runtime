@@ -510,13 +510,13 @@ void LayoutComponent::syncStyle()
     auto effectiveUnits = [isAbsolute,
                            isLegacyHugEncoding](LayoutScaleType scaleType,
                                                 YGUnit storedUnits) {
+        if (isAbsolute && scaleType != LayoutScaleType::hug)
+        {
+            return storedUnits;
+        }
         if (scaleType != LayoutScaleType::fixed)
         {
             return YGUnitAuto;
-        }
-        if (isAbsolute)
-        {
-            return storedUnits;
         }
         if (storedUnits == YGUnitPoint || storedUnits == YGUnitPercent)
         {

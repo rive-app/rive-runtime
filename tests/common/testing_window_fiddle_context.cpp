@@ -17,8 +17,17 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 
 #include "fiddle_context.hpp"
 #include "common/offscreen_render_target.hpp"
-#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include <queue>
+
+#ifdef RIVE_ORE
+#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/render_context_impl.hpp"
+#endif
+
+#ifdef RIVE_VULKAN
+// For renderContextVulkanImpl()->vulkanContext() in the offscreen RT path.
+#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#endif
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -418,6 +427,11 @@ public:
         return nullptr;
     }
 
+    void* getCurrentCommandBuffer() const override
+    {
+        return m_fiddleContext->getCommandBuffer();
+    }
+
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
@@ -504,6 +518,34 @@ public:
     {
         return glfwWindowShouldClose(m_glfwWindow);
     }
+
+#ifdef RIVE_ORE
+    void* getOreContext() const override
+    {
+        return renderContext()->getOreContext();
+    }
+
+    void beginOreFrame() override
+    {
+        auto oreContext = renderContext()->getOreContext();
+        m_fiddleContext->beginOreFrame(oreContext);
+    }
+
+    void endOreFrame() override
+    {
+        auto oreContext = renderContext()->getOreContext();
+        if (oreContext == nullptr)
+            return;
+        if (auto* pass = oreContext->activeRenderPass())
+        {
+            if (!pass->isFinished())
+                pass->finish();
+            oreContext->setActiveRenderPass(nullptr);
+        }
+
+        m_fiddleContext->endOreFrame(oreContext);
+    }
+#endif
 
 private:
     GLFWwindow* m_glfwWindow = nullptr;

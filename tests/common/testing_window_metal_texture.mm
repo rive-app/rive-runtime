@@ -152,7 +152,36 @@ public:
         m_flushCommandBuffer = nil;
     }
 
+#if defined(__APPLE__) && !defined(RIVE_UNREAL)
+    // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
+    // this cross-platform header (same pattern as externalCommandBuffer).
     void* metalQueue() const override { return (__bridge void*)m_queue; }
+#endif
+
+    void* getCurrentCommandBuffer() const override
+    {
+        return (__bridge void*)m_queue;
+    }
+
+    void* getOreContext() const override
+    {
+        return m_renderContext->getOreContext();
+    }
+
+    void beginOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+
+        oreContext->beginFrame({});
+    }
+    void endOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+
+        oreContext->endFrame();
+    }
 
 private:
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();

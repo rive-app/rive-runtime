@@ -4,11 +4,14 @@
 
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 
+#include "rive/decoders/astc_footprints.hpp"
+
 #include "rive/renderer/gl/render_buffer_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/draw.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/ore/ore_context_gl.hpp"
 #endif
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
@@ -701,36 +704,116 @@ private:
 };
 #endif // RIVE_CANVAS
 
-rcp<Texture> RenderContextGLImpl::makeImageTexture(
-    uint32_t width,
-    uint32_t height,
-    uint32_t mipLevelCount,
-    GPUTextureFormat format,
-    const uint8_t imageDataRGBAPremul[])
+rcp<Texture> RenderContextGLImpl::makeImageTexture(uint32_t width,
+                                                   uint32_t height,
+                                                   uint32_t mipLevelCount,
+                                                   GPUTextureFormat format,
+                                                   const uint8_t imageData[],
+                                                   uint8_t blockWidth,
+                                                   uint8_t blockHeight,
+                                                   [[maybe_unused]] bool srgb,
+                                                   bool generateRemainingMips)
 {
-    if (format != GPUTextureFormat::rgba32)
+    // Pick UNORM internal format. Sampler path treats texels as sRGB-
+    // encoded bytes (matching the GL_RGBA8 PNG upload).
+    GLenum sizedInternal;
+    bool isCompressed = false;
+
+    uint32_t bytesPerBlock = 16;
+    switch (format)
     {
-        assert(!"unsupported format");
-        return nullptr;
+        case GPUTextureFormat::rgba32:
+            sizedInternal = GL_RGBA8;
+            assert(blockWidth == 1 && blockHeight == 1);
+            bytesPerBlock = 4;
+            break;
+        case GPUTextureFormat::bc7:
+            sizedInternal = 0x8E8C; // GL_COMPRESSED_RGBA_BPTC_UNORM
+            isCompressed = true;
+            break;
+        case GPUTextureFormat::etc2:
+            sizedInternal = 0x9278; // GL_COMPRESSED_RGBA8_ETC2_EAC
+            isCompressed = true;
+            break;
+        case GPUTextureFormat::astc:
+        {
+
+            const int idx = rive::astcFootprintIndex(blockWidth, blockHeight);
+            if (idx < 0)
+            {
+                assert(!"unsupported ASTC block footprint");
+                return nullptr;
+            }
+
+            // KHR_texture_compression_astc_ldr lays the per-footprint enums
+            // out contiguously starting at GL_COMPRESSED_RGBA_ASTC_4x4_KHR, in
+            // the same canonical order as astcFootprintIndex().
+            sizedInternal =
+                static_cast<GLenum>(GL_COMPRESSED_RGBA_ASTC_4x4_KHR + idx);
+            isCompressed = true;
+            break;
+        }
+        default:
+            assert(!"unsupported format");
+            return nullptr;
     }
+    assert(!(generateRemainingMips && isCompressed) &&
+           "glGenerateMipmap is undefined on compressed textures");
 
     GLuint textureID;
     glGenTextures(1, &textureID);
     glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
-    if (imageDataRGBAPremul != nullptr)
+    glTexStorage2D(GL_TEXTURE_2D,
+                   static_cast<GLsizei>(mipLevelCount),
+                   sizedInternal,
+                   width,
+                   height);
+    if (imageData != nullptr)
     {
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        width,
-                        height,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        imageDataRGBAPremul);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        // When the caller wants the GPU to auto-fill mips 1..N from mip 0
+        // (PNG path), only upload level 0 and finish via glGenerateMipmap.
+        const uint32_t levelsToUpload =
+            generateRemainingMips ? 1u : mipLevelCount;
+        size_t srcOffset = 0;
+        for (uint32_t i = 0; i < levelsToUpload; ++i)
+        {
+            const uint32_t logW = std::max<uint32_t>(1u, width >> i);
+            const uint32_t logH = std::max<uint32_t>(1u, height >> i);
+            const uint32_t blocksX = (logW + blockWidth - 1) / blockWidth;
+            const uint32_t blocksY = (logH + blockHeight - 1) / blockHeight;
+            const size_t levelBytes =
+                static_cast<size_t>(blocksX) * blocksY * bytesPerBlock;
+            if (isCompressed)
+            {
+                glCompressedTexSubImage2D(GL_TEXTURE_2D,
+                                          static_cast<GLint>(i),
+                                          0,
+                                          0,
+                                          logW,
+                                          logH,
+                                          sizedInternal,
+                                          static_cast<GLsizei>(levelBytes),
+                                          imageData + srcOffset);
+            }
+            else
+            {
+                glTexSubImage2D(GL_TEXTURE_2D,
+                                static_cast<GLint>(i),
+                                0,
+                                0,
+                                logW,
+                                logH,
+                                GL_RGBA,
+                                GL_UNSIGNED_BYTE,
+                                imageData + srcOffset);
+            }
+            srcOffset += levelBytes;
+        }
+        if (generateRemainingMips && mipLevelCount > 1)
+        {
+            glGenerateMipmap(GL_TEXTURE_2D);
+        }
     }
     return adoptImageTexture(width, height, textureID);
 }
@@ -779,6 +862,11 @@ rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
 
     return make_rcp<RenderCanvas>(std::move(renderImage),
                                   std::move(renderTarget));
+}
+
+std::unique_ptr<rive::ore::Context> RenderContextGLImpl::makeOreContext()
+{
+    return rive::ore::ContextGL::Make();
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1558,7 +1646,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         const auto feature = ShaderFeatures(1 << i);
-        if (enums::any_flag_set(shaderFeatures, feature))
+        if (enums::is_flag_set(shaderFeatures, feature))
         {
             assert(enums::is_flag_set(kVertexShaderFeaturesMask, feature) ||
                    shaderType == GL_FRAGMENT_SHADER);
@@ -3071,6 +3159,11 @@ bool RenderContextGLImpl::testingOnly_setBlendAdvancedCoherentKHRSupported(
     assert(wasSupported == m_platformFeatures.supportsBlendAdvancedCoherentKHR);
     m_capabilities.KHR_blend_equation_advanced_coherent = supported;
     m_platformFeatures.supportsBlendAdvancedCoherentKHR = supported;
+
+    // Clear the shader cache since these are built with hard expectations about
+    // m_capabilities/m_platformFeatures.
+    m_pipelineManager.clearCache();
+
     return wasSupported;
 }
 
@@ -3081,6 +3174,11 @@ bool RenderContextGLImpl::testingOnly_setBlendAdvancedKHRSupported(
     assert(wasSupported == m_platformFeatures.supportsBlendAdvancedKHR);
     m_capabilities.KHR_blend_equation_advanced = supported;
     m_platformFeatures.supportsBlendAdvancedKHR = supported;
+
+    // Clear the shader cache since these are built with hard expectations about
+    // m_capabilities/m_platformFeatures.
+    m_pipelineManager.clearCache();
+
     return wasSupported;
 }
 #endif

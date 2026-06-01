@@ -3,13 +3,12 @@
  */
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
-#include "rive/renderer/ore/ore_render_pass.hpp"
-#include "rive/renderer/ore/ore_bind_group.hpp"
-#include "rive/renderer/ore/ore_buffer.hpp"
-#include "rive/renderer/ore/ore_texture.hpp"
-#include "rive/renderer/ore/ore_sampler.hpp"
-#include "rive/renderer/ore/ore_pipeline.hpp"
-#include "rive/renderer/ore/ore_context_gl.hpp" // for RenderPass inline bodies
+#include "ore_render_pass_gl.hpp"
+#include "ore_buffer_gl.hpp"
+#include "ore_pipeline_gl.hpp"
+#include "ore_bind_group_gl.hpp"
+#include "ore_texture_gl.hpp"
+#include "rive/renderer/ore/ore_context_gl.hpp"
 #include "rive/rive_types.hpp"
 
 namespace rive::ore
@@ -134,7 +133,6 @@ static GLenum oreStencilOpToGL(StencilOp op)
     RIVE_UNREACHABLE();
 }
 
-// Vertex format → GL type, component count, normalized.
 struct GLVertexInfo
 {
     GLenum type;
@@ -180,35 +178,20 @@ static GLVertexInfo oreVertexFormatToGL(VertexFormat fmt)
             return {GL_HALF_FLOAT, 4, GL_FALSE};
         case VertexFormat::uint32:
             return {GL_UNSIGNED_INT, 1, GL_FALSE};
-        case VertexFormat::uint32x2:
-            return {GL_UNSIGNED_INT, 2, GL_FALSE};
-        case VertexFormat::uint32x3:
-            return {GL_UNSIGNED_INT, 3, GL_FALSE};
-        case VertexFormat::uint32x4:
-            return {GL_UNSIGNED_INT, 4, GL_FALSE};
-        case VertexFormat::sint32:
-            return {GL_INT, 1, GL_FALSE};
-        case VertexFormat::sint32x2:
-            return {GL_INT, 2, GL_FALSE};
-        case VertexFormat::sint32x3:
-            return {GL_INT, 3, GL_FALSE};
-        case VertexFormat::sint32x4:
-            return {GL_INT, 4, GL_FALSE};
     }
     RIVE_UNREACHABLE();
 }
 
 // ============================================================================
-// RenderPass
+// RenderPassGL
 // ============================================================================
 
 // When both Metal and GL are compiled (macOS), ore_render_pass_metal_gl.mm
-// provides all RenderPass method bodies with runtime dispatch. This file
+// provides all RenderPassGL method bodies with runtime dispatch. This file
 // only contributes the static helper functions in that case.
-#if defined(ORE_BACKEND_GL) && !defined(ORE_BACKEND_METAL) &&                  \
-    !defined(ORE_BACKEND_VK)
+#if defined(ORE_BACKEND_GL)
 
-RenderPass::~RenderPass()
+RenderPassGL::~RenderPassGL()
 {
     if (!m_finished && m_context != nullptr)
     {
@@ -216,80 +199,25 @@ RenderPass::~RenderPass()
     }
 }
 
-RenderPass::RenderPass(RenderPass&& other) noexcept :
-    m_glFBO(other.m_glFBO),
-    m_glVAO(other.m_glVAO),
-    m_prevVAO(other.m_prevVAO),
-    m_prevFBO(other.m_prevFBO),
-    m_ownsFBO(other.m_ownsFBO),
-    m_ownsVAO(other.m_ownsVAO),
-    m_currentPipeline(std::move(other.m_currentPipeline)),
-    m_viewportWidth(other.m_viewportWidth),
-    m_viewportHeight(other.m_viewportHeight),
-    m_maxSamplerSlot(other.m_maxSamplerSlot),
-    m_maxAttribSlot(other.m_maxAttribSlot),
-    m_usedSamplers(other.m_usedSamplers),
-    m_usedAttribs(other.m_usedAttribs),
-    m_glResolveCount(other.m_glResolveCount)
-{
-    moveCrossBackendFieldsFrom(other);
-    for (uint32_t i = 0; i < m_glResolveCount; ++i)
-        m_glResolves[i] = other.m_glResolves[i];
-    other.m_ownsFBO = false;
-    other.m_ownsVAO = false;
-    other.m_glResolveCount = 0;
-}
-
-RenderPass& RenderPass::operator=(RenderPass&& other) noexcept
-{
-    if (this != &other)
-    {
-        if (!m_finished && m_context != nullptr)
-        {
-            finish();
-        }
-        moveCrossBackendFieldsFrom(other);
-        m_glFBO = other.m_glFBO;
-        m_glVAO = other.m_glVAO;
-        m_prevVAO = other.m_prevVAO;
-        m_prevFBO = other.m_prevFBO;
-        m_ownsFBO = other.m_ownsFBO;
-        m_ownsVAO = other.m_ownsVAO;
-        m_currentPipeline = std::move(other.m_currentPipeline);
-        m_viewportWidth = other.m_viewportWidth;
-        m_viewportHeight = other.m_viewportHeight;
-        m_maxSamplerSlot = other.m_maxSamplerSlot;
-        m_maxAttribSlot = other.m_maxAttribSlot;
-        m_usedSamplers = other.m_usedSamplers;
-        m_usedAttribs = other.m_usedAttribs;
-        m_glResolveCount = other.m_glResolveCount;
-        for (uint32_t i = 0; i < m_glResolveCount; ++i)
-            m_glResolves[i] = other.m_glResolves[i];
-        other.m_ownsFBO = false;
-        other.m_ownsVAO = false;
-        other.m_glResolveCount = 0;
-    }
-    return *this;
-}
-
-void RenderPass::validate() const
+void RenderPassGL::validate() const
 {
     assert(!m_finished && "RenderPass already finished");
     assert(m_context != nullptr);
 }
 
-void RenderPass::setPipeline(Pipeline* pipeline)
+void RenderPassGL::setPipeline(Pipeline* pipeline)
 {
     validate();
     if (!checkPipelineCompat(pipeline))
         return;
     m_currentPipeline = ref_rcp(pipeline);
 
+    auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
+    assert(glPipeline);
     const auto& desc = pipeline->desc();
 
-    glUseProgram(pipeline->m_glProgram);
+    glUseProgram(glPipeline->m_glProgram);
 
-    // Cull mode.
     if (desc.cullMode == CullMode::none)
     {
         glDisable(GL_CULL_FACE);
@@ -301,11 +229,9 @@ void RenderPass::setPipeline(Pipeline* pipeline)
     }
 
     // Face winding — inverted to compensate for the WGSL→GLSL Y-flip
-    // baked into every vertex shader at compile time. The same approach
-    // is used by wgpu and Dawn's GL backends.
+    // baked into every vertex shader at compile time.
     glFrontFace(desc.winding == FaceWinding::counterClockwise ? GL_CW : GL_CCW);
 
-    // Depth.
     if (desc.depthStencil.depthCompare != CompareFunction::always ||
         desc.depthStencil.depthWriteEnabled)
     {
@@ -318,7 +244,6 @@ void RenderPass::setPipeline(Pipeline* pipeline)
         glDisable(GL_DEPTH_TEST);
     }
 
-    // Depth bias (polygon offset).
     if (desc.depthStencil.depthBias != 0 ||
         desc.depthStencil.depthBiasSlopeScale != 0.0f)
     {
@@ -331,7 +256,6 @@ void RenderPass::setPipeline(Pipeline* pipeline)
         glDisable(GL_POLYGON_OFFSET_FILL);
     }
 
-    // Stencil.
     bool hasStencil = (desc.stencilFront.compare != CompareFunction::always ||
                        desc.stencilFront.failOp != StencilOp::keep ||
                        desc.stencilFront.depthFailOp != StencilOp::keep ||
@@ -368,7 +292,6 @@ void RenderPass::setPipeline(Pipeline* pipeline)
         glDisable(GL_STENCIL_TEST);
     }
 
-    // Blending — GLES3 only supports global blend (colorTargets[0]).
     if (desc.colorCount > 0 && desc.colorTargets[0].blendEnabled)
     {
         glEnable(GL_BLEND);
@@ -385,7 +308,6 @@ void RenderPass::setPipeline(Pipeline* pipeline)
         glDisable(GL_BLEND);
     }
 
-    // Color write mask (global on GLES3).
     if (desc.colorCount > 0)
     {
         auto mask = desc.colorTargets[0].writeMask;
@@ -396,15 +318,19 @@ void RenderPass::setPipeline(Pipeline* pipeline)
     }
 }
 
-void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
+void RenderPassGL::setVertexBuffer(uint32_t slot,
+                                   Buffer* buffer,
+                                   uint32_t offset)
 {
     validate();
     assert(m_currentPipeline != nullptr && "setPipeline must be called first");
     assert(slot < m_currentPipeline->desc().vertexBufferCount);
 
     const auto& layout = m_currentPipeline->desc().vertexBuffers[slot];
+    auto* glBuffer = lite_rtti_cast<BufferGL*>(buffer);
+    assert(glBuffer);
 
-    glBindBuffer(GL_ARRAY_BUFFER, buffer->m_glBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, glBuffer->m_glBuffer);
 
     for (uint32_t i = 0; i < layout.attributeCount; ++i)
     {
@@ -442,48 +368,43 @@ void RenderPass::setVertexBuffer(uint32_t slot, Buffer* buffer, uint32_t offset)
         }
 
         if (layout.stepMode == VertexStepMode::instance)
-        {
             glVertexAttribDivisor(attr.shaderSlot, 1);
-        }
         else
-        {
             glVertexAttribDivisor(attr.shaderSlot, 0);
-        }
 
-        // Track for cleanup in finish().
         if (!m_usedAttribs || attr.shaderSlot > m_maxAttribSlot)
             m_maxAttribSlot = attr.shaderSlot;
         m_usedAttribs = true;
     }
 }
 
-void RenderPass::setIndexBuffer(Buffer* buffer,
-                                IndexFormat format,
-                                uint32_t offset)
+void RenderPassGL::setIndexBuffer(Buffer* buffer,
+                                  IndexFormat format,
+                                  uint32_t offset)
 {
     validate();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->m_glBuffer);
+    auto* glBuffer = lite_rtti_cast<BufferGL*>(buffer);
+    assert(glBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glBuffer->m_glBuffer);
     m_glIndexFormat = format;
     (void)offset;
 }
 
-void RenderPass::setBindGroup(uint32_t groupIndex,
-                              BindGroup* bg,
-                              const uint32_t* dynamicOffsets,
-                              uint32_t dynamicOffsetCount)
+void RenderPassGL::setBindGroup(uint32_t groupIndex,
+                                BindGroup* bg,
+                                const uint32_t* dynamicOffsets,
+                                uint32_t dynamicOffsetCount)
 {
     validate();
     assert(bg != nullptr);
 
-    // Hold a strong reference so the BindGroup stays alive until finish().
     m_boundGroups[groupIndex] = ref_rcp(bg);
 
+    auto* glBg = lite_rtti_cast<BindGroupGL*>(bg);
+    assert(glBg);
     uint32_t dynIdx = 0;
 
-    // Bind UBOs via glBindBufferRange. Dynamic-offset flag is cached
-    // on the binding from `Pipeline::isDynamicUBO()` at makeBindGroup
-    // time; consume one `dynamicOffsets[]` entry per dynamic UBO.
-    for (const auto& ubo : bg->m_glUBOs)
+    for (const auto& ubo : glBg->m_glUBOs)
     {
         uint32_t offset = ubo.offset;
         if (ubo.hasDynamicOffset && dynIdx < dynamicOffsetCount)
@@ -498,20 +419,17 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
                           ubo.size);
     }
 
-    // Bind textures.
-    for (const auto& tex : bg->m_glTextures)
+    for (const auto& tex : glBg->m_glTextures)
     {
         glActiveTexture(GL_TEXTURE0 + tex.slot);
         glBindTexture(tex.target, tex.texture);
 
-        // Track for cleanup in finish().
         if (!m_usedSamplers || tex.slot > m_maxSamplerSlot)
             m_maxSamplerSlot = tex.slot;
         m_usedSamplers = true;
     }
 
-    // Bind samplers.
-    for (const auto& samp : bg->m_glSamplers)
+    for (const auto& samp : glBg->m_glSamplers)
     {
         glBindSampler(samp.slot, samp.sampler);
 
@@ -521,22 +439,16 @@ void RenderPass::setBindGroup(uint32_t groupIndex,
     }
 }
 
-void RenderPass::setViewport(float x,
-                             float y,
-                             float width,
-                             float height,
-                             float minDepth,
-                             float maxDepth)
+void RenderPassGL::setViewport(float x,
+                               float y,
+                               float width,
+                               float height,
+                               float minDepth,
+                               float maxDepth)
 {
     validate();
     m_viewportWidth = static_cast<uint32_t>(width);
     m_viewportHeight = static_cast<uint32_t>(height);
-    // Ore NDC convention: Y-up clip space, depth in [0, 1].
-    // GLES has Y-up natively, so no viewport flip is needed here (unlike
-    // Vulkan). The depth range mismatch (GLES [-1,1] vs ore's [0,1]) and
-    // the Y-flip required by the Vulkan-style WGSL coordinate space are
-    // both corrected in the compiled vertex shader at WGSL→GLSL compile
-    // time — no runtime fixup is needed.
     glViewport(static_cast<GLint>(x),
                static_cast<GLint>(y),
                static_cast<GLsizei>(width),
@@ -544,23 +456,19 @@ void RenderPass::setViewport(float x,
     glDepthRangef(minDepth, maxDepth);
 }
 
-void RenderPass::setScissorRect(uint32_t x,
-                                uint32_t y,
-                                uint32_t width,
-                                uint32_t height)
+void RenderPassGL::setScissorRect(uint32_t x,
+                                  uint32_t y,
+                                  uint32_t width,
+                                  uint32_t height)
 {
     validate();
     glEnable(GL_SCISSOR_TEST);
     glScissor(x, y, width, height);
 }
 
-void RenderPass::setStencilReference(uint32_t ref)
+void RenderPassGL::setStencilReference(uint32_t ref)
 {
     validate();
-    // Cache the ref so a subsequent `setPipeline` re-applies it. WebGPU
-    // semantics: `setStencilReference` is pass-state and persists across
-    // pipeline changes — calling it BEFORE the first `setPipeline` is
-    // valid, so we must not depend on `m_currentPipeline` here.
     m_glStencilRef = ref;
     if (m_currentPipeline)
     {
@@ -576,38 +484,34 @@ void RenderPass::setStencilReference(uint32_t ref)
     }
 }
 
-void RenderPass::setBlendColor(float r, float g, float b, float a)
+void RenderPassGL::setBlendColor(float r, float g, float b, float a)
 {
     validate();
     glBlendColor(r, g, b, a);
 }
 
-void RenderPass::draw(uint32_t vertexCount,
-                      uint32_t instanceCount,
-                      uint32_t firstVertex,
-                      uint32_t firstInstance)
+void RenderPassGL::draw(uint32_t vertexCount,
+                        uint32_t instanceCount,
+                        uint32_t firstVertex,
+                        uint32_t firstInstance)
 {
     validate();
     assert(m_currentPipeline != nullptr);
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
-    (void)firstInstance; // GLES3 doesn't support base instance.
+    (void)firstInstance;
 
     if (instanceCount > 1)
-    {
         glDrawArraysInstanced(mode, firstVertex, vertexCount, instanceCount);
-    }
     else
-    {
         glDrawArrays(mode, firstVertex, vertexCount);
-    }
 }
 
-void RenderPass::drawIndexed(uint32_t indexCount,
-                             uint32_t instanceCount,
-                             uint32_t firstIndex,
-                             int32_t baseVertex,
-                             uint32_t firstInstance)
+void RenderPassGL::drawIndexed(uint32_t indexCount,
+                               uint32_t instanceCount,
+                               uint32_t firstIndex,
+                               int32_t baseVertex,
+                               uint32_t firstInstance)
 {
     validate();
     assert(m_currentPipeline != nullptr);
@@ -620,30 +524,29 @@ void RenderPass::drawIndexed(uint32_t indexCount,
     const void* offset = reinterpret_cast<const void*>(
         static_cast<uintptr_t>(firstIndex * indexSize));
 
-    (void)baseVertex;    // Not supported on base GLES3.
-    (void)firstInstance; // Not supported on GLES3.
+    (void)baseVertex;
+    (void)firstInstance;
 
     if (instanceCount > 1)
-    {
         glDrawElementsInstanced(mode,
                                 indexCount,
                                 indexType,
                                 offset,
                                 instanceCount);
-    }
     else
-    {
         glDrawElements(mode, indexCount, indexType, offset);
-    }
 }
 
-void RenderPass::finish()
+void RenderPassGL::finish()
 {
     if (m_finished)
         return;
     m_finished = true;
 
-    // Restore defaults.
+    m_currentPipeline = nullptr;
+    for (auto& bg : m_boundGroups)
+        bg.reset();
+
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
@@ -653,9 +556,6 @@ void RenderPass::finish()
     glDepthMask(GL_TRUE);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-    // Unbind sampler objects and textures so they don't override texture
-    // parameters in subsequent draws by the host renderer (e.g. Rive's MSAA
-    // path).
     if (m_usedSamplers)
     {
         for (uint32_t i = 0; i <= m_maxSamplerSlot; ++i)
@@ -668,22 +568,14 @@ void RenderPass::finish()
         glActiveTexture(GL_TEXTURE0);
     }
 
-    // Disable vertex attrib arrays that were enabled, so they don't
-    // contaminate the host renderer's VAO state.
     if (m_usedAttribs)
     {
         for (uint32_t i = 0; i <= m_maxAttribSlot; ++i)
             glDisableVertexAttribArray(i);
     }
 
-    // Unbind the global array buffer. (GL_ELEMENT_ARRAY_BUFFER is VAO state
-    // and will be cleaned up when the per-pass VAO is deleted below — we must
-    // NOT unbind it here because on some WebGL2 implementations the EBO=0
-    // can leak through the VAO delete/restore and corrupt the host VAO.)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    // Delete the per-pass VAO and restore the host renderer's VAO so its
-    // element-array-buffer binding (and other attrib state) is intact.
     if (m_ownsVAO && m_glVAO != 0)
     {
         glDeleteVertexArrays(1, &m_glVAO);
@@ -691,7 +583,6 @@ void RenderPass::finish()
     }
     glBindVertexArray(m_prevVAO);
 
-    // Resolve MSAA renderbuffers → single-sample resolve targets.
     if (m_glResolveCount > 0)
     {
         GLuint resolveFBO;
@@ -699,11 +590,9 @@ void RenderPass::finish()
         for (uint32_t i = 0; i < m_glResolveCount; ++i)
         {
             const auto& r = m_glResolves[i];
-            // Read from the render pass FBO (MSAA renderbuffer attached).
             glBindFramebuffer(GL_READ_FRAMEBUFFER, m_glFBO);
             glReadBuffer(GL_COLOR_ATTACHMENT0 + r.colorIndex);
 
-            // Write to a temp FBO with the single-sample resolve texture.
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFBO);
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
                                    GL_COLOR_ATTACHMENT0,
@@ -725,16 +614,13 @@ void RenderPass::finish()
         glDeleteFramebuffers(1, &resolveFBO);
     }
 
-    // Delete our FBO and restore the host renderer's FBO.
     if (m_ownsFBO && m_glFBO != 0)
-    {
         glDeleteFramebuffers(1, &m_glFBO);
-    }
     glBindFramebuffer(GL_FRAMEBUFFER, m_prevFBO);
 
     m_context = nullptr;
 }
 
-#endif // ORE_BACKEND_GL && !ORE_BACKEND_METAL
+#endif // ORE_BACKEND_GL
 
 } // namespace rive::ore

@@ -6,10 +6,16 @@
 #include "rive/nested_animation.hpp"
 #include "rive/scene.hpp"
 
+#include <memory>
+#include <unordered_map>
+
 namespace rive
 {
 class LinearAnimation;
 class NestedEventNotifier;
+class InterpolatingKeyFrame;
+class ScriptedInterpolator;
+class DataBind;
 
 class LinearAnimationInstance : public Scene, public NestedEventNotifier
 {
@@ -62,8 +68,19 @@ public:
     // other animations applied to the artboard.
     void apply(float mix = 1.0f) const
     {
-        m_animation->apply(m_artboardInstance, m_time, mix);
+        m_animation->apply(m_artboardInstance, m_time, mix, this);
     }
+
+    // Returns a per-(this LAI, keyframe) stateful clone of the given
+    // ScriptedInterpolator, lazily creating it on first call. Returns nullptr
+    // when scripting is disabled or the clone cannot be vended; callers
+    // should fall back to the shared template (which already degrades to
+    // identity/linear when its Lua side isn't ready). Time-seeking via
+    // `time(float)` and `reset()` intentionally does NOT clear the cache —
+    // statefulness is the whole point.
+    ScriptedInterpolator* statefulInterpolator(
+        const InterpolatingKeyFrame* keyframe,
+        const ScriptedInterpolator* shared) const;
 
     // Set when the animation is advanced, true if the animation has stopped
     // (oneShot), reached the end (loop), or changed direction (pingPong)
@@ -120,6 +137,27 @@ private:
     float m_direction;
     bool m_didLoop;
     int m_loopValue = -1;
+
+    // Lazy outer pointer => the common case (no scripted interpolators) pays
+    // one nullptr check on the apply hot path. Inner unique_ptr destroys the
+    // cloned ScriptedInterpolator (and its Lua ref) when this LAI is
+    // destroyed. `mutable` so the cache populates from the const apply().
+    // Intentionally not copied by the copy ctor — a copied LAI starts with
+    // a fresh empty cache.
+    mutable std::unique_ptr<
+        std::unordered_map<const InterpolatingKeyFrame*,
+                           std::unique_ptr<ScriptedInterpolator>>>
+        m_scriptedInterpolatorInstances;
+
+    // Data binds that cloneProperties() appended to m_artboardInstance on
+    // our behalf for the cloned ScriptedInterpolators above. We must
+    // removeDataBind+delete each of these in ~LinearAnimationInstance BEFORE
+    // m_scriptedInterpolatorInstances tears down, because the bind targets
+    // point at CustomPropertys owned by the clones. Captured by snapshotting
+    // m_artboardInstance->dataBinds().size() before/after each cloneScripted-
+    // Object call (addDataBind only ever appends). `mutable` so it can
+    // populate from the const apply() path. Not copied by the copy ctor.
+    mutable std::vector<DataBind*> m_clonedArtboardDataBinds;
 };
 } // namespace rive
 #endif

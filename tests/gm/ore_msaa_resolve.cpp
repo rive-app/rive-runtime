@@ -80,7 +80,7 @@ public:
             return;
 
 #ifdef ORE_MSAA_RESOLVE_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // Backends that don't advertise multi-sample support skip the GM —
         // no golden produced, mismatch surfaces as a missing-image diff
@@ -198,7 +198,7 @@ public:
             return;
         }
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = msaaView.get();
@@ -215,13 +215,13 @@ public:
         rpDesc.label = "ore_msaa_resolve_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setVertexBuffer(0, vbo.get());
-        pass.setViewport(0, 0, 256, 256);
-        pass.draw(3);
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setVertexBuffer(0, vbo.get());
+        pass->setViewport(0, 0, 256, 256);
+        pass->draw(3);
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

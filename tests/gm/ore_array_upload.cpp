@@ -117,7 +117,7 @@ public:
             return;
 
 #ifdef ORE_ARRAY_UPLOAD_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // Array texture: 4×4, 4 layers, 2 mips. The 2-mip count is the
         // important bit — it makes the D3D12 transposed-formula bug
@@ -211,7 +211,7 @@ public:
         sampBGDesc.samplerCount = 1;
         auto sampBG = ctx.makeBindGroup(sampBGDesc);
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         // Per-layer uploads. Each upload targets `(mipLevel=0, layer=N)`
         // with a non-tightly-packed source (bytesPerRow = 32, double
@@ -258,14 +258,14 @@ public:
         rpDesc.label = "ore_array_upload_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(1, texBG.get());
-        pass.setBindGroup(2, sampBG.get());
-        pass.setViewport(0, 0, 256, 256);
-        pass.draw(3); // big-triangle fullscreen — covers entire NDC.
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(1, texBG.get());
+        pass->setBindGroup(2, sampBG.get());
+        pass->setViewport(0, 0, 256, 256);
+        pass->draw(3); // big-triangle fullscreen — covers entire NDC.
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

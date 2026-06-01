@@ -69,7 +69,7 @@ public:
             return;
 
 #ifdef ORE_LAYOUT_REUSE_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         struct Uniforms
         {
@@ -168,7 +168,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -185,21 +185,21 @@ public:
 
         // Left half: pipe A (full RGBA) — should produce olive (0.3, 0.6, 0,
         // 1).
-        pass.setPipeline(pipeA.get());
-        pass.setBindGroup(0, sharedBG.get());
-        pass.setViewport(0, 0, 64, 128);
-        pass.draw(3);
+        pass->setPipeline(pipeA.get());
+        pass->setBindGroup(0, sharedBG.get());
+        pass->setViewport(0, 0, 64, 128);
+        pass->draw(3);
 
         // Right half: pipe B (red-only mask) — same shared bind group.
         // Output: dark red (0.3, 0, 0, 1).
-        pass.setPipeline(pipeB.get());
-        pass.setBindGroup(0, sharedBG.get());
-        pass.setViewport(64, 0, 64, 128);
-        pass.draw(3);
+        pass->setPipeline(pipeB.get());
+        pass->setBindGroup(0, sharedBG.get());
+        pass->setViewport(64, 0, 64, 128);
+        pass->draw(3);
 
-        pass.finish();
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

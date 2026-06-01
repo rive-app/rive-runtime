@@ -6,8 +6,8 @@
  * + Phase 3).
  *
  * Locks in the WebGPU contract that `dynamicOffsets[i]` is consumed in
- * BindGroupLayout-entry order (= ascending `@binding` per RFC §3.6 BGL
- * sort), NOT in the caller's `desc.ubos[]` order.
+ * BindGroupLayout-entry order (ascending `@binding` within a kind), NOT
+ * in the caller's `desc.ubos[]` order.
  *
  * Two dynamic UBOs at @group(0) @binding(0) and @group(0) @binding(1).
  * One buffer with two 256-byte aligned ranges:
@@ -85,7 +85,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_DYNAMIC_UBO_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── One buffer with two 256-byte ranges. Range A holds the
         // values u_a should read; range B the values u_b should read.
@@ -111,7 +111,7 @@ public:
         if (!shader.vsModule)
             return;
 
-        // Dynamic UBO bindings declared on the layout (RFC §3.6 / Dawn).
+        // Dynamic UBO bindings declared on the layout.
         const uint32_t dynBindings[] = {0, 1};
         auto layout0 = ore_gm::makeLayoutFromShader(ctx,
                                                     shader.vsModule.get(),
@@ -179,7 +179,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -193,13 +193,13 @@ public:
         rpDesc.label = "ore_binding_dynamic_ubo_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(0, bg.get(), dynamicOffsets, 2);
-        pass.setViewport(0, 0, 128, 128);
-        pass.draw(3); // fullscreen triangle
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(0, bg.get(), dynamicOffsets, 2);
+        pass->setViewport(0, 0, 128, 128);
+        pass->draw(3); // fullscreen triangle
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

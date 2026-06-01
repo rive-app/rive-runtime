@@ -2,9 +2,11 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
-#include "rive/renderer/ore/ore_shader_module.hpp"
+#include "ore_pipeline_vulkan.hpp"
+#include "ore_bind_group_vulkan.hpp"
+#include "ore_bind_group_layout_vulkan.hpp"
+#include "ore_shader_module_vulkan.hpp"
 #include "rive/rive_types.hpp"
 #include "ore_vulkan_dsl.hpp"
 
@@ -63,20 +65,6 @@ static VkFormat oreVertexFormatToVk(VertexFormat fmt)
             return VK_FORMAT_R16G16B16A16_SFLOAT;
         case VertexFormat::uint32:
             return VK_FORMAT_R32_UINT;
-        case VertexFormat::uint32x2:
-            return VK_FORMAT_R32G32_UINT;
-        case VertexFormat::uint32x3:
-            return VK_FORMAT_R32G32B32_UINT;
-        case VertexFormat::uint32x4:
-            return VK_FORMAT_R32G32B32A32_UINT;
-        case VertexFormat::sint32:
-            return VK_FORMAT_R32_SINT;
-        case VertexFormat::sint32x2:
-            return VK_FORMAT_R32G32_SINT;
-        case VertexFormat::sint32x3:
-            return VK_FORMAT_R32G32B32_SINT;
-        case VertexFormat::sint32x4:
-            return VK_FORMAT_R32G32B32A32_SINT;
     }
     RIVE_UNREACHABLE();
 }
@@ -115,7 +103,8 @@ static VkCullModeFlags oreCullModeToVk(CullMode c)
 
 static VkFrontFace oreWindingToVk(FaceWinding w)
 {
-    // Vulkan's default is counter-clockwise = front.
+    // Identity mapping. Vertex Y-flip is shader-baked (naga
+    // ADJUST_COORDINATE_SPACE), matching Dawn's WebGPU-on-Vulkan strategy.
     return (w == FaceWinding::counterClockwise)
                ? VK_FRONT_FACE_COUNTER_CLOCKWISE
                : VK_FRONT_FACE_CLOCKWISE;
@@ -252,65 +241,27 @@ static VkStencilOpState oreStencilFaceToVk(const StencilFaceState& s,
 }
 
 // ============================================================================
-// Pipeline::onRefCntReachedZero
-//
-// Phase E: per-group VkDescriptorSetLayouts are now owned by BindGroupLayout
-// objects (referenced by m_layouts[]). Pipeline only destroys its own
-// VkPipeline + VkPipelineLayout; DSL teardown is handled by
-// BindGroupLayout::onRefCntReachedZero when its rcp drops.
+// PipelineVulkan destructor
 // ============================================================================
 
-#if !defined(ORE_BACKEND_GL)
-
-void Pipeline::onRefCntReachedZero() const
+PipelineVulkan::~PipelineVulkan()
 {
-    VkDevice dev = m_vkDevice;
-    VkPipeline pipe = m_vkPipeline;
-    VkPipelineLayout layout = m_vkPipelineLayout;
-    auto destroyPipe = m_vkDestroyPipeline;
-    auto destroyLayout = m_vkDestroyPipelineLayout;
-    ContextVulkan* ctx = m_vkOreContext;
-
-    auto destroy = [=]() {
-        if (pipe != VK_NULL_HANDLE && destroyPipe != nullptr)
-            destroyPipe(dev, pipe, nullptr);
-        if (layout != VK_NULL_HANDLE && destroyLayout != nullptr)
-            destroyLayout(dev, layout, nullptr);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkPipeline != VK_NULL_HANDLE && m_vkDestroyPipeline != nullptr)
+        m_vkDestroyPipeline(m_vkDevice, m_vkPipeline, nullptr);
+    if (m_vkPipelineLayout != VK_NULL_HANDLE &&
+        m_vkDestroyPipelineLayout != nullptr)
+        m_vkDestroyPipelineLayout(m_vkDevice, m_vkPipelineLayout, nullptr);
 }
 
 // ============================================================================
-// BindGroupLayout::onRefCntReachedZero (Vulkan)
+// BindGroupLayoutVulkan destructor
 // ============================================================================
 
-void BindGroupLayout::onRefCntReachedZero() const
+BindGroupLayoutVulkan::~BindGroupLayoutVulkan()
 {
-    VkDevice dev = m_vkDevice;
-    VkDescriptorSetLayout dsl = m_vkDSL;
-    auto destroyDSL = m_vkDestroyDescriptorSetLayout;
-    ContextVulkan* ctx = static_cast<ContextVulkan*>(m_context);
-
-    auto destroy = [=]() {
-        if (dsl != VK_NULL_HANDLE && destroyDSL != nullptr)
-            destroyDSL(dev, dsl, nullptr);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkDSL != VK_NULL_HANDLE && m_vkDestroyDescriptorSetLayout != nullptr)
+        m_vkDestroyDescriptorSetLayout(m_vkDevice, m_vkDSL, nullptr);
 }
-
-#endif // !ORE_BACKEND_GL — resource onRefCntReachedZero defs
 
 // ============================================================================
 // ContextVulkan::makePipeline — called from ore_context_vulkan.cpp.
@@ -321,9 +272,8 @@ void BindGroupLayout::onRefCntReachedZero() const
 rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
                                           std::string* outError)
 {
-    auto pipeline = rcp<Pipeline>(new Pipeline(desc));
-    pipeline->m_vkDevice = m_vkDevice;
-    pipeline->m_vkOreContext = this;
+    auto pipeline = rcp<PipelineVulkan>(new PipelineVulkan(m_manager, desc));
+    pipeline->m_vkDevice = m_vk->device;
     pipeline->m_vkTopology = oreTopologyToVk(desc.topology);
 
     // --- Validate user-supplied layouts against shader binding map ---
@@ -355,7 +305,9 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     {
         if (desc.bindGroupLayouts[g] != nullptr)
         {
-            dsls[g] = desc.bindGroupLayouts[g]->m_vkDSL;
+            auto layout = lite_rtti_cast<BindGroupLayoutVulkan*>(
+                desc.bindGroupLayouts[g]);
+            dsls[g] = layout->m_vkDSL;
         }
         else
         {
@@ -368,17 +320,19 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layoutCI.setLayoutCount = desc.bindGroupLayoutCount;
     layoutCI.pSetLayouts = desc.bindGroupLayoutCount > 0 ? dsls : nullptr;
-    m_vk.CreatePipelineLayout(m_vkDevice,
-                              &layoutCI,
-                              nullptr,
-                              &pipeline->m_vkPipelineLayout);
-    pipeline->m_vkDestroyPipelineLayout = m_vk.DestroyPipelineLayout;
+    m_vk->CreatePipelineLayout(m_vk->device,
+                               &layoutCI,
+                               nullptr,
+                               &pipeline->m_vkPipelineLayout);
+    pipeline->m_vkDestroyPipelineLayout = m_vk->DestroyPipelineLayout;
 
     // --- Shader stages --- (depth-only pipelines omit the fragment stage)
     VkPipelineShaderStageCreateInfo stages[2]{};
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    stages[0].module = desc.vertexModule->m_vkShaderModule;
+    auto vertexModule = lite_rtti_cast<ShaderModuleVulkan*>(desc.vertexModule);
+    assert(vertexModule);
+    stages[0].module = vertexModule->m_vkShaderModule;
     stages[0].pName = desc.vertexEntryPoint;
 
     uint32_t stageCount = 1;
@@ -386,7 +340,10 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     {
         stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        stages[1].module = desc.fragmentModule->m_vkShaderModule;
+        auto fragmentModule =
+            lite_rtti_cast<ShaderModuleVulkan*>(desc.fragmentModule);
+        assert(fragmentModule);
+        stages[1].module = fragmentModule->m_vkShaderModule;
         stages[1].pName = desc.fragmentEntryPoint;
         stageCount = 2;
     }
@@ -487,6 +444,8 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     depthStencil.stencilTestEnable =
         hasDepthStencil && hasStencilLocal(desc.depthStencil.format) ? VK_TRUE
                                                                      : VK_FALSE;
+    pipeline->m_vkStencilTestEnabled =
+        depthStencil.stencilTestEnable == VK_TRUE;
     depthStencil.front = oreStencilFaceToVk(desc.stencilFront,
                                             desc.stencilReadMask,
                                             desc.stencilWriteMask);
@@ -572,12 +531,12 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     pipelineCI.renderPass = compatRenderPass;
     pipelineCI.subpass = 0;
 
-    VkResult vkr = m_vk.CreateGraphicsPipelines(m_vkDevice,
-                                                VK_NULL_HANDLE,
-                                                1,
-                                                &pipelineCI,
-                                                nullptr,
-                                                &pipeline->m_vkPipeline);
+    VkResult vkr = m_vk->CreateGraphicsPipelines(m_vk->device,
+                                                 VK_NULL_HANDLE,
+                                                 1,
+                                                 &pipelineCI,
+                                                 nullptr,
+                                                 &pipeline->m_vkPipeline);
     if (vkr != VK_SUCCESS)
     {
         setLastError("Ore Vulkan: vkCreateGraphicsPipelines failed (%d)", vkr);
@@ -585,7 +544,7 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
             *outError = m_lastError;
         return nullptr;
     }
-    pipeline->m_vkDestroyPipeline = m_vk.DestroyPipeline;
+    pipeline->m_vkDestroyPipeline = m_vk->DestroyPipeline;
 
     return pipeline;
 }

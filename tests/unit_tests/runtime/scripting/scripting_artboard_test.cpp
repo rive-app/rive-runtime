@@ -31,7 +31,7 @@ TEST_CASE("can access artboard width/height", "[scripting]")
     REQUIRE(artboard != nullptr);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  file,
+                                  file.get(),
                                   artboard->instance(),
                                   nullptr,
                                   nullptr);
@@ -85,7 +85,7 @@ TEST_CASE("can access artboard bounds", "[scripting]")
     REQUIRE(artboard != nullptr);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  file,
+                                  file.get(),
                                   artboard->instance(),
                                   nullptr,
                                   nullptr);
@@ -127,7 +127,7 @@ TEST_CASE("can render an artboard via the scripting engine", "[scripting]")
     REQUIRE(artboard != nullptr);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  file,
+                                  file.get(),
                                   artboard->instance(),
                                   nullptr,
                                   nullptr);
@@ -204,7 +204,7 @@ TEST_CASE("can access nodes from artboards", "[scripting]")
     REQUIRE(artboard != nullptr);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  file,
+                                  file.get(),
                                   artboard->instance(),
                                   nullptr,
                                   nullptr);
@@ -302,7 +302,7 @@ TEST_CASE("can add artboard to path", "[scripting]")
     REQUIRE(artboard != nullptr);
     lua_newrive<ScriptedArtboard>(L,
                                   L,
-                                  file,
+                                  file.get(),
                                   artboard->instance(),
                                   nullptr,
                                   nullptr);

@@ -13,6 +13,8 @@ namespace rive
 {
 
 class Artboard;
+class ListenerInvocation;
+class ScriptedDrawable;
 
 /// Direction for directional focus navigation
 enum class Direction : uint8_t
@@ -34,6 +36,7 @@ public:
     // === Focus State ===
 
     rcp<FocusNode> primaryFocus() const { return m_primaryFocus; }
+    FocusNode* primaryFocusPtr() const { return m_primaryFocus.get(); }
     void setFocus(rcp<FocusNode> node);
     void clearFocus();
 
@@ -106,6 +109,14 @@ public:
                   bool isPressed,
                   bool isRepeat);
     bool textInput(const std::string& text);
+
+    /// Bubble gamepad invocations from primary focus up through ancestors.
+    /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
+    /// `ScriptedDrawable` that the focus tree forwarded the event to so
+    /// callers can avoid double-dispatching during a separate broadcast pass.
+    bool gamepadDispatch(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr);
 
 #ifdef WITH_RIVE_TOOLS
     // === Callbacks (editor/tools only) ===

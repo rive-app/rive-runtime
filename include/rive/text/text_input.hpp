@@ -5,6 +5,7 @@
 #include "rive/advancing_component.hpp"
 #include "rive/text/raw_text_input.hpp"
 #include "rive/text/text_interface.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/input/focusable.hpp"
 #include <cmath>
 
@@ -49,11 +50,15 @@ public:
                   bool isPressed,
                   bool isRepeat) override;
     bool textInput(const std::string& text) override;
+    bool gamepadDispatch(
+        const ListenerInvocation& invocation,
+        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
     void focused() override;
     void blurred() override;
     bool worldPosition(Vec2D& outPosition) override;
     bool worldBounds(AABB& outBounds) override;
     Artboard* focusableArtboard() const override { return artboard(); }
+    bool acceptsKeyboardInput() const override { return true; }
 
     /// Called when the user starts dragging on the text input.
     /// Places the cursor at the given world position.

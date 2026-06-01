@@ -11,6 +11,9 @@
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/assets/shader_asset.hpp"
+#include "rive/assets/script_asset.hpp"
+#include "rive/file.hpp"
+#include "rive/scripted/scripted_object.hpp"
 #include "rive/shapes/paint/color.hpp"
 
 #include <algorithm>
@@ -430,31 +433,10 @@ static Context* getOreContext(lua_State* L)
         static_cast<ScriptingContext*>(lua_getthreaddata(L))->oreContext());
 }
 
-/// Returns the RSTB `ShaderTarget` byte that matches the ore backend
-/// compiled into this build. Dispatches on `ORE_BACKEND_*` rather than
-/// host-OS macros (`__APPLE__` / `_WIN32`) so hosts whose backend doesn't
-/// match the host's "default" runtime API — e.g. the Linux GPU recorder
-/// (Vulkan, not GL) or Mac MoltenVK — pick the correct pre-compiled
-/// variant out of the RSTB table.
-///
-/// Target enum (must match `ShaderAsset` RSTB format):
-///   0 = WGSL passthrough, 1 = GLSL ES3, 2 = MSL, 3 = HLSL SM5,
-///   5 = SPIR-V
-static uint8_t currentShaderTarget()
+/// RSTB ShaderTarget the active ore backend consumes.
+static ShaderTarget currentShaderTarget(Context* oreCtx)
 {
-#if defined(ORE_BACKEND_METAL)
-    return 2; // MSL
-#elif defined(ORE_BACKEND_VK)
-    return 5; // SPIR-V
-#elif defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
-    return 3; // HLSL SM5, compiled to DXBC at runtime via D3DCompile
-#elif defined(ORE_BACKEND_WGPU)
-    return 0; // WGSL passthrough (Dawn + wagyu)
-#elif defined(ORE_BACKEND_GL)
-    return 1; // GLSL ES3
-#else
-    return 1;
-#endif
+    return oreCtx != nullptr ? oreCtx->shaderTarget() : ShaderTarget::glsl;
 }
 
 /// Try to create ShaderModules from a raw RSTB blob.
@@ -463,6 +445,7 @@ static uint8_t currentShaderTarget()
 /// the ScriptedShader. Returns true on success.
 /// Copy texture-sampler pairs from a ShaderAsset into both
 /// vertex and fragment ShaderModules of a ScriptedShader.
+#ifdef WITH_RIVE_TOOLS
 static void propagatePairs(const ShaderAsset& asset, ScriptedShader* out)
 {
     auto pairs = asset.textureSamplerPairs();
@@ -502,8 +485,8 @@ static bool makeShaderFromRstb(Context* oreCtx,
     if (!asset.decode(bytes, nullptr))
         return false;
 
-    uint8_t target = currentShaderTarget();
-    auto blob = asset.findShader(0, target);
+    ShaderTarget target = currentShaderTarget(oreCtx);
+    auto blob = asset.findShader(static_cast<uint8_t>(target));
     if (blob.empty())
         return false;
 
@@ -511,35 +494,34 @@ static bool makeShaderFromRstb(Context* oreCtx,
     uint32_t blobSize = static_cast<uint32_t>(blob.size());
 
     // Binding-map sidecar (mandatory) + GL fixup sidecars (only present
-    // for the GLSL source target). RFC §14.4: every shipped shader carries
-    // a sidecar paired with its source variant.
-    auto bindingMapTargetFor = [](uint8_t t) -> uint8_t {
+    // for the GLSL source target). Every shipped shader carries a sidecar
+    // paired with its source variant.
+    auto bindingMapTargetFor = [](ShaderTarget t) -> uint8_t {
         switch (t)
         {
-            case 0:
+            case ShaderTarget::wgsl:
                 return 16;
-            case 1:
+            case ShaderTarget::glsl:
                 return 11;
-            case 2:
+            case ShaderTarget::msl:
                 return 10;
-            case 3:
+            case ShaderTarget::hlsl:
                 return 12;
-            case 5:
+            case ShaderTarget::spirv:
                 return 13;
-            default:
-                return 255;
         }
+        return 255;
     };
     uint8_t bmTarget = bindingMapTargetFor(target);
-    auto bindingMapBlob = (bmTarget == 255) ? Span<const uint8_t>{}
-                                            : asset.findShader(0, bmTarget);
+    auto bindingMapBlob =
+        (bmTarget == 255) ? Span<const uint8_t>{} : asset.findShader(bmTarget);
     const uint8_t* bindingMapBytes =
         bindingMapBlob.empty() ? nullptr : bindingMapBlob.data();
     uint32_t bindingMapSize = static_cast<uint32_t>(bindingMapBlob.size());
-    auto vsGLFixupBlob =
-        (target == 1) ? asset.findShader(0, 14) : Span<const uint8_t>{};
-    auto fsGLFixupBlob =
-        (target == 1) ? asset.findShader(0, 15) : Span<const uint8_t>{};
+    auto vsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(14)
+                                                        : Span<const uint8_t>{};
+    auto fsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(15)
+                                                        : Span<const uint8_t>{};
     const uint8_t* vsGLFixupBytes =
         vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
     uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());
@@ -550,7 +532,7 @@ static bool makeShaderFromRstb(Context* oreCtx,
     // HLSL SM5 via SPIRV-Cross (D3D11/D3D12 on Windows).
     // Blob format: "vsEntry\0fsEntry\0vsHLSL\0fsHLSL"
     // Compiled to DXBC at runtime via D3DCompile in ensureD3DShaders().
-    if (target == 3)
+    if (target == ShaderTarget::hlsl)
     {
         // Parse: vsEntry\0
         const char* vsEntry = blobData;
@@ -653,19 +635,7 @@ static bool makeShaderFromRstb(Context* oreCtx,
         propagatePairs(asset, out);
     return out->module != nullptr;
 }
-
-/// Public wrapper: build a ScriptedShader from raw RSTB bytes. Used by the
-/// runtime `loadShader` fallback path for legacy .riv files where WGSL
-/// shaders were packed into ScriptAsset containers (pre-ShaderAsset).
-bool lua_gpu_make_shader_from_rstb(ScriptedShader* out,
-                                   ScriptingContext* context,
-                                   const uint8_t* data,
-                                   uint32_t len)
-{
-    Context* oreCtx = static_cast<Context*>(
-        context != nullptr ? context->oreContext() : nullptr);
-    return makeShaderFromRstb(oreCtx, data, len, out);
-}
+#endif // WITH_RIVE_TOOLS
 
 /// Look up a shader by name: first check the per-VM RSTB blobs on the
 /// ScriptingContext (editor path, compiled during requestVM), then try the
@@ -701,43 +671,44 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
     // are handled correctly on all backends.
     if (fileAsset != nullptr && oreCtx != nullptr)
     {
-        uint8_t target = currentShaderTarget();
-        auto blob = fileAsset->findShader(0, target);
+        ShaderTarget target = currentShaderTarget(oreCtx);
+        auto blob = fileAsset->findShader(static_cast<uint8_t>(target));
         if (!blob.empty())
         {
             const char* blobData = reinterpret_cast<const char*>(blob.data());
             uint32_t blobSize = static_cast<uint32_t>(blob.size());
+            const uint32_t assetId = fileAsset->assetId();
 
             // Sidecar lookup (mirrors makeShaderFromRstb above). The
             // sidecar is mandatory; absence here would assert in
             // `makeShaderModule::applyBindingMapFromDesc`.
-            auto bmTarget = [](uint8_t t) -> uint8_t {
+            auto bmTarget = [](ShaderTarget t) -> uint8_t {
                 switch (t)
                 {
-                    case 0:
+                    case ShaderTarget::wgsl:
                         return 16;
-                    case 1:
+                    case ShaderTarget::glsl:
                         return 11;
-                    case 2:
+                    case ShaderTarget::msl:
                         return 10;
-                    case 3:
+                    case ShaderTarget::hlsl:
                         return 12;
-                    case 5:
+                    case ShaderTarget::spirv:
                         return 13;
-                    default:
-                        return 255;
                 }
+                return 255;
             }(target);
-            auto bmBlob = (bmTarget == 255)
-                              ? Span<const uint8_t>{}
-                              : fileAsset->findShader(0, bmTarget);
+            auto bmBlob = (bmTarget == 255) ? Span<const uint8_t>{}
+                                            : fileAsset->findShader(bmTarget);
             const uint8_t* bindingMapBytes =
                 bmBlob.empty() ? nullptr : bmBlob.data();
             uint32_t bindingMapSize = static_cast<uint32_t>(bmBlob.size());
-            auto vsFixupBlob = (target == 1) ? fileAsset->findShader(0, 14)
-                                             : Span<const uint8_t>{};
-            auto fsFixupBlob = (target == 1) ? fileAsset->findShader(0, 15)
-                                             : Span<const uint8_t>{};
+            auto vsFixupBlob = (target == ShaderTarget::glsl)
+                                   ? fileAsset->findShader(14)
+                                   : Span<const uint8_t>{};
+            auto fsFixupBlob = (target == ShaderTarget::glsl)
+                                   ? fileAsset->findShader(15)
+                                   : Span<const uint8_t>{};
             const uint8_t* vsFixupBytes =
                 vsFixupBlob.empty() ? nullptr : vsFixupBlob.data();
             uint32_t vsFixupSize = static_cast<uint32_t>(vsFixupBlob.size());
@@ -745,8 +716,9 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 fsFixupBlob.empty() ? nullptr : fsFixupBlob.data();
             uint32_t fsFixupSize = static_cast<uint32_t>(fsFixupBlob.size());
 
-            // HLSL SM5 (target 3): split vsEntry/fsEntry/vsHLSL/fsHLSL.
-            if (target == 3)
+            // HLSL SM5: split vsEntry\0fsEntry\0vsHLSL\0fsHLSL.
+            // Depth-only shaders bake with empty fsEntry and no fsHLSL.
+            if (target == ShaderTarget::hlsl)
             {
                 const char* vsEntry = blobData;
                 const char* vsEnd =
@@ -760,15 +732,19 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     static_cast<const char*>(memchr(fsEntry, '\0', remaining));
                 if (!fsEnd)
                     return false;
+                const bool hasFragment = (fsEnd != fsEntry);
                 const char* vsHLSL = fsEnd + 1;
                 remaining = blobSize - static_cast<uint32_t>(vsHLSL - blobData);
                 const char* vsHLSLEnd =
                     static_cast<const char*>(memchr(vsHLSL, '\0', remaining));
                 if (!vsHLSLEnd)
-                    return false;
-                const char* fsHLSL = vsHLSLEnd + 1;
-                uint32_t fsHLSLSize =
-                    blobSize - static_cast<uint32_t>(fsHLSL - blobData);
+                {
+                    // Depth-only bake has no trailing null; vsHLSL fills the
+                    // rest of the blob.
+                    if (hasFragment)
+                        return false;
+                    vsHLSLEnd = blobData + blobSize;
+                }
 
                 ShaderModuleDesc vtxDesc;
                 vtxDesc.stage = ShaderStage::vertex;
@@ -778,19 +754,28 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 vtxDesc.hlslEntryPoint = vsEntry;
                 vtxDesc.bindingMapBytes = bindingMapBytes;
                 vtxDesc.bindingMapSize = bindingMapSize;
+                vtxDesc.shaderAssetId = assetId;
                 out->module = oreCtx->makeShaderModule(vtxDesc);
 
-                ShaderModuleDesc fragDesc;
-                fragDesc.stage = ShaderStage::fragment;
-                fragDesc.hlslSource = fsHLSL;
-                fragDesc.hlslSourceSize = fsHLSLSize;
-                fragDesc.hlslEntryPoint = fsEntry;
-                fragDesc.bindingMapBytes = bindingMapBytes;
-                fragDesc.bindingMapSize = bindingMapSize;
-                out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
+                if (hasFragment)
+                {
+                    const char* fsHLSL = vsHLSLEnd + 1;
+                    uint32_t fsHLSLSize =
+                        blobSize - static_cast<uint32_t>(fsHLSL - blobData);
+
+                    ShaderModuleDesc fragDesc;
+                    fragDesc.stage = ShaderStage::fragment;
+                    fragDesc.hlslSource = fsHLSL;
+                    fragDesc.hlslSourceSize = fsHLSLSize;
+                    fragDesc.hlslEntryPoint = fsEntry;
+                    fragDesc.bindingMapBytes = bindingMapBytes;
+                    fragDesc.bindingMapSize = bindingMapSize;
+                    fragDesc.shaderAssetId = assetId;
+                    out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
+                }
             }
-            // GLSL ES3 (target 1): split vertex\0fragment.
-            else if (target == 1 && blobSize > 1)
+            // GLSL ES3: split vertex\0fragment.
+            else if (target == ShaderTarget::glsl && blobSize > 1)
             {
                 const char* sep = static_cast<const char*>(
                     memchr(blobData, '\0', blobSize - 1));
@@ -808,6 +793,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     vtxDesc.bindingMapSize = bindingMapSize;
                     vtxDesc.glFixupBytes = vsFixupBytes;
                     vtxDesc.glFixupSize = vsFixupSize;
+                    vtxDesc.shaderAssetId = assetId;
                     out->module = oreCtx->makeShaderModule(vtxDesc);
 
                     ShaderModuleDesc fragDesc;
@@ -818,6 +804,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     fragDesc.bindingMapSize = bindingMapSize;
                     fragDesc.glFixupBytes = fsFixupBytes;
                     fragDesc.glFixupSize = fsFixupSize;
+                    fragDesc.shaderAssetId = assetId;
                     out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
                 }
                 else
@@ -828,6 +815,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                     desc.codeSize = blobSize;
                     desc.bindingMapBytes = bindingMapBytes;
                     desc.bindingMapSize = bindingMapSize;
+                    desc.shaderAssetId = assetId;
                     out->module = oreCtx->makeShaderModule(desc);
                 }
             }
@@ -839,6 +827,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
                 desc.codeSize = blobSize;
                 desc.bindingMapBytes = bindingMapBytes;
                 desc.bindingMapSize = bindingMapSize;
+                desc.shaderAssetId = assetId;
                 out->module = oreCtx->makeShaderModule(desc);
             }
 
@@ -873,44 +862,43 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
 int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+
+    // Resolve the file-side ShaderAsset by name. Without this, the lookup
+    // falls back to the editor-only RSTB cache which is empty at runtime.
+    ShaderAsset* fileAsset = nullptr;
+    if (context != nullptr)
+    {
+        if (auto* scriptedObject = context->currentScriptedObject())
+        {
+            if (auto* scriptAsset = scriptedObject->scriptAsset())
+            {
+                if (File* file = scriptAsset->file())
+                {
+                    for (const auto& asset : file->assets())
+                    {
+                        if (asset->is<ShaderAsset>())
+                        {
+                            auto* sa = asset->as<ShaderAsset>();
+                            // match folderPath/name or bare name
+                            const std::string& fp = sa->folderPath();
+                            if (sa->name() == name ||
+                                (!fp.empty() && fp + "/" + sa->name() == name))
+                            {
+                                fileAsset = sa;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     auto* scripted = lua_newrive<ScriptedShader>(L);
-    if (!lua_gpu_load_shader_by_name(scripted, context, name, nullptr))
+    if (!lua_gpu_load_shader_by_name(scripted, context, name, fileAsset))
     {
         lua_pop(L, 1);
         return 0;
-    }
-    return 1;
-}
-
-// Optional WGSL→native compiler, set by the host via
-// luaopen_rive_gpu_set_wgsl_compiler(). When set, shader_construct() routes
-// WGSL source through this function before passing to makeShaderModule().
-// Returns true and fills |outSource| on success; returns false and fills
-// |outError| on failure. Not set in Flutter runtime builds (shaders arrive
-// as pre-compiled backend source from ShaderAsset).
-#ifdef WITH_RIVE_TOOLS
-static bool (*g_wgslCompilerFn)(const char* wgsl,
-                                uint32_t len,
-                                std::string* outSource,
-                                std::string* outError) = nullptr;
-
-void luaopen_rive_gpu_set_wgsl_compiler(
-    bool (*fn)(const char*, uint32_t, std::string*, std::string*))
-{
-    g_wgslCompilerFn = fn;
-}
-#endif
-
-static int shader_construct(lua_State* L)
-{
-    // Argument 1 is the name of a pre-compiled WGSL shader asset that was
-    // bundled with the Rive file (set via the "wgslAssetName" field in the
-    // editor).  Raw WGSL source strings are NOT accepted at runtime; shaders
-    // must be pre-compiled and embedded as assets.
-    const char* name = luaL_checkstring(L, 1);
-    if (lua_gpu_push_shader_by_name(L, name) == 0)
-    {
-        luaL_error(L, "Shader.new: no shader asset named '%s' found", name);
     }
     return 1;
 }
@@ -1049,16 +1037,29 @@ static int gpubuffer_namecall(lua_State* L)
     return 0;
 }
 
+static void gpubuffer_direct_size(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGPUBuffer*)udata)->buffer->size());
+}
+
 static int gpubuffer_index(lua_State* L)
 {
-    auto* self = lua_torive<ScriptedGPUBuffer>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "size") == 0)
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
     {
-        lua_pushnumber(L, self->buffer->size());
-        return 1;
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
     }
-    luaL_error(L, "%s is not a valid property of GPUBuffer", key);
+    auto* self = lua_torive<ScriptedGPUBuffer>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::size:
+            lua_pushnumber(L, self->buffer->size());
+            return 1;
+    }
+    luaL_error(L, "'%s' is not a valid index of GPUBuffer", key);
     return 0;
 }
 
@@ -1359,44 +1360,67 @@ static int gputexture_namecall(lua_State* L)
     return 0;
 }
 
+static void gputexture_direct_width(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGPUTexture*)udata)->texture->width());
+}
+
+static void gputexture_direct_height(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(
+        result,
+        (double)((ScriptedGPUTexture*)udata)->texture->height());
+}
+
 static int gputexture_index(lua_State* L)
 {
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
     auto* self = lua_torive<ScriptedGPUTexture>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "width") == 0)
+    switch (atom)
     {
-        lua_pushnumber(L, self->texture->width());
-        return 1;
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, self->texture->width());
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, self->texture->height());
+            return 1;
+        case (int)LuaAtoms::format:
+            lua_pushstring(L,
+                           lua_totextureformatstring(self->texture->format()));
+            return 1;
     }
-    if (strcmp(key, "height") == 0)
-    {
-        lua_pushnumber(L, self->texture->height());
-        return 1;
-    }
-    if (strcmp(key, "format") == 0)
-    {
-        lua_pushstring(L, lua_totextureformatstring(self->texture->format()));
-        return 1;
-    }
-    luaL_error(L, "%s is not a valid property of GPUTexture", key);
+    luaL_error(L, "'%s' is not a valid index of GPUTexture", key);
     return 0;
 }
 
 static int gputextureview_index(lua_State* L)
 {
-    auto* self = lua_torive<ScriptedGPUTextureView>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "format") == 0)
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
     {
-        if (self->view && self->view->texture())
-            lua_pushstring(
-                L,
-                lua_totextureformatstring(self->view->texture()->format()));
-        else
-            lua_pushnil(L);
-        return 1;
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
     }
-    luaL_error(L, "%s is not a valid property of GPUTextureView", key);
+    auto* self = lua_torive<ScriptedGPUTextureView>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::format:
+            if (self->view && self->view->texture())
+                lua_pushstring(
+                    L,
+                    lua_totextureformatstring(self->view->texture()->format()));
+            else
+                lua_pushnil(L);
+            return 1;
+    }
+    luaL_error(L, "'%s' is not a valid index of GPUTextureView", key);
     return 0;
 }
 
@@ -1492,20 +1516,7 @@ static int gpusampler_construct(lua_State* L)
 // GPUBindGroup
 // ============================================================================
 
-ScriptedGPUBindGroup::~ScriptedGPUBindGroup()
-{
-    // If the BindGroup has a context, defer its destruction until after
-    // endFrame() so the GPU is done with any command buffers referencing it.
-    // The rcp<> is moved into the context's deferred queue, keeping the
-    // BindGroup alive. When endFrame() clears the queue, refcount drops
-    // to zero and onRefCntReachedZero() does a simple delete.
-    if (bindGroup && bindGroup->context())
-    {
-        bindGroup->context()->deferBindGroupDestroy(std::move(bindGroup));
-        return;
-    }
-    // No context (or null) — drop immediately; rcp destructor handles it.
-}
+ScriptedGPUBindGroup::~ScriptedGPUBindGroup() {}
 
 // ============================================================================
 // GPUBindGroupLayout.new — explicit BindGroupLayout (Phase E).
@@ -2256,9 +2267,15 @@ static int gpupipeline_namecall(lua_State* L)
 
 static void validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
 {
-    if (self->m_finished || self->pass == nullptr)
+    // pass->isFinished() catches the case where a *previous*
+    // beginRenderPass auto-finished this pass (because the script forgot
+    // to :finish() before opening the next one). The wrapper's own
+    // m_finished is still false there.
+    if (self->m_finished || !self->pass || self->pass->isFinished())
     {
-        luaL_error(L, "render pass expired — call finish() only once");
+        luaL_error(L,
+                   "render pass expired — already finished, or auto-"
+                   "finished by a subsequent beginRenderPass");
     }
 }
 
@@ -2351,7 +2368,7 @@ static int gpurenderpass_setbindgroup(lua_State* L)
     // Parse optional dynamic offsets array.
     //
     // WebGPU contract: `dynamicOffsets[i]` corresponds to the i-th dynamic
-    // entry in the BindGroupLayout (= ascending `@binding` per RFC §3.6).
+    // entry in the BindGroupLayout, ordered by ascending `@binding`.
     // The count must equal the BindGroup's dynamic-offset count exactly,
     // and each value must be aligned to `minUniformBufferOffsetAlignment`
     // (256 bytes — D3D11.1's `firstConstant` requirement, D3D12's CBV
@@ -2520,7 +2537,7 @@ static int gpurenderpass_finish(lua_State* L)
     // Clear the context's active pass pointer so the next beginRenderPass
     // doesn't see a stale (already-finished) pass.
     Context* oreCtx = getOreContext(L);
-    if (oreCtx && oreCtx->activeRenderPass() == self->pass)
+    if (oreCtx && oreCtx->activeRenderPass() == self->pass.get())
         oreCtx->setActiveRenderPass(nullptr);
     return 0;
 }
@@ -2570,8 +2587,6 @@ static int gpurenderpass_namecall(lua_State* L)
 
 ScriptedGPUCanvas::~ScriptedGPUCanvas()
 {
-    delete m_activePass;
-    m_activePass = nullptr;
     if (m_L != nullptr && m_imageRef != LUA_NOREF)
     {
         lua_unref(m_L, m_imageRef);
@@ -2580,9 +2595,13 @@ ScriptedGPUCanvas::~ScriptedGPUCanvas()
 
 ScriptedGPURenderPass::~ScriptedGPURenderPass()
 {
-    if (m_L != nullptr && m_canvasRef != LUA_NOREF)
+    // If the script GC'd the wrapper without :finish(), drop the active-
+    // pass slot before unique_ptr destroys the backend RenderPass — else
+    // ore::Context::activeRenderPass() would dangle into the next
+    // beginRenderPass.
+    if (m_context && pass && m_context->activeRenderPass() == pass.get())
     {
-        lua_unref(m_L, m_canvasRef);
+        m_context->setActiveRenderPass(nullptr);
     }
 }
 
@@ -2618,305 +2637,304 @@ static StoreOp lua_tostoreop_str(const char* s)
     return StoreOp::store;
 }
 
-static int gpucanvashandle_beginrenderpass(lua_State* L)
+// canvas:beginRenderPass(desc) — open a render pass against this canvas.
+//
+// `desc` is required: at least one color attachment or a depthStencil
+// attachment must be supplied. Every attachment carries its own view, and
+// sampleCount is derived from those views (all attachments must share one
+// sampleCount, matching WebGPU validation).
+//
+// Color attachment `view` is optional: when omitted it defaults to the
+// receiving canvas's own colorView. Provide an explicit view for cases
+// where the target differs (e.g. MSAA: view = msaa:view(),
+// resolveTarget = canvas:colorView()).
+int gpucanvas_beginrenderpass(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
-    if (!self->oreColorView)
+
+    Context* oreCtx = getOreContext(L);
+    if (oreCtx == nullptr)
     {
-        luaL_error(L, "GPUCanvas has no color view");
+        luaL_error(L, "GPUCanvas:beginRenderPass() requires a GPU context");
     }
-    if (getOreContext(L) == nullptr)
+
+    auto* scriptingContext =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (scriptingContext == nullptr || !scriptingContext->canvasDrawingPhase())
     {
-        luaL_error(L, "GPU context not initialized");
+        luaL_error(L,
+                   "GPUCanvas:beginRenderPass() called outside drawing phase");
     }
+
+    luaL_checktype(L, 2, LUA_TTABLE);
 
     RenderPassDesc passDesc{};
-    passDesc.colorCount = 1;
-    // Default: if the canvas has an MSAA color texture, render into it and
-    // resolve to the 1× platform backing; otherwise render directly to it.
-    if (self->oreMSAAColorView)
-    {
-        passDesc.colorAttachments[0].view = self->oreMSAAColorView.get();
-        passDesc.colorAttachments[0].resolveTarget = self->oreColorView.get();
-        passDesc.colorAttachments[0].storeOp = StoreOp::discard;
-    }
-    else
-    {
-        passDesc.colorAttachments[0].view = self->oreColorView.get();
-    }
-    passDesc.colorAttachments[0].loadOp = LoadOp::clear;
+    passDesc.colorCount = 0;
 
-    uint32_t passSampleCount =
-        self->oreMSAAColorView ? self->oreMSAAColorTexture->sampleCount() : 1;
+    // Tracks the first attachment we see (any color slot or depth) and
+    // becomes the pass's authoritative sampleCount. Subsequent attachments
+    // must match. -1 means "not yet seen any attachment". The label owns
+    // its storage so per-iteration stack buffers don't dangle into the
+    // error path.
+    int32_t passSampleCount = -1;
+    std::string sampleCountSourceLabel;
 
-    // Parse optional descriptor table
-    if (lua_gettop(L) >= 2 && lua_istable(L, 2))
-    {
-        lua_getfield(L, 2, "color");
-        if (lua_isnil(L, -1))
+    auto recordSampleCount = [&](uint32_t sc, const char* label) {
+        if (passSampleCount == -1)
         {
-            // Descriptor provided but no 'color' key — caller wants a
-            // depth-only pass (e.g. shadow map).  Drop the default canvas
-            // color attachment so the render pass matches pipelines that
-            // have no color outputs.
-            passDesc.colorCount = 0;
-            // Fall through to the lua_pop(L, 1) below (don't pop here).
+            passSampleCount = static_cast<int32_t>(sc);
+            sampleCountSourceLabel = label;
         }
-        else if (lua_istable(L, -1))
+        else if (static_cast<uint32_t>(passSampleCount) != sc)
         {
-            // color is an array of attachment descriptor tables.  Each entry
-            // Each entry is an attachment descriptor table.  Supported fields:
-            //   view: GPUTextureView?       — overrides the default canvas view
-            //   resolveTarget: GPUTextureView? — 1× resolve (for MSAA)
-            //   loadOp: LoadOp?
-            //   storeOp: StoreOp?           — use 'discard' on MSAA color
-            //   clearColor: {r, g, b, a}?
-            passDesc.colorCount = 0;
-            for (int ci = 1; ci <= 4; ++ci)
+            luaL_error(
+                L,
+                "beginRenderPass: %s sampleCount (%u) does not match %s "
+                "sampleCount (%u). All render-pass attachments must share "
+                "one sampleCount.",
+                label,
+                sc,
+                sampleCountSourceLabel.c_str(),
+                static_cast<uint32_t>(passSampleCount));
+        }
+    };
+
+    lua_getfield(L, 2, "color");
+    if (lua_istable(L, -1))
+    {
+        for (int ci = 1; ci <= 4; ++ci)
+        {
+            lua_rawgeti(L, -1, ci);
+            if (!lua_istable(L, -1))
             {
-                lua_rawgeti(L, -1, ci);
-                if (!lua_istable(L, -1))
-                {
-                    lua_pop(L, 1);
-                    break;
-                }
-                int slot = passDesc.colorCount++;
+                lua_pop(L, 1);
+                break;
+            }
+            int slot = passDesc.colorCount++;
 
-                // Optional explicit TextureView override
-                lua_getfield(L, -1, "view");
-                if (!lua_isnil(L, -1))
+            lua_getfield(L, -1, "view");
+            ore::TextureView* viewPtr = nullptr;
+            if (lua_isnil(L, -1))
+            {
+                // Sugar: omitting `view` defaults to the receiving canvas's
+                // own colorView. Errors only if the canvas is deferred
+                // (zero-sized — no backing texture).
+                if (!self->oreColorView)
                 {
-                    auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-                    if (tv && tv->view)
-                    {
-                        passDesc.colorAttachments[slot].view = tv->view.get();
-                        if (slot == 0)
-                            passSampleCount =
-                                tv->view->texture()->sampleCount();
-                    }
-                }
-                lua_pop(L, 1); // view
-
-                // Default view for slot 0 is the canvas itself; other slots
-                // require an explicit view from the descriptor. This
-                // mirrors the depthStencil-attachment shape below — both
-                // depth and color slot 1+ surface a clear error when no
-                // view is supplied, so a malformed `colorAttachments`
-                // table can't silently truncate the pass to fewer
-                // attachments than declared.
-                if (passDesc.colorAttachments[slot].view == nullptr)
-                {
-                    if (slot == 0)
-                    {
-                        passDesc.colorAttachments[0].view =
-                            self->oreColorView.get();
-                    }
-                    else
-                    {
-                        luaL_error(L,
-                                   "beginRenderPass: colorAttachments[%d] "
-                                   "has no `view` field — slot %d requires "
-                                   "an explicit GPUTextureView (only slot 0 "
-                                   "defaults to the canvas color view)",
-                                   slot + 1,
-                                   slot);
-                    }
-                }
-
-                // resolveTarget (optional — for MSAA)
-                lua_getfield(L, -1, "resolveTarget");
-                if (!lua_isnil(L, -1))
-                {
-                    auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-                    if (tv && tv->view)
-                    {
-                        // Validate: resolveTarget format must match the MSAA
-                        // attachment format. Metal/Vulkan/D3D all require this;
-                        // mismatches produce silent corruption (channel swaps,
-                        // broken alpha). bgra8 canvas vs rgba8 MSAA is the
-                        // classic footgun — catch it here.
-                        auto* msaaTex = passDesc.colorAttachments[slot].view
-                                            ? passDesc.colorAttachments[slot]
-                                                  .view->texture()
-                                            : nullptr;
-                        if (msaaTex &&
-                            tv->view->texture()->format() != msaaTex->format())
-                        {
-                            luaL_error(
-                                L,
-                                "beginRenderPass: resolveTarget format '%s' "
-                                "does not match MSAA attachment format '%s' — "
-                                "resolve requires identical formats. Use "
-                                "canvas.format to "
-                                "match your pipeline and textures.",
-                                lua_totextureformatstring(
-                                    tv->view->texture()->format()),
-                                lua_totextureformatstring(msaaTex->format()));
-                        }
-                        passDesc.colorAttachments[slot].resolveTarget =
-                            tv->view.get();
-                    }
-                }
-                lua_pop(L, 1); // resolveTarget
-
-                lua_getfield(L, -1, "loadOp");
-                if (!lua_isnil(L, -1))
-                {
-                    passDesc.colorAttachments[slot].loadOp =
-                        lua_toloadop_str(luaL_checkstring(L, -1));
-                }
-                lua_pop(L, 1); // loadOp
-
-                lua_getfield(L, -1, "storeOp");
-                if (lua_isnil(L, -1))
-                {
-                    lua_pop(L, 1);
                     luaL_error(L,
-                               "beginRenderPass: color[%d].storeOp is required "
-                               "— use 'discard' for MSAA color (after resolve) "
-                               "or 'store' to keep the rendered output",
+                               "beginRenderPass: color[%d].view omitted but "
+                               "the receiving canvas has no backing texture "
+                               "(zero-sized). Call canvas:resize(w, h) "
+                               "before drawing, or pass an explicit view.",
                                slot + 1);
                 }
-                passDesc.colorAttachments[slot].storeOp =
-                    lua_tostoreop_str(luaL_checkstring(L, -1));
-                lua_pop(L, 1); // storeOp
-
-                lua_getfield(L, -1, "clearColor");
-                if (lua_istable(L, -1))
-                {
-                    lua_rawgeti(L, -1, 1);
-                    passDesc.colorAttachments[slot].clearColor.r =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, 2);
-                    passDesc.colorAttachments[slot].clearColor.g =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, 3);
-                    passDesc.colorAttachments[slot].clearColor.b =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, 4);
-                    passDesc.colorAttachments[slot].clearColor.a =
-                        (float)lua_tonumber(L, -1);
-                    lua_pop(L, 1);
-                }
-                lua_pop(L, 1); // clearColor
-                lua_pop(L, 1); // entry table
+                viewPtr = self->oreColorView.get();
             }
-            // If no explicit entries were found, fall back to the canvas view
-            if (passDesc.colorCount == 0)
-            {
-                passDesc.colorCount = 1;
-                passDesc.colorAttachments[0].view = self->oreColorView.get();
-            }
-        }
-        lua_pop(L, 1); // color
-
-        lua_getfield(L, 2, "depthStencil");
-        if (lua_istable(L, -1))
-        {
-            // Prefer an explicit view from the descriptor; fall back to the
-            // canvas's own depth view if available.
-            lua_getfield(L, -1, "view");
-            if (!lua_isnil(L, -1))
+            else
             {
                 auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
-                if (tv && tv->view)
-                    passDesc.depthStencil.view = tv->view.get();
+                if (!tv || !tv->view)
+                {
+                    luaL_error(L,
+                               "beginRenderPass: color[%d].view is not a "
+                               "valid GPUTextureView",
+                               slot + 1);
+                }
+                viewPtr = tv->view.get();
             }
-            else if (self->oreDepthView)
-            {
-                passDesc.depthStencil.view = self->oreDepthView.get();
-            }
+            passDesc.colorAttachments[slot].view = viewPtr;
+            char colorLabel[32];
+            snprintf(colorLabel, sizeof(colorLabel), "color[%d]", slot + 1);
+            recordSampleCount(viewPtr->texture()->sampleCount(), colorLabel);
             lua_pop(L, 1); // view
 
-            // Require an explicit view, matching WebGPU validation. Without
-            // one, GL silently drops depth testing while Metal/TBDR implicitly
-            // allocates tile memory — making the same script behave differently
-            // across backends.
-            if (!passDesc.depthStencil.view)
+            // resolveTarget (optional — for MSAA). Source view must be
+            // multisampled; resolve target must be sampleCount=1 and
+            // format-matched to the source.
+            lua_getfield(L, -1, "resolveTarget");
+            if (!lua_isnil(L, -1))
             {
+                auto* rtv = lua_torive<ScriptedGPUTextureView>(L, -1);
+                if (rtv && rtv->view)
+                {
+                    auto* msaaTex =
+                        passDesc.colorAttachments[slot].view
+                            ? passDesc.colorAttachments[slot].view->texture()
+                            : nullptr;
+                    if (msaaTex && msaaTex->sampleCount() == 1)
+                    {
+                        luaL_error(
+                            L,
+                            "beginRenderPass: color[%d].resolveTarget is "
+                            "meaningless when the source `view` is single-"
+                            "sampled — drop it, or use an MSAA texture as "
+                            "`view`",
+                            slot + 1);
+                    }
+                    if (msaaTex &&
+                        rtv->view->texture()->format() != msaaTex->format())
+                    {
+                        luaL_error(
+                            L,
+                            "beginRenderPass: resolveTarget format '%s' does "
+                            "not match MSAA attachment format '%s' — resolve "
+                            "requires identical formats. Use canvas.format to "
+                            "match your pipeline and textures.",
+                            lua_totextureformatstring(
+                                rtv->view->texture()->format()),
+                            lua_totextureformatstring(msaaTex->format()));
+                    }
+                    if (rtv->view->texture()->sampleCount() != 1)
+                    {
+                        luaL_error(L,
+                                   "beginRenderPass: color[%d].resolveTarget "
+                                   "must have sampleCount=1 (got %u)",
+                                   slot + 1,
+                                   rtv->view->texture()->sampleCount());
+                    }
+                    passDesc.colorAttachments[slot].resolveTarget =
+                        rtv->view.get();
+                }
+            }
+            lua_pop(L, 1); // resolveTarget
+
+            lua_getfield(L, -1, "loadOp");
+            if (!lua_isnil(L, -1))
+            {
+                passDesc.colorAttachments[slot].loadOp =
+                    lua_toloadop_str(luaL_checkstring(L, -1));
+            }
+            else
+            {
+                passDesc.colorAttachments[slot].loadOp = LoadOp::clear;
+            }
+            lua_pop(L, 1); // loadOp
+
+            lua_getfield(L, -1, "storeOp");
+            if (lua_isnil(L, -1))
+            {
+                lua_pop(L, 1);
                 luaL_error(L,
-                           "beginRenderPass: depthStencil.view is required — "
-                           "pass GPUTexture:view()");
+                           "beginRenderPass: color[%d].storeOp is required "
+                           "— use 'discard' for MSAA color (after resolve) "
+                           "or 'store' to keep the rendered output",
+                           slot + 1);
             }
+            passDesc.colorAttachments[slot].storeOp =
+                lua_tostoreop_str(luaL_checkstring(L, -1));
+            lua_pop(L, 1); // storeOp
 
-            if (passDesc.depthStencil.view)
+            lua_getfield(L, -1, "clearColor");
+            if (lua_istable(L, -1))
             {
-                passDesc.depthStencil.depthLoadOp = LoadOp::clear;
-                lua_getfield(L, -1, "depthLoadOp");
-                if (!lua_isnil(L, -1))
-                {
-                    passDesc.depthStencil.depthLoadOp =
-                        lua_toloadop_str(luaL_checkstring(L, -1));
-                }
+                lua_rawgeti(L, -1, 1);
+                passDesc.colorAttachments[slot].clearColor.r =
+                    (float)lua_tonumber(L, -1);
                 lua_pop(L, 1);
-
-                lua_getfield(L, -1, "depthStoreOp");
-                if (lua_isnil(L, -1))
-                {
-                    lua_pop(L, 1);
-                    luaL_error(L,
-                               "beginRenderPass: depthStencil.depthStoreOp is "
-                               "required — use 'discard' for transient/MSAA "
-                               "depth or 'store' if you need to read it later");
-                }
-                passDesc.depthStencil.depthStoreOp =
-                    lua_tostoreop_str(luaL_checkstring(L, -1));
+                lua_rawgeti(L, -1, 2);
+                passDesc.colorAttachments[slot].clearColor.g =
+                    (float)lua_tonumber(L, -1);
                 lua_pop(L, 1);
-
-                lua_getfield(L, -1, "depthClearValue");
-                if (!lua_isnil(L, -1))
-                {
-                    passDesc.depthStencil.depthClearValue =
-                        static_cast<float>(lua_tonumber(L, -1));
-                }
+                lua_rawgeti(L, -1, 3);
+                passDesc.colorAttachments[slot].clearColor.b =
+                    (float)lua_tonumber(L, -1);
+                lua_pop(L, 1);
+                lua_rawgeti(L, -1, 4);
+                passDesc.colorAttachments[slot].clearColor.a =
+                    (float)lua_tonumber(L, -1);
                 lua_pop(L, 1);
             }
+            lua_pop(L, 1); // clearColor
+            lua_pop(L, 1); // entry table
         }
-        lua_pop(L, 1); // depthStencil
+    }
+    lua_pop(L, 1); // color
+
+    lua_getfield(L, 2, "depthStencil");
+    if (lua_istable(L, -1))
+    {
+        lua_getfield(L, -1, "view");
+        if (lua_isnil(L, -1))
+        {
+            luaL_error(L,
+                       "beginRenderPass: depthStencil.view is required — "
+                       "pass GPUTexture:view()");
+        }
+        auto* tv = lua_torive<ScriptedGPUTextureView>(L, -1);
+        if (!tv || !tv->view)
+        {
+            luaL_error(L,
+                       "beginRenderPass: depthStencil.view is not a valid "
+                       "GPUTextureView");
+        }
+        passDesc.depthStencil.view = tv->view.get();
+        recordSampleCount(tv->view->texture()->sampleCount(), "depthStencil");
+        lua_pop(L, 1); // view
+
+        passDesc.depthStencil.depthLoadOp = LoadOp::clear;
+        lua_getfield(L, -1, "depthLoadOp");
+        if (!lua_isnil(L, -1))
+        {
+            passDesc.depthStencil.depthLoadOp =
+                lua_toloadop_str(luaL_checkstring(L, -1));
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "depthStoreOp");
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            luaL_error(L,
+                       "beginRenderPass: depthStencil.depthStoreOp is "
+                       "required — use 'discard' for transient/MSAA depth or "
+                       "'store' if you need to read it later");
+        }
+        passDesc.depthStencil.depthStoreOp =
+            lua_tostoreop_str(luaL_checkstring(L, -1));
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "depthClearValue");
+        if (!lua_isnil(L, -1))
+        {
+            passDesc.depthStencil.depthClearValue =
+                static_cast<float>(lua_tonumber(L, -1));
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1); // depthStencil
+
+    if (passDesc.colorCount == 0 && !passDesc.depthStencil.view)
+    {
+        luaL_error(L,
+                   "beginRenderPass: descriptor must include at least one "
+                   "color attachment or a depthStencil attachment");
     }
 
-    // Delete any previous active pass (ore::RenderPass destructor handles
-    // cleanup)
     // Metal (and other backends) only allow one active encoder per command
-    // buffer. If another canvas handle (or another VM sharing the same
-    // oreCtx) left a pass open, finish it before opening a new encoder.
-    Context* oreCtx = getOreContext(L);
+    // buffer. If a previous pass was left open, finish it before opening
+    // a new encoder.
     if (oreCtx->activeRenderPass() && !oreCtx->activeRenderPass()->isFinished())
     {
         oreCtx->activeRenderPass()->finish();
+        oreCtx->setActiveRenderPass(nullptr);
     }
 
-    delete self->m_activePass;
-    self->m_activePass = nullptr;
-
-    ore::RenderPass raw = oreCtx->beginRenderPass(passDesc);
-    self->m_activePass = new ore::RenderPass(std::move(raw));
-    self->m_activePassLabel = passDesc.label ? passDesc.label : "";
-    oreCtx->setActiveRenderPass(self->m_activePass);
-
     auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
-    rp->pass = self->m_activePass;
+    rp->pass = oreCtx->beginRenderPass(passDesc);
+    rp->m_context = oreCtx;
     rp->m_finished = false;
-    rp->sampleCount = passSampleCount;
-    rp->label = self->m_activePassLabel;
+    rp->sampleCount =
+        passSampleCount < 1 ? 1u : static_cast<uint32_t>(passSampleCount);
+    rp->label = passDesc.label ? passDesc.label : "";
     rp->drawCallCount = 0;
-    // Hold a Lua ref to the owning canvas so it can't be GC'd while the
-    // pass userdata is reachable. Without this, `~ScriptedGPUCanvas`
-    // deletes `m_activePass` (which `rp->pass` aliases) and any
-    // subsequent method on the pass dereferences a freed pointer.
-    rp->m_L = L;
-    lua_pushvalue(L, 1); // canvas userdata is the `self` argument.
-    rp->m_canvasRef = lua_ref(L, -1);
-    lua_pop(L, 1);
+    oreCtx->setActiveRenderPass(rp->pass.get());
     return 1;
 }
 
 // Recreate the underlying RenderCanvas at a new size, then re-wrap its backing
 // texture for use in ORE render passes.  The handle's `.image` ref continues to
-// point to the updated canvas image.
+// point to the updated canvas image. Resizing to zero in either dimension
+// drops the backing texture and leaves the canvas in a deferred state.
 static int gpucanvashandle_resize(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
@@ -2933,6 +2951,21 @@ static int gpucanvashandle_resize(lua_State* L)
         luaL_error(L, "GPUCanvas: GPU context not initialized");
     }
 
+    if (w == 0 || h == 0)
+    {
+        if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
+        {
+            lua_unref(self->m_L, self->m_imageRef);
+            self->m_imageRef = LUA_NOREF;
+        }
+        self->canvas = nullptr;
+        self->oreColorView = nullptr;
+        return 0;
+    }
+
+    // Allocate and wrap the new backing BEFORE touching the existing
+    // canvas/view/imageRef. If either step throws (via luaL_error), the
+    // canvas keeps its previous, still-valid backing.
     auto newCanvas = self->renderCtx->makeRenderCanvas(w, h);
     if (!newCanvas)
     {
@@ -2944,7 +2977,6 @@ static int gpucanvashandle_resize(lua_State* L)
         luaL_error(L, "GPUCanvas:resize() failed to wrap canvas texture");
     }
 
-    // Update the image ref to point to the new canvas
     if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
     {
         lua_unref(self->m_L, self->m_imageRef);
@@ -2952,42 +2984,6 @@ static int gpucanvashandle_resize(lua_State* L)
     }
     self->canvas = std::move(newCanvas);
     self->oreColorView = std::move(newColorView);
-
-    // Rebuild MSAA color texture if canvas was created with sampleCount > 1.
-    if (self->oreMSAAColorTexture)
-    {
-        uint32_t sc = self->oreMSAAColorTexture->sampleCount();
-        ore::TextureDesc msaaDesc;
-        msaaDesc.width = w;
-        msaaDesc.height = h;
-        msaaDesc.format = self->oreColorView->texture()->format();
-        msaaDesc.renderTarget = true;
-        msaaDesc.sampleCount = sc;
-        msaaDesc.label = "GPUCanvasMSAAColor";
-        self->oreMSAAColorTexture = oreCtx->makeTexture(msaaDesc);
-        ore::TextureViewDesc msaaViewDesc;
-        msaaViewDesc.texture = self->oreMSAAColorTexture.get();
-        self->oreMSAAColorView = oreCtx->makeTextureView(msaaViewDesc);
-
-        ore::TextureDesc depthDesc;
-        depthDesc.width = w;
-        depthDesc.height = h;
-        depthDesc.format = ore::TextureFormat::depth32float;
-        depthDesc.renderTarget = true;
-        depthDesc.sampleCount = sc;
-        depthDesc.label = "GPUCanvasMSAADepth";
-        self->oreDepthTexture = oreCtx->makeTexture(depthDesc);
-        ore::TextureViewDesc depthViewDesc;
-        depthViewDesc.texture = self->oreDepthTexture.get();
-        self->oreDepthView = oreCtx->makeTextureView(depthViewDesc);
-    }
-    else
-    {
-        self->oreMSAAColorTexture = nullptr;
-        self->oreMSAAColorView = nullptr;
-        self->oreDepthTexture = nullptr;
-        self->oreDepthView = nullptr;
-    }
 
     auto* img = lua_newrive<ScriptedImage>(L);
     img->image =
@@ -3003,62 +2999,69 @@ static int gpucanvashandle_colorview(lua_State* L)
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
     if (!self->oreColorView)
     {
-        lua_pushnil(L);
-        return 1;
+        luaL_error(L,
+                   "GPUCanvas:colorView() called on a zero-sized canvas; "
+                   "call canvas:resize(w, h) first");
     }
     auto* tv = lua_newrive<ScriptedGPUTextureView>(L);
     tv->view = self->oreColorView;
     return 1;
 }
 
+static void gpucanvashandle_direct_width(void* udata, void* result)
+{
+    auto* self = (ScriptedGPUCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->width() : 0);
+}
+
+static void gpucanvashandle_direct_height(void* udata, void* result)
+{
+    auto* self = (ScriptedGPUCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->height()
+                                                   : 0);
+}
+
 static int gpucanvashandle_index(lua_State* L)
 {
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
     auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "image") == 0)
+    switch (atom)
     {
-        if (self->m_imageRef != LUA_NOREF)
-        {
-            rive_lua_pushRef(L, self->m_imageRef);
-            return 1;
-        }
-        lua_pushnil(L);
-        return 1;
-    }
-    if (strcmp(key, "width") == 0 && self->canvas)
-    {
-        lua_pushnumber(L, self->canvas->width());
-        return 1;
-    }
-    if (strcmp(key, "height") == 0 && self->canvas)
-    {
-        lua_pushnumber(L, self->canvas->height());
-        return 1;
-    }
-    if (strcmp(key, "sampleCount") == 0)
-    {
-        uint32_t sc = self->oreMSAAColorTexture
-                          ? self->oreMSAAColorTexture->sampleCount()
-                          : 1;
-        lua_pushnumber(L, sc);
-        return 1;
-    }
-    if (strcmp(key, "hasDepth") == 0)
-    {
-        lua_pushboolean(L, self->oreDepthView != nullptr);
-        return 1;
-    }
-    if (strcmp(key, "format") == 0)
-    {
-        if (self->oreColorView && self->oreColorView->texture())
-            lua_pushstring(L,
-                           lua_totextureformatstring(
-                               self->oreColorView->texture()->format()));
-        else
+        case (int)LuaAtoms::image:
+            if (self->m_imageRef != LUA_NOREF)
+            {
+                rive_lua_pushRef(L, self->m_imageRef);
+                return 1;
+            }
             lua_pushnil(L);
-        return 1;
+            return 1;
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
+            return 1;
+        case (int)LuaAtoms::format:
+            // Realized canvas reports its texture format. Deferred canvas
+            // reports the format makeRenderCanvas always allocates.
+            if (self->oreColorView && self->oreColorView->texture())
+                lua_pushstring(L,
+                               lua_totextureformatstring(
+                                   self->oreColorView->texture()->format()));
+            else
+                lua_pushstring(
+                    L,
+                    lua_totextureformatstring(TextureFormat::rgba8unorm));
+            return 1;
     }
-    luaL_error(L, "%s is not a valid property of GPUCanvas", key);
+    luaL_error(L, "'%s' is not a valid index of GPUCanvas", key);
     return 0;
 }
 
@@ -3070,12 +3073,12 @@ static int gpucanvashandle_namecall(lua_State* L)
     {
         switch (atom)
         {
-            case (int)LuaAtoms::beginRenderPass:
-                return gpucanvashandle_beginrenderpass(L);
             case (int)LuaAtoms::colorView:
                 return gpucanvashandle_colorview(L);
             case (int)LuaAtoms::resize:
                 return gpucanvashandle_resize(L);
+            case (int)LuaAtoms::beginRenderPass:
+                return gpucanvas_beginrenderpass(L);
             default:
                 break;
         }
@@ -3091,8 +3094,9 @@ static int gpucanvashandle_namecall(lua_State* L)
 // Canvas (2D Rive renderer canvas)
 // ============================================================================
 
-// Recreate the underlying RenderCanvas at a new size.  Must not be called
-// between beginFrame() and endFrame().
+// Recreate the underlying RenderCanvas at a new size. Must not be called
+// between beginFrame() and endFrame(). Resizing to zero in either dimension
+// drops the backing texture and leaves the canvas in a deferred state.
 static int canvashandle_resize(lua_State* L)
 {
     auto* self = lua_torive<ScriptedCanvas>(L, 1);
@@ -3108,6 +3112,20 @@ static int canvashandle_resize(lua_State* L)
         luaL_error(L, "Canvas:resize() called during an active frame");
     }
 
+    if (w == 0 || h == 0)
+    {
+        if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
+        {
+            lua_unref(self->m_L, self->m_imageRef);
+            self->m_imageRef = LUA_NOREF;
+        }
+        self->canvas = nullptr;
+        return 0;
+    }
+
+    // Allocate the new backing BEFORE touching the existing canvas/imageRef.
+    // If makeRenderCanvas throws (via luaL_error), the canvas keeps its
+    // previous, still-valid backing.
     auto newCanvas = self->renderCtx->makeRenderCanvas(w, h);
     if (!newCanvas)
     {
@@ -3143,13 +3161,21 @@ static int canvashandle_beginframe(lua_State* L)
     {
         luaL_error(L, "Canvas: renderCtx not initialized");
     }
+    auto* scriptingContext =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (scriptingContext == nullptr || !scriptingContext->canvasDrawingPhase())
+    {
+        luaL_error(L, "Canvas:beginFrame() called outside drawing phase");
+    }
     if (self->m_state != CanvasState::Idle)
     {
         luaL_error(L, "Canvas:beginFrame() called during an active frame");
     }
     if (!self->canvas)
     {
-        luaL_error(L, "Canvas:beginFrame() — canvas is null");
+        luaL_error(L,
+                   "Canvas:beginFrame() called on a zero-sized canvas; "
+                   "call canvas:resize(w, h) first");
     }
 
     gpu::RenderContext::FrameDescriptor desc{};
@@ -3232,31 +3258,48 @@ static int canvashandle_endframe(lua_State* L)
     return 0;
 }
 
+static void canvashandle_direct_width(void* udata, void* result)
+{
+    auto* self = (ScriptedCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->width() : 0);
+}
+
+static void canvashandle_direct_height(void* udata, void* result)
+{
+    auto* self = (ScriptedCanvas*)udata;
+    lua_userdatadirectfield_setnumber(result,
+                                      self->canvas ? self->canvas->height()
+                                                   : 0);
+}
+
 static int canvashandle_index(lua_State* L)
 {
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
     auto* self = lua_torive<ScriptedCanvas>(L, 1);
-    const char* key = luaL_checkstring(L, 2);
-    if (strcmp(key, "image") == 0)
+    switch (atom)
     {
-        if (self->m_imageRef != LUA_NOREF)
-        {
-            rive_lua_pushRef(L, self->m_imageRef);
+        case (int)LuaAtoms::image:
+            if (self->m_imageRef != LUA_NOREF)
+            {
+                rive_lua_pushRef(L, self->m_imageRef);
+                return 1;
+            }
+            lua_pushnil(L);
             return 1;
-        }
-        lua_pushnil(L);
-        return 1;
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, self->canvas ? self->canvas->width() : 0);
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, self->canvas ? self->canvas->height() : 0);
+            return 1;
     }
-    if (strcmp(key, "width") == 0 && self->canvas)
-    {
-        lua_pushnumber(L, self->canvas->width());
-        return 1;
-    }
-    if (strcmp(key, "height") == 0 && self->canvas)
-    {
-        lua_pushnumber(L, self->canvas->height());
-        return 1;
-    }
-    luaL_error(L, "%s is not a valid property of Canvas", key);
+    luaL_error(L, "'%s' is not a valid index of Canvas", key);
     return 0;
 }
 
@@ -3333,8 +3376,8 @@ static void register_type_with_constructor(lua_State* L,
 
 int luaopen_rive_gpu(lua_State* L)
 {
-    static const luaL_Reg shaderStatics[] = {{"new", shader_construct},
-                                             {nullptr, nullptr}};
+    // Shader has no constructor; shaders are obtained via context:shader(name).
+    static const luaL_Reg shaderStatics[] = {{nullptr, nullptr}};
     static const luaL_Reg gpuBufferStatics[] = {{"new", gpubuffer_construct},
                                                 {nullptr, nullptr}};
     static const luaL_Reg gpuTextureStatics[] = {{"new", gputexture_construct},
@@ -3368,6 +3411,11 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUBuffer::luaTag,
+                                           "size",
+                                           gpubuffer_direct_size);
     }
 
     // GPUTexture
@@ -3380,6 +3428,15 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUTexture::luaTag,
+                                           "width",
+                                           gputexture_direct_width);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUTexture::luaTag,
+                                           "height",
+                                           gputexture_direct_height);
     }
 
     // GPUSampler
@@ -3448,6 +3505,15 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUCanvas::luaTag,
+                                           "width",
+                                           gpucanvashandle_direct_width);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedGPUCanvas::luaTag,
+                                           "height",
+                                           gpucanvashandle_direct_height);
     }
 
     // Canvas (no public constructor — created via context:canvas())
@@ -3460,6 +3526,15 @@ int luaopen_rive_gpu(lua_State* L)
         lua_setfield(L, -2, "__index");
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1);
+
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedCanvas::luaTag,
+                                           "width",
+                                           canvashandle_direct_width);
+        lua_registeruserdatadirectfieldget(L,
+                                           ScriptedCanvas::luaTag,
+                                           "height",
+                                           canvashandle_direct_height);
     }
 
     return 0;
@@ -3565,6 +3640,29 @@ int riveImageViewImpl(lua_State* L)
 
     return 1;
 }
+
+namespace rive
+{
+void rive_lua_closeOrphanRenderPass(lua_State* L)
+{
+    auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (context == nullptr)
+        return;
+    auto* oreCtx = static_cast<ore::Context*>(context->oreContext());
+    if (oreCtx == nullptr)
+        return;
+    auto* pass = oreCtx->activeRenderPass();
+    if (pass == nullptr || pass->isFinished())
+        return;
+    pass->finish();
+    oreCtx->setActiveRenderPass(nullptr);
+    lua_pushstring(L,
+                   "GPU render pass left open at script return. "
+                   "Call :finish() on render passes before returning.");
+    context->printError(L);
+    lua_pop(L, 1);
+}
+} // namespace rive
 
 #endif // RIVE_CANVAS && RIVE_ORE
 #endif // WITH_RIVE_SCRIPTING

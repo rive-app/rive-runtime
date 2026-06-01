@@ -66,199 +66,6 @@ bool ScriptInput::hydrateScriptInput()
 bool ScriptInput::validateHydrationPrerequisites() { return true; }
 
 #ifdef WITH_RIVE_SCRIPTING
-bool OptionalScriptedMethods::verifyImplementation(ScriptedObject* object,
-                                                   lua_State* state)
-{
-    // Log the stack-top type before pcall so we can see whether it's nil
-    // (meaning generator-ref resolved to nothing) vs a function that then
-    // errored internally.
-    int topType = static_cast<int>(lua_type(state, -1));
-    fprintf(stderr,
-            "[verifyImpl] entering verify for object protocol=%d, stack top "
-            "type=%d\n",
-            (int)object->scriptProtocol(),
-            topType);
-
-    lua_pushvalue(state, -1);
-    if (static_cast<lua_Status>(rive_lua_pcall(state, 0, 1)) != LUA_OK)
-    {
-        const char* err = lua_tostring(state, -1);
-        fprintf(stderr,
-                "Verifying implementation pcall failed (protocol=%d, "
-                "top-type-before=%d): %s\n",
-                (int)object->scriptProtocol(),
-                topType,
-                err ? err : "(no error message)");
-        rive_lua_pop(state, 1);
-        return false;
-    }
-    if (static_cast<lua_Type>(lua_type(state, -1)) != LUA_TTABLE)
-    {
-        fprintf(stderr,
-                "Verifying implementation not a table (protocol=%d)?\n",
-                (int)object->scriptProtocol());
-        rive_lua_pop(state, 1);
-        return false;
-    }
-    m_implementedMethods = 0;
-
-    auto scriptProtocol = object->scriptProtocol();
-    if (scriptProtocol == ScriptProtocol::node ||
-        scriptProtocol == ScriptProtocol::layout ||
-        scriptProtocol == ScriptProtocol::converter ||
-        scriptProtocol == ScriptProtocol::pathEffect ||
-        scriptProtocol == ScriptProtocol::listenerAction ||
-        scriptProtocol == ScriptProtocol::transitionCondition)
-    {
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "update")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_updatesBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "advance")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_advancesBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerDown")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsPointerDownBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerUp")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsPointerUpBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerMove")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsPointerMoveBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerCanceled")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsPointerCancelBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "pointerExit")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsPointerExitBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "init")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_initsBit;
-        }
-        rive_lua_pop(state, 1);
-    }
-    if (scriptProtocol == ScriptProtocol::layout)
-    {
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "measure")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_measuresBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "resize")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_resizesBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_drawsBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "drawCanvas")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_drawsCanvasBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "keyboardEvent")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsKeyboardInputBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "textEvent")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsTextInputBit;
-        }
-        rive_lua_pop(state, 1);
-    }
-    else if (scriptProtocol == ScriptProtocol::node)
-    {
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "draw")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_drawsBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "drawCanvas")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_drawsCanvasBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "keyboardEvent")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsKeyboardInputBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "textEvent")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_wantsTextInputBit;
-        }
-        rive_lua_pop(state, 1);
-    }
-    else if (scriptProtocol == ScriptProtocol::converter)
-    {
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "convert")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_dataConvertsBit;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "reverseConvert")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_dataReverseConvertsBit;
-        }
-        rive_lua_pop(state, 1);
-    }
-    else if (scriptProtocol == ScriptProtocol::listenerAction)
-    {
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "perform")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_listenerPerforms;
-        }
-        rive_lua_pop(state, 1);
-        if (static_cast<lua_Type>(lua_getfield(state, -1, "performAction")) ==
-            LUA_TFUNCTION)
-        {
-            m_implementedMethods |= m_listenerPerformsAction;
-        }
-        rive_lua_pop(state, 1);
-    }
-    rive_lua_pop(state, 1);
-    return true;
-}
-
 ScriptingVM* ScriptAsset::scriptingVM()
 {
     if (m_file == nullptr)
@@ -336,20 +143,18 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                 name().c_str());
         return false;
     }
-    fprintf(stderr,
-            "[activate] script \"%s\" generatorFunctionRef=%u -> lua ref=%d\n",
-            name().c_str(),
-            generatorFunctionRef(),
-            ref);
     rive_lua_pushRef(state, ref);
 
     if (!m_initted)
     {
-        if (!verifyImplementation(object, state))
-        {
-            rive_lua_pop(state, 1);
-            return false;
-        }
+        // The editor detected the implemented methods (by executing the
+        // generator in its workspace) and serialized the bitfield; the runtime
+        // never detects. Files predating this property decode to the all-bits
+        // default (2097151), so they behave as "implements everything" and rely
+        // on graceful dispatch (each callback no-ops when the method isn't
+        // actually a function on the returned table).
+        OptionalScriptedMethods::implementedMethods(
+            serializedImplementedMethods() & methodMask);
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());

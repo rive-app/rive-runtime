@@ -62,6 +62,7 @@ TEST_CASE("instancing artboard doesn't clone animations", "[instancing]")
     REQUIRE(rive::LinearAnimation::deleteCount == 0);
 
     size_t numberOfAnimations = file->artboard()->animationCount();
+    artboard.reset(nullptr);
     file.reset(nullptr);
     // Now the animations should've been deleted.
     REQUIRE(rive::LinearAnimation::deleteCount == numberOfAnimations);

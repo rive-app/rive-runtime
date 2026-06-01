@@ -1,4 +1,5 @@
 #include "rive/artboard.hpp"
+#include "rive/file.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
@@ -48,6 +49,9 @@
 #include "rive/layout/layout_data.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
+#ifdef WITH_RIVE_SCRIPTING
+#include "rive/lua/rive_lua_libs.hpp"
+#endif
 #include "rive/async/work_pool.hpp"
 
 #include <set>
@@ -891,6 +895,25 @@ void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
 
 void Artboard::drawCanvases()
 {
+#ifdef WITH_RIVE_SCRIPTING
+    if (m_scriptingVM)
+    {
+        auto* L = m_scriptingVM->state();
+        if (L != nullptr)
+        {
+            auto* context =
+                static_cast<ScriptingContext*>(lua_getthreaddata(L));
+            ScopedCanvasDrawingPhase phase(context);
+            internalDrawCanvases();
+            return;
+        }
+    }
+#endif
+    internalDrawCanvases();
+}
+
+void Artboard::internalDrawCanvases()
+{
     for (auto obj : m_ScriptedObjects)
     {
         obj->scriptDrawCanvas();
@@ -902,7 +925,7 @@ void Artboard::drawCanvases()
             auto* nested = artboardHost->artboardInstance(i);
             if (nested != nullptr)
             {
-                nested->drawCanvases();
+                nested->internalDrawCanvases();
             }
         }
     }
@@ -1353,24 +1376,34 @@ bool Artboard::syncStyleChanges()
 
 void Artboard::calculateLayout()
 {
-#if defined(WITH_RIVE_TOOLS) && !defined(TESTING)
+    // Always pass NAN and let calculateLayoutInternal decide whether to use
+    // the intrinsic (hug) size or fall back to width()/height().
+    //
+    // This covers all cases:
+    // - Runtime:
+    //   - Top level artboards: intrinsically sized artboards get NAN so Yoga
+    //     computes from children; fixed-size artboards fall back to
+    //     width()/height() inside calculateLayoutInternal.
+    //   - Nested node/leaf artboards (m_updatesOwnLayout == true): same as
+    //     top-level, calculateLayoutInternal handles the distinction.
+    //   - Nested layout-mode artboards (NestedArtboardLayout): their layout
+    //     node is owned by the parent via takeLayoutData(), which sets
+    //     m_updatesOwnLayout = false. syncStyleChangesWithUpdate() gates on
+    //     that flag, so calculateLayout() is not reached for these.
+    // - Editor:
+    //   - Top level artboards: are handled on the Dart side so don't take
+    //     this code path
+    //   - Nested node/leaf artboards (m_updatesOwnLayout == true):
+    //     same as runtime, calculateLayoutInternal handles the distinction.
+    //   - Nested layout-mode artboards (NestedArtboardLayout): same
+    //     as runtime, their layout node is owned by the Dart parent
+    //     which sets m_updatesOwnLayout = false
     calculateLayoutInternal(NAN, NAN);
-#else
-    // If we're a child of another artboard (ie nested or artboard list item)
-    // pass NAN so we compute our hugged size if applicable
-    if (parentArtboard() != nullptr && m_updatesOwnLayout)
-    {
-        calculateLayoutInternal(NAN, NAN);
-    }
-    else
-    {
-        calculateLayoutInternal(width(), height());
-    }
-#endif
 }
 
 bool Artboard::updatePass(bool isRoot)
 {
+    RIVE_PROF_SCOPE()
     updateDataBinds();
     bool didUpdate = false;
     syncStyleChangesWithUpdate();
@@ -1416,6 +1449,7 @@ bool Artboard::updatePass(bool isRoot)
 
 bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
+    RIVE_PROF_SCOPE()
     bool didUpdate = false;
 
     for (auto adv : m_advancingComponents)
@@ -1559,6 +1593,7 @@ bool Artboard::hitTestPoint(const Vec2D& position,
 void Artboard::draw(Renderer* renderer)
 {
     sm_frameId++;
+    drawCanvases();
     drawInternal(renderer);
 }
 
@@ -2551,6 +2586,10 @@ void Artboard::clearDataContext()
     {
         artboardHost->clearDataContext();
     }
+    for (auto* scriptedObject : m_ScriptedObjects)
+    {
+        scriptedObject->resetLuaInit();
+    }
 }
 
 float Artboard::volume() const { return m_volume; }
@@ -2645,6 +2684,8 @@ void Artboard::changed()
 ArtboardInstance::ArtboardInstance() {}
 
 ArtboardInstance::~ArtboardInstance() {}
+
+void ArtboardInstance::file(rcp<const File> file) { m_file = std::move(file); }
 
 std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(
     size_t index)

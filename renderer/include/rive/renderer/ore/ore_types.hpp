@@ -14,8 +14,8 @@ namespace rive::ore
 // ============================================================================
 
 // Maximum number of bind groups Ore supports per pipeline. WebGPU's
-// `maxBindGroups` minimum is 4 (RFC §9.1 / §14.2), and Ore sits at that
-// minimum — backends preallocate per-group structures using this
+// `maxBindGroups` minimum is 4, and Ore sits at that minimum. Backends
+// preallocate per-group structures using this
 // constant (Vulkan DSLs, WebGPU BGLs, D3D12 root params, RenderPass
 // `m_boundGroups`). Single source of truth across every backend's
 // per-group array, the public `BindGroupDesc::groupIndex` validity
@@ -32,6 +32,7 @@ enum class BufferUsage : uint8_t
     vertex,
     index,
     uniform,
+    upload,
 };
 
 enum class ShaderLanguage : uint8_t
@@ -198,6 +199,9 @@ enum class IndexFormat : uint8_t
     uint32,
 };
 
+// 32-bit integer vector vertex formats (sint32, sint32x2..4, uint32x2..4) are
+// intentionally omitted: scripts don't expose them, and Unreal RHI only
+// supports scalar VET_UInt. Reintroduce per-backend if a real use case appears.
 enum class VertexFormat : uint8_t
 {
     float1,
@@ -217,13 +221,6 @@ enum class VertexFormat : uint8_t
     float16x2,
     float16x4,
     uint32,
-    uint32x2,
-    uint32x3,
-    uint32x4,
-    sint32,
-    sint32x2,
-    sint32x3,
-    sint32x4,
 };
 
 enum class VertexStepMode : uint8_t
@@ -411,10 +408,10 @@ struct ShaderModuleDesc
     const char* hlslEntryPoint = nullptr;
 
     // Required binding-map sidecar bytes from the RSTB (target IDs 10-13,
-    // 16 — one per source backend). `makeShaderModule` parses them via
+    // 16, one per source backend). `makeShaderModule` parses them via
     // `ore::BindingMap::fromBlob` into `ShaderModule::m_bindingMap`. The
-    // sidecar is mandatory (RFC §14.4): a missing or unparseable blob is a
-    // programming error, not a fallback condition.
+    // sidecar is mandatory: a missing or unparseable blob is a programming
+    // error, not a fallback condition.
     const uint8_t* bindingMapBytes = nullptr;
     uint32_t bindingMapSize = 0;
 
@@ -425,6 +422,10 @@ struct ShaderModuleDesc
     // module's source target is GLSL (target 1); null for other targets.
     const uint8_t* glFixupBytes = nullptr;
     uint32_t glFixupSize = 0;
+
+    // Source ShaderAsset id (FileAsset::assetId()), or 0 if synthesized.
+    // Storage on ShaderModule is gated by TRACK_RIVE_SHADER_ID.
+    uint32_t shaderAssetId = 0;
 };
 
 struct VertexAttribute
@@ -482,7 +483,7 @@ struct DepthStencilState
 };
 
 // ============================================================================
-// BindGroupLayout Descriptor — explicit layout, Dawn-shaped (RFC §3.2 / §6).
+// BindGroupLayout Descriptor, explicit layout, Dawn-shaped.
 //
 // One layout per WGSL `@group(N)`. Created via `Context::makeBindGroupLayout`
 // and consumed by both `PipelineDesc::bindGroupLayouts[]` and

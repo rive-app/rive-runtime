@@ -180,11 +180,12 @@ public:
         mainRenderer.save();
         bool bottomUp = renderContext->platformFeatures().framebufferBottomUp;
 
-        // Canvas A in top-left quadrant
+        // Canvas A in top-left quadrant. Bottom-up flip pivots around the
+        // canvas height, not the framebuffer height.
         mainRenderer.save();
         if (bottomUp)
         {
-            mainRenderer.translate(0, 256);
+            mainRenderer.translate(0, 128);
             mainRenderer.scale(1, -1);
         }
         mainRenderer.drawImage(canvasA->renderImage(),
@@ -193,11 +194,12 @@ public:
                                1);
         mainRenderer.restore();
 
-        // Canvas B in bottom-right quadrant
+        // Canvas B in bottom-right quadrant.
         mainRenderer.save();
         mainRenderer.translate(128, 128);
         if (bottomUp)
         {
+            mainRenderer.translate(0, 128);
             mainRenderer.scale(1, -1);
         }
         mainRenderer.drawImage(canvasB->renderImage(),

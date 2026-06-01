@@ -51,7 +51,7 @@ public:
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
         constexpr uint32_t kSize = 128;
 
         // Create 3 render target textures.
@@ -94,7 +94,7 @@ public:
         auto mrtPipeline = ctx.makePipeline(pipeDesc);
 
         // Render to all 3 targets in a single MRT pass.
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         RenderPassDesc rpDesc{};
         for (int i = 0; i < 3; ++i)
@@ -108,10 +108,10 @@ public:
         rpDesc.label = "mrt_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(mrtPipeline.get());
-        pass.setViewport(0, 0, kSize, kSize);
-        pass.draw(3); // Fullscreen triangle, no VBO needed.
-        pass.finish();
+        pass->setPipeline(mrtPipeline.get());
+        pass->setViewport(0, 0, kSize, kSize);
+        pass->draw(3); // Fullscreen triangle, no VBO needed.
+        pass->finish();
 
         // Now blit each target to a RenderCanvas for compositing.
         // Load blit shader from the pre-compiled RSTB.
@@ -189,15 +189,15 @@ public:
             auto blitTexBG = ctx.makeBindGroup(blitTexBGDesc);
 
             auto blitPass = ctx.beginRenderPass(blitPassDesc);
-            blitPass.setPipeline(blitPipeline.get());
-            blitPass.setBindGroup(1, blitTexBG.get());
-            blitPass.setBindGroup(2, blitSampBG.get());
-            blitPass.setViewport(i * kSize, 0, kSize, kSize);
-            blitPass.draw(3);
-            blitPass.finish();
+            blitPass->setPipeline(blitPipeline.get());
+            blitPass->setBindGroup(1, blitTexBG.get());
+            blitPass->setBindGroup(2, blitSampBG.get());
+            blitPass->setViewport(i * kSize, 0, kSize, kSize);
+            blitPass->draw(3);
+            blitPass->finish();
         }
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite the canvas into the main framebuffer via the original

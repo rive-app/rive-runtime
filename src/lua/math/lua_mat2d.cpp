@@ -189,6 +189,46 @@ static int mat2d_newindex(lua_State* L)
     return 0;
 }
 
+// Direct field getters for the 2-char alphabetic names (xx, xy, yx, yy, tx,
+// ty). The slow path still handles numeric-string keys ('1'..'6') since
+// those are less common and not worth a per-name registration.
+
+static void mat2d_direct_xx(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedMat2D*)udata)->value.xx());
+}
+
+static void mat2d_direct_xy(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedMat2D*)udata)->value.xy());
+}
+
+static void mat2d_direct_yx(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedMat2D*)udata)->value.yx());
+}
+
+static void mat2d_direct_yy(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedMat2D*)udata)->value.yy());
+}
+
+static void mat2d_direct_tx(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedMat2D*)udata)->value.tx());
+}
+
+static void mat2d_direct_ty(void* udata, void* result)
+{
+    lua_userdatadirectfield_setnumber(result,
+                                      ((ScriptedMat2D*)udata)->value.ty());
+}
+
 static int mat2d_index(lua_State* L)
 {
     auto mat = lua_torive<ScriptedMat2D>(L, 1);
@@ -384,6 +424,14 @@ int luaopen_rive_mat2d(lua_State* L)
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
+
+    uint8_t tag = ScriptedMat2D::luaTag;
+    lua_registeruserdatadirectfieldget(L, tag, "xx", mat2d_direct_xx);
+    lua_registeruserdatadirectfieldget(L, tag, "xy", mat2d_direct_xy);
+    lua_registeruserdatadirectfieldget(L, tag, "yx", mat2d_direct_yx);
+    lua_registeruserdatadirectfieldget(L, tag, "yy", mat2d_direct_yy);
+    lua_registeruserdatadirectfieldget(L, tag, "tx", mat2d_direct_tx);
+    lua_registeruserdatadirectfieldget(L, tag, "ty", mat2d_direct_ty);
     return 1;
 }
 

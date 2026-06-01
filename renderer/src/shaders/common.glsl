@@ -249,9 +249,9 @@ INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 // GL and Vulkan.
 INLINE half safe_clamp_for_mali(half x, half lo, half hi)
 {
-#if defined(@GL_RENDERER_MALI) || defined(@VULKAN_VENDOR_ID)
-#ifdef @VULKAN_VENDOR_ID
-    if (@VULKAN_VENDOR_ID == VULKAN_VENDOR_ARM)
+#if defined(@GL_RENDERER_MALI) || defined(@VULKAN_VENDOR_ARM)
+#ifdef @VULKAN_VENDOR_ARM
+    if (@VULKAN_VENDOR_ARM)
 #endif
     {
         if (x < hi)
@@ -262,7 +262,7 @@ INLINE half safe_clamp_for_mali(half x, half lo, half hi)
         else
             return hi;
     }
-#endif // @GL_RENDERER_MALI || @VULKAN_VENDOR_ID
+#endif // @GL_RENDERER_MALI || @VULKAN_VENDOR_ARM
     return clamp(x, lo, hi);
 }
 

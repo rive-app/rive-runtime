@@ -5,6 +5,7 @@
 #include "rive/input/focus_manager.hpp"
 #include "rive/artboard.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/animation/listener_invocation.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/math/aabb.hpp"
 #include <algorithm>
@@ -634,6 +635,23 @@ bool FocusManager::textInput(const std::string& text)
     return false;
 }
 
+bool FocusManager::gamepadDispatch(
+    const ListenerInvocation& invocation,
+    ScriptedDrawable** outDispatchedScriptedDrawable)
+{
+    dropFocusIfFocusTargetHidden();
+    FocusNode* node = m_primaryFocus.get();
+    while (node != nullptr)
+    {
+        if (node->gamepadDispatch(invocation, outDispatchedScriptedDrawable))
+        {
+            return true;
+        }
+        node = node->parent();
+    }
+    return false;
+}
+
 void FocusManager::notifyFocusChange(FocusNode* oldFocus, FocusNode* newFocus)
 {
     // Find the common ancestor to avoid unnecessary blur/focus notifications
@@ -902,7 +920,7 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
                         {
                             return findNextFocusable(scope, forward);
                         }
-                        next = firstEligibleLeafFrom(traversable, true, this);
+                        next = nullptr;
                         break;
                 }
             }
@@ -950,14 +968,14 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
                         {
                             return findNextFocusable(scope, forward);
                         }
-                        next = firstEligibleLeafFrom(traversable, false, this);
+                        next = nullptr;
                         break;
                 }
             }
         }
     }
 
-    if (next != nullptr && next != current)
+    if (next != current)
     {
         const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
         return next;

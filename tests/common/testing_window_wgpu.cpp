@@ -438,6 +438,35 @@ public:
         m_currentCanvasTexture = {};
     }
 
+    void* getCurrentCommandBuffer() const override { return &m_oreEncoder; }
+
+    void* getOreContext() const override
+    {
+        return m_renderContext->getOreContext();
+    }
+
+    void beginOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+        m_oreEncoder = m_device.CreateCommandEncoder();
+
+        // Ore move-takes the encoder, pass a copy so we retain our ref.
+        wgpu::CommandEncoder borrowed = m_oreEncoder;
+        oreContext->beginFrame({.externalCommandBuffer = &borrowed});
+    }
+
+    void endOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+        oreContext->endFrame();
+
+        wgpu::CommandBuffer commands = m_oreEncoder.Finish();
+        m_queue.Submit(1, &commands);
+        m_oreEncoder = nullptr;
+    }
+
 private:
     RenderContextWebGPUImpl* impl() const
     {
@@ -457,6 +486,7 @@ private:
     wgpu::Texture m_overflowTexture;
     wgpu::TextureView m_overflowTextureView;
     wgpu::Buffer m_pixelReadBuff;
+    mutable wgpu::CommandEncoder m_oreEncoder;
 
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetWebGPU> m_renderTarget;

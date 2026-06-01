@@ -459,6 +459,11 @@ bool TextInput::textInput(const std::string& value)
     return true;
 }
 
+bool TextInput::gamepadDispatch(const ListenerInvocation&, ScriptedDrawable**)
+{
+    return false;
+}
+
 void TextInput::focused()
 {
     // TODO: Implement focus visual feedback

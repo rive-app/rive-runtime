@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_d3d11.hpp"
 #include "rive/rive_types.hpp"
 
 #include <d3d11.h>
@@ -10,9 +10,9 @@
 namespace rive::ore
 {
 
-#if defined(ORE_BACKEND_D3D11) && !defined(ORE_BACKEND_D3D12)
+#if defined(ORE_BACKEND_D3D11)
 
-void Texture::upload(const TextureDataDesc& data)
+void TextureD3D11::upload(const TextureDataDesc& data)
 {
     assert(m_d3d11Context != nullptr);
     assert(m_d3d11Texture != nullptr);
@@ -37,10 +37,6 @@ void Texture::upload(const TextureDataDesc& data)
                                       data.bytesPerRow * data.rowsPerImage);
 }
 
-void Texture::onRefCntReachedZero() const { delete this; }
-
-void TextureView::onRefCntReachedZero() const { delete this; }
-
-#endif // ORE_BACKEND_D3D11 && !ORE_BACKEND_D3D12
+#endif // ORE_BACKEND_D3D11
 
 } // namespace rive::ore

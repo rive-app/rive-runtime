@@ -202,8 +202,8 @@ public:
         //       host's current command buffer so the texture we wrap below
         //       — and the draw that samples it — land in the same
         //       submission as Rive's writes into the source canvas.
-        auto& ctx = *m_ore.oreContext;
-        m_ore.beginFrame();
+        auto& ctx = *renderContext->getOreContext();
+        m_ore.beginFrame(renderContext);
 
         // Wrap the chosen texture as an ore::TextureView. On Vulkan this
         // also emits a layout barrier (GENERAL → SHADER_READ_ONLY_OPTIMAL)
@@ -288,14 +288,14 @@ public:
         rpDesc.label = "ore_canvas_import_pass";
 
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(1, texBG.get());
-        pass.setBindGroup(2, sampBG.get());
-        pass.setViewport(0, 0, kSize, kSize);
-        pass.draw(6); // fullscreen quad
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(1, texBG.get());
+        pass->setBindGroup(2, sampBG.get());
+        pass->setViewport(0, 0, kSize, kSize);
+        pass->draw(6); // fullscreen quad
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // ── 6. Composite the Ore canvas into the main framebuffer. ──

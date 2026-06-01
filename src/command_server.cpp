@@ -18,12 +18,20 @@ namespace rive
 class CommandServer::CommandFileAssetLoader : public FileAssetLoader
 {
 public:
-    CommandFileAssetLoader(CommandServer* server) : m_server(server) {}
+    CommandFileAssetLoader(CommandServer* server,
+                           rcp<rive::FileAssetLoader> internalLoader) :
+        m_server(server), m_internalLoader(internalLoader)
+    {}
 
     virtual bool loadContents(FileAsset& asset,
                               Span<const uint8_t> inBandBytes,
                               Factory* factory) override
     {
+        if (m_internalLoader)
+        {
+            if (m_internalLoader->loadContents(asset, inBandBytes, factory))
+                return true;
+        }
         if (asset.is<ImageAsset>())
         {
             // No need for another if because as just asserts the above
@@ -57,7 +65,6 @@ public:
                 return false;
             }
         }
-
         else if (asset.is<FontAsset>())
         {
             auto fontAsset = asset.as<FontAsset>();
@@ -73,14 +80,12 @@ public:
                 return false;
             }
         }
-
         else if (asset.is<ScriptAsset>())
         {
             // Script assets cannot currently be added externally.
             // Let the file loader handle it.
             return false;
         }
-
         else
         {
             fprintf(stderr,
@@ -177,6 +182,7 @@ private:
     std::unordered_map<std::string, RenderImageHandle> m_imageAssets;
     std::unordered_map<std::string, AudioSourceHandle> m_audioAssets;
     std::unordered_map<std::string, FontHandle> m_fontAssets;
+    rcp<FileAssetLoader> m_internalLoader;
 };
 
 std::ostream& operator<<(std::ostream& os, DataType t)
@@ -261,13 +267,15 @@ bool CommandServer::testing_globalFontContains(std::string name)
 #endif
 
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
-                             Factory* factory) :
+                             Factory* factory,
+                             rcp<rive::FileAssetLoader> internalLoader) :
     m_commandQueue(std::move(commandBuffer)),
     m_factory(factory),
 #ifndef NDEBUG
     m_threadID(std::this_thread::get_id()),
 #endif
-    m_fileAssetLoader(make_rcp<CommandFileAssetLoader>(this))
+    m_fileAssetLoader(
+        make_rcp<CommandFileAssetLoader>(this, std::move(internalLoader)))
 {}
 
 CommandServer::~CommandServer() {}
@@ -1794,6 +1802,15 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::cancelDraw:
+            {
+                DrawKey drawKey;
+                commandStream >> drawKey;
+                lock.unlock();
+                m_uniqueDraws.erase(drawKey);
+                break;
+            }
+
             case CommandQueue::Command::commandLoopBreak:
             {
                 lock.unlock();
@@ -2221,7 +2238,7 @@ bool CommandServer::processCommands()
                 ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
                 ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
                 RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
-                ArtboardHandle artboadHandle = RIVE_NULL_HANDLE;
+                ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
                 uint64_t requestId;
                 CommandQueue::ViewModelInstanceData value;
 
@@ -2255,7 +2272,7 @@ bool CommandServer::processCommands()
                         commandStream >> imageHandle;
                         break;
                     case DataType::artboard:
-                        commandStream >> artboadHandle;
+                        commandStream >> artboardHandle;
                         break;
                     default:
                         RIVE_UNREACHABLE();
@@ -2465,11 +2482,15 @@ bool CommandServer::processCommands()
                         }
                         case DataType::assetImage:
                         {
-                            if (auto image = getImage(imageHandle))
+                            if (auto imageProperty =
+                                    viewModelInstance->propertyImage(
+                                        value.metaData.name))
                             {
-                                if (auto imageProperty =
-                                        viewModelInstance->propertyImage(
-                                            value.metaData.name))
+                                if (imageHandle == RIVE_NULL_HANDLE)
+                                {
+                                    imageProperty->value(nullptr);
+                                }
+                                else if (auto image = getImage(imageHandle))
                                 {
                                     imageProperty->value(image);
                                 }
@@ -2480,8 +2501,10 @@ bool CommandServer::processCommands()
                                         handle,
                                         requestId,
                                         CommandQueue::Message::viewModelError)
-                                        << "Could not find "
-                                           "image property at path "
+                                        << "Could not find image "
+                                        << imageHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
                                         << value.metaData.name;
                                 }
                             }
@@ -2492,21 +2515,25 @@ bool CommandServer::processCommands()
                                     handle,
                                     requestId,
                                     CommandQueue::Message::viewModelError)
-                                    << "Could not find image " << imageHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
+                                    << "Could not find "
+                                       "image property at path "
                                     << value.metaData.name;
                             }
                             break;
                         }
                         case DataType::artboard:
                         {
-                            if (auto bindableArtboard =
-                                    getBindableArtboard(artboadHandle))
+                            if (auto artboardProperty =
+                                    viewModelInstance->propertyArtboard(
+                                        value.metaData.name))
                             {
-                                if (auto artboardProperty =
-                                        viewModelInstance->propertyArtboard(
-                                            value.metaData.name))
+                                if (artboardHandle == RIVE_NULL_HANDLE)
+                                {
+                                    artboardProperty->value(nullptr);
+                                }
+                                else if (auto bindableArtboard =
+                                             getBindableArtboard(
+                                                 artboardHandle))
                                 {
                                     artboardProperty->value(bindableArtboard);
                                 }
@@ -2517,8 +2544,10 @@ bool CommandServer::processCommands()
                                         handle,
                                         requestId,
                                         CommandQueue::Message::viewModelError)
-                                        << "Could not find "
-                                           "artboard property at path "
+                                        << "Could not find artboard "
+                                        << artboardHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
                                         << value.metaData.name;
                                 }
                             }
@@ -2529,10 +2558,8 @@ bool CommandServer::processCommands()
                                     handle,
                                     requestId,
                                     CommandQueue::Message::viewModelError)
-                                    << "Could not find artboard "
-                                    << artboadHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
+                                    << "Could not find "
+                                       "artboard property at path "
                                     << value.metaData.name;
                             }
                             break;

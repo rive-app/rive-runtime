@@ -2,7 +2,7 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_metal.hpp"
 #include "rive/rive_types.hpp"
 
 #import <Metal/Metal.h>
@@ -10,9 +10,7 @@
 namespace rive::ore
 {
 
-#if !defined(ORE_BACKEND_GL)
-
-void Texture::upload(const TextureDataDesc& data)
+void TextureMetal::upload(const TextureDataDesc& data)
 {
     assert(m_mtlTexture != nil);
     assert(data.data != nullptr);
@@ -22,10 +20,7 @@ void Texture::upload(const TextureDataDesc& data)
 
     // Apple's `replaceRegion:` docs require `bytesPerImage = 0` for
     // non-array 2D textures (Metal API Validation aborts on any other
-    // value). For texture3D / array2D / cubeArray the value is the
-    // per-slice stride. Pre-fix this passed
-    // `bytesPerRow * rowsPerImage` unconditionally, which trips the
-    // validator on every 2D upload.
+    // value). For texture3D / array2D the value is the per-slice stride.
     const NSUInteger mtlBytesPerImage =
         (m_type == TextureType::texture3D || m_type == TextureType::array2D)
             ? static_cast<NSUInteger>(data.bytesPerRow) * data.rowsPerImage
@@ -38,11 +33,5 @@ void Texture::upload(const TextureDataDesc& data)
                     bytesPerRow:data.bytesPerRow
                   bytesPerImage:mtlBytesPerImage];
 }
-
-void Texture::onRefCntReachedZero() const { delete this; }
-
-void TextureView::onRefCntReachedZero() const { delete this; }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

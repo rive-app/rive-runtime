@@ -90,49 +90,30 @@ ClippingShape::~ClippingShape()
 
 StatusCode ClippingShape::onAddedClean(CoreContext* context)
 {
-    auto clippingHolder = parent();
+    // Find drawables parented (directly or transitively) to this clipping
+    // shape's parent; they need to know they'll be clipped by this shape.
+    parent()->forAll([this](Component* component) -> bool {
+        if (component->is<Drawable>())
+        {
+            component->as<Drawable>()->addClippingShape(this);
+        }
+        return true;
+    });
 
-    auto artboard = static_cast<Artboard*>(context);
-    for (auto core : artboard->objects())
+    // Find shapes parented (directly or transitively) to the source node;
+    // their paths will need to be RenderPaths in order to be used for
+    // clipping operations.
+    if (m_Source)
     {
-        if (core == nullptr)
-        {
-            continue;
-        }
-        // Iterate artboard to find drawables that are parented to this clipping
-        // shape, they need to know they'll be clipped by this shape.
-        if (core->is<Drawable>())
-        {
-            auto drawable = core->as<Drawable>();
-            for (ContainerComponent* component = drawable; component != nullptr;
-                 component = component->parent())
+        m_Source->forAll([this](Component* component) -> bool {
+            if (component->is<Shape>())
             {
-                if (component == clippingHolder)
-                {
-                    drawable->addClippingShape(this);
-                    break;
-                }
+                auto shape = component->as<Shape>();
+                shape->addFlags(PathFlags::world | PathFlags::clipping);
+                m_Shapes.push_back(shape);
             }
-        }
-
-        // Iterate artboard to find shapes that are parented to the source,
-        // their paths will need to be RenderPaths in order to be used for
-        // clipping operations.
-        if (core->is<Shape>())
-        {
-            auto component = core->as<ContainerComponent>();
-            while (component != nullptr)
-            {
-                if (component == m_Source)
-                {
-                    auto shape = core->as<Shape>();
-                    shape->addFlags(PathFlags::world | PathFlags::clipping);
-                    m_Shapes.push_back(shape);
-                    break;
-                }
-                component = component->parent();
-            }
-        }
+            return true;
+        });
     }
 
     return StatusCode::Ok;

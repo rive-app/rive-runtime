@@ -26,10 +26,13 @@ private:
     ScrollPhysics* m_physics;
     Mat2D m_scrollTransform;
     bool m_isDragging = false;
+    bool m_isScrollBarDragging = false;
     ScrollVirtualizer* m_virtualizer = nullptr;
     std::vector<LayoutNodeProvider*> m_layoutChildren;
     int m_childConstraintAppliedCount = 0;
+    bool m_hasListChildren = false;
 
+    AABB boundsForFlatIndex(size_t index);
     Vec2D positionAtIndex(float index);
     float indexAtPosition(Vec2D pos);
     float maxOffsetXForPercent();
@@ -97,6 +100,17 @@ public:
     void setScrollPercentX(float value) override;
     void setScrollPercentY(float value) override;
     void setScrollIndex(float value) override;
+
+    float velocityX() override;
+    float velocityY() override;
+    void setVelocityX(float value) override {}
+    void setVelocityY(float value) override {}
+
+    bool scrollActive() override;
+    void setScrollActive(bool value) override {}
+
+    bool isScrollBarDragging() const { return m_isScrollBarDragging; }
+    void isScrollBarDragging(bool value) { m_isScrollBarDragging = value; }
 
     size_t scrollItemCount();
     std::vector<LayoutNodeProvider*>& scrollChildren()

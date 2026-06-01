@@ -1,5 +1,6 @@
 #ifndef _RIVE_VIEW_MODEL_INSTANCE_TRIGGER_BASE_HPP_
 #define _RIVE_VIEW_MODEL_INSTANCE_TRIGGER_BASE_HPP_
+#include "rive/core/field_types/core_callback_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 namespace rive
@@ -30,6 +31,7 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t propertyValuePropertyKey = 687;
+    static const uint16_t firePropertyKey = 1016;
 
 protected:
     uint32_t m_PropertyValue = 0;
@@ -45,6 +47,8 @@ public:
         m_PropertyValue = value;
         propertyValueChanged();
     }
+
+    virtual void fire(const CallbackData& value) = 0;
 
     Core* clone() const override;
     void copy(const ViewModelInstanceTriggerBase& object)

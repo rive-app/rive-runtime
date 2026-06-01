@@ -2,7 +2,8 @@
  * Copyright 2025 Rive
  */
 
-#include "rive/renderer/ore/ore_texture.hpp"
+#include "ore_texture_vulkan.hpp"
+#include "ore_buffer_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 #include <vk_mem_alloc.h>
@@ -15,65 +16,6 @@ namespace rive::ore
 // ============================================================================
 // Helpers
 // ============================================================================
-
-static VkFormat oreFormatToVk(TextureFormat fmt)
-{
-    switch (fmt)
-    {
-        case TextureFormat::r8unorm:
-            return VK_FORMAT_R8_UNORM;
-        case TextureFormat::rg8unorm:
-            return VK_FORMAT_R8G8_UNORM;
-        case TextureFormat::rgba8unorm:
-            return VK_FORMAT_R8G8B8A8_UNORM;
-        case TextureFormat::rgba8snorm:
-            return VK_FORMAT_R8G8B8A8_SNORM;
-        case TextureFormat::bgra8unorm:
-            return VK_FORMAT_B8G8R8A8_UNORM;
-        case TextureFormat::rgba16float:
-            return VK_FORMAT_R16G16B16A16_SFLOAT;
-        case TextureFormat::rg16float:
-            return VK_FORMAT_R16G16_SFLOAT;
-        case TextureFormat::r16float:
-            return VK_FORMAT_R16_SFLOAT;
-        case TextureFormat::rgba32float:
-            return VK_FORMAT_R32G32B32A32_SFLOAT;
-        case TextureFormat::rg32float:
-            return VK_FORMAT_R32G32_SFLOAT;
-        case TextureFormat::r32float:
-            return VK_FORMAT_R32_SFLOAT;
-        case TextureFormat::rgb10a2unorm:
-            return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
-        case TextureFormat::r11g11b10float:
-            return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
-        case TextureFormat::depth16unorm:
-            return VK_FORMAT_D16_UNORM;
-        case TextureFormat::depth24plusStencil8:
-            return VK_FORMAT_D24_UNORM_S8_UINT;
-        case TextureFormat::depth32float:
-            return VK_FORMAT_D32_SFLOAT;
-        case TextureFormat::depth32floatStencil8:
-            return VK_FORMAT_D32_SFLOAT_S8_UINT;
-        case TextureFormat::bc1unorm:
-            return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-        case TextureFormat::bc3unorm:
-            return VK_FORMAT_BC3_UNORM_BLOCK;
-        case TextureFormat::bc7unorm:
-            return VK_FORMAT_BC7_UNORM_BLOCK;
-        case TextureFormat::etc2rgb8:
-            return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-        case TextureFormat::etc2rgba8:
-            return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
-        case TextureFormat::astc4x4:
-            return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
-        case TextureFormat::astc6x6:
-            return VK_FORMAT_ASTC_6x6_UNORM_BLOCK;
-        case TextureFormat::astc8x8:
-            return VK_FORMAT_ASTC_8x8_UNORM_BLOCK;
-    }
-    assert(false && "Unhandled TextureFormat");
-    return VK_FORMAT_UNDEFINED;
-}
 
 static bool isDepthStencilFormat(TextureFormat fmt)
 {
@@ -105,40 +47,6 @@ static VkImageAspectFlags aspectMask(TextureFormat fmt)
         return flags;
     }
     return VK_IMAGE_ASPECT_COLOR_BIT;
-}
-
-static VkImageAspectFlags oreAspectToVk(TextureAspect aspect, TextureFormat fmt)
-{
-    switch (aspect)
-    {
-        case TextureAspect::all:
-            return aspectMask(fmt);
-        case TextureAspect::depthOnly:
-            return VK_IMAGE_ASPECT_DEPTH_BIT;
-        case TextureAspect::stencilOnly:
-            return VK_IMAGE_ASPECT_STENCIL_BIT;
-    }
-    assert(false);
-    return VK_IMAGE_ASPECT_COLOR_BIT;
-}
-
-static VkImageViewType oreViewDimToVk(TextureViewDimension dim)
-{
-    switch (dim)
-    {
-        case TextureViewDimension::texture2D:
-            return VK_IMAGE_VIEW_TYPE_2D;
-        case TextureViewDimension::cube:
-            return VK_IMAGE_VIEW_TYPE_CUBE;
-        case TextureViewDimension::texture3D:
-            return VK_IMAGE_VIEW_TYPE_3D;
-        case TextureViewDimension::array2D:
-            return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-        case TextureViewDimension::cubeArray:
-            return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
-    }
-    assert(false);
-    return VK_IMAGE_VIEW_TYPE_2D;
 }
 
 // Transition an image from one layout to another using a pipeline barrier
@@ -243,18 +151,19 @@ static void transitionLayout(PFN_vkCmdPipelineBarrier pfnCmdPipelineBarrier,
 // Texture
 // ============================================================================
 
-#if !defined(ORE_BACKEND_GL)
-
-void Texture::upload(const TextureDataDesc& data)
+void TextureVulkan::upload(const TextureDataDesc& data)
 {
     // Staging upload records into whichever command buffer the owning
     // Context currently has open — either Ore's own CB (owned-CB mode) or
     // the host's CB (external-CB mode). Resolved at call time so the same
     // Texture can span both modes across its lifetime.
     assert(m_vkOreContext != nullptr);
+    // Make sure the owned cb is in the recording state — scripts can call
+    // upload() outside a host-driven frame window (verify hooks during
+    // artboard construction, scripted shader effects during PLS draw).
     VkCommandBuffer cmdBuf = m_vkOreContext->m_vkCommandBuffer;
-    auto pfnCmdPipelineBarrier = m_vkOreContext->m_vk.CmdPipelineBarrier;
-    auto pfnCmdCopyBufferToImage = m_vkOreContext->m_vk.CmdCopyBufferToImage;
+    auto pfnCmdPipelineBarrier = m_vkOreContext->m_vk->CmdPipelineBarrier;
+    auto pfnCmdCopyBufferToImage = m_vkOreContext->m_vk->CmdCopyBufferToImage;
     assert(cmdBuf != VK_NULL_HANDLE);
     assert(m_vkImage != VK_NULL_HANDLE);
 
@@ -275,17 +184,22 @@ void Texture::upload(const TextureDataDesc& data)
     allocCI.usage = VMA_MEMORY_USAGE_CPU_ONLY;
     allocCI.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
+    m_stagingBuffer =
+        rcp<BufferVulkan>(new BufferVulkan(m_manager,
+                                           static_cast<uint32_t>(uploadSize),
+                                           BufferUsage::upload));
+    m_stagingBuffer->m_vk = m_vk;
+
     VmaAllocationInfo allocInfo{};
-    VkBuffer stagingBuf = VK_NULL_HANDLE;
-    VmaAllocation stagingAlloc = VK_NULL_HANDLE;
-    vmaCreateBuffer(m_vmaAllocator,
+    vmaCreateBuffer(m_vk->allocator(),
                     &bufCI,
                     &allocCI,
-                    &stagingBuf,
-                    &stagingAlloc,
+                    &m_stagingBuffer->m_vkBuffer,
+                    &m_stagingBuffer->m_vmaAllocation,
                     &allocInfo);
+    m_stagingBuffer->m_vkMappedPtr = allocInfo.pMappedData;
 
-    memcpy(allocInfo.pMappedData, data.data, static_cast<size_t>(uploadSize));
+    m_stagingBuffer->update(data.data, static_cast<uint32_t>(uploadSize), 0);
 
     // Transition to TRANSFER_DST.
     transitionLayout(pfnCmdPipelineBarrier,
@@ -325,7 +239,7 @@ void Texture::upload(const TextureDataDesc& data)
     region.imageExtent = {data.width > 0 ? data.width : m_width, height, depth};
 
     pfnCmdCopyBufferToImage(cmdBuf,
-                            stagingBuf,
+                            m_stagingBuffer->m_vkBuffer,
                             m_vkImage,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                             1,
@@ -341,61 +255,24 @@ void Texture::upload(const TextureDataDesc& data)
                      m_numMipmaps,
                      m_depthOrArrayLayers);
     m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    // The staging buffer must stay alive until the frame command buffer has
-    // been submitted and the GPU is done with it.  Defer destruction to
-    // Context::endFrame(), which submits the command buffer and waits on the
-    // fence before cleaning up.
-    m_vkOreContext->m_vkDeferredStagingBuffers.push_back(
-        {stagingBuf, stagingAlloc});
 }
 
-void Texture::onRefCntReachedZero() const
+TextureVulkan::~TextureVulkan()
 {
     // Only destroy VMA-owned images (borrowed textures have
     // m_vmaAllocation==null).
-    VmaAllocator allocator = m_vmaAllocator;
-    VkImage image = m_vkImage;
-    VmaAllocation alloc = m_vmaAllocation;
-    ContextVulkan* ctx = m_vkOreContext;
-
-    auto destroy = [=]() {
-        if (image != VK_NULL_HANDLE && alloc != VK_NULL_HANDLE)
-            vmaDestroyImage(allocator, image, alloc);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkImage != VK_NULL_HANDLE && m_vmaAllocation != VK_NULL_HANDLE)
+        vmaDestroyImage(m_vk->allocator(), m_vkImage, m_vmaAllocation);
 }
 
 // ============================================================================
 // TextureView
 // ============================================================================
 
-void TextureView::onRefCntReachedZero() const
+TextureViewVulkan::~TextureViewVulkan()
 {
-    VkDevice dev = m_vkDevice;
-    VkImageView view = m_vkImageView;
-    auto destroyFn = m_vkDestroyImageView;
-    ContextVulkan* ctx = m_vkOreContext;
-
-    auto destroy = [=]() {
-        if (view != VK_NULL_HANDLE && destroyFn != nullptr)
-            destroyFn(dev, view, nullptr);
-    };
-
-    delete this;
-
-    if (ctx != nullptr)
-        ctx->vkDeferDestroy(std::move(destroy));
-    else
-        destroy();
+    if (m_vkImageView != VK_NULL_HANDLE && m_vkDestroyImageView != nullptr)
+        m_vkDestroyImageView(m_vkDevice, m_vkImageView, nullptr);
 }
-
-#endif // !ORE_BACKEND_GL
 
 } // namespace rive::ore

@@ -1,6 +1,5 @@
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/bones/bone.hpp"
-#include "rive/artboard.hpp"
 #include "rive/math/math_types.hpp"
 #include <algorithm>
 
@@ -52,32 +51,23 @@ StatusCode IKConstraint::onAddedClean(CoreContext* context)
         link.angle = 0.0f;
     }
 
-    // Make sure all of the first level children of each bone depend on the
-    // tip (constrainedComponent).
+    // Make sure all of the first level children of each bone (other than the
+    // chain bones themselves) depend on the tip (constrainedComponent). The
+    // chain is built by walking up parents, so the only chain bone that can
+    // appear among an ancestor's direct children is the next bone down the
+    // chain — bones[i - 1].
     auto tip = parent()->as<Bone>();
-
-    auto artboard = static_cast<Artboard*>(context);
-
-    // Find all children of this bone (we don't directly build up
-    // hierarchy at runtime, so we have to traverse everything and check
-    // parents).
-    for (auto core : artboard->objects())
+    for (int i = 1; i < numBones; i++)
     {
-        if (core == nullptr || !core->is<TransformComponent>())
+        Bone* ancestor = bones[i];
+        Bone* chainChild = bones[i - 1];
+        for (Component* child : ancestor->children())
         {
-            continue;
-        }
-        auto transformComponent = core->as<TransformComponent>();
-
-        for (int i = 1; i < numBones; i++)
-        {
-            auto childBone = bones[i];
-            if (transformComponent->parent() == childBone &&
-                std::find(bones.begin(), bones.end(), transformComponent) ==
-                    bones.end())
+            if (!child->is<TransformComponent>() || child == chainChild)
             {
-                tip->addDependent(transformComponent);
+                continue;
             }
+            tip->addDependent(child->as<TransformComponent>());
         }
     }
     return Super::onAddedClean(context);

@@ -118,7 +118,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_SHADOW_SAMPLER_D32_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // UBO: tint (green) + compare reference (0.25). The compare
         // reference is a hold-over from when the shader sampled with a
@@ -356,7 +356,7 @@ public:
             return;
         }
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
         colorTex->upload(colorUpload);
 
         // Single pass: bind both groups + draw a fullscreen triangle.
@@ -370,14 +370,14 @@ public:
         rpDesc.colorCount = 1;
         rpDesc.label = "ore_binding_shadow_sampler_d32_pass";
         auto pass = ctx.beginRenderPass(rpDesc);
-        pass.setPipeline(pipeline.get());
-        pass.setBindGroup(0, bg0.get());
-        pass.setBindGroup(1, bg1.get());
-        pass.setViewport(0, 0, 128, 128);
-        pass.draw(3);
-        pass.finish();
+        pass->setPipeline(pipeline.get());
+        pass->setBindGroup(0, bg0.get());
+        pass->setBindGroup(1, bg1.get());
+        pass->setViewport(0, 0, 128, 128);
+        pass->draw(3);
+        pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

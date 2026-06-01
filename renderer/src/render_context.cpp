@@ -14,7 +14,7 @@
 #endif
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
-#include "rive/texture_archive.hpp"
+#include "rive/gpu_texture_format.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/profiler/profiler_macros.h"
 
@@ -24,6 +24,10 @@
 
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
+#endif
+
+#ifdef RIVE_KTX2
+#include "rive/decoders/decode_ktx2.hpp"
 #endif
 
 #include "sort_key_builder.hpp"
@@ -135,6 +139,9 @@ RenderContext::~RenderContext()
     // Delete the logical flushes before the block allocators let go of their
     // allocations.
     m_logicalFlushes.clear();
+#ifdef RIVE_CANVAS
+    m_oreContext.reset();
+#endif
 }
 
 const gpu::PlatformFeatures& RenderContext::platformFeatures() const
@@ -155,6 +162,12 @@ rcp<RenderCanvas> RenderContext::makeRenderCanvas(uint32_t width,
 {
     return m_impl->makeRenderCanvas(width, height);
 }
+rive::ore::Context* RenderContext::getOreContext()
+{
+    if (m_oreContext == nullptr)
+        m_oreContext = m_impl->makeOreContext();
+    return m_oreContext.get();
+}
 #endif
 
 rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
@@ -162,23 +175,38 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
     RIVE_PROF_SCOPE_L(1)
     rcp<Texture> texture = m_impl->platformDecodeImageTexture(encodedBytes);
 
-    // Detect rtex container by 'RTEX' magic. GPU format read from header
-    // (bc7/astc/etc2/rgba32).
-    if (texture == nullptr && encodedBytes.size() >= 4 &&
-        encodedBytes[0] == 'R' && encodedBytes[1] == 'T' &&
-        encodedBytes[2] == 'E' && encodedBytes[3] == 'X')
+#ifdef RIVE_KTX2
+    // KTX2 magic = «KTX 20»\r\n\x1A\n. Match the first 4 bytes for the cheap
+    // dispatch; full magic is re-checked inside DecodeKtx2.
+    if (texture == nullptr && encodedBytes.size() >= 12 &&
+        encodedBytes[0] == 0xAB && encodedBytes[1] == 0x4B &&
+        encodedBytes[2] == 0x54 && encodedBytes[3] == 0x58)
     {
-        TextureDirectory texDir;
-        if (texDir.import(encodedBytes) && !texDir.dir.empty())
+        const Ktx2HwSupport hwSupport = {
+            platformFeatures().supportsTextureCompressionBC,
+            platformFeatures().supportsTextureCompressionASTC,
+            platformFeatures().supportsTextureCompressionETC2,
+        };
+        Ktx2DecodeResult ktx2;
+        if (DecodeKtx2(encodedBytes.data(),
+                       encodedBytes.size(),
+                       ktx2,
+                       hwSupport))
         {
-            const TextureData& texData = texDir.dir[0];
-            texture = m_impl->makeImageTexture(texData.width,
-                                               texData.height,
-                                               texData.numMips,
-                                               texData.format,
-                                               texDir.dataBlob.data());
+            // KTX2 provides the full level chain (or just level 0). The
+            // backends never auto-generate; whatever the file ships with is
+            // exactly what gets uploaded.
+            texture = m_impl->makeImageTexture(ktx2.pixelWidth,
+                                               ktx2.pixelHeight,
+                                               ktx2.levelCount,
+                                               ktx2.format,
+                                               ktx2.blocks.data(),
+                                               ktx2.blockWidth,
+                                               ktx2.blockHeight,
+                                               ktx2.srgb);
         }
     }
+#endif
 
 #ifdef RIVE_DECODERS
     if (texture == nullptr)
@@ -198,7 +226,11 @@ rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
                                                height,
                                                mipLevelCount,
                                                GPUTextureFormat::rgba32,
-                                               bitmap->bytes());
+                                               bitmap->bytes(),
+                                               /*blockWidth=*/1,
+                                               /*blockHeight=*/1,
+                                               /*srgb=*/false,
+                                               /*generateRemainingMips=*/true);
         }
     }
 #endif
@@ -1632,16 +1664,27 @@ void RenderContext::LogicalFlush::writeResources()
                 };
             }
 
+            // When the dstBlend barrier has no other option than to copy out a
+            // texture, this copy destroys MSAA information and we can no longer
+            // put subpasses in different drawGroups.
+            // Otherwise, we put subpasses into different draw groups because it
+            // yields better reordering.
+            const bool allSubpassesInSameDrawGroup =
+                m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa &&
+                !platformFeatures.supportsBlendAdvancedKHR &&
+                enums::is_flag_set(m_combinedDrawContents,
+                                   gpu::DrawContents::advancedBlend);
+
             // Our top priority in re-ordering is to group non-overlapping draws
             // together, in order to maximize batching while preserving
             // correctness.
-            int maxPasses =
+            const int maxSubpasses =
                 std::max(draw->prepassCount(), draw->subpassCount());
-            int16_t drawGroupIdx =
-                intersectionBoard->addRectangle(drawBounds,
-                                                kOverlapBits,
-                                                kDisallowOverlapMask,
-                                                maxPasses);
+            int16_t drawGroupIdx = intersectionBoard->addRectangle(
+                drawBounds,
+                kOverlapBits,
+                kDisallowOverlapMask,
+                allSubpassesInSameDrawGroup ? 1 : maxSubpasses);
             assert(drawGroupIdx > 0);
             const auto textureHash =
                 (draw->imageTexture() != nullptr)
@@ -1673,31 +1716,44 @@ void RenderContext::LogicalFlush::writeResources()
             }
 
             // Add any additional passes.
-            for (int i = 1; i < maxPasses; ++i)
+            if (maxSubpasses > 1)
             {
-                // Increment the drawGroupIdx and i both at once. (The
-                // intersectionBoard already reserved "maxPasses" layers of
-                // drawGroupIndices for us.)
-                static constexpr auto INCREMENT = keyBuilder.buildPartialKey({
-                    {SortEntry::drawGroup, 1},
-                    {SortEntry::subpassIndex, 1},
-                });
-                key += INCREMENT;
-
-                assert(keyBuilder.extract<int16_t>(SortEntry::drawGroup, key) ==
-                       drawGroupIdx + i);
-                assert(keyBuilder.extract<int>(SortEntry::subpassIndex, key) ==
-                       i);
-
-                if (i < draw->prepassCount())
+                const auto subpassKeyIncrement =
+                    allSubpassesInSameDrawGroup
+                        // Special case: All subpasses belong to the same
+                        // drawGroup, so only increment subpassIndex.
+                        ? keyBuilder.buildPartialKey({
+                              {SortEntry::subpassIndex, 1},
+                          })
+                        // Usual case: Increment the drawGroup and subpassIndex
+                        // both at once. (The intersectionBoard already reserved
+                        // "maxPasses" layers of drawGroupIndices for us.)
+                        : keyBuilder.buildPartialKey({
+                              {SortEntry::drawGroup, 1},
+                              {SortEntry::subpassIndex, 1},
+                          });
+                for (int i = 1; i < maxSubpasses; ++i)
                 {
-                    // Negating the key is an easy way to sort the prepasses
-                    // front-to-back, and before the subpasses.
-                    indirectDrawList.push_back(-key);
-                }
-                if (i < draw->subpassCount())
-                {
-                    indirectDrawList.push_back(key);
+                    key += subpassKeyIncrement;
+
+                    assert(keyBuilder.extract<int16_t>(SortEntry::drawGroup,
+                                                       key) ==
+                           int16_t(allSubpassesInSameDrawGroup
+                                       ? drawGroupIdx
+                                       : drawGroupIdx + i));
+                    assert(keyBuilder.extract<int>(SortEntry::subpassIndex,
+                                                   key) == i);
+
+                    if (i < draw->prepassCount())
+                    {
+                        // Negating the key is an easy way to sort the prepasses
+                        // front-to-back, and before the subpasses.
+                        indirectDrawList.push_back(-key);
+                    }
+                    if (i < draw->subpassCount())
+                    {
+                        indirectDrawList.push_back(key);
+                    }
                 }
             }
         }

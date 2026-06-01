@@ -55,12 +55,18 @@ public:
     void collapse(bool collapsed);
     void initialize();
     void relinkDataBind() override;
+    bool inDirtyList() const { return m_inDirtyList; }
+    void inDirtyList(bool value) { m_inDirtyList = value; }
+    bool inPersistingList() const { return m_inPersistingList; }
+    void inPersistingList(bool value) { m_inPersistingList = value; }
 
 private:
     bool m_isCollapsed = false;
+    bool m_inDirtyList = false;
+    bool m_inPersistingList = false;
 
 protected:
-    ComponentDirt m_Dirt = ComponentDirt::Filthy;
+    ComponentDirt m_Dirt = ComponentDirt::None;
     Core* m_target = nullptr;
     rcp<ViewModelInstanceValue> m_Source = nullptr;
     DataBindContextValue* m_ContextValue = nullptr;

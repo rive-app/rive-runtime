@@ -19,7 +19,9 @@ namespace rive
 class CommandServer
 {
 public:
-    CommandServer(rcp<CommandQueue>, Factory*);
+    CommandServer(rcp<CommandQueue>,
+                  Factory*,
+                  rcp<rive::FileAssetLoader> = nullptr);
     virtual ~CommandServer();
 
     Factory* factory() const { return m_factory; }

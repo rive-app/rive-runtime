@@ -256,37 +256,33 @@ void Image::updateImageScale()
         float imgW = (float)renderImage->width();
         float imgH = (float)renderImage->height();
         float newScaleX, newScaleY;
-        auto imageFit = static_cast<Fit>(fit());
+        auto imageFit = static_cast<ImageFit>(fit());
         switch (imageFit)
         {
-            case Fit::fill:
-                newScaleX = m_layoutWidth / imgW;
-                newScaleY = m_layoutHeight / imgH;
-                break;
-            case Fit::contain:
+            case ImageFit::contain:
             {
                 float s =
                     std::fmin(m_layoutWidth / imgW, m_layoutHeight / imgH);
                 newScaleX = newScaleY = s;
                 break;
             }
-            case Fit::cover:
+            case ImageFit::cover:
             {
                 float s =
                     std::fmax(m_layoutWidth / imgW, m_layoutHeight / imgH);
                 newScaleX = newScaleY = s;
                 break;
             }
-            case Fit::fitWidth:
+            case ImageFit::fitWidth:
                 newScaleX = newScaleY = m_layoutWidth / imgW;
                 break;
-            case Fit::fitHeight:
+            case ImageFit::fitHeight:
                 newScaleX = newScaleY = m_layoutHeight / imgH;
                 break;
-            case Fit::none:
+            case ImageFit::none:
                 newScaleX = newScaleY = 1.0f;
                 break;
-            case Fit::scaleDown:
+            case ImageFit::scaleDown:
             {
                 float s =
                     std::fmin(m_layoutWidth / imgW, m_layoutHeight / imgH);
@@ -294,16 +290,17 @@ void Image::updateImageScale()
                 newScaleX = newScaleY = s;
                 break;
             }
-            case Fit::layout:
+            case ImageFit::fill:
+            case ImageFit::resize:
             default:
                 newScaleX = m_layoutWidth / imgW;
                 newScaleY = m_layoutHeight / imgH;
                 break;
         }
 
-        // Compatibility: legacy files assume fill does not apply fit/alignment
-        // translation offsets, only scale.
-        if (imageFit != Fit::fill)
+        // Compatibility: legacy files assume resize does not apply
+        // fit/alignment translation offsets, only scale.
+        if (imageFit != ImageFit::resize)
         {
             float boundsW = imgW;
             float boundsH = imgH;
