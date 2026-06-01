@@ -49,132 +49,147 @@ static VkImageAspectFlags aspectMask(TextureFormat fmt)
     return VK_IMAGE_ASPECT_COLOR_BIT;
 }
 
-// Transition an image from one layout to another using a pipeline barrier
-// on the given command buffer.
-static void transitionLayout(PFN_vkCmdPipelineBarrier pfnCmdPipelineBarrier,
-                             VkCommandBuffer cmdBuf,
-                             VkImage image,
-                             VkImageAspectFlags aspectMask,
-                             VkImageLayout oldLayout,
-                             VkImageLayout newLayout,
-                             uint32_t mipCount = 1,
-                             uint32_t layerCount = 1)
-{
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = oldLayout;
-    barrier.newLayout = newLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image;
-    barrier.subresourceRange.aspectMask = aspectMask;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = mipCount;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = layerCount;
-
-    VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-
-    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
-        newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-    {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
-             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-    {
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
-             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-    {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL &&
-             newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-    {
-        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        srcStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        dstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
-             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-    {
-        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        srcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
-             newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-    {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    }
-    else
-    {
-        // Generic fallback — conservative but correct.
-        barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-        barrier.dstAccessMask =
-            VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
-        srcStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-        dstStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-    }
-
-    pfnCmdPipelineBarrier(cmdBuf,
-                          srcStage,
-                          dstStage,
-                          0,
-                          0,
-                          nullptr,
-                          0,
-                          nullptr,
-                          1,
-                          &barrier);
-}
-
 // ============================================================================
 // Texture
 // ============================================================================
 
 void TextureVulkan::upload(const TextureDataDesc& data)
 {
-    // Staging upload records into whichever command buffer the owning
-    // Context currently has open — either Ore's own CB (owned-CB mode) or
-    // the host's CB (external-CB mode). Resolved at call time so the same
-    // Texture can span both modes across its lifetime.
+    // Stage CPU-side, queue for the next host CB. Callers may run with
+    // no recording CB (verify hooks, scripted shader setup).
     assert(m_vkOreContext != nullptr);
-    // Make sure the owned cb is in the recording state — scripts can call
-    // upload() outside a host-driven frame window (verify hooks during
-    // artboard construction, scripted shader effects during PLS draw).
-    VkCommandBuffer cmdBuf = m_vkOreContext->m_vkCommandBuffer;
-    auto pfnCmdPipelineBarrier = m_vkOreContext->m_vk->CmdPipelineBarrier;
-    auto pfnCmdCopyBufferToImage = m_vkOreContext->m_vk->CmdCopyBufferToImage;
-    assert(cmdBuf != VK_NULL_HANDLE);
     assert(m_vkImage != VK_NULL_HANDLE);
+    if (data.data == nullptr)
+    {
+        m_vkOreContext->setLastError("upload: data is null");
+        return;
+    }
 
-    // Determine byte size of the upload region.
-    uint32_t bytesPerRow = data.bytesPerRow;
-    uint32_t height = data.height > 0 ? data.height : m_height;
-    uint32_t depth = data.depth > 0 ? data.depth : m_depthOrArrayLayers;
-    VkDeviceSize uploadSize =
-        static_cast<VkDeviceSize>(bytesPerRow) * height * depth;
+    const uint32_t bptVK = textureFormatBytesPerTexel(m_format);
+    // mipLevel must index a declared level.
+    if (data.mipLevel >= m_numMipmaps)
+    {
+        m_vkOreContext->setLastError("upload: mipLevel (%u) >= numMipmaps (%u)",
+                                     data.mipLevel,
+                                     m_numMipmaps);
+        return;
+    }
+    // layer must index a declared slice (1 for non-array/non-cube).
+    if (data.layer >= m_depthOrArrayLayers)
+    {
+        m_vkOreContext->setLastError(
+            "upload: layer (%u) >= depthOrArrayLayers (%u)",
+            data.layer,
+            m_depthOrArrayLayers);
+        return;
+    }
+    // Mip-adjusted extents (Vulkan-spec floor(max(1, dim >> mipLevel))).
+    const uint32_t mipWidth =
+        (m_width >> data.mipLevel) > 0 ? (m_width >> data.mipLevel) : 1u;
+    const uint32_t mipHeight =
+        (m_height >> data.mipLevel) > 0 ? (m_height >> data.mipLevel) : 1u;
+    const uint32_t width = data.width > 0 ? data.width : mipWidth;
+    const uint32_t height = data.height > 0 ? data.height : mipHeight;
+    // imageExtent.depth is the copy's z-extent. The array slice is chosen via
+    // baseArrayLayer with layerCount 1, so only true 3D textures carry depth
+    // greater than 1. Defaulting to m_depthOrArrayLayers would set depth to the
+    // array count for array2D/cube and over-read the staging source.
+    const uint32_t maxDepth =
+        m_type == TextureType::texture3D ? m_depthOrArrayLayers : 1u;
+    const uint32_t depth = data.depth > 0 ? data.depth : maxDepth;
+    // Region must fit within the mip's extent. 64-bit so a large x/y offset
+    // can't wrap past the guard.
+    if (static_cast<uint64_t>(data.x) + width > mipWidth ||
+        static_cast<uint64_t>(data.y) + height > mipHeight)
+    {
+        m_vkOreContext->setLastError(
+            "upload: region (x=%u y=%u w=%u h=%u) out of bounds for "
+            "mip %u (%ux%u)",
+            data.x,
+            data.y,
+            width,
+            height,
+            data.mipLevel,
+            mipWidth,
+            mipHeight);
+        return;
+    }
+    // z-slice must fit the texture depth (1 for everything but 3D).
+    if (static_cast<uint64_t>(data.z) + depth > maxDepth)
+    {
+        m_vkOreContext->setLastError(
+            "upload: z-region (z=%u depth=%u) out of bounds (maxDepth=%u)",
+            data.z,
+            depth,
+            maxDepth);
+        return;
+    }
+    // bytesPerTexel == 0 means a block-compressed format. We don't have
+    // a block-size-aware path for bufferRowLength yet, so reject upfront.
+    if (bptVK == 0)
+    {
+        m_vkOreContext->setLastError(
+            "upload: block-compressed formats not yet supported");
+        return;
+    }
+    // Uncompressed: bytesPerRow must be a whole number of texels and
+    // cover at least width texels so bufferRowLength can encode the
+    // caller pitch and the GPU read stays inside the staging buffer.
+    if (data.bytesPerRow != 0 && (data.bytesPerRow % bptVK) != 0)
+    {
+        m_vkOreContext->setLastError(
+            "upload: bytesPerRow (%u) must be a whole number of texels "
+            "(bytesPerTexel=%u)",
+            data.bytesPerRow,
+            bptVK);
+        return;
+    }
+    if (data.bytesPerRow != 0 &&
+        data.bytesPerRow < static_cast<uint64_t>(width) * bptVK)
+    {
+        m_vkOreContext->setLastError(
+            "upload: bytesPerRow (%u) < width * bytesPerTexel (%llu)",
+            data.bytesPerRow,
+            static_cast<unsigned long long>(static_cast<uint64_t>(width) *
+                                            bptVK));
+        return;
+    }
+    // rowsPerImage is the per-slice stride; 0 means "use height", otherwise
+    // it must cover at least height rows.
+    if (data.rowsPerImage > 0 && data.rowsPerImage < height)
+    {
+        m_vkOreContext->setLastError("upload: rowsPerImage (%u) < height (%u)",
+                                     data.rowsPerImage,
+                                     height);
+        return;
+    }
+    // Derive row/total sizes in 64-bit so the tightly-packed fallback
+    // (width * bptVK) and the total can't wrap before the uint32_t guard.
+    // bytesPerRow == 0 means tightly packed.
+    const uint64_t bytesPerRow64 = data.bytesPerRow != 0
+                                       ? static_cast<uint64_t>(data.bytesPerRow)
+                                       : static_cast<uint64_t>(width) * bptVK;
+    const uint32_t rowsPerImage =
+        data.rowsPerImage > 0 ? data.rowsPerImage : height;
+    const VkDeviceSize uploadSize = bytesPerRow64 *
+                                    static_cast<uint64_t>(rowsPerImage) *
+                                    static_cast<uint64_t>(depth);
+    // BufferVulkan size is uint32_t; refuse larger uploads rather than
+    // silently truncating the staging copy.
+    if (uploadSize > UINT32_MAX)
+    {
+        m_vkOreContext->setLastError(
+            "upload: size (%llu) exceeds uint32_t staging buffer max",
+            static_cast<unsigned long long>(uploadSize));
+        return;
+    }
 
-    // Create a transient host-visible staging buffer.
+    auto stagingBuffer =
+        rcp<BufferVulkan>(new BufferVulkan(m_manager,
+                                           static_cast<uint32_t>(uploadSize),
+                                           BufferUsage::upload));
+    stagingBuffer->m_vk = m_vk;
+
     VkBufferCreateInfo bufCI{};
     bufCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufCI.size = uploadSize;
@@ -184,50 +199,33 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     allocCI.usage = VMA_MEMORY_USAGE_CPU_ONLY;
     allocCI.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-    m_stagingBuffer =
-        rcp<BufferVulkan>(new BufferVulkan(m_manager,
-                                           static_cast<uint32_t>(uploadSize),
-                                           BufferUsage::upload));
-    m_stagingBuffer->m_vk = m_vk;
-
     VmaAllocationInfo allocInfo{};
-    vmaCreateBuffer(m_vk->allocator(),
-                    &bufCI,
-                    &allocCI,
-                    &m_stagingBuffer->m_vkBuffer,
-                    &m_stagingBuffer->m_vmaAllocation,
-                    &allocInfo);
-    m_stagingBuffer->m_vkMappedPtr = allocInfo.pMappedData;
+    VkResult vmaRes = vmaCreateBuffer(m_vk->allocator(),
+                                      &bufCI,
+                                      &allocCI,
+                                      &stagingBuffer->m_vkBuffer,
+                                      &stagingBuffer->m_vmaAllocation,
+                                      &allocInfo);
+    if (vmaRes != VK_SUCCESS || allocInfo.pMappedData == nullptr)
+    {
+        m_vkOreContext->setLastError(
+            "upload: staging buffer allocation failed (size=%llu, vk=%d)",
+            static_cast<unsigned long long>(uploadSize),
+            static_cast<int>(vmaRes));
+        return;
+    }
+    stagingBuffer->m_vkMappedPtr = allocInfo.pMappedData;
 
-    m_stagingBuffer->update(data.data, static_cast<uint32_t>(uploadSize), 0);
+    stagingBuffer->update(data.data, static_cast<uint32_t>(uploadSize), 0);
 
-    // Transition to TRANSFER_DST.
-    transitionLayout(pfnCmdPipelineBarrier,
-                     cmdBuf,
-                     m_vkImage,
-                     aspectMask(m_format),
-                     m_vkLayout,
-                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     m_numMipmaps,
-                     m_depthOrArrayLayers);
-    m_vkLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-
-    // Copy staging buffer → image. `bufferRowLength` and
-    // `bufferImageHeight` are in texels — 0 means "tightly packed at
-    // imageExtent". When the caller's source has padding (e.g. a
-    // sub-rect of a larger image, or `bytesPerRow > width *
-    // bytesPerTexel`), the staging copy must honour that pitch or the
-    // image comes back with the padding bytes interleaved into every
-    // other row. Pre-fix this was hardcoded to 0; the
-    // `ore_array_upload` GM (Phase 4 witness) caught the regression
-    // on every Android Vulkan target.
-    const uint32_t bptVK = textureFormatBytesPerTexel(m_format);
+    // bufferRowLength / bufferImageHeight are in texels; 0 means tightly
+    // packed at imageExtent. Honour caller pitch when present. Upstream
+    // guards make the div-by-bptVK safe. The `ore_array_upload` GM locks
+    // this — without it the GL backend silently strides wrong.
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
     region.bufferRowLength =
-        (data.bytesPerRow != 0 && bptVK != 0 && (data.bytesPerRow % bptVK) == 0)
-            ? data.bytesPerRow / bptVK
-            : 0;
+        data.bytesPerRow != 0 ? data.bytesPerRow / bptVK : 0;
     region.bufferImageHeight = data.rowsPerImage;
     region.imageSubresource.aspectMask = aspectMask(m_format);
     region.imageSubresource.mipLevel = data.mipLevel;
@@ -236,25 +234,14 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     region.imageOffset = {static_cast<int32_t>(data.x),
                           static_cast<int32_t>(data.y),
                           static_cast<int32_t>(data.z)};
-    region.imageExtent = {data.width > 0 ? data.width : m_width, height, depth};
+    region.imageExtent = {width, height, depth};
 
-    pfnCmdCopyBufferToImage(cmdBuf,
-                            m_stagingBuffer->m_vkBuffer,
-                            m_vkImage,
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                            1,
-                            &region);
-
-    // Transition back to SHADER_READ_ONLY.
-    transitionLayout(pfnCmdPipelineBarrier,
-                     cmdBuf,
-                     m_vkImage,
-                     aspectMask(m_format),
-                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                     m_numMipmaps,
-                     m_depthOrArrayLayers);
-    m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    m_vkOreContext->vkQueuePendingTextureUpload({
+        ref_rcp(this),
+        std::move(stagingBuffer),
+        region,
+        aspectMask(m_format),
+    });
 }
 
 TextureVulkan::~TextureVulkan()

@@ -193,6 +193,21 @@ private:
     void vkQueueTransitionToLayout(Texture* texture,
                                    VkImageAspectFlags aspectMask,
                                    VkImageLayout newLayout);
+
+    // Deferred texture uploads: upload() can be called with no recording
+    // CB (verify hooks, scripted shader setup). Drained on the host CB
+    // at the next beginFrame / beginRenderPass.
+    struct VkPendingTextureUpload
+    {
+        // Base types so this header doesn't need TextureVulkan / BufferVulkan.
+        rcp<Texture> texture;
+        rcp<Buffer> stagingBuffer;
+        VkBufferImageCopy region;
+        VkImageAspectFlags aspectMask;
+    };
+    std::vector<VkPendingTextureUpload> m_vkPendingTextureUploads;
+    void vkQueuePendingTextureUpload(VkPendingTextureUpload pending);
+    void vkFlushPendingTextureUploads();
 };
 
 } // namespace rive::ore

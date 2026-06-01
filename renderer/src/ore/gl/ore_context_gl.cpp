@@ -239,7 +239,11 @@ std::unique_ptr<ContextGL> ContextGL::Make()
         if (!ext)
             continue;
         if (strcmp(ext, "GL_EXT_color_buffer_float") == 0)
+        {
+            // Full-float renderability implies half-float renderability.
             f.colorBufferFloat = true;
+            f.colorBufferHalfFloat = true;
+        }
         else if (strcmp(ext, "GL_EXT_texture_filter_anisotropic") == 0)
             f.anisotropicFiltering = true;
         else if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
@@ -249,6 +253,27 @@ std::unique_ptr<ContextGL> ContextGL::Make()
             f.bc = true;
 #endif
     }
+
+    // drawBaseInstance stays false: the GL render pass does not yet wire
+    // baseVertex/firstInstance through the base-vertex-base-instance draw
+    // call, so reporting it true would silently drop those args.
+
+#ifdef RIVE_WEBGL
+    // On WebGL an extension must be enabled before its functionality (and
+    // sometimes its name in the extension list) is available, so the scan
+    // above misses it. Enable returns whether the browser supports it.
+    // The two extensions are independent: half-float gates 16-bit float
+    // targets, full-float gates 32-bit, and full-float implies half-float.
+    auto webglCtx = emscripten_webgl_get_current_context();
+    if (emscripten_webgl_enable_extension(webglCtx, "EXT_color_buffer_float"))
+    {
+        f.colorBufferFloat = true;
+        f.colorBufferHalfFloat = true;
+    }
+    if (emscripten_webgl_enable_extension(webglCtx,
+                                          "EXT_color_buffer_half_float"))
+        f.colorBufferHalfFloat = true;
+#endif
 
     return ctx;
 }

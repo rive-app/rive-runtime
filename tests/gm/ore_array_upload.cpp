@@ -24,6 +24,11 @@
  *      times in stripes (or just garbage) instead of the intended
  *      solid-color square.
  *
+ *   3. Partial-region uploads. Layer 0 is written as four 2×2 sub-rect
+ *      tiles, so it samples identically but every backend's sub-region
+ *      path runs. Witnesses the D3D12 full-subresource over-read (pre-fix
+ *      it read the whole mip out of each small tile buffer).
+ *
  * Layer colors (mip 0):
  *   layer 0 → red    (255,   0,   0)
  *   layer 1 → green  (  0, 255,   0)
@@ -93,6 +98,29 @@ static void fillSolidLayer(uint8_t* dst, uint8_t r, uint8_t g, uint8_t b)
     {
         uint8_t* row = dst + y * kPaddedRowBytes;
         for (uint32_t x = 0; x < kLayerWidth; ++x)
+        {
+            row[x * 4 + 0] = r;
+            row[x * 4 + 1] = g;
+            row[x * 4 + 2] = b;
+            row[x * 4 + 3] = 0xFF;
+        }
+    }
+}
+
+// 2×2 RGBA8 tile, non-tightly-packed (8 valid + 8 padding) so partial-region
+// uploads still exercise the pitch plumbing.
+static constexpr uint32_t kTileWidth = 2;
+static constexpr uint32_t kTileHeight = 2;
+static constexpr uint32_t kTilePaddedRowBytes = 16; // 2 * 4 valid + 8 padding.
+static constexpr uint32_t kTilePaddedBytes = kTilePaddedRowBytes * kTileHeight;
+
+static void fillSolidTile(uint8_t* dst, uint8_t r, uint8_t g, uint8_t b)
+{
+    memset(dst, 0xCC, kTilePaddedBytes); // padding sentinel.
+    for (uint32_t y = 0; y < kTileHeight; ++y)
+    {
+        uint8_t* row = dst + y * kTilePaddedRowBytes;
+        for (uint32_t x = 0; x < kTileWidth; ++x)
         {
             row[x * 4 + 0] = r;
             row[x * 4 + 1] = g;
@@ -211,12 +239,13 @@ public:
         sampBGDesc.samplerCount = 1;
         auto sampBG = ctx.makeBindGroup(sampBGDesc);
 
-        m_ore.beginFrame(renderContext);
-
-        // Per-layer uploads. Each upload targets `(mipLevel=0, layer=N)`
-        // with a non-tightly-packed source (bytesPerRow = 32, double
-        // the tight row of 16) so the GL backend's GL_UNPACK_ROW_LENGTH
-        // plumbing is exercised.
+        // Per-layer uploads issued BEFORE m_ore.beginFrame() so the
+        // Vulkan backend's deferred-upload path is exercised (regression
+        // for the post-#12661 fix: upload outside an Ore frame must
+        // queue and drain at the next beginFrame / beginRenderPass).
+        // Each upload targets `(mipLevel=0, layer=N)` with a non-tightly-
+        // packed source (bytesPerRow = 32, double the tight row of 16)
+        // so the GL backend's GL_UNPACK_ROW_LENGTH plumbing is exercised.
         uint8_t layerData[kPaddedLayerBytes];
         struct LayerColor
         {
@@ -230,6 +259,39 @@ public:
         };
         for (uint32_t layer = 0; layer < 4; ++layer)
         {
+            // Layer 0 as four 2×2 sub-rect tiles. Same solid-red result, but
+            // exercises every backend's partial-region path. Pre-fix D3D12
+            // over-read the whole mip out of each tile buffer.
+            if (layer == 0)
+            {
+                const uint32_t kTileOffsets[4][2] = {
+                    {0, 0},
+                    {kTileWidth, 0},
+                    {0, kTileHeight},
+                    {kTileWidth, kTileHeight},
+                };
+                uint8_t tileData[kTilePaddedBytes];
+                for (const auto& off : kTileOffsets)
+                {
+                    fillSolidTile(tileData,
+                                  kColors[0].r,
+                                  kColors[0].g,
+                                  kColors[0].b);
+                    TextureDataDesc upload{};
+                    upload.data = tileData;
+                    upload.bytesPerRow = kTilePaddedRowBytes;
+                    upload.rowsPerImage = kTileHeight;
+                    upload.mipLevel = 0;
+                    upload.layer = 0;
+                    upload.x = off[0];
+                    upload.y = off[1];
+                    upload.width = kTileWidth;
+                    upload.height = kTileHeight;
+                    upload.depth = 1;
+                    arrTex->upload(upload);
+                }
+                continue;
+            }
             fillSolidLayer(layerData,
                            kColors[layer].r,
                            kColors[layer].g,
@@ -245,6 +307,8 @@ public:
             upload.depth = 1;
             arrTex->upload(upload);
         }
+
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasView.get();

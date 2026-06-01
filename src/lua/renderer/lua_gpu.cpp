@@ -113,6 +113,10 @@ static const char* lua_totextureformatstring(TextureFormat fmt)
             return "r16float";
         case TextureFormat::rgba32float:
             return "rgba32float";
+        case TextureFormat::rg32float:
+            return "rg32float";
+        case TextureFormat::r32float:
+            return "r32float";
         case TextureFormat::rgb10a2unorm:
             return "rgb10a2unorm";
         case TextureFormat::r11g11b10float:
@@ -127,6 +131,34 @@ static const char* lua_totextureformatstring(TextureFormat fmt)
             return "depth32float-stencil8";
         default:
             return "rgba8unorm";
+    }
+}
+
+// Float color render-target capability a format needs, or none if it is not a
+// float format. 16-bit floats need colorBufferHalfFloat; 32-bit and packed
+// floats need the full colorBufferFloat.
+enum class FloatColorClass
+{
+    none,
+    half,
+    full,
+};
+
+static FloatColorClass floatColorClass(TextureFormat fmt)
+{
+    switch (fmt)
+    {
+        case TextureFormat::rgba16float:
+        case TextureFormat::rg16float:
+        case TextureFormat::r16float:
+            return FloatColorClass::half;
+        case TextureFormat::rgba32float:
+        case TextureFormat::rg32float:
+        case TextureFormat::r32float:
+        case TextureFormat::r11g11b10float:
+            return FloatColorClass::full;
+        default:
+            return FloatColorClass::none;
     }
 }
 
@@ -1131,6 +1163,29 @@ static int gputexture_construct(lua_State* L)
         lua_getoptionalnumberfield(L, descIdx, "layers", 1));
 
     auto* ctx = getOreContext(L);
+    // Gate float render targets: without the matching capability they make an
+    // incomplete FBO that renders black. Sampled-only float textures are fine.
+    // 16-bit floats need half-float, 32-bit and packed need full float.
+    if (desc.renderTarget)
+    {
+        FloatColorClass fc = floatColorClass(desc.format);
+        const Features& feat = ctx->features();
+        bool ok = fc == FloatColorClass::none ||
+                  (fc == FloatColorClass::half && feat.colorBufferHalfFloat) ||
+                  (fc == FloatColorClass::full && feat.colorBufferFloat);
+        if (!ok)
+        {
+            const char* cap = fc == FloatColorClass::half
+                                  ? "colorBufferHalfFloat"
+                                  : "colorBufferFloat";
+            luaL_error(L,
+                       "GPUTexture.new: float format %s as a renderTarget "
+                       "requires the %s feature, which the active backend does "
+                       "not support",
+                       lua_totextureformatstring(desc.format),
+                       cap);
+        }
+    }
     ctx->clearLastError();
     auto texture = ctx->makeTexture(desc);
     if (!texture)
@@ -2511,6 +2566,14 @@ static int gpurenderpass_drawindexed(lua_State* L)
         lua_isnumber(L, 5) ? static_cast<int32_t>(lua_tointeger(L, 5)) : 0;
     uint32_t firstInstance =
         lua_isnumber(L, 6) ? static_cast<uint32_t>(lua_tonumber(L, 6)) : 0;
+    if (baseVertex != 0 && !getOreContext(L)->features().drawBaseInstance)
+    {
+        luaL_error(L,
+                   "drawIndexed: baseVertex=%d requires the "
+                   "drawBaseInstance feature, which the active backend "
+                   "does not support",
+                   baseVertex);
+    }
     if (firstInstance > 0 && !getOreContext(L)->features().drawBaseInstance)
     {
         luaL_error(L,

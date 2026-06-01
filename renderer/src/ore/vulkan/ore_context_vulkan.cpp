@@ -506,6 +506,152 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
     m_vkPendingInitialTransitions.clear();
 }
 
+void ContextVulkan::vkQueuePendingTextureUpload(VkPendingTextureUpload pending)
+{
+    // No dedupe: uploads target sub-regions (offset, mipLevel, layer),
+    // so multiple calls to the same texture are all meaningful.
+    m_vkPendingTextureUploads.push_back(std::move(pending));
+}
+
+void ContextVulkan::vkFlushPendingTextureUploads()
+{
+    if (m_vkPendingTextureUploads.empty())
+        return;
+    // Caller contract: only invoked from beginFrame / beginRenderPass,
+    // both of which run with a host-owned recording CB.
+    assert(m_vkCmdBufRecording && m_vkCommandBuffer != VK_NULL_HANDLE);
+
+    // Resolve the valid uploads and collect the distinct destination images.
+    // Barriers batch per image (one to-transfer + one to-shader for the whole
+    // flush) instead of two per upload, so an N-layer array texture costs 2
+    // barriers, not 2N.
+    struct DistinctTex
+    {
+        TextureVulkan* tex;
+        VkImageLayout oldLayout;
+        VkImageAspectFlags aspectMask;
+    };
+    std::vector<DistinctTex> distinct;
+    struct ValidUpload
+    {
+        VkBuffer srcBuffer;
+        VkImage dstImage;
+        const VkBufferImageCopy* region;
+    };
+    std::vector<ValidUpload> uploads;
+    uploads.reserve(m_vkPendingTextureUploads.size());
+    for (auto& pu : m_vkPendingTextureUploads)
+    {
+        auto* vkTex = lite_rtti_cast<TextureVulkan*>(pu.texture.get());
+        auto* vkBuf = lite_rtti_cast<BufferVulkan*>(pu.stagingBuffer.get());
+        // Texture or staging buffer torn down before flush. Skip silently.
+        if (vkTex == nullptr || vkBuf == nullptr ||
+            vkTex->m_vkImage == VK_NULL_HANDLE)
+            continue;
+        uploads.push_back({vkBuf->m_vkBuffer, vkTex->m_vkImage, &pu.region});
+        bool found = false;
+        for (auto& d : distinct)
+        {
+            if (d.tex == vkTex)
+            {
+                d.aspectMask |= pu.aspectMask;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            distinct.push_back({vkTex, vkTex->m_vkLayout, pu.aspectMask});
+    }
+    if (uploads.empty())
+    {
+        m_vkPendingTextureUploads.clear();
+        return;
+    }
+
+    // 1) Transition every distinct image to TRANSFER_DST in one barrier. The
+    // src scope comes from each image's tracked layout so the upload waits on
+    // any prior use (attachment write, shader read) instead of racing it.
+    std::vector<VkImageMemoryBarrier> toTransfer;
+    toTransfer.reserve(distinct.size());
+    VkPipelineStageFlags srcStageAcc = 0;
+    for (auto& d : distinct)
+    {
+        VkPipelineStageFlags srcStage;
+        VkAccessFlags srcAccess;
+        pipelineStageAndAccessForLayout(d.oldLayout, &srcStage, &srcAccess);
+        srcStageAcc |= srcStage;
+        VkImageMemoryBarrier b{};
+        b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        b.srcAccessMask = srcAccess;
+        b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        b.oldLayout = d.oldLayout;
+        b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        b.image = d.tex->m_vkImage;
+        b.subresourceRange.aspectMask = d.aspectMask;
+        b.subresourceRange.baseMipLevel = 0;
+        b.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        b.subresourceRange.baseArrayLayer = 0;
+        b.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+        toTransfer.push_back(b);
+    }
+    m_vk->CmdPipelineBarrier(m_vkCommandBuffer,
+                             srcStageAcc,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             static_cast<uint32_t>(toTransfer.size()),
+                             toTransfer.data());
+
+    // 2) Copy each staged region. Disjoint sub-regions (distinct offset / mip
+    // / layer) need no inter-copy barrier.
+    for (auto& u : uploads)
+    {
+        m_vk->CmdCopyBufferToImage(m_vkCommandBuffer,
+                                   u.srcBuffer,
+                                   u.dstImage,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   1,
+                                   u.region);
+    }
+
+    // 3) Transition every distinct image back to SHADER_READ_ONLY in one
+    // barrier.
+    VkPipelineStageFlags dstStage;
+    VkAccessFlags dstAccess;
+    pipelineStageAndAccessForLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                    &dstStage,
+                                    &dstAccess);
+    std::vector<VkImageMemoryBarrier> toShader = toTransfer;
+    for (auto& b : toShader)
+    {
+        b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        b.dstAccessMask = dstAccess;
+        b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+    m_vk->CmdPipelineBarrier(m_vkCommandBuffer,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             dstStage,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             static_cast<uint32_t>(toShader.size()),
+                             toShader.data());
+    for (auto& d : distinct)
+        d.tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // Dropping the rcps releases the staging buffers; GPUResource
+    // purgatory keeps them alive until safeFrameNumber.
+    m_vkPendingTextureUploads.clear();
+}
+
 void ContextVulkan::beginFrame(const FrameDescriptor& desc)
 {
     assert(desc.externalCommandBuffer != VK_NULL_HANDLE);
@@ -519,8 +665,8 @@ void ContextVulkan::beginFrame(const FrameDescriptor& desc)
         static_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     m_vkCmdBufRecording = true;
 
-    // Flush any lazy-init barriers queued before this frame.  Host has
-    // already called BeginCommandBuffer on externalCb, so recording is safe.
+    // Drain pre-frame deferred work onto the host's CB.
+    vkFlushPendingTextureUploads();
     vkFlushPendingInitialTransitions();
 }
 
@@ -1409,10 +1555,9 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     rpBI.clearValueCount = attachCount;
     rpBI.pClearValues = clearValues;
 
-    // Flush any pending sampled-image transitions (queued by makeBindGroup
-    // and the loadOp=load attachment branches above) before entering the
-    // pass — barriers inside a pass are restricted to declared self-
-    // dependencies, so cross-pass image-layout work must land here.
+    // Drain barriers and uploads outside the pass; transfers and
+    // unrestricted barriers are not allowed inside one.
+    vkFlushPendingTextureUploads();
     vkFlushPendingInitialTransitions();
 
     m_vk->CmdBeginRenderPass(m_vkCommandBuffer,

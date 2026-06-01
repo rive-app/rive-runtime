@@ -27,7 +27,6 @@ private:
     VkImageLayout m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkDevice m_vkDevice = VK_NULL_HANDLE; // Weak ref.
     rcp<rive::gpu::VulkanContext> m_vk;
-    rcp<BufferVulkan> m_stagingBuffer;
     // Back-ref so upload() can route through ContextVulkan. Weak ref.
     ContextVulkan* m_vkOreContext = nullptr;
 };
