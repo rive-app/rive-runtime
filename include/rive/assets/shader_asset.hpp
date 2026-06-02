@@ -8,17 +8,21 @@
 
 namespace rive
 {
-/// Asset holding one compiled shader in RSTB (Rive Shader Table Binary) v3.
+/// Asset holding one compiled shader in RSTB (Rive Shader Table Binary) v4.
 /// Each ShaderAsset corresponds 1:1 to a WGSL source. The "table" is the
 /// per-backend-target variant table (MSL, HLSL, GLSL, SPIR-V, WGSL passthrough)
 /// plus the binding-map and GL-fixup sidecars.
 ///
-/// RSTB v3 layout:
-///   Header (8 bytes): magic(u32LE=0x52535442) + version(u16LE=3) +
+/// RSTB v4 layout:
+///   Header (8 bytes): magic(u32LE=0x52535442) + version(u16LE=4) +
 ///                     variant_count(u8) + section_count(u8)
 ///   Per variant: target(u8) + blob_offset(u32LE) + blob_size(u32LE)
 ///   Per section: tag(u8) + length(u16LE) + data[length]
 ///   Blob data section (blob_offset values are relative to this section)
+///
+/// v4 wraps each source variant in an entry-point container carrying the
+/// @vertex/@fragment names (see ore_rstb_entry_container.hpp) so the runtime
+/// resolves entry points by name instead of assuming vs_main/fs_main.
 ///
 /// ShaderTarget enum (u8):
 ///   0 = WGSL passthrough, 1 = GLSL ES3, 2 = MSL, 3 = HLSL SM5, 5 = SPIR-V

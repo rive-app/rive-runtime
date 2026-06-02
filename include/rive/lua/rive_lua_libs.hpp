@@ -648,20 +648,72 @@ public:
     rcp<ore::Sampler> sampler;
 };
 
+// One @vertex/@fragment entry point resolved from an RSTB v4 container. For
+// whole-module targets (WGSL/MSL/SPIR-V) every record of a shader shares one
+// ShaderModule; for per-entry targets (GLSL/HLSL) each record owns its module.
+struct ScriptedShaderEntry
+{
+    uint8_t stage = 0;    // 0=vertex 1=fragment 2=compute
+    std::string logical;  // WGSL entry name a script matches against
+    std::string physical; // name handed to the driver (PipelineDesc entry)
+    rcp<ore::ShaderModule> module;
+};
+
 class ScriptedShader
 {
 public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 44;
     static constexpr const char* luaName = "Shader";
     static constexpr bool hasMetatable = false;
-    rcp<ore::ShaderModule> module;         // vertex module (or combined)
-    rcp<ore::ShaderModule> fragmentModule; // fragment module (null if combined)
 
-    // Returns the module to use for a given pipeline stage.
-    ore::ShaderModule* vertexMod() const { return module.get(); }
+    // Entry points in naga declaration order; the first of each stage is the
+    // WebGPU "no entryPoint" default.
+    std::vector<ScriptedShaderEntry> entries;
+
+    bool hasModule() const { return !entries.empty(); }
+
+    // First entry of a stage, or null.
+    const ScriptedShaderEntry* firstOfStage(uint8_t stage) const
+    {
+        for (const auto& e : entries)
+        {
+            if (e.stage == stage)
+                return &e;
+        }
+        return nullptr;
+    }
+
+    // Resolve a stage's entry by optional WGSL name; null/empty selects the
+    // first entry of that stage (WebGPU default). Returns null if a named
+    // entry is not found.
+    const ScriptedShaderEntry* resolveEntry(uint8_t stage,
+                                            const char* logical) const
+    {
+        if (logical == nullptr || logical[0] == '\0')
+            return firstOfStage(stage);
+        for (const auto& e : entries)
+        {
+            if (e.stage == stage && e.logical == logical)
+                return &e;
+        }
+        return nullptr;
+    }
+
+    // Back-compat: first vertex / first fragment module (binding-map reads,
+    // texture-sampler pair propagation). Fragment falls back to the combined
+    // (vertex) module when there is no separate fragment entry.
+    ore::ShaderModule* vertexMod() const
+    {
+        const auto* e = firstOfStage(0);
+        return e ? e->module.get() : nullptr;
+    }
     ore::ShaderModule* fragmentMod() const
     {
-        return fragmentModule ? fragmentModule.get() : module.get();
+        const auto* f = firstOfStage(1);
+        if (f)
+            return f->module.get();
+        const auto* v = firstOfStage(0);
+        return v ? v->module.get() : nullptr;
     }
 };
 

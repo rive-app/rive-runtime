@@ -70,6 +70,11 @@ public:
     virtual Drawable* hittableComponent() { return this; }
 
     virtual int emptyClipCount() { return 0; }
+
+    // Public accessors for the artboard's draw-order linked list.
+    // Order is back-to-front (firstDrawable() is bottom-most).
+    Drawable* nextDrawable() const { return next; }
+    Drawable* prevDrawable() const { return prev; }
 };
 
 class ProxyDrawing

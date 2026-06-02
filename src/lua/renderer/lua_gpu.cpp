@@ -4,6 +4,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 #include "rive/renderer/render_canvas.hpp"
@@ -30,17 +31,56 @@ using namespace rive::ore;
 // String-to-enum helpers
 // ============================================================================
 
-static BufferUsage lua_tobufferusage(lua_State* L, int idx)
+static BufferUsage bufferUsageFromString(lua_State* L, const char* s)
 {
-    const char* s = luaL_checkstring(L, idx);
     if (strcmp(s, "vertex") == 0)
         return BufferUsage::vertex;
     if (strcmp(s, "index") == 0)
         return BufferUsage::index;
     if (strcmp(s, "uniform") == 0)
         return BufferUsage::uniform;
-    luaL_error(L, "invalid BufferUsage: %s", s);
+    luaL_error(L,
+               "invalid BufferUsage '%s' (expected 'vertex', 'index', or "
+               "'uniform')",
+               s);
     return BufferUsage::vertex;
+}
+
+// Read a `usage` that is either a single string or an array of strings. The
+// type is the dual shape BufferUsage | {BufferUsage} so the array form is
+// forward-compatible with future multi-usage flags. Today a buffer has one
+// usage, so a multi-element array is rejected rather than silently collapsed.
+static BufferUsage lua_tobufferusagefield(lua_State* L, int idx)
+{
+    lua_getfield(L, idx, "usage");
+    BufferUsage usage = BufferUsage::vertex;
+    if (lua_isstring(L, -1))
+    {
+        usage = bufferUsageFromString(L, lua_tostring(L, -1));
+    }
+    else if (lua_istable(L, -1))
+    {
+        int n = lua_objlen(L, -1);
+        if (n != 1)
+        {
+            luaL_error(L,
+                       "GPUBuffer.new: usage array must hold exactly one "
+                       "value; multiple usages are not yet supported");
+        }
+        lua_rawgeti(L, -1, 1);
+        if (!lua_isstring(L, -1))
+            luaL_error(L, "GPUBuffer.new: usage array must hold strings");
+        usage = bufferUsageFromString(L, lua_tostring(L, -1));
+        lua_pop(L, 1);
+    }
+    else
+    {
+        luaL_error(L,
+                   "GPUBuffer.new: 'usage' is required (a string or array of "
+                   "strings)");
+    }
+    lua_pop(L, 1);
+    return usage;
 }
 
 static TextureFormat lua_totextureformat(lua_State* L, const char* s)
@@ -471,63 +511,32 @@ static ShaderTarget currentShaderTarget(Context* oreCtx)
     return oreCtx != nullptr ? oreCtx->shaderTarget() : ShaderTarget::glsl;
 }
 
-/// Try to create ShaderModules from a raw RSTB blob.
-/// For GLSL targets, the blob may contain two sources separated by a null
-/// byte (vertex then fragment). Populates both module and fragmentModule on
-/// the ScriptedShader. Returns true on success.
-/// Copy texture-sampler pairs from a ShaderAsset into both
-/// vertex and fragment ShaderModules of a ScriptedShader.
-#ifdef WITH_RIVE_TOOLS
-static void propagatePairs(const ShaderAsset& asset, ScriptedShader* out)
-{
-    auto pairs = asset.textureSamplerPairs();
-    if (pairs.empty())
-        return;
-    std::vector<ShaderModule::TextureSamplerPair> vec;
-    vec.reserve(pairs.size());
-    for (size_t i = 0; i < pairs.size(); i++)
-    {
-        vec.push_back({pairs[i].texGroup,
-                       pairs[i].texBinding,
-                       pairs[i].sampGroup,
-                       pairs[i].sampBinding});
-    }
-    if (out->module)
-        out->module->m_textureSamplerPairs = vec;
-    if (out->fragmentModule)
-        out->fragmentModule->m_textureSamplerPairs = vec;
-}
-
-static bool makeShaderFromRstb(Context* oreCtx,
-                               const uint8_t* data,
-                               uint32_t len,
+/// Build a ScriptedShader's entry list from a decoded ShaderAsset for the
+/// active backend target. Parses the RSTB v4 entry-point container
+/// (ore_rstb_entry_container.hpp): whole-module targets (WGSL/MSL/SPIR-V) share
+/// one ShaderModule across all entries; per-entry targets (GLSL/HLSL) build one
+/// module per entry. Returns true if at least one entry/module was created.
+static bool buildShaderEntries(Context* oreCtx,
+                               const ShaderAsset& asset,
                                ScriptedShader* out)
 {
-    if (oreCtx == nullptr || data == nullptr || len == 0 || out == nullptr)
+    if (oreCtx == nullptr || out == nullptr)
         return false;
 
-    // ShaderAsset::decode expects a SignedContentHeader envelope
-    // (shared with ScriptAsset: `[flags:1][sig:64?][inner]`). The workspace
-    // hands us raw RSTB bytes, so prepend an unsigned envelope (flags=0,
-    // no signature) to produce the canonical input format.
-    ShaderAsset asset;
-    SimpleArray<uint8_t> bytes(static_cast<size_t>(len) + 1);
-    bytes[0] = 0x00; // flags: unsigned, version 0
-    memcpy(bytes.data() + 1, data, len);
-    if (!asset.decode(bytes, nullptr))
-        return false;
+    // Start from a clean slate: a ScriptedShader may be reloaded (editor live
+    // preview) and stale entry records would corrupt entry-point resolution.
+    out->entries.clear();
 
     ShaderTarget target = currentShaderTarget(oreCtx);
     auto blob = asset.findShader(static_cast<uint8_t>(target));
     if (blob.empty())
         return false;
-
-    const char* blobData = reinterpret_cast<const char*>(blob.data());
+    const uint8_t* blobData = blob.data();
     uint32_t blobSize = static_cast<uint32_t>(blob.size());
+    const uint32_t assetId = asset.assetId();
 
-    // Binding-map sidecar (mandatory) + GL fixup sidecars (only present
-    // for the GLSL source target). Every shipped shader carries a sidecar
-    // paired with its source variant.
+    // Binding-map sidecar (mandatory for module creation) + GL fixup sidecars
+    // (GLSL only). Every shipped shader carries a sidecar per source variant.
     auto bindingMapTargetFor = [](ShaderTarget t) -> uint8_t {
         switch (t)
         {
@@ -554,118 +563,121 @@ static bool makeShaderFromRstb(Context* oreCtx,
                                                         : Span<const uint8_t>{};
     auto fsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(15)
                                                         : Span<const uint8_t>{};
-    const uint8_t* vsGLFixupBytes =
-        vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
-    uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());
-    const uint8_t* fsGLFixupBytes =
-        fsGLFixupBlob.empty() ? nullptr : fsGLFixupBlob.data();
-    uint32_t fsGLFixupSize = static_cast<uint32_t>(fsGLFixupBlob.size());
 
-    // HLSL SM5 via SPIRV-Cross (D3D11/D3D12 on Windows).
-    // Blob format: "vsEntry\0fsEntry\0vsHLSL\0fsHLSL"
-    // Compiled to DXBC at runtime via D3DCompile in ensureD3DShaders().
-    if (target == ShaderTarget::hlsl)
+    // Texture-sampler pairs, applied to every module created below.
+    std::vector<ShaderModule::TextureSamplerPair> pairVec;
     {
-        // Parse: vsEntry\0
-        const char* vsEntry = blobData;
-        const char* vsEnd =
-            static_cast<const char*>(memchr(vsEntry, '\0', blobSize));
-        if (!vsEnd)
-            return false;
-        // Parse: fsEntry\0
-        const char* fsEntry = vsEnd + 1;
-        uint32_t remaining =
-            blobSize - static_cast<uint32_t>(fsEntry - blobData);
-        const char* fsEnd =
-            static_cast<const char*>(memchr(fsEntry, '\0', remaining));
-        if (!fsEnd)
-            return false;
-        // Parse: vsHLSL\0
-        const char* vsHLSL = fsEnd + 1;
-        remaining = blobSize - static_cast<uint32_t>(vsHLSL - blobData);
-        const char* vsHLSLEnd =
-            static_cast<const char*>(memchr(vsHLSL, '\0', remaining));
-        if (!vsHLSLEnd)
-            return false;
-        // Parse: fsHLSL (rest of blob)
-        const char* fsHLSL = vsHLSLEnd + 1;
-        uint32_t fsHLSLSize =
-            blobSize - static_cast<uint32_t>(fsHLSL - blobData);
-
-        // Create vertex module with HLSL source for runtime D3DCompile.
+        auto pairs = asset.textureSamplerPairs();
+        pairVec.reserve(pairs.size());
+        for (size_t i = 0; i < pairs.size(); i++)
         {
-            ShaderModuleDesc vtxDesc;
-            vtxDesc.stage = ShaderStage::vertex;
-            vtxDesc.hlslSource = vsHLSL;
-            vtxDesc.hlslSourceSize = static_cast<uint32_t>(vsHLSLEnd - vsHLSL);
-            vtxDesc.hlslEntryPoint = vsEntry;
-            vtxDesc.bindingMapBytes = bindingMapBytes;
-            vtxDesc.bindingMapSize = bindingMapSize;
-            out->module = oreCtx->makeShaderModule(vtxDesc);
+            pairVec.push_back({pairs[i].texGroup,
+                               pairs[i].texBinding,
+                               pairs[i].sampGroup,
+                               pairs[i].sampBinding});
         }
-        // Create fragment module with HLSL source for runtime D3DCompile.
-        {
-            ShaderModuleDesc fragDesc;
-            fragDesc.stage = ShaderStage::fragment;
-            fragDesc.hlslSource = fsHLSL;
-            fragDesc.hlslSourceSize = fsHLSLSize;
-            fragDesc.hlslEntryPoint = fsEntry;
-            fragDesc.bindingMapBytes = bindingMapBytes;
-            fragDesc.bindingMapSize = bindingMapSize;
-            out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
-        }
-        if (out->module)
-            propagatePairs(asset, out);
-        return out->module != nullptr;
     }
 
-    // Check for a null separator inside the blob — indicates split
-    // vertex/fragment GLSL (one GLSL source per entry point).
-    const char* sep =
-        static_cast<const char*>(memchr(blobData, '\0', blobSize - 1));
-
-    if (sep != nullptr)
+    // Per-entry targets: one ShaderModule per entry (GL compiles a `main`,
+    // HLSL D3DCompiles against the cleansed physical name).
+    if (target == ShaderTarget::glsl || target == ShaderTarget::hlsl)
     {
-        // Split blob: vertex before separator, fragment after.
-        uint32_t vtxSize = static_cast<uint32_t>(sep - blobData);
-        const char* fragData = sep + 1;
-        uint32_t fragSize = blobSize - vtxSize - 1;
-
-        ShaderModuleDesc vtxDesc;
-        vtxDesc.code = blobData;
-        vtxDesc.codeSize = vtxSize;
-        vtxDesc.stage = ShaderStage::vertex;
-        vtxDesc.bindingMapBytes = bindingMapBytes;
-        vtxDesc.bindingMapSize = bindingMapSize;
-        vtxDesc.glFixupBytes = vsGLFixupBytes;
-        vtxDesc.glFixupSize = vsGLFixupSize;
-        out->module = oreCtx->makeShaderModule(vtxDesc);
-
-        ShaderModuleDesc fragDesc;
-        fragDesc.code = fragData;
-        fragDesc.codeSize = fragSize;
-        fragDesc.stage = ShaderStage::fragment;
-        fragDesc.bindingMapBytes = bindingMapBytes;
-        fragDesc.bindingMapSize = bindingMapSize;
-        fragDesc.glFixupBytes = fsGLFixupBytes;
-        fragDesc.glFixupSize = fsGLFixupSize;
-        out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
-
-        if (out->module && out->fragmentModule)
-            propagatePairs(asset, out);
-        return out->module != nullptr && out->fragmentModule != nullptr;
+        std::vector<rive::ore::RstbEntryView> views;
+        if (!rive::ore::parsePerEntryContainer(blobData, blobSize, views))
+            return false;
+        for (const auto& v : views)
+        {
+            // GL/HLSL containers only carry vertex/fragment entries; ignore any
+            // other stage rather than misclassifying it as a fragment module.
+            if (v.stage != 0 && v.stage != 1)
+                continue;
+            ShaderModuleDesc desc;
+            desc.stage =
+                (v.stage == 0) ? ShaderStage::vertex : ShaderStage::fragment;
+            desc.bindingMapBytes = bindingMapBytes;
+            desc.bindingMapSize = bindingMapSize;
+            desc.shaderAssetId = assetId;
+            if (target == ShaderTarget::hlsl)
+            {
+                desc.hlslSource = reinterpret_cast<const char*>(v.source);
+                desc.hlslSourceSize = v.sourceSize;
+                desc.hlslEntryPoint = v.physical.c_str();
+            }
+            else // glsl
+            {
+                desc.code = v.source;
+                desc.codeSize = v.sourceSize;
+                auto fx = (v.stage == 0) ? vsGLFixupBlob : fsGLFixupBlob;
+                desc.glFixupBytes = fx.empty() ? nullptr : fx.data();
+                desc.glFixupSize = static_cast<uint32_t>(fx.size());
+            }
+            auto mod = oreCtx->makeShaderModule(desc);
+            if (!mod)
+                return false;
+            if (!pairVec.empty())
+                mod->m_textureSamplerPairs = pairVec;
+            ScriptedShaderEntry e;
+            e.stage = v.stage;
+            e.logical = v.logical;
+            e.physical = v.physical;
+            e.module = std::move(mod);
+            out->entries.push_back(std::move(e));
+        }
+        return !out->entries.empty();
     }
 
-    // Single combined blob (Metal, WGSL, etc.)
+    // Whole-module targets: one shared module, one entry record per entry, all
+    // referencing it. The driver selects the entry by its physical name.
+    std::vector<rive::ore::RstbEntryView> views;
+    const uint8_t* src = nullptr;
+    uint32_t srcLen = 0;
+    if (!rive::ore::parseWholeModuleContainer(blobData,
+                                              blobSize,
+                                              views,
+                                              &src,
+                                              &srcLen))
+        return false;
     ShaderModuleDesc desc;
-    desc.code = blobData;
-    desc.codeSize = blobSize;
+    desc.code = src;
+    desc.codeSize = srcLen;
     desc.bindingMapBytes = bindingMapBytes;
     desc.bindingMapSize = bindingMapSize;
-    out->module = oreCtx->makeShaderModule(desc);
-    if (out->module)
-        propagatePairs(asset, out);
-    return out->module != nullptr;
+    desc.shaderAssetId = assetId;
+    auto mod = oreCtx->makeShaderModule(desc);
+    if (!mod)
+        return false;
+    if (!pairVec.empty())
+        mod->m_textureSamplerPairs = pairVec;
+    for (const auto& v : views)
+    {
+        ScriptedShaderEntry e;
+        e.stage = v.stage;
+        e.logical = v.logical;
+        e.physical = v.physical;
+        e.module = mod;
+        out->entries.push_back(std::move(e));
+    }
+    return !out->entries.empty();
+}
+
+#ifdef WITH_RIVE_TOOLS
+/// Editor live-preview: decode raw RSTB bytes then build entries. The workspace
+/// hands us unsigned bytes, so prepend a zero SignedContentHeader envelope byte
+/// (`[flags:1][inner]`) to produce ShaderAsset::decode's expected input.
+static bool makeShaderFromRstb(Context* oreCtx,
+                               const uint8_t* data,
+                               uint32_t len,
+                               ScriptedShader* out)
+{
+    if (oreCtx == nullptr || data == nullptr || len == 0 || out == nullptr)
+        return false;
+    ShaderAsset asset;
+    SimpleArray<uint8_t> bytes(static_cast<size_t>(len) + 1);
+    bytes[0] = 0x00; // flags: unsigned, version 0
+    memcpy(bytes.data() + 1, data, len);
+    if (!asset.decode(bytes, nullptr))
+        return false;
+    return buildShaderEntries(oreCtx, asset, out);
 }
 #endif // WITH_RIVE_TOOLS
 
@@ -697,195 +709,12 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
         }
     }
 #endif
-    // Runtime path: ShaderAsset from the .riv file's asset list.
-    // Use the same RSTB decoding as the editor path so that GLSL
-    // vertex/fragment splitting and texture-sampler pair propagation
-    // are handled correctly on all backends.
+    // Runtime path: ShaderAsset from the .riv file's asset list. Same
+    // container parsing as the editor path (buildShaderEntries) so entry-point
+    // resolution is identical on all backends.
     if (fileAsset != nullptr && oreCtx != nullptr)
     {
-        ShaderTarget target = currentShaderTarget(oreCtx);
-        auto blob = fileAsset->findShader(static_cast<uint8_t>(target));
-        if (!blob.empty())
-        {
-            const char* blobData = reinterpret_cast<const char*>(blob.data());
-            uint32_t blobSize = static_cast<uint32_t>(blob.size());
-            const uint32_t assetId = fileAsset->assetId();
-
-            // Sidecar lookup (mirrors makeShaderFromRstb above). The
-            // sidecar is mandatory; absence here would assert in
-            // `makeShaderModule::applyBindingMapFromDesc`.
-            auto bmTarget = [](ShaderTarget t) -> uint8_t {
-                switch (t)
-                {
-                    case ShaderTarget::wgsl:
-                        return 16;
-                    case ShaderTarget::glsl:
-                        return 11;
-                    case ShaderTarget::msl:
-                        return 10;
-                    case ShaderTarget::hlsl:
-                        return 12;
-                    case ShaderTarget::spirv:
-                        return 13;
-                }
-                return 255;
-            }(target);
-            auto bmBlob = (bmTarget == 255) ? Span<const uint8_t>{}
-                                            : fileAsset->findShader(bmTarget);
-            const uint8_t* bindingMapBytes =
-                bmBlob.empty() ? nullptr : bmBlob.data();
-            uint32_t bindingMapSize = static_cast<uint32_t>(bmBlob.size());
-            auto vsFixupBlob = (target == ShaderTarget::glsl)
-                                   ? fileAsset->findShader(14)
-                                   : Span<const uint8_t>{};
-            auto fsFixupBlob = (target == ShaderTarget::glsl)
-                                   ? fileAsset->findShader(15)
-                                   : Span<const uint8_t>{};
-            const uint8_t* vsFixupBytes =
-                vsFixupBlob.empty() ? nullptr : vsFixupBlob.data();
-            uint32_t vsFixupSize = static_cast<uint32_t>(vsFixupBlob.size());
-            const uint8_t* fsFixupBytes =
-                fsFixupBlob.empty() ? nullptr : fsFixupBlob.data();
-            uint32_t fsFixupSize = static_cast<uint32_t>(fsFixupBlob.size());
-
-            // HLSL SM5: split vsEntry\0fsEntry\0vsHLSL\0fsHLSL.
-            // Depth-only shaders bake with empty fsEntry and no fsHLSL.
-            if (target == ShaderTarget::hlsl)
-            {
-                const char* vsEntry = blobData;
-                const char* vsEnd =
-                    static_cast<const char*>(memchr(vsEntry, '\0', blobSize));
-                if (!vsEnd)
-                    return false;
-                const char* fsEntry = vsEnd + 1;
-                uint32_t remaining =
-                    blobSize - static_cast<uint32_t>(fsEntry - blobData);
-                const char* fsEnd =
-                    static_cast<const char*>(memchr(fsEntry, '\0', remaining));
-                if (!fsEnd)
-                    return false;
-                const bool hasFragment = (fsEnd != fsEntry);
-                const char* vsHLSL = fsEnd + 1;
-                remaining = blobSize - static_cast<uint32_t>(vsHLSL - blobData);
-                const char* vsHLSLEnd =
-                    static_cast<const char*>(memchr(vsHLSL, '\0', remaining));
-                if (!vsHLSLEnd)
-                {
-                    // Depth-only bake has no trailing null; vsHLSL fills the
-                    // rest of the blob.
-                    if (hasFragment)
-                        return false;
-                    vsHLSLEnd = blobData + blobSize;
-                }
-
-                ShaderModuleDesc vtxDesc;
-                vtxDesc.stage = ShaderStage::vertex;
-                vtxDesc.hlslSource = vsHLSL;
-                vtxDesc.hlslSourceSize =
-                    static_cast<uint32_t>(vsHLSLEnd - vsHLSL);
-                vtxDesc.hlslEntryPoint = vsEntry;
-                vtxDesc.bindingMapBytes = bindingMapBytes;
-                vtxDesc.bindingMapSize = bindingMapSize;
-                vtxDesc.shaderAssetId = assetId;
-                out->module = oreCtx->makeShaderModule(vtxDesc);
-
-                if (hasFragment)
-                {
-                    const char* fsHLSL = vsHLSLEnd + 1;
-                    uint32_t fsHLSLSize =
-                        blobSize - static_cast<uint32_t>(fsHLSL - blobData);
-
-                    ShaderModuleDesc fragDesc;
-                    fragDesc.stage = ShaderStage::fragment;
-                    fragDesc.hlslSource = fsHLSL;
-                    fragDesc.hlslSourceSize = fsHLSLSize;
-                    fragDesc.hlslEntryPoint = fsEntry;
-                    fragDesc.bindingMapBytes = bindingMapBytes;
-                    fragDesc.bindingMapSize = bindingMapSize;
-                    fragDesc.shaderAssetId = assetId;
-                    out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
-                }
-            }
-            // GLSL ES3: split vertex\0fragment.
-            else if (target == ShaderTarget::glsl && blobSize > 1)
-            {
-                const char* sep = static_cast<const char*>(
-                    memchr(blobData, '\0', blobSize - 1));
-                if (sep)
-                {
-                    uint32_t vtxSize = static_cast<uint32_t>(sep - blobData);
-                    const char* fragData = sep + 1;
-                    uint32_t fragSize = blobSize - vtxSize - 1;
-
-                    ShaderModuleDesc vtxDesc;
-                    vtxDesc.code = blobData;
-                    vtxDesc.codeSize = vtxSize;
-                    vtxDesc.stage = ShaderStage::vertex;
-                    vtxDesc.bindingMapBytes = bindingMapBytes;
-                    vtxDesc.bindingMapSize = bindingMapSize;
-                    vtxDesc.glFixupBytes = vsFixupBytes;
-                    vtxDesc.glFixupSize = vsFixupSize;
-                    vtxDesc.shaderAssetId = assetId;
-                    out->module = oreCtx->makeShaderModule(vtxDesc);
-
-                    ShaderModuleDesc fragDesc;
-                    fragDesc.code = fragData;
-                    fragDesc.codeSize = fragSize;
-                    fragDesc.stage = ShaderStage::fragment;
-                    fragDesc.bindingMapBytes = bindingMapBytes;
-                    fragDesc.bindingMapSize = bindingMapSize;
-                    fragDesc.glFixupBytes = fsFixupBytes;
-                    fragDesc.glFixupSize = fsFixupSize;
-                    fragDesc.shaderAssetId = assetId;
-                    out->fragmentModule = oreCtx->makeShaderModule(fragDesc);
-                }
-                else
-                {
-                    // No separator — single module (unusual).
-                    ShaderModuleDesc desc;
-                    desc.code = blobData;
-                    desc.codeSize = blobSize;
-                    desc.bindingMapBytes = bindingMapBytes;
-                    desc.bindingMapSize = bindingMapSize;
-                    desc.shaderAssetId = assetId;
-                    out->module = oreCtx->makeShaderModule(desc);
-                }
-            }
-            // Single combined blob (MSL, WGSL, SPIR-V).
-            else
-            {
-                ShaderModuleDesc desc;
-                desc.code = blobData;
-                desc.codeSize = blobSize;
-                desc.bindingMapBytes = bindingMapBytes;
-                desc.bindingMapSize = bindingMapSize;
-                desc.shaderAssetId = assetId;
-                out->module = oreCtx->makeShaderModule(desc);
-            }
-
-            // Propagate texture-sampler pairs from the RSTB.
-            if (out->module)
-            {
-                auto pairs = fileAsset->textureSamplerPairs();
-                if (!pairs.empty())
-                {
-                    std::vector<ShaderModule::TextureSamplerPair> vec;
-                    vec.reserve(pairs.size());
-                    for (size_t i = 0; i < pairs.size(); i++)
-                    {
-                        vec.push_back({pairs[i].texGroup,
-                                       pairs[i].texBinding,
-                                       pairs[i].sampGroup,
-                                       pairs[i].sampBinding});
-                    }
-                    out->module->m_textureSamplerPairs = vec;
-                    if (out->fragmentModule)
-                        out->fragmentModule->m_textureSamplerPairs = vec;
-                }
-            }
-
-            return out->module != nullptr;
-        }
+        return buildShaderEntries(oreCtx, *fileAsset, out);
     }
 
     return false;
@@ -939,8 +768,11 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
 // GPUBuffer
 // ============================================================================
 
-// `GPUBuffer.new(size, usage [, options])` where `options` is an optional
-// table of:
+// `GPUBuffer.new({ size, usage, data?, immutable?, label? })`:
+//   - `size`       : size in bytes.
+//   - `usage`      : 'vertex' | 'index' | 'uniform', or a one-element array of
+//                    the same (the array form is reserved for future
+//                    multi-usage flags).
 //   - `data`       : Lua buffer with initial contents. Required when
 //                    `immutable=true`. Length must match `size` exactly so
 //                    backends can populate the GPU resource at create time.
@@ -948,56 +780,65 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
 //                    creation). Required for `BufferDesc::immutable`, which
 //                    backends with a USAGE_IMMUTABLE concept (D3D11) honor
 //                    for static vertex/index buffers.
+//   - `label`      : optional debug name.
 static int gpubuffer_construct(lua_State* L)
 {
     if (getOreContext(L) == nullptr)
     {
         luaL_error(L, "GPU context not initialized");
     }
-
-    uint32_t size = static_cast<uint32_t>(luaL_checkunsigned(L, 1));
-    BufferUsage usage = lua_tobufferusage(L, 2);
+    luaL_checktype(L, 1, LUA_TTABLE);
 
     BufferDesc desc;
-    desc.size = size;
-    desc.usage = usage;
-
-    // Optional `options` table with initial data + immutable flag.
-    if (lua_istable(L, 3))
+    // Required positive size that fits in uint32. The raw number path would
+    // otherwise truncate floats or wrap negatives.
+    lua_getfield(L, 1, "size");
+    if (!lua_isnumber(L, -1))
+        luaL_error(L, "GPUBuffer.new: 'size' is required (bytes)");
+    double sizeNum = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    // Prove the value is finite and in range before any integer cast: casting
+    // NaN or out-of-range doubles to uint32 is undefined. The positive range
+    // test is false for NaN, so the && short-circuits before the cast.
+    bool validInt =
+        sizeNum >= 1.0 && sizeNum <= 4294967295.0 &&
+        sizeNum == static_cast<double>(static_cast<uint32_t>(sizeNum));
+    if (!validInt)
     {
-        int optsIdx = 3;
-        desc.immutable =
-            lua_getoptionalboolfield(L, optsIdx, "immutable", false);
+        luaL_error(L,
+                   "GPUBuffer.new: 'size' must be a positive integer number "
+                   "of bytes");
+    }
+    desc.size = static_cast<uint32_t>(sizeNum);
+    desc.usage = lua_tobufferusagefield(L, 1);
+    desc.immutable = lua_getoptionalboolfield(L, 1, "immutable", false);
+    desc.label = lua_getoptionalstringfield(L, 1, "label");
 
-        lua_getfield(L, optsIdx, "data");
-        if (!lua_isnil(L, -1))
+    lua_getfield(L, 1, "data");
+    if (!lua_isnil(L, -1))
+    {
+        size_t dataLen = 0;
+        const void* dataPtr = lua_tobuffer(L, -1, &dataLen);
+        if (dataPtr == nullptr)
         {
-            size_t dataLen = 0;
-            const void* dataPtr = lua_tobuffer(L, -1, &dataLen);
-            if (dataPtr == nullptr)
-            {
-                luaL_error(L,
-                           "GPUBuffer.new: 'data' option must be a Luau "
-                           "buffer");
-            }
-            if (dataLen != size)
-            {
-                luaL_error(L,
-                           "GPUBuffer.new: data length (%zu) must equal "
-                           "size (%u)",
-                           dataLen,
-                           size);
-            }
-            desc.data = dataPtr;
+            luaL_error(L, "GPUBuffer.new: 'data' must be a Luau buffer");
         }
-        lua_pop(L, 1);
-
-        if (desc.immutable && desc.data == nullptr)
+        if (dataLen != desc.size)
         {
             luaL_error(L,
-                       "GPUBuffer.new: immutable=true requires 'data' "
-                       "option (the GPU buffer is GPU-only after creation)");
+                       "GPUBuffer.new: data length (%zu) must equal size (%u)",
+                       dataLen,
+                       desc.size);
         }
+        desc.data = dataPtr;
+    }
+    lua_pop(L, 1);
+
+    if (desc.immutable && desc.data == nullptr)
+    {
+        luaL_error(L,
+                   "GPUBuffer.new: immutable=true requires 'data' (the GPU "
+                   "buffer is GPU-only after creation)");
     }
 
     auto* ctx = getOreContext(L);
@@ -1721,7 +1562,7 @@ static int gpubindgrouplayout_construct(lua_State* L)
     lua_getfield(L, descIdx, "shader");
     auto* scripted = lua_torive<ScriptedShader>(L, -1);
     lua_pop(L, 1);
-    if (scripted == nullptr || !scripted->module)
+    if (scripted == nullptr || !scripted->hasModule())
         luaL_error(L,
                    "GPUBindGroupLayout.new: 'shader' must be a Shader with "
                    "a loaded module");
@@ -1938,6 +1779,89 @@ static int gpubindgroup_construct(lua_State* L)
 // GPUPipeline
 // ============================================================================
 
+// Resolve a stage's entry on a shader by optional WGSL name. Errors (listing
+// available names) if a named entry is missing.
+static void resolveShaderEntry(lua_State* L,
+                               ScriptedShader* shader,
+                               uint8_t stage,
+                               const char* entryReq,
+                               const char* stageName,
+                               ore::ShaderModule** outModule,
+                               std::string* outEntryName)
+{
+    const ScriptedShaderEntry* e = shader->resolveEntry(stage, entryReq);
+    if (e == nullptr)
+    {
+        std::string avail;
+        for (const auto& rec : shader->entries)
+        {
+            if (rec.stage != stage)
+                continue;
+            if (!avail.empty())
+                avail += ", ";
+            avail += rec.logical;
+        }
+        if (entryReq != nullptr && entryReq[0] != '\0')
+            luaL_error(L,
+                       "GPUPipeline.new: %s entry point '%s' not found "
+                       "(available: %s)",
+                       stageName,
+                       entryReq,
+                       avail.empty() ? "<none>" : avail.c_str());
+        luaL_error(L,
+                   "GPUPipeline.new: %s shader has no %s entry point",
+                   stageName,
+                   stageName);
+    }
+    *outModule = e->module.get();
+    *outEntryName = e->physical;
+}
+
+// Parse a pipeline stage descriptor at stack index `valueIdx`: a bare Shader or
+// WebGPU-style { module = Shader, entryPoint = string? }. Omitting entryPoint
+// selects the first entry of that stage. Returns the ScriptedShader (for the
+// combined-file fragment fallback) plus the resolved module + physical entry
+// name. Returns false only when the value is nil.
+static bool resolveStageEntry(lua_State* L,
+                              int valueIdx,
+                              uint8_t stage,
+                              const char* stageName,
+                              ScriptedShader** outShader,
+                              ore::ShaderModule** outModule,
+                              std::string* outEntryName)
+{
+    if (lua_isnil(L, valueIdx))
+        return false;
+    ScriptedShader* shader = nullptr;
+    const char* entryReq = nullptr;
+    if (lua_istable(L, valueIdx))
+    {
+        lua_getfield(L, valueIdx, "module");
+        shader = lua_torive<ScriptedShader>(L, -1);
+        lua_pop(L, 1);
+        entryReq = lua_getoptionalstringfield(L, valueIdx, "entryPoint");
+    }
+    else
+    {
+        shader = lua_torive<ScriptedShader>(L, valueIdx);
+    }
+    if (shader == nullptr || !shader->hasModule())
+        luaL_error(L,
+                   "GPUPipeline.new: '%s' must be a Shader or "
+                   "{ module = Shader, entryPoint = string? }",
+                   stageName);
+    resolveShaderEntry(L,
+                       shader,
+                       stage,
+                       entryReq,
+                       stageName,
+                       outModule,
+                       outEntryName);
+    if (outShader)
+        *outShader = shader;
+    return true;
+}
+
 static int gpupipeline_construct(lua_State* L)
 {
     if (getOreContext(L) == nullptr)
@@ -1950,24 +1874,51 @@ static int gpupipeline_construct(lua_State* L)
 
     PipelineDesc desc;
 
+    // vertex / fragment accept a bare Shader or WebGPU-style
+    // { module = Shader, entryPoint = string? }. Omitting entryPoint selects
+    // the first @vertex/@fragment of the module (WebGPU default). The resolved
+    // physical entry names are held in these std::strings, which must outlive
+    // the makePipeline call below (PipelineDesc keeps const char* into them).
+    std::string vsEntryName, fsEntryName;
+    ScriptedShader* vsShader = nullptr;
+
     // vertex shader (required)
     lua_getfield(L, descIdx, "vertex");
-    auto* vs = lua_torive<ScriptedShader>(L, -1);
-    desc.vertexModule = vs->vertexMod();
+    {
+        ore::ShaderModule* mod = nullptr;
+        if (!resolveStageEntry(L,
+                               lua_gettop(L),
+                               0,
+                               "vertex",
+                               &vsShader,
+                               &mod,
+                               &vsEntryName))
+            luaL_error(L, "GPUPipeline.new: 'vertex' is required");
+        desc.vertexModule = mod;
+        desc.vertexEntryPoint = vsEntryName.c_str();
+    }
     lua_pop(L, 1);
 
     // fragment shader. Three cases:
-    //   * explicit `fragment` Shader → use its fragment module.
-    //   * absent + at least one colorTarget → fall back to vs's fragment
-    //     module (combined-shader file with both vs_main and fs_main).
+    //   * explicit `fragment` → use it.
+    //   * absent + at least one colorTarget → fall back to the vertex shader's
+    //     fragment entry (combined file). Deferred until colorTargets parsed.
     //   * absent + no colorTargets → depth-only pipeline, no fragment.
-    // Case 3 resolution is deferred until after colorTargets is parsed.
     bool explicitFragment = false;
     lua_getfield(L, descIdx, "fragment");
     if (!lua_isnil(L, -1))
     {
-        auto* fs = lua_torive<ScriptedShader>(L, -1);
-        desc.fragmentModule = fs->fragmentMod();
+        ore::ShaderModule* mod = nullptr;
+        ScriptedShader* fsShader = nullptr;
+        resolveStageEntry(L,
+                          lua_gettop(L),
+                          1,
+                          "fragment",
+                          &fsShader,
+                          &mod,
+                          &fsEntryName);
+        desc.fragmentModule = mod;
+        desc.fragmentEntryPoint = fsEntryName.c_str();
         explicitFragment = true;
     }
     lua_pop(L, 1);
@@ -2102,10 +2053,21 @@ static int gpupipeline_construct(lua_State* L)
     lua_pop(L, 1); // pop colorTargets
 
     // Resolve the deferred fragment-module decision (see "fragment shader"
-    // block above). With color outputs but no explicit fragment shader,
-    // fall back to the vertex shader's fragment module (combined file).
+    // block above). With color outputs but no explicit fragment shader, fall
+    // back to the vertex shader's first fragment entry (combined file).
     if (!explicitFragment && desc.colorCount > 0)
-        desc.fragmentModule = vs->fragmentMod();
+    {
+        ore::ShaderModule* mod = nullptr;
+        resolveShaderEntry(L,
+                           vsShader,
+                           1,
+                           nullptr,
+                           "fragment",
+                           &mod,
+                           &fsEntryName);
+        desc.fragmentModule = mod;
+        desc.fragmentEntryPoint = fsEntryName.c_str();
+    }
 
     // depthStencil (optional)
     lua_getfield(L, descIdx, "depthStencil");
@@ -2180,7 +2142,7 @@ static int gpupipeline_construct(lua_State* L)
         // Auto path: scan the binding map for unique groups, build a
         // layout per group. Sparse-group shaders are supported (e.g.
         // group 0 + group 2 → autoLayouts[1] is null/empty).
-        const BindingMap& bm = vs->vertexMod()->m_bindingMap;
+        const BindingMap& bm = vsShader->vertexMod()->m_bindingMap;
         uint32_t maxGroup = 0;
         bool seen[ore::kMaxBindGroups] = {};
         for (size_t i = 0; i < bm.size(); ++i)
@@ -2201,7 +2163,7 @@ static int gpupipeline_construct(lua_State* L)
             BindGroupLayoutEntry entries[kMaxEntries]{};
             uint32_t n = populateEntriesFromShader(entries,
                                                    kMaxEntries,
-                                                   vs->vertexMod(),
+                                                   vsShader->vertexMod(),
                                                    g,
                                                    nullptr,
                                                    0);

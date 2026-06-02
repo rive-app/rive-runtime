@@ -70,6 +70,7 @@
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
 #include "ore_gm_shaders.rstb.hpp"
+#include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 #endif
@@ -328,7 +329,7 @@ struct OreGMShaderResult
 };
 
 // Lazy per-shader ShaderAsset cache. The fixture header
-// `ore_gm_shaders.rstb.hpp` embeds N single-shader RSTB v3 blobs concatenated
+// `ore_gm_shaders.rstb.hpp` embeds N single-shader RSTB v4 blobs concatenated
 // with an offset table indexed by `OreGMShader`.
 inline rive::ShaderAsset& getRstbAssetForShader(uint32_t shaderId)
 {
@@ -448,7 +449,11 @@ inline uint8_t bindingMapTargetFor(uint8_t sourceTarget)
 }
 
 /// Load a compiled shader from the embedded RSTB for the active backend.
-/// Returns modules and entry point names ready for use in a PipelineDesc.
+/// Parses the RSTB v4 entry-point container (ore_rstb_entry_container.hpp):
+/// whole-module targets (WGSL/MSL/SPIR-V) build one module shared by both
+/// stages; per-entry targets (GLSL/HLSL) build a module per entry. GMs are
+/// single-entry-per-stage and use non-keyword names, so the WebGPU entry-point
+/// names come from `wgslEntryPoints` (logical == physical here).
 inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
 {
     using namespace rive::ore;
@@ -460,8 +465,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     auto blob = asset.findShader(target);
     if (blob.empty())
         return result;
-
-    const char* blobData = reinterpret_cast<const char*>(blob.data());
+    const uint8_t* blobData = blob.data();
     uint32_t blobSize = static_cast<uint32_t>(blob.size());
 
     // Binding-map sidecar (mandatory).
@@ -478,15 +482,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
         (target == 1) ? asset.findShader(14) : rive::Span<const uint8_t>{};
     auto fsGLFixupBlob =
         (target == 1) ? asset.findShader(15) : rive::Span<const uint8_t>{};
-    const uint8_t* vsGLFixupBytes =
-        vsGLFixupBlob.empty() ? nullptr : vsGLFixupBlob.data();
-    uint32_t vsGLFixupSize = static_cast<uint32_t>(vsGLFixupBlob.size());
-    const uint8_t* fsGLFixupBytes =
-        fsGLFixupBlob.empty() ? nullptr : fsGLFixupBlob.data();
-    uint32_t fsGLFixupSize = static_cast<uint32_t>(fsGLFixupBlob.size());
 
-    // Helper: propagate texture-sampler pairs from the RSTB asset into
-    // a ShaderModule so the GL backend can map sampler slots correctly.
     auto propagatePairs = [&](rive::ore::ShaderModule* mod) {
         if (!mod)
             return;
@@ -500,120 +496,74 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
         }
     };
 
-    // ── HLSL SM5 (target 3) ──
-    // Blob: "vsEntry\0fsEntry\0vsHLSL\0fsHLSL"
-    if (target == 3)
+    auto names = wgslEntryPoints(shaderId);
+
+    // Per-entry targets: GLSL (1), HLSL (3). Build one module per entry; GMs
+    // use the first vertex + first fragment entry.
+    if (target == 1 || target == 3)
     {
-        const char* vsEntry = blobData;
-        const char* vsEnd =
-            static_cast<const char*>(memchr(vsEntry, '\0', blobSize));
-        if (!vsEnd)
+        std::vector<RstbEntryView> views;
+        if (!parsePerEntryContainer(blobData, blobSize, views))
             return result;
-
-        const char* fsEntry = vsEnd + 1;
-        uint32_t remaining =
-            blobSize - static_cast<uint32_t>(fsEntry - blobData);
-        const char* fsEnd =
-            static_cast<const char*>(memchr(fsEntry, '\0', remaining));
-        if (!fsEnd)
-            return result;
-
-        const char* vsHLSL = fsEnd + 1;
-        remaining = blobSize - static_cast<uint32_t>(vsHLSL - blobData);
-        const char* vsHLSLEnd =
-            static_cast<const char*>(memchr(vsHLSL, '\0', remaining));
-        if (!vsHLSLEnd)
-            return result;
-
-        const char* fsHLSL = vsHLSLEnd + 1;
-        uint32_t fsHLSLSize =
-            blobSize - static_cast<uint32_t>(fsHLSL - blobData);
-
-        ShaderModuleDesc vtxDesc{};
-        vtxDesc.stage = ShaderStage::vertex;
-        vtxDesc.hlslSource = vsHLSL;
-        vtxDesc.hlslSourceSize = static_cast<uint32_t>(vsHLSLEnd - vsHLSL);
-        vtxDesc.hlslEntryPoint = vsEntry;
-        vtxDesc.bindingMapBytes = bindingMapBytes;
-        vtxDesc.bindingMapSize = bindingMapSize;
-        result.vsModule = ctx.makeShaderModule(vtxDesc);
-
-        ShaderModuleDesc fragDesc{};
-        fragDesc.stage = ShaderStage::fragment;
-        fragDesc.hlslSource = fsHLSL;
-        fragDesc.hlslSourceSize = fsHLSLSize;
-        fragDesc.hlslEntryPoint = fsEntry;
-        fragDesc.bindingMapBytes = bindingMapBytes;
-        fragDesc.bindingMapSize = bindingMapSize;
-        result.psModule = ctx.makeShaderModule(fragDesc);
-
-        // HLSL entry points are from the blob.
-        result.vsEntryPoint = vsEntry;
-        result.fsEntryPoint = fsEntry;
-        propagatePairs(result.vsModule.get());
-        propagatePairs(result.psModule.get());
+        for (const auto& v : views)
+        {
+            const bool isVtx = (v.stage == 0);
+            if (isVtx && result.vsModule)
+                continue;
+            if (!isVtx && result.psModule)
+                continue;
+            ShaderModuleDesc desc{};
+            desc.stage = isVtx ? ShaderStage::vertex : ShaderStage::fragment;
+            desc.bindingMapBytes = bindingMapBytes;
+            desc.bindingMapSize = bindingMapSize;
+            if (target == 3)
+            {
+                desc.hlslSource = reinterpret_cast<const char*>(v.source);
+                desc.hlslSourceSize = v.sourceSize;
+                desc.hlslEntryPoint = v.physical.c_str();
+            }
+            else
+            {
+                desc.code = v.source;
+                desc.codeSize = v.sourceSize;
+                auto fx = isVtx ? vsGLFixupBlob : fsGLFixupBlob;
+                desc.glFixupBytes = fx.empty() ? nullptr : fx.data();
+                desc.glFixupSize = static_cast<uint32_t>(fx.size());
+            }
+            auto mod = ctx.makeShaderModule(desc);
+            propagatePairs(mod.get());
+            if (isVtx)
+                result.vsModule = mod;
+            else
+                result.psModule = mod;
+        }
+        // GL compiles `main`; D3D bakes the entry into the module and ignores
+        // PipelineDesc's entry name, so a representative name is fine here.
+        result.vsEntryPoint = (target == 1) ? "main" : names.first;
+        result.fsEntryPoint = (target == 1) ? "main" : names.second;
         return result;
     }
 
-    // ── GLSL ES3 (target 1) ──
-    // Blob: "vertexGLSL\0fragmentGLSL"
-    if (target == 1)
-    {
-        const char* sep =
-            static_cast<const char*>(memchr(blobData, '\0', blobSize - 1));
-        if (!sep)
-            return result;
-
-        uint32_t vtxSize = static_cast<uint32_t>(sep - blobData);
-        const char* fragData = sep + 1;
-        uint32_t fragSize = blobSize - vtxSize - 1;
-
-        ShaderModuleDesc vtxDesc{};
-        vtxDesc.code = blobData;
-        vtxDesc.codeSize = vtxSize;
-        vtxDesc.stage = ShaderStage::vertex;
-        vtxDesc.bindingMapBytes = bindingMapBytes;
-        vtxDesc.bindingMapSize = bindingMapSize;
-        vtxDesc.glFixupBytes = vsGLFixupBytes;
-        vtxDesc.glFixupSize = vsGLFixupSize;
-        result.vsModule = ctx.makeShaderModule(vtxDesc);
-
-        ShaderModuleDesc fragDesc{};
-        fragDesc.code = fragData;
-        fragDesc.codeSize = fragSize;
-        fragDesc.stage = ShaderStage::fragment;
-        fragDesc.bindingMapBytes = bindingMapBytes;
-        fragDesc.bindingMapSize = bindingMapSize;
-        fragDesc.glFixupBytes = fsGLFixupBytes;
-        fragDesc.glFixupSize = fsGLFixupSize;
-        result.psModule = ctx.makeShaderModule(fragDesc);
-
-        // GLSL always uses "main".
-        result.vsEntryPoint = "main";
-        result.fsEntryPoint = "main";
-        propagatePairs(result.vsModule.get());
-        propagatePairs(result.psModule.get());
+    // Whole-module targets: MSL (2), WGSL (0), SPIR-V (5). One module, both
+    // stages, selected by name at the driver.
+    std::vector<RstbEntryView> views;
+    const uint8_t* src = nullptr;
+    uint32_t srcLen = 0;
+    if (!parseWholeModuleContainer(blobData, blobSize, views, &src, &srcLen))
         return result;
-    }
-
-    // ── Single-module targets: MSL (2), WGSL (0), SPIR-V (5) ──
-    {
-        ShaderModuleDesc desc{};
-        desc.code = blobData;
-        desc.codeSize = blobSize;
-        if (target == 0)
-            desc.language = ShaderLanguage::wgsl;
-        desc.bindingMapBytes = bindingMapBytes;
-        desc.bindingMapSize = bindingMapSize;
-        result.vsModule = ctx.makeShaderModule(desc);
-        result.psModule = result.vsModule; // Same module for VS + PS.
-
-        auto [vs, fs] = wgslEntryPoints(shaderId);
-        result.vsEntryPoint = vs;
-        result.fsEntryPoint = fs;
-        propagatePairs(result.vsModule.get());
-        return result;
-    }
+    ShaderModuleDesc desc{};
+    desc.code = src;
+    desc.codeSize = srcLen;
+    if (target == 0)
+        desc.language = ShaderLanguage::wgsl;
+    desc.bindingMapBytes = bindingMapBytes;
+    desc.bindingMapSize = bindingMapSize;
+    result.vsModule = ctx.makeShaderModule(desc);
+    result.psModule = result.vsModule; // Same module for VS + PS.
+    result.vsEntryPoint = names.first;
+    result.fsEntryPoint = names.second;
+    propagatePairs(result.vsModule.get());
+    return result;
 }
 
 // Map ResourceKind (binding-map enum) to BindingKind (public layout enum).
