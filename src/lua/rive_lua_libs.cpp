@@ -2,6 +2,9 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/async/work_pool.hpp"
+#ifdef RIVE_CANVAS
+#include "rive/renderer/render_context.hpp"
+#endif
 #include "lualib.h"
 #include <stdio.h>
 #include <unordered_map>
@@ -975,6 +978,15 @@ void ScriptingContext::disposeOrphanScriptedProperties()
     m_orphanScriptedProperties.clear();
 }
 #endif
+
+void ScriptingContext::setRenderContext(void* ctx)
+{
+    m_renderContext = ctx;
+#ifdef RIVE_CANVAS
+    auto rcontext = static_cast<gpu::RenderContext*>(ctx);
+    m_oreContext = rcontext ? rcontext->getOreContext() : nullptr;
+#endif
+}
 
 // ── WorkPool integration ───────────────────────────────────────────────────
 // getGlobalWorkPool() is defined in work_pool.cpp (shared singleton).

@@ -817,3 +817,29 @@ TEST_CASE("Scripted image properties", "[silver]")
 
     CHECK(silver.matches("scripted_property_image"));
 }
+
+TEST_CASE("Image read from propertyValue", "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/image_scripting_property_value.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.25f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("image_scripting_property_value"));
+}

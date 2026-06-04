@@ -294,8 +294,8 @@ static RawPath& make_cusp(const IAABB& rect)
     return path;
 }
 
-// Check that clip readBounds and contentBounds get tracked properly.
-TEST_CASE("clip-content-read-bounds", "[RiveRenderer]")
+// Check that clip contentBounds get tracked properly.
+TEST_CASE("clip-content-bounds", "[RiveRenderer]")
 {
     std::unique_ptr<RenderContext> renderContext =
         RenderContextNULL::MakeContext();
@@ -341,8 +341,6 @@ TEST_CASE("clip-content-read-bounds", "[RiveRenderer]")
         auto clipAContentBounds = cuspA->getBounds().roundOut();
         CHECK(renderContext->getClipContentBounds(clipAID) ==
               clipAContentBounds);
-        CHECK(renderContext->getClipReadBounds(clipAID) ==
-              m.mapBoundingBox({-1, -1, 1, 1}).roundOut());
 
         renderer.clipPath(cuspC.get());
         renderer.drawPath(cuspB.get(), paint.get());
@@ -353,14 +351,10 @@ TEST_CASE("clip-content-read-bounds", "[RiveRenderer]")
             m.mapBoundingBox(cuspC->getBounds().roundOut()).roundOut();
         CHECK(renderContext->getClipContentBounds(clipCID) ==
               clipCContentBounds);
-        CHECK(renderContext->getClipReadBounds(clipCID) ==
-              m.mapBoundingBox({-1, -1, 1, 1}).roundOut());
 
         // clipAID read bounds should have expanded from the nested clipping.
         CHECK(renderContext->getClipContentBounds(clipAID) ==
               clipAContentBounds);
-        CHECK(renderContext->getClipReadBounds(clipAID) ==
-              m.mapBoundingBox({-1, -1, 5, 1}).roundOut());
 
         // Each nested clip is read only by the one directly below it.
         auto cusp6 = static_rcp_cast<RiveRenderPath>(
@@ -396,39 +390,27 @@ TEST_CASE("clip-content-read-bounds", "[RiveRenderer]")
         // clipA bounds should not have been affected by deeper nested clips.
         CHECK(renderContext->getClipContentBounds(clipAID) ==
               clipAContentBounds);
-        CHECK(renderContext->getClipReadBounds(clipAID) ==
-              m.mapBoundingBox({-1, -1, 5, 1}).roundOut());
 
         // Each nested clip is read only by the one directly below it. Outer
         // clips are not read by the draw either.
         CHECK(renderContext->getClipContentBounds(clipCID) ==
               clipCContentBounds);
-        CHECK(renderContext->getClipReadBounds(clipCID) ==
-              m.mapBoundingBox({-1, -1, 1, 9}).roundOut());
         auto clip9ContentBounds =
             m.mapBoundingBox(cusp9->getBounds().roundOut()).roundOut();
         CHECK(renderContext->getClipContentBounds(clip9ID) ==
               clip9ContentBounds);
-        CHECK(renderContext->getClipReadBounds(clip9ID) ==
-              m.mapBoundingBox({-1, -1, 1, 8}).roundOut());
         auto clip8ContentBounds =
             m.mapBoundingBox(cusp8->getBounds().roundOut()).roundOut();
         CHECK(renderContext->getClipContentBounds(clip8ID) ==
               clip8ContentBounds);
-        CHECK(renderContext->getClipReadBounds(clip8ID) ==
-              m.mapBoundingBox({-1, -1, 1, 7}).roundOut());
         auto clip7ContentBounds =
             m.mapBoundingBox(cusp7->getBounds().roundOut()).roundOut();
         CHECK(renderContext->getClipContentBounds(clip7ID) ==
               clip7ContentBounds);
-        CHECK(renderContext->getClipReadBounds(clip7ID) ==
-              m.mapBoundingBox({-1, -1, 1, 6}).roundOut());
         auto clip6ContentBounds =
             m.mapBoundingBox(cusp6->getBounds().roundOut()).roundOut();
         CHECK(renderContext->getClipContentBounds(clip6ID) ==
               clip6ContentBounds);
-        CHECK(renderContext->getClipReadBounds(clip6ID) ==
-              m.mapBoundingBox({0, 0, 5, 1}).roundOut());
 
         // Pop back and do some more reading from clip8.
         renderer.restore();
@@ -440,31 +422,21 @@ TEST_CASE("clip-content-read-bounds", "[RiveRenderer]")
         CHECK(secondClip8ID != clip8ID);
         CHECK(renderContext->getClipContentBounds(clip8ID) ==
               clip8ContentBounds);
-        CHECK(renderContext->getClipReadBounds(clip8ID) ==
-              m.mapBoundingBox({-1, -1, 1, 7}).roundOut());
         // ... But should affect the clip currently in the clip buffer.
         CHECK(renderContext->getClipContentBounds(secondClip8ID) ==
               clip8ContentBounds);
-        CHECK(renderContext->getClipReadBounds(secondClip8ID) ==
-              m.mapBoundingBox({0, 0, 5, 1}).roundOut());
 
         renderer.clipPath(cuspB.get());
         renderer.drawPath(cuspC.get(), paint.get());
         CHECK(renderContext->getClipContentBounds(clip8ID) ==
               clip8ContentBounds);
-        CHECK(renderContext->getClipReadBounds(clip8ID) ==
-              m.mapBoundingBox({-1, -1, 1, 7}).roundOut());
         CHECK(renderContext->getClipContentBounds(secondClip8ID) ==
               clip8ContentBounds);
-        CHECK(renderContext->getClipReadBounds(secondClip8ID) ==
-              m.mapBoundingBox({-1, -1, 5, 1}).roundOut());
         uint32_t clipBID = renderContext->getClipContentID();
         auto clipBContentBounds =
             m.mapBoundingBox(cuspB->getBounds().roundOut()).roundOut();
         CHECK(renderContext->getClipContentBounds(clipBID) ==
               clipBContentBounds);
-        CHECK(renderContext->getClipReadBounds(clipBID) ==
-              m.mapBoundingBox({0, 0, 5, 1}).roundOut());
 
         renderer.restore();
 

@@ -23,9 +23,9 @@ enum class SortEntry
 {
     blendMode,
     drawContents,
-    drawIndex,
     drawGroup,
     drawType,
+    scissorID,
     subpassIndex,
     textureHash,
 };

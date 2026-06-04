@@ -14,14 +14,19 @@
 
 namespace rive
 {
-
+class ScriptingContext;
+namespace gpu
+{
+class RenderContext;
+}
 // Server-side worker that executes commands from a CommandQueue.
 class CommandServer
 {
 public:
     CommandServer(rcp<CommandQueue>,
                   Factory*,
-                  rcp<rive::FileAssetLoader> = nullptr);
+                  rcp<rive::FileAssetLoader> = nullptr,
+                  gpu::RenderContext* = nullptr);
     virtual ~CommandServer();
 
     Factory* factory() const { return m_factory; }
@@ -210,6 +215,7 @@ private:
     bool m_wasDisconnectReceived = false;
     const rcp<CommandQueue> m_commandQueue;
     Factory* const m_factory;
+    gpu::RenderContext* const m_context;
 #ifndef NDEBUG
 #ifdef TESTING
     std::thread::id m_threadID;

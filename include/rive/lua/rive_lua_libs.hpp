@@ -1487,13 +1487,12 @@ public:
     // Ore GPU context for this VM — set during VM adoption (response phase).
     // Stored as void* to avoid coupling this header to ore headers; callers
     // cast to ore::Context*.
-    void setOreContext(void* ctx) { m_oreContext = ctx; }
     void* oreContext() const { return m_oreContext; }
 
     // GPU render context — set once at startup by the host app.
     // Stored as void* to avoid coupling this header to gpu headers; callers
     // cast to gpu::RenderContext*.
-    void setRenderContext(void* ctx) { m_renderContext = ctx; }
+    void setRenderContext(void* ctx);
     void* renderContext() const { return m_renderContext; }
 
     // WorkPool for async operations (image decode, etc.).

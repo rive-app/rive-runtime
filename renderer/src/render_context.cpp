@@ -76,6 +76,20 @@ constexpr static size_t gradient_data_height(size_t simpleRampCount,
            complexRampCount;
 }
 
+// Returns true if the current bounds poke outside of the containing bounds (and
+// thus would need to be clipped against them)
+inline bool needsScissor(IAABB currentBounds,
+                         AABBu16 containingBounds,
+                         uint32_t renderTargetWidth,
+                         uint32_t renderTargetHeight)
+{
+    // intersect the current bounds with the screen dimensions before testing so
+    // that if we end up outside the containing bounds on a side that is also a
+    // screen edge it doesn't matter.
+    return !currentBounds.contains(containingBounds.intersect(
+        AABBu16::MakeWH(renderTargetWidth, renderTargetHeight)));
+}
+
 inline GradientContentKey::GradientContentKey(rcp<const Gradient> gradient) :
     m_gradient(std::move(gradient))
 {}
@@ -440,18 +454,24 @@ bool RenderContext::frameSupportsImagePaintForPaths() const
     return m_frameInterlockMode != gpu::InterlockMode::atomics;
 }
 
-uint32_t RenderContext::generateClipID(const IAABB& contentBounds)
+uint32_t RenderContext::generateClipID(IAABB contentBounds,
+                                       uint32_t parentClipID,
+                                       AABBu16 tightenedBounds)
 {
     assert(m_didBeginFrame);
     assert(!m_logicalFlushes.empty());
-    return m_logicalFlushes.back()->generateClipID(contentBounds);
+    return m_logicalFlushes.back()->generateClipID(contentBounds,
+                                                   parentClipID,
+                                                   tightenedBounds);
 }
 
-uint32_t RenderContext::LogicalFlush::generateClipID(const IAABB& contentBounds)
+uint32_t RenderContext::LogicalFlush::generateClipID(IAABB contentBounds,
+                                                     uint32_t parentClipID,
+                                                     AABBu16 tightenedBounds)
 {
     if (m_clips.size() < m_ctx->m_maxPathID) // maxClipID == maxPathID.
     {
-        m_clips.emplace_back(contentBounds);
+        m_clips.emplace_back(contentBounds, parentClipID, tightenedBounds);
         assert(m_ctx->m_clipContentID != m_clips.size());
         return math::lossless_numeric_cast<uint32_t>(m_clips.size());
     }
@@ -465,15 +485,6 @@ RenderContext::LogicalFlush::ClipInfo& RenderContext::LogicalFlush::
     assert(clipID > 0);
     assert(clipID <= m_clips.size());
     return m_clips[clipID - 1];
-}
-
-void RenderContext::LogicalFlush::addClipReadBounds(uint32_t clipID,
-                                                    const IAABB& bounds)
-{
-    assert(clipID > 0);
-    assert(clipID <= m_clips.size());
-    ClipInfo& clipInfo = getWritableClipInfo(clipID);
-    clipInfo.readBounds = clipInfo.readBounds.join(bounds);
 }
 
 bool RenderContext::pushDraws(DrawUniquePtr draws[], size_t drawCount)
@@ -649,14 +660,13 @@ bool RenderContext::LogicalFlush::allocateGradient(
     return true;
 }
 
-bool RenderContext::LogicalFlush::allocateAtlasDraw(
-    PathDraw* pathDraw,
-    uint16_t drawWidth,
-    uint16_t drawHeight,
-    uint16_t desiredPadding,
-    uint16_t* x,
-    uint16_t* y,
-    TAABB<uint16_t>* paddedRegion)
+bool RenderContext::LogicalFlush::allocateAtlasDraw(PathDraw* pathDraw,
+                                                    uint16_t drawWidth,
+                                                    uint16_t drawHeight,
+                                                    uint16_t desiredPadding,
+                                                    uint16_t* x,
+                                                    uint16_t* y,
+                                                    AABBu16* paddedRegion)
 {
     RIVE_PROF_SCOPE_L(2)
 
@@ -696,9 +706,12 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(
 
     *x = ix + (paddedWidth - drawWidth) / 2;
     *y = iy + (paddedHeight - drawHeight) / 2;
-    *paddedRegion = {ix, iy, ix + paddedWidth, iy + paddedHeight};
-    assert((TAABB<uint16_t>{0, 0, atlasMaxWidth, atlasMaxHeight})
-               .contains(*paddedRegion));
+    *paddedRegion = {math::lossless_numeric_cast<uint16_t>(ix),
+                     math::lossless_numeric_cast<uint16_t>(iy),
+                     math::lossless_numeric_cast<uint16_t>(ix + paddedWidth),
+                     math::lossless_numeric_cast<uint16_t>(iy + paddedHeight)};
+    assert(
+        (AABBu16{0, 0, atlasMaxWidth, atlasMaxHeight}).contains(*paddedRegion));
 
     m_atlasMaxX = std::max<uint32_t>(m_atlasMaxX, paddedRegion->right);
     m_atlasMaxY = std::max<uint32_t>(m_atlasMaxY, paddedRegion->bottom);
@@ -1519,6 +1532,10 @@ void RenderContext::LogicalFlush::writeResources()
         pushPaddingVertices(1, m_outerCubicTessEndLocation);
     }
 
+    // Adjust the clip bounds so that they are as tight on the writes/reads as
+    // possible, to enable minimal scissor rectangle sizes.
+    tightenClipBounds();
+
     // Write out all the data for our high level draws, and build up a low-level
     // draw list.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
@@ -1543,7 +1560,7 @@ void RenderContext::LogicalFlush::writeResources()
 
         // Sort the draw list to optimize batching, since we can only batch
         // non-overlapping draws.
-        std::vector<int64_t>& indirectDrawList = m_ctx->m_indirectDrawList;
+        auto& indirectDrawList = m_ctx->m_indirectDrawList;
         indirectDrawList.clear();
         indirectDrawList.reserve(m_drawPassCount);
 
@@ -1616,6 +1633,10 @@ void RenderContext::LogicalFlush::writeResources()
             // Within sub-groups of matching draw type, sort by texture binding.
             {.entry = SortEntry::textureHash, .bitCount = 14},
 
+            // It's less expensive to change the scissorID than texture, but
+            // more expensive than the blend mode, so here's where it lives.
+            {.entry = SortEntry::scissorID, .bitCount = 15},
+
             // If using KHR_blend_equation_advanced, we need a batching barrier
             // between draws with different blend modes. If not using
             // KHR_blend_equation_advanced, sorting by blend mode may still give
@@ -1626,24 +1647,65 @@ void RenderContext::LogicalFlush::writeResources()
             // stencil settings.
             {.entry = SortEntry::drawContents, .bitCount = 9},
 
-            // Draw and subpass indices go at the bottom of the key so we can
-            // reference them again after sorting without affecting the order.
-            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            // Finally, we need sorting by subpass. Without this, the MSAA
+            // subpasses (and maybe others) won't run in the correct order when
+            // allSubpassesInSameDrawGroup was true.
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
 
-        for (size_t i = 0; i < m_draws.size(); ++i)
+        m_ctx->m_scissorIDLookup.clear();
+
+        // Set this to 0, any actual scissor IDs used will then start at 1.
+        m_ctx->m_prevScissorID = 0;
+
+        for (int16_t drawIndex = 0; drawIndex < int16_t(m_draws.size());
+             ++drawIndex)
         {
-            Draw* draw = m_draws[i].get();
-            int4 drawBounds = simd::load4i(&m_draws[i]->pixelBounds());
+            Draw* draw = m_draws[drawIndex].get();
+            int4 drawBounds = simd::load4i(&m_draws[drawIndex]->pixelBounds());
+
+            int16_t scissorID = 0;
+            {
+                const auto drawClipID = draw->clipID();
+                if (drawClipID != 0)
+                {
+                    const auto drawBounds = draw->pixelBounds();
+                    const auto clipBounds =
+                        getClipInfo(drawClipID).tightenedBounds;
+                    if (platformFeatures.supportsClipScissor &&
+                        needsScissor(drawBounds,
+                                     clipBounds,
+                                     frameDescriptor().renderTargetWidth,
+                                     frameDescriptor().renderTargetHeight))
+                    {
+                        // If the value is already in the map, get it, otherwise
+                        // we'll add the next new ID (which is 1 + the size of
+                        // the array, since we're using "0" as "no scissor")
+                        auto result = m_ctx->m_scissorIDLookup.try_emplace(
+                            clipBounds,
+                            m_ctx->m_prevScissorID + 1);
+                        scissorID = result.first->second;
+                        assert(scissorID > 0);
+                        if (scissorID > m_ctx->m_prevScissorID)
+                        {
+                            ++m_ctx->m_prevScissorID;
+                        }
+
+                        // Update the scissor rect for this draw so we can
+                        // ensure it doesn't batch with draws with different
+                        // scissor rects.
+                        draw->setScissorRect(clipBounds);
+                    }
+                }
+            }
 
             // Add one extra pixel of padding to the draw bounds to make
             // absolutely certain we get no overlapping pixels, which destroy
             // the atomic shader.
-            constexpr int32_t kMax32i = std::numeric_limits<int32_t>::max();
-            constexpr int32_t kMin32i = std::numeric_limits<int32_t>::min();
+            constexpr int32_t Max32i = std::numeric_limits<int32_t>::max();
+            constexpr int32_t Min32i = std::numeric_limits<int32_t>::min();
             drawBounds = simd::if_then_else(
-                drawBounds != int4{kMin32i, kMin32i, kMax32i, kMax32i},
+                drawBounds != int4{Min32i, Min32i, Max32i, Max32i},
                 drawBounds + int4{-1, -1, 1, 1},
                 drawBounds);
             if (m_ctx->frameInterlockMode() ==
@@ -1678,8 +1740,8 @@ void RenderContext::LogicalFlush::writeResources()
             // Our top priority in re-ordering is to group non-overlapping draws
             // together, in order to maximize batching while preserving
             // correctness.
-            const int maxSubpasses =
-                std::max(draw->prepassCount(), draw->subpassCount());
+            const int8_t maxSubpasses = math::lossless_numeric_cast<int8_t>(
+                std::max(draw->prepassCount(), draw->subpassCount()));
             int16_t drawGroupIdx = intersectionBoard->addRectangle(
                 drawBounds,
                 kOverlapBits,
@@ -1694,9 +1756,9 @@ void RenderContext::LogicalFlush::writeResources()
                 {SortEntry::blendMode,
                  gpu::ConvertBlendModeToPLSBlendMode(draw->blendMode())},
                 {SortEntry::drawContents, draw->drawContents()},
-                {SortEntry::drawIndex, i},
                 {SortEntry::drawGroup, drawGroupIdx},
                 {SortEntry::drawType, draw->type()},
+                {SortEntry::scissorID, scissorID},
                 {SortEntry::subpassIndex, 0}, // This gets added later
 
                 // The hash may lose bits in the key
@@ -1708,11 +1770,17 @@ void RenderContext::LogicalFlush::writeResources()
             {
                 // Negating the key is an easy way to sort the prepasses
                 // front-to-back, and before the subpasses.
-                indirectDrawList.push_back(-key);
+                indirectDrawList.push_back({
+                    .sortKey = -key,
+                    .drawIndex = drawIndex,
+                });
             }
             if (draw->subpassCount() > 0)
             {
-                indirectDrawList.push_back(key);
+                indirectDrawList.push_back({
+                    .sortKey = key,
+                    .drawIndex = drawIndex,
+                });
             }
 
             // Add any additional passes.
@@ -1732,7 +1800,9 @@ void RenderContext::LogicalFlush::writeResources()
                               {SortEntry::drawGroup, 1},
                               {SortEntry::subpassIndex, 1},
                           });
-                for (int i = 1; i < maxSubpasses; ++i)
+
+                for (int8_t subpassIndex = 1; subpassIndex < maxSubpasses;
+                     ++subpassIndex)
                 {
                     key += subpassKeyIncrement;
 
@@ -1740,27 +1810,38 @@ void RenderContext::LogicalFlush::writeResources()
                                                        key) ==
                            int16_t(allSubpassesInSameDrawGroup
                                        ? drawGroupIdx
-                                       : drawGroupIdx + i));
-                    assert(keyBuilder.extract<int>(SortEntry::subpassIndex,
-                                                   key) == i);
+                                       : drawGroupIdx + subpassIndex));
 
-                    if (i < draw->prepassCount())
+                    if (subpassIndex < draw->prepassCount())
                     {
                         // Negating the key is an easy way to sort the prepasses
                         // front-to-back, and before the subpasses.
-                        indirectDrawList.push_back(-key);
+                        indirectDrawList.push_back({
+                            .sortKey = -key,
+                            .drawIndex = drawIndex,
+                        });
                     }
-                    if (i < draw->subpassCount())
+                    if (subpassIndex < draw->subpassCount())
                     {
-                        indirectDrawList.push_back(key);
+                        indirectDrawList.push_back({
+                            .sortKey = key,
+                            .drawIndex = drawIndex,
+                        });
                     }
                 }
             }
         }
         assert(indirectDrawList.size() == m_drawPassCount);
 
-        // Re-order the draws!!
-        std::sort(indirectDrawList.begin(), indirectDrawList.end());
+        // Re-order the draws
+        // TODO: If we have any overlappable draws, then we will actually need
+        // to sort using the draw index as well (negatively to go front-to-back
+        // for pre-passes and positively for standard passes). Otherwise, the
+        // order of draws *within* a given sorted key does not matter at all.
+        std::sort(
+            indirectDrawList.begin(),
+            indirectDrawList.end(),
+            [](const auto& a, const auto& b) { return a.sortKey < b.sortKey; });
 
         assert(m_pendingBarriers == BarrierFlags::none);
         if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics &&
@@ -1869,7 +1950,8 @@ void RenderContext::LogicalFlush::writeResources()
                 barriersForKeyDiffs.push_back(
                     {keyBuilder.mask(SortEntry::drawGroup),
                      BarrierFlags::drawBatchBreak});
-                if (indirectDrawList.empty() || indirectDrawList[0] >= 0)
+                if (indirectDrawList.empty() ||
+                    indirectDrawList[0].sortKey >= 0)
                 {
                     // There are no borrowed coverage passes. Initiate the
                     // transition to the main subpass immediately.
@@ -1915,8 +1997,9 @@ void RenderContext::LogicalFlush::writeResources()
         bool hasCWAClipReadBarrier = false;
         bool currentDrawGroupHasCWAClipUpdate = false;
 
-        for (const int64_t signedKey : indirectDrawList)
+        for (const auto& sortEntry : indirectDrawList)
         {
+            auto signedKey = sortEntry.sortKey;
             assert(signedKey >= priorSignedKey);
             // The first draw never gets simple barriers. If barriers are
             // required before the first draw, those get scheduled outside this
@@ -1932,11 +2015,10 @@ void RenderContext::LogicalFlush::writeResources()
                 }
             }
 
-            int64_t key = abs(signedKey);
-            auto drawIndex =
-                keyBuilder.extract<uint32_t>(SortEntry::drawIndex, key);
+            auto key = abs(signedKey);
+            auto drawIndex = sortEntry.drawIndex;
             auto subpassIndex =
-                keyBuilder.extract<int>(SortEntry::subpassIndex, key);
+                keyBuilder.extract<int8_t>(SortEntry::subpassIndex, key);
             if (signedKey < 0)
             {
                 // Negative keys are a prepass. Update the subpassIndex to be
@@ -1945,12 +2027,13 @@ void RenderContext::LogicalFlush::writeResources()
             }
             // FIXME: m_currentZIndex shouldn't be a stateful variable; it
             // should be passed to pushToRenderContext() instead.
-            int16_t drawGroup =
+            const int16_t drawGroup =
                 keyBuilder.extract<int16_t>(SortEntry::drawGroup, key);
             assert(drawGroup > 0);
             m_currentZIndex = drawGroup;
 
             Draw* draw = m_draws[drawIndex].get();
+
             assert(
                 draw->drawContents() ==
                 keyBuilder.extract<gpu::DrawContents>(SortEntry::drawContents,
@@ -1959,6 +2042,11 @@ void RenderContext::LogicalFlush::writeResources()
                    draw->hasAdvancedBlend());
 
             DrawBatch* batch = draw->pushToRenderContext(this, subpassIndex);
+
+            if (batch != nullptr && platformFeatures.supportsClipScissor)
+            {
+                batch->scissorRect = draw->scissorRect();
+            }
 
             // Some barriers need more sophisticated logic than "do my keys
             // differ".
@@ -2118,10 +2206,10 @@ void RenderContext::LogicalFlush::writeResources()
     // index are decided and available to pushAtlasTessellation().
     if (!m_pendingAtlasDraws.empty())
     {
-        TAABB<uint16_t> fullAtlasViewport = {0,
-                                             0,
-                                             m_flushDesc.atlasContentWidth,
-                                             m_flushDesc.atlasContentHeight};
+        AABBu16 fullAtlasViewport = {0,
+                                     0,
+                                     m_flushDesc.atlasContentWidth,
+                                     m_flushDesc.atlasContentHeight};
         gpu::AtlasDrawBatch* currentBatch =
             m_ctx->m_perFrameAllocator.makePODArray<gpu::AtlasDrawBatch>(
                 m_pendingAtlasDraws.size());
@@ -2265,6 +2353,56 @@ void RenderContext::LogicalFlush::writeResources()
                batch.shaderFeatures);
     }
 #endif
+}
+
+void RenderContext::LogicalFlush::tightenClipBounds()
+{
+    // Iterate through the draws in reverse - this ensures that all paths
+    // clipped by a given clip update will update read bounds first, then any
+    // nested clips will update, and all bounds state should bubble nicely to
+    // the top.
+    for (size_t i = m_draws.size() - 1; i != size_t(-1); i--)
+    {
+        const auto& draw = m_draws[i];
+        if (draw->clipID() == 0)
+        {
+            continue;
+        }
+
+        if (draw->isClipUpdate())
+        {
+            auto& clipInfo = getWritableClipInfo(draw->clipID());
+
+            // Ensure the clip's write bounds are as tight on both the clip
+            // shape and all reads as possible.
+            clipInfo.tightenedBounds =
+                clipInfo.tightenedBounds.intersect(clipInfo.readBounds);
+
+            if (draw->hasActiveClip())
+            {
+                assert(clipInfo.parentClipID != 0);
+
+                // This is a nested clip so we need to additionally add its
+                // adjusted bounds to its parent clip as its read bounds.
+                auto& parentClipInfo =
+                    getWritableClipInfo(clipInfo.parentClipID);
+                parentClipInfo.readBounds =
+                    parentClipInfo.readBounds.join(clipInfo.tightenedBounds);
+            }
+            else
+            {
+                assert(clipInfo.parentClipID == 0);
+            }
+        }
+        else if (draw->hasActiveClip())
+        {
+            // Anything else with a clip should add itself to the clip's read
+            // bounds.
+            auto& clipInfo = getWritableClipInfo(draw->clipID());
+            clipInfo.readBounds = clipInfo.readBounds.join(
+                draw->pixelBounds().clamp_cast<uint16_t>());
+        }
+    }
 }
 
 void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
@@ -3553,6 +3691,15 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                     assert(m_ctx->frameInterlockMode() ==
                            gpu::InterlockMode::msaa);
                     canMergeWithPreviousBatch = false;
+                }
+
+                // Also break if there is a scissor rect mismatch
+                if (m_ctx->platformFeatures().supportsClipScissor)
+                {
+                    if (currentBatch->scissorRect != draw->scissorRect())
+                    {
+                        canMergeWithPreviousBatch = false;
+                    }
                 }
                 break;
             }

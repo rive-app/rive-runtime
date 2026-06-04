@@ -1735,6 +1735,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     for (size_t i = 0; i < dataBindCount; i++)
     {
         auto dataBind = machine->dataBind(i);
+        if (!dataBind->target())
+        {
+            continue;
+        }
         auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
         dataBindClone->file(dataBind->file());
         if (dataBind->converter() != nullptr)

@@ -16,6 +16,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <functional>
+#include <optional>
 
 // Use the define to run the feather LUT code
 // #define RIVE_GENERATE_FEATHER_LUT
@@ -219,6 +220,12 @@ struct PlatformFeatures
     // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
     // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
     size_t maxCoverageBufferLength = (1 << 27) / sizeof(uint32_t);
+
+    // True when the backend supports using the scissor rectangle for reducing
+    // the draw bounds of clip reads and writes.
+    // TODO: This should be possible to implement across all backends - at which
+    // point this bool could go away.
+    bool supportsClipScissor = false;
 
     // GPU compressed texture format support (queried per backend at init).
     bool supportsTextureCompressionBC = false;   // BC1/BC2/BC3/BC7
@@ -806,7 +813,7 @@ static_assert(INTERLOCK_MODE_COUNT > (1 << (INTERLOCK_MODE_BIT_COUNT - 1)));
 // Low-level batch of scissored geometry for rendering to the offscreen atlas.
 struct AtlasDrawBatch
 {
-    TAABB<uint16_t> scissor;
+    AABBu16 scissor;
     uint32_t patchCount;
     uint32_t basePatch;
 };
@@ -1193,6 +1200,7 @@ struct DrawBatch
     uint32_t baseElement;  // Base vertex, index, or instance.
     rive::BlendMode firstBlendMode;
     BarrierFlags barriers; // Barriers to execute before drawing this batch.
+    std::optional<AABBu16> scissorRect;
 
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
 

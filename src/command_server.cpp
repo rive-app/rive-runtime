@@ -11,6 +11,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/lua/rive_lua_libs.hpp"
 
 namespace rive
 {
@@ -268,9 +269,11 @@ bool CommandServer::testing_globalFontContains(std::string name)
 
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
                              Factory* factory,
-                             rcp<rive::FileAssetLoader> internalLoader) :
+                             rcp<rive::FileAssetLoader> internalLoader,
+                             gpu::RenderContext* context) :
     m_commandQueue(std::move(commandBuffer)),
     m_factory(factory),
+    m_context(context),
 #ifndef NDEBUG
     m_threadID(std::this_thread::get_id()),
 #endif
@@ -629,10 +632,27 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
+#ifdef WITH_RIVE_SCRIPTING
+                auto scriptingContext =
+                    std::make_unique<CPPRuntimeScriptingContext>(m_factory);
+                if (m_context)
+                {
+                    scriptingContext->setRenderContext(m_context);
+                }
+                auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
+                rcp<rive::File> file = rive::File::import(rivBytes,
+                                                          m_factory,
+                                                          nullptr,
+                                                          m_fileAssetLoader,
+                                                          vm.get());
+
+#else
                 rcp<rive::File> file = rive::File::import(rivBytes,
                                                           m_factory,
                                                           nullptr,
                                                           m_fileAssetLoader);
+#endif
+
                 if (file != nullptr)
                 {
                     m_fileDependencies[handle] = {};

@@ -68,6 +68,165 @@ TEST_CASE("bit_cast", "[math]")
     CHECK(std::isnan(math::bit_cast<float>(0x7fc00000)));
 }
 
+// Check math::cmp_equal
+TEST_CASE("cmp_equal", "[math]")
+{
+    CHECK(math::cmp_equal(0, 0u));
+    CHECK(!math::cmp_equal(1, 0u));
+    CHECK(math::cmp_equal(-100, int8_t(-100)));
+    CHECK(math::cmp_equal(int8_t(100), 100u));
+
+    // Test that negative and positive values of the same size don't
+    // compare as equal (as they would with default C++ compares).
+    // Test this with the signed and unsigned values in both orders.
+    CHECK(!math::cmp_equal(int8_t(0xff), uint8_t(0xff)));
+    CHECK(!math::cmp_equal(uint8_t(0xff), int8_t(0xff)));
+
+    CHECK(!math::cmp_equal(int16_t(0xffff), uint16_t(0xffff)));
+    CHECK(!math::cmp_equal(uint16_t(0xffff), int16_t(0xffff)));
+
+    CHECK(!math::cmp_equal(int32_t(0xffffffff), uint32_t(0xffffffff)));
+    CHECK(!math::cmp_equal(uint32_t(0xffffffff), int32_t(0xffffffff)));
+
+    CHECK(!math::cmp_equal(int64_t(0xffffffff'ffffffff),
+                           uint64_t(0xffffffff'ffffffff)));
+    CHECK(!math::cmp_equal(uint64_t(0xffffffff'ffffffff),
+                           int64_t(0xffffffff'ffffffff)));
+}
+
+// Check math::cmp_not_equal
+TEST_CASE("cmp_not_equal", "[math]")
+{
+    CHECK(!math::cmp_not_equal(0, 0u));
+    CHECK(math::cmp_not_equal(1, 0u));
+    CHECK(!math::cmp_not_equal(-100, int8_t(-100)));
+    CHECK(!math::cmp_not_equal(int8_t(100), 100u));
+
+    // Test that negative and positive values of the same size don't
+    // compare as equal (as they would with default C++ compares).
+    // Test this with the signed and unsigned values in both orders.
+    CHECK(math::cmp_not_equal(int8_t(0xff), uint8_t(0xff)));
+    CHECK(math::cmp_not_equal(uint8_t(0xff), int8_t(0xff)));
+
+    CHECK(math::cmp_not_equal(int16_t(0xffff), uint16_t(0xffff)));
+    CHECK(math::cmp_not_equal(uint16_t(0xffff), int16_t(0xffff)));
+
+    CHECK(math::cmp_not_equal(int32_t(0xffffffff), uint32_t(0xffffffff)));
+    CHECK(math::cmp_not_equal(uint32_t(0xffffffff), int32_t(0xffffffff)));
+
+    CHECK(math::cmp_not_equal(int64_t(0xffffffff'ffffffff),
+                              uint64_t(0xffffffff'ffffffff)));
+    CHECK(math::cmp_not_equal(uint64_t(0xffffffff'ffffffff),
+                              int64_t(0xffffffff'ffffffff)));
+}
+
+// Check math::cmp_less
+TEST_CASE("cmp_less", "[math]")
+{
+    CHECK(math::cmp_less(0, 1));
+    CHECK(!math::cmp_less(0, 0));
+    CHECK(!math::cmp_less(1, 0));
+    CHECK(math::cmp_less(0u, 1));
+    CHECK(!math::cmp_less(0u, 0));
+    CHECK(!math::cmp_less(1u, 0));
+    CHECK(math::cmp_less(0, 1u));
+    CHECK(!math::cmp_less(0, 0u));
+    CHECK(!math::cmp_less(1, 0u));
+
+    CHECK(!math::cmp_less(uint8_t(0xff), int8_t(0xff)));
+    CHECK(math::cmp_less(int8_t(0xff), uint8_t(0xff)));
+    CHECK(!math::cmp_less(2, 2u));
+    CHECK(!math::cmp_less(2u, 2));
+
+    // These comparisons would be wrong using default C++ comparisons.
+    CHECK(math::cmp_less(-128, 3u));
+    CHECK(!math::cmp_less(3u, -128));
+}
+
+// Check math::cmp_greater
+TEST_CASE("cmp_greater", "[math]")
+{
+    CHECK(math::cmp_greater(1, 0));
+    CHECK(!math::cmp_greater(0, 0));
+    CHECK(!math::cmp_greater(0, 1));
+    CHECK(math::cmp_greater(1, 0u));
+    CHECK(!math::cmp_greater(0, 0u));
+    CHECK(!math::cmp_greater(0, 1u));
+    CHECK(math::cmp_greater(1u, 0));
+    CHECK(!math::cmp_greater(0u, 0));
+    CHECK(!math::cmp_greater(0u, 1));
+
+    CHECK(math::cmp_greater(uint8_t(0xff), int8_t(0xff)));
+    CHECK(!math::cmp_greater(int8_t(0xff), uint8_t(0xff)));
+    CHECK(!math::cmp_greater(2, 2u));
+    CHECK(!math::cmp_greater(2u, 2));
+
+    // These comparisons would be wrong using default C++ comparisons.
+    CHECK(math::cmp_greater(3u, -128));
+    CHECK(!math::cmp_greater(-128, 3u));
+}
+
+// Check math::cmp_less_equal
+TEST_CASE("cmp_less_equal", "[math]")
+{
+    CHECK(math::cmp_less_equal(0, 1));
+    CHECK(math::cmp_less_equal(0, 0));
+    CHECK(!math::cmp_less_equal(1, 0));
+    CHECK(math::cmp_less_equal(0u, 1));
+    CHECK(math::cmp_less_equal(0u, 0));
+    CHECK(!math::cmp_less_equal(1u, 0));
+    CHECK(math::cmp_less_equal(0, 1u));
+    CHECK(math::cmp_less_equal(0, 0u));
+    CHECK(!math::cmp_less_equal(1, 0u));
+
+    CHECK(!math::cmp_less_equal(uint8_t(0xff), int8_t(0xff)));
+    CHECK(math::cmp_less_equal(int8_t(0xff), uint8_t(0xff)));
+    CHECK(math::cmp_less_equal(2, 2u));
+    CHECK(math::cmp_less_equal(2u, 2));
+
+    // These comparisons would be wrong using default C++ comparisons.
+    CHECK(math::cmp_less_equal(-128, 3u));
+    CHECK(!math::cmp_less_equal(3u, -128));
+}
+
+// Check math::cmp_greater_equal
+TEST_CASE("cmp_greater_equal", "[math]")
+{
+    CHECK(math::cmp_greater_equal(1, 0));
+    CHECK(math::cmp_greater_equal(0, 0));
+    CHECK(!math::cmp_greater_equal(0, 1));
+    CHECK(math::cmp_greater_equal(1, 0u));
+    CHECK(math::cmp_greater_equal(0, 0u));
+    CHECK(!math::cmp_greater_equal(0, 1u));
+    CHECK(math::cmp_greater_equal(1u, 0));
+    CHECK(math::cmp_greater_equal(0u, 0));
+    CHECK(!math::cmp_greater_equal(0u, 1));
+
+    CHECK(!math::cmp_greater_equal(int8_t(0xff), uint8_t(0xff)));
+    CHECK(math::cmp_greater_equal(uint8_t(0xff), int8_t(0xff)));
+    CHECK(math::cmp_greater_equal(2u, 2));
+    CHECK(math::cmp_greater_equal(2, 2u));
+
+    // These comparisons would be wrong using default C++ comparisons.
+    CHECK(math::cmp_greater_equal(3u, -128));
+    CHECK(!math::cmp_greater_equal(-128, 3u));
+}
+
+// Check math::clamp_cast
+TEST_CASE("clamp_cast", "[math]")
+{
+    CHECK(math::clamp_cast<int32_t>(0u) == 0);
+    CHECK(math::clamp_cast<int8_t>(0xffu) == 0x7f);
+    CHECK(math::clamp_cast<int16_t>(0xffffu) == 0x7fff);
+    CHECK(math::clamp_cast<int32_t>(0xffffffffu) == 0x7fffffff);
+    CHECK(math::clamp_cast<int64_t>(0xffffffff'ffffffffu) ==
+          0x7fffffff'ffffffff);
+
+    CHECK(math::clamp_cast<uint8_t>(-1) == 0u);
+    CHECK(math::clamp_cast<uint8_t>(256) == 255u);
+    CHECK(math::clamp_cast<uint8_t>(256u) == 255u);
+}
+
 // Check math::clz*
 TEST_CASE("clz", "[math]")
 {

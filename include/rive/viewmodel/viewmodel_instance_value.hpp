@@ -64,6 +64,9 @@ public:
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();
     void viewModelInstance(ViewModelInstance* value);
+#ifdef WITH_RIVE_TOOLS
+    ViewModelInstance* viewModelInstance() const { return m_viewModelInstance; }
+#endif
     void addDependent(ViewModelValueDependent* value);
     void removeDependent(ViewModelValueDependent* value);
     virtual void setRoot(rcp<ViewModelInstance> value);

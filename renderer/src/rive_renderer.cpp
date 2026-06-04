@@ -608,7 +608,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 
     // Draw the necessary updates to the clip buffer (i.e., draw every clip
     // element after clipIdxCurrentlyInClipBuffer).
-    uint32_t lastClipID =
+    uint32_t parentClipID =
         clipIdxCurrentlyInClipBuffer == -1
             ? 0 // The next clip to be drawn is not nested.
             : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
@@ -616,7 +616,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
             gpu::InterlockMode::clockwiseAtomic ||
         m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
-        if (lastClipID == 0 && m_context->getClipContentID() != 0)
+        if (parentClipID == 0 && m_context->getClipContentID() != 0)
         {
             // Time for a new stencil clip! Erase the clip currently in the
             // stencil buffer before we draw the new one.
@@ -641,13 +641,14 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 
         IAABB clipDrawBounds;
         RiveRenderPaint clipUpdatePaint;
-        clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
+        clipUpdatePaint.clipUpdate(
+            /*clip THIS clipDraw against:*/ parentClipID);
 
         rcp clipPath = clip.path;
         FillRule clipFillRule = clip.fillRule;
         if (m_context->frameInterlockMode() ==
                 gpu::InterlockMode::clockwiseAtomic &&
-            lastClipID != 0)
+            parentClipID != 0)
         {
             // clockwiseAtomic implements nested clips by erasing the inverse
             // of the inner path from the outer clip.
@@ -655,7 +656,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                 clipPath.get(),
                 clipFillRule,
                 clip.matrix,
-                m_context->getClipContentBounds(lastClipID));
+                m_context->getClipContentBounds(parentClipID));
             clipFillRule = FillRule::clockwise;
         }
 
@@ -672,12 +673,39 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         {
             return ApplyClipResult::clipEmpty;
         }
+
         clipDrawBounds = clipDraw->pixelBounds();
 
         // Generate a new clipID every time we (re-)render an element to the
         // clip buffer. (Each embodiment of the element needs its own
         // separate readBounds.)
-        clip.clipID = m_context->generateClipID(clipDrawBounds);
+        {
+            // if we have a parent, use its current adjusted write bounds as its
+            // outer bounds, otherwise limit it to the screen area.
+            // TODO: This should take into account any clip rect that might be
+            // applied.
+            const auto outerBounds =
+                (parentClipID != 0)
+                    ? m_context->getTightenedClipBounds(parentClipID)
+                    : AABBu16::MakeWH(
+                          m_context->frameDescriptor().renderTargetWidth,
+                          m_context->frameDescriptor().renderTargetHeight);
+
+            // Trim the draw bounds to the outer bounds as the initial minimal
+            // clip bounds (we shouldn't need to write to or read from anywhere
+            // that is outside of the screen or a parent clip's box, if one
+            // exists).
+            const auto tightenedBounds = outerBounds.intersect(clipDrawBounds);
+
+            // If there is a parent clip, the next element up the clip stack
+            // should have its ID.
+            assert(parentClipID == 0 ||
+                   (i != 0 && m_clipStack[i - 1].clipID == parentClipID));
+
+            clip.clipID = m_context->generateClipID(clipDrawBounds,
+                                                    parentClipID,
+                                                    tightenedBounds);
+        }
         assert(clip.clipID != m_context->getClipContentID());
         if (clip.clipID == 0)
         {
@@ -693,9 +721,8 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
             m_internalDrawBatch.push_back(std::move(clipDraw));
         }
 
-        if (lastClipID != 0)
+        if (parentClipID != 0)
         {
-            m_context->addClipReadBounds(lastClipID, clipDrawBounds);
             if (m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
             {
                 // When drawing nested stencil clips, we need to intersect them,
@@ -704,7 +731,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                 auto stencilClipIntersect =
                     gpu::DrawUniquePtr(m_context->make<gpu::ClipReset>(
                         m_context,
-                        lastClipID,
+                        parentClipID,
                         clipDrawContents,
                         gpu::ClipReset::ResetAction::intersectPreviousClip));
                 if (!m_context->isOutsideCurrentFrame(
@@ -716,13 +743,14 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
             }
         }
 
-        lastClipID = clip.clipID; // Nest the next clip (if any) inside the one
-                                  // we just rendered.
+        parentClipID = clip.clipID; // Nest the next clip (if any) inside the
+                                    // one we just rendered.
     }
-    assert(lastClipID == m_clipStack[clipStackHeight - 1].clipID);
-    draw->setClipID(lastClipID);
-    m_context->addClipReadBounds(lastClipID, draw->pixelBounds());
-    m_context->setClipContentID(lastClipID);
+
+    assert(parentClipID == m_clipStack[clipStackHeight - 1].clipID);
+    draw->setClipID(parentClipID);
+    m_context->setClipContentID(parentClipID);
+
     return ApplyClipResult::success;
 }
 } // namespace rive

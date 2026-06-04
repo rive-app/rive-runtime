@@ -168,7 +168,9 @@ public:
     }
 
 private:
+#ifdef ORE_POOL_ROLLOVER_ACTIVE
     ore_gm::OreGMContext m_ore;
+#endif
 };
 
 GMREGISTER(ore_pool_rollover, return new OrePoolRolloverGM)

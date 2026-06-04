@@ -99,6 +99,9 @@ public:
     /// @param result is an optional status result.
     /// @param assetLoader is an optional helper to load assets which
     /// cannot be found in-band.
+    /// @param vm is an optional ScriptingVM that should be made per file. This
+    /// is the environment that any script instances in the file will be
+    /// created in.
     /// @returns a pointer to the file, or null on failure.
     static rcp<File> import(Span<const uint8_t> data,
                             Factory* factory,

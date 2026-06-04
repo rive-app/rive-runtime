@@ -77,6 +77,7 @@ public:
                                   gpu::DrawContents::advancedBlend);
     }
     uint32_t clipID() const { return m_clipID; }
+    std::optional<AABBu16> scissorRect() const { return m_scissorRect; }
     bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }
     const gpu::ClipRectInverseMatrix* clipRectInverseMatrix() const
     {
@@ -93,6 +94,8 @@ public:
     {
         m_clipRectInverseMatrix = m;
     }
+
+    void setScissorRect(AABBu16 rect) { m_scissorRect = rect; }
 
     // Used to allocate GPU resources for a collection of draws.
     using ResourceCounters = RenderContext::LogicalFlush::ResourceCounters;
@@ -164,6 +167,7 @@ protected:
 
     uint32_t m_clipID = 0;
     const gpu::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
+    std::optional<AABBu16> m_scissorRect;
 
     gpu::DrawContents m_drawContents = gpu::DrawContents::none;
 
@@ -274,7 +278,7 @@ public:
     {
         return m_atlasTransform;
     }
-    const TAABB<uint16_t>& atlasScissor() const { return m_atlasScissor; }
+    const AABBu16& atlasScissor() const { return m_atlasScissor; }
     bool atlasScissorEnabled() const { return m_atlasScissorEnabled; }
 
     // clockwiseAtomic only.
@@ -410,7 +414,7 @@ protected:
 
     // Only used when rendering coverage via the atlas.
     gpu::AtlasTransform m_atlasTransform;
-    TAABB<uint16_t> m_atlasScissor; // Scissor rect when rendering to the atlas.
+    AABBu16 m_atlasScissor; // Scissor rect when rendering to the atlas.
     bool m_atlasScissorEnabled;
 
     // clockwiseAtomic only.

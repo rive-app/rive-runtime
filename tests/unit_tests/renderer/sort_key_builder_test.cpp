@@ -42,14 +42,14 @@ constexpr auto BUILDER_1 = SortKeyBuilder{
     {.entry = SortEntry::textureHash, .bitCount = 14},
     {.entry = SortEntry::blendMode, .bitCount = 4},
     {.entry = SortEntry::drawContents, .bitCount = 9},
-    {.entry = SortEntry::drawIndex, .bitCount = 15},
+    {.entry = SortEntry::scissorID, .bitCount = 15},
     {.entry = SortEntry::subpassIndex, .bitCount = 3},
 };
 
 static_assert(BUILDER_1.mask(SortEntry::subpassIndex) == 0x0000000000000007);
 static_assert(BUILDER_1.shift(SortEntry::subpassIndex) == 0);
-static_assert(BUILDER_1.shift(SortEntry::drawIndex) == 3);
-static_assert(BUILDER_1.mask(SortEntry::drawIndex) == 0x000000000003FFF8);
+static_assert(BUILDER_1.shift(SortEntry::scissorID) == 3);
+static_assert(BUILDER_1.mask(SortEntry::scissorID) == 0x000000000003FFF8);
 static_assert(BUILDER_1.mask(SortEntry::drawContents) == 0x0000000007FC0000);
 static_assert(BUILDER_1.shift(SortEntry::drawContents) == 18);
 static_assert(BUILDER_1.mask(SortEntry::blendMode) == 0x0000000078000000);
@@ -61,13 +61,13 @@ static_assert(BUILDER_1.shift(SortEntry::drawType) == 45);
 static_assert(BUILDER_1.mask(SortEntry::drawGroup) == 0x7fff000000000000);
 static_assert(BUILDER_1.shift(SortEntry::drawGroup) == 48);
 
-static_assert(BUILDER_1.buildPartialKey({{SortEntry::drawIndex, 1},
+static_assert(BUILDER_1.buildPartialKey({{SortEntry::scissorID, 1},
                                          {SortEntry::subpassIndex, 1}}) ==
               0x0000000000000009);
 static_assert(BUILDER_1.buildKey({
                   {SortEntry::blendMode, 0},
                   {SortEntry::drawContents, 0},
-                  {SortEntry::drawIndex, 0},
+                  {SortEntry::scissorID, 0},
                   {SortEntry::drawGroup, 0},
                   {SortEntry::drawType, 0},
                   {SortEntry::subpassIndex, 0},
@@ -77,7 +77,7 @@ static_assert(BUILDER_1.buildKey({
 static_assert(BUILDER_1.buildKey({
                   {SortEntry::blendMode, (1 << 4) - 1},
                   {SortEntry::drawContents, (1 << 9) - 1},
-                  {SortEntry::drawIndex, (1 << 15) - 1},
+                  {SortEntry::scissorID, (1 << 15) - 1},
                   {SortEntry::drawGroup, (1 << 15) - 1},
                   {SortEntry::drawType, (1 << 3) - 1},
                   {SortEntry::subpassIndex, (1 << 3) - 1},
@@ -88,7 +88,7 @@ static_assert(
     BUILDER_1.buildKey({
         {SortEntry::blendMode, 0},
         {SortEntry::drawContents, 0},
-        {SortEntry::drawIndex, 0},
+        {SortEntry::scissorID, 0},
         {SortEntry::drawGroup, 0},
         {SortEntry::drawType, 0},
         {SortEntry::subpassIndex, 0},
@@ -99,7 +99,7 @@ static_assert(
 constexpr auto BUILDER_2 = SortKeyBuilder{
     {.entry = SortEntry::drawType, .bitCount = 4},
     {.entry = SortEntry::drawContents, .bitCount = 10},
-    {.entry = SortEntry::drawIndex, .bitCount = 0},
+    {.entry = SortEntry::scissorID, .bitCount = 0},
     {.entry = SortEntry::blendMode, .bitCount = 6},
     {.entry = SortEntry::textureHash, .bitCount = 20},
     {.entry = SortEntry::drawGroup, .bitCount = 20},
@@ -120,8 +120,8 @@ static_assert(BUILDER_2.shift(SortEntry::blendMode) == 40);
 
 // No matter the positioning in the list, a zero-bit-count entry should have no
 // mask *and* no shift
-static_assert(BUILDER_2.mask(SortEntry::drawIndex) == 0x0000000000000000);
-static_assert(BUILDER_2.shift(SortEntry::drawIndex) == 0);
+static_assert(BUILDER_2.mask(SortEntry::scissorID) == 0x0000000000000000);
+static_assert(BUILDER_2.shift(SortEntry::scissorID) == 0);
 
 static_assert(BUILDER_2.mask(SortEntry::drawContents) == 0x00FFC00000000000);
 static_assert(BUILDER_2.shift(SortEntry::drawContents) == 46);
@@ -175,7 +175,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 14},
             {.entry = SortEntry::blendMode, .bitCount = 4},
             {.entry = SortEntry::drawContents, .bitCount = 9},
-            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            {.entry = SortEntry::scissorID, .bitCount = 15},
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
     });
@@ -189,7 +189,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 14},
             {.entry = SortEntry::blendMode, .bitCount = 4},
             {.entry = SortEntry::drawContents, .bitCount = 9},
-            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            {.entry = SortEntry::scissorID, .bitCount = 15},
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
     });
@@ -201,7 +201,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 14},
             {.entry = SortEntry::blendMode, .bitCount = 4},
             {.entry = SortEntry::drawContents, .bitCount = 9},
-            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            {.entry = SortEntry::scissorID, .bitCount = 15},
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
     });
@@ -214,7 +214,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 14},
             {.entry = SortEntry::blendMode, .bitCount = 4},
             {.entry = SortEntry::drawContents, .bitCount = 9},
-            {.entry = SortEntry::drawIndex, .bitCount = 16},
+            {.entry = SortEntry::scissorID, .bitCount = 16},
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
     });
@@ -227,7 +227,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 14},
             {.entry = SortEntry::blendMode, .bitCount = 4},
             {.entry = SortEntry::drawContents, .bitCount = 9},
-            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            {.entry = SortEntry::scissorID, .bitCount = 15},
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
     });
@@ -242,7 +242,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 14},
             {.entry = SortEntry::blendMode, .bitCount = 4},
             {.entry = SortEntry::drawContents, .bitCount = 9},
-            {.entry = SortEntry::drawIndex, .bitCount = 15},
+            {.entry = SortEntry::scissorID, .bitCount = 15},
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
     });
@@ -255,7 +255,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 0},
             {.entry = SortEntry::blendMode, .bitCount = 0},
             {.entry = SortEntry::drawContents, .bitCount = 0},
-            {.entry = SortEntry::drawIndex, .bitCount = 0},
+            {.entry = SortEntry::scissorID, .bitCount = 0},
             {.entry = SortEntry::subpassIndex, .bitCount = 0},
         };
     });
@@ -268,7 +268,7 @@ TEST_CASE("SortKeyBuilderInitializationValidation",
             {.entry = SortEntry::textureHash, .bitCount = 0},
             {.entry = SortEntry::blendMode, .bitCount = 1},
             {.entry = SortEntry::drawContents, .bitCount = 0},
-            {.entry = SortEntry::drawIndex, .bitCount = 0},
+            {.entry = SortEntry::scissorID, .bitCount = 0},
             {.entry = SortEntry::subpassIndex, .bitCount = 0},
         };
     });
@@ -282,7 +282,7 @@ TEST_CASE("BuildPartialKeyValidation", "[RenderContext][SortKeyBuilder]")
         {.entry = SortEntry::textureHash, .bitCount = 14},
         {.entry = SortEntry::blendMode, .bitCount = 4},
         {.entry = SortEntry::drawContents, .bitCount = 9},
-        {.entry = SortEntry::drawIndex, .bitCount = 0},
+        {.entry = SortEntry::scissorID, .bitCount = 0},
         {.entry = SortEntry::subpassIndex, .bitCount = 3},
     };
 
@@ -342,7 +342,7 @@ TEST_CASE("BuildPartialKeyValidation", "[RenderContext][SortKeyBuilder]")
     // assigned to it (it should just be ignored)
     EXPECT_NO_ASSERT({
         builder.buildPartialKey({
-            {SortEntry::drawIndex, 0xFFFFFFFF},
+            {SortEntry::scissorID, 0xFFFFFFFF},
         });
     });
 }
@@ -355,7 +355,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
         {.entry = SortEntry::drawContents, .bitCount = 9},
         {.entry = SortEntry::subpassIndex, .bitCount = 3},
         {.entry = SortEntry::blendMode, .bitCount = 4},
-        {.entry = SortEntry::drawIndex, .bitCount = 0},
+        {.entry = SortEntry::scissorID, .bitCount = 0},
         {.entry = SortEntry::drawGroup, .bitCount = 15},
     };
 
@@ -368,7 +368,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
                   {SortEntry::drawContents, 1},
                   {SortEntry::subpassIndex, 1},
                   {SortEntry::blendMode, 1},
-                  {SortEntry::drawIndex, 3},
+                  {SortEntry::scissorID, 3},
                   {SortEntry::drawGroup, 3},
               }) == 0x0000200080488003);
     });
@@ -382,7 +382,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
                   {SortEntry::drawType, 1},
                   {SortEntry::blendMode, 1},
                   {SortEntry::subpassIndex, 1},
-                  {SortEntry::drawIndex, 3},
+                  {SortEntry::scissorID, 3},
               }) == 0x0000200080488002);
     });
 
@@ -397,7 +397,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
             {SortEntry::drawType, 1},
             {SortEntry::blendMode, 1},
             {SortEntry::subpassIndex, 1},
-            {SortEntry::drawIndex, 3},
+            {SortEntry::scissorID, 3},
         });
     });
     EXPECT_ASSERT({
@@ -407,7 +407,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
             {SortEntry::textureHash, 1},
             {SortEntry::drawType, 1},
             {SortEntry::blendMode, 1},
-            {SortEntry::drawIndex, 3},
+            {SortEntry::scissorID, 3},
         });
     });
 
@@ -421,7 +421,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
             {SortEntry::drawType, 1},
             {SortEntry::blendMode, 1},
             {SortEntry::subpassIndex, 1},
-            {SortEntry::drawIndex, 3},
+            {SortEntry::scissorID, 3},
         });
     });
 
@@ -433,7 +433,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
             {SortEntry::drawContents, 1},
             {SortEntry::subpassIndex, 8}, // out of range
             {SortEntry::blendMode, 1},
-            {SortEntry::drawIndex, 3},
+            {SortEntry::scissorID, 3},
             {SortEntry::drawGroup, 3},
         });
     });
@@ -452,7 +452,7 @@ TEST_CASE("BuildKeyValidation", "[RenderContext][SortKeyBuilder]")
                       ValidateKeyEntry::no,
                   },
                   {SortEntry::blendMode, 1},
-                  {SortEntry::drawIndex, 3},
+                  {SortEntry::scissorID, 3},
                   {SortEntry::drawGroup, 3},
               }) == 0x0000200080488003);
     });
@@ -466,7 +466,7 @@ TEST_CASE("ExtractFromKey", "[RenderContext][SortKeyBuilder]")
         {.entry = SortEntry::drawContents, .bitCount = 9},
         {.entry = SortEntry::subpassIndex, .bitCount = 3},
         {.entry = SortEntry::blendMode, .bitCount = 4},
-        {.entry = SortEntry::drawIndex, .bitCount = 0},
+        {.entry = SortEntry::scissorID, .bitCount = 0},
         {.entry = SortEntry::drawGroup, .bitCount = 15},
     };
 
@@ -479,7 +479,7 @@ TEST_CASE("ExtractFromKey", "[RenderContext][SortKeyBuilder]")
             {SortEntry::drawContents, 0xf3},
             {SortEntry::subpassIndex, 2},
             {SortEntry::blendMode, 0xC},
-            {SortEntry::drawIndex, 300},
+            {SortEntry::scissorID, 300},
             {SortEntry::drawGroup, 0x7fff},
         });
     });
@@ -495,7 +495,7 @@ TEST_CASE("ExtractFromKey", "[RenderContext][SortKeyBuilder]")
     CHECK(builder.extract(SortEntry::textureHash, key) == 0x30F6);
 
     // This one has no bits assigned to it (and should be zero)
-    CHECK(builder.extract(SortEntry::drawIndex, key) == 0);
+    CHECK(builder.extract(SortEntry::scissorID, key) == 0);
 }
 
 } // namespace rive::gpu

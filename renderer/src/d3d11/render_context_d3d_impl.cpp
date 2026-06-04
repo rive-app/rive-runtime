@@ -1576,7 +1576,7 @@ static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
                                       &updateBox);
 }
 
-static D3D11_RECT make_scissor(const TAABB<uint16_t> scissor)
+static D3D11_RECT make_scissor(const AABBu16 scissor)
 {
     D3D11_RECT rect;
     rect.left = scissor.left;

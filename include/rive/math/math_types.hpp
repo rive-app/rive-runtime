@@ -70,7 +70,121 @@ template <typename T, typename U> T lossless_numeric_cast(U u)
 {
     T t = static_cast<T>(u);
     assert(static_cast<U>(t) == u);
+
+    // If there are signedness differences between integral types that needs
+    // special handling.
+    if constexpr (std::is_integral_v<T> && std::is_integral_v<U>)
+    {
+        if constexpr (std::is_signed_v<T> != std::is_signed_v<U>)
+        {
+            if constexpr (std::is_signed_v<U>)
+            {
+                assert(u >= 0 &&
+                       "lossless_numeric_cast failed due to sign change");
+            }
+            else
+            {
+                assert(t >= 0 &&
+                       "lossless_numeric_cast failed due to sign change");
+            }
+        }
+    }
     return t;
+}
+
+// These comparison functions exist in C++20, but they're useful for
+// signedness-agnostic comparisons between types
+template <typename A, typename B> constexpr bool cmp_equal(A a, B b) noexcept
+{
+    if constexpr (std::is_signed_v<A> == std::is_signed_v<B>)
+    {
+        return a == b;
+    }
+    else if constexpr (std::is_signed_v<A>)
+    {
+        return a >= 0 && std::make_unsigned_t<A>(a) == b;
+    }
+    else
+    {
+        return b >= 0 && std::make_unsigned_t<B>(b) == a;
+    }
+}
+
+template <typename A, typename B>
+constexpr bool cmp_not_equal(A a, B b) noexcept
+{
+    return !cmp_equal(a, b);
+}
+
+template <typename A, typename B> constexpr bool cmp_less(A a, B b) noexcept
+{
+    if constexpr (std::is_signed_v<A> == std::is_signed_v<B>)
+    {
+        return a < b;
+    }
+    else if constexpr (std::is_signed_v<A>)
+    {
+        return a < 0 || std::make_unsigned_t<A>(a) < b;
+    }
+    else
+    {
+        return b >= 0 && a < std::make_unsigned_t<B>(b);
+    }
+}
+
+template <typename A, typename B> constexpr bool cmp_greater(A a, B b) noexcept
+{
+    return cmp_less(b, a);
+}
+
+template <typename A, typename B>
+constexpr bool cmp_less_equal(A a, B b) noexcept
+{
+    return !cmp_less(b, a);
+}
+
+template <typename A, typename B>
+constexpr bool cmp_greater_equal(A a, B b) noexcept
+{
+    return !cmp_less(a, b);
+}
+
+template <typename Dst, typename Src> constexpr Dst clamp_cast(Src v) noexcept
+{
+    static_assert(std::is_integral_v<Dst> && std::is_integral_v<Src>);
+
+    constexpr auto SrcMin = std::numeric_limits<Src>::min();
+    constexpr auto SrcMax = std::numeric_limits<Src>::max();
+    constexpr auto DstMin = std::numeric_limits<Dst>::min();
+    constexpr auto DstMax = std::numeric_limits<Dst>::max();
+
+    constexpr auto MinNeedsClamp = cmp_less(SrcMin, DstMin);
+    constexpr auto MaxNeedsClamp = cmp_greater(SrcMax, DstMax);
+
+    // This could be greatly simplified in C++ 20 using std::cmp_less and
+    // cmp_greater.
+    if constexpr (MinNeedsClamp && MaxNeedsClamp)
+    {
+        // Both ends of src are out of range here, so clamp them both.
+        return Dst(std::clamp(v, Src(DstMin), Src(DstMax)));
+    }
+    else if constexpr (MinNeedsClamp)
+    {
+        // Only need to test against the lower end
+        return Dst(std::max(v, Src(DstMin)));
+    }
+    else if constexpr (MaxNeedsClamp)
+    {
+        // Only need to test against the upper end.
+        return Dst(std::min(v, Src(DstMax)));
+    }
+    else
+    {
+        // Using a bracketed cast here instead of parentheses because bracketed
+        // numeric conversions do not allow narrowing, so if this could affect
+        // the value it would be a compile-time error.
+        return Dst{v};
+    }
 }
 
 // Returns x rounded up to the next multiple of N.

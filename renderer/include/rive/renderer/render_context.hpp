@@ -17,6 +17,7 @@
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include <array>
+#include <optional>
 #include <unordered_map>
 
 class PushRetrofittedTrianglesGMDraw;
@@ -175,35 +176,32 @@ public:
 
     // Generates a unique clip ID that is guaranteed to not exist in the current
     // clip buffer, and assigns a contentBounds to it.
+    // `tightenedBounds` is the contentBounds, clipped against the render
+    // target area as well as any parent clips.
     //
     // Returns 0 if a unique ID could not be generated, at which point the
     // caller must issue a logical flush and try again.
-    uint32_t generateClipID(const IAABB& contentBounds);
+
+    uint32_t generateClipID(IAABB contentBounds,
+                            uint32_t parentClipID,
+                            AABBu16 tightenedBounds);
 
     // Screen-space bounding box of the region inside the given clip.
-    const IAABB& getClipContentBounds(uint32_t clipID)
+    const IAABB& getClipContentBounds(uint32_t clipID) const
     {
         assert(m_didBeginFrame);
         assert(!m_logicalFlushes.empty());
         return m_logicalFlushes.back()->getClipInfo(clipID).contentBounds;
     }
 
-    // Mark the given clip as being read from within a screen-space bounding
-    // box.
-    void addClipReadBounds(uint32_t clipID, const IAABB& bounds)
+    // Screen-space bounding box of the area that covers all of the reads of the
+    // given clip, clipped to the area of its parent (if there is one) and the
+    // screen edges.
+    const AABBu16& getTightenedClipBounds(uint32_t clipID) const
     {
         assert(m_didBeginFrame);
         assert(!m_logicalFlushes.empty());
-        return m_logicalFlushes.back()->addClipReadBounds(clipID, bounds);
-    }
-
-    // Union of screen-space bounding boxes from all draws that read the given
-    // clip element.
-    const IAABB& getClipReadBounds(uint32_t clipID)
-    {
-        assert(m_didBeginFrame);
-        assert(!m_logicalFlushes.empty());
-        return m_logicalFlushes.back()->getClipInfo(clipID).readBounds;
+        return m_logicalFlushes.back()->getClipInfo(clipID).tightenedBounds;
     }
 
     // Get/set a "clip content ID" that uniquely identifies the current contents
@@ -214,7 +212,7 @@ public:
         m_clipContentID = clipID;
     }
 
-    uint32_t getClipContentID()
+    uint32_t getClipContentID() const
     {
         assert(m_didBeginFrame);
         return m_clipContentID;
@@ -422,9 +420,28 @@ private:
     // (clockwiseAtomic mode only.)
     uint32_t m_coverageBufferPrefix = 0;
 
+    struct DrawSortEntry
+    {
+        int64_t sortKey;
+        int16_t drawIndex;
+    };
+
+    // A simple class to allow std::unordered_map to use the scissor AABB as a
+    // key.
+    struct ScissorAABBHasher
+    {
+        size_t operator()(AABBu16 aabb) const
+        {
+            // Hash the AABB as a single 64-bit int value.
+            return std::hash<uint64_t>{}(math::bit_cast<uint64_t>(aabb));
+        }
+    };
+
     // Used by LogicalFlushes for re-ordering high level draws.
-    std::vector<int64_t> m_indirectDrawList;
+    std::vector<DrawSortEntry> m_indirectDrawList;
     std::unique_ptr<IntersectionBoard> m_intersectionBoard;
+    std::unordered_map<AABBu16, int16_t, ScissorAABBHasher> m_scissorIDLookup;
+    int16_t m_prevScissorID = 0;
 
     WriteOnlyMappedMemory<gpu::FlushUniforms> m_flushUniformData;
     WriteOnlyMappedMemory<gpu::PathData> m_pathData;
@@ -509,36 +526,45 @@ private:
         //
         // Returns 0 if a unique ID could not be generated, at which point the
         // caller must issue a logical flush and try again.
-        uint32_t generateClipID(const IAABB& contentBounds);
+        uint32_t generateClipID(IAABB contentBounds,
+                                uint32_t parentClipID,
+                                AABBu16 tightenedBounds);
 
         struct ClipInfo
         {
-            ClipInfo(const IAABB& contentBounds_) :
-                contentBounds(contentBounds_)
+            ClipInfo(IAABB contentBounds_,
+                     uint32_t parentClipID_,
+                     AABBu16 tightenedBounds_) :
+                parentClipID(parentClipID_),
+                contentBounds(contentBounds_),
+                tightenedBounds(tightenedBounds_)
             {}
 
-            // Screen-space bounding box of the region inside the clip.
+            const uint32_t parentClipID = 0;
+
+            // Screen-space bounding box of the region inside the clip
             const IAABB contentBounds;
+
+            // The minimally necessary write bounds, which will ultimately take
+            // into account the content bounds, the screen dimensions, any
+            // parent clips, and where all of the reads of this clip are.
+            AABBu16 tightenedBounds;
 
             // Union of screen-space bounding boxes from all draws that read the
             // clip.
             //
             // (Initialized with a maximally negative rectangle whose union with
             // any other rectangle will be equal to that same rectangle.)
-            IAABB readBounds = {std::numeric_limits<int32_t>::max(),
-                                std::numeric_limits<int32_t>::max(),
-                                std::numeric_limits<int32_t>::min(),
-                                std::numeric_limits<int32_t>::min()};
+            AABBu16 readBounds = {std::numeric_limits<uint16_t>::max(),
+                                  std::numeric_limits<uint16_t>::max(),
+                                  std::numeric_limits<uint16_t>::min(),
+                                  std::numeric_limits<uint16_t>::min()};
         };
 
         const ClipInfo& getClipInfo(uint32_t clipID)
         {
             return getWritableClipInfo(clipID);
         }
-
-        // Mark the given clip as being read from within a screen-space bounding
-        // box.
-        void addClipReadBounds(uint32_t clipID, const IAABB& bounds);
 
         // Appends a list of high-level Draws to the flush.
         // Returns false if the draws don't fit within the current resource
@@ -625,7 +651,7 @@ private:
                                uint16_t desiredPadding,
                                uint16_t* x,
                                uint16_t* y,
-                               TAABB<uint16_t>* paddedRegion);
+                               AABBu16* paddedRegion);
 
         // Reserves a range within the coverage buffer for a path to use in
         // clockwiseAtomic mode.
@@ -772,6 +798,11 @@ private:
                             gpu::PaintType,
                             uint32_t elementCount,
                             uint32_t baseElement);
+
+        // Do a bottom-up pass on the draws in the list, computing bounds for
+        // each clip update to be the intersection of the clip update itself and
+        // any reads that use it.
+        void tightenClipBounds();
 
         // Adds a batch to the list of draws that use a dstBarrier.
         void addBatchToDstBarrierList(DrawBatch* batch)
