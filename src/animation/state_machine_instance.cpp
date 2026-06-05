@@ -3072,3 +3072,10 @@ bool StateMachineInstance::focusPrevious()
     assert(fm != nullptr);
     return fm->focusPrevious();
 }
+
+void StateMachineInstance::clearFocus()
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    fm->clearFocus();
+}
