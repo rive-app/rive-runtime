@@ -2,6 +2,8 @@
  * Copyright 2025 Rive
  */
 
+#pragma once
+
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -13,7 +15,7 @@ namespace rive_vkb
 class VulkanDevice;
 class VulkanInstance;
 
-class VulkanSwapchain : public VulkanFrameSynchronizer
+class VulkanSwapchain final : public VulkanFrameSynchronizer
 {
     using Super = VulkanFrameSynchronizer;
 
@@ -35,7 +37,7 @@ public:
         rive::rcp<rive::gpu::VulkanContext>,
         VkSurfaceKHR,
         const Options&);
-    ~VulkanSwapchain();
+    ~VulkanSwapchain() override;
 
     VulkanSwapchain(const VulkanSwapchain&) = delete;
     VulkanSwapchain& operator=(const VulkanSwapchain&) = delete;
@@ -47,8 +49,18 @@ public:
         return current().lastAccess;
     }
 
-    VkFormat imageFormat() const { return m_imageFormat; }
-    VkImageUsageFlags imageUsageFlags() const { return m_imageUsageFlags; }
+    VkImage vkImage() const final { return current().image; }
+    VkImageView vkImageView() const final { return current().view; }
+    rive::gpu::vkutil::ImageAccess lastAccess() const final
+    {
+        return current().lastAccess;
+    }
+
+    VkFormat imageFormat() const final { return m_imageFormat; }
+    VkImageUsageFlags imageUsageFlags() const final
+    {
+        return m_imageUsageFlags;
+    }
 
     bool isFrameStarted() const;
     [[nodiscard]] VkResult beginFrame();
@@ -62,8 +74,8 @@ public:
 
     [[nodiscard]] VkResult endFrame(const rive::gpu::vkutil::ImageAccess&);
 
-    uint32_t width() const { return m_width; }
-    uint32_t height() const { return m_height; }
+    uint32_t width() const final { return m_width; }
+    uint32_t height() const final { return m_height; }
 
 private:
     VulkanSwapchain(VulkanInstance&,

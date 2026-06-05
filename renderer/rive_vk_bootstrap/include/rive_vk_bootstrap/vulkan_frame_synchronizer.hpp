@@ -2,6 +2,8 @@
  * Copyright 2025 Rive
  */
 
+#pragma once
+
 #include <vulkan/vulkan.h>
 #include <optional>
 #include <vector>
@@ -16,7 +18,7 @@ class VulkanInstance;
 class VulkanFrameSynchronizer
 {
 public:
-    ~VulkanFrameSynchronizer();
+    virtual ~VulkanFrameSynchronizer();
 
     VulkanFrameSynchronizer(const VulkanFrameSynchronizer&) = delete;
     VulkanFrameSynchronizer& operator=(const VulkanFrameSynchronizer&) = delete;
@@ -26,6 +28,21 @@ public:
     }
     uint64_t safeFrameNumber() const { return current().safeFrameNumber; }
     uint64_t currentFrameNumber() const { return m_monotonicFrameNumber; }
+
+    /** @return Width of the prepared frame image. */
+    virtual uint32_t width() const = 0;
+    /** @return Height of the prepared frame image. */
+    virtual uint32_t height() const = 0;
+    /** @return Vulkan format of the prepared frame image. */
+    virtual VkFormat imageFormat() const = 0;
+    /** @return Vulkan usage flags for the prepared frame image. */
+    virtual VkImageUsageFlags imageUsageFlags() const = 0;
+    /** @return Vulkan image for the current prepared frame. */
+    virtual VkImage vkImage() const = 0;
+    /** @return Vulkan image view for the current prepared frame. */
+    virtual VkImageView vkImageView() const = 0;
+    /** @return Last known access state for the current prepared frame image. */
+    virtual rive::gpu::vkutil::ImageAccess lastAccess() const = 0;
 
     // Queue a copy of the specified image with optional bounds. Must be done
     // before endFrame.
