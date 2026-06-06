@@ -8,6 +8,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/factory.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/math/mat4.hpp"
@@ -1484,16 +1485,20 @@ public:
     void recordMissingDependency(const std::string& requiringModule,
                                  const std::string& missingModule);
 
-    // Ore GPU context for this VM — set during VM adoption (response phase).
-    // Stored as void* to avoid coupling this header to ore headers; callers
-    // cast to ore::Context*.
-    void* oreContext() const { return m_oreContext; }
+    // Ore GPU context for this VM, derived from the render factory. Null when
+    // there is no render context, or it is not GPU-backed. Returned as void* so
+    // callers that include ore headers cast to ore::Context*.
+    void* oreContext() const
+    {
+        return m_renderContext ? m_renderContext->ore() : nullptr;
+    }
 
-    // GPU render context — set once at startup by the host app.
-    // Stored as void* to avoid coupling this header to gpu headers; callers
-    // cast to gpu::RenderContext*.
-    void setRenderContext(void* ctx);
-    void* renderContext() const { return m_renderContext; }
+    // Render factory — attached by the host once a GPU device exists, which may
+    // be after construction (or never, for headless VMs). Distinct from the
+    // construction factory(). A RenderContext is a Factory, so callers needing
+    // gpu APIs cast down to gpu::RenderContext*.
+    void setRenderContext(Factory* ctx) { m_renderContext = ctx; }
+    Factory* renderContext() const { return m_renderContext; }
 
     // WorkPool for async operations (image decode, etc.).
     // Lazily created on first access. Shared across all contexts via a
@@ -1547,8 +1552,7 @@ private:
     void onModuleRegistered(ModuleDetails* moduleDetails);
 
 private:
-    void* m_oreContext = nullptr;
-    void* m_renderContext = nullptr;
+    Factory* m_renderContext = nullptr;
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
     bool m_canvasDrawingPhase = false;

@@ -979,15 +979,6 @@ void ScriptingContext::disposeOrphanScriptedProperties()
 }
 #endif
 
-void ScriptingContext::setRenderContext(void* ctx)
-{
-    m_renderContext = ctx;
-#ifdef RIVE_CANVAS
-    auto rcontext = static_cast<gpu::RenderContext*>(ctx);
-    m_oreContext = rcontext ? rcontext->getOreContext() : nullptr;
-#endif
-}
-
 // ── WorkPool integration ───────────────────────────────────────────────────
 // getGlobalWorkPool() is defined in work_pool.cpp (shared singleton).
 

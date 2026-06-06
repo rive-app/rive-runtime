@@ -19,6 +19,10 @@ namespace rive
 {
 
 class RawPath;
+namespace ore
+{
+class Context;
+}
 
 class Factory
 {
@@ -59,6 +63,11 @@ public:
     virtual rcp<RenderPaint> makeRenderPaint() = 0;
 
     virtual rcp<RenderImage> decodeImage(Span<const uint8_t>) = 0;
+
+    // GPU ore context, when this factory is backed by a RenderContext.
+    // Null for non-GPU factories. Kept last in the virtual section to avoid
+    // shifting existing vtable slots.
+    virtual ore::Context* ore() { return nullptr; }
 
     rcp<Font> decodeFont(Span<const uint8_t>);
 

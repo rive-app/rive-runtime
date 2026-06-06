@@ -504,8 +504,7 @@ static void server_thread_file_loader(rcp<CommandQueue> commandQueue,
         RenderContextNULL::MakeContext();
     CommandServer server(std::move(commandQueue),
                          nullContext.get(),
-                         std::move(loader),
-                         nullContext.get());
+                         std::move(loader));
     server.serveUntilDisconnect();
 }
 

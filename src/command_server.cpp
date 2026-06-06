@@ -269,11 +269,9 @@ bool CommandServer::testing_globalFontContains(std::string name)
 
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
                              Factory* factory,
-                             rcp<rive::FileAssetLoader> internalLoader,
-                             gpu::RenderContext* context) :
+                             rcp<rive::FileAssetLoader> internalLoader) :
     m_commandQueue(std::move(commandBuffer)),
     m_factory(factory),
-    m_context(context),
 #ifndef NDEBUG
     m_threadID(std::this_thread::get_id()),
 #endif
@@ -635,10 +633,7 @@ bool CommandServer::processCommands()
 #ifdef WITH_RIVE_SCRIPTING
                 auto scriptingContext =
                     std::make_unique<CPPRuntimeScriptingContext>(m_factory);
-                if (m_context)
-                {
-                    scriptingContext->setRenderContext(m_context);
-                }
+                scriptingContext->setRenderContext(m_factory);
                 auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
                 rcp<rive::File> file = rive::File::import(rivBytes,
                                                           m_factory,

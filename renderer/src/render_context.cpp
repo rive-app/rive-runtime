@@ -176,7 +176,7 @@ rcp<RenderCanvas> RenderContext::makeRenderCanvas(uint32_t width,
 {
     return m_impl->makeRenderCanvas(width, height);
 }
-rive::ore::Context* RenderContext::getOreContext()
+rive::ore::Context* RenderContext::ore()
 {
     if (m_oreContext == nullptr)
         m_oreContext = m_impl->makeOreContext();
