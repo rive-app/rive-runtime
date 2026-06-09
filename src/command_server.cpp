@@ -295,8 +295,15 @@ rive::HitResult CommandServer::pointerDownSynchronized(
                                             pointerEvent);
         {
             std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            return stateMachine->instance->pointerDown(pos,
-                                                       pointerEvent.pointerId);
+            auto hitResult =
+                stateMachine->instance->pointerDown(pos,
+                                                    pointerEvent.pointerId);
+            // Process down-driven state changes before a following pointer up.
+            if (hitResult != HitResult::none)
+            {
+                stateMachine->instance->advanceAndApply(0.0f);
+            }
+            return hitResult;
         }
     }
 
@@ -340,8 +347,15 @@ rive::HitResult CommandServer::pointerUpSynchronized(
                                             pointerEvent);
         {
             std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            return stateMachine->instance->pointerUp(pos,
-                                                     pointerEvent.pointerId);
+            auto hitResult =
+                stateMachine->instance->pointerUp(pos, pointerEvent.pointerId);
+            // Process up-driven state changes before any following pointer
+            // exit.
+            if (hitResult != HitResult::none)
+            {
+                stateMachine->instance->advanceAndApply(0.0f);
+            }
+            return hitResult;
         }
     }
 
@@ -2921,9 +2935,15 @@ bool CommandServer::processCommands()
                         pointerEvent);
                     std::unique_lock<std::mutex> stateMachineLock(
                         stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->pointerDown(
+                    auto hitResult = stateMachineWrapper->instance->pointerDown(
                         position,
                         pointerEvent.pointerId);
+                    // Process down-driven state changes before a following
+                    // pointer up.
+                    if (hitResult != HitResult::none)
+                    {
+                        stateMachineWrapper->instance->advanceAndApply(0.0f);
+                    }
                 }
                 else
                 {
@@ -2954,9 +2974,15 @@ bool CommandServer::processCommands()
                         pointerEvent);
                     std::unique_lock<std::mutex> stateMachineLock(
                         stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->pointerUp(
+                    auto hitResult = stateMachineWrapper->instance->pointerUp(
                         position,
                         pointerEvent.pointerId);
+                    // Process up-driven state changes before any following
+                    // pointer exit.
+                    if (hitResult != HitResult::none)
+                    {
+                        stateMachineWrapper->instance->advanceAndApply(0.0f);
+                    }
                 }
                 else
                 {
