@@ -1,0 +1,6 @@
+# Force LF line endings for shell scripts so Windows clones don't break bash.
+*.sh text eol=lf
+
+# Match each platform's native convention for everything else.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
