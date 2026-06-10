@@ -745,7 +745,10 @@ VkRenderPass ContextVulkan::getOrCreateRenderPass(const VKRenderPassKey& key)
             a.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             a.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             a.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            a.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            // Stay in COLOR_ATTACHMENT_OPTIMAL like the color attachments.
+            // finish() transitions to SHADER_READ_ONLY with an explicit
+            // barrier and hands the layout off to Rive's tracker.
+            a.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             resolveRefs[i].attachment = attachIdx;
             resolveRefs[i].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -1428,14 +1431,20 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
             auto resolveView =
                 lite_rtti_cast<TextureViewVulkan*>(ca.resolveTarget);
             resolveViews[i] = resolveView->m_vkImageView;
-            // Mirror the render-pass auto-transition to SRO so a later
-            // makeBindGroup doesn't queue a discarding UNDEFINED transition.
+            // Record the resolve target so finish() can transition it to
+            // SHADER_READ_ONLY and update Rive's layout tracking, same as
+            // the color attachments.
+            auto& resolve = pass->m_vkResolveTargets[i];
             if (auto* resolveTex =
                     lite_rtti_cast<TextureVulkan*>(ca.resolveTarget->texture()))
             {
-                resolveTex->m_vkLayout =
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                resolve.image = resolveTex->m_vkImage;
+                resolve.texture = ref_rcp(resolveTex);
             }
+            resolve.baseMip = resolveView->baseMipLevel();
+            resolve.baseLayer = resolveView->baseLayer();
+            resolve.layerCount = resolveView->layerCount();
+            resolve.renderTarget = resolveView->m_vkRenderTarget;
         }
         if (key.sampleCount == 1)
             key.sampleCount = tex->sampleCount();

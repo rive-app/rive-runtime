@@ -16,6 +16,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <iterator>
+#include <utility>
 
 namespace rive::ore
 {
@@ -252,6 +254,55 @@ void RenderPassVulkan::finish()
         }
     }
 
+    // MSAA resolve targets get the same treatment as the color attachments.
+    // Resolve writes count as COLOR_ATTACHMENT_WRITE in the
+    // COLOR_ATTACHMENT_OUTPUT stage, and the render pass leaves the resolve
+    // attachment in COLOR_ATTACHMENT_OPTIMAL.
+    for (auto& resolve : m_vkResolveTargets)
+    {
+        if (resolve.image == VK_NULL_HANDLE)
+        {
+            continue;
+        }
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = resolve.image;
+        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT,
+                                    resolve.baseMip,
+                                    1,
+                                    resolve.baseLayer,
+                                    resolve.layerCount};
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = 0; // visibility established in Rive's CB
+        m_vkContext->m_vk->CmdPipelineBarrier(
+            m_vkCmdBuf,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // just the layout transition
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &barrier);
+        // Without this hand-off Rive's tracker keeps the pre-pass layout and
+        // its next barrier uses a wrong oldLayout, which corrupts the
+        // resolved contents on GPUs with layout-dependent compression
+        // (tile-grid artifacts on Xclipse 920).
+        if (resolve.renderTarget != nullptr)
+        {
+            resolve.renderTarget->updateLastAccess(kColorAttachmentWriteAccess);
+        }
+        if (auto* tex = lite_rtti_cast<TextureVulkan*>(resolve.texture.get()))
+        {
+            tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+    }
+
     // Transition depth attachment DEPTH_STENCIL_ATTACHMENT_OPTIMAL →
     // SHADER_READ_ONLY_OPTIMAL so subsequent operations don't see stale
     // depth writes.  Without this barrier NVIDIA drivers report
@@ -326,8 +377,15 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     memcpy(m_vkColorRenderTargets,
            other.m_vkColorRenderTargets,
            sizeof(m_vkColorRenderTargets));
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < std::size(m_vkColorTextures); ++i)
+    {
         m_vkColorTextures[i] = std::move(other.m_vkColorTextures[i]);
+    }
+    for (uint32_t i = 0; i < std::size(m_vkResolveTargets); ++i)
+    {
+        m_vkResolveTargets[i] =
+            std::exchange(other.m_vkResolveTargets[i], ResolveTarget{});
+    }
     m_vkDepthImage = other.m_vkDepthImage;
     m_vkDepthBaseLayer = other.m_vkDepthBaseLayer;
     m_vkDepthLayerCount = other.m_vkDepthLayerCount;

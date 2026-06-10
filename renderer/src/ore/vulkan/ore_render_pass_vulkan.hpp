@@ -78,6 +78,19 @@ private:
     gpu::RenderTargetVulkan* m_vkColorRenderTargets[4] = {}; // weak refs
     // Pin textures alive until finish() updates m_vkLayout post-pass.
     rcp<Texture> m_vkColorTextures[4];
+    // MSAA resolve target state captured at beginRenderPass.
+    // image == VK_NULL_HANDLE means "no resolve".
+    struct ResolveTarget
+    {
+        VkImage image = VK_NULL_HANDLE;
+        uint32_t baseMip = 0;
+        uint32_t baseLayer = 0;
+        uint32_t layerCount = 1;
+        gpu::RenderTargetVulkan* renderTarget = nullptr; // weak ref
+        // Pins the texture alive until finish() updates m_vkLayout.
+        rcp<Texture> texture;
+    };
+    ResolveTarget m_vkResolveTargets[4];
     VkImage m_vkDepthImage = VK_NULL_HANDLE;
     uint32_t m_vkDepthBaseLayer = 0;
     uint32_t m_vkDepthLayerCount = 1;
