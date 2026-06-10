@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
+#include "rive/rive_types.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include <unordered_map>
 #include <mutex>

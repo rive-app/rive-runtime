@@ -1243,8 +1243,13 @@ void RenderContextMetalImpl::commitCommandBuffer(void* commandBuffer)
     [mtlCmdBuffer commit];
 }
 
+// The buffer-ring lock acquired here is released asymmetrically: postFlush()
+// schedules a GPU completion handler that unlocks it once rendering finishes.
+// Clang's -Wthread-safety analysis cannot follow a lock handed off into that
+// block, so this method is exempt from the analysis.
 void RenderContextMetalImpl::prepareToFlush(uint64_t nextFrameNumber,
                                             uint64_t safeFrameNumber)
+    RIVE_NO_THREAD_SAFETY_ANALYSIS
 {
     // Wait until the GPU finishes rendering flush "N + 1 - kBufferRingSize".
     // This ensures it is safe for the CPU to begin modifying the next buffers
