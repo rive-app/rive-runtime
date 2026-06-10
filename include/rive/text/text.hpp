@@ -262,7 +262,9 @@ protected:
     void widthChanged() override;
     void heightChanged() override;
     void paragraphSpacingChanged() override;
-    bool makeStyled(StyledText& styledText, bool withModifiers = true) const;
+    bool makeStyled(StyledText& styledText,
+                    bool withModifiers = true,
+                    float fontScale = 1.0f) const;
     void originValueChanged() override;
 
 private:
@@ -297,6 +299,10 @@ private:
         unordered_map<ColorGlyphCacheKey, rcp<RenderImage>, ColorGlyphCacheHash>
             m_emojiImageCache;
     TextBoundsInfo computeBoundsInfo();
+    // For TextOverflow::fitFontSize: binary-searches the largest integer font
+    // size that fits the bounds and returns it as a multiplier of the authored
+    // font size(s). Returns 1.0f when no fitting is needed/possible.
+    float fitFontScale();
     LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);
     void buildTextStylePaints();
     std::vector<TextValueRunListener*> m_valueRunListeners;

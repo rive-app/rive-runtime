@@ -268,6 +268,97 @@ TextBoundsInfo Text::computeBoundsInfo()
     };
 }
 
+float Text::fitFontScale()
+{
+    // Largest authored font size across runs is our maximum; we search integer
+    // sizes in [1, maxSize]. Scaling all runs by a single multiplier preserves
+    // their relative proportions while stepping the largest run by integers.
+    float maxSize = 0.0f;
+    for (TextValueRun* valueRun : m_allRuns)
+    {
+        TextStylePaint* style = valueRun->style();
+        if (style != nullptr && style->font() != nullptr &&
+            !valueRun->text().empty())
+        {
+            maxSize = std::max(maxSize, style->fontSize());
+        }
+    }
+
+    const TextSizing sizing = effectiveSizing();
+    // Without a fixed dimension to fit into there is nothing to search:
+    // autoWidth grows in both directions, so we keep the authored size.
+    if (maxSize <= 1.0f || sizing == TextSizing::autoWidth)
+    {
+        return 1.0f;
+    }
+
+    const float boxWidth = effectiveWidth();
+    const float boxHeight = effectiveHeight();
+    const float paragraphSpace = paragraphSpacing();
+
+    StyledText styledText;
+
+    // Shapes and lays out the text at the given integer top size and reports
+    // whether it fits the bounds. Text dimensions grow monotonically with size,
+    // so this predicate is monotonic and binary-searchable.
+    auto fits = [&](int topSize) -> bool {
+        float scale = (float)topSize / maxSize;
+        if (!makeStyled(styledText, true, scale))
+        {
+            // Nothing to lay out: trivially fits.
+            return true;
+        }
+        auto runs = styledText.runs();
+        auto shape = runs[0].font->shapeText(styledText.unichars(), runs);
+        auto lines = BreakLines(shape, boxWidth, align(), wrap());
+
+        float maxWidth = 0.0f;
+        float y = 0.0f;
+        size_t paragraphIndex = 0;
+        for (const SimpleArray<GlyphLine>& paragraphLines : lines)
+        {
+            const Paragraph& paragraph = shape[paragraphIndex++];
+            for (const GlyphLine& line : paragraphLines)
+            {
+                const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
+                const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
+                float width = endRun.xpos[line.endGlyphIndex] -
+                              startRun.xpos[line.startGlyphIndex];
+                maxWidth = std::max(maxWidth, width);
+            }
+            if (!paragraphLines.empty())
+            {
+                y += paragraphLines.back().bottom;
+            }
+            y += paragraphSpace;
+        }
+
+        bool widthFits = maxWidth <= boxWidth;
+        bool heightFits = sizing == TextSizing::fixed ? (y <= boxHeight) : true;
+        return widthFits && heightFits;
+    };
+
+    // Binary search for the largest integer top size in [1, floor(maxSize)]
+    // that fits. If nothing fits we fall back to the minimum size (1).
+    int lo = 1;
+    int hi = std::max(1, (int)maxSize);
+    int best = 1;
+    while (lo <= hi)
+    {
+        int mid = lo + (hi - lo) / 2;
+        if (fits(mid))
+        {
+            best = mid;
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+    return (float)best / maxSize;
+}
+
 LineIter Text::shouldDrawLine(float curY,
                               float totalHeight,
                               const GlyphLine& line)
@@ -833,7 +924,9 @@ void StyledText::append(rcp<Font> font,
         {std::move(font), size, lineHeight, letterSpacing, n, 0, styleId});
 }
 
-bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
+bool Text::makeStyled(StyledText& styledText,
+                      bool withModifiers,
+                      float fontScale) const
 {
     styledText.clear();
     uint16_t runIndex = 0;
@@ -847,7 +940,7 @@ bool Text::makeStyled(StyledText& styledText, bool withModifiers) const
             continue;
         }
         styledText.append(style->font(),
-                          style->fontSize(),
+                          style->fontSize() * fontScale,
                           style->lineHeight(),
                           style->letterSpacing(),
                           text,
@@ -943,8 +1036,12 @@ void Text::update(ComponentDirt value)
         bool precomputeModifierCoverage = modifierRangesNeedShape();
         bool parentIsLayoutNotArtboard =
             parent()->is<LayoutComponent>() && !parent()->is<Artboard>();
+        // For fitFontSize, find the largest integer font size that fits the
+        // bounds, then shape/lay out the text at that size below.
+        float fontScale =
+            overflow() == TextOverflow::fitFontSize ? fitFontScale() : 1.0f;
         if (precomputeModifierCoverage &&
-            makeStyled(m_modifierStyledText, false))
+            makeStyled(m_modifierStyledText, false, fontScale))
         {
             auto runs = m_modifierStyledText.runs();
             m_modifierShape =
@@ -970,7 +1067,7 @@ void Text::update(ComponentDirt value)
                 group->computeCoverage(textSize);
             }
         }
-        if (makeStyled(m_styledText))
+        if (makeStyled(m_styledText, true, fontScale))
         {
             auto runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);

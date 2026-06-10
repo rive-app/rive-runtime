@@ -10,6 +10,7 @@
 #include "rive/text/text_modifier_group.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include <iostream>
 #include <string>
@@ -181,6 +182,43 @@ TEST_CASE("ellipsis is shown", "[text]")
     REQUIRE(lookup.count(2) == 2); // - ligates > to ->
     REQUIRE(lookup.count(4) == 1); // space
     REQUIRE(lookup.count(5) == 1); // b
+}
+
+TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
+{
+    // ellipsis.riv is a fixed-size text box whose content overflows (that's why
+    // it ellipsizes), making it a good fixture for the fit-by-font-size mode.
+    auto file = ReadRiveFile("assets/ellipsis.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // Authored size: shape the text as-is (no fitting) and read the run size.
+    text->overflow(rive::TextOverflow::visible);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float authoredSize = text->shape()[0].runs[0].size;
+    REQUIRE(authoredSize > 1.0f);
+
+    // With fitFontSize the text is re-shaped at a smaller integer size so that
+    // it fits, and -- unlike fit -- it is NOT scaled via the transform.
+    text->overflow(rive::TextOverflow::fitFontSize);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float fittedSize = text->shape()[0].runs[0].size;
+
+    // Shrunk to fit, never below the minimum of 1.
+    REQUIRE(fittedSize < authoredSize);
+    REQUIRE(fittedSize >= 1.0f);
+    // Single run => fontScale = bestInt / authoredSize, so the shaped size is
+    // exactly an integer.
+    REQUIRE(fittedSize == std::floor(fittedSize));
+    // No post-scaling of the laid-out glyphs.
+    REQUIRE(text->m_transform.xx() == Approx(1.0f));
 }
 
 static std::vector<rive::Unichar> toUnicode(const char text[])
@@ -555,4 +593,58 @@ TEST_CASE("Word joiners are not used to break words", "[text]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("word_joiner_test"));
+}
+
+TEST_CASE("Fit font size", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/fit_font_size_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    auto triggerProp =
+        vmi->propertyValue("trigger")->as<rive::ViewModelInstanceTrigger>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("fit_font_size_test"));
 }
