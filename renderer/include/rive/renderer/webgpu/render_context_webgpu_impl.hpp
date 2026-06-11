@@ -6,7 +6,9 @@
 
 #include "rive/renderer/render_context_helper_impl.hpp"
 #include "rive/renderer/texture.hpp"
+#include <array>
 #include <map>
+#include <memory>
 #include <webgpu/webgpu_cpp.h>
 
 #ifdef RIVE_WAGYU
@@ -127,18 +129,6 @@ private:
         const wgsl::Shader* fragmentShader,
         const gpu::PipelineState&);
 
-    // Begin a Rive render pass that uses pixel local storage.
-    wgpu::RenderPassEncoder beginPLSRenderPass(wgpu::CommandEncoder,
-                                               const FlushDescriptor&);
-
-    // Specifies how to load MSAA color/depth/stencil attachments when beginning
-    // an MSAA render pass.
-    enum class MSAABeginType : bool
-    {
-        primary,
-        restartAfterDstCopy,
-    };
-
     // Specifies how to store MSAA color/depth/stencil attachments when ending
     // an MSAA render pass.
     enum class MSAAEndType : bool
@@ -147,19 +137,25 @@ private:
         breakForDstCopy,
     };
 
-    // Begin a Rive render pass that uses MSAA.
-    wgpu::RenderPassEncoder beginMSAARenderPass(wgpu::CommandEncoder,
-                                                MSAABeginType,
-                                                MSAAEndType,
-                                                const FlushDescriptor&);
+    // A Rive draw render pass for a single flush. Owns the live
+    // wgpu::RenderPassEncoder and knows how to (re)start itself in response to
+    // the barriers encountered while walking the DrawList. Subclasses implement
+    // the InterlockMode-specific begin/barrier behavior.
+    class DrawRenderPass;
+    class PLSDrawRenderPass;
+    class AtomicDrawRenderPass;
+    class MSAADrawRenderPass;
 
-    // Set the initial render pass state for draws (viewport, bindings, etc.).
-    void initDrawRenderPass(wgpu::RenderPassEncoder, const FlushDescriptor&);
+    // Construct the DrawRenderPass for the flush's InterlockMode and begin it
+    // (the MSAA pass may defer its begin until the first barrier).
+    std::unique_ptr<DrawRenderPass> makeDrawRenderPass(const FlushDescriptor&,
+                                                       wgpu::CommandEncoder);
 
-    wgpu::PipelineLayout drawPipelineLayout() const
-    {
-        return m_drawPipelineLayout;
-    }
+    // Lazily-built wgpu::PipelineLayouts for Rive draw pipelines. The PLS
+    // bindings in the layout differ based on the interlockMode, so these are
+    // keyed off interlockMode.
+    class DrawPipelineLayout;
+    const DrawPipelineLayout& drawPipelineLayout(gpu::InterlockMode);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
@@ -177,6 +173,12 @@ private:
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
     void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override;
+
+    // Lazy allocators for PLS backing buffers in atomic mode.
+    wgpu::Buffer atomicPLSColorBuffer();
+    wgpu::Buffer atomicPLSClipBuffer();
+    wgpu::Buffer atomicPLSCoverageBuffer();
 
     void flush(const FlushDescriptor&) override;
 
@@ -189,8 +191,8 @@ private:
     constexpr static int TESS_BINDINGS_COUNT = 6;
     constexpr static int ATLAS_BINDINGS_COUNT = 7;
     constexpr static int DRAW_BINDINGS_COUNT = 11;
-    std::array<wgpu::BindGroupLayoutEntry, DRAW_BINDINGS_COUNT>
-        m_perFlushBindingLayouts;
+    std::array<std::unique_ptr<DrawPipelineLayout>, gpu::INTERLOCK_MODE_COUNT>
+        m_drawPipelineLayouts;
 
 #ifdef RIVE_WAGYU
     // Draws emulated render-pass load/store actions for
@@ -229,22 +231,29 @@ private:
     // Draw paths and image meshes using the gradient and tessellation textures.
     class DrawPipeline;
     std::map<uint64_t, DrawPipeline> m_drawPipelines;
-    wgpu::BindGroupLayout m_drawBindGroupLayouts[4 /*BINDINGS_SET_COUNT*/];
     wgpu::Sampler m_linearSampler;
     wgpu::Sampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
     wgpu::BindGroup m_samplerBindings;
-    wgpu::PipelineLayout m_drawPipelineLayout;
     wgpu::BindGroupLayout m_emptyBindingsLayout; // For when a set is unused.
     wgpu::Buffer m_pathPatchVertexBuffer;
     wgpu::Buffer m_pathPatchIndexBuffer;
+    wgpu::Buffer m_imageRectVertexBuffer;
+    wgpu::Buffer m_imageRectIndexBuffer;
 
     // Gaussian integral table for feathering.
     wgpu::Texture m_featherTexture;
     wgpu::TextureView m_featherTextureView;
 
-    // Bound when a texture binding is unused.
+    // PLS backing buffers for atomic mode.
+    uint64_t m_atomicPLSBackingBufferSize = 0;
+    wgpu::Buffer m_atomicPLSColorBuffer;
+    wgpu::Buffer m_atomicPLSClipBuffer;
+    wgpu::Buffer m_atomicPLSCoverageBuffer;
+
+    // "Layout satisfiers" bound when texture/buffer bindings are unused.
     wgpu::Texture m_nullTexture;
     wgpu::TextureView m_nullTextureView;
+    wgpu::Buffer m_nullStorageBuffer;
 };
 
 class RenderTargetWebGPU : public RenderTarget

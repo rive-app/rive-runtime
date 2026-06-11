@@ -918,10 +918,17 @@ enum class ShaderMiscFlags : uint32_t
     // PLS when drawing a clear, in addition to clearing the other PLS planes.
     storeColorClear = 1 << 5,
 
+    // DrawType::renderPassInitialize only. Seed the color PLS plane by
+    // sampling the framebuffer contents (previously copied into a dst color
+    // texture bound at IMAGE_TEXTURE_IDX). Used for
+    // LoadAction::preserveRenderTarget on backends that can't directly copy
+    // a texture into a storage buffer (e.g. WebGPU).
+    loadColorFromDstTexture = 1 << 6,
+
     // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
     // contents from BGRA to RGBA. (For when this data had to get copied from a
     // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 6,
+    swizzleColorBGRAToRGBA = 1 << 7,
 
     // DrawType::renderPassResolve only. Optimization for when rendering to an
     // offscreen texture.
@@ -929,7 +936,7 @@ enum class ShaderMiscFlags : uint32_t
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 7,
+    coalescedResolveAndTransfer = 1 << 8,
 };
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(

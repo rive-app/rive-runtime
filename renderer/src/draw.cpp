@@ -1451,11 +1451,14 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
         }
         else
         {
-            // Round up width and height to multiples of 32 for tiling.
-            uint32_t coverageWidth = math::round_up_to_multiple_of<32>(
-                visibleBounds.width() + PADDING * 2);
-            uint32_t coverageHeight = math::round_up_to_multiple_of<32>(
-                visibleBounds.height() + PADDING * 2);
+            // Round up width and height to multiples of BUFFER_IMAGE_TILE_SIZE
+            // for tiling.
+            uint32_t coverageWidth =
+                math::round_up_to_multiple_of<BUFFER_IMAGE_TILE_SIZE>(
+                    visibleBounds.width() + PADDING * 2);
+            uint32_t coverageHeight =
+                math::round_up_to_multiple_of<BUFFER_IMAGE_TILE_SIZE>(
+                    visibleBounds.height() + PADDING * 2);
 
             // Get our coverage allocation.
             size_t offset = flush->allocateCoverageBufferRange(coverageHeight *

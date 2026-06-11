@@ -142,7 +142,8 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
             if (mode == InterlockMode::atomics)
             {
                 outFlags |= ShaderMiscFlags::storeColorClear |
-                            ShaderMiscFlags::swizzleColorBGRAToRGBA;
+                            ShaderMiscFlags::swizzleColorBGRAToRGBA |
+                            ShaderMiscFlags::loadColorFromDstTexture;
             }
             break;
         case DrawType::renderPassResolve:

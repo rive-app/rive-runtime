@@ -726,7 +726,8 @@ size_t RenderContext::LogicalFlush::allocateCoverageBufferRange(size_t length)
 {
     RIVE_PROF_SCOPE_L(2)
     assert(m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic);
-    assert(length % (32 * 32) == 0u); // Allocations must support 32x32 tiles.
+    // Allocations must be aligned to the tile size.
+    assert(length % (BUFFER_IMAGE_TILE_SIZE * BUFFER_IMAGE_TILE_SIZE) == 0u);
     uint32_t offset = m_coverageBufferLength;
     if (offset + length > m_ctx->platformFeatures().maxCoverageBufferLength)
     {

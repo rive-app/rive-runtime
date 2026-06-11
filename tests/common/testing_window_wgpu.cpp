@@ -223,7 +223,8 @@ public:
             {
                 wgpu::TextureDescriptor overflowTextureDesc = {
                     .usage = wgpu::TextureUsage::RenderAttachment |
-                             wgpu::TextureUsage::CopySrc,
+                             wgpu::TextureUsage::CopySrc |
+                             wgpu::TextureUsage::TextureBinding,
                     .dimension = wgpu::TextureDimension::e2D,
                     .size = {m_width, m_height},
                     .format = m_format,

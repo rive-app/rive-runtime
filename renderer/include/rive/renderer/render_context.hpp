@@ -658,7 +658,8 @@ private:
         // clockwiseAtomic mode.
         //
         // "length" is the length in pixels of this allocation and must be a
-        // multiple of 32*32, in order to support 32x32 tiling.
+        // multiple of BUFFER_IMAGE_TILE_SIZE^2, in order to support internal
+        // tiling.
         //
         // Returns the offset of the allocated range within the coverage buffer,
         // or -1 if there was not room.

@@ -266,7 +266,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         return;
     }
 
-    uint32_t shaderPermutationFlags[SPECIALIZATION_COUNT] = {
+    uint32_t shaderPermutationFlags[] = {
         enums::is_flag_set(props.shaderFeatures,
                            gpu::ShaderFeatures::ENABLE_CLIPPING),
         enums::is_flag_set(props.shaderFeatures,
@@ -286,11 +286,16 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::clockwiseFill),
         enums::is_flag_set(props.shaderMiscFlags,
+                           gpu::ShaderMiscFlags::nestedClipUpdateOnly),
+        enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::borrowedCoveragePass),
         enums::is_flag_set(props.shaderMiscFlags,
-                           gpu::ShaderMiscFlags::nestedClipUpdateOnly),
+                           gpu::ShaderMiscFlags::storeColorClear),
+        enums::is_flag_set(props.shaderMiscFlags,
+                           gpu::ShaderMiscFlags::loadColorFromDstTexture),
         pipelineManager->vendorID() == vkutil::vendors::ARM,
     };
+    static_assert(std::size(shaderPermutationFlags) == SPECIALIZATION_COUNT);
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
     static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
     static_assert(ADVANCED_BLEND_SPECIALIZATION_IDX == 2);
@@ -300,10 +305,12 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(DITHER_SPECIALIZATION_IDX == 7);
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
-    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 9);
-    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 10);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 11);
-    static_assert(SPECIALIZATION_COUNT == 12);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 9);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 10);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 11);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 12);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 13);
+    static_assert(SPECIALIZATION_COUNT == 14);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
     for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)

@@ -21,6 +21,10 @@ layout(constant_id = NESTED_CLIP_UPDATE_ONLY_IDX) const
     bool NestedClipUpdateOnly = false;
 layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
     bool VulkanVendorARM = false;
+layout(constant_id = STORE_COLOR_CLEAR_SPECIALIZATION_IDX) const
+    bool StoreColorClear = false;
+layout(constant_id = LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX) const
+    bool LoadColorFromDstTexture = false;
 
 #define @ENABLE_CLIPPING EnableClipping
 #define @ENABLE_CLIP_RECT EnableClipRect
@@ -35,3 +39,5 @@ layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
 #define @BORROWED_COVERAGE_PASS BorrowedCoveragePrepass
 #define @NESTED_CLIP_UPDATE_ONLY NestedClipUpdateOnly
 #define @VULKAN_VENDOR_ARM VulkanVendorARM
+#define @STORE_COLOR_CLEAR StoreColorClear
+#define @LOAD_COLOR_FROM_DST_TEXTURE LoadColorFromDstTexture

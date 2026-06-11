@@ -152,7 +152,11 @@ public:
             assert(m_surface && "Failed to create WebGPU surface");
 
             WGPURequestAdapterOptions options = {
-                .powerPreference = WGPUPowerPreference_HighPerformance,
+                .powerPreference =
+                    strcmp(m_options.gpuNameFilter, "i") == 0 ||
+                            strcmp(m_options.gpuNameFilter, "integrated") == 0
+                        ? WGPUPowerPreference_LowPower
+                        : WGPUPowerPreference_HighPerformance,
                 .compatibleSurface = m_surface.Get(),
             };
 
@@ -176,7 +180,7 @@ public:
 
             WGPUAdapterInfo info = {0};
             wgpuAdapterGetInfo(m_adapter.Get(), &info);
-            printf("WebGPU GPU: %s\n", info.description.data);
+            printf("=== WebGPU GPU: %s ===\n", info.description.data);
 #if 0
             const char* adapter_types[] = {
                 [WGPUAdapterType_DiscreteGPU] = "Discrete GPU",
@@ -258,8 +262,9 @@ public:
         WGPUSurfaceConfiguration surfaceConfig = {
             .device = m_device.Get(),
             .format = SWAPCHAIN_FORMAT,
-            .usage =
-                WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment,
+            .usage = WGPUTextureUsage_CopySrc |
+                     WGPUTextureUsage_RenderAttachment |
+                     WGPUTextureUsage_TextureBinding,
             // .alphaMode = WGPUCompositeAlphaMode_Premultiplied,
             .width = static_cast<uint32_t>(width),
             .height = static_cast<uint32_t>(height),
@@ -298,8 +303,9 @@ public:
             .baseArrayLayer = 0,
             .arrayLayerCount = 1,
             .aspect = WGPUTextureAspect_All,
-            .usage =
-                WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment,
+            .usage = WGPUTextureUsage_CopySrc |
+                     WGPUTextureUsage_RenderAttachment |
+                     WGPUTextureUsage_TextureBinding,
         };
         m_currentSurfaceTextureView =
             wgpuTextureCreateView(m_currentSurfaceTexture.texture,

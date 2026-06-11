@@ -334,6 +334,111 @@
 
 #endif // DISABLE_SHADER_STORAGE_BUFFERS
 
+#ifdef @PLS_IMPL_STORAGE_BUFFER
+
+#define PLS_MAIN(NAME)                                                         \
+    void main()                                                                \
+    {                                                                          \
+        int2 _plsCoord = ivec2(floor(_fragCoord));                             \
+        int _plsIdx = int(swizzle_image_buffer_idx(                            \
+            uvec2(_plsCoord),                                                  \
+            (uniforms.renderTargetWidth + (BUFFER_IMAGE_TILE_SIZE - 1u)) &     \
+                ~(BUFFER_IMAGE_TILE_SIZE - 1u)));
+
+#define EMIT_PLS }
+
+#define PLS_CONTEXT_DECL , int _plsIdx
+#define PLS_CONTEXT_UNPACK , _plsIdx
+
+#ifdef @TARGET_WGSL
+// WGSL has no `coherent` qualifier — naga would propagate it as an invalid
+// `@coherent` attribute that Tint rejects. WGSL's storage memory model
+// already guarantees the visibility we need across the atomic ops below.
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
+    layout(std430, set = PLS_TEXTURE_BINDINGS_SET, binding = IDX)              \
+        buffer NAME##_struct                                                   \
+    {                                                                          \
+        uint _values[];                                                        \
+    }                                                                          \
+    NAME
+#elif defined(@TARGET_SPIRV)
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
+    layout(std430, set = PLS_TEXTURE_BINDINGS_SET, binding = IDX)              \
+        coherent buffer NAME##_struct                                          \
+    {                                                                          \
+        uint _values[];                                                        \
+    }                                                                          \
+    NAME
+#else
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
+    layout(std430, binding = IDX) coherent buffer NAME##_struct                \
+    {                                                                          \
+        uint _values[];                                                        \
+    }                                                                          \
+    NAME
+#endif
+#define PLS_DECL4F_UAV PLS_DECLUI_UAV
+
+#define PLS_LOADUI_UAV(PLANE) PLANE._values[_plsIdx]
+#define PLS_STOREUI_UAV(PLANE, VALUE) PLANE._values[_plsIdx] = VALUE
+#define PLS_LOAD4F_UAV(PLANE) unpackUnorm4x8(PLS_LOADUI_UAV(PLANE))
+#define PLS_STORE4F_UAV(PLANE, VALUE)                                          \
+    PLS_STOREUI_UAV(PLANE, packUnorm4x8(VALUE))
+#define PLS_ATOMIC_MAX(PLANE, X) atomicMax(PLANE._values[_plsIdx], X)
+#define PLS_ATOMIC_ADD(PLANE, X) atomicAdd(PLANE._values[_plsIdx], X)
+
+#elif defined(@PLS_IMPL_STORAGE_TEXTURE) || defined(@USING_PLS_STORAGE_TEXTURES)
+
+#ifdef GL_ARB_shader_image_load_store
+#extension GL_ARB_shader_image_load_store : require
+#endif
+
+#define PLS_MAIN(NAME)                                                         \
+    void main()                                                                \
+    {                                                                          \
+        int2 _plsCoord = ivec2(floor(_fragCoord));
+
+#define EMIT_PLS }
+
+#define PLS_CONTEXT_DECL , int2 _plsCoord
+#define PLS_CONTEXT_UNPACK , _plsCoord
+
+#ifdef @TARGET_SPIRV
+#define PLS_DECL4F_UAV(IDX, NAME)                                              \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8)               \
+        uniform mediump coherent image2D NAME
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
+        uniform highp coherent uimage2D NAME
+#define PLS_DECL4F_RGB10_A2_UAV(IDX, NAME)                                     \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgb10_a2)            \
+        uniform mediump coherent image2D NAME
+#else
+#define PLS_DECL4F_UAV(IDX, NAME)                                              \
+    layout(binding = IDX, rgba8) uniform mediump coherent image2D NAME
+#define PLS_DECLUI_UAV(IDX, NAME)                                              \
+    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#define PLS_DECL4F_RGB10_A2_UAV(IDX, NAME)                                     \
+    layout(binding = IDX, rgb10_a2) uniform mediump coherent image2D NAME;
+#endif
+
+#define PLS_LOADUI_UAV(PLANE) imageLoad(PLANE, _plsCoord).r
+#define PLS_STOREUI_UAV(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
+#define PLS_LOAD4F_UAV(PLANE) imageLoad(PLANE, _plsCoord)
+#define PLS_STORE4F_UAV(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
+#define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
+#define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
+
+#else
+
+#define PLS_MAIN(NAME) void main()
+#define EMIT_PLS
+
+#define PLS_CONTEXT_DECL
+#define PLS_CONTEXT_UNPACK
+
+#endif
+
 // Define macros for implementing pixel local storage based on available
 // extensions.
 #ifdef @PLS_IMPL_ANGLE
@@ -404,11 +509,23 @@
 #endif
 #endif
 
-#ifdef @PLS_IMPL_STORAGE_TEXTURE
+#if defined(@PLS_IMPL_STORAGE_TEXTURE) || defined(@PLS_IMPL_STORAGE_BUFFER)
 
-#ifdef GL_ARB_shader_image_load_store
-#extension GL_ARB_shader_image_load_store : require
-#endif
+#define PLS_BLOCK_BEGIN
+#define PLS_BLOCK_END
+
+#define PLS_DECL4F PLS_DECL4F_UAV
+#define PLS_DECLUI PLS_DECLUI_UAV
+#define PLS_DECL4F_RGB10_A2 PLS_DECL4F_RGB10_A2_UAV
+
+#define PLS_LOAD4F PLS_LOAD4F_UAV
+#define PLS_STORE4F PLS_STORE4F_UAV
+#define PLS_LOADUI PLS_LOADUI_UAV
+#define PLS_STOREUI PLS_STOREUI_UAV
+
+#define PLS_PRESERVE_4F(PLANE)
+#define PLS_PRESERVE_UI(PLANE)
+
 #if defined(GL_ARB_fragment_shader_interlock)
 #extension GL_ARB_fragment_shader_interlock : require
 #define PLS_INTERLOCK_BEGIN beginInvocationInterlockARB()
@@ -422,40 +539,7 @@
 #define PLS_INTERLOCK_END
 #endif
 
-#define PLS_BLOCK_BEGIN
-#ifdef @TARGET_SPIRV
-#define PLS_DECL4F(IDX, NAME)                                                  \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8)               \
-        uniform mediump coherent image2D NAME
-#define PLS_DECL4F_RGB10_A2(IDX, NAME)                                         \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgb10_a2)            \
-        uniform mediump coherent image2D NAME
-#define PLS_DECLUI(IDX, NAME)                                                  \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
-        uniform highp coherent uimage2D NAME
-#else
-#define PLS_DECL4F(IDX, NAME)                                                  \
-    layout(binding = IDX, rgba8) uniform mediump coherent image2D NAME
-#define PLS_DECL4F_RGB10_A2(IDX, NAME)                                         \
-    layout(binding = IDX, rgb10_a2) uniform mediump coherent image2D NAME
-#define PLS_DECLUI(IDX, NAME)                                                  \
-    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
-#endif
-#define PLS_BLOCK_END
-
-#define PLS_LOAD4F(PLANE) imageLoad(PLANE, _plsCoord)
-#define PLS_LOADUI(PLANE) imageLoad(PLANE, _plsCoord).r
-#define PLS_STORE4F(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
-#define PLS_STOREUI(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
-
-#define PLS_PRESERVE_4F(PLANE)
-#define PLS_PRESERVE_UI(PLANE)
-
-#ifndef @USING_PLS_STORAGE_TEXTURES
-#define @USING_PLS_STORAGE_TEXTURES
-#endif
-
-#endif // PLS_IMPL_STORAGE_TEXTURE
+#endif // PLS_IMPL_STORAGE_TEXTURE || PLS_IMPL_STORAGE_BUFFER
 
 #ifdef @PLS_IMPL_SUBPASS_LOAD
 
@@ -580,39 +664,8 @@
 #define FRAGMENT_CONTEXT_DECL
 #define FRAGMENT_CONTEXT_UNPACK
 
-#ifdef @USING_PLS_STORAGE_TEXTURES
-
-#ifdef @TARGET_SPIRV
-#define PLS_DECLUI_UAV(IDX, NAME)                                              \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
-        uniform highp coherent uimage2D NAME
-#define PLS_DECL4F_RGB10_A2_UAV(IDX, NAME)                                     \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgb10_a2)            \
-        uniform mediump coherent image2D NAME
-#else
-#define PLS_DECLUI_UAV(IDX, NAME)                                              \
-    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
-#define PLS_DECL4F_RGB10_A2_UAV(IDX, NAME)                                     \
-    layout(binding = IDX, rgb10_a2) uniform mediump coherent image2D NAME;
-#endif
-#define PLS_LOADUI_UAV(PLANE) imageLoad(PLANE, _plsCoord).r
-#define PLS_STOREUI_UAV(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
-#define PLS_LOAD4F_UAV(PLANE) imageLoad(PLANE, _plsCoord)
-#define PLS_STORE4F_UAV(PLANE, VALUE) imageStore(PLANE, _plsCoord, VALUE)
-#define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
-#define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
-
-#define PLS_CONTEXT_DECL , int2 _plsCoord
-#define PLS_CONTEXT_UNPACK , _plsCoord
-
-#define PLS_MAIN(NAME)                                                         \
-    void main()                                                                \
-    {                                                                          \
-        int2 _plsCoord = ivec2(floor(_fragCoord));
-
-#define EMIT_PLS }
-
-// Storage textures are expensive to update. It's faster to conditionally update
+#if defined(@PLS_IMPL_STORAGE_TEXTURE) || defined(@PLS_IMPL_STORAGE_BUFFER)
+// Global storage is expensive to update. It's faster to conditionally update
 // them when possible.
 #define PLS_STORE4F_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
     if (!(CONDITION))                                                          \
@@ -624,23 +677,14 @@
     {                                                                          \
         PLS_STOREUI(PLANE, VALUE);                                             \
     }
-
-#else // !USING_PLS_STORAGE_TEXTURES
-
-#define PLS_CONTEXT_DECL
-#define PLS_CONTEXT_UNPACK
-
-#define PLS_MAIN(NAME) void main()
-#define EMIT_PLS
-
+#else
 // Cheap forms of PLS do better to update unconditionally, even if it might be a
 // no-op. (Especially since we otherwise would have had to preserve anyway.)
 #define PLS_STORE4F_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
     PLS_STORE4F(PLANE, VALUE);
 #define PLS_STOREUI_OPTIONAL_IF(CONDITION, PLANE, VALUE)                       \
     PLS_STOREUI(PLANE, VALUE);
-
-#endif // !USING_PLS_STORAGE_TEXTURES
+#endif
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
 
@@ -658,7 +702,7 @@
 
 #define EMIT_PLS_AND_FRAG_COLOR EMIT_PLS
 
-#if defined(@TARGET_SPIRV) && !defined(@INPUT_ATTACHMENT_NONE)
+#if defined(@TARGET_SPIRV) && !defined(@TARGET_WGSL)
 #define DST_COLOR_TEXTURE(NAME)                                                \
     layout(input_attachment_index = 0,                                         \
            binding = COLOR_PLANE_IDX,                                          \
