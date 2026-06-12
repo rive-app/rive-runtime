@@ -41,19 +41,30 @@ protected:
     File* m_file = nullptr;
     rcp<ViewModelInstance> m_viewModelInstance = nullptr;
     rcp<DataContext> m_dataContext = nullptr;
-    // ViewModelInstance child for stateful artboards.
-    rcp<ViewModelInstance> m_statefulViewModelInstance = nullptr;
+    // VMI actively used for binding. Either the stateful child VMI (borrowed
+    // from children(); freed by the parent Artboard's m_Objects teardown) or a
+    // dynamically-created bound VMI for a different ViewModel (owned here, see
+    // m_ownsActiveVmi).
+    ViewModelInstance* m_activeViewModelInstance = nullptr;
 
 protected:
 private:
     void clearNestedAnimations();
     float m_cumulatedSeconds = 0;
+    // True if m_activeViewModelInstance is a dynamically-created bound VMI
+    // that must be unref'd by this NestedArtboard.
+    bool m_ownsActiveVmi = false;
     bool m_hasPendingStatefulBinding = false;
     void nest(Artboard* artboard);
     bool tryScheduleBindStateful();
     void bindStateful();
-    void bindArtboardInstance(rcp<ViewModelInstance> instance,
+    void bindArtboardInstance(ViewModelInstance* instance,
                               rcp<DataContext> parent);
+    // Walks children() for the first ViewModelInstance child (the stateful
+    // component VMI authored in the editor). Returns nullptr if none.
+    ViewModelInstance* findStatefulChildVmi() const;
+    // Releases the current active VMI if owned, then assigns the new one.
+    void setActiveViewModelInstance(ViewModelInstance* vmi, bool owns);
 
 public:
     NestedArtboard();

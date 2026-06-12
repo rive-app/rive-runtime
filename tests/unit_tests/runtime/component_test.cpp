@@ -637,6 +637,179 @@ TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
     CHECK(silver.matches("stateful_artboard_swap"));
 }
 
+// Regression test for the stateful-vs-bound VMI lifecycle on a NestedArtboard:
+//   1. With no source set, the stateful child VMI is the active binding.
+//   2. Binding the source to an artboard whose VM matches the stateful child
+//      borrows the stateful child (active VMI == stateful child pointer).
+//   3. Binding the source to an artboard with a different VM creates a new
+//      owned bound VMI; the stateful child is preserved (not destroyed).
+//   4. Switching back to the matching artboard reuses the same stateful child
+//      pointer.
+// Visual variety in the silver is driven through `labelInput` on the parent
+// VMI — the supported way for users to change inner state — rather than by
+// mutating the stateful child's properties directly.
+// This locks in the contract of the m_activeViewModelInstance refactor.
+TEST_CASE("Stateful nested artboard borrows stateful child on matching VM and "
+          "preserves it across different-VM swap",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/stateful_source_switch.riv", &silver);
+
+    auto artboard = file->artboardNamed("ParentArtboard");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Resolve the parent VMI's artboard-typed property that drives the
+    // nested artboard's source.
+    auto sourceProp = vmi->propertyValue("sourceArtboard");
+    REQUIRE(sourceProp != nullptr);
+    REQUIRE(sourceProp->is<rive::ViewModelInstanceArtboard>());
+    auto vmiSourceArtboard = sourceProp->as<rive::ViewModelInstanceArtboard>();
+
+    // Resolve `labelInput` on the parent VMI. Bound (via input binding) to the
+    // label property of whichever artboard is currently active inside the
+    // stateful nested artboard. Driving the inner label through this property
+    // is the supported user flow; this test does NOT mutate the stateful
+    // child's properties directly.
+    auto labelInputProp = vmi->propertyValue("labelInput");
+    REQUIRE(labelInputProp != nullptr);
+    REQUIRE(labelInputProp->is<rive::ViewModelInstanceString>());
+    auto labelInput = labelInputProp->as<rive::ViewModelInstanceString>();
+
+    auto matchingSource = file->bindableArtboardNamed("MatchingArtboardA");
+    auto differentSource = file->bindableArtboardNamed("DifferentArtboardB");
+    REQUIRE(matchingSource != nullptr);
+    REQUIRE(differentSource != nullptr);
+
+    // The stateful nested artboard is the only NestedArtboard with
+    // isStateful() true in this asset.
+    rive::NestedArtboard* statefulNested = nullptr;
+    for (auto na : artboard->nestedArtboards())
+    {
+        if (na->isStateful())
+        {
+            statefulNested = na;
+            break;
+        }
+    }
+    REQUIRE(statefulNested != nullptr);
+
+    // Walk children() for the stateful child VMI (mirrors what
+    // NestedArtboard::findStatefulChildVmi does internally).
+    auto findStatefulChild =
+        [](rive::NestedArtboard* na) -> rive::ViewModelInstance* {
+        for (auto child : na->children())
+        {
+            if (child->is<rive::ViewModelInstance>())
+            {
+                return child->as<rive::ViewModelInstance>();
+            }
+        }
+        return nullptr;
+    };
+
+    // The VMI currently bound to the nested artboard's inner instance —
+    // i.e., what NestedArtboard's active VMI was passed through to the
+    // inner artboard's data context.
+    auto currentlyBoundVmi =
+        [](rive::NestedArtboard* na) -> rive::ViewModelInstance* {
+        auto* inst = na->artboardInstance();
+        if (inst == nullptr)
+        {
+            return nullptr;
+        }
+        auto ctx = inst->dataContext();
+        if (ctx == nullptr)
+        {
+            return nullptr;
+        }
+        return ctx->viewModelInstance().get();
+    };
+
+    auto runFrames = [&](int n) {
+        for (int i = 0; i < n; i++)
+        {
+            silver.addFrame();
+            stateMachine->advanceAndApply(0.016f);
+            artboard->draw(renderer.get());
+        }
+    };
+
+    // === Step 1: initial state, no source bound from the parent VMI yet ===
+    // The stateful child VMI exists and is the active binding (borrowed).
+    auto* statefulChild = findStatefulChild(statefulNested);
+    REQUIRE(statefulChild != nullptr);
+    const auto initialStatefulVmId = statefulChild->viewModelId();
+    runFrames(5);
+
+    // === Step 2: bind source = MatchingArtboardA (same VM) ===
+    // We expect the active VMI to remain the stateful child (borrowed),
+    // not a freshly-created bound VMI.
+    vmiSourceArtboard->asset(matchingSource);
+    runFrames(5);
+
+    auto* boundAfterMatching = currentlyBoundVmi(statefulNested);
+    REQUIRE(boundAfterMatching != nullptr);
+    CHECK(boundAfterMatching == statefulChild);
+
+    // Drive the inner label via the supported input-binding path. The
+    // stateful child receives this through its `label` input.
+    labelInput->propertyValue("Matching A");
+    runFrames(10);
+
+    // === Step 3: bind source = DifferentArtboardB (different VM) ===
+    // We expect a NEW owned bound VMI to be created. The stateful child
+    // must NOT be destroyed by the switch and must NOT be the active VMI.
+    vmiSourceArtboard->asset(differentSource);
+    runFrames(5);
+
+    auto* boundAfterDifferent = currentlyBoundVmi(statefulNested);
+    REQUIRE(boundAfterDifferent != nullptr);
+    CHECK(boundAfterDifferent != statefulChild);
+    CHECK(boundAfterDifferent->viewModelId() != statefulChild->viewModelId());
+
+    // The stateful child is still present in children() (preserved by
+    // the parent Artboard's m_Objects ownership).
+    CHECK(findStatefulChild(statefulNested) == statefulChild);
+    CHECK(statefulChild->viewModelId() == initialStatefulVmId);
+
+    // Drive the inner label again — now it should flow into the
+    // dynamically-created bound VMI for DifferentArtboardB.
+    labelInput->propertyValue("Different B");
+    runFrames(10);
+
+    // === Step 4: bind source back to MatchingArtboardA ===
+    // The active VMI must be the stateful child again (pointer identity).
+    vmiSourceArtboard->asset(matchingSource);
+    runFrames(5);
+
+    auto* boundAfterSwitchBack = currentlyBoundVmi(statefulNested);
+    REQUIRE(boundAfterSwitchBack != nullptr);
+    CHECK(boundAfterSwitchBack == statefulChild);
+
+    // One more input-driven label change to confirm the input keeps
+    // flowing into the reused stateful child after the round trip.
+    labelInput->propertyValue("Matching A Again");
+    runFrames(10);
+
+    CHECK(silver.matches("stateful_source_switch"));
+}
+
 TEST_CASE("Stateful Component list bridge binds clean up on item remove",
           "[silver]")
 {
