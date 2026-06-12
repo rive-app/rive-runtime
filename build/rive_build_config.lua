@@ -218,6 +218,12 @@ do
     optimize('On')
 end
 
+-- Generate PDBs in Release builds on Windows for Sentry crash symbolication.
+filter({ 'options:config=release', 'system:windows' })
+do
+    symbols('On')
+end
+
 filter({ 'options:config=release', 'options:not no-lto', 'system:not macosx', 'system:not ios' })
 do
     if linktimeoptimization then
