@@ -4412,6 +4412,75 @@ TEST_CASE("pointer input", "[CommandQueue]")
     serverThread.join();
 }
 
+// Captures the view model update emitted by rapid_pointer_events.riv when its
+// state machine reaches the down-driven state.
+class RapidPointerViewModelListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelDataReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(data.metaData.name == "hasReached");
+        CHECK(data.metaData.type == DataType::boolean);
+        m_hasReached = data.boolValue;
+        ++m_receivedCallbacks;
+    }
+
+    ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
+    bool m_hasReached = false;
+    int m_receivedCallbacks = 0;
+};
+
+TEST_CASE("pointer down advances before rapid pointer up", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/rapid_pointer_events.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle smHandle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+
+    RapidPointerViewModelListener listener;
+    listener.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &listener);
+    auto viewModelHandle = listener.m_handle;
+    commandQueue->bindViewModelInstance(smHandle, viewModelHandle);
+    commandQueue->subscribeToViewModelProperty(viewModelHandle,
+                                               "hasReached",
+                                               DataType::boolean);
+    server.processCommands();
+    commandQueue->processMessages();
+    CHECK(!listener.m_hasReached);
+    CHECK(listener.m_receivedCallbacks == 0);
+
+    commandQueue->advanceStateMachine(smHandle, 0.0f);
+    commandQueue->pointerDown(smHandle, {.position = Vec2D(250.0f, 250.0f)});
+    server.processCommands();
+    commandQueue->processMessages();
+    CHECK(listener.m_hasReached);
+    CHECK(listener.m_receivedCallbacks == 1);
+
+    commandQueue->pointerUp(smHandle, {.position = Vec2D(250.0f, 250.0f)});
+    server.processCommands();
+    commandQueue->processMessages();
+    CHECK(listener.m_hasReached);
+    CHECK(listener.m_receivedCallbacks == 1);
+
+    commandQueue->disconnect();
+}
+
 static bool aboutEquals(const Vec2D& l, const Vec2D& r, float theta = 0.0001)
 {
     auto b = l - r;

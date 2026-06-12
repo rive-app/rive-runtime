@@ -32,7 +32,7 @@ function m.github(project, tag)
             .. ' '
             .. dirname
         if not os.execute(gitcmd) then
-            error('\nError executing command:\n  ' .. cmd)
+            error('\nError executing command:\n  ' .. gitcmd)
         end
     end
     assert(os.isdir(dependency_path))

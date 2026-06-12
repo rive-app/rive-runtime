@@ -33,11 +33,16 @@ NestedArtboard::~NestedArtboard()
         m_boundNestedStateMachine->releaseDependencies();
     }
 
-    // Clear ViewModelInstance references to break potential ref cycles.
-    // The ViewModelInstance and its property values are also in the artboard's
-    // m_Objects list and will be cleaned up there.
     m_viewModelInstance = nullptr;
-    m_statefulViewModelInstance = nullptr;
+    // Release the owned bound VMI. The borrowed stateful child VMI is cleaned
+    // up by the parent Artboard's m_Objects teardown.
+    if (m_ownsActiveVmi && m_activeViewModelInstance != nullptr)
+    {
+        m_activeViewModelInstance->unref();
+    }
+    m_activeViewModelInstance = nullptr;
+    m_ownsActiveVmi = false;
+    m_hasPendingStatefulBinding = false;
 }
 
 Core* NestedArtboard::clone() const
@@ -81,7 +86,7 @@ void NestedArtboard::nest(Artboard* artboard)
 bool NestedArtboard::tryScheduleBindStateful()
 {
 
-    if (m_statefulViewModelInstance != nullptr && artboardInstance())
+    if (m_activeViewModelInstance != nullptr && artboardInstance())
     {
         m_hasPendingStatefulBinding = true;
         return true;
@@ -92,13 +97,13 @@ bool NestedArtboard::tryScheduleBindStateful()
 void NestedArtboard::bindStateful()
 {
     m_hasPendingStatefulBinding = false;
-    bindArtboardInstance(m_statefulViewModelInstance, m_dataContext);
+    bindArtboardInstance(m_activeViewModelInstance, m_dataContext);
 }
 
-void NestedArtboard::bindArtboardInstance(rcp<ViewModelInstance> instance,
+void NestedArtboard::bindArtboardInstance(ViewModelInstance* instance,
                                           rcp<DataContext> parent)
 {
-    artboardInstance()->bindViewModelInstance(instance, parent);
+    artboardInstance()->bindViewModelInstance(ref_rcp(instance), parent);
     for (auto& animation : m_NestedAnimations)
     {
         if (animation->is<NestedStateMachine>())
@@ -107,6 +112,35 @@ void NestedArtboard::bindArtboardInstance(rcp<ViewModelInstance> instance,
                 artboardInstance()->dataContext());
         }
     }
+}
+
+ViewModelInstance* NestedArtboard::findStatefulChildVmi() const
+{
+    for (auto child : children())
+    {
+        if (child->is<ViewModelInstance>())
+        {
+            return child->as<ViewModelInstance>();
+        }
+    }
+    return nullptr;
+}
+
+void NestedArtboard::setActiveViewModelInstance(ViewModelInstance* vmi,
+                                                bool owns)
+{
+    if (m_activeViewModelInstance == vmi)
+    {
+        // Same pointer; tolerate an ownership refresh only when both states
+        // agree it's still owned (idempotent reuse of the bound instance).
+        return;
+    }
+    if (m_ownsActiveVmi && m_activeViewModelInstance != nullptr)
+    {
+        m_activeViewModelInstance->unref();
+    }
+    m_activeViewModelInstance = vmi;
+    m_ownsActiveVmi = owns;
 }
 
 void NestedArtboard::clearNestedAnimations()
@@ -139,7 +173,7 @@ void NestedArtboard::updateArtboard(
             m_referencedArtboard = nullptr;
         }
         m_Instance = nullptr;
-        m_statefulViewModelInstance = nullptr;
+        setActiveViewModelInstance(nullptr, false);
         return;
     }
 
@@ -163,28 +197,39 @@ void NestedArtboard::updateArtboard(
 
         if (isStateful())
         {
-            const bool cacheStale =
-                m_statefulViewModelInstance == nullptr ||
-                m_statefulViewModelInstance->viewModelId() !=
-                    artboard->viewModelId();
-            if (cacheStale)
+            auto statefulChild = findStatefulChildVmi();
+            if (statefulChild != nullptr &&
+                statefulChild->viewModelId() == artboard->viewModelId())
+            {
+                // Source artboard uses the same VM as the stateful child:
+                // borrow the child instance.
+                setActiveViewModelInstance(statefulChild, false);
+            }
+            else if (m_ownsActiveVmi && m_activeViewModelInstance != nullptr &&
+                     m_activeViewModelInstance->viewModelId() ==
+                         artboard->viewModelId())
+            {
+                // Already holding a bound instance for this VM; reuse.
+            }
+            else
             {
                 auto vm = m_file != nullptr
                               ? m_file->viewModel(artboard->viewModelId())
                               : nullptr;
-                m_statefulViewModelInstance =
+                rcp<ViewModelInstance> newBound =
                     vm != nullptr ? m_file->createDefaultViewModelInstance(vm)
                                   : nullptr;
-                if (m_statefulViewModelInstance != nullptr)
+                ViewModelInstance* raw = newBound.release();
+                setActiveViewModelInstance(raw, /*owns=*/raw != nullptr);
+                if (raw != nullptr)
                 {
-                    m_file->completeViewModelProperties(
-                        m_statefulViewModelInstance.get());
+                    m_file->completeViewModelProperties(raw);
                 }
             }
         }
         else
         {
-            m_statefulViewModelInstance = nullptr;
+            setActiveViewModelInstance(nullptr, false);
         }
 
         if (viewModelInstanceArtboard->boundViewModelInstance())
@@ -313,20 +358,14 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
     }
 
     // ViewModelInstance children are only added to NestedArtboards
-    // that wrap a stateful component Artboard.
-    for (auto child : children())
+    // that wrap a stateful component Artboard. We borrow the child VMI as the
+    // initial active binding; the parent Artboard's m_Objects teardown owns
+    // its lifetime.
+    if (auto vmi = findStatefulChildVmi())
     {
-        if (child->is<ViewModelInstance>())
-        {
-            auto vmi = child->as<ViewModelInstance>();
-            // Take ownership of the VMI's initial ref count. The VMI starts
-            // with ref count 1 from construction. The rcp constructor takes
-            // this ref without adding another. NestedArtboard now owns the VMI.
-            m_statefulViewModelInstance = rcp<ViewModelInstance>(vmi);
-            m_file->completeViewModelProperties(
-                m_statefulViewModelInstance.get());
-            break;
-        }
+        m_activeViewModelInstance = vmi;
+        m_ownsActiveVmi = false;
+        m_file->completeViewModelProperties(vmi);
     }
     tryScheduleBindStateful();
 
@@ -585,9 +624,9 @@ void NestedArtboard::bindViewModelInstance(
     {
         // Stateful nested artboards must keep their own instance as the local
         // root context, while the incoming instance remains the parent context.
-        auto instanceToBind = m_statefulViewModelInstance != nullptr
-                                  ? m_statefulViewModelInstance
-                                  : viewModelInstance;
+        ViewModelInstance* instanceToBind = m_activeViewModelInstance != nullptr
+                                                ? m_activeViewModelInstance
+                                                : viewModelInstance.get();
         bindArtboardInstance(instanceToBind, parent);
     }
 }
@@ -689,9 +728,9 @@ void NestedArtboard::reset()
     {
         m_referencedArtboard->reset();
     }
-    if (m_statefulViewModelInstance != nullptr)
+    if (m_activeViewModelInstance != nullptr)
     {
-        m_statefulViewModelInstance->advanced();
+        m_activeViewModelInstance->advanced();
     }
 }
 

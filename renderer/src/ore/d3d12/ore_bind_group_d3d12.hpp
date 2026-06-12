@@ -11,7 +11,9 @@ class ContextD3D12;
 class BindGroupD3D12 : public LITE_RTTI_OVERRIDE(BindGroup, BindGroupD3D12)
 {
 public:
-    BindGroupD3D12() = default;
+    BindGroupD3D12(rcp<rive::gpu::GPUResourceManager> manager) :
+        lite_rtti_override(std::move(manager))
+    {}
     ~BindGroupD3D12() override = default;
 
 private:

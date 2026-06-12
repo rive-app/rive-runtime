@@ -8,6 +8,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/lua/lua_state.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/factory.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/math/mat4.hpp"
@@ -327,7 +328,6 @@ enum class LuaAtoms : int16_t
     features,
     shader,
     format,
-    preferredCanvasFormat,
 
     // Promise
     andThen,
@@ -649,20 +649,72 @@ public:
     rcp<ore::Sampler> sampler;
 };
 
+// One @vertex/@fragment entry point resolved from an RSTB v4 container. For
+// whole-module targets (WGSL/MSL/SPIR-V) every record of a shader shares one
+// ShaderModule; for per-entry targets (GLSL/HLSL) each record owns its module.
+struct ScriptedShaderEntry
+{
+    uint8_t stage = 0;    // 0=vertex 1=fragment 2=compute
+    std::string logical;  // WGSL entry name a script matches against
+    std::string physical; // name handed to the driver (PipelineDesc entry)
+    rcp<ore::ShaderModule> module;
+};
+
 class ScriptedShader
 {
 public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 44;
     static constexpr const char* luaName = "Shader";
     static constexpr bool hasMetatable = false;
-    rcp<ore::ShaderModule> module;         // vertex module (or combined)
-    rcp<ore::ShaderModule> fragmentModule; // fragment module (null if combined)
 
-    // Returns the module to use for a given pipeline stage.
-    ore::ShaderModule* vertexMod() const { return module.get(); }
+    // Entry points in naga declaration order; the first of each stage is the
+    // WebGPU "no entryPoint" default.
+    std::vector<ScriptedShaderEntry> entries;
+
+    bool hasModule() const { return !entries.empty(); }
+
+    // First entry of a stage, or null.
+    const ScriptedShaderEntry* firstOfStage(uint8_t stage) const
+    {
+        for (const auto& e : entries)
+        {
+            if (e.stage == stage)
+                return &e;
+        }
+        return nullptr;
+    }
+
+    // Resolve a stage's entry by optional WGSL name; null/empty selects the
+    // first entry of that stage (WebGPU default). Returns null if a named
+    // entry is not found.
+    const ScriptedShaderEntry* resolveEntry(uint8_t stage,
+                                            const char* logical) const
+    {
+        if (logical == nullptr || logical[0] == '\0')
+            return firstOfStage(stage);
+        for (const auto& e : entries)
+        {
+            if (e.stage == stage && e.logical == logical)
+                return &e;
+        }
+        return nullptr;
+    }
+
+    // Back-compat: first vertex / first fragment module (binding-map reads,
+    // texture-sampler pair propagation). Fragment falls back to the combined
+    // (vertex) module when there is no separate fragment entry.
+    ore::ShaderModule* vertexMod() const
+    {
+        const auto* e = firstOfStage(0);
+        return e ? e->module.get() : nullptr;
+    }
     ore::ShaderModule* fragmentMod() const
     {
-        return fragmentModule ? fragmentModule.get() : module.get();
+        const auto* f = firstOfStage(1);
+        if (f)
+            return f->module.get();
+        const auto* v = firstOfStage(0);
+        return v ? v->module.get() : nullptr;
     }
 };
 
@@ -1433,17 +1485,20 @@ public:
     void recordMissingDependency(const std::string& requiringModule,
                                  const std::string& missingModule);
 
-    // Ore GPU context for this VM — set during VM adoption (response phase).
-    // Stored as void* to avoid coupling this header to ore headers; callers
-    // cast to ore::Context*.
-    void setOreContext(void* ctx) { m_oreContext = ctx; }
-    void* oreContext() const { return m_oreContext; }
+    // Ore GPU context for this VM, derived from the render factory. Null when
+    // there is no render context, or it is not GPU-backed. Returned as void* so
+    // callers that include ore headers cast to ore::Context*.
+    void* oreContext() const
+    {
+        return m_renderContext ? m_renderContext->ore() : nullptr;
+    }
 
-    // GPU render context — set once at startup by the host app.
-    // Stored as void* to avoid coupling this header to gpu headers; callers
-    // cast to gpu::RenderContext*.
-    void setRenderContext(void* ctx) { m_renderContext = ctx; }
-    void* renderContext() const { return m_renderContext; }
+    // Render factory — attached by the host once a GPU device exists, which may
+    // be after construction (or never, for headless VMs). Distinct from the
+    // construction factory(). A RenderContext is a Factory, so callers needing
+    // gpu APIs cast down to gpu::RenderContext*.
+    void setRenderContext(Factory* ctx) { m_renderContext = ctx; }
+    Factory* renderContext() const { return m_renderContext; }
 
     // WorkPool for async operations (image decode, etc.).
     // Lazily created on first access. Shared across all contexts via a
@@ -1497,8 +1552,7 @@ private:
     void onModuleRegistered(ModuleDetails* moduleDetails);
 
 private:
-    void* m_oreContext = nullptr;
-    void* m_renderContext = nullptr;
+    Factory* m_renderContext = nullptr;
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
     bool m_canvasDrawingPhase = false;
@@ -2162,11 +2216,6 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name);
 // available, otherwise returns conservative defaults. Always returns 1.
 // Implemented in lua_scripted_context.cpp.
 int lua_push_gpu_features(lua_State* L);
-
-// Push the platform's preferred canvas color format (a string like
-// "bgra8unorm" or "rgba8unorm") onto the Lua stack. Always returns 1.
-// Implemented in lua_scripted_context.cpp.
-int lua_push_preferred_canvas_format(lua_State* L);
 
 #endif
 #endif

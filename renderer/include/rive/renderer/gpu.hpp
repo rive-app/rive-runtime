@@ -16,6 +16,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <functional>
+#include <optional>
 
 // Use the define to run the feather LUT code
 // #define RIVE_GENERATE_FEATHER_LUT
@@ -219,6 +220,12 @@ struct PlatformFeatures
     // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
     // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
     size_t maxCoverageBufferLength = (1 << 27) / sizeof(uint32_t);
+
+    // True when the backend supports using the scissor rectangle for reducing
+    // the draw bounds of clip reads and writes.
+    // TODO: This should be possible to implement across all backends - at which
+    // point this bool could go away.
+    bool supportsClipScissor = false;
 
     // GPU compressed texture format support (queried per backend at init).
     bool supportsTextureCompressionBC = false;   // BC1/BC2/BC3/BC7
@@ -806,7 +813,7 @@ static_assert(INTERLOCK_MODE_COUNT > (1 << (INTERLOCK_MODE_BIT_COUNT - 1)));
 // Low-level batch of scissored geometry for rendering to the offscreen atlas.
 struct AtlasDrawBatch
 {
-    TAABB<uint16_t> scissor;
+    AABBu16 scissor;
     uint32_t patchCount;
     uint32_t basePatch;
 };
@@ -911,10 +918,17 @@ enum class ShaderMiscFlags : uint32_t
     // PLS when drawing a clear, in addition to clearing the other PLS planes.
     storeColorClear = 1 << 5,
 
+    // DrawType::renderPassInitialize only. Seed the color PLS plane by
+    // sampling the framebuffer contents (previously copied into a dst color
+    // texture bound at IMAGE_TEXTURE_IDX). Used for
+    // LoadAction::preserveRenderTarget on backends that can't directly copy
+    // a texture into a storage buffer (e.g. WebGPU).
+    loadColorFromDstTexture = 1 << 6,
+
     // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
     // contents from BGRA to RGBA. (For when this data had to get copied from a
     // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 6,
+    swizzleColorBGRAToRGBA = 1 << 7,
 
     // DrawType::renderPassResolve only. Optimization for when rendering to an
     // offscreen texture.
@@ -922,7 +936,7 @@ enum class ShaderMiscFlags : uint32_t
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 7,
+    coalescedResolveAndTransfer = 1 << 8,
 };
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
@@ -1193,6 +1207,7 @@ struct DrawBatch
     uint32_t baseElement;  // Base vertex, index, or instance.
     rive::BlendMode firstBlendMode;
     BarrierFlags barriers; // Barriers to execute before drawing this batch.
+    std::optional<AABBu16> scissorRect;
 
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
 

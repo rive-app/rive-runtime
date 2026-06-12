@@ -303,6 +303,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #define NEEDS_IMAGE_TEXTURE
 #endif
 
+// INITIALIZE_PLS may sample @imageTexture (the previous framebuffer contents
+// copied to dstColorTexture) when LoadAction::preserveRenderTarget is
+// requested. The spec-const LOAD_COLOR_FROM_DST_TEXTURE is set at runtime. We
+// have to declare the binding unconditionally though for non-FFCO
+// INITIALIZE_PLS so the spec-const branch can reach it; the caller binds a null
+// texture when the branch is off.
+#if defined(@INITIALIZE_PLS) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+#define NEEDS_IMAGE_TEXTURE
+#endif
+
 #ifdef @FRAGMENT
 PLS_BLOCK_BEGIN
 // We only bind the framebuffer as PLS when there are blend modes. Otherwise, we
@@ -875,12 +885,23 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
+#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
 #ifdef @STORE_COLOR_CLEAR
-    PLS_STORE4F(colorBuffer, unpackUnorm4x8(uniforms.colorClearValue));
+    if (@STORE_COLOR_CLEAR)
+    {
+        PLS_STORE4F(colorBuffer, unpackUnorm4x8(uniforms.colorClearValue));
+    }
+#endif
+#ifdef @LOAD_COLOR_FROM_DST_TEXTURE
+    if (@LOAD_COLOR_FROM_DST_TEXTURE)
+    {
+        PLS_STORE4F(colorBuffer, TEXEL_FETCH(@imageTexture, _plsCoord));
+    }
 #endif
 #ifdef @SWIZZLE_COLOR_BGRA_TO_RGBA
     half4 color = PLS_LOAD4F(colorBuffer);
     PLS_STORE4F(colorBuffer, color.bgra);
+#endif
 #endif
     PLS_STOREUI_UAV(coverageAtomicBuffer, uniforms.coverageClearValue);
 #ifdef @ENABLE_CLIPPING

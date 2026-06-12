@@ -39,7 +39,7 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -58,7 +58,7 @@ private:
     friend class BindGroupGL;
     friend class TextureGL;
 
-    ContextGL() = default;
+    ContextGL() : Context(nullptr) {}
 
     // GL state tracking for save/restore at frame boundaries.
     // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally excluded — it is VAO
@@ -67,6 +67,7 @@ private:
     {
         int program = 0;
         int arrayBuffer = 0;
+        int uniformBuffer = 0;
         int framebuffer = 0;
         int vertexArray = 0;
     } m_savedState;

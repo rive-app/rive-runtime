@@ -3,13 +3,14 @@
 
 #include "rive/span.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/math/math_types.hpp"
 #include <limits>
 
 namespace rive
 {
 template <typename T> struct TAABB
 {
-    int32_t left, top, right, bottom;
+    T left, top, right, bottom;
 
     constexpr T width() const { return right - left; }
     constexpr T height() const { return bottom - top; }
@@ -31,14 +32,34 @@ template <typename T> struct TAABB
                 std::max(right, b.right),
                 std::max(bottom, b.bottom)};
     }
-    TAABB intersect(TAABB b) const
+
+    template <typename U> TAABB intersect(TAABB<U> b) const
     {
-        return {std::max(left, b.left),
-                std::max(top, b.top),
-                std::min(right, b.right),
-                std::min(bottom, b.bottom)};
+        return {std::max(left, math::clamp_cast<T>(b.left)),
+                std::max(top, math::clamp_cast<T>(b.top)),
+                std::min(right, math::clamp_cast<T>(b.right)),
+                std::min(bottom, math::clamp_cast<T>(b.bottom))};
     }
 
+    template <typename U> TAABB<U> lossless_numeric_cast() const
+    {
+        return {
+            math::lossless_numeric_cast<U>(left),
+            math::lossless_numeric_cast<U>(top),
+            math::lossless_numeric_cast<U>(right),
+            math::lossless_numeric_cast<U>(bottom),
+        };
+    }
+
+    template <typename U> TAABB<U> clamp_cast() const
+    {
+        return {
+            math::clamp_cast<U>(left),
+            math::clamp_cast<U>(top),
+            math::clamp_cast<U>(right),
+            math::clamp_cast<U>(bottom),
+        };
+    }
     bool operator==(const TAABB& o) const
     {
         return left == o.left && top == o.top && right == o.right &&
@@ -46,16 +67,34 @@ template <typename T> struct TAABB
     }
     bool operator!=(const TAABB& o) const { return !(*this == o); }
 
-    bool contains(const TAABB& rhs) const
+    template <typename U> bool contains(const TAABB<U>& rhs) const
     {
-        return left <= rhs.left && top <= rhs.top && right >= rhs.right &&
-               bottom >= rhs.bottom;
+        return math::cmp_less_equal(left, rhs.left) &&
+               math::cmp_less_equal(top, rhs.top) &&
+               math::cmp_greater_equal(right, rhs.right) &&
+               math::cmp_greater_equal(bottom, rhs.bottom);
     }
 
-    static TAABB MakeWH(T width, T height) { return {0, 0, width, height}; }
+    template <typename U> bool overlaps(const TAABB<U>& b) const
+    {
+        return math::cmp_less(left, b.right) &&
+               math::cmp_greater(right, b.left) &&
+               math::cmp_less(top, b.bottom) &&
+               math::cmp_greater(bottom, b.top);
+    }
+
+    template <typename U> static TAABB MakeWH(U width, U height)
+    {
+        return {0,
+                0,
+                math::lossless_numeric_cast<T>(width),
+                math::lossless_numeric_cast<T>(height)};
+    }
 };
 
 using IAABB = TAABB<int32_t>;
+using AABBi16 = TAABB<int16_t>;
+using AABBu16 = TAABB<uint16_t>;
 
 class AABB
 {

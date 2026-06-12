@@ -21,6 +21,7 @@ class DataConverterGroupItem;
 class ScriptInputArtboard;
 class ScrollPhysics;
 class ArtboardReferencer;
+class ViewModelInstance;
 class BackboardImporter : public ImportStackObject
 {
 private:
@@ -50,6 +51,7 @@ public:
         DataConverterGroupItem* referencer);
     void addInterpolator(KeyFrameInterpolator* interpolator);
     void addPhysics(ScrollPhysics* physics);
+    void addViewModelInstance(ViewModelInstance* instance);
     std::vector<ScrollPhysics*> physics() { return m_physics; }
     std::vector<rcp<FileAsset>>* assets() { return &m_FileAssets; }
     void file(File* value);

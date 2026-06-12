@@ -39,14 +39,13 @@ void BufferGL::update(const void* data, uint32_t size, uint32_t offset)
     }
 }
 
-void BufferGL::onRefCntReachedZero() const
+BufferGL::~BufferGL()
 {
     if (m_glBuffer != 0)
     {
         GLuint buf = m_glBuffer;
         glDeleteBuffers(1, &buf);
     }
-    delete this;
 }
 
 #endif // ORE_BACKEND_GL

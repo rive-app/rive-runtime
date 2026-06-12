@@ -1,5 +1,6 @@
 #pragma once
 #include "rive/renderer/ore/ore_render_pass.hpp"
+#include "rive/renderer/vulkan/vkutil.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "ore_pipeline_vulkan.hpp"
 #include "rive/refcnt.hpp"
@@ -66,7 +67,7 @@ private:
     ContextVulkan* m_vkContext = nullptr; // weak ref
     rcp<PipelineVulkan> m_currentPipeline;
     VkCommandBuffer m_vkCmdBuf = VK_NULL_HANDLE;
-    VkFramebuffer m_vkFramebuffer = VK_NULL_HANDLE;
+    rcp<rive::gpu::vkutil::Framebuffer> m_framebuffer;
     VkBuffer m_vkIndexBuffer = VK_NULL_HANDLE;
     VkIndexType m_vkIndexType = VK_INDEX_TYPE_UINT16;
     uint32_t m_vkIndexOffset = 0;
@@ -77,6 +78,19 @@ private:
     gpu::RenderTargetVulkan* m_vkColorRenderTargets[4] = {}; // weak refs
     // Pin textures alive until finish() updates m_vkLayout post-pass.
     rcp<Texture> m_vkColorTextures[4];
+    // MSAA resolve target state captured at beginRenderPass.
+    // image == VK_NULL_HANDLE means "no resolve".
+    struct ResolveTarget
+    {
+        VkImage image = VK_NULL_HANDLE;
+        uint32_t baseMip = 0;
+        uint32_t baseLayer = 0;
+        uint32_t layerCount = 1;
+        gpu::RenderTargetVulkan* renderTarget = nullptr; // weak ref
+        // Pins the texture alive until finish() updates m_vkLayout.
+        rcp<Texture> texture;
+    };
+    ResolveTarget m_vkResolveTargets[4];
     VkImage m_vkDepthImage = VK_NULL_HANDLE;
     uint32_t m_vkDepthBaseLayer = 0;
     uint32_t m_vkDepthLayerCount = 1;

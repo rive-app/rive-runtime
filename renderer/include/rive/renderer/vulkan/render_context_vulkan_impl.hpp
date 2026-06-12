@@ -90,6 +90,14 @@ public:
                                   bool srgb = false,
                                   bool generateRemainingMips = false) override;
 
+    // Adopts an externally-owned VkImage as a Rive Texture. Caller owns the
+    // VkImage and must leave it in SHADER_READ_ONLY_OPTIMAL before the next
+    // Rive sample; the first barrier is suppressed accordingly.
+    rcp<Texture> adoptImageTexture(VkImage image,
+                                   uint32_t width,
+                                   uint32_t height,
+                                   VkFormat format);
+
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;

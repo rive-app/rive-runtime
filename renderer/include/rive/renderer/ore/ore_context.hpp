@@ -87,12 +87,16 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) = 0;
 
-    // Frame lifecycle (owned-CL form). For external-CL mode, see the
-    // typed beginFrame overload on the relevant per-backend subclass
-    // (ContextVulkan::beginFrame(VkCommandBuffer),
-    // ContextD3D12::beginFrame(ID3D12GraphicsCommandList*),
-    // ContextWGPU::beginFrame(wgpu::CommandEncoder)).
-    virtual void beginFrame() = 0;
+    struct FrameDescriptor
+    {
+        // Because ore is currently imidiate mode, the command buffer must be
+        // passed in on begin frame instead of end frame.
+        void* externalCommandBuffer = nullptr;
+        uint64_t safeFrameNumber;
+        uint64_t currentFrameNumber;
+    };
+
+    virtual void beginFrame(const FrameDescriptor&) = 0;
     virtual void endFrame() = 0;
 
     // Block until the most recent endFrame() submission completes on the
@@ -116,14 +120,6 @@ public:
     // ------------------------------------------------------------------------
 
     const Features& features() const { return m_features; }
-
-    // Defer destruction of a BindGroup until after the GPU fence in endFrame().
-    // Call this instead of dropping the last rcp<> directly — keeps the object
-    // alive until the GPU is done with any command buffers that reference it.
-    void deferBindGroupDestroy(rcp<BindGroup> bg)
-    {
-        m_deferredBindGroups.push_back(std::move(bg));
-    }
 
     // Active render pass tracking — used by Lua bindings to auto-finish
     // stale passes and by backends that enforce one-encoder-at-a-time.
@@ -173,7 +169,9 @@ public:
     Context& operator=(Context&&) = delete;
 
 protected:
-    Context() = default;
+    Context(rcp<rive::gpu::GPUResourceManager> manager) :
+        m_manager(std::move(manager))
+    {}
 
     Features m_features;
 
@@ -182,12 +180,14 @@ protected:
     // that enforce one-encoder-at-a-time (Metal, D3D12) don't assert.
     RenderPass* m_activeRenderPass = nullptr;
 
-    // Deferred destruction queues — cleared after endFrame() fence wait.
-    // The rcp<> keeps objects alive until the GPU is done with them.
-    std::vector<rcp<BindGroup>> m_deferredBindGroups;
-
     // Last validation error from setPipeline() / setBindGroup().
     std::string m_lastError;
+
+    // Back-pointer to the GPUResourceManager for GPUResource lifecycle
+    // this is actually owned by the render context impl that created the given
+    // ore context but its held here for convenience of ore resources that need
+    // to defer cleanup until a safe frame is reached.
+    rcp<rive::gpu::GPUResourceManager> m_manager;
 };
 
 // ============================================================================

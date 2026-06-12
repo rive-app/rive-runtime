@@ -260,6 +260,19 @@ Image::Image(rcp<VulkanContext> vulkanContext,
                                 name);
 }
 
+Image::Image(rcp<VulkanContext> vulkanContext,
+             VkImage externalImage,
+             const VkImageCreateInfo& info,
+             const char* name) :
+    Resource(std::move(vulkanContext)), m_info(info)
+{
+    m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    m_vkImage = externalImage;
+    vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
+                                VK_OBJECT_TYPE_IMAGE,
+                                name);
+}
+
 Image::~Image()
 {
     if (m_vmaAllocation != VK_NULL_HANDLE)
@@ -324,6 +337,21 @@ Texture2D::Texture2D(rcp<VulkanContext> vk,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
     m_image = vk->makeImage(info, name);
+    m_imageView = vk->makeImageView(m_image, name);
+}
+
+Texture2D::Texture2D(rcp<VulkanContext> vk,
+                     rcp<Image> existingImage,
+                     const char* name) :
+    rive::gpu::Texture(existingImage->info().extent.width,
+                       existingImage->info().extent.height),
+    m_image(std::move(existingImage)),
+    m_lastAccess({
+        .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        .accessMask = VK_ACCESS_NONE,
+        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+    })
+{
     m_imageView = vk->makeImageView(m_image, name);
 }
 

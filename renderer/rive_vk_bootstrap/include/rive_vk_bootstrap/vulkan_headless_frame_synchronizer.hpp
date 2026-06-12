@@ -2,6 +2,8 @@
  * Copyright 2025 Rive
  */
 
+#pragma once
+
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -14,7 +16,7 @@ class VulkanDevice;
 class VulkanInstance;
 
 // This is similar to a swapchain, but instead renders to an offscreen image.
-class VulkanHeadlessFrameSynchronizer : public VulkanFrameSynchronizer
+class VulkanHeadlessFrameSynchronizer final : public VulkanFrameSynchronizer
 {
     using Super = VulkanFrameSynchronizer;
 
@@ -33,25 +35,28 @@ public:
         VulkanDevice&,
         rive::rcp<rive::gpu::VulkanContext>,
         const Options&);
-    ~VulkanHeadlessFrameSynchronizer();
+    ~VulkanHeadlessFrameSynchronizer() final;
 
     VulkanHeadlessFrameSynchronizer(const VulkanHeadlessFrameSynchronizer&) =
         delete;
     VulkanHeadlessFrameSynchronizer& operator=(
         const VulkanHeadlessFrameSynchronizer&) = delete;
 
-    VkImage vkImage() const { return *m_image; }
-    VkImageView vkImageView() const { return *m_imageView; }
-    rive::gpu::vkutil::ImageAccess lastAccess() const
+    VkImage vkImage() const final { return *m_image; }
+    VkImageView vkImageView() const final { return *m_imageView; }
+    rive::gpu::vkutil::ImageAccess lastAccess() const final
     {
         return m_lastImageAccess;
     }
 
-    uint32_t width() const { return m_width; }
-    uint32_t height() const { return m_height; }
+    uint32_t width() const final { return m_width; }
+    uint32_t height() const final { return m_height; }
 
-    VkFormat imageFormat() const { return m_imageFormat; }
-    VkImageUsageFlags imageUsageFlags() const { return m_imageUsageFlags; }
+    VkFormat imageFormat() const final { return m_imageFormat; }
+    VkImageUsageFlags imageUsageFlags() const final
+    {
+        return m_imageUsageFlags;
+    }
 
     bool isFrameStarted() const;
     [[nodiscard]] VkResult beginFrame();

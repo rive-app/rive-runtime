@@ -13,15 +13,15 @@
 
 namespace rive::ore
 {
-
 class ContextD3D12 : public Context
 {
 public:
     // Takes the D3D12 device and command queue. Ore shares the caller's
     // queue so that canvas-texture renders are visible to the host renderer
     // without cross-queue synchronization.
-    static std::unique_ptr<ContextD3D12> Make(ID3D12Device* device,
-                                              ID3D12CommandQueue* queue);
+    static std::unique_ptr<ContextD3D12> Make(
+        rcp<rive::gpu::GPUResourceManager> manager,
+        ID3D12Device* device);
 
     ~ContextD3D12() override;
 
@@ -40,7 +40,7 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -51,25 +51,6 @@ public:
 
     ShaderTarget shaderTarget() const override { return ShaderTarget::hlsl; }
 
-    // External-CL mode: Ore records into the host's
-    // ID3D12GraphicsCommandList (already reset and open) instead of owning
-    // its own. The host retains ownership of Close/ExecuteCommandLists/the
-    // frame fence. Contract: the host must have waited on the prior frame's
-    // completion fence before calling beginFrame(externalCl) again, so
-    // deferred-destroy closures can be drained safely. Enables cross-engine
-    // read-after-write (Rive writes, Ore reads) that the owned-CL model
-    // cannot support.
-    void beginFrame(ID3D12GraphicsCommandList* externalCl);
-
-    // Called by Ore resource onRefCntReachedZero() implementations. If the
-    // context is in external-CL mode, the closure is queued and drained at
-    // the next beginFrame(), after the host has waited on the prior frame
-    // fence. In owned-CL mode the closure runs immediately — Ore's endFrame()
-    // does its own ExecuteCommandLists + WaitForFence, so by the time the
-    // next owned frame begins, any objects referenced by the previous frame's
-    // CL are safe to release.
-    void d3dDeferDestroy(std::function<void()> destroy);
-
     ContextD3D12(const ContextD3D12&) = delete;
     ContextD3D12& operator=(const ContextD3D12&) = delete;
 
@@ -78,7 +59,9 @@ private:
     friend class BindGroupD3D12;
     friend class TextureD3D12;
 
-    ContextD3D12() = default;
+    ContextD3D12(rcp<rive::gpu::GPUResourceManager> manager) :
+        Context(std::move(manager))
+    {}
 
     // D3D12 implementation helpers — defined in ore_context_d3d12.cpp.
     rcp<Buffer> d3d12MakeBuffer(const BufferDesc& desc);
@@ -99,24 +82,12 @@ private:
                                           uint32_t h);
 
     Microsoft::WRL::ComPtr<ID3D12Device> m_d3dDevice;
-    Microsoft::WRL::ComPtr<ID3D12CommandQueue> m_d3dQueue;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> m_d3dAllocator;
-    // ComPtr that owns the command list Ore allocates for owned-CL frames.
-    // Not used directly by recording code — see m_d3dCmdList below.
-    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> m_d3dOwnedCmdList;
-    // Active command list for the current frame. Points at m_d3dOwnedCmdList
-    // in owned-CL mode and at the host-provided command list in external-CL
-    // mode. All recording code reads through this pointer, so the two modes
-    // share one code path.
+    // Microsoft::WRL::ComPtr<ID3D12CommandQueue> m_d3dQueue;
+    //  Active command list for the current frame. Points at m_d3dOwnedCmdList
+    //  in owned-CL mode and at the host-provided command list in external-CL
+    //  mode. All recording code reads through this pointer, so the two modes
+    //  share one code path.
     ID3D12GraphicsCommandList* m_d3dCmdList = nullptr;
-    // Separate allocator/list for texture uploads (flushed at beginFrame).
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> m_d3dUploadAllocator;
-    Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> m_d3dUploadCmdList;
-    bool m_d3dUploadListOpen = false;
-    Microsoft::WRL::ComPtr<ID3D12Fence> m_d3dFence;
-    uint64_t m_d3dFenceValue = 0;
-    HANDLE m_d3dFenceEvent = nullptr;
-    // CPU-visible descriptor heaps for creating descriptors at
     // resource-creation time.
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_d3dCpuSrvHeap;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_d3dCpuRtvHeap;
@@ -138,19 +109,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_d3dGpuSamplerHeap;
     UINT m_d3dGpuSrvAllocated = 0;
     UINT m_d3dGpuSamplerAllocated = 0;
-    // Upload buffers kept alive until the frame fence-wait completes.
-    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> m_d3dPendingUploads;
-    // True while the current frame is recording into a host-provided command
-    // list. endFrame() skips Close/Execute/Wait when set; next beginFrame()
-    // drains deferred destroys.
-    bool m_d3dExternalCmdList = false;
-    // Deferred-destroy closures (pipelines, samplers, buffers, textures,
-    // views) queued while m_d3dExternalCmdList is true, drained at the next
-    // beginFrame() or in the destructor after a GPU idle.
-    std::vector<std::function<void()>> m_d3dDeferredDestroys;
-    // Drain the deferred-destroy queue. Caller is responsible for ensuring
-    // the prior GPU work has completed (via our fence or the host's).
-    void d3dDrainDeferred();
     // Helpers called by RenderPass to allocate and resolve descriptor handles.
     UINT d3d12AllocGpuSrvSlots(UINT count);
     UINT d3d12AllocGpuSamplerSlots(UINT count);
@@ -158,8 +116,6 @@ private:
     D3D12_GPU_DESCRIPTOR_HANDLE d3d12GpuSrvGpuHandle(UINT index) const;
     D3D12_CPU_DESCRIPTOR_HANDLE d3d12GpuSamplerCpuHandle(UINT index) const;
     D3D12_GPU_DESCRIPTOR_HANDLE d3d12GpuSamplerGpuHandle(UINT index) const;
-    // Flush any open upload command list (called from beginFrame).
-    void d3d12FlushUploads();
 };
 
 } // namespace rive::ore

@@ -186,8 +186,16 @@ void BackgroundShaderCompiler::threadMain()
                 if (enums::is_flag_set(shaderMiscFlags,
                                        gpu::ShaderMiscFlags::storeColorClear))
                 {
-                    defines[@GLSL_STORE_COLOR_CLEAR] = @"";
+                    // Define this as "true" instead of an empty string because
+                    // it's a specialization constant in some backends and gets
+                    // branched on at runtime.
+                    defines[@GLSL_STORE_COLOR_CLEAR] = @"true";
                 }
+                // Metal copies the render target directly to the storage buffer
+                // instead of seeding it with the shader.
+                assert(!enums::is_flag_set(
+                    shaderMiscFlags,
+                    gpu::ShaderMiscFlags::loadColorFromDstTexture));
                 if (enums::is_flag_set(
                         shaderMiscFlags,
                         gpu::ShaderMiscFlags::swizzleColorBGRAToRGBA))

@@ -12,7 +12,7 @@
 namespace rive
 {
 
-// Helper to build a minimal RSTB v3 binary.
+// Helper to build a minimal RSTB v4 binary.
 //   variants: vector of (target, blobData) pairs.
 //   sections: vector of (tag, sectionData) pairs written verbatim after the
 //             variant descriptors with a u16 length prefix.
@@ -98,7 +98,7 @@ static SimpleArray<uint8_t> envelope(const std::vector<uint8_t>& rstb)
 TEST_CASE("ShaderAsset-decode-valid", "[ShaderAsset]")
 {
     std::vector<uint8_t> blob = {0xDE, 0xAD, 0xBE, 0xEF, 0x42};
-    auto data = envelope(makeRSTB(3, {{2, blob}}));
+    auto data = envelope(makeRSTB(4, {{2, blob}}));
     ShaderAsset asset;
     CHECK(asset.decode(data, nullptr) == true);
 
@@ -113,15 +113,15 @@ TEST_CASE("ShaderAsset-decode-valid", "[ShaderAsset]")
 
 TEST_CASE("ShaderAsset-decode-bad-magic", "[ShaderAsset]")
 {
-    auto data = envelope(makeRSTB(3, {}, {}, 0xBADBAD00u));
+    auto data = envelope(makeRSTB(4, {}, {}, 0xBADBAD00u));
     ShaderAsset asset;
     CHECK(asset.decode(data, nullptr) == false);
 }
 
 TEST_CASE("ShaderAsset-decode-bad-version", "[ShaderAsset]")
 {
-    // v2 is no longer accepted.
-    auto data = envelope(makeRSTB(2, {}));
+    // v3 (and earlier) is no longer accepted after the v4 entry-container bump.
+    auto data = envelope(makeRSTB(3, {}));
     ShaderAsset asset;
     CHECK(asset.decode(data, nullptr) == false);
 }
@@ -137,7 +137,7 @@ TEST_CASE("ShaderAsset-decode-truncated", "[ShaderAsset]")
 
 TEST_CASE("ShaderAsset-findShader-miss", "[ShaderAsset]")
 {
-    auto data = envelope(makeRSTB(3, {{2, {0xAA}}}));
+    auto data = envelope(makeRSTB(4, {{2, {0xAA}}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
 
@@ -154,7 +154,7 @@ TEST_CASE("ShaderAsset-multiple-targets", "[ShaderAsset]")
     std::vector<uint8_t> blob3 = {0x77, 0x88, 0x99, 0xAA};
 
     auto data =
-        envelope(makeRSTB(3, {{0, blob0}, {1, blob1}, {2, blob2}, {3, blob3}}));
+        envelope(makeRSTB(4, {{0, blob0}, {1, blob1}, {2, blob2}, {3, blob3}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
 
@@ -196,7 +196,7 @@ TEST_CASE("ShaderAsset-decode-texture-sampler-pairs", "[ShaderAsset]")
 {
     auto pairs =
         makeTexSamplerPairsTag({{0, 1, 0, 2}, {1, 3, 1, 4}, {2, 5, 2, 6}});
-    auto data = envelope(makeRSTB(3, {{2, {0xAA}}}, {{1, pairs}}));
+    auto data = envelope(makeRSTB(4, {{2, {0xAA}}}, {{1, pairs}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
 
@@ -217,7 +217,7 @@ TEST_CASE("ShaderAsset-decode-texture-sampler-pairs", "[ShaderAsset]")
 
 TEST_CASE("ShaderAsset-decode-no-sections-empty-pairs", "[ShaderAsset]")
 {
-    auto data = envelope(makeRSTB(3, {{2, {0x42}}}));
+    auto data = envelope(makeRSTB(4, {{2, {0x42}}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
     CHECK(asset.textureSamplerPairs().size() == 0);
@@ -228,7 +228,7 @@ TEST_CASE("ShaderAsset-decode-unknown-tag-skipped", "[ShaderAsset]")
     // Tag 99 (unknown). Reader must skip the section without failing,
     // and pairs must remain empty.
     std::vector<uint8_t> bogusSection = {0xDE, 0xAD, 0xBE, 0xEF};
-    auto data = envelope(makeRSTB(3, {{2, {0x42}}}, {{99, bogusSection}}));
+    auto data = envelope(makeRSTB(4, {{2, {0x42}}}, {{99, bogusSection}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
     CHECK(asset.textureSamplerPairs().size() == 0);
@@ -242,7 +242,7 @@ TEST_CASE("ShaderAsset-decode-truncated-section-header", "[ShaderAsset]")
     // Build a valid RSTB then chop bytes so the section header (3 bytes)
     // doesn't fit. Header(8) + Variant(9) = 17 bytes before the section,
     // and we claim section_count=1 so the reader will look for a section.
-    auto rstb = makeRSTB(3, {{2, {0x42}}}, {{1, {0}}});
+    auto rstb = makeRSTB(4, {{2, {0x42}}}, {{1, {0}}});
     // Truncate to leave only 1 byte where the 3-byte section header
     // should be. Section header starts at offset 17.
     rstb.resize(17 + 1);
@@ -254,7 +254,7 @@ TEST_CASE("ShaderAsset-decode-truncated-section-header", "[ShaderAsset]")
 TEST_CASE("ShaderAsset-decode-truncated-section-data", "[ShaderAsset]")
 {
     // Section claims length=10 but only 2 data bytes follow.
-    auto rstb = makeRSTB(3, {{2, {0x42}}});
+    auto rstb = makeRSTB(4, {{2, {0x42}}});
     // Bump section_count from 0 to 1.
     rstb[7] = 1;
     // Append a section header claiming 10 data bytes but supply only 2.
@@ -273,7 +273,7 @@ TEST_CASE("ShaderAsset-decode-rejects-out-of-range-variant", "[ShaderAsset]")
     // Build a valid 1-variant RSTB then patch the variant's blob_size to
     // a value that runs past m_bytes. Decode must fail rather than store
     // an entry that findShader would later return as a Span past the buf.
-    auto rstb = makeRSTB(3, {{2, {0xAA}}});
+    auto rstb = makeRSTB(4, {{2, {0xAA}}});
     // Variant descriptor starts at byte 8: target(u8) + blob_offset(u32)
     // + blob_size(u32). blob_size lives at bytes 13..16.
     rstb[13] = 0xFF;
@@ -290,7 +290,7 @@ TEST_CASE("ShaderAsset-decode-rejects-overflowing-variant", "[ShaderAsset]")
 {
     // blob_offset = 0xFFFFFFF0, blob_size = 0x20. Naive uint32_t addition
     // wraps to 0x10 and a non-overflow-aware bounds check would pass.
-    auto rstb = makeRSTB(3, {{2, {0xAA}}});
+    auto rstb = makeRSTB(4, {{2, {0xAA}}});
     rstb[9] = 0xF0;
     rstb[10] = 0xFF;
     rstb[11] = 0xFF;
@@ -310,7 +310,7 @@ TEST_CASE("ShaderAsset-decode-pair-count-mismatch-ignored", "[ShaderAsset]")
     // Reader should skip the pair payload (length insufficient) but not
     // fail the overall decode; subsequent variants still resolve.
     std::vector<uint8_t> badPairs = {5, 0, 1, 0, 2, 1, 3, 1, 4};
-    auto data = envelope(makeRSTB(3, {{2, {0xAA}}}, {{1, badPairs}}));
+    auto data = envelope(makeRSTB(4, {{2, {0xAA}}}, {{1, badPairs}}));
     ShaderAsset asset;
     REQUIRE(asset.decode(data, nullptr) == true);
     CHECK(asset.textureSamplerPairs().size() == 0);

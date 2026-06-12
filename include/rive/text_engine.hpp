@@ -30,6 +30,7 @@ enum class TextOverflow : uint8_t
     clipped,
     ellipsis,
     fit,
+    fitFontSize,
 };
 
 enum class TextOrigin : uint8_t

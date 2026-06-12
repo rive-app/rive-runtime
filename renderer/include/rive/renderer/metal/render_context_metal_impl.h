@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
+#include "rive/rive_types.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include <unordered_map>
 #include <mutex>
@@ -144,6 +145,12 @@ public:
                                   uint8_t blockHeight = 1,
                                   bool srgb = false,
                                   bool generateRemainingMips = false) override;
+
+    // Wrap an externally-owned MTLTexture as a Rive Texture for sampling.
+    // No upload, no allocation; the wrapper retains the MTLTexture via ARC.
+    rcp<Texture> adoptImageTexture(id<MTLTexture> texture,
+                                   uint32_t width,
+                                   uint32_t height);
 
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,

@@ -529,7 +529,6 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             {
                 stackObject = std::make_unique<ViewModelImporter>(
                     object->as<ViewModel>());
-                static_cast<ViewModelImporter*>(stackObject.get())->file(this);
                 stackType = ViewModel::typeKey;
                 object->as<ViewModel>()->file(this);
                 break;

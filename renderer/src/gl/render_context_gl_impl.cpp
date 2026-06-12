@@ -193,12 +193,13 @@ RenderContextGLImpl::RenderContextGLImpl(
         // (5-10%) improvement from not using flat varyings.
         m_platformFeatures.avoidFlatVaryings = true;
     }
-    if (m_capabilities.isPowerVR)
+    if (m_capabilities.isPowerVR || strstr(rendererString, "Mali-G52"))
     {
-        // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a)
-        // seems to hit some sort of reset condition that corrupts pixel local
-        // storage when rendering a complex feather. For now, feather directly
-        // to the screen on PowerVR; always go offscreen.
+        // PowerVR (Vivo Y21, Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a)
+        // and Mali-G52 (Panfrost, e.g. MediaTek MT8169) hit a reset condition
+        // that corrupts pixel local storage when rendering a complex feather
+        // directly into PLS. Route feathers through the offscreen atlas on
+        // these GPUs.
         m_platformFeatures.alwaysFeatherToAtlas = true;
     }
     m_platformFeatures.clipSpaceBottomUp = true;

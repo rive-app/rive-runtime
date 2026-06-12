@@ -387,18 +387,12 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
-            case ViewModelPropertyColorBase::typeKey:
-                return new ViewModelPropertyColor();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelPropertyColorBase::typeKey:
+                return new ViewModelPropertyColor();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -411,12 +405,18 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
                 return new CustomPropertyTrigger();
             case ScriptInputTriggerBase::typeKey:
@@ -1861,6 +1861,9 @@ public:
             case ScrollConstraintBase::interactivePropertyKey:
                 object->as<ScrollConstraintBase>()->interactive(value);
                 break;
+            case ScrollConstraintBase::scrollActivePropertyKey:
+                object->as<ScrollConstraintBase>()->scrollActive(value);
+                break;
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 object->as<ScrollBarConstraintBase>()->autoSize(value);
                 break;
@@ -2395,6 +2398,12 @@ public:
                 break;
             case ScrollConstraintBase::thresholdPropertyKey:
                 object->as<ScrollConstraintBase>()->threshold(value);
+                break;
+            case ScrollConstraintBase::velocityXPropertyKey:
+                object->as<ScrollConstraintBase>()->velocityX(value);
+                break;
+            case ScrollConstraintBase::velocityYPropertyKey:
+                object->as<ScrollConstraintBase>()->velocityY(value);
                 break;
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 object->as<ElasticScrollPhysicsBase>()->friction(value);
@@ -3718,6 +3727,8 @@ public:
                 return object->as<ScrollConstraintBase>()->infinite();
             case ScrollConstraintBase::interactivePropertyKey:
                 return object->as<ScrollConstraintBase>()->interactive();
+            case ScrollConstraintBase::scrollActivePropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollActive();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
             case NestedArtboardBase::isPausedPropertyKey:
@@ -3848,6 +3859,10 @@ public:
                 return object->as<ScrollConstraintBase>()->scrollIndex();
             case ScrollConstraintBase::thresholdPropertyKey:
                 return object->as<ScrollConstraintBase>()->threshold();
+            case ScrollConstraintBase::velocityXPropertyKey:
+                return object->as<ScrollConstraintBase>()->velocityX();
+            case ScrollConstraintBase::velocityYPropertyKey:
+                return object->as<ScrollConstraintBase>()->velocityY();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->as<ElasticScrollPhysicsBase>()->friction();
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
@@ -4563,6 +4578,7 @@ public:
             case ScrollConstraintBase::virtualizePropertyKey:
             case ScrollConstraintBase::infinitePropertyKey:
             case ScrollConstraintBase::interactivePropertyKey:
+            case ScrollConstraintBase::scrollActivePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case NestedArtboardBase::isPausedPropertyKey:
             case NestedArtboardBase::isStatefulPropertyKey:
@@ -4619,6 +4635,8 @@ public:
             case ScrollConstraintBase::scrollPercentYPropertyKey:
             case ScrollConstraintBase::scrollIndexPropertyKey:
             case ScrollConstraintBase::thresholdPropertyKey:
+            case ScrollConstraintBase::velocityXPropertyKey:
+            case ScrollConstraintBase::velocityYPropertyKey:
             case ElasticScrollPhysicsBase::frictionPropertyKey:
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
             case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
@@ -5441,6 +5459,8 @@ public:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::interactivePropertyKey:
                 return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::scrollActivePropertyKey:
+                return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->is<ScrollBarConstraintBase>();
             case NestedArtboardBase::isPausedPropertyKey:
@@ -5592,6 +5612,10 @@ public:
             case ScrollConstraintBase::scrollIndexPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::thresholdPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::velocityXPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::velocityYPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->is<ElasticScrollPhysicsBase>();

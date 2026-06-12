@@ -70,7 +70,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_WITNESS_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // ── UBOs. Each holds a vec4 color. WGSL UBOs require 16-byte
         // alignment of the struct; vec4<f32> is already 16 bytes.
@@ -160,7 +160,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = canvasTarget.get();
@@ -180,7 +180,7 @@ public:
         pass->draw(3); // fullscreen triangle
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // Composite into the main framebuffer.

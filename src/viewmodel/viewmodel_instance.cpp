@@ -9,7 +9,8 @@
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/file.hpp"
-#include "rive/importers/viewmodel_importer.hpp"
+#include "rive/backboard.hpp"
+#include "rive/importers/backboard_importer.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/core_context.hpp"
@@ -223,14 +224,14 @@ Core* ViewModelInstance::clone() const
 
 StatusCode ViewModelInstance::import(ImportStack& importStack)
 {
-    auto viewModelImporter =
-        importStack.latest<ViewModelImporter>(ViewModel::typeKey);
-    if (viewModelImporter == nullptr)
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
+    if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
 
-    viewModelImporter->addInstance(this);
+    backboardImporter->addViewModelInstance(this);
 
     auto artboardImporter =
         importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
@@ -241,7 +242,7 @@ StatusCode ViewModelInstance::import(ImportStack& importStack)
 
     // Only add ViewModelInstances at the File level if they are not
     // in the Component hierarchy.
-    auto file = viewModelImporter->file();
+    auto file = backboardImporter->file();
     if (file != nullptr)
     {
         file->addFileViewModelInstance(this);

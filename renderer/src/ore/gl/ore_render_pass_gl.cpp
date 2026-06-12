@@ -499,6 +499,8 @@ void RenderPassGL::draw(uint32_t vertexCount,
     assert(m_currentPipeline != nullptr);
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
+    // drawBaseInstance=false on GL, so the Lua guard rejects firstInstance>0.
+    // Wiring needs glDrawArraysInstancedBaseInstance (ANGLE).
     (void)firstInstance;
 
     if (instanceCount > 1)
@@ -524,6 +526,9 @@ void RenderPassGL::drawIndexed(uint32_t indexCount,
     const void* offset = reinterpret_cast<const void*>(
         static_cast<uintptr_t>(firstIndex * indexSize));
 
+    // drawBaseInstance=false on GL, so the Lua guard rejects baseVertex!=0 and
+    // firstInstance>0. Wiring needs
+    // glDrawElementsInstancedBaseVertexBaseInstance (ANGLE).
     (void)baseVertex;
     (void)firstInstance;
 

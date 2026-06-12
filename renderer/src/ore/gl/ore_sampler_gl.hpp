@@ -9,8 +9,7 @@ class SamplerGL : public LITE_RTTI_OVERRIDE(Sampler, SamplerGL)
 {
 public:
     SamplerGL() = default;
-    ~SamplerGL() override = default;
-    void onRefCntReachedZero() const override;
+    ~SamplerGL() override;
 
 private:
     friend class ContextGL;

@@ -16,6 +16,13 @@
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/assets/image_asset.hpp"
+#include "rive/assets/script_asset.hpp"
+#include "rive/file.hpp"
+#ifdef WITH_RIVE_TOOLS
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
+#endif
 
 #include <math.h>
 
@@ -204,6 +211,14 @@ void ScriptedProperty::dispose()
 
 void ScriptedProperty::valueChanged()
 {
+    if (m_listeners.empty())
+    {
+        return;
+    }
+    if (!lua_checkstack(m_state, (int)(m_listeners.size() * 2 + LUA_MINSTACK)))
+    {
+        return;
+    }
     // This works because we don't actually call as we go (or we could
     // invalidate listeners if a callback registers a new or removes a
     // listener). Instead, we build up the call stack and then call for each
@@ -1215,8 +1230,52 @@ int ScriptedPropertyImage::pushValue()
     if (m_instanceValue)
     {
         auto vmi = m_instanceValue->as<ViewModelInstanceAssetImage>();
-        auto asset = vmi->asset();
-        if (asset != nullptr && asset->renderImage() != nullptr)
+        RenderImage* renderImage = nullptr;
+        if (auto asset = vmi->asset())
+        {
+            renderImage = asset->renderImage();
+        }
+        // Fall back to the file's asset registry when no image is embedded
+        // on the instance — mirrors DataBindContextValueAssetImage.
+        if (renderImage == nullptr && owner() != nullptr)
+        {
+            if (auto scriptAsset = owner()->scriptAsset())
+            {
+                if (auto file = scriptAsset->file())
+                {
+                    auto fileAsset = file->asset(vmi->propertyValue());
+                    if (fileAsset != nullptr && fileAsset->is<ImageAsset>())
+                    {
+                        renderImage =
+                            fileAsset->as<ImageAsset>()->renderImage();
+                    }
+                }
+            }
+        }
+#ifdef WITH_RIVE_TOOLS
+        // Editor/Dart path: when the property is constructed without a
+        // ScriptedObject owner (owner() is null), reach the File through
+        // the ViewModel instead.
+        if (renderImage == nullptr && owner() == nullptr)
+        {
+            if (auto vmInstance = vmi->viewModelInstance())
+            {
+                if (auto viewModel = vmInstance->viewModel())
+                {
+                    if (auto file = viewModel->file())
+                    {
+                        auto fileAsset = file->asset(vmi->propertyValue());
+                        if (fileAsset != nullptr && fileAsset->is<ImageAsset>())
+                        {
+                            renderImage =
+                                fileAsset->as<ImageAsset>()->renderImage();
+                        }
+                    }
+                }
+            }
+        }
+#endif
+        if (renderImage != nullptr)
         {
             // Use the out-of-line `ScriptedImage::luaNew` factory rather
             // than `lua_newrive<ScriptedImage>` directly: when ore is
@@ -1226,7 +1285,7 @@ int ScriptedPropertyImage::pushValue()
             // factory lives in `lua_gpu.cpp` / `lua_image.cpp` where the
             // ore headers are visible.
             auto scriptedImage = ScriptedImage::luaNew(m_state);
-            scriptedImage->image = ref_rcp(asset->renderImage());
+            scriptedImage->image = ref_rcp(renderImage);
             return 1;
         }
     }

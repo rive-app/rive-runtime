@@ -44,6 +44,18 @@ public:
     virtual ~FiddleContext() {}
     virtual float dpiScale(GLFWwindow*) const = 0;
     virtual rive::Factory* factory() = 0;
+    // Needed by dawn to submit and create the command buffers since they are
+    // created each frame.
+    virtual void* getCommandBuffer() { return nullptr; };
+    virtual void beginOreFrame(rive::ore::Context* oreContext)
+    {
+        oreContext->beginFrame({.externalCommandBuffer = getCommandBuffer()});
+    };
+    virtual void endOreFrame(rive::ore::Context* context)
+    {
+        context->endFrame();
+    };
+
     virtual rive::gpu::RenderContext* renderContextOrNull() = 0;
     virtual rive::gpu::RenderContextD3DImpl* renderContextD3DImpl() const
     {

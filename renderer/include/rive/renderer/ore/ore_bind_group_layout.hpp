@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/refcnt.hpp"
+#include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
@@ -26,7 +26,7 @@ class ContextD3D11;
 // Lifetime: outlives any `Pipeline` or `BindGroup` that references it.
 // `Pipeline` holds `rcp<BindGroupLayout> m_layouts[kMaxBindGroups]`;
 // `BindGroup` holds `rcp<BindGroupLayout> m_layoutRef`.
-class BindGroupLayout : public RefCnt<BindGroupLayout>,
+class BindGroupLayout : public rive::gpu::GPUResource,
                         public ENABLE_LITE_RTTI(BindGroupLayout)
 {
 public:
@@ -45,17 +45,17 @@ public:
 
     virtual ~BindGroupLayout() = default;
 
-    // Default: immediately free. Backends that need deferred GPU-resource
-    // destruction (D3D12, Vulkan) override this.
-    virtual void onRefCntReachedZero() const { delete this; }
-
 protected:
     friend class Context;
     friend class ContextMetal;
     friend class ContextGL;
     friend class ContextD3D11;
 
-    BindGroupLayout() = default;
+    BindGroupLayout() : rive::gpu::GPUResource(nullptr) {}
+
+    BindGroupLayout(rcp<rive::gpu::GPUResourceManager> manager) :
+        rive::gpu::GPUResource(std::move(manager))
+    {}
 
     uint32_t m_groupIndex = 0;
     std::vector<BindGroupLayoutEntry> m_entries;

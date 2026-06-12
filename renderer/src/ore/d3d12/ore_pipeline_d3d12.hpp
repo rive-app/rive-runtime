@@ -30,10 +30,11 @@ struct D3D12GroupRootParams
 class PipelineD3D12 : public LITE_RTTI_OVERRIDE(Pipeline, PipelineD3D12)
 {
 public:
-    PipelineD3D12(const PipelineDesc& desc) : lite_rtti_override(desc) {}
-    ~PipelineD3D12() override = default; // ComPtrs released automatically
-    // Defers deletion until after GPU fence.
-    void onRefCntReachedZero() const override;
+    PipelineD3D12(rcp<rive::gpu::GPUResourceManager> manager,
+                  const PipelineDesc& desc) :
+        lite_rtti_override(std::move(manager), desc)
+    {}
+    ~PipelineD3D12() override = default;
 
 private:
     friend class ContextD3D12;
@@ -45,8 +46,5 @@ private:
     D3D12GroupRootParams m_d3dGroupParams[kMaxBindGroups];
     // Per-VB stride for setVertexBuffer().
     uint32_t m_d3dVertexStrides[8] = {};
-    // Back-ref so onRefCntReachedZero() can route deletion through
-    // ContextD3D12::d3dDeferDestroy() in external-CL mode. Weak ref.
-    ContextD3D12* m_d3dOreContext = nullptr;
 };
 } // namespace rive::ore

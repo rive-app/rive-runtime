@@ -9,11 +9,11 @@ class ContextVulkan;
 class PipelineVulkan : public LITE_RTTI_OVERRIDE(Pipeline, PipelineVulkan)
 {
 public:
-    PipelineVulkan(const PipelineDesc& desc) : lite_rtti_override(desc) {}
-    ~PipelineVulkan() override = default;
-    // Defers vkDestroyPipeline and vkDestroyPipelineLayout through
-    // ContextVulkan::vkDeferDestroy().
-    void onRefCntReachedZero() const override;
+    PipelineVulkan(rcp<rive::gpu::GPUResourceManager> manager,
+                   const PipelineDesc& desc) :
+        lite_rtti_override(std::move(manager), desc)
+    {}
+    ~PipelineVulkan() override;
 
 private:
     friend class ContextVulkan;
@@ -27,7 +27,5 @@ private:
     // Function pointers for cleanup (loaded by Context::makePipeline).
     PFN_vkDestroyPipeline m_vkDestroyPipeline = nullptr;
     PFN_vkDestroyPipelineLayout m_vkDestroyPipelineLayout = nullptr;
-    // Back-ref for deferred destruction. Weak ref.
-    ContextVulkan* m_vkOreContext = nullptr;
 };
 } // namespace rive::ore

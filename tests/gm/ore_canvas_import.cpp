@@ -202,8 +202,8 @@ public:
         //       host's current command buffer so the texture we wrap below
         //       — and the draw that samples it — land in the same
         //       submission as Rive's writes into the source canvas.
-        auto& ctx = *m_ore.oreContext;
-        m_ore.beginFrame();
+        auto& ctx = *renderContext->getOreContext();
+        m_ore.beginFrame(renderContext);
 
         // Wrap the chosen texture as an ore::TextureView. On Vulkan this
         // also emits a layout barrier (GENERAL → SHADER_READ_ONLY_OPTIMAL)
@@ -295,7 +295,7 @@ public:
         pass->draw(6); // fullscreen quad
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         // ── 6. Composite the Ore canvas into the main framebuffer. ──

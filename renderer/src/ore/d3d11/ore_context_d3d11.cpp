@@ -461,6 +461,7 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
         case BufferUsage::index:
             bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
             break;
+        case BufferUsage::upload:
         case BufferUsage::uniform:
             // Constant buffers must be a multiple of 16 bytes.
             bd.ByteWidth = (desc.size + 15u) & ~15u;
@@ -1202,7 +1203,7 @@ rcp<BindGroupLayout> ContextD3D11::d3d11MakeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout());
+    auto layout = rcp<BindGroupLayout>(new BindGroupLayout(nullptr));
     // D3D11 layouts use immediate-delete (no deferred destroy needed —
     // no GPU handle to outlive a command list). Leave m_context = nullptr.
     layout->m_groupIndex = desc.groupIndex;
@@ -1526,11 +1527,7 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(ID3D11Device* device,
     return ctx;
 }
 
-void ContextD3D11::beginFrame()
-{
-    // Release deferred BindGroups from last frame. By beginFrame() the
-    // caller has waited for the previous frame's GPU work to complete.
-    m_deferredBindGroups.clear();
+void ContextD3D11::beginFrame(const FrameDescriptor&) {
 } // D3D11 immediate context has no command buffer.
 
 void ContextD3D11::waitForGPU() {} // D3D11 immediate context is synchronous.

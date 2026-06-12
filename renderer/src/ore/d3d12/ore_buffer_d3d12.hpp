@@ -10,22 +10,21 @@ class ContextD3D12;
 class BufferD3D12 : public LITE_RTTI_OVERRIDE(Buffer, BufferD3D12)
 {
 public:
-    BufferD3D12(uint32_t size, BufferUsage usage) :
-        lite_rtti_override(size, usage)
+    BufferD3D12(rcp<rive::gpu::GPUResourceManager> manager,
+                uint32_t size,
+                BufferUsage usage) :
+        lite_rtti_override(std::move(manager), size, usage)
     {}
     ~BufferD3D12() override = default; // ComPtr released automatically
     void update(const void* data, uint32_t size, uint32_t offset) override;
-    // D3D12 defers the entire CPU object deletion until after GPU fence.
-    void onRefCntReachedZero() const override;
 
 private:
     friend class ContextD3D12;
     friend class RenderPassD3D12;
+    friend class TextureD3D12; // for staging buffer access during texture
+                               // uploads
     // UPLOAD heap — persistently mapped; GPU reads directly.
     Microsoft::WRL::ComPtr<ID3D12Resource> m_d3dBuffer;
     void* m_d3dMappedPtr = nullptr;
-    // Back-ref so onRefCntReachedZero() can route deletion through
-    // ContextD3D12::d3dDeferDestroy() in external-CL mode. Weak ref.
-    ContextD3D12* m_d3dOreContext = nullptr;
 };
 } // namespace rive::ore

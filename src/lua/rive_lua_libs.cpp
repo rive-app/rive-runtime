@@ -2,6 +2,9 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/async/work_pool.hpp"
+#ifdef RIVE_CANVAS
+#include "rive/renderer/render_context.hpp"
+#endif
 #include "lualib.h"
 #include <stdio.h>
 #include <unordered_map>
@@ -279,7 +282,6 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"drawCanvas", (int16_t)LuaAtoms::drawCanvas},
     {"shader", (int16_t)LuaAtoms::shader},
     {"format", (int16_t)LuaAtoms::format},
-    {"preferredCanvasFormat", (int16_t)LuaAtoms::preferredCanvasFormat},
     {"andThen", (int16_t)LuaAtoms::andThen},
     {"catch", (int16_t)LuaAtoms::catch_},
     {"finally", (int16_t)LuaAtoms::finally_},

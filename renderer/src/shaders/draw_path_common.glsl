@@ -860,6 +860,24 @@ INLINE half incremental_clockwise_coverage(half c0, half c1, half paintAlpha)
     return (c1 - c0) / max(1. - c0 * paintAlpha, EPSILON_FP16_NON_DENORM);
 }
 
+// Converts an x,y image coordinate into a buffer index, swizzling into
+// BUFFER_IMAGE_TILE_SIZE x BUFFER_IMAGE_TILE_SIZE tiles for better cache
+// performance.
+// imageWidth must be a multiple of BUFFER_IMAGE_TILE_SIZE.
+INLINE uint swizzle_image_buffer_idx(uint2 imageCoord, uint imageWidth)
+{
+    uint idx = (imageCoord.y >> BUFFER_IMAGE_TILE_SIZE_LOG2) *
+                   (imageWidth << BUFFER_IMAGE_TILE_SIZE_LOG2) +
+               ((imageCoord.x >> BUFFER_IMAGE_TILE_SIZE_LOG2)
+                << (BUFFER_IMAGE_TILE_SIZE_LOG2 << 1));
+    // Subdivide each main tile into 4x4 column-major tiles.
+    idx += ((imageCoord.x & 0x1cu) << BUFFER_IMAGE_TILE_SIZE_LOG2) +
+           ((imageCoord.y & 0x1cu) << 2);
+    // Let the 4x4 tiles be row-major.
+    idx += ((imageCoord.y & 0x3u) << 2) + (imageCoord.x & 0x3u);
+    return idx;
+}
+
 #ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
 
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
@@ -873,21 +891,6 @@ INLINE half incremental_clockwise_coverage(half c0, half c1, half paintAlpha)
     PLS_STORE4F(colorBuffer, FRAG_COLOR);                                      \
     EMIT_PLS;
 #endif
-
-// Converts an x,y image coordinate into a buffer index, swizzling into 32x32
-// tiles for better cache performance.
-// imageWidth must be a multiple of 32.
-INLINE uint swizzle_buffer_idx_32x32(uint2 imageCoord, uint imageWidth)
-{
-    uint idx = (imageCoord.y >> 5u) * (imageWidth << 5u) +
-               (imageCoord.x >> 5u) * (32u << 5u);
-    // Subdivide each main tile into 4x4 column-major tiles.
-    idx += ((imageCoord.x & 0x1fu) >> 2u) * (32u << 2u) +
-           ((imageCoord.y & 0x1fu) >> 2u) * (4u << 2u);
-    // Let the 4x4 tiles be row-major.
-    idx += (imageCoord.y & 0x3u) * 4u + (imageCoord.x & 0x3u);
-    return idx;
-}
 
 // Extracts coverage from its fixed-point encoding in a coverage buffer value.
 INLINE half clockwise_atomic_fixed_to_coverage(uint coverageFixed)

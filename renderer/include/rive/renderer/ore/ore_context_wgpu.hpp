@@ -40,7 +40,7 @@ public:
         const RenderPassDesc& desc,
         std::string* outError = nullptr) override;
 
-    void beginFrame() override;
+    void beginFrame(const FrameDescriptor&) override;
     void endFrame() override;
     void waitForGPU() override;
 
@@ -76,7 +76,7 @@ private:
     friend class BindGroupWGPU;
     friend class TextureWGPU;
 
-    ContextWGPU() = default;
+    ContextWGPU() : Context(nullptr) {}
 
     enum class WGPUBackend
     {
@@ -87,9 +87,6 @@ private:
     wgpu::Device m_wgpuDevice;
     wgpu::Queue m_wgpuQueue;
     wgpu::CommandEncoder m_wgpuCommandEncoder;
-    // True while the current frame is recording into a host-provided encoder.
-    // endFrame() skips Finish()/Submit() when set.
-    bool m_wgpuExternalEncoder = false;
 };
 
 } // namespace rive::ore

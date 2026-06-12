@@ -153,11 +153,44 @@ public:
                                 m_instance->getVkGetInstanceProcAddrPtr())
                           : nullptr;
     }
-    void* vulkanCurrentCommandBuffer() const override
+    void* getCurrentCommandBuffer() const override
     {
         if (m_swapchain == nullptr || !m_swapchain->isFrameStarted())
             return nullptr;
         return m_swapchain->currentCommandBuffer();
+    }
+
+    void* getOreContext() const override
+    {
+        return m_renderContext->getOreContext();
+    }
+
+    void beginOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+        if (!m_swapchain->isFrameStarted())
+        {
+            VK_CHECK(m_swapchain->beginFrame());
+
+            m_renderTarget->setTargetImageView(
+                m_swapchain->currentVkImageView(),
+                m_swapchain->currentVkImage(),
+                m_swapchain->currentLastAccess());
+        }
+
+        oreContext->beginFrame(
+            {.externalCommandBuffer = m_swapchain->currentCommandBuffer(),
+             .safeFrameNumber = m_swapchain->safeFrameNumber(),
+             .currentFrameNumber = m_swapchain->currentFrameNumber()});
+    }
+    void endOreFrame() override
+    {
+        auto oreContext =
+            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
+        oreContext->endFrame();
+        auto lastAccess = m_renderTarget->targetLastAccess();
+        VK_CHECK(m_swapchain->endFrame(lastAccess));
     }
 
     void resize(int width, int height) override

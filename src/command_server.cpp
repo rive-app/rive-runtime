@@ -11,6 +11,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/lua/rive_lua_libs.hpp"
 
 namespace rive
 {
@@ -294,8 +295,15 @@ rive::HitResult CommandServer::pointerDownSynchronized(
                                             pointerEvent);
         {
             std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            return stateMachine->instance->pointerDown(pos,
-                                                       pointerEvent.pointerId);
+            auto hitResult =
+                stateMachine->instance->pointerDown(pos,
+                                                    pointerEvent.pointerId);
+            // Process down-driven state changes before a following pointer up.
+            if (hitResult != HitResult::none)
+            {
+                stateMachine->instance->advanceAndApply(0.0f);
+            }
+            return hitResult;
         }
     }
 
@@ -339,8 +347,15 @@ rive::HitResult CommandServer::pointerUpSynchronized(
                                             pointerEvent);
         {
             std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            return stateMachine->instance->pointerUp(pos,
-                                                     pointerEvent.pointerId);
+            auto hitResult =
+                stateMachine->instance->pointerUp(pos, pointerEvent.pointerId);
+            // Process up-driven state changes before any following pointer
+            // exit.
+            if (hitResult != HitResult::none)
+            {
+                stateMachine->instance->advanceAndApply(0.0f);
+            }
+            return hitResult;
         }
     }
 
@@ -629,10 +644,24 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
+#ifdef WITH_RIVE_SCRIPTING
+                auto scriptingContext =
+                    std::make_unique<CPPRuntimeScriptingContext>(m_factory);
+                scriptingContext->setRenderContext(m_factory);
+                auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
+                rcp<rive::File> file = rive::File::import(rivBytes,
+                                                          m_factory,
+                                                          nullptr,
+                                                          m_fileAssetLoader,
+                                                          vm.get());
+
+#else
                 rcp<rive::File> file = rive::File::import(rivBytes,
                                                           m_factory,
                                                           nullptr,
                                                           m_fileAssetLoader);
+#endif
+
                 if (file != nullptr)
                 {
                     m_fileDependencies[handle] = {};
@@ -2906,9 +2935,15 @@ bool CommandServer::processCommands()
                         pointerEvent);
                     std::unique_lock<std::mutex> stateMachineLock(
                         stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->pointerDown(
+                    auto hitResult = stateMachineWrapper->instance->pointerDown(
                         position,
                         pointerEvent.pointerId);
+                    // Process down-driven state changes before a following
+                    // pointer up.
+                    if (hitResult != HitResult::none)
+                    {
+                        stateMachineWrapper->instance->advanceAndApply(0.0f);
+                    }
                 }
                 else
                 {
@@ -2939,9 +2974,15 @@ bool CommandServer::processCommands()
                         pointerEvent);
                     std::unique_lock<std::mutex> stateMachineLock(
                         stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->pointerUp(
+                    auto hitResult = stateMachineWrapper->instance->pointerUp(
                         position,
                         pointerEvent.pointerId);
+                    // Process up-driven state changes before any following
+                    // pointer exit.
+                    if (hitResult != HitResult::none)
+                    {
+                        stateMachineWrapper->instance->advanceAndApply(0.0f);
+                    }
                 }
                 else
                 {

@@ -164,15 +164,11 @@ SPIRV_WEBGPU_INPUTS := \
 	spirv/render_atlas_fill.frag \
 	spirv/render_atlas_stroke.frag \
 	spirv/blit_texture_as_draw_filtered.main \
+    spirv/atomic_resolve_coalesced.main \
 
-# Files that need separate fragment shaders with FIXED_FUNCTION_COLOR_OUTPUT defined.
-SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
-    spirv/atomic_draw_image_mesh.main \
-    spirv/atomic_draw_image_rect.main \
-    spirv/atomic_draw_interior_triangles.main \
-    spirv/atomic_draw_atlas_blit.main \
-    spirv/atomic_draw_path.main \
-    spirv/atomic_resolve.main \
+# Clockwise shaders need separate builds with FIXED_FUNCTION_COLOR_OUTPUT
+# defined.
+SPIRV_CLOCKWISE_INPUTS := \
     spirv/draw_clockwise_path.main \
     spirv/draw_clockwise_clip.main \
     spirv/draw_clockwise_interior_triangles.main \
@@ -187,16 +183,25 @@ SPIRV_FIXEDCOLOR_FRAG_INPUTS := \
     spirv/draw_clockwise_atomic_clip.frag \
     spirv/draw_clockwise_atomic_clip_interior_triangles.frag \
     spirv/clear_clockwise_atomic_clip.main \
+
+# Atomic shaders need separate builds with FIXED_FUNCTION_COLOR_OUTPUT, as well
+# as builds for WebGPU.
+SPIRV_DRAW_ATOMIC_INPUTS := \
+    spirv/atomic_draw_image_mesh.main \
+    spirv/atomic_draw_image_rect.main \
+    spirv/atomic_draw_interior_triangles.main \
+    spirv/atomic_draw_atlas_blit.main \
+    spirv/atomic_draw_path.main \
+    spirv/atomic_resolve.main \
+    spirv/atomic_init.main \
+
+# MSAA shaders need separate builds with FIXED_FUNCTION_COLOR_OUTPUT and/or
+# DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS, as well as builds for WebGPU.
+SPIRV_DRAW_MSAA_INPUTS := \
     spirv/draw_msaa_atlas_blit.main \
     spirv/draw_msaa_image_mesh.main \
     spirv/draw_msaa_path.main \
     spirv/draw_msaa_stencil.main \
-
-# MSAA vertex and fragment shaders are built multiple times with different flags.
-SPIRV_DRAW_MSAA_INPUTS := \
-    spirv/draw_msaa_path.main \
-    spirv/draw_msaa_image_mesh.main \
-    spirv/draw_msaa_atlas_blit.main \
 
 
 ## Helpers for use in SPIRV_LIST_RULE (using lower_snake_case to distinguish things that use inputs like $1, $2, etc)
@@ -303,7 +308,7 @@ spirv_frag_opt_params = \
 
 ## WebGPU fragment shaders need a different PLS_IMPL value
 spirv_frag_params = $(if $(spirv_is_webgpu), \
-                        -DPLS_IMPL_NONE, \
+                        -DPLS_IMPL_STORAGE_BUFFER, \
 					$(if $(spirv_is_clockwise), \
 						-DPLS_IMPL_STORAGE_TEXTURE, \
 						-DPLS_IMPL_SUBPASS_LOAD))
@@ -352,17 +357,37 @@ endef
 ## All .main/vert/frag files should build
 $(eval $(call make_spirv_rules, $(SPIRV_STANDARD_INPUTS), vert frag))
 
-SPIRV_COMMON_WEBGPU_PARAMS = -DUSE_WEBGPU_SAMPLERS
+SPIRV_COMMON_WEBGPU_PARAMS = -DTARGET_WGSL -DUSE_WEBGPU_SAMPLERS
 
 ## Each of the specialized SPIRV lists have their own associated rules
-$(eval $(call make_spirv_rules, $(SPIRV_FIXEDCOLOR_FRAG_INPUTS), fixedcolor_frag, -DFIXED_FUNCTION_COLOR_OUTPUT))
 $(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), noclipdistance_vert, -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
-$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_INPUTS), webgpu_vert, $(SPIRV_COMMON_WEBGPU_PARAMS)))
-$(eval $(call make_spirv_rules, $(SPIRV_WEBGPU_INPUTS), webgpu_frag, $(SPIRV_COMMON_WEBGPU_PARAMS) -DINPUT_ATTACHMENT_NONE))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_vert, $(SPIRV_COMMON_WEBGPU_PARAMS)))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_noclipdistance_vert, $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_frag, $(SPIRV_COMMON_WEBGPU_PARAMS) -DINPUT_ATTACHMENT_NONE))
-$(eval $(call make_spirv_rules, $(SPIRV_DRAW_MSAA_INPUTS), webgpu_fixedcolor_frag, $(SPIRV_COMMON_WEBGPU_PARAMS) -DINPUT_ATTACHMENT_NONE -DFIXED_FUNCTION_COLOR_OUTPUT))
+$(eval $(call make_spirv_rules, \
+    $(SPIRV_CLOCKWISE_INPUTS) \
+    $(SPIRV_DRAW_ATOMIC_INPUTS) \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
+    fixedcolor_frag, \
+    -DFIXED_FUNCTION_COLOR_OUTPUT))
+$(eval $(call make_spirv_rules, \
+    $(SPIRV_WEBGPU_INPUTS) \
+    $(SPIRV_DRAW_ATOMIC_INPUTS) \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
+    webgpu_vert, \
+    $(SPIRV_COMMON_WEBGPU_PARAMS)))
+$(eval $(call make_spirv_rules, \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
+    webgpu_noclipdistance_vert, \
+    $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, \
+    $(SPIRV_WEBGPU_INPUTS) \
+    $(SPIRV_DRAW_ATOMIC_INPUTS) \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
+    webgpu_frag, \
+    $(SPIRV_COMMON_WEBGPU_PARAMS)))
+$(eval $(call make_spirv_rules, \
+    $(SPIRV_DRAW_ATOMIC_INPUTS) \
+    $(SPIRV_DRAW_MSAA_INPUTS), \
+    webgpu_fixedcolor_frag, \
+    $(SPIRV_COMMON_WEBGPU_PARAMS) -DFIXED_FUNCTION_COLOR_OUTPUT))
 
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)

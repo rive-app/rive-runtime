@@ -1141,7 +1141,7 @@ std::unique_ptr<ContextMetal> ContextMetal::Make(id<MTLDevice> device,
     return ctx;
 }
 
-void ContextMetal::beginFrame()
+void ContextMetal::beginFrame(const FrameDescriptor&)
 {
     m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
 }

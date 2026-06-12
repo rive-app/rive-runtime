@@ -35,7 +35,7 @@ int lua_push_gpu_features(lua_State* L)
     if (oreCtx != nullptr)
     {
         const auto& f = oreCtx->features();
-        lua_createtable(L, 0, 18);
+        lua_createtable(L, 0, 19);
         lua_pushboolean(L, f.bc);
         lua_setfield(L, -2, "bc");
         lua_pushboolean(L, f.etc2);
@@ -56,6 +56,8 @@ int lua_push_gpu_features(lua_State* L)
         lua_setfield(L, -2, "textureArrays");
         lua_pushboolean(L, f.colorBufferFloat);
         lua_setfield(L, -2, "colorBufferFloat");
+        lua_pushboolean(L, f.colorBufferHalfFloat);
+        lua_setfield(L, -2, "colorBufferHalfFloat");
         lua_pushboolean(L, f.perTargetBlend);
         lua_setfield(L, -2, "perTargetBlend");
         lua_pushboolean(L, f.perTargetWriteMask);
@@ -77,7 +79,7 @@ int lua_push_gpu_features(lua_State* L)
     }
 #endif
     // Fallback when no ore context is available
-    lua_createtable(L, 0, 18);
+    lua_createtable(L, 0, 19);
     lua_pushboolean(L, false);
     lua_setfield(L, -2, "bc");
     lua_pushboolean(L, false);
@@ -99,6 +101,8 @@ int lua_push_gpu_features(lua_State* L)
     lua_pushboolean(L, false);
     lua_setfield(L, -2, "colorBufferFloat");
     lua_pushboolean(L, false);
+    lua_setfield(L, -2, "colorBufferHalfFloat");
+    lua_pushboolean(L, false);
     lua_setfield(L, -2, "perTargetBlend");
     lua_pushboolean(L, false);
     lua_setfield(L, -2, "perTargetWriteMask");
@@ -115,26 +119,6 @@ int lua_push_gpu_features(lua_State* L)
     lua_pushnumber(L, 4);
     lua_setfield(L, -2, "maxSamples");
     lua_setreadonly(L, -1, true);
-    return 1;
-}
-
-// Push the platform's preferred canvas color format onto the Lua stack as a
-// string. makeRenderCanvas() hardcodes RGBA8 on Metal so that Rive's internal
-// PLS shaders (which work in RGBA space) can render into the canvas without
-// format-dependent swizzling.
-//   Metal  (macOS/iOS)  → rgba8unorm (off-screen canvas, not a CAMetalLayer
-//                        surface)
-//   D3D11/D3D12        → bgra8unorm
-//   Vulkan/GL/WebGPU   → rgba8unorm (safe default; actual format may vary —
-//                        query canvas.format for the authoritative value once
-//                        a canvas has been created)
-int lua_push_preferred_canvas_format(lua_State* L)
-{
-#if defined(_WIN32)
-    lua_pushstring(L, "bgra8unorm");
-#else
-    lua_pushstring(L, "rgba8unorm");
-#endif
     return 1;
 }
 
@@ -524,9 +508,6 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::features:
                 return lua_push_gpu_features(L);
 
-            case (int)LuaAtoms::preferredCanvasFormat:
-                return lua_push_preferred_canvas_format(L);
-
             case (int)LuaAtoms::shader:
             {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
@@ -547,7 +528,11 @@ static int context_namecall(lua_State* L)
                             if (asset->is<ShaderAsset>())
                             {
                                 auto* sa = asset->as<ShaderAsset>();
-                                if (sa->name() == shaderName)
+                                // match folderPath/name or bare name
+                                const std::string& fp = sa->folderPath();
+                                if (sa->name() == shaderName ||
+                                    (!fp.empty() &&
+                                     fp + "/" + sa->name() == shaderName))
                                 {
                                     fileAsset = sa;
                                     break;

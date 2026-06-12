@@ -34,7 +34,7 @@ bool rive::ShaderAsset::decode(Span<uint8_t> data, Factory* factory)
         return false;
     }
     uint16_t version = (uint16_t)(p[4] | (p[5] << 8));
-    if (version != 3)
+    if (version != 4)
     {
         return false;
     }

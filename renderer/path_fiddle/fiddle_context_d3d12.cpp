@@ -312,6 +312,21 @@ public:
         return m_renderTargets[m_frameIndex].get();
     }
 
+    void* getCommandBuffer() override { return m_commandList.Get(); }
+
+    void beginOreFrame(rive::ore::Context* oreContext) override
+    {
+        beginFrame();
+        oreContext->beginFrame({.externalCommandBuffer = m_commandList.Get(),
+                                .safeFrameNumber = m_safeFrame,
+                                .currentFrameNumber = m_currentFrame});
+    }
+    void endOreFrame(rive::ore::Context* oreContext) override
+    {
+        FiddleContext::endOreFrame(oreContext);
+        moveToNextFrame();
+    }
+
     void onSizeChanged(GLFWwindow* window,
                        int width,
                        int height,
@@ -496,11 +511,9 @@ public:
         RIVE_PROF_ENDFRAME()
     }
 
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+    void beginFrame()
     {
-        m_frameIndex = getFrameIndex();
-
-        auto safeFrame = waitForNextSafeFrame();
+        m_safeFrame = waitForNextSafeFrame();
 
         VERIFY_OK(m_allocators[m_frameIndex]->Reset());
 
@@ -510,6 +523,14 @@ public:
 
         VERIFY_OK(m_copyCommandList->Reset(m_copyAllocators[m_frameIndex].Get(),
                                            NULL));
+    }
+
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+    {
+        m_frameIndex = getFrameIndex();
+
+        beginFrame();
+
 #if defined(RIVE_MICROPROFILE)
         MicroProfileGpuSetContext(m_commandList.Get());
 #endif
@@ -523,7 +544,7 @@ public:
                                 : m_renderTargets[m_frameIndex].get(),
             .externalCommandBuffer = &cmdLists,
             .currentFrameNumber = m_currentFrame,
-            .safeFrameNumber = safeFrame,
+            .safeFrameNumber = m_safeFrame,
         });
 
         moveToNextFrame();
@@ -663,6 +684,7 @@ private:
     UINT64 m_previousFrames[FrameCount] = {0};
     UINT64 m_currentFrame = 0;
     UINT64 m_frameIndex = 0;
+    UINT64 m_safeFrame = 0;
     const bool m_isHeadless;
 
     ComPtr<IDXGIFactory4> m_factory;

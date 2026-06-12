@@ -927,6 +927,29 @@ TEST_CASE("StateMachineInstance::focusState uses external focus manager when "
     CHECK(state.expectsKeyboardInput == true);
 }
 
+TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
+          "[FocusState]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    KeyboardAcceptingFocusable kf;
+    auto node = make_rcp<FocusNode>(&kf);
+    smi.focusManager()->addChild(nullptr, node);
+    smi.focusManager()->setFocus(node);
+
+    REQUIRE(smi.focusState().hasFocus == true);
+
+    smi.clearFocus();
+
+    auto state = smi.focusState();
+    CHECK(state.hasFocus == false);
+    CHECK(state.expectsKeyboardInput == false);
+}
+
 } // namespace rive
 
 TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",

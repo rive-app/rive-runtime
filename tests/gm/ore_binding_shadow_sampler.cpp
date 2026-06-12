@@ -99,7 +99,7 @@ public:
             return;
 
 #ifdef ORE_BINDING_SHADOW_SAMPLER_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
 
         // UBO: tint (green) + compare reference (0.25).
         struct Uniforms
@@ -275,7 +275,7 @@ public:
         if (!canvasTarget)
             return;
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
         colorTex->upload(colorUpload);
 
         // Single pass: bind both groups + draw a fullscreen triangle.
@@ -296,7 +296,7 @@ public:
         pass->draw(3);
         pass->finish();
 
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

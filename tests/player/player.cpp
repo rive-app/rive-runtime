@@ -187,10 +187,6 @@ public:
             if (auto* sctx = vm->context())
             {
                 sctx->setRenderContext(TestingWindow::Get()->renderContext());
-                if (void* ore = TestingWindow::Get()->getOreContext())
-                {
-                    sctx->setOreContext(ore);
-                }
             }
         }
 #endif

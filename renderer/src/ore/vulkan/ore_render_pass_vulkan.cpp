@@ -16,6 +16,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <iterator>
+#include <utility>
 
 namespace rive::ore
 {
@@ -252,6 +254,55 @@ void RenderPassVulkan::finish()
         }
     }
 
+    // MSAA resolve targets get the same treatment as the color attachments.
+    // Resolve writes count as COLOR_ATTACHMENT_WRITE in the
+    // COLOR_ATTACHMENT_OUTPUT stage, and the render pass leaves the resolve
+    // attachment in COLOR_ATTACHMENT_OPTIMAL.
+    for (auto& resolve : m_vkResolveTargets)
+    {
+        if (resolve.image == VK_NULL_HANDLE)
+        {
+            continue;
+        }
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = resolve.image;
+        barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT,
+                                    resolve.baseMip,
+                                    1,
+                                    resolve.baseLayer,
+                                    resolve.layerCount};
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = 0; // visibility established in Rive's CB
+        m_vkContext->m_vk->CmdPipelineBarrier(
+            m_vkCmdBuf,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // just the layout transition
+            0,
+            0,
+            nullptr,
+            0,
+            nullptr,
+            1,
+            &barrier);
+        // Without this hand-off Rive's tracker keeps the pre-pass layout and
+        // its next barrier uses a wrong oldLayout, which corrupts the
+        // resolved contents on GPUs with layout-dependent compression
+        // (tile-grid artifacts on Xclipse 920).
+        if (resolve.renderTarget != nullptr)
+        {
+            resolve.renderTarget->updateLastAccess(kColorAttachmentWriteAccess);
+        }
+        if (auto* tex = lite_rtti_cast<TextureVulkan*>(resolve.texture.get()))
+        {
+            tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+    }
+
     // Transition depth attachment DEPTH_STENCIL_ATTACHMENT_OPTIMAL →
     // SHADER_READ_ONLY_OPTIMAL so subsequent operations don't see stale
     // depth writes.  Without this barrier NVIDIA drivers report
@@ -301,22 +352,6 @@ void RenderPassVulkan::finish()
             tex->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
     }
-
-    if (m_vkFramebuffer != VK_NULL_HANDLE)
-    {
-        // Defer destruction — the command buffer still references this
-        // framebuffer until endFrame() submits and waits.
-        m_vkContext->m_vkDeferredFramebuffers.push_back(m_vkFramebuffer);
-        m_vkFramebuffer = VK_NULL_HANDLE;
-    }
-
-    // Defer bind-group destruction: the CB references their descriptor sets
-    // until endFrame() submits and the fence signals.
-    for (auto& bg : m_boundGroups)
-    {
-        if (bg)
-            m_vkContext->deferBindGroupDestroy(std::move(bg));
-    }
 }
 
 RenderPassVulkan::~RenderPassVulkan() { finish(); }
@@ -327,7 +362,7 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     m_vkContext = other.m_vkContext;
     m_currentPipeline = std::move(other.m_currentPipeline);
     m_vkCmdBuf = other.m_vkCmdBuf;
-    m_vkFramebuffer = other.m_vkFramebuffer;
+    m_framebuffer = std::move(other.m_framebuffer);
     m_vkIndexBuffer = other.m_vkIndexBuffer;
     m_vkIndexType = other.m_vkIndexType;
     m_vkIndexOffset = other.m_vkIndexOffset;
@@ -342,14 +377,20 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     memcpy(m_vkColorRenderTargets,
            other.m_vkColorRenderTargets,
            sizeof(m_vkColorRenderTargets));
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < std::size(m_vkColorTextures); ++i)
+    {
         m_vkColorTextures[i] = std::move(other.m_vkColorTextures[i]);
+    }
+    for (uint32_t i = 0; i < std::size(m_vkResolveTargets); ++i)
+    {
+        m_vkResolveTargets[i] =
+            std::exchange(other.m_vkResolveTargets[i], ResolveTarget{});
+    }
     m_vkDepthImage = other.m_vkDepthImage;
     m_vkDepthBaseLayer = other.m_vkDepthBaseLayer;
     m_vkDepthLayerCount = other.m_vkDepthLayerCount;
     m_vkDepthTexture = std::move(other.m_vkDepthTexture);
     m_vkStencilRef = other.m_vkStencilRef;
-    other.m_vkFramebuffer = VK_NULL_HANDLE;
     other.m_vkDepthImage = VK_NULL_HANDLE;
     other.m_vkStencilRef = 0;
 #endif

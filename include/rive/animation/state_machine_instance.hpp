@@ -218,6 +218,7 @@ public:
     bool hasFocusNodes();
     bool focusNext();
     bool focusPrevious();
+    void clearFocus();
     void clearDataContext();
     void relinkDataContext() override;
     void rebuildDataBind(DataBind*) override;

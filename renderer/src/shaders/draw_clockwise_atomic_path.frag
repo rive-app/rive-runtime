@@ -252,7 +252,7 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     uint coveragePitch = v_coveragePlacement.y;
     uint coverageIndex =
         v_coveragePlacement.x +
-        swizzle_buffer_idx_32x32(uint2(coverageCoord), coveragePitch);
+        swizzle_image_buffer_idx(uint2(coverageCoord), coveragePitch);
 
     half maxCoverage = 1.;
 

@@ -92,13 +92,10 @@ Artboard::~Artboard()
 
     // ViewModelInstance and ViewModelInstanceValue inherit from RefCnt.
     //
-    // ViewModelInstance (VMI) ownership rules:
-    // - VMIs in the component hierarchy (parent() != nullptr) are expected to
-    //   be owned externally and must NOT be released here.
-    // - VMIs not in the component hierarchy are released by the artboard, but
-    //   AFTER hierarchy components are destroyed to avoid use-after-free. This
-    //   applies to both source and cloned artboards (e.g., artboard instances
-    //   created by ArtboardComponentList).
+    // ViewModelInstance (VMI) ownership: the artboard releases every VMI in
+    // its m_Objects via unref(). NestedArtboard borrows its stateful child VMI
+    // without bumping the refcount; dynamically-created bound VMIs are not in
+    // m_Objects and are released by NestedArtboard itself.
     //
     // ViewModelInstanceValue (VMV) ownership: always owned by their parent
     // ViewModelInstance via rcp<> in m_PropertyValues. When VMI is deleted,
@@ -123,11 +120,7 @@ Artboard::~Artboard()
         if (object->is<ViewModelInstance>())
         {
             vmObjects.insert(object);
-            auto vmi = object->as<ViewModelInstance>();
-            if (vmi->parent() == nullptr)
-            {
-                deferredVmiUnrefs.insert(vmi);
-            }
+            deferredVmiUnrefs.insert(object->as<ViewModelInstance>());
             return;
         }
         if (object->is<ViewModelInstanceValue>())
@@ -174,9 +167,9 @@ Artboard::~Artboard()
         delete object;
     }
 
-    // Now release deferred ViewModelInstances (both source and clone artboards)
-    // after hierarchy components have been destroyed. Releasing via unref()
-    // keeps RefCnt ownership semantics intact.
+    // Now release deferred ViewModelInstances after hierarchy components have
+    // been destroyed. Releasing via unref() keeps RefCnt ownership semantics
+    // intact and cascades to VMVs via m_PropertyValues rcps.
     for (auto* vmi : deferredVmiUnrefs)
     {
         vmi->unref();

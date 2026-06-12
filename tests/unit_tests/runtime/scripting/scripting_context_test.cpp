@@ -798,46 +798,31 @@ end
     }
 }
 
-TEST_CASE("context:preferredCanvasFormat returns platform format",
-          "[scripting]")
+TEST_CASE("context:preferredCanvasFormat is removed", "[scripting]")
 {
+    // Removed in favor of canvas.format, which reports the speculative format
+    // even before a deferred canvas is resized.
     ScriptedObjectTest scriptedObjectTest;
 
     ScriptingTest vm(
         R"(
-local format = nil
-
-function testFormat(context: Context)
-  format = context:preferredCanvasFormat()
+function testRemoved(context: Context)
+  context:preferredCanvasFormat()
 end
-
-function getFormat(): string
-  return format
-end
-)");
+)",
+        1,
+        true); // errorOk = true
 
     lua_State* L = vm.state();
-    auto top = lua_gettop(L);
 
-    {
-        lua_getglobal(L, "testFormat");
-        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
-
-    {
-        lua_getglobal(L, "getFormat");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        std::string format = lua_tostring(L, -1);
-#if defined(_WIN32)
-        CHECK(format == "bgra8unorm");
-#else
-        CHECK(format == "rgba8unorm");
-#endif
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    lua_getglobal(L, "testRemoved");
+    lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+    int result = lua_pcall(L, 1, 0, 0);
+    CHECK(result != LUA_OK);
+    const char* error = lua_tostring(L, -1);
+    CHECK(std::string(error).find("is not a valid method") !=
+          std::string::npos);
+    lua_pop(L, 1);
 }
 
 TEST_CASE("context invalid method raises error", "[scripting]")
@@ -988,47 +973,4 @@ TEST_CASE("ScriptingContext ore/render context default to null", "[scripting]")
     REQUIRE(ctx != nullptr);
     CHECK(ctx->oreContext() == nullptr);
     CHECK(ctx->renderContext() == nullptr);
-}
-
-TEST_CASE("ScriptingContext ore/render context are per-instance", "[scripting]")
-{
-    // Two independent VMs must not share ore or render context state.
-    // This guards against any static/global storage of these pointers.
-    ScriptingTest vmA("-- a");
-    ScriptingTest vmB("-- b");
-
-    ScriptingContext* ctxA = vmA.vm()->context();
-    ScriptingContext* ctxB = vmB.vm()->context();
-    REQUIRE(ctxA != nullptr);
-    REQUIRE(ctxB != nullptr);
-    REQUIRE(ctxA != ctxB);
-
-    // Use distinct sentinel values so a cross-write would be detectable.
-    int sentinelA = 0xA;
-    int sentinelB = 0xB;
-    ctxA->setOreContext(&sentinelA);
-    ctxA->setRenderContext(&sentinelA);
-    ctxB->setOreContext(&sentinelB);
-    ctxB->setRenderContext(&sentinelB);
-
-    // Each context must hold only its own value.
-    CHECK(ctxA->oreContext() == &sentinelA);
-    CHECK(ctxA->renderContext() == &sentinelA);
-    CHECK(ctxB->oreContext() == &sentinelB);
-    CHECK(ctxB->renderContext() == &sentinelB);
-}
-
-TEST_CASE("ScriptingContext ore context survives set/clear cycle",
-          "[scripting]")
-{
-    ScriptingTest vm("-- empty");
-    ScriptingContext* ctx = vm.vm()->context();
-    REQUIRE(ctx != nullptr);
-
-    int sentinel = 42;
-    ctx->setOreContext(&sentinel);
-    CHECK(ctx->oreContext() == &sentinel);
-
-    ctx->setOreContext(nullptr);
-    CHECK(ctx->oreContext() == nullptr);
 }

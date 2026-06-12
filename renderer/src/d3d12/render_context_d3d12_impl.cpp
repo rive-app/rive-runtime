@@ -803,6 +803,26 @@ rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(
     return make_rcp<TextureD3D12Impl>(std::move(imageTexture));
 }
 
+rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(ID3D12Resource* resource,
+                                                       uint32_t width,
+                                                       uint32_t height,
+                                                       DXGI_FORMAT viewFormat)
+{
+    if (resource == nullptr || width == 0 || height == 0)
+    {
+        return nullptr;
+    }
+    // ComPtr adds a transient ref dropped when our wrapper destructs; the
+    // real lifetime stays with the original owner (e.g. Unity).
+    ComPtr<ID3D12Resource> comResource(resource);
+    auto d3dTex =
+        make_rcp<D3D12Texture>(m_resourceManager,
+                               std::move(comResource),
+                               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    d3dTex->setSrvViewFormat(viewFormat);
+    return adoptImageTexture(std::move(d3dTex));
+}
+
 #ifdef RIVE_CANVAS
 rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
                                                            uint32_t height)
@@ -828,8 +848,7 @@ rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
 
 std::unique_ptr<rive::ore::Context> RenderContextD3D12Impl::makeOreContext()
 {
-    assert(m_canvasQueue);
-    return rive::ore::ContextD3D12::Make(m_device.Get(), m_canvasQueue);
+    return rive::ore::ContextD3D12::Make(m_resourceManager, m_device.Get());
 }
 #endif
 

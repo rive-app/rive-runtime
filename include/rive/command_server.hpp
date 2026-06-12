@@ -14,7 +14,7 @@
 
 namespace rive
 {
-
+class ScriptingContext;
 // Server-side worker that executes commands from a CommandQueue.
 class CommandServer
 {

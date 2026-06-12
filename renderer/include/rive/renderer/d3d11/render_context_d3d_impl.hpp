@@ -183,9 +183,13 @@ public:
         return make_rcp<RenderTargetD3D>(this, width, height);
     }
 
-    rcp<Texture> adoptImageTexture(ComPtr<ID3D11Texture2D> image,
-                                   uint32_t width,
-                                   uint32_t height);
+    // viewFormat lets callers force an SRV view format (e.g. picking the
+    // sRGB variant of a TYPELESS or UNORM source); UNKNOWN auto-infers.
+    rcp<Texture> adoptImageTexture(
+        ComPtr<ID3D11Texture2D> image,
+        uint32_t width,
+        uint32_t height,
+        DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN);
 
 #ifdef RIVE_CANVAS
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,

@@ -9,8 +9,7 @@ class ShaderModuleGL : public LITE_RTTI_OVERRIDE(ShaderModule, ShaderModuleGL)
 {
 public:
     ShaderModuleGL() = default;
-    ~ShaderModuleGL() override = default;
-    void onRefCntReachedZero() const override;
+    ~ShaderModuleGL() override;
 
 private:
     friend class ContextGL;

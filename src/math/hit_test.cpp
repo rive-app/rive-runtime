@@ -44,8 +44,6 @@ struct Point
     friend Point operator*(float s, Point v) { return {v.x * s, v.y * s}; }
 };
 
-template <typename T> T lerp(T a, T b, float t) { return a + (b - a) * t; }
-
 template <typename T> T ave(T a, T b) { return lerp(a, b, 0.5f); }
 
 static void append_line(const float height,

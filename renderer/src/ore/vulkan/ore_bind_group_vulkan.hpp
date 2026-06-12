@@ -1,25 +1,23 @@
 #pragma once
 #include "rive/renderer/ore/ore_bind_group.hpp"
-#include <vulkan/vulkan.h>
+#include "rive/renderer/ore/ore_context_vulkan.hpp"
 
 namespace rive::ore
 {
-class ContextVulkan;
 
 class BindGroupVulkan : public LITE_RTTI_OVERRIDE(BindGroup, BindGroupVulkan)
 {
 public:
-    BindGroupVulkan() = default;
-    ~BindGroupVulkan() override = default;
-    // Deferred destruction is handled at the Lua GC level via
-    // Context::deferBindGroupDestroy(). By the time refcount reaches zero,
-    // the GPU is guaranteed to be done.
-
-    void onRefCntReachedZero() const override;
+    BindGroupVulkan(rcp<rive::gpu::GPUResourceManager> manager) :
+        lite_rtti_override(std::move(manager))
+    {}
+    ~BindGroupVulkan() override;
 
 private:
     friend class ContextVulkan;
     friend class RenderPassVulkan;
     VkDescriptorSet m_vkDescriptorSet = VK_NULL_HANDLE;
+    // Keeps the pool alive while this set is outstanding.
+    rcp<DescriptorPoolGeneration> m_pool;
 };
 } // namespace rive::ore

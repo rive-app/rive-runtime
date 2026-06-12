@@ -61,6 +61,7 @@ public:
     }
     virtual void stop() { m_isRunning = false; }
     virtual void reset();
+    Vec2D speed() const { return m_speed; }
     StatusCode import(ImportStack& importStack) override;
 
     /// Initiate animated scroll to target position.

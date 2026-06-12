@@ -99,6 +99,19 @@
 #define RIVE_ALWAYS_INLINE inline
 #endif
 
+// Exempts a function from Clang's -Wthread-safety analysis. Use only for
+// intentional, correct locking patterns the analyzer cannot statically verify
+// (e.g. an asymmetric lock acquired in one function and released elsewhere).
+#ifndef __has_attribute
+#define __has_attribute(x) 0
+#endif
+#if defined(__clang__) && __has_attribute(no_thread_safety_analysis)
+#define RIVE_NO_THREAD_SAFETY_ANALYSIS                                         \
+    __attribute__((no_thread_safety_analysis))
+#else
+#define RIVE_NO_THREAD_SAFETY_ANALYSIS
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 // Recommended in
 // https://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros

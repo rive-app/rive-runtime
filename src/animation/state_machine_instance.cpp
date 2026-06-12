@@ -1735,6 +1735,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     for (size_t i = 0; i < dataBindCount; i++)
     {
         auto dataBind = machine->dataBind(i);
+        if (!dataBind->target())
+        {
+            continue;
+        }
         auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
         dataBindClone->file(dataBind->file());
         if (dataBind->converter() != nullptr)
@@ -3067,4 +3071,11 @@ bool StateMachineInstance::focusPrevious()
     auto* fm = focusManager();
     assert(fm != nullptr);
     return fm->focusPrevious();
+}
+
+void StateMachineInstance::clearFocus()
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    fm->clearFocus();
 }

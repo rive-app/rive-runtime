@@ -232,6 +232,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::dawn;
     }
+    if (nameStr == "dawnmsaa")
+    {
+        params->msaa = true;
+        return Backend::dawn;
+    }
     if (nameStr == "wgpu")
     {
         return Backend::wgpu;

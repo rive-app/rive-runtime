@@ -111,7 +111,7 @@ public:
             return;
 
 #ifdef ORE_BLEND_STENCIL_ACTIVE
-        auto& ctx = *m_ore.oreContext;
+        auto& ctx = *renderContext->getOreContext();
         auto canvas = renderContext->makeRenderCanvas(256, 256);
         if (!canvas)
             return;
@@ -263,7 +263,7 @@ public:
             return;
         }
 
-        m_ore.beginFrame();
+        m_ore.beginFrame(renderContext);
 
         ColorAttachment ca{};
         ca.view = colorTarget.get();
@@ -304,7 +304,7 @@ public:
         pass->draw(3);
 
         pass->finish();
-        m_ore.endFrame();
+        m_ore.endFrame(renderContext);
         ore_gm::invalidateGLStateAfterOre(renderContext);
 
         originalRenderer->save();

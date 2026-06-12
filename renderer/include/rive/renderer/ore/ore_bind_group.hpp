@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/refcnt.hpp"
+#include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
@@ -24,7 +24,8 @@ class Context;
 // Sampler), ensuring they remain alive for the BindGroup's lifetime.
 //
 // Created via Context::makeBindGroup(). Bound via RenderPass::setBindGroup().
-class BindGroup : public RefCnt<BindGroup>, public ENABLE_LITE_RTTI(BindGroup)
+class BindGroup : public rive::gpu::GPUResource,
+                  public ENABLE_LITE_RTTI(BindGroup)
 {
 public:
     uint32_t dynamicOffsetCount() const { return m_dynamicOffsetCount; }
@@ -37,15 +38,14 @@ public:
 
     virtual ~BindGroup() = default;
 
-    // Default: immediately free. Backends that need deferred GPU-resource
-    // destruction (D3D12, Vulkan) override this.
-    virtual void onRefCntReachedZero() const { delete this; }
-
 protected:
     friend class Context;
     friend class RenderPass;
 
-    BindGroup() = default;
+    BindGroup() : rive::gpu::GPUResource(nullptr) {}
+    BindGroup(rcp<rive::gpu::GPUResourceManager> manager) :
+        rive::gpu::GPUResource(std::move(manager))
+    {}
 
     uint32_t m_dynamicOffsetCount = 0;
 

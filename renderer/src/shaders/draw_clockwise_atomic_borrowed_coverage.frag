@@ -28,7 +28,7 @@ void main()
     uint2 coverageCoord = uint2(floor(v_coverageCoord));
     uint coveragePitch = v_coveragePlacement.y;
     uint coverageIndex = v_coveragePlacement.x +
-                         swizzle_buffer_idx_32x32(coverageCoord, coveragePitch);
+                         swizzle_image_buffer_idx(coverageCoord, coveragePitch);
 
     // Try to apply borrowedCoverage, assuming the existing coverage value
     // is zero.

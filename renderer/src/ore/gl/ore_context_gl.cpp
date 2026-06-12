@@ -239,7 +239,11 @@ std::unique_ptr<ContextGL> ContextGL::Make()
         if (!ext)
             continue;
         if (strcmp(ext, "GL_EXT_color_buffer_float") == 0)
+        {
+            // Full-float renderability implies half-float renderability.
             f.colorBufferFloat = true;
+            f.colorBufferHalfFloat = true;
+        }
         else if (strcmp(ext, "GL_EXT_texture_filter_anisotropic") == 0)
             f.anisotropicFiltering = true;
         else if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
@@ -250,19 +254,37 @@ std::unique_ptr<ContextGL> ContextGL::Make()
 #endif
     }
 
+    // drawBaseInstance stays false: the GL render pass does not yet wire
+    // baseVertex/firstInstance through the base-vertex-base-instance draw
+    // call, so reporting it true would silently drop those args.
+
+#ifdef RIVE_WEBGL
+    // On WebGL an extension must be enabled before its functionality (and
+    // sometimes its name in the extension list) is available, so the scan
+    // above misses it. Enable returns whether the browser supports it.
+    // The two extensions are independent: half-float gates 16-bit float
+    // targets, full-float gates 32-bit, and full-float implies half-float.
+    auto webglCtx = emscripten_webgl_get_current_context();
+    if (emscripten_webgl_enable_extension(webglCtx, "EXT_color_buffer_float"))
+    {
+        f.colorBufferFloat = true;
+        f.colorBufferHalfFloat = true;
+    }
+    if (emscripten_webgl_enable_extension(webglCtx,
+                                          "EXT_color_buffer_half_float"))
+        f.colorBufferHalfFloat = true;
+#endif
+
     return ctx;
 }
 
-void ContextGL::beginFrame()
+void ContextGL::beginFrame(const FrameDescriptor&)
 {
-    // Release deferred BindGroups from last frame. By beginFrame() the
-    // caller has waited for the previous frame's GPU work to complete.
-    m_deferredBindGroups.clear();
-
     // Save GL state that Ore will modify, so Rive's PLS renderer state is
     // preserved across an Ore render pass.
     glGetIntegerv(GL_CURRENT_PROGRAM, &m_savedState.program);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &m_savedState.arrayBuffer);
+    glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &m_savedState.uniformBuffer);
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &m_savedState.framebuffer);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &m_savedState.vertexArray);
     // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT saved here because
@@ -298,6 +320,11 @@ void ContextGL::endFrame()
     {
         glBindBuffer(GL_ARRAY_BUFFER, m_savedState.arrayBuffer);
     }
+    if (m_savedState.uniformBuffer == 0 ||
+        glIsBuffer(m_savedState.uniformBuffer) == GL_TRUE)
+    {
+        glBindBuffer(GL_UNIFORM_BUFFER, m_savedState.uniformBuffer);
+    }
     // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT restored here.
     // It is VAO state — binding the saved VAO above already restored the
     // element buffer association. Explicitly binding it here would modify
@@ -330,6 +357,9 @@ rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
             break;
         case BufferUsage::uniform:
             buffer->m_glTarget = GL_UNIFORM_BUFFER;
+            break;
+        case BufferUsage::upload:
+            RIVE_UNREACHABLE();
             break;
     }
 
@@ -896,7 +926,7 @@ rcp<BindGroupLayout> ContextGL::makeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout());
+    auto layout = rcp<BindGroupLayout>(new BindGroupLayout(nullptr));
     layout->m_context = this;
     layout->m_groupIndex = desc.groupIndex;
     layout->m_entries.reserve(desc.entryCount);

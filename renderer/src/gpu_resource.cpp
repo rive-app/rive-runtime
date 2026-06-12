@@ -12,7 +12,8 @@ void GPUResource::onRefCntReachedZero() const
 {
     // GPUResourceManager will hold off on deleting "this" until its safe frame
     // number has been reached.
-    m_manager->onRenderingResourceReleased(const_cast<GPUResource*>(this));
+    if (m_manager)
+        m_manager->onRenderingResourceReleased(const_cast<GPUResource*>(this));
 }
 
 GPUResourceManager::~GPUResourceManager()

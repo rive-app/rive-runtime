@@ -32,6 +32,7 @@ enum class BufferUsage : uint8_t
     vertex,
     index,
     uniform,
+    upload,
 };
 
 enum class ShaderLanguage : uint8_t
@@ -709,7 +710,11 @@ struct BindGroupDesc
 
 struct Features
 {
+    // 32-bit float color render targets (rgba32float etc).
     bool colorBufferFloat = false;
+    // 16-bit float color render targets (rgba16float etc). Implied by
+    // colorBufferFloat, but on WebGL can be present without it.
+    bool colorBufferHalfFloat = false;
     bool perTargetBlend = false;
     bool perTargetWriteMask = false;
     bool textureViewSampling = false;

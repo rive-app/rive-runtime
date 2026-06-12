@@ -321,7 +321,7 @@ void TextureGL::upload(const TextureDataDesc& data)
     glBindTexture(m_glTarget, 0);
 }
 
-void TextureGL::onRefCntReachedZero() const
+TextureGL::~TextureGL()
 {
     if (m_glRenderbuffer != 0 && m_glOwnsTexture)
     {
@@ -333,17 +333,15 @@ void TextureGL::onRefCntReachedZero() const
         GLuint tex = m_glTexture;
         glDeleteTextures(1, &tex);
     }
-    delete this;
 }
 
-void TextureViewGL::onRefCntReachedZero() const
+TextureViewGL::~TextureViewGL()
 {
     if (m_glTextureView != 0)
     {
         GLuint tex = m_glTextureView;
         glDeleteTextures(1, &tex);
     }
-    delete this;
 }
 
 #endif // ORE_BACKEND_GL

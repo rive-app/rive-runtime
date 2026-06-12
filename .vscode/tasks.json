@@ -5,7 +5,10 @@
     "tasks": [{
             "label": "run tests",
             "type": "shell",
-            "command": "cd dev && ./test.sh",
+            "command": "bash test.sh",
+            "options": {
+                "cwd": "${workspaceFolder}/tests/unit_tests"
+            },
             "group": "test",
             "presentation": {
                 "reveal": "always",

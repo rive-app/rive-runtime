@@ -25,6 +25,12 @@
 #include "instance_chunker.hpp"
 #include <sstream>
 
+#ifdef RIVE_ANDROID
+#include <android/log.h>
+#include <android/api-level.h>
+#include <sys/system_properties.h>
+#endif
+
 namespace rive::gpu
 {
 using PLSBackingType = PipelineManagerVulkan::PLSBackingType;
@@ -203,6 +209,45 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     return texture;
 }
 
+rcp<Texture> RenderContextVulkanImpl::adoptImageTexture(VkImage image,
+                                                        uint32_t width,
+                                                        uint32_t height,
+                                                        VkFormat format)
+{
+    if (image == VK_NULL_HANDLE || width == 0 || height == 0)
+    {
+        return nullptr;
+    }
+
+    VkImageCreateInfo info = {
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent = {width, height, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT,
+    };
+
+    auto externalImage =
+        m_vk->makeExternalImage(image, info, "adopted external image");
+    auto texture =
+        m_vk->makeTexture2D(std::move(externalImage), "adopted external image");
+
+    // Caller is required to transition the image to SHADER_READ_ONLY_OPTIMAL
+    // before this call (Unity does this via AccessTexture with
+    // kUnityVulkanResourceAccess_PipelineBarrier). Pre-seed lastAccess so
+    // Rive doesn't redundantly barrier from UNDEFINED, which would discard
+    // the source contents.
+    texture->overrideLastAccess({
+        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .accessMask = VK_ACCESS_SHADER_READ_BIT,
+        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    });
+
+    return texture;
+}
+
 // A RenderTargetVulkan backed by a vkutil::Texture2D. Used by RenderCanvas.
 // The texture is shared with a RiveRenderImage for compositing.
 class RenderTargetVulkanTexture : public RenderTargetVulkan
@@ -282,10 +327,7 @@ rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
 }
 std::unique_ptr<rive::ore::Context> RenderContextVulkanImpl::makeOreContext()
 {
-    assert(m_canvasQueue != VK_NULL_HANDLE);
-    return rive::ore::ContextVulkan::Make(m_vk,
-                                          m_canvasQueue,
-                                          m_canvasQueueFamilyIndex);
+    return rive::ore::ContextVulkan::Make(m_vk);
 }
 #endif
 
@@ -1000,6 +1042,9 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;
     m_platformFeatures.maxTextureSize =
         physicalDeviceProps.limits.maxImageDimension2D;
+
+    m_platformFeatures.supportsClipScissor = true;
+
     m_platformFeatures.supportsTextureCompressionBC =
         m_vk->features.textureCompressionBC;
     m_platformFeatures.supportsTextureCompressionASTC =
@@ -2054,9 +2099,6 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
         1,
         vkutil::ViewportFromRect2D(
             {.extent = {renderTarget->width(), renderTarget->height()}}));
-
-    VkRect2D scissorRect = vkutil::rect2d(scissor);
-    vk->CmdSetScissor(commandBuffer, 0, 1, &scissorRect);
 
     m_renderPassOptions = renderPassOptions;
     m_scissor = scissor;
@@ -3116,9 +3158,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         virtualTileHeight = desc.virtualTileHeight;
     }
 
-    auto scissorBox = IAABB::MakeWH(virtualTileWidth, virtualTileHeight)
-                          .offset(drawBounds.left, drawBounds.top)
-                          .intersect(drawBounds);
+    const auto renderPassScissorBox =
+        IAABB::MakeWH(virtualTileWidth, virtualTileHeight)
+            .offset(drawBounds.left, drawBounds.top)
+            .intersect(drawBounds);
 
     // Begin the render pass before binding buffers or updating descriptor sets.
     // It's valid Vulkan to do these tasks in any order, but Adreno 730, 740,
@@ -3131,7 +3174,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                   msaaColorSeedImageView,
                                   msaaResolveImageView,
                                   renderPassOptions,
-                                  scissorBox);
+                                  renderPassScissorBox);
 
     // Update the PLS input attachment descriptor sets.
     VkDescriptorSet inputAttachmentDescriptorSet = VK_NULL_HANDLE;
@@ -3372,6 +3415,10 @@ void RenderContextVulkanImpl::submitDrawList(
     auto* const renderTarget =
         static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
+    const auto renderPassScissorRect = drawRenderPass->scissor();
+
+    auto currentScissorRect = IAABB{};
+
     // Submit the DrawList.
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -3522,6 +3569,51 @@ void RenderContextVulkanImpl::submitDrawList(
             m_vk->CmdBindPipeline(commandBuffer,
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   *drawPipeline);
+
+            IAABB desiredScissorRect;
+            switch (drawType)
+            {
+                case DrawType::renderPassInitialize:
+                case DrawType::renderPassResolve:
+                    if (desc.interlockMode ==
+                        gpu::InterlockMode::clockwiseAtomic)
+                    {
+                        // clockwiseAtomic's renderPassInitialize is just a
+                        // workaround for Qualcomm, and only needs to touch one
+                        // pixel.
+                        desiredScissorRect = {
+                            renderPassScissorRect.left,
+                            renderPassScissorRect.top,
+                            1,
+                            1,
+                        };
+
+                        break;
+                    }
+
+                    [[fallthrough]];
+
+                default:
+                    // Default behavior is to use the batch's scissor rect,
+                    // intersected with the render pass' rect.
+                    desiredScissorRect = batch.scissorRect.has_value()
+                                             ? renderPassScissorRect.intersect(
+                                                   batch.scissorRect.value())
+                                             : renderPassScissorRect;
+            }
+
+            if (desiredScissorRect.empty())
+            {
+                desiredScissorRect = {0, 0, 0, 0};
+            }
+
+            if (desiredScissorRect != currentScissorRect)
+            {
+                currentScissorRect = desiredScissorRect;
+
+                VkRect2D vkScissorRect = vkutil::rect2d(currentScissorRect);
+                m_vk->CmdSetScissor(commandBuffer, 0, 1, &vkScissorRect);
+            }
         }
 
         switch (drawType)
@@ -3659,29 +3751,7 @@ void RenderContextVulkanImpl::submitDrawList(
             {
                 if (drawPipeline != nullptr)
                 {
-                    if (desc.interlockMode ==
-                        gpu::InterlockMode::clockwiseAtomic)
-                    {
-                        // clockwiseAtomic's renderPassInitialize is just a
-                        // workaround for Qualcomm, and only needs to touch one
-                        // pixel.
-                        // TODO: add scissor to DrawBatch.
-                        VkRect2D scissorRect =
-                            vkutil::rect2d(IAABB{0, 0, 1, 1});
-                        m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissorRect);
-                    }
-
                     m_vk->CmdDraw(commandBuffer, 4, 1, 0, 0);
-
-                    if (desc.interlockMode ==
-                        gpu::InterlockMode::clockwiseAtomic)
-                    {
-                        // Restore the scissor.
-                        // TODO: add scissor to DrawBatch.
-                        VkRect2D scissorRect =
-                            vkutil::rect2d(drawRenderPass->scissor());
-                        m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissorRect);
-                    }
                 }
                 break;
             }
@@ -3770,6 +3840,34 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
     const ContextOptions& contextOptions)
 {
+#ifdef RIVE_ANDROID
+#define PRINT_ERROR_LINE(str)                                                  \
+    __android_log_print(ANDROID_LOG_ERROR, "rive_runtime", str);               \
+    fprintf(stderr, str "\n")
+
+#if __ANDROID_API__ >= 29
+    // Android API 29 introduced this function which is simpler
+    int deviceAPILevel = android_get_device_api_level();
+#else
+    // Otherwise fall back on __system_property_get (getting
+    // "ro.build.version.sdk" has been deprecated, or else this would be the
+    // only code path here)
+    char propertyValue[PROP_VALUE_MAX]{};
+    __system_property_get("ro.build.version.sdk", propertyValue);
+    int deviceAPILevel = atoi(propertyValue);
+#endif
+
+    // Ensure we are running on a device that is at least Android 10 (which is
+    // what __ANDROID_API_Q__'s value corresponds to)
+    if (deviceAPILevel < __ANDROID_API_Q__)
+    {
+        PRINT_ERROR_LINE(
+            "ERROR: Rive Vulkan renderer requires Android 10 or newer.");
+        return nullptr;
+    }
+#else
+#define PRINT_ERROR_LINE(str) fprintf(stderr, str "\n")
+#endif
     rcp<VulkanContext> vk = make_rcp<VulkanContext>(instance,
                                                     physicalDevice,
                                                     device,
@@ -3778,9 +3876,8 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
 
     if (vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_1)
     {
-        fprintf(
-            stderr,
-            "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.1.\n");
+        PRINT_ERROR_LINE(
+            "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.1.");
         return nullptr;
     }
 
@@ -3788,9 +3885,8 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
             vkutil::vendors::Imagination &&
         vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3)
     {
-        fprintf(
-            stderr,
-            "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.3 on PowerVR chipsets.\n");
+        PRINT_ERROR_LINE(
+            "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.3 on PowerVR chipsets.");
         return nullptr;
     }
 
@@ -3800,9 +3896,8 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     if (contextOptions.forceAtomicMode &&
         !impl->platformFeatures().supportsAtomicMode)
     {
-        fprintf(
-            stderr,
-            "ERROR: Requested \"atomic\" mode but Vulkan does not support fragmentStoresAndAtomics on this platform.\n");
+        PRINT_ERROR_LINE(
+            "ERROR: Requested \"atomic\" mode but Vulkan does not support fragmentStoresAndAtomics on this platform.");
         return nullptr;
     }
 

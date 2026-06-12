@@ -480,26 +480,11 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(wgpu::Device device,
     return ctx;
 }
 
-void ContextWGPU::beginFrame()
+void ContextWGPU::beginFrame(const FrameDescriptor& desc)
 {
-    // Release deferred BindGroups from last frame. By beginFrame() the
-    // caller has waited for the previous frame's GPU work to complete.
-    m_deferredBindGroups.clear();
-    m_wgpuExternalEncoder = false;
-
-    wgpu::CommandEncoderDescriptor encoderDesc{};
-    m_wgpuCommandEncoder = m_wgpuDevice.CreateCommandEncoder(&encoderDesc);
-}
-
-void ContextWGPU::beginFrame(wgpu::CommandEncoder externalEncoder)
-{
-    assert(externalEncoder != nullptr);
-    // Same drain contract as owned-encoder mode: by the time we're called
-    // again for a new frame the host must have submitted/awaited the prior
-    // frame's work, so any BindGroups deferred at that point are GPU-idle.
-    m_deferredBindGroups.clear();
-    m_wgpuCommandEncoder = std::move(externalEncoder);
-    m_wgpuExternalEncoder = true;
+    assert(desc.externalCommandBuffer != nullptr);
+    m_wgpuCommandEncoder = std::move(
+        *static_cast<wgpu::CommandEncoder*>(desc.externalCommandBuffer));
 }
 
 void ContextWGPU::waitForGPU() {} // WGPU submit is synchronous for Dawn.
@@ -507,16 +492,9 @@ void ContextWGPU::waitForGPU() {} // WGPU submit is synchronous for Dawn.
 void ContextWGPU::endFrame()
 {
     assert(m_wgpuCommandEncoder != nullptr);
-    if (m_wgpuExternalEncoder)
-    {
-        // Host owns Finish()/Submit() and the frame fence; just drop our
-        // reference to the shared encoder.
-        m_wgpuCommandEncoder = nullptr;
-        m_wgpuExternalEncoder = false;
-        return;
-    }
-    wgpu::CommandBuffer commands = m_wgpuCommandEncoder.Finish();
-    m_wgpuQueue.Submit(1, &commands);
+
+    // Host owns Finish()/Submit() and the frame fence; just drop our
+    // reference to the shared encoder.
     m_wgpuCommandEncoder = nullptr;
 }
 
@@ -540,6 +518,9 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
             break;
         case BufferUsage::uniform:
             usage |= wgpu::BufferUsage::Uniform;
+            break;
+        case BufferUsage::upload:
+            usage |= wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
             break;
     }
 

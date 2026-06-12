@@ -425,105 +425,25 @@ static D3D12_PRIMITIVE_TOPOLOGY_TYPE oreTopologyTypeToD3D12(PrimitiveTopology t)
 }
 
 // ============================================================================
-// GPU-side fence wait helper
-// ============================================================================
-
-static void d3d12WaitFence(ID3D12CommandQueue* queue,
-                           ID3D12Fence* fence,
-                           uint64_t& fenceValue,
-                           HANDLE fenceEvent)
-{
-    ++fenceValue;
-    queue->Signal(fence, fenceValue);
-    if (fence->GetCompletedValue() < fenceValue)
-    {
-        fence->SetEventOnCompletion(fenceValue, fenceEvent);
-        WaitForSingleObject(fenceEvent, INFINITE);
-    }
-}
-
-// ============================================================================
 // Context — public method definitions (D3D12-only builds)
 // When both D3D11 and D3D12 are compiled, the combined
 // ore_context_d3d11_d3d12.cpp file provides these methods with dispatch.
 // ============================================================================
 
-ContextD3D12::~ContextD3D12()
-{
-    if (m_d3dDevice)
-    {
-        // Flush all pending GPU work before releasing resources. In
-        // external-CL mode Ore has no frame fence of its own, but the host
-        // must have waited on its fence before entering the destructor; we
-        // additionally wait on our own queue so pending destroys are safe.
-        if (m_d3dQueue && m_d3dFence && m_d3dFenceEvent)
-            d3d12WaitFence(m_d3dQueue.Get(),
-                           m_d3dFence.Get(),
-                           m_d3dFenceValue,
-                           m_d3dFenceEvent);
-
-        // Drain any closures that were queued while in external-CL mode.
-        d3dDrainDeferred();
-
-        m_d3dPendingUploads.clear();
-
-        if (m_d3dFenceEvent)
-        {
-            CloseHandle(m_d3dFenceEvent);
-            m_d3dFenceEvent = nullptr;
-        }
-    }
-}
+ContextD3D12::~ContextD3D12() {}
 
 // ============================================================================
 // ContextD3D12::Make
 // ============================================================================
 
-std::unique_ptr<ContextD3D12> ContextD3D12::Make(ID3D12Device* device,
-                                                 ID3D12CommandQueue* queue)
+std::unique_ptr<ContextD3D12> ContextD3D12::Make(
+    rcp<rive::gpu::GPUResourceManager> manager,
+    ID3D12Device* device)
 {
-    auto ctx = std::unique_ptr<ContextD3D12>(new ContextD3D12());
+    auto ctx =
+        std::unique_ptr<ContextD3D12>(new ContextD3D12(std::move(manager)));
     ctx->m_d3dDevice = device;
-    ctx->m_d3dQueue = queue;
-
-    // --- Command allocator + list for rendering ---
     [[maybe_unused]] HRESULT hr;
-    hr = device->CreateCommandAllocator(
-        D3D12_COMMAND_LIST_TYPE_DIRECT,
-        IID_PPV_ARGS(ctx->m_d3dAllocator.GetAddressOf()));
-    assert(SUCCEEDED(hr));
-    hr = device->CreateCommandList(
-        0,
-        D3D12_COMMAND_LIST_TYPE_DIRECT,
-        ctx->m_d3dAllocator.Get(),
-        nullptr,
-        IID_PPV_ARGS(ctx->m_d3dOwnedCmdList.GetAddressOf()));
-    assert(SUCCEEDED(hr));
-    ctx->m_d3dCmdList = ctx->m_d3dOwnedCmdList.Get();
-    // Close immediately; reopened in beginFrame().
-    ctx->m_d3dCmdList->Close();
-
-    // --- Upload allocator + list ---
-    hr = device->CreateCommandAllocator(
-        D3D12_COMMAND_LIST_TYPE_DIRECT,
-        IID_PPV_ARGS(ctx->m_d3dUploadAllocator.GetAddressOf()));
-    assert(SUCCEEDED(hr));
-    hr = device->CreateCommandList(
-        0,
-        D3D12_COMMAND_LIST_TYPE_DIRECT,
-        ctx->m_d3dUploadAllocator.Get(),
-        nullptr,
-        IID_PPV_ARGS(ctx->m_d3dUploadCmdList.GetAddressOf()));
-    assert(SUCCEEDED(hr));
-    ctx->m_d3dUploadCmdList->Close();
-
-    // --- Fence ---
-    hr = device->CreateFence(0,
-                             D3D12_FENCE_FLAG_NONE,
-                             IID_PPV_ARGS(ctx->m_d3dFence.GetAddressOf()));
-    assert(SUCCEEDED(hr));
-    ctx->m_d3dFenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    assert(ctx->m_d3dFenceEvent != nullptr);
 
     // Root signatures are per-pipeline (RFC v5 §3.2.2). Each pipeline
     // builds its own from its `ore::BindingMap` via `buildPerPipeline-
@@ -646,25 +566,11 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(ID3D12Device* device,
 // beginFrame / endFrame / waitForGPU
 // ============================================================================
 
-void ContextD3D12::beginFrame()
+void ContextD3D12::beginFrame(const FrameDescriptor& desc)
 {
-    // Release deferred BindGroups from last frame. By beginFrame() the
-    // caller has waited for the previous frame's GPU work to complete.
-    m_deferredBindGroups.clear();
-
 #if defined(ORE_BACKEND_D3D12)
-    // Drain any destroys queued while the previous frame was in external-CL
-    // mode. In owned-CL mode the queue is empty (closures run immediately).
-    d3dDrainDeferred();
-
-    m_d3dExternalCmdList = false;
-    m_d3dCmdList = m_d3dOwnedCmdList.Get();
-
-    // Flush any queued texture uploads before opening the main command list.
-    d3d12FlushUploads();
-
-    m_d3dAllocator->Reset();
-    m_d3dCmdList->Reset(m_d3dAllocator.Get(), nullptr);
+    m_d3dCmdList =
+        static_cast<ID3D12GraphicsCommandList*>(desc.externalCommandBuffer);
 
     // Reset frame-scoped GPU heap allocation offsets.
     m_d3dGpuSrvAllocated = 0;
@@ -679,73 +585,9 @@ void ContextD3D12::beginFrame()
 #endif
 }
 
-void ContextD3D12::beginFrame(ID3D12GraphicsCommandList* externalCl)
-{
-#if defined(ORE_BACKEND_D3D12)
-    assert(externalCl != nullptr);
+void ContextD3D12::waitForGPU() {}
 
-    m_deferredBindGroups.clear();
-    d3dDrainDeferred();
-
-    // Our upload CL is independent of the host's frame CL — submit any
-    // pending uploads now so textures are ready before the host's draws.
-    // The submit happens on the shared queue; D3D12 queue ordering ensures
-    // the uploads finish before the host's eventual frame submission.
-    d3d12FlushUploads();
-
-    m_d3dGpuSrvAllocated = 0;
-    m_d3dGpuSamplerAllocated = 0;
-
-    m_d3dCmdList = externalCl;
-    m_d3dExternalCmdList = true;
-
-    // The host's command list carries whatever state the host set before
-    // handing it to us. Bind Ore's descriptor heaps; each pipeline binds
-    // its own per-pipeline root sig at setPipeline. The host is
-    // responsible for re-binding its own state after endFrame().
-    ID3D12DescriptorHeap* heaps[] = {m_d3dGpuSrvHeap.Get(),
-                                     m_d3dGpuSamplerHeap.Get()};
-    m_d3dCmdList->SetDescriptorHeaps(2, heaps);
-#else
-    (void)externalCl;
-#endif
-}
-
-void ContextD3D12::waitForGPU()
-{
-#if defined(ORE_BACKEND_D3D12)
-    d3d12WaitFence(m_d3dQueue.Get(),
-                   m_d3dFence.Get(),
-                   m_d3dFenceValue,
-                   m_d3dFenceEvent);
-#endif
-}
-
-void ContextD3D12::endFrame()
-{
-#if defined(ORE_BACKEND_D3D12)
-    if (m_d3dExternalCmdList)
-    {
-        // External-CL mode: host owns Close/Execute/fence. Deferred destroys
-        // wait until the next beginFrame() when the host has waited on the
-        // prior frame fence.
-        return;
-    }
-
-    m_d3dOwnedCmdList->Close();
-
-    ID3D12CommandList* lists[] = {m_d3dOwnedCmdList.Get()};
-    m_d3dQueue->ExecuteCommandLists(1, lists);
-
-    d3d12WaitFence(m_d3dQueue.Get(),
-                   m_d3dFence.Get(),
-                   m_d3dFenceValue,
-                   m_d3dFenceEvent);
-
-    // Release staging upload resources now that the GPU is idle.
-    m_d3dPendingUploads.clear();
-#endif
-}
+void ContextD3D12::endFrame() {}
 
 // ============================================================================
 // d3d12FlushUploads + GPU-visible heap allocation helpers (called by
@@ -753,37 +595,6 @@ void ContextD3D12::endFrame()
 // ============================================================================
 
 #if defined(ORE_BACKEND_D3D12)
-
-void ContextD3D12::d3dDrainDeferred()
-{
-    for (auto& destroy : m_d3dDeferredDestroys)
-        destroy();
-    m_d3dDeferredDestroys.clear();
-}
-
-void ContextD3D12::d3dDeferDestroy(std::function<void()> destroy)
-{
-    if (m_d3dExternalCmdList)
-        m_d3dDeferredDestroys.push_back(std::move(destroy));
-    else
-        destroy();
-}
-
-void ContextD3D12::d3d12FlushUploads()
-{
-    if (!m_d3dUploadListOpen)
-        return;
-
-    m_d3dUploadCmdList->Close();
-    ID3D12CommandList* lists[] = {m_d3dUploadCmdList.Get()};
-    m_d3dQueue->ExecuteCommandLists(1, lists);
-    d3d12WaitFence(m_d3dQueue.Get(),
-                   m_d3dFence.Get(),
-                   m_d3dFenceValue,
-                   m_d3dFenceEvent);
-    m_d3dPendingUploads.clear();
-    m_d3dUploadListOpen = false;
-}
 
 UINT ContextD3D12::d3d12AllocGpuSrvSlots(UINT count)
 {
@@ -868,8 +679,8 @@ D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerGpuHandle(
 rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto buffer = rcp<BufferD3D12>(new BufferD3D12(desc.size, desc.usage));
-    buffer->m_d3dOreContext = this;
+    auto buffer =
+        rcp<BufferD3D12>(new BufferD3D12(m_manager, desc.size, desc.usage));
 
     // All ORE buffers live in UPLOAD heap — simple, safe for test workloads.
     UINT64 alignedSize = desc.size;
@@ -922,7 +733,7 @@ rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
 rcp<Texture> ContextD3D12::d3d12MakeTexture(const TextureDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto texture = rcp<TextureD3D12>(new TextureD3D12(desc));
+    auto texture = rcp<TextureD3D12>(new TextureD3D12(m_manager, desc));
     texture->m_d3dDevice = m_d3dDevice.Get();
     texture->m_d3dOreContext = this;
 
@@ -1011,8 +822,8 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
     if (!tex)
         return nullptr;
 
-    auto view = rcp<TextureViewD3D12>(new TextureViewD3D12(ref_rcp(tex), desc));
-    view->m_d3dOreContext = this;
+    auto view = rcp<TextureViewD3D12>(
+        new TextureViewD3D12(m_manager, ref_rcp(tex), desc));
 
     const D3D12FormatInfo fmtInfo = oreFormatInfoD3D12(tex->format());
 
@@ -1225,8 +1036,7 @@ rcp<TextureView> ContextD3D12::d3d12MakeTextureView(const TextureViewDesc& desc)
 rcp<Sampler> ContextD3D12::d3d12MakeSampler(const SamplerDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto sampler = rcp<SamplerD3D12>(new SamplerD3D12());
-    sampler->m_d3dOreContext = this;
+    auto sampler = rcp<SamplerD3D12>(new SamplerD3D12(m_manager));
 
     D3D12_CPU_DESCRIPTOR_HANDLE handle =
         m_d3dCpuSamplerHeap->GetCPUDescriptorHandleForHeapStart();
@@ -1266,7 +1076,7 @@ rcp<ShaderModule> ContextD3D12::d3d12MakeShaderModule(
     const ShaderModuleDesc& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto module = rcp<ShaderModuleD3D12>(new ShaderModuleD3D12());
+    auto module = rcp<ShaderModuleD3D12>(new ShaderModuleD3D12(m_manager));
 
     // HLSL source compiled in-process via D3DCompile. AMD drivers crash on
     // cross-process DXBC, so we never ingest pre-compiled bytecode.
@@ -1331,8 +1141,7 @@ rcp<Pipeline> ContextD3D12::d3d12MakePipeline(const PipelineDesc& desc,
 {
     (void)outError;
 #if defined(ORE_BACKEND_D3D12)
-    auto pipeline = rcp<PipelineD3D12>(new PipelineD3D12(desc));
-    pipeline->m_d3dOreContext = this;
+    auto pipeline = rcp<PipelineD3D12>(new PipelineD3D12(m_manager, desc));
     pipeline->m_d3dTopology = oreTopologyToD3D12(desc.topology);
 
     // --- Validate user-supplied layouts against shader binding map ---
@@ -1559,8 +1368,7 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
         return nullptr;
     }
 
-    auto bg = rcp<BindGroupD3D12>(new BindGroupD3D12());
-    bg->m_context = this;
+    auto bg = rcp<BindGroupD3D12>(new BindGroupD3D12(m_manager));
     bg->m_layoutRef = ref_rcp(layout);
 
     // Count dynamic-offset UBOs declared by the layout — authoritative.
@@ -1690,8 +1498,8 @@ rcp<BindGroupLayout> ContextD3D12::d3d12MakeBindGroupLayout(
                      kMaxBindGroups);
         return nullptr;
     }
-    auto layout = rcp<BindGroupLayoutD3D12>(new BindGroupLayoutD3D12());
-    layout->m_context = this;
+    auto layout =
+        rcp<BindGroupLayoutD3D12>(new BindGroupLayoutD3D12(m_manager));
     layout->m_groupIndex = desc.groupIndex;
     layout->m_entries.reserve(desc.entryCount);
     for (uint32_t i = 0; i < desc.entryCount; ++i)
@@ -1717,9 +1525,6 @@ std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
     std::string* outError)
 {
 #if defined(ORE_BACKEND_D3D12)
-    // Flush any pending texture uploads before rendering.
-    d3d12FlushUploads();
-
     std::unique_ptr<RenderPassD3D12> pass(new RenderPassD3D12(this));
     pass->m_d3dCmdList = m_d3dCmdList;
     pass->m_d3dDevice = m_d3dDevice.Get();
@@ -1951,7 +1756,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<TextureD3D12>(new TextureD3D12(texDesc));
+    auto texture = rcp<TextureD3D12>(new TextureD3D12(m_manager, texDesc));
     texture->m_d3dTexture =
         d3dTex->resource(); // Borrow — RenderCanvas owns it.
     texture->m_d3dCurrentState = D3D12_RESOURCE_STATE_COMMON;
@@ -1968,8 +1773,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.layerCount = 1;
 
     auto view = rcp<TextureViewD3D12>(
-        new TextureViewD3D12(std::move(texture), viewDesc));
-    view->m_d3dOreContext = this;
+        new TextureViewD3D12(m_manager, std::move(texture), viewDesc));
 
     // Create the RTV in our CPU RTV heap.
     D3D12_CPU_DESCRIPTOR_HANDLE handle =
@@ -2032,33 +1836,28 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
     texDesc.numMipmaps = 1;
     texDesc.sampleCount = 1;
 
-    auto texture = rcp<TextureD3D12>(new TextureD3D12(texDesc));
+    auto texture = rcp<TextureD3D12>(new TextureD3D12(m_manager, texDesc));
     texture->m_d3dTexture = d3dTex->resource(); // Borrow.
     texture->m_d3dCurrentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     texture->m_d3dIsExternal = true;
     texture->m_d3dDevice = m_d3dDevice.Get();
     texture->m_d3dOreContext = this;
 
-    // In external-CL mode the Rive texture may be in any state coming out of
-    // Rive's last recording (e.g. RENDER_TARGET from a PLS flush). Emit a
-    // transition into the same CL so the draw we're about to record sees it
-    // in PIXEL_SHADER_RESOURCE. This is the D3D12 analogue of the Vulkan
-    // wrapRiveTexture barrier — but we only do it when external-CL mode is
-    // active, because in owned-CL mode the Ore CL is submitted before Rive's
-    // CL and a barrier recorded here would reference a state the texture
-    // isn't actually in at submission time.
-    if (m_d3dExternalCmdList)
+    // The Rive texture may be in any state coming out of  Rive's last recording
+    // (e.g. RENDER_TARGET from a PLS flush). Emit a transition into the same CL
+    // so the draw we're about to record sees it in PIXEL_SHADER_RESOURCE. This
+    // is the D3D12 analogue of the Vulkan wrapRiveTexture barrier — but we only
+    // do it when external-CL mode is active, because in owned-CL mode the Ore
+    // CL is submitted before Rive's CL and a barrier recorded here would
+    // reference a state the texture isn't actually in at submission time.
+    assert(m_d3dCmdList != nullptr);
+    auto* manager = static_cast<gpu::D3D12ResourceManager*>(d3dTex->manager());
+    if (manager != nullptr &&
+        d3dTex->lastState() != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
     {
-        assert(m_d3dCmdList != nullptr);
-        auto* manager =
-            static_cast<gpu::D3D12ResourceManager*>(d3dTex->manager());
-        if (manager != nullptr &&
-            d3dTex->lastState() != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-        {
-            manager->transition(m_d3dCmdList,
-                                d3dTex,
-                                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        }
+        manager->transition(m_d3dCmdList,
+                            d3dTex,
+                            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     }
 
     TextureViewDesc viewDesc{};
@@ -2070,8 +1869,7 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.layerCount = 1;
 
     auto view = rcp<TextureViewD3D12>(
-        new TextureViewD3D12(std::move(texture), viewDesc));
-    view->m_d3dOreContext = this;
+        new TextureViewD3D12(m_manager, std::move(texture), viewDesc));
     // Create SRV for sampling (images are read-only, no RTV needed).
     if (m_d3dCpuSrvAllocated >= 1024)
         return nullptr; // CPU SRV descriptor heap exhausted.

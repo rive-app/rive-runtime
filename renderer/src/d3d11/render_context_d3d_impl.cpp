@@ -14,6 +14,7 @@
 #include "rive/profiler/profiler_macros.h"
 
 #include <D3DCompiler.h>
+#include <mutex>
 
 #include "generated/shaders/tessellate.glsl.exports.h"
 
@@ -414,7 +415,12 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     const D3DContextOptions& contextOptions)
 {
 #if defined(RIVE_MICROPROFILE)
-    MicroProfileGpuInitD3D11(gpu.Get());
+    // MicroProfile keeps process-global GPU state and asserts on re-init, so
+    // bind it to the first device we see (e.g. with desktop_multi_window,
+    // multiple plugin instances each create their own RenderContext).
+    static std::once_flag s_microProfileInit;
+    std::call_once(s_microProfileInit,
+                   [&] { MicroProfileGpuInitD3D11(gpu.Get()); });
 #endif
     D3DCapabilities d3dCapabilities;
     D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
@@ -891,16 +897,46 @@ rcp<RenderBuffer> RenderContextD3DImpl::makeRenderBuffer(
 class TextureD3DImpl : public Texture
 {
 public:
+    // viewFormat = DXGI_FORMAT_UNKNOWN → infer (TYPELESS storage gets
+    // mapped to its UNORM variant; other formats use desc.Format as-is).
+    // Pass an explicit format to override (e.g. Unity sRGB RTs).
     TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
                    ComPtr<ID3D11Texture2D> image,
                    UINT width,
-                   UINT height) :
+                   UINT height,
+                   DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN) :
         Texture(width, height), m_texture(image)
     {
-        // Create a view.
+        D3D11_TEXTURE2D_DESC desc;
+        m_texture->GetDesc(&desc);
+        if (viewFormat == DXGI_FORMAT_UNKNOWN)
+        {
+            switch (desc.Format)
+            {
+                case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+                    viewFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+                    break;
+                case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+                    viewFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+                    break;
+                case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+                    viewFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+                    break;
+                default:
+                    viewFormat = desc.Format;
+                    break;
+            }
+        }
+        const D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {
+            .Format = viewFormat,
+            .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D,
+            .Texture2D = {.MostDetailedMip = 0, .MipLevels = desc.MipLevels},
+        };
+        const D3D11_SHADER_RESOURCE_VIEW_DESC* srvDescPtr =
+            (viewFormat == desc.Format) ? nullptr : &srvDesc;
         VERIFY_OK(renderContextImpl->gpu()->CreateShaderResourceView(
             m_texture.Get(),
-            NULL,
+            srvDescPtr,
             m_srv.ReleaseAndGetAddressOf()));
     }
 
@@ -1055,9 +1091,10 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
 rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
     ComPtr<ID3D11Texture2D> image,
     uint32_t width,
-    uint32_t height)
+    uint32_t height,
+    DXGI_FORMAT viewFormat)
 {
-    return make_rcp<TextureD3DImpl>(this, image, width, height);
+    return make_rcp<TextureD3DImpl>(this, image, width, height, viewFormat);
 }
 
 #ifdef RIVE_CANVAS
@@ -1545,7 +1582,7 @@ static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
                                       &updateBox);
 }
 
-static D3D11_RECT make_scissor(const TAABB<uint16_t> scissor)
+static D3D11_RECT make_scissor(const AABBu16 scissor)
 {
     D3D11_RECT rect;
     rect.left = scissor.left;

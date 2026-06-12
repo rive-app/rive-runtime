@@ -6,17 +6,17 @@ namespace rive
 {
 TEST_CASE("IAABB_join", "[IAABB]")
 {
-    CHECK(IAABB{1, -2, 99, 101}.join({0, 0, 100, 100}) ==
+    CHECK(IAABB{1, -2, 99, 101}.join(IAABB{0, 0, 100, 100}) ==
           IAABB{0, -2, 100, 101});
-    CHECK(IAABB{1, -2, 99, 101}.join({2, -3, 98, 103}) ==
+    CHECK(IAABB{1, -2, 99, 101}.join(IAABB{2, -3, 98, 103}) ==
           IAABB{1, -3, 99, 103});
 }
 
 TEST_CASE("IAABB_intersect", "[IAABB]")
 {
-    CHECK(IAABB{1, -2, 99, 101}.intersect({0, 0, 100, 100}) ==
+    CHECK(IAABB{1, -2, 99, 101}.intersect(IAABB{0, 0, 100, 100}) ==
           IAABB{1, 0, 99, 100});
-    CHECK(IAABB{1, -2, 99, 101}.intersect({2, -3, 98, 103}) ==
+    CHECK(IAABB{1, -2, 99, 101}.intersect(IAABB{2, -3, 98, 103}) ==
           IAABB{2, -2, 98, 101});
 }
 
@@ -69,4 +69,38 @@ TEST_CASE("AABB contains", "[AABB]")
         rightBoundary + rightBoundary * std::numeric_limits<float>::epsilon(),
         50)));
 }
+
+TEST_CASE("IAABB overlaps", "[AABB]")
+{
+    // Completely contained
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{10, 10, 90, 90}));
+
+    // Coincident
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{0, 0, 100, 100}));
+
+    // One edge out of range
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{-1000, 10, 90, 90}));
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{10, -1000, 90, 90}));
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{10, 10, 1000, 90}));
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{10, 10, 90, 1000}));
+
+    // One edge still in range
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{-1000, -1000, 1000, 90}));
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{-1000, -1000, 90, 1000}));
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{-1000, 10, 1000, 1000}));
+    CHECK(IAABB{0, 0, 100, 100}.overlaps(IAABB{10, -1000, 1000, 1000}));
+
+    // Disjoint
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{110, 10, 190, 90}));
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{10, 110, 90, 190}));
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{-110, 10, -10, 90}));
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{10, -110, 90, -10}));
+
+    // Abutting, but disjoint
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{-10, 10, 0, 90}));
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{10, -10, 90, 0}));
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{100, 10, 190, 90}));
+    CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{10, 100, 190, 90}));
+}
+
 } // namespace rive

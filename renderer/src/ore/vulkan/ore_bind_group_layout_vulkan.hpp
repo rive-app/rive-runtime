@@ -10,11 +10,10 @@ class BindGroupLayoutVulkan
     : public LITE_RTTI_OVERRIDE(BindGroupLayout, BindGroupLayoutVulkan)
 {
 public:
-    BindGroupLayoutVulkan() = default;
-    ~BindGroupLayoutVulkan() override = default;
-    // Defers vkDestroyDescriptorSetLayout through
-    // ContextVulkan::vkDeferDestroy().
-    void onRefCntReachedZero() const override;
+    BindGroupLayoutVulkan(rcp<rive::gpu::GPUResourceManager> manager) :
+        lite_rtti_override(std::move(manager))
+    {}
+    ~BindGroupLayoutVulkan() override;
 
 private:
     friend class ContextVulkan;
