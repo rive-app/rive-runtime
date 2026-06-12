@@ -14,6 +14,7 @@
 #include "rive/profiler/profiler_macros.h"
 
 #include <D3DCompiler.h>
+#include <mutex>
 
 #include "generated/shaders/tessellate.glsl.exports.h"
 
@@ -414,7 +415,12 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     const D3DContextOptions& contextOptions)
 {
 #if defined(RIVE_MICROPROFILE)
-    MicroProfileGpuInitD3D11(gpu.Get());
+    // MicroProfile keeps process-global GPU state and asserts on re-init, so
+    // bind it to the first device we see (e.g. with desktop_multi_window,
+    // multiple plugin instances each create their own RenderContext).
+    static std::once_flag s_microProfileInit;
+    std::call_once(s_microProfileInit,
+                   [&] { MicroProfileGpuInitD3D11(gpu.Get()); });
 #endif
     D3DCapabilities d3dCapabilities;
     D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
