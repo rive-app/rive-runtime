@@ -1,4 +1,5 @@
 #include "rive/artboard_component_list.hpp"
+#include "rive/constraints/scrolling/elastic_scroll_physics.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/math/transform_components.hpp"
@@ -291,6 +292,191 @@ TEST_CASE("ScrollConstraint nearestSnapOffsetInDirection", "[layoutscroll]")
         scroll->nearestSnapOffsetInDirection(rive::Vec2D(0.0f, 0.0f),
                                              rive::Vec2D(0.0f, -220.0f));
     REQUIRE(onSnap.y == -220.0f);
+}
+
+// Fixture: viewport 100, content 300 (3x 100-wide items), snap points at item
+// leading edges {0, 100, 200}. rangeMin is the maxOffset (negative) and equals
+// viewportSize - contentSize - paddingEnd; rangeMax = 0. With friction = 8 and
+// speedMultiplier = 1, the helper sets m_speed = accel * 0.00256 inside run(),
+// so endTarget = -(value + accel * 0.00032) — pick acceleration to project a
+// chosen endTarget.
+TEST_CASE("ElasticScrollPhysicsHelper snap respects trailing padding",
+          "[layoutscroll]")
+{
+    const std::vector<float> snaps = {0.0f, 100.0f, 200.0f};
+    const float kFriction = 8.0f;
+    const float kSpeedMul = 1.0f;
+    const float kElastic = 0.66f;
+    const float kContent = 300.0f;
+    const float kViewport = 100.0f;
+
+    // Settle helper to a stop.
+    auto settle = [](rive::ElasticScrollPhysicsHelper& helper) -> float {
+        float last = 0.0f;
+        for (int i = 0; i < 2000 && helper.isRunning(); i++)
+        {
+            last = helper.advance(0.016f);
+        }
+        REQUIRE_FALSE(helper.isRunning());
+        return last;
+    };
+
+    SECTION("fling past the last item settles at the padded end")
+    {
+        // paddingRight = 10 → rangeMin = -210. endTarget ≈ 250 (between last
+        // item leading edge 200 and the padded end 210, closer to 210).
+        rive::ElasticScrollPhysicsHelper helper(kFriction, kSpeedMul, kElastic);
+        helper.run(/*acceleration*/ -781250.0f,
+                   /*rangeMin*/ -210.0f,
+                   /*rangeMax*/ 0.0f,
+                   /*value*/ 0.0f,
+                   snaps,
+                   kContent,
+                   kViewport);
+        REQUIRE(settle(helper) == Approx(-210.0f).margin(0.5f));
+    }
+
+    SECTION("zero trailing padding still snaps to the last item edge")
+    {
+        // paddingRight = 0 → rangeMin = -200, which equals the last snap point.
+        // Behavior should match the pre-fix snap-to-last-item case.
+        rive::ElasticScrollPhysicsHelper helper(kFriction, kSpeedMul, kElastic);
+        helper.run(/*acceleration*/ -781250.0f,
+                   /*rangeMin*/ -200.0f,
+                   /*rangeMax*/ 0.0f,
+                   /*value*/ 0.0f,
+                   snaps,
+                   kContent,
+                   kViewport);
+        REQUIRE(settle(helper) == Approx(-200.0f).margin(0.5f));
+    }
+
+    SECTION("mid-content fling snaps to the nearest item, not the padded end")
+    {
+        // endTarget ≈ 110 → closest snap is 100; padded end 210 is much
+        // farther, so per-item snap behavior must be preserved.
+        rive::ElasticScrollPhysicsHelper helper(kFriction, kSpeedMul, kElastic);
+        helper.run(/*acceleration*/ -343750.0f,
+                   /*rangeMin*/ -210.0f,
+                   /*rangeMax*/ 0.0f,
+                   /*value*/ 0.0f,
+                   snaps,
+                   kContent,
+                   kViewport);
+        REQUIRE(settle(helper) == Approx(-100.0f).margin(0.5f));
+    }
+}
+
+namespace
+{
+// Swipe up to fling a vertical scroll constraint past its end, then settle.
+// Used by the three snap-padding silver tests (one per artboard in the
+// fixture). With trailing viewport padding on the parent layout, snap must
+// settle at the padded end (rangeMin) rather than at the last item's leading
+// edge. Total emitted frames stay around 60: 4 swipe steps + up to 56 settle
+// frames (loop exits earlier when physics stops).
+void runVerticalSnapPaddingSwipe(const char* artboardName,
+                                 const char* silverName)
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/layout/layout_scroll_snap_padding.riv", &silver);
+    REQUIRE(file != nullptr);
+
+    auto artboardSrc = file->artboardNamed(artboardName);
+    REQUIRE(artboardSrc != nullptr);
+    auto artboard = artboardSrc->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    // Lists need their default view model bound; static-layout artboards may
+    // not ship one. Bind if present.
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto renderer = silver.makeRenderer();
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+
+    float centerX = artboard->width() / 2.0f;
+    float startY = artboard->height() / 2.0f;
+    float dt = 0.016f;
+
+    // Swipe up: content fills the viewport so a 1500px drag over-shoots even
+    // the tallest fixture artboard (~1600px content in a 500px viewport).
+    // Whole-second timestamps survive long-long truncation in the physics
+    // accumulator under deterministic mode.
+    float swipeDistance = 1500.0f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(centerX, startY), time);
+    smi->pointerDown(rive::Vec2D(centerX, startY));
+    time += 1.0f;
+
+    int steps = 4;
+    for (int i = 1; i <= steps; i++)
+    {
+        silver.addFrame();
+        float y = startY - (swipeDistance * i / steps);
+        smi->pointerMove(rive::Vec2D(centerX, y), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+
+    smi->pointerUp(rive::Vec2D(centerX, startY - swipeDistance));
+
+    // Capture frames while physics settles; bail early on settle.
+    for (int i = 0; i < 56; i++)
+    {
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+        if (!scroll->physics()->isRunning())
+        {
+            break;
+        }
+    }
+
+    CHECK(silver.matches(silverName));
+
+    rive::File::deterministicMode = false;
+}
+} // namespace
+
+TEST_CASE("Scroll snap respects viewport padding (layouts)", "[silver]")
+{
+    runVerticalSnapPaddingSwipe("ScrollLayouts",
+                                "layout_scroll_snap_padding_layouts");
+}
+
+TEST_CASE("Scroll snap respects viewport padding (list)", "[silver]")
+{
+    runVerticalSnapPaddingSwipe("ScrollList",
+                                "layout_scroll_snap_padding_list");
+}
+
+TEST_CASE("Scroll snap respects viewport padding (virtualized list)",
+          "[silver]")
+{
+    runVerticalSnapPaddingSwipe("ScrollListVirtualized",
+                                "layout_scroll_snap_padding_virtualized");
 }
 
 TEST_CASE("ScrollConstraint scrollIndex with hidden items", "[silver]")

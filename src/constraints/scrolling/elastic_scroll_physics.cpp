@@ -199,16 +199,19 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     {
         float endTarget = -(m_current + m_speed / m_friction);
         float sectionSize = contentSize != 0 ? contentSize : 1;
-        float viewportSectionSize = viewportSize != 0 ? viewportSize : 1;
         int multiple = rangeMax == std::numeric_limits<float>::infinity()
                            ? std::floor(endTarget / sectionSize)
                            : 0;
         float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
                                  ? math::positive_mod(endTarget, sectionSize)
                                  : endTarget;
+        // -rangeMin is the max positive scroll position. It already accounts
+        // for viewport trailing padding (rangeMin = maxOffset =
+        // viewportSize - contentSize - paddingEnd), whereas contentSize -
+        // viewportSize does not.
         float maxTarget = rangeMax == std::numeric_limits<float>::infinity()
                               ? std::numeric_limits<float>::infinity()
-                              : sectionSize - viewportSectionSize;
+                              : -rangeMin;
         float closest = std::numeric_limits<float>::max();
         float snapTarget = 0;
         for (auto snap : snappingPoints)
@@ -218,6 +221,18 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
             {
                 closest = diff;
                 snapTarget = snap + (multiple * sectionSize);
+            }
+        }
+        // Treat the padded end-of-scroll as a candidate snap. Otherwise a
+        // fling past the last item snaps backward to that item's leading
+        // edge, dropping the trailing padding.
+        if (maxTarget != std::numeric_limits<float>::infinity())
+        {
+            float diff = std::abs(maxTarget - modEndTarget);
+            if (diff < closest)
+            {
+                closest = diff;
+                snapTarget = maxTarget;
             }
         }
         snapTarget = std::min(snapTarget, maxTarget);
