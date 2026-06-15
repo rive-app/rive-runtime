@@ -324,12 +324,12 @@ void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
         auto instanceValue = m_instanceValue->as<ViewModelInstanceViewModel>();
         auto parentViewModelInstance = instanceValue->parentViewModelInstance();
         auto viewModelInstance = scriptedViewModel->mutableViewModelInstance();
+        // replaceViewModelByProperty notifies this property's value-dependents
+        // (including this wrapper and any siblings sharing the property) so
+        // cached Lua-side values are invalidated.
         parentViewModelInstance->replaceViewModelByProperty(
             instanceValue,
             rcp<ViewModelInstance>(viewModelInstance));
-        // Invalidate cached Lua-side value so the next push reflects the new
-        // instance.
-        clearRef();
     }
 }
 
