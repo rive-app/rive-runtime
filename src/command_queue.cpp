@@ -900,6 +900,14 @@ void CommandQueue::requestArtboardNames(FileHandle fileHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::requestFileAssets(FileHandle fileHandle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listFileAssets;
+    m_commandStream << fileHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::requestViewModelInstanceViewModelName(
     ViewModelInstanceHandle viewModelInstanceHandle,
     uint64_t requestId)
@@ -1135,6 +1143,42 @@ void CommandQueue::processMessages()
                     itr->second->onArtboardsListed(itr->first,
                                                    requestId,
                                                    std::move(artboardNames));
+                }
+                break;
+            }
+            case Message::fileAssetsListed:
+            {
+                size_t numAssets;
+                FileHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numAssets;
+                std::vector<FileListener::FileAssetData> assets(numAssets);
+                for (auto& asset : assets)
+                {
+                    m_messageStream >> asset.assetID;
+                    m_messageStream >> asset.type;
+                    m_messageNames >> asset.name;
+                    m_messageNames >> asset.cdnUUID;
+                    m_messageNames >> asset.cdnBaseURL;
+                    m_messageNames >> asset.fileExtension;
+                }
+                lock.unlock();
+
+                if (m_globalFileListener)
+                {
+                    m_globalFileListener->onFileAssetsListed(handle,
+                                                             requestId,
+                                                             assets);
+                }
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onFileAssetsListed(itr->first,
+                                                    requestId,
+                                                    std::move(assets));
                 }
                 break;
             }

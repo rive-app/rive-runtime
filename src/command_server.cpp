@@ -1883,6 +1883,48 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::listFileAssets:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto fileAssets = file->assets();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::fileAssetsListed;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << fileAssets.size();
+                    for (const auto& asset : fileAssets)
+                    {
+                        messageStream << asset->assetId();
+                        messageStream << asset->coreType();
+                        m_commandQueue->m_messageNames << asset->name();
+                        m_commandQueue->m_messageNames << asset->cdnUuidStr();
+                        m_commandQueue->m_messageNames << asset->cdnBaseUrl();
+                        m_commandQueue->m_messageNames
+                            << asset->fileExtension();
+                    }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              requestId,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of file assets";
+                }
+
+                break;
+            }
+
             case CommandQueue::Command::getViewModelInstanceViewModelName:
             {
                 ViewModelInstanceHandle handle;

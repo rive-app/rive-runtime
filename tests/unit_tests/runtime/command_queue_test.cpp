@@ -44,6 +44,18 @@ bool operator!=(const CommandQueue::FileListener::ViewModelPropertyData& l,
 {
     return !(l == r);
 }
+bool operator==(const CommandQueue::FileListener::FileAssetData& l,
+                const CommandQueue::FileListener::FileAssetData& r)
+{
+    return l.name == r.name && l.assetID == r.assetID &&
+           l.cdnUUID == r.cdnUUID && l.cdnBaseURL == r.cdnBaseURL &&
+           l.fileExtension == r.fileExtension && l.type == r.type;
+}
+bool operator!=(const CommandQueue::FileListener::FileAssetData& l,
+                const CommandQueue::FileListener::FileAssetData& r)
+{
+    return !(l == r);
+}
 } // namespace rive
 
 template <typename t, size_t arraySize>
@@ -79,7 +91,9 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 
 #include "catch.hpp"
 #include <rive/assets/audio_asset.hpp>
+#include <rive/assets/file_asset.hpp>
 #include <rive/assets/font_asset.hpp>
+#include <rive/assets/image_asset.hpp>
 #include <rive/assets/script_asset.hpp>
 
 using namespace rive;
@@ -5218,6 +5232,200 @@ TEST_CASE("dependency lifetime management", "[CommandQueue]")
         CHECK(server->getStateMachineInstance(stateMachine3) != nullptr);
         CHECK(server->getStateMachineInstance(stateMachine3_2) != nullptr);
     });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class FileAssetsListenerCallback : public CommandQueue::FileListener
+{
+public:
+    void onFileAssetsListed(const FileHandle fileHandle,
+                            uint64_t requestId,
+                            std::vector<FileAssetData> assets) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(fileHandle == m_fileHandle);
+        m_assets = std::move(assets);
+        m_hasCallback = true;
+    }
+
+    void onFileError(const FileHandle fileHandle,
+                     uint64_t requestId,
+                     std::string error) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(fileHandle == m_fileHandle);
+        m_errorMessage = std::move(error);
+        m_hasError = true;
+    }
+
+    bool m_hasCallback = false;
+    bool m_hasError = false;
+    FileHandle m_fileHandle = RIVE_NULL_HANDLE;
+    uint64_t m_requestId = 0;
+    std::vector<FileAssetData> m_assets;
+    std::string m_errorMessage;
+};
+
+TEST_CASE("file assets listed - image asset", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 42;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+    REQUIRE(listener.m_assets.size() == 1);
+
+    auto& asset = listener.m_assets[0];
+    CHECK(asset.name == "one.png");
+    CHECK(asset.assetID == 45008);
+    CHECK(asset.cdnUUID == "edcb1816-8405-4983-acd2-16db48d85df4");
+    CHECK(asset.cdnBaseURL == "https://public.uat.rive.app/cdn/uuid");
+    CHECK(asset.fileExtension == "png");
+    CHECK(asset.type == 105);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - font asset", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 43;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+    REQUIRE(listener.m_assets.size() == 1);
+
+    auto& asset = listener.m_assets[0];
+    CHECK(asset.name == "Inter");
+    CHECK(asset.assetID == 43276);
+    CHECK(asset.cdnBaseURL == "https://public.uat.rive.app/cdn/uuid");
+    CHECK(asset.fileExtension == "ttf");
+    CHECK(asset.type == 141);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - type IDs match runtime", "[CommandQueue]")
+{
+    uint16_t imageType = ImageAsset::typeKey;
+    uint16_t fontType = FontAsset::typeKey;
+    uint16_t audioType = AudioAsset::typeKey;
+    CHECK(imageType == 105);
+    CHECK(fontType == 141);
+    CHECK(audioType == 406);
+}
+
+TEST_CASE("file assets listed - empty file", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/two_artboards.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 44;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+    CHECK(listener.m_assets.empty());
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - invalid handle", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    FileHandle badHandle =
+        reinterpret_cast<FileHandle>(static_cast<uintptr_t>(999));
+    listener.m_fileHandle = badHandle;
+    listener.m_requestId = 45;
+
+    commandQueue->setGlobalFileListener(&listener);
+    commandQueue->requestFileAssets(badHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!listener.m_hasCallback);
+    CHECK(listener.m_hasError);
+
+    commandQueue->setGlobalFileListener(nullptr);
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - all assets returned", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 46;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+
+    // Verify the count matches the total file assets (no filtering)
+    commandQueue->runOnce([fileHandle, &listener](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        auto allAssets = file->assets();
+        CHECK(listener.m_assets.size() == allAssets.size());
+    });
+
+    wait_for_server(commandQueue.get());
 
     commandQueue->disconnect();
     serverThread.join();

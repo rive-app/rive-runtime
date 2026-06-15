@@ -157,6 +157,21 @@ public:
                                             uint64_t requestId,
                                             std::vector<ViewModelEnum> enums)
         {}
+
+        struct FileAssetData
+        {
+            std::string name;
+            uint32_t assetID = 0;
+            std::string cdnUUID;
+            std::string cdnBaseURL;
+            std::string fileExtension;
+            uint16_t type = 0;
+        };
+
+        virtual void onFileAssetsListed(const FileHandle,
+                                        uint64_t requestId,
+                                        std::vector<FileAssetData> assets)
+        {}
     };
 
     class RenderImageListener
@@ -626,6 +641,7 @@ public:
 
     void requestViewModelNames(FileHandle, uint64_t requestId = 0);
     void requestArtboardNames(FileHandle, uint64_t requestId = 0);
+    void requestFileAssets(FileHandle, uint64_t requestId = 0);
     void requestViewModelInstanceViewModelName(ViewModelInstanceHandle,
                                                uint64_t requestId = 0);
     void requestViewModelEnums(FileHandle, uint64_t requestId = 0);
@@ -863,7 +879,8 @@ private:
         listViewModelPropertyValue,
         getViewModelInstanceViewModelName,
         getViewModelListSize,
-        clearViewModelList
+        clearViewModelList,
+        listFileAssets,
     };
 
     enum class Message
@@ -896,6 +913,7 @@ private:
         viewModelDeleted,
         stateMachineDeleted,
         stateMachineSettled,
+        fileAssetsListed,
         fileError,
         artboardError,
         viewModelError,
