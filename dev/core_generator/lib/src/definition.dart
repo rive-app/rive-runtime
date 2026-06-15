@@ -136,9 +136,27 @@ class Definition {
           front: Styles.RED,
         );
       }
-      if (p.type.name != 'bool') {
+      final isBool = p.type.name == 'bool';
+      final isUint = p.type.name == 'uint';
+      if (!isBool && !isUint) {
         color(
-          '${p.name}: passthroughForBitmask requires bool.',
+          '${p.name}: passthroughForBitmask requires bool or uint.',
+          front: Styles.RED,
+        );
+      }
+      if (isBool &&
+          p.passthroughBitWidth != null &&
+          p.passthroughBitWidth != 1) {
+        color(
+          '${p.name}: bool passthroughForBitmask must have width 1.',
+          front: Styles.RED,
+        );
+      }
+      if (isUint &&
+          (p.passthroughBitWidth == null || p.passthroughBitWidth! < 1)) {
+        color(
+          '${p.name}: uint passthroughForBitmask requires '
+          'passthroughBitWidth >= 1.',
           front: Styles.RED,
         );
       }
@@ -172,15 +190,48 @@ class Definition {
         continue;
       }
       final bit = p.passthroughBit!;
-      if (bit < 0 || bit > 31) {
+      final width = p.passthroughBitWidthOrDefault;
+      if (bit < 0 || width < 1 || bit + width > 32) {
         color(
-          '${p.name}: passthroughBit must be 0..31.',
+          '${p.name}: passthroughBit/passthroughBitWidth must fit in 0..32 '
+          '(bit $bit, width $width).',
           front: Styles.RED,
         );
         continue;
       }
       p.bitmaskTargetProperty = target;
     }
+    _validateBitmaskPassthroughOverlaps();
+  }
+
+  /// Ensure no two bitmask passthroughs targeting the same mask occupy
+  /// overlapping bit ranges.
+  void _validateBitmaskPassthroughOverlaps() {
+    final byMask = <String, List<Property>>{};
+    for (final p in _properties) {
+      if (p.isBitmaskPassthrough && p.bitmaskTargetProperty != null) {
+        (byMask[p.passthroughForBitmask!] ??= []).add(p);
+      }
+    }
+    byMask.forEach((mask, props) {
+      for (var i = 0; i < props.length; i++) {
+        for (var j = i + 1; j < props.length; j++) {
+          final a = props[i];
+          final b = props[j];
+          final aStart = a.passthroughBit!;
+          final aEnd = aStart + a.passthroughBitWidthOrDefault;
+          final bStart = b.passthroughBit!;
+          final bEnd = bStart + b.passthroughBitWidthOrDefault;
+          if (aStart < bEnd && bStart < aEnd) {
+            color(
+              '${a.name} and ${b.name}: overlapping passthrough bit ranges '
+              'on $mask ([$aStart,$aEnd) vs [$bStart,$bEnd)).',
+              front: Styles.RED,
+            );
+          }
+        }
+      }
+    });
   }
 
   String get localFilename => _filename.indexOf(defsPath) == 0
@@ -265,13 +316,23 @@ class Definition {
               'static const uint16_t ${altKey.stringValue}PropertyKey = '
               '${altKey.intValue};');
         }
-        // Bitmask passthrough bools also expose the authoritative bit mask
-        // as a compile-time constant. Mirrors the Dart generator's
-        // `${name}Bitmask` so adapters on both sides consume the same
-        // single source of truth (the JSON's passthroughBit).
+        // Bitmask passthroughs expose the authoritative bit layout as
+        // compile-time constants so adapters on both sides consume the same
+        // single source of truth (the JSON's passthroughBit/Width). Bools
+        // keep the legacy single-bit `${name}Bitmask`; uints expose the
+        // field offset and mask.
         if (property.isBitmaskPassthrough) {
-          code.writeln('static const uint32_t ${property.name}Bitmask = '
-              '1u << ${property.passthroughBit};');
+          if (property.type.name == 'uint') {
+            final width = property.passthroughBitWidthOrDefault;
+            final fieldMask = ((1 << width) - 1) << property.passthroughBit!;
+            code.writeln('static const uint32_t ${property.name}BitOffset = '
+                '${property.passthroughBit};');
+            code.writeln('static const uint32_t ${property.name}FieldMask = '
+                '${fieldMask}u;');
+          } else {
+            code.writeln('static const uint32_t ${property.name}Bitmask = '
+                '1u << ${property.passthroughBit};');
+          }
         }
         if (property.isWithRiveToolsOnly) {
           addPreprocessorEnd(code);
@@ -658,11 +719,22 @@ class Definition {
             ctxCode.writeln('if (_o) {');
             ctxCode.writeln(
                 'const $maskType _cur = _o->$mask();');
-            ctxCode.writeln(
-                'const $maskType _bm = static_cast<$maskType>(1u << $bit);');
-            ctxCode.writeln(
-                'const $maskType _next = static_cast<$maskType>(('
-                '_cur & ~_bm) | (value ? _bm : static_cast<$maskType>(0)));');
+            if (property.type.name == 'uint') {
+              final width = property.passthroughBitWidthOrDefault;
+              final fieldMask = ((1 << width) - 1) << bit;
+              ctxCode.writeln(
+                  'const $maskType _fieldMask = '
+                  'static_cast<$maskType>(${fieldMask}u);');
+              ctxCode.writeln(
+                  'const $maskType _next = static_cast<$maskType>(('
+                  '_cur & ~_fieldMask) | ((value << $bit) & _fieldMask));');
+            } else {
+              ctxCode.writeln(
+                  'const $maskType _bm = static_cast<$maskType>(1u << $bit);');
+              ctxCode.writeln(
+                  'const $maskType _next = static_cast<$maskType>(('
+                  '_cur & ~_bm) | (value ? _bm : static_cast<$maskType>(0)));');
+            }
             ctxCode.writeln(
                 'if (_cur != _next) { _o->$mask(_next); }');
             ctxCode.writeln('}');
@@ -699,7 +771,10 @@ class Definition {
       var properties = getSetFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
-          if (property.isBitmaskPassthrough) {
+          // Bool passthroughs have no read-back getter (mirrors the field
+          // having no backing storage). uint passthroughs read their field
+          // back out of the mask so runtime data binding can round-trip.
+          if (property.isBitmaskPassthrough && property.type.name != 'uint') {
             continue;
           }
           if (property.isWithRiveToolsOnly) {
@@ -711,9 +786,19 @@ class Definition {
             ctxCode.writeln('case ${property.definition.name}Base'
                 '::${altKey.stringValue}PropertyKey:');
           }
-          ctxCode
-              .writeln('return object->as<${property.definition.name}Base>()->'
-                  '${property.name}();');
+          if (property.isBitmaskPassthrough) {
+            final mask = property.bitmaskTargetProperty!.name;
+            final bit = property.passthroughBit!;
+            final width = property.passthroughBitWidthOrDefault;
+            final valueMask = (1 << width) - 1;
+            ctxCode.writeln(
+                'return (object->as<${property.definition.name}Base>()->'
+                '$mask() >> $bit) & ${valueMask}u;');
+          } else {
+            ctxCode.writeln(
+                'return object->as<${property.definition.name}Base>()->'
+                '${property.name}();');
+          }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorEnd(ctxCode);
           }

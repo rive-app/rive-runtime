@@ -25,12 +25,16 @@ class Property {
   bool isPassthrough = false;
   String? passthroughForBitmask;
   int? passthroughBit;
+  int? passthroughBitWidth;
   Property? bitmaskTargetProperty;
   bool isPureVirtual = false;
   FieldType? typeRuntime;
 
   bool get isBitmaskPassthrough =>
       passthroughForBitmask != null && passthroughBit != null;
+
+  /// Bit width of a bitmask passthrough field; bools occupy a single bit.
+  int get passthroughBitWidthOrDefault => passthroughBitWidth ?? 1;
 
   static Property? make(
       Definition type, String name, Map<String, dynamic> data) {
@@ -122,6 +126,10 @@ class Property {
     dynamic pbit = data['passthroughBit'];
     if (pbit is int) {
       passthroughBit = pbit;
+    }
+    dynamic pbw = data['passthroughBitWidth'];
+    if (pbw is int) {
+      passthroughBitWidth = pbw;
     }
     dynamic pv = data['pureVirtual'];
     if (pv is bool) {

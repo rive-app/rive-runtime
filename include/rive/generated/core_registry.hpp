@@ -1648,6 +1648,41 @@ public:
             case TextBase::textRunListSourcePropertyKey:
                 object->as<TextBase>()->textRunListSource(value);
                 break;
+            case TextBase::verticalTrimValuePropertyKey:
+                object->as<TextBase>()->verticalTrimValue(value);
+                break;
+            case TextBase::verticalTrimTopValuePropertyKey:
+            {
+                auto* _o = object->as<TextBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->verticalTrimValue();
+                    const uint32_t _fieldMask = static_cast<uint32_t>(255u);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_fieldMask) | ((value << 0) & _fieldMask));
+                    if (_cur != _next)
+                    {
+                        _o->verticalTrimValue(_next);
+                    }
+                }
+                break;
+            }
+            case TextBase::verticalTrimBottomValuePropertyKey:
+            {
+                auto* _o = object->as<TextBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->verticalTrimValue();
+                    const uint32_t _fieldMask = static_cast<uint32_t>(65280u);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_fieldMask) | ((value << 8) & _fieldMask));
+                    if (_cur != _next)
+                    {
+                        _o->verticalTrimValue(_next);
+                    }
+                }
+                break;
+            }
             case TextValueRunBase::styleIdPropertyKey:
                 object->as<TextValueRunBase>()->styleId(value);
                 break;
@@ -3569,6 +3604,14 @@ public:
                 return object->as<TextBase>()->verticalAlignValue();
             case TextBase::textRunListSourcePropertyKey:
                 return object->as<TextBase>()->textRunListSource();
+            case TextBase::verticalTrimValuePropertyKey:
+                return object->as<TextBase>()->verticalTrimValue();
+            case TextBase::verticalTrimTopValuePropertyKey:
+                return (object->as<TextBase>()->verticalTrimValue() >> 0) &
+                       255u;
+            case TextBase::verticalTrimBottomValuePropertyKey:
+                return (object->as<TextBase>()->verticalTrimValue() >> 8) &
+                       255u;
             case TextValueRunBase::styleIdPropertyKey:
                 return object->as<TextValueRunBase>()->styleId();
             case ArtboardListMapRuleBase::artboardIdPropertyKey:
@@ -4511,6 +4554,7 @@ public:
             case TextBase::wrapValuePropertyKey:
             case TextBase::verticalAlignValuePropertyKey:
             case TextBase::textRunListSourcePropertyKey:
+            case TextBase::verticalTrimValuePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
             case ArtboardListMapRuleBase::artboardIdPropertyKey:
             case ArtboardListMapRuleBase::viewModelIdPropertyKey:
@@ -5330,6 +5374,12 @@ public:
             case TextBase::verticalAlignValuePropertyKey:
                 return object->is<TextBase>();
             case TextBase::textRunListSourcePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::verticalTrimValuePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::verticalTrimTopValuePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::verticalTrimBottomValuePropertyKey:
                 return object->is<TextBase>();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->is<TextValueRunBase>();

@@ -48,6 +48,13 @@ public:
     static const uint16_t verticalAlignValuePropertyKey = 685;
     static const uint16_t fitFromBaselinePropertyKey = 703;
     static const uint16_t textRunListSourcePropertyKey = 932;
+    static const uint16_t verticalTrimValuePropertyKey = 1026;
+    static const uint16_t verticalTrimTopValuePropertyKey = 1027;
+    static const uint32_t verticalTrimTopValueBitOffset = 0;
+    static const uint32_t verticalTrimTopValueFieldMask = 255u;
+    static const uint16_t verticalTrimBottomValuePropertyKey = 1028;
+    static const uint32_t verticalTrimBottomValueBitOffset = 8;
+    static const uint32_t verticalTrimBottomValueFieldMask = 65280u;
 
 protected:
     uint32_t m_AlignValue = 0;
@@ -63,6 +70,7 @@ protected:
     uint32_t m_VerticalAlignValue = 0;
     bool m_FitFromBaseline = true;
     uint32_t m_TextRunListSource = -1;
+    uint32_t m_VerticalTrimValue = 0;
 
 public:
     inline uint32_t alignValue() const { return m_AlignValue; }
@@ -208,6 +216,17 @@ public:
         textRunListSourceChanged();
     }
 
+    inline uint32_t verticalTrimValue() const { return m_VerticalTrimValue; }
+    void verticalTrimValue(uint32_t value)
+    {
+        if (m_VerticalTrimValue == value)
+        {
+            return;
+        }
+        m_VerticalTrimValue = value;
+        verticalTrimValueChanged();
+    }
+
     Core* clone() const override;
     void copy(const TextBase& object)
     {
@@ -224,6 +243,7 @@ public:
         m_VerticalAlignValue = object.m_VerticalAlignValue;
         m_FitFromBaseline = object.m_FitFromBaseline;
         m_TextRunListSource = object.m_TextRunListSource;
+        m_VerticalTrimValue = object.m_VerticalTrimValue;
         Drawable::copy(object);
     }
 
@@ -270,6 +290,9 @@ public:
             case textRunListSourcePropertyKey:
                 m_TextRunListSource = CoreUintType::deserialize(reader);
                 return true;
+            case verticalTrimValuePropertyKey:
+                m_VerticalTrimValue = CoreUintType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -288,6 +311,7 @@ protected:
     virtual void verticalAlignValueChanged() {}
     virtual void fitFromBaselineChanged() {}
     virtual void textRunListSourceChanged() {}
+    virtual void verticalTrimValueChanged() {}
 };
 } // namespace rive
 
