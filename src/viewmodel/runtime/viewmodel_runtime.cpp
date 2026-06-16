@@ -46,6 +46,7 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
     for (auto property : properties)
     {
         DataType type = DataType::none;
+        std::string enumName;
         switch (property->coreType())
         {
             case ViewModelPropertyString::typeKey:
@@ -66,8 +67,16 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
             case ViewModelPropertyEnum::typeKey:
             case ViewModelPropertyEnumCustomBase::typeKey:
             case ViewModelPropertyEnumSystemBase::typeKey:
+            {
                 type = DataType::enumType;
+                auto* dataEnum =
+                    static_cast<ViewModelPropertyEnum*>(property)->dataEnum();
+                if (dataEnum != nullptr)
+                {
+                    enumName = dataEnum->enumName();
+                }
                 break;
+            }
             case ViewModelPropertyTrigger::typeKey:
                 type = DataType::trigger;
                 break;
@@ -86,7 +95,7 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
             default:
                 break;
         }
-        props.push_back({type, property->name()});
+        props.push_back({type, property->name(), enumName});
     }
     return props;
 }
