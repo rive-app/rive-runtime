@@ -33,7 +33,6 @@ TEST_CASE("ScrollConstraint velocity and scrollActive during drag",
 
     // Pointer down: starts drag.
     smi->pointerDown(rive::Vec2D(50.0f, 250.0f));
-    artboardInstance->advance(0.1f);
     smi->advanceAndApply(0.1f);
 
     // isDragging is now true, so scrollActive should be true even with no
@@ -43,7 +42,6 @@ TEST_CASE("ScrollConstraint velocity and scrollActive during drag",
 
     // Drag upward 200px.
     smi->pointerMove(rive::Vec2D(50.0f, 50.0f));
-    artboardInstance->advance(0.0f);
     smi->advanceAndApply(0.0f);
 
     // Velocity should be non-zero after movement.
@@ -84,11 +82,9 @@ TEST_CASE("ScrollConstraint velocity resets after physics settles",
     // Swipe: down → move → up.
     smi->pointerMove(rive::Vec2D(50.0f, 250.0f));
     smi->pointerDown(rive::Vec2D(50.0f, 250.0f));
-    artboardInstance->advance(0.1f);
     smi->advanceAndApply(0.1f);
 
     smi->pointerMove(rive::Vec2D(50.0f, 50.0f));
-    artboardInstance->advance(0.0f);
     smi->advanceAndApply(0.0f);
 
     smi->pointerUp(rive::Vec2D(50.0f, 50.0f));
@@ -134,12 +130,10 @@ TEST_CASE("ScrollConstraint horizontal velocity", "[layoutscroll]")
 
     smi->pointerMove(rive::Vec2D(250.0f, 50.0f));
     smi->pointerDown(rive::Vec2D(250.0f, 50.0f));
-    artboardInstance->advance(0.1f);
     smi->advanceAndApply(0.1f);
 
     // Drag left 200px.
     smi->pointerMove(rive::Vec2D(50.0f, 50.0f));
-    artboardInstance->advance(0.0f);
     smi->advanceAndApply(0.0f);
 
     // Horizontal velocity should be non-zero, vertical should be ~0.

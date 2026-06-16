@@ -5,10 +5,20 @@ using namespace rive;
 
 Vec2D ElasticScrollPhysics::advance(float elapsedSeconds)
 {
+    // Capture per-axis position before advancing so we can derive current
+    // velocity from the actual frame-to-frame motion and write it into the
+    // base m_speed (used for velocity reporting).
+    float prevX = m_physicsX != nullptr ? m_physicsX->current() : 0.0f;
+    float prevY = m_physicsY != nullptr ? m_physicsY->current() : 0.0f;
     float advanceX =
         m_physicsX != nullptr ? m_physicsX->advance(elapsedSeconds) : 0.0f;
     float advanceY =
         m_physicsY != nullptr ? m_physicsY->advance(elapsedSeconds) : 0.0f;
+    if (elapsedSeconds > 0)
+    {
+        m_speed = Vec2D((advanceX - prevX) / elapsedSeconds,
+                        (advanceY - prevY) / elapsedSeconds);
+    }
     bool isRunningX = m_physicsX != nullptr && m_physicsX->isRunning();
     bool isRunningY = m_physicsY != nullptr && m_physicsY->isRunning();
     if (!isRunningX && !isRunningY)

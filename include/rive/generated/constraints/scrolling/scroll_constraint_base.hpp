@@ -47,6 +47,7 @@ public:
     static const uint16_t velocityXPropertyKey = 1023;
     static const uint16_t velocityYPropertyKey = 1024;
     static const uint16_t scrollActivePropertyKey = 1025;
+    static const uint16_t dragMultiplierPropertyKey = 1029;
 
 protected:
     float m_ScrollOffsetX = 0.0f;
@@ -58,6 +59,7 @@ protected:
     bool m_Infinite = false;
     bool m_Interactive = true;
     float m_Threshold = 0.0f;
+    float m_DragMultiplier = 1.0f;
 
 public:
     inline float scrollOffsetX() const { return m_ScrollOffsetX; }
@@ -231,6 +233,17 @@ public:
         scrollActiveChanged();
     }
 
+    inline float dragMultiplier() const { return m_DragMultiplier; }
+    void dragMultiplier(float value)
+    {
+        if (m_DragMultiplier == value)
+        {
+            return;
+        }
+        m_DragMultiplier = value;
+        dragMultiplierChanged();
+    }
+
     Core* clone() const override;
     void copy(const ScrollConstraintBase& object)
     {
@@ -243,6 +256,7 @@ public:
         m_Infinite = object.m_Infinite;
         m_Interactive = object.m_Interactive;
         m_Threshold = object.m_Threshold;
+        m_DragMultiplier = object.m_DragMultiplier;
         DraggableConstraint::copy(object);
     }
 
@@ -277,6 +291,9 @@ public:
             case thresholdPropertyKey:
                 m_Threshold = CoreDoubleType::deserialize(reader);
                 return true;
+            case dragMultiplierPropertyKey:
+                m_DragMultiplier = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return DraggableConstraint::deserialize(propertyKey, reader);
     }
@@ -297,6 +314,7 @@ protected:
     virtual void velocityXChanged() {}
     virtual void velocityYChanged() {}
     virtual void scrollActiveChanged() {}
+    virtual void dragMultiplierChanged() {}
 };
 } // namespace rive
 

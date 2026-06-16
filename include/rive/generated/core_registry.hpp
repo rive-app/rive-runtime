@@ -2440,6 +2440,9 @@ public:
             case ScrollConstraintBase::velocityYPropertyKey:
                 object->as<ScrollConstraintBase>()->velocityY(value);
                 break;
+            case ScrollConstraintBase::dragMultiplierPropertyKey:
+                object->as<ScrollConstraintBase>()->dragMultiplier(value);
+                break;
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 object->as<ElasticScrollPhysicsBase>()->friction(value);
                 break;
@@ -3906,6 +3909,8 @@ public:
                 return object->as<ScrollConstraintBase>()->velocityX();
             case ScrollConstraintBase::velocityYPropertyKey:
                 return object->as<ScrollConstraintBase>()->velocityY();
+            case ScrollConstraintBase::dragMultiplierPropertyKey:
+                return object->as<ScrollConstraintBase>()->dragMultiplier();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->as<ElasticScrollPhysicsBase>()->friction();
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
@@ -4681,6 +4686,7 @@ public:
             case ScrollConstraintBase::thresholdPropertyKey:
             case ScrollConstraintBase::velocityXPropertyKey:
             case ScrollConstraintBase::velocityYPropertyKey:
+            case ScrollConstraintBase::dragMultiplierPropertyKey:
             case ElasticScrollPhysicsBase::frictionPropertyKey:
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
             case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
@@ -5666,6 +5672,8 @@ public:
             case ScrollConstraintBase::velocityXPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::velocityYPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::dragMultiplierPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->is<ElasticScrollPhysicsBase>();

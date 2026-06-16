@@ -177,13 +177,15 @@ void ScrollBarConstraint::hitTrack(Vec2D worldPosition)
     }
 }
 
-void ScrollBarConstraint::dragThumb(Vec2D delta)
+void ScrollBarConstraint::dragThumb(Vec2D delta, float timeStamp)
 {
     if (m_scrollConstraint == nullptr || thumb() == nullptr ||
         track() == nullptr)
     {
         return;
     }
+    float prevOffsetX = m_scrollConstraint->offsetX();
+    float prevOffsetY = m_scrollConstraint->offsetY();
     if (constrainsHorizontal())
     {
         auto innerWidth = track()->innerWidth();
@@ -219,6 +221,13 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
             math::clamp((thumbOffset / trackRange * maxOffsetY),
                         maxOffsetY,
                         0));
+    }
+    if (m_scrollConstraint->physics() != nullptr)
+    {
+        m_scrollConstraint->physics()->accumulate(
+            Vec2D(m_scrollConstraint->offsetX() - prevOffsetX,
+                  m_scrollConstraint->offsetY() - prevOffsetY),
+            timeStamp);
     }
 }
 

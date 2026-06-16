@@ -6,7 +6,7 @@ using namespace rive;
 
 bool ThumbDraggableProxy::drag(Vec2D mousePosition, float timeStamp)
 {
-    m_constraint->dragThumb(mousePosition - m_lastPosition);
+    m_constraint->dragThumb(mousePosition - m_lastPosition, timeStamp);
     m_lastPosition = mousePosition;
     return true;
 }
@@ -14,13 +14,20 @@ bool ThumbDraggableProxy::drag(Vec2D mousePosition, float timeStamp)
 bool ThumbDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
 {
     m_lastPosition = mousePosition;
-    m_constraint->scrollConstraint()->isScrollBarDragging(true);
+    auto scroll = m_constraint->scrollConstraint();
+    scroll->isScrollBarDragging(true);
+    if (scroll->physics() != nullptr)
+    {
+        scroll->physics()->accumulate(Vec2D(), timeStamp);
+    }
     return true;
 }
 
 bool ThumbDraggableProxy::endDrag(Vec2D mousePosition, float timeStamp)
 {
-    m_constraint->scrollConstraint()->isScrollBarDragging(false);
+    auto scroll = m_constraint->scrollConstraint();
+    scroll->isScrollBarDragging(false);
+    scroll->clearVelocity();
     return true;
 }
 

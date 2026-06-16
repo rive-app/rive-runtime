@@ -458,6 +458,92 @@ void runVerticalSnapPaddingSwipe(const char* artboardName,
 
     rive::File::deterministicMode = false;
 }
+
+// Swipe up on a vertical scroll constraint configured with a non-default
+// dragMultiplier, then release and let the physics settle. Captures one
+// frame per swipe step so the drag-phase response (scroll-vs-pointer ratio)
+// is visible across frames, plus settling frames after pointerUp.
+void runVerticalDragMultiplierSwipe(const char* artboardName,
+                                    const char* silverName)
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_scroll_drag_multiplier.riv",
+                             &silver);
+    REQUIRE(file != nullptr);
+
+    auto artboardSrc = file->artboardNamed(artboardName);
+    REQUIRE(artboardSrc != nullptr);
+    auto artboard = artboardSrc->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto renderer = silver.makeRenderer();
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+
+    float centerX = artboard->width() / 2.0f;
+    float startY = artboard->height() / 2.0f;
+    float dt = 0.016f;
+
+    // Smaller per-step distance with more steps than the snap tests so the
+    // drag-phase response is visible across many frames. Distance stays
+    // modest so even an amplifying multiplier (>1.0) does not necessarily
+    // run the content fully out of range during drag.
+    float swipeDistance = 600.0f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(centerX, startY), time);
+    smi->pointerDown(rive::Vec2D(centerX, startY));
+    time += 1.0f;
+
+    int steps = 8;
+    for (int i = 1; i <= steps; i++)
+    {
+        silver.addFrame();
+        float y = startY - (swipeDistance * i / steps);
+        smi->pointerMove(rive::Vec2D(centerX, y), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+
+    smi->pointerUp(rive::Vec2D(centerX, startY - swipeDistance));
+
+    // Capture frames while physics settles; bail early on settle.
+    for (int i = 0; i < 56; i++)
+    {
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+        if (!scroll->physics()->isRunning())
+        {
+            break;
+        }
+    }
+
+    CHECK(silver.matches(silverName));
+
+    rive::File::deterministicMode = false;
+}
 } // namespace
 
 TEST_CASE("Scroll snap respects viewport padding (layouts)", "[silver]")
@@ -477,6 +563,24 @@ TEST_CASE("Scroll snap respects viewport padding (virtualized list)",
 {
     runVerticalSnapPaddingSwipe("ScrollListVirtualized",
                                 "layout_scroll_snap_padding_virtualized");
+}
+
+TEST_CASE("Scroll drag multiplier (layouts)", "[silver]")
+{
+    runVerticalDragMultiplierSwipe("ScrollLayouts",
+                                   "layout_scroll_drag_multiplier_layouts");
+}
+
+TEST_CASE("Scroll drag multiplier (list)", "[silver]")
+{
+    runVerticalDragMultiplierSwipe("ScrollList",
+                                   "layout_scroll_drag_multiplier_list");
+}
+
+TEST_CASE("Scroll drag multiplier (virtualized list)", "[silver]")
+{
+    runVerticalDragMultiplierSwipe("ScrollListVirtualized",
+                                   "layout_scroll_drag_multiplier_virtualized");
 }
 
 TEST_CASE("ScrollConstraint scrollIndex with hidden items", "[silver]")
@@ -545,6 +649,291 @@ TEST_CASE("ScrollConstraint scrollIndex with hidden items", "[silver]")
     }
 
     CHECK(silver.matches("layout_scroll_visibility"));
+
+    rive::File::deterministicMode = false;
+}
+
+// =========================================================================
+// Velocity-tracking tests for ScrollConstraint.
+//
+// Fixture: 500x500 artboard with a vertical scroll constraint occupying
+// x=[0,450) (the content/viewport region) and a scrollbar at x=[450,500).
+// Asset: assets/layout/scroll_velocity.riv
+//
+// These verify that:
+//   - viewport drag motion produces a non-zero velocityY,
+//   - releasing a viewport drag triggers the fling (physics running, speed
+//     non-zero),
+//   - a held viewport drag (pointer down + still) clears velocity on the
+//     next new-frame advance — which exercises the AdvanceFlags::NewFrame
+//     gating in advanceComponent (without that gate, the same-frame
+//     second-pass advance would always wipe the speed set by accumulate
+//     before the test could observe it),
+//   - scrollbar drag motion produces a non-zero velocityY,
+//   - releasing a scrollbar drag zeroes velocity immediately (no fling).
+// =========================================================================
+
+TEST_CASE("Viewport drag updates velocity", "[layoutscroll]")
+{
+    rive::File::deterministicMode = true;
+
+    auto file = ReadRiveFile("assets/layout/scroll_velocity.riv");
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+    smi->advanceAndApply(0.0f);
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+    REQUIRE(scroll->velocityY() == 0.0f);
+
+    // Drag inside the scroll content area (x < 450).
+    float dragX = 200.0f;
+    float startY = 250.0f;
+    float dt = 0.016f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(dragX, startY), time);
+    smi->pointerDown(rive::Vec2D(dragX, startY));
+    time += 1.0f;
+
+    for (int i = 1; i <= 3; i++)
+    {
+        smi->pointerMove(rive::Vec2D(dragX, startY - 50.0f * i), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+    }
+
+    CHECK(scroll->velocityY() != 0.0f);
+    CHECK(scroll->scrollActive());
+
+    rive::File::deterministicMode = false;
+}
+
+TEST_CASE("Viewport release triggers fling", "[layoutscroll]")
+{
+    rive::File::deterministicMode = true;
+
+    auto file = ReadRiveFile("assets/layout/scroll_velocity.riv");
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+    smi->advanceAndApply(0.0f);
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+
+    float dragX = 200.0f;
+    float startY = 250.0f;
+    float dt = 0.016f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(dragX, startY), time);
+    smi->pointerDown(rive::Vec2D(dragX, startY));
+    time += 1.0f;
+
+    // Build up some acceleration with a fast swipe.
+    for (int i = 1; i <= 4; i++)
+    {
+        smi->pointerMove(rive::Vec2D(dragX, startY - 100.0f * i), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+    }
+
+    // Check immediately after release, BEFORE any advance. Whole-second
+    // timestamps (truncation-safe in deterministic mode) make accelerations
+    // small relative to the helper's >5 momentum threshold — the fling
+    // would settle to rest on the very first advance. Checking pre-advance
+    // verifies pointerUp triggered the fling setup: m_isRunning is set on
+    // the helpers and m_speed still holds the last drag's accumulated value.
+    smi->pointerUp(rive::Vec2D(dragX, startY - 400.0f));
+    CHECK(scroll->physics()->isRunning());
+    CHECK(scroll->velocityY() != 0.0f);
+
+    rive::File::deterministicMode = false;
+}
+
+TEST_CASE("Viewport drag held still clears velocity", "[layoutscroll]")
+{
+    rive::File::deterministicMode = true;
+
+    auto file = ReadRiveFile("assets/layout/scroll_velocity.riv");
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+    smi->advanceAndApply(0.0f);
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+
+    float dragX = 200.0f;
+    float startY = 250.0f;
+    float dt = 0.016f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(dragX, startY), time);
+    smi->pointerDown(rive::Vec2D(dragX, startY));
+    time += 1.0f;
+
+    // One pointer move — registers motion and a non-zero velocity.
+    smi->pointerMove(rive::Vec2D(dragX, startY - 50.0f), time);
+    time += 1.0f;
+    smi->advanceAndApply(dt);
+    REQUIRE(scroll->velocityY() != 0.0f);
+
+    // Now hold the pointer still and advance another frame. The next
+    // new-frame advance sees hasMoved=false and clears the velocity.
+    smi->advanceAndApply(dt);
+    CHECK(scroll->velocityY() == 0.0f);
+
+    rive::File::deterministicMode = false;
+}
+
+TEST_CASE("Scrollbar drag updates velocity", "[layoutscroll]")
+{
+    rive::File::deterministicMode = true;
+
+    auto file = ReadRiveFile("assets/layout/scroll_velocity.riv");
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+    smi->advanceAndApply(0.0f);
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+
+    // Click on the scrollbar thumb (x in [450,500)). With scrollOffset at
+    // 0 the thumb sits near the top of the track, so y=50 should land on
+    // the thumb for any reasonable content height.
+    float dragX = 475.0f;
+    float startY = 50.0f;
+    float dt = 0.016f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(dragX, startY), time);
+    smi->pointerDown(rive::Vec2D(dragX, startY));
+    time += 1.0f;
+
+    for (int i = 1; i <= 3; i++)
+    {
+        smi->pointerMove(rive::Vec2D(dragX, startY + 30.0f * i), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+    }
+
+    CHECK(scroll->isScrollBarDragging());
+    CHECK(scroll->velocityY() != 0.0f);
+
+    rive::File::deterministicMode = false;
+}
+
+TEST_CASE("Scrollbar release zeros velocity", "[layoutscroll]")
+{
+    rive::File::deterministicMode = true;
+
+    auto file = ReadRiveFile("assets/layout/scroll_velocity.riv");
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    if (viewModelInstance != nullptr)
+    {
+        artboard->bindViewModelInstance(viewModelInstance);
+    }
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+    smi->advanceAndApply(0.0f);
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    REQUIRE(scroll != nullptr);
+    REQUIRE(scroll->physics() != nullptr);
+
+    float dragX = 475.0f;
+    float startY = 50.0f;
+    float dt = 0.016f;
+    float time = 1.0f;
+
+    smi->pointerMove(rive::Vec2D(dragX, startY), time);
+    smi->pointerDown(rive::Vec2D(dragX, startY));
+    time += 1.0f;
+
+    for (int i = 1; i <= 3; i++)
+    {
+        smi->pointerMove(rive::Vec2D(dragX, startY + 30.0f * i), time);
+        time += 1.0f;
+        smi->advanceAndApply(dt);
+    }
+    REQUIRE(scroll->velocityY() != 0.0f);
+
+    smi->pointerUp(rive::Vec2D(dragX, startY + 90.0f));
+    smi->advanceAndApply(dt);
+
+    // Scrollbar release path calls clearVelocity() immediately — no fling.
+    CHECK(scroll->velocityY() == 0.0f);
+    CHECK_FALSE(scroll->isScrollBarDragging());
+    CHECK_FALSE(scroll->physics()->isRunning());
 
     rive::File::deterministicMode = false;
 }

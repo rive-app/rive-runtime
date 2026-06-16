@@ -25,16 +25,16 @@ enum class ScrollPhysicsType : uint8_t
 class ScrollPhysics : public ScrollPhysicsBase
 {
 private:
-    bool m_isRunning = false;
     long long m_lastTime =
         std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch())
             .count();
+    bool m_isRunning = false;
 
 protected:
-    DraggableConstraintDirection m_direction;
     Vec2D m_speed;
     Vec2D m_acceleration;
+    DraggableConstraintDirection m_direction;
 
 public:
     virtual bool enabled() { return isRunning(); }
@@ -59,9 +59,15 @@ public:
     {
         m_isRunning = true;
     }
-    virtual void stop() { m_isRunning = false; }
+    virtual void stop()
+    {
+        m_isRunning = false;
+        m_speed = Vec2D();
+    }
     virtual void reset();
     Vec2D speed() const { return m_speed; }
+    void clearVelocity() { m_speed = Vec2D(); }
+
     StatusCode import(ImportStack& importStack) override;
 
     /// Initiate animated scroll to target position.

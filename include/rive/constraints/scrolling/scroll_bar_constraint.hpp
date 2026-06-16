@@ -27,7 +27,7 @@ public:
     }
     void buildDependencies() override;
     StatusCode onAddedDirty(CoreContext* context) override;
-    void dragThumb(Vec2D delta);
+    void dragThumb(Vec2D delta, float timeStamp);
     void hitTrack(Vec2D worldPosition);
     LayoutComponent* thumb() { return parent()->as<LayoutComponent>(); }
     LayoutComponent* track()
