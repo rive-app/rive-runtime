@@ -14,25 +14,32 @@
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
-EM_JS(bool,
-      enable_WEBGL_shader_pixel_local_storage_coherent,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl),
-      {
-          gl = GL.getContext(gl).GLctx;
-          const pls = gl["getExtension"]("WEBGL_shader_pixel_local_storage");
-          if (Boolean(
-                  pls && pls["isCoherent"]() &&
-                  // WEBGL_shader_pixel_local_storage has breaking changes from
-                  // time to time, while it's still a draft extension. A 5th
-                  // argument was added to this function in 2026. Only use the
-                  // extension if we are on the latest spec (with 5 arguments).
-                  pls["framebufferTexturePixelLocalStorageWEBGL"].length == 5))
-          {
-              gl.pls = pls;
-              return true;
-          }
-          return false;
-      });
+EM_JS(
+    bool,
+    enable_WEBGL_shader_pixel_local_storage_coherent,
+    (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl),
+    {
+        gl = GL.getContext(gl).GLctx;
+        const pls = gl["getExtension"]("WEBGL_shader_pixel_local_storage");
+        if (Boolean(pls) && pls["isCoherent"]())
+        {
+            // WEBGL_shader_pixel_local_storage has breaking changes from
+            // time to time, while it's still a draft extension. A 5th
+            // argument was added to this function in 2026. Only use the
+            // extension if we are on the latest spec (with 5 arguments).
+            if (pls["framebufferTexturePixelLocalStorageWEBGL"].length == 5)
+            {
+                gl.pls = pls;
+                return true;
+            }
+            else
+            {
+                console.warn(
+                    "WEBGL_shader_pixel_local_storage is advertised, but a deprecated version has been detected. Disabling.");
+            }
+        }
+        return false;
+    });
 
 EM_JS(void,
       framebufferTexturePixelLocalStorageWEBGL,

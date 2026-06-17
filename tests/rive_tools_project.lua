@@ -356,7 +356,7 @@ function rive_tools_project(name, project_kind)
         targetextension('.js')
         linkoptions({
             '-sEXPORTED_FUNCTIONS=_main,_rive_print_message_on_server,_malloc,_free',
-            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
+            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU32',
             '-sENVIRONMENT=web',
             '-sUSE_GLFW=3',
             '-sMIN_WEBGL_VERSION=2',
@@ -371,11 +371,28 @@ function rive_tools_project(name, project_kind)
         })
     end
 
-    filter({ 'system:emscripten', 'options:with-webgpu', 'options:not with_wagyu' })
+    filter({
+        'system:emscripten',
+        'options:with-webgpu',
+        'options:not with_wagyu',
+        'options:webgpu-version=1',
+    })
     do
-        linkoptions({
-            '-sUSE_WEBGPU',
-        })
+        -- webgpu-version=1 keeps the legacy -sUSE_WEBGPU library.
+        linkoptions({ '-sUSE_WEBGPU' })
+    end
+
+    filter({
+        'system:emscripten',
+        'options:with-webgpu',
+        'options:not with_wagyu',
+        'options:webgpu-version=2',
+    })
+    do
+        -- webgpu-version=2 uses Dawn's emdawnwebgpu port (the new "future"
+        -- webgpu.h API) so it runs in a real browser.
+        buildoptions({ '--use-port=emdawnwebgpu' })
+        linkoptions({ '--use-port=emdawnwebgpu' })
     end
 
     filter('files:**.html')

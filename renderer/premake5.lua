@@ -279,16 +279,33 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             targetextension('.js')
             linkoptions({
                 '-sEXPORTED_FUNCTIONS=_main,_malloc,_free',
-                '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
+                '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU32',
                 '-sENVIRONMENT=web,shell',
             })
         end
 
-        filter({ 'system:emscripten', 'options:not with_wagyu' })
+        filter({
+            'system:emscripten',
+            'options:with-webgpu',
+            'options:not with_wagyu',
+            'options:webgpu-version=1',
+        })
         do
-            linkoptions({
-                '-sUSE_WEBGPU',
-            })
+            -- webgpu-version=1 keeps the legacy -sUSE_WEBGPU library.
+            linkoptions({ '-sUSE_WEBGPU' })
+        end
+
+        filter({
+            'system:emscripten',
+            'options:with-webgpu',
+            'options:not with_wagyu',
+            'options:webgpu-version=2',
+        })
+        do
+            -- webgpu-version=2 uses Dawn's emdawnwebgpu port (the new "future"
+            -- webgpu.h API) so it runs in a real browser.
+            buildoptions({ '--use-port=emdawnwebgpu' })
+            linkoptions({ '--use-port=emdawnwebgpu' })
         end
 
         filter({ 'options:with_rive_layout' })

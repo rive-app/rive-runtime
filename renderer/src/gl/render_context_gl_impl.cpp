@@ -469,7 +469,9 @@ void RenderContextGLImpl::buildAtlasRenderPipelines()
 #ifndef RIVE_ANDROID
             defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32UI_PLS_ANGLE);
             m_atlasFillPipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasFillPipelineState.colorWriteEnabled = false;
             m_atlasStrokePipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasStrokePipelineState.colorWriteEnabled = false;
 #else
             RIVE_UNREACHABLE();
 #endif
@@ -2448,7 +2450,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glClearBufferiv(GL_COLOR, 0, clearZero4i);
                 glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
                                 GL_FRAMEBUFFER_BARRIER_BIT);
-                m_state->setWriteMasks(false, false, 0);
                 glBindImageTexture(0,
                                    m_atlasRenderTexture,
                                    0,

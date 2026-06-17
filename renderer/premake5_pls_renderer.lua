@@ -407,7 +407,8 @@ do
     filter({ 'options:with-webgpu or with-dawn' })
     do
         files({
---Don 't use "**.cpp" because we don' t want to compile files in-- wagyu - port/**
+            -- Don 't use "**.cpp" because we don' t want to compile files in
+            -- the wagyu port (wagyu-port/**.cpp).
             'src/webgpu/*.cpp',
             'src/gl/load_store_actions_ext.cpp',
         })
@@ -471,6 +472,20 @@ do
     filter('system:emscripten')
     do
         files({ 'src/gl/pls_impl_webgl.cpp' })
+    end
+
+    filter({
+        'system:emscripten',
+        'options:with-webgpu',
+        'options:not with_wagyu',
+        'options:webgpu-version=2',
+    })
+    do
+        -- webgpu-version=2 uses Dawn's emdawnwebgpu port (the new "future"
+        -- webgpu.h API) so it runs in a real browser.
+        -- webgpu-version=1 keeps the legacy -sUSE_WEBGPU library, so it needs
+        -- no port here; its JS library is linked by the final executables.
+        buildoptions({ '--use-port=emdawnwebgpu' })
     end
 
     filter({})

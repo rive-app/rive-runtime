@@ -80,8 +80,16 @@ public:
         m_instance = wgpu::CreateInstance(nullptr);
         assert(m_instance);
 
+        wgpu::RequestAdapterOptions requestAdapterOptions = {
+            .powerPreference =
+                backendParams.gpuNameFilter == "i" ||
+                        backendParams.gpuNameFilter == "integrated"
+                    ? wgpu::PowerPreference::LowPower
+                    : wgpu::PowerPreference::HighPerformance,
+        };
+
         m_instance.RequestAdapter(
-            {},
+            &requestAdapterOptions,
             wgpu::CallbackMode::AllowSpontaneous,
             [](wgpu::RequestAdapterStatus status,
                wgpu::Adapter adapter,
@@ -149,6 +157,18 @@ public:
             wgpu::SurfaceConfiguration conf = {
                 .device = m_device,
                 .format = m_format,
+#ifndef RIVE_WAGYU
+                // CopySrc so endFrame can read pixels back from the canvas
+                // texture; CopyDst so the overflow texture can be blitted in.
+                .usage = wgpu::TextureUsage::RenderAttachment |
+                         wgpu::TextureUsage::CopySrc |
+                         wgpu::TextureUsage::CopyDst,
+                .width = static_cast<uint32_t>(m_width),
+                .height = static_cast<uint32_t>(m_height),
+                // Opaque so that pixels with alpha are more obvious, rather
+                // than being composited into the browser below.
+                .alphaMode = wgpu::CompositeAlphaMode::Opaque,
+#endif
             };
             m_surface.Configure(&conf);
         }
@@ -194,6 +214,25 @@ public:
             m_overflowTextureView = {};
             m_pixelReadBuff = {};
             TestingWindow::resize(width, height);
+
+#ifndef RIVE_WAGYU
+            // Match the canvas drawing buffer to the new size and
+            // reconfigure the surface. Without this the canvas keeps its
+            // default backing size and only a corner is ever presented.
+            emscripten_set_canvas_element_size("#canvas", width, height);
+            wgpu::SurfaceConfiguration conf = {
+                .device = m_device,
+                .format = m_format,
+                .usage = wgpu::TextureUsage::RenderAttachment |
+                         wgpu::TextureUsage::CopySrc |
+                         wgpu::TextureUsage::CopyDst |
+                         wgpu::TextureUsage::TextureBinding,
+                .width = static_cast<uint32_t>(width),
+                .height = static_cast<uint32_t>(height),
+                .alphaMode = wgpu::CompositeAlphaMode::Opaque,
+            };
+            m_surface.Configure(&conf);
+#endif
         }
     }
 
@@ -491,7 +530,7 @@ private:
 
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetWebGPU> m_renderTarget;
-};
+}; // namespace rive::gpu
 }; // namespace rive::gpu
 
 TestingWindow* TestingWindow::MakeWGPU(const BackendParams& backendParams)

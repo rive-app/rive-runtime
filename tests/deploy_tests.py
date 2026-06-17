@@ -288,7 +288,7 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
 
     def __init__(self, handler):
-        if args.remote or args.target == "webserver":
+        if args.remote:
             # The device needs to connect over the network instead of localhost.
             self.host = get_local_ip()
         else:

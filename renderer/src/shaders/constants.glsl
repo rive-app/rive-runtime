@@ -297,5 +297,7 @@
 #define BUFFER_IMAGE_TILE_SIZE 32u
 #define BUFFER_IMAGE_TILE_SIZE_LOG2 5u
 #ifdef __cplusplus
+#if __cplusplus >= 201703
 static_assert(BUFFER_IMAGE_TILE_SIZE == 1u << BUFFER_IMAGE_TILE_SIZE_LOG2);
+#endif
 #endif

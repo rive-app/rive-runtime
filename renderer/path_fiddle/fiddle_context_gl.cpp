@@ -195,7 +195,6 @@ public:
         }
 #endif
 
-        printf("==== GL GPU: %s ====\n", glGetString(GL_RENDERER));
 #if 0
         int n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
@@ -230,6 +229,29 @@ public:
             fprintf(stderr, "Failed to create a RiveRenderContext for GL.\n");
             abort();
         }
+
+        const GLCapabilities& caps = renderContextGLImpl()->capabilities();
+
+        struct CommaSeparator
+        {
+            const char* m_separator = "";
+            const char* operator*() { return std::exchange(m_separator, ", "); }
+        } commaSeparator;
+
+        printf("==== GL GPU: %s [", glGetString(GL_RENDERER));
+#define ADVERTISE_CAP(NAME)                                                    \
+    if (caps.NAME)                                                             \
+    printf("%s" #NAME, *commaSeparator)
+        ADVERTISE_CAP(ANGLE_shader_pixel_local_storage_coherent);
+        ADVERTISE_CAP(EXT_shader_pixel_local_storage);
+        ADVERTISE_CAP(ARB_fragment_shader_interlock);
+        ADVERTISE_CAP(KHR_blend_equation_advanced);
+        ADVERTISE_CAP(KHR_blend_equation_advanced_coherent);
+        ADVERTISE_CAP(KHR_parallel_shader_compile);
+        ADVERTISE_CAP(EXT_clip_cull_distance);
+        ADVERTISE_CAP(EXT_multisampled_render_to_texture);
+#undef ADVERTISE_CAP
+        printf("] ====\n");
     }
 
     rive::Factory* factory() final { return m_renderContext.get(); }

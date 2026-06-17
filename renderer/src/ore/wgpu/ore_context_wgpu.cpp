@@ -399,23 +399,7 @@ static wgpu::VertexStepMode oreStepModeToWGPU(VertexStepMode mode)
 // ============================================================================
 // Shader compilation helpers
 // ============================================================================
-
-#ifdef RIVE_DAWN
-static wgpu::ShaderModule compileDawnWGSLShader(wgpu::Device device,
-                                                const char* source,
-                                                uint32_t codeSize)
-{
-    WGPUShaderSourceWGSL wgslDesc = WGPU_SHADER_SOURCE_WGSL_INIT;
-    wgslDesc.code.data = source;
-    wgslDesc.code.length = codeSize > 0 ? codeSize : WGPU_STRLEN;
-
-    WGPUShaderModuleDescriptor descriptor = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
-    descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wgslDesc);
-
-    return wgpu::ShaderModule::Acquire(
-        wgpuDeviceCreateShaderModule(device.Get(), &descriptor));
-}
-#elif RIVE_WAGYU
+#ifdef RIVE_WAGYU
 static wgpu::ShaderModule compileWagyuShader(wgpu::Device device,
                                              const char* source,
                                              uint32_t codeSize,
@@ -429,6 +413,21 @@ static wgpu::ShaderModule compileWagyuShader(wgpu::Device device,
 
     WGPUShaderModuleDescriptor descriptor = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
     descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wagyuDesc);
+
+    return wgpu::ShaderModule::Acquire(
+        wgpuDeviceCreateShaderModule(device.Get(), &descriptor));
+}
+#else
+static wgpu::ShaderModule compileWGSLShader(wgpu::Device device,
+                                            const char* source,
+                                            uint32_t codeSize)
+{
+    WGPUShaderSourceWGSL wgslDesc = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgslDesc.code.data = source;
+    wgslDesc.code.length = codeSize > 0 ? codeSize : WGPU_STRLEN;
+
+    WGPUShaderModuleDescriptor descriptor = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+    descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wgslDesc);
 
     return wgpu::ShaderModule::Acquire(
         wgpuDeviceCreateShaderModule(device.Get(), &descriptor));
@@ -637,14 +636,7 @@ rcp<ShaderModule> ContextWGPU::makeShaderModule(const ShaderModuleDesc& desc)
                             ? desc.codeSize
                             : static_cast<uint32_t>(strlen(source));
 
-#ifdef RIVE_DAWN
-    assert(desc.language == ShaderLanguage::wgsl &&
-           "Dawn ore backend only supports WGSL shaders");
-    module->m_wgpuShaderModule =
-        compileDawnWGSLShader(m_wgpuDevice, source, codeSize);
-    assert(module->m_wgpuShaderModule != nullptr &&
-           "Ore Dawn WGSL shader compilation failed");
-#elif RIVE_WAGYU
+#ifdef RIVE_WAGYU
     WGPUWagyuShaderLanguage language;
     if (desc.language == ShaderLanguage::wgsl)
     {
@@ -664,6 +656,13 @@ rcp<ShaderModule> ContextWGPU::makeShaderModule(const ShaderModuleDesc& desc)
 
     assert(module->m_wgpuShaderModule != nullptr &&
            "Ore WGPU wagyu shader compilation failed");
+#else
+    assert(desc.language == ShaderLanguage::wgsl &&
+           "Dawn/emdawn ore backend only supports WGSL shaders");
+    module->m_wgpuShaderModule =
+        compileWGSLShader(m_wgpuDevice, source, codeSize);
+    assert(module->m_wgpuShaderModule != nullptr &&
+           "Ore Dawn WGSL shader compilation failed");
 #endif
 
     module->applyBindingMapFromDesc(desc);
