@@ -43,6 +43,7 @@ public:
         }
         m_RandomModeValue = value;
         randomModeValueChanged();
+        notifyPropertyChanged(randomModeValuePropertyKey);
     }
 
     Core* clone() const override;

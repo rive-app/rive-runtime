@@ -12,10 +12,8 @@ public:
     DataBindContextValueList(DataBind* m_dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
-               bool isMainDirection) override;
-    virtual void applyToSource(Core* component,
-                               uint32_t propertyKey,
-                               bool isMainDirection) override;
+               bool isMainDirection,
+               DataBind* dataBind) override;
 };
 } // namespace rive
 

@@ -49,6 +49,7 @@ public:
         }
         m_X1 = value;
         x1Changed();
+        notifyPropertyChanged(x1PropertyKey);
     }
 
     inline float y1() const { return m_Y1; }
@@ -60,6 +61,7 @@ public:
         }
         m_Y1 = value;
         y1Changed();
+        notifyPropertyChanged(y1PropertyKey);
     }
 
     inline float x2() const { return m_X2; }
@@ -71,6 +73,7 @@ public:
         }
         m_X2 = value;
         x2Changed();
+        notifyPropertyChanged(x2PropertyKey);
     }
 
     inline float y2() const { return m_Y2; }
@@ -82,6 +85,7 @@ public:
         }
         m_Y2 = value;
         y2Changed();
+        notifyPropertyChanged(y2PropertyKey);
     }
 
     void copy(const CubicInterpolatorBase& object)

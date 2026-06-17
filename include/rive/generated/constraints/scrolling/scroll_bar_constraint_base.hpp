@@ -48,6 +48,7 @@ public:
         }
         m_ScrollConstraintId = value;
         scrollConstraintIdChanged();
+        notifyPropertyChanged(scrollConstraintIdPropertyKey);
     }
 
     inline bool autoSize() const { return m_AutoSize; }
@@ -59,6 +60,7 @@ public:
         }
         m_AutoSize = value;
         autoSizeChanged();
+        notifyPropertyChanged(autoSizePropertyKey);
     }
 
     Core* clone() const override;

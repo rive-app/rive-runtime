@@ -102,12 +102,19 @@ void ViewModelInstanceValue::removeDependent(ViewModelValueDependent* value)
 
 void ViewModelInstanceValue::addDirt(ComponentDirt value)
 {
-    m_DependencyHelper.addDirt(value);
+    m_DependencyHelper.addDirtToDependents(value);
 }
 
 void ViewModelInstanceValue::setRoot(rcp<ViewModelInstance> viewModelInstance)
 {
-    m_DependencyHelper.dependecyRoot(&viewModelInstance);
+    // No-op. Previously stored &viewModelInstance (address of a stack-local
+    // parameter) into DependencyHelper::m_dependecyRoot. The stored pointer
+    // dangled the moment this function returned but was never dereferenced
+    // because onComponentDirty is never called on a ViewModelInstanceValue's
+    // dependents — so the latent bug never manifested. The CRTP refactor
+    // dropped the field entirely; the method stays for ABI compatibility
+    // with overrides in subclasses.
+    (void)viewModelInstance;
 }
 
 std::string ViewModelInstanceValue::defaultName = "";
@@ -143,13 +150,12 @@ void ViewModelInstanceValue::addDelegate(
 void ViewModelInstanceValue::removeDelegate(
     ViewModelInstanceValueDelegate* delegate)
 {
-    auto itr = std::find(m_delegates.begin(), m_delegates.end(), delegate);
-    if (itr == m_delegates.end())
+    auto sizeBefore = m_delegates.size();
+    m_delegates.eraseAll(delegate);
+    if (m_delegates.size() != sizeBefore)
     {
-        return;
+        m_changeFlags |= ValueFlags::delegatesChanged;
     }
-    m_delegates.erase(itr);
-    m_changeFlags |= ValueFlags::delegatesChanged;
 }
 
 bool ViewModelInstanceValue::suppressDelegation()
@@ -171,12 +177,20 @@ void ViewModelInstanceValue::onValueChanged()
 {
     m_changeFlags |= ValueFlags::valueChanged;
 
+    // Common case: no delegates ever registered. Skip the snapshot+iterate
+    // logic entirely.
+    if (m_delegates.empty())
+    {
+        return;
+    }
+
     if (enums::is_flag_set(m_changeFlags, ValueFlags::delegatesChanged))
     {
         m_delegatesCopy.clear();
-        std::copy(m_delegates.begin(),
-                  m_delegates.end(),
-                  std::back_inserter(m_delegatesCopy));
+        for (auto* d : m_delegates)
+        {
+            m_delegatesCopy.push_back(d);
+        }
         m_changeFlags &= ~ValueFlags::delegatesChanged;
     }
 
@@ -192,7 +206,7 @@ void ViewModelInstanceValue::onValueChanged()
 
     // Iterate over a copy of the delegates in case delegates get changed in
     // valueChanged callbacks.
-    for (auto delegate : m_delegatesCopy)
+    for (auto* delegate : m_delegatesCopy)
     {
         delegate->valueChanged();
     }

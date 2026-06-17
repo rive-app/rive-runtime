@@ -42,6 +42,7 @@ public:
         }
         m_Frame = value;
         frameChanged();
+        notifyPropertyChanged(framePropertyKey);
     }
 
     void copy(const KeyFrameBase& object) { m_Frame = object.m_Frame; }

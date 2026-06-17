@@ -43,6 +43,7 @@ public:
         }
         m_Name = value;
         nameChanged();
+        notifyPropertyChanged(namePropertyKey);
     }
 
     Core* clone() const override;

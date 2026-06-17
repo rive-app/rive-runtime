@@ -52,6 +52,7 @@ public:
         }
         m_StartX = value;
         startXChanged();
+        notifyPropertyChanged(startXPropertyKey);
     }
 
     inline float startY() const { return m_StartY; }
@@ -63,6 +64,7 @@ public:
         }
         m_StartY = value;
         startYChanged();
+        notifyPropertyChanged(startYPropertyKey);
     }
 
     inline float endX() const { return m_EndX; }
@@ -74,6 +76,7 @@ public:
         }
         m_EndX = value;
         endXChanged();
+        notifyPropertyChanged(endXPropertyKey);
     }
 
     inline float endY() const { return m_EndY; }
@@ -85,6 +88,7 @@ public:
         }
         m_EndY = value;
         endYChanged();
+        notifyPropertyChanged(endYPropertyKey);
     }
 
     inline float opacity() const { return m_Opacity; }
@@ -96,6 +100,7 @@ public:
         }
         m_Opacity = value;
         opacityChanged();
+        notifyPropertyChanged(opacityPropertyKey);
     }
 
     Core* clone() const override;

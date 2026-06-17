@@ -49,6 +49,7 @@ public:
         }
         m_Flags = value;
         flagsChanged();
+        notifyPropertyChanged(flagsPropertyKey);
     }
 
     inline uint32_t decimals() const { return m_Decimals; }
@@ -60,6 +61,7 @@ public:
         }
         m_Decimals = value;
         decimalsChanged();
+        notifyPropertyChanged(decimalsPropertyKey);
     }
 
     inline const std::string& colorFormat() const { return m_ColorFormat; }
@@ -71,6 +73,7 @@ public:
         }
         m_ColorFormat = value;
         colorFormatChanged();
+        notifyPropertyChanged(colorFormatPropertyKey);
     }
 
     Core* clone() const override;

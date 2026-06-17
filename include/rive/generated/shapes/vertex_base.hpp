@@ -46,6 +46,7 @@ public:
         }
         m_X = value;
         xChanged();
+        notifyPropertyChanged(xPropertyKey);
     }
 
     inline float y() const { return m_Y; }
@@ -57,6 +58,7 @@ public:
         }
         m_Y = value;
         yChanged();
+        notifyPropertyChanged(yPropertyKey);
     }
 
     void copy(const VertexBase& object)

@@ -10,13 +10,14 @@ DataBindContextValueEnum::DataBindContextValueEnum(DataBind* dataBind) :
 
 void DataBindContextValueEnum::apply(Core* target,
                                      uint32_t propertyKey,
-                                     bool isMainDirection)
+                                     bool isMainDirection,
+                                     DataBind* dataBind)
 {
 
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto value = calculateValue<DataValueEnum, uint32_t>(m_dataValue,
                                                          isMainDirection,
-                                                         m_dataBind);
+                                                         dataBind);
     switch (CoreRegistry::propertyFieldId(propertyKey))
     {
         case CoreUintType::id:

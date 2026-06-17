@@ -45,6 +45,7 @@ public:
         }
         m_SymbolTypeValue = value;
         symbolTypeValueChanged();
+        notifyPropertyChanged(symbolTypeValuePropertyKey);
     }
 
     inline uint32_t componentProps() const { return m_ComponentProps; }
@@ -56,6 +57,7 @@ public:
         }
         m_ComponentProps = value;
         componentPropsChanged();
+        notifyPropertyChanged(componentPropsPropertyKey);
     }
 
     Core* clone() const override;

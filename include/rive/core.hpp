@@ -14,15 +14,37 @@
 namespace rive
 {
 class CoreContext;
+class DataBind;
 class ImportStack;
 class Core
 {
 public:
     Core() = default;
-    Core(const Core&) = default;
+
+    // m_firstObserver is intrusive — observers cache `this` as their target
+    // and chain through `m_nextObserver` rooted at this Core. Cloning a Core
+    // must NOT inherit the original's observer list head: the new instance
+    // has no observers of its own, and propagating the head pointer would
+    // cause notifyPropertyChanged to dirty binds that point at the original,
+    // and ~Core() on the clone to wrongly detach them.
+    Core(const Core&) : m_firstObserver(nullptr) {}
+    Core& operator=(const Core&)
+    {
+        // Intentional no-op for the observer list: our existing observers
+        // continue to point at us; theirs continue to point at them. Any
+        // other state that's safe to copy lives in derived classes.
+        return *this;
+    }
+    // Move ops follow the same rule: the observer chain is bound to the
+    // original Core's address, so moving cannot transfer it. Default-init
+    // the new instance's head; the moved-from instance keeps its observers
+    // (and the responsibility to detach them at destruction).
+    Core(Core&&) noexcept : m_firstObserver(nullptr) {}
+    Core& operator=(Core&&) noexcept { return *this; }
+
     const uint32_t emptyId = -1;
     static const int invalidPropertyKey = 0;
-    virtual ~Core() {}
+    virtual ~Core();
     virtual uint16_t coreType() const = 0;
     virtual bool isTypeOf(uint16_t typeKey) const = 0;
     virtual bool deserialize(uint16_t propertyKey, BinaryReader& reader) = 0;
@@ -72,6 +94,25 @@ public:
     {
         return StatusCode::Ok;
     }
+
+    // Push-notification hook for target→source data binds. Property setters
+    // generated in *_base.hpp call this with the affected property key after a
+    // value changes. Default impl walks the intrusive observer list and
+    // dirties any DataBind that subscribed for `propertyKey` on this Core.
+    //
+    // Non-virtual: every Core inherits the same dispatch. The hot path
+    // (no observers) is a single null-pointer test.
+    void notifyPropertyChanged(uint16_t propertyKey);
+
+    // Intrusive subscriber list management. Used by DataBind to subscribe to
+    // target value changes without paying a per-Core map allocation. Each
+    // Core holds the list head; each subscribing DataBind holds m_nextObserver
+    // for the same (target, key) chain. Observer order is not guaranteed.
+    void addPropertyObserver(DataBind* observer);
+    void removePropertyObserver(DataBind* observer);
+
+private:
+    DataBind* m_firstObserver = nullptr;
 };
 } // namespace rive
 #endif

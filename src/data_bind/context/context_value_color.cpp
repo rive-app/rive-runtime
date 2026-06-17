@@ -10,11 +10,12 @@ DataBindContextValueColor::DataBindContextValueColor(DataBind* dataBind) :
 
 void DataBindContextValueColor::apply(Core* target,
                                       uint32_t propertyKey,
-                                      bool isMainDirection)
+                                      bool isMainDirection,
+                                      DataBind* dataBind)
 {
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto value = calculateValue<DataValueColor, int>(m_dataValue,
                                                      isMainDirection,
-                                                     m_dataBind);
+                                                     dataBind);
     CoreRegistry::setColor(target, propertyKey, value);
 }

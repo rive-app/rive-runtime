@@ -44,6 +44,7 @@ public:
         }
         m_ViewModelId = value;
         viewModelIdChanged();
+        notifyPropertyChanged(viewModelIdPropertyKey);
     }
 
     inline uint32_t viewModelInstanceId() const
@@ -58,6 +59,7 @@ public:
         }
         m_ViewModelInstanceId = value;
         viewModelInstanceIdChanged();
+        notifyPropertyChanged(viewModelInstanceIdPropertyKey);
     }
 
     Core* clone() const override;

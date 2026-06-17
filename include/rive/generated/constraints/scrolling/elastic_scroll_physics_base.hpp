@@ -48,6 +48,7 @@ public:
         }
         m_Friction = value;
         frictionChanged();
+        notifyPropertyChanged(frictionPropertyKey);
     }
 
     inline float speedMultiplier() const { return m_SpeedMultiplier; }
@@ -59,6 +60,7 @@ public:
         }
         m_SpeedMultiplier = value;
         speedMultiplierChanged();
+        notifyPropertyChanged(speedMultiplierPropertyKey);
     }
 
     inline float elasticFactor() const { return m_ElasticFactor; }
@@ -70,6 +72,7 @@ public:
         }
         m_ElasticFactor = value;
         elasticFactorChanged();
+        notifyPropertyChanged(elasticFactorPropertyKey);
     }
 
     Core* clone() const override;

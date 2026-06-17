@@ -58,6 +58,7 @@ public:
         }
         m_CopyFactorY = value;
         copyFactorYChanged();
+        notifyPropertyChanged(copyFactorYPropertyKey);
     }
 
     inline float minValueY() const { return m_MinValueY; }
@@ -69,6 +70,7 @@ public:
         }
         m_MinValueY = value;
         minValueYChanged();
+        notifyPropertyChanged(minValueYPropertyKey);
     }
 
     inline float maxValueY() const { return m_MaxValueY; }
@@ -80,6 +82,7 @@ public:
         }
         m_MaxValueY = value;
         maxValueYChanged();
+        notifyPropertyChanged(maxValueYPropertyKey);
     }
 
     inline bool doesCopyY() const { return m_DoesCopyY; }
@@ -91,6 +94,7 @@ public:
         }
         m_DoesCopyY = value;
         doesCopyYChanged();
+        notifyPropertyChanged(doesCopyYPropertyKey);
     }
 
     inline bool minY() const { return m_MinY; }
@@ -102,6 +106,7 @@ public:
         }
         m_MinY = value;
         minYChanged();
+        notifyPropertyChanged(minYPropertyKey);
     }
 
     inline bool maxY() const { return m_MaxY; }
@@ -113,6 +118,7 @@ public:
         }
         m_MaxY = value;
         maxYChanged();
+        notifyPropertyChanged(maxYPropertyKey);
     }
 
     void copy(const TransformComponentConstraintYBase& object)

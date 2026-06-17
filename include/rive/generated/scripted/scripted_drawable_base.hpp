@@ -48,6 +48,7 @@ public:
         }
         m_ScriptAssetId = value;
         scriptAssetIdChanged();
+        notifyPropertyChanged(scriptAssetIdPropertyKey);
     }
 
     Core* clone() const override;

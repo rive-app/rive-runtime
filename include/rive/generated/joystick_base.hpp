@@ -66,6 +66,7 @@ public:
         }
         m_X = value;
         xChanged();
+        notifyPropertyChanged(xPropertyKey);
     }
 
     inline float y() const { return m_Y; }
@@ -77,6 +78,7 @@ public:
         }
         m_Y = value;
         yChanged();
+        notifyPropertyChanged(yPropertyKey);
     }
 
     inline float posX() const { return m_PosX; }
@@ -88,6 +90,7 @@ public:
         }
         m_PosX = value;
         posXChanged();
+        notifyPropertyChanged(posXPropertyKey);
     }
 
     inline float posY() const { return m_PosY; }
@@ -99,6 +102,7 @@ public:
         }
         m_PosY = value;
         posYChanged();
+        notifyPropertyChanged(posYPropertyKey);
     }
 
     inline float originX() const { return m_OriginX; }
@@ -110,6 +114,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -121,6 +126,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     inline float width() const { return m_Width; }
@@ -132,6 +138,7 @@ public:
         }
         m_Width = value;
         widthChanged();
+        notifyPropertyChanged(widthPropertyKey);
     }
 
     inline float height() const { return m_Height; }
@@ -143,6 +150,7 @@ public:
         }
         m_Height = value;
         heightChanged();
+        notifyPropertyChanged(heightPropertyKey);
     }
 
     inline uint32_t xId() const { return m_XId; }
@@ -154,6 +162,7 @@ public:
         }
         m_XId = value;
         xIdChanged();
+        notifyPropertyChanged(xIdPropertyKey);
     }
 
     inline uint32_t yId() const { return m_YId; }
@@ -165,6 +174,7 @@ public:
         }
         m_YId = value;
         yIdChanged();
+        notifyPropertyChanged(yIdPropertyKey);
     }
 
     inline uint32_t joystickFlags() const { return m_JoystickFlags; }
@@ -176,6 +186,7 @@ public:
         }
         m_JoystickFlags = value;
         joystickFlagsChanged();
+        notifyPropertyChanged(joystickFlagsPropertyKey);
     }
 
     inline uint32_t handleSourceId() const { return m_HandleSourceId; }
@@ -187,6 +198,7 @@ public:
         }
         m_HandleSourceId = value;
         handleSourceIdChanged();
+        notifyPropertyChanged(handleSourceIdPropertyKey);
     }
 
     Core* clone() const override;

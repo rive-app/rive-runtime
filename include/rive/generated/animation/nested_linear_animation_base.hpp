@@ -45,6 +45,7 @@ public:
         }
         m_Mix = value;
         mixChanged();
+        notifyPropertyChanged(mixPropertyKey);
     }
 
     void copy(const NestedLinearAnimationBase& object)

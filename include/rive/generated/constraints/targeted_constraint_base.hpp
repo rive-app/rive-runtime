@@ -44,6 +44,7 @@ public:
         }
         m_TargetId = value;
         targetIdChanged();
+        notifyPropertyChanged(targetIdPropertyKey);
     }
 
     void copy(const TargetedConstraintBase& object)

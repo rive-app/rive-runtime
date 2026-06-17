@@ -10,12 +10,13 @@ DataBindContextValueNumber::DataBindContextValueNumber(DataBind* dataBind) :
 
 void DataBindContextValueNumber::apply(Core* target,
                                        uint32_t propertyKey,
-                                       bool isMainDirection)
+                                       bool isMainDirection,
+                                       DataBind* dataBind)
 {
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto value = calculateValue<DataValueNumber, float>(m_dataValue,
                                                         isMainDirection,
-                                                        m_dataBind);
+                                                        dataBind);
     switch (CoreRegistry::propertyFieldId(propertyKey))
     {
         case CoreDoubleType::id:

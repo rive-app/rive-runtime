@@ -45,6 +45,7 @@ public:
         }
         m_FillRule = value;
         fillRuleChanged();
+        notifyPropertyChanged(fillRulePropertyKey);
     }
 
     Core* clone() const override;

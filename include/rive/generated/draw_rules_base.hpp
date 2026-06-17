@@ -44,6 +44,7 @@ public:
         }
         m_DrawTargetId = value;
         drawTargetIdChanged();
+        notifyPropertyChanged(drawTargetIdPropertyKey);
     }
 
     Core* clone() const override;

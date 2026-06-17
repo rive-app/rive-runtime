@@ -82,6 +82,7 @@ public:
         }
         m_AlignValue = value;
         alignValueChanged();
+        notifyPropertyChanged(alignValuePropertyKey);
     }
 
     inline uint32_t sizingValue() const { return m_SizingValue; }
@@ -93,6 +94,7 @@ public:
         }
         m_SizingValue = value;
         sizingValueChanged();
+        notifyPropertyChanged(sizingValuePropertyKey);
     }
 
     inline uint32_t overflowValue() const { return m_OverflowValue; }
@@ -104,6 +106,7 @@ public:
         }
         m_OverflowValue = value;
         overflowValueChanged();
+        notifyPropertyChanged(overflowValuePropertyKey);
     }
 
     inline float width() const { return m_Width; }
@@ -115,6 +118,7 @@ public:
         }
         m_Width = value;
         widthChanged();
+        notifyPropertyChanged(widthPropertyKey);
     }
 
     inline float height() const { return m_Height; }
@@ -126,6 +130,7 @@ public:
         }
         m_Height = value;
         heightChanged();
+        notifyPropertyChanged(heightPropertyKey);
     }
 
     inline float originX() const { return m_OriginX; }
@@ -137,6 +142,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -148,6 +154,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     inline float paragraphSpacing() const { return m_ParagraphSpacing; }
@@ -159,6 +166,7 @@ public:
         }
         m_ParagraphSpacing = value;
         paragraphSpacingChanged();
+        notifyPropertyChanged(paragraphSpacingPropertyKey);
     }
 
     inline uint32_t originValue() const { return m_OriginValue; }
@@ -170,6 +178,7 @@ public:
         }
         m_OriginValue = value;
         originValueChanged();
+        notifyPropertyChanged(originValuePropertyKey);
     }
 
     inline uint32_t wrapValue() const { return m_WrapValue; }
@@ -181,6 +190,7 @@ public:
         }
         m_WrapValue = value;
         wrapValueChanged();
+        notifyPropertyChanged(wrapValuePropertyKey);
     }
 
     inline uint32_t verticalAlignValue() const { return m_VerticalAlignValue; }
@@ -192,6 +202,7 @@ public:
         }
         m_VerticalAlignValue = value;
         verticalAlignValueChanged();
+        notifyPropertyChanged(verticalAlignValuePropertyKey);
     }
 
     inline bool fitFromBaseline() const { return m_FitFromBaseline; }
@@ -203,6 +214,7 @@ public:
         }
         m_FitFromBaseline = value;
         fitFromBaselineChanged();
+        notifyPropertyChanged(fitFromBaselinePropertyKey);
     }
 
     inline uint32_t textRunListSource() const { return m_TextRunListSource; }
@@ -214,6 +226,7 @@ public:
         }
         m_TextRunListSource = value;
         textRunListSourceChanged();
+        notifyPropertyChanged(textRunListSourcePropertyKey);
     }
 
     inline uint32_t verticalTrimValue() const { return m_VerticalTrimValue; }

@@ -19,7 +19,6 @@ bool Component::validate(CoreContext* context)
 StatusCode Component::onAddedDirty(CoreContext* context)
 {
     m_Artboard = static_cast<Artboard*>(context);
-    m_DependencyHelper.dependecyRoot(m_Artboard);
     if (this == m_Artboard)
     {
         // We're the artboard, don't parent to ourselves.
@@ -28,11 +27,6 @@ StatusCode Component::onAddedDirty(CoreContext* context)
     m_Parent = context->resolve(parentId())->as<ContainerComponent>();
     m_Parent->addChild(this);
     return StatusCode::Ok;
-}
-
-void Component::addDependent(Component* component)
-{
-    m_DependencyHelper.addDependent(component);
 }
 
 bool Component::addDirt(ComponentDirt value, bool recurse)
@@ -48,14 +42,14 @@ bool Component::addDirt(ComponentDirt value, bool recurse)
 
     onDirty(m_Dirt);
 
-    m_DependencyHelper.onComponentDirty(this);
+    onComponentDirty(this);
 
     if (!recurse)
     {
         return true;
     }
 
-    m_DependencyHelper.addDirt(value);
+    addDirtToDependents(value);
     return true;
 }
 
@@ -95,7 +89,7 @@ bool Component::collapse(bool value)
         m_Dirt &= ~ComponentDirt::Collapsed;
     }
     onDirty(m_Dirt);
-    m_DependencyHelper.onComponentDirty(this);
+    onComponentDirty(this);
     updateCollapsables();
     return true;
 }
@@ -113,11 +107,12 @@ bool Component::hitTestPoint(const Vec2D& position,
 
 void Component::addCollapsable(DataBind* collapsable)
 {
-    auto itr =
-        std::find(m_collapsables.begin(), m_collapsables.end(), collapsable);
-    if (itr == m_collapsables.end())
+    // pushUnique gives set semantics; the collapse side-effect should only
+    // fire on first add, so detect that via size delta.
+    auto sizeBefore = m_collapsables.size();
+    m_collapsables.pushUnique(collapsable);
+    if (m_collapsables.size() != sizeBefore)
     {
-        m_collapsables.push_back(collapsable);
         collapsable->collapse(isCollapsed());
     }
 }
@@ -125,7 +120,7 @@ void Component::addCollapsable(DataBind* collapsable)
 void Component::updateCollapsables()
 {
     auto collapsed = isCollapsed();
-    for (auto& collapsable : m_collapsables)
+    for (auto* collapsable : m_collapsables)
     {
         collapsable->collapse(collapsed);
     }

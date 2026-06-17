@@ -54,6 +54,7 @@ public:
         }
         m_Width = value;
         widthChanged();
+        notifyPropertyChanged(widthPropertyKey);
     }
 
     inline float height() const { return m_Height; }
@@ -65,6 +66,7 @@ public:
         }
         m_Height = value;
         heightChanged();
+        notifyPropertyChanged(heightPropertyKey);
     }
 
     inline float originX() const { return m_OriginX; }
@@ -76,6 +78,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -87,6 +90,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     void copy(const ParametricPathBase& object)

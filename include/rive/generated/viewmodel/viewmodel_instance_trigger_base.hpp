@@ -46,6 +46,7 @@ public:
         }
         m_PropertyValue = value;
         propertyValueChanged();
+        notifyPropertyChanged(propertyValuePropertyKey);
     }
 
     virtual void fire(const CallbackData& value) = 0;

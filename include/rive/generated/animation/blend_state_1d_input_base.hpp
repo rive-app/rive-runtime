@@ -46,6 +46,7 @@ public:
         }
         m_InputId = value;
         inputIdChanged();
+        notifyPropertyChanged(inputIdPropertyKey);
     }
 
     Core* clone() const override;

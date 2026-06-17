@@ -47,6 +47,7 @@ public:
         }
         m_ExitBlendAnimationId = value;
         exitBlendAnimationIdChanged();
+        notifyPropertyChanged(exitBlendAnimationIdPropertyKey);
     }
 
     Core* clone() const override;

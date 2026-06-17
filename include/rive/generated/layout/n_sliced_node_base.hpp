@@ -53,6 +53,7 @@ public:
         }
         m_InitialWidth = value;
         initialWidthChanged();
+        notifyPropertyChanged(initialWidthPropertyKey);
     }
 
     inline float initialHeight() const { return m_InitialHeight; }
@@ -64,6 +65,7 @@ public:
         }
         m_InitialHeight = value;
         initialHeightChanged();
+        notifyPropertyChanged(initialHeightPropertyKey);
     }
 
     inline float width() const { return m_Width; }
@@ -75,6 +77,7 @@ public:
         }
         m_Width = value;
         widthChanged();
+        notifyPropertyChanged(widthPropertyKey);
     }
 
     inline float height() const { return m_Height; }
@@ -86,6 +89,7 @@ public:
         }
         m_Height = value;
         heightChanged();
+        notifyPropertyChanged(heightPropertyKey);
     }
 
     Core* clone() const override;

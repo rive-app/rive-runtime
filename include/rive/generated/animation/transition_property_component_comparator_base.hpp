@@ -47,6 +47,7 @@ public:
         }
         m_ObjectId = value;
         objectIdChanged();
+        notifyPropertyChanged(objectIdPropertyKey);
     }
 
     inline uint32_t propertyKey() const { return m_PropertyKey; }
@@ -58,6 +59,7 @@ public:
         }
         m_PropertyKey = value;
         propertyKeyChanged();
+        notifyPropertyChanged(propertyKeyPropertyKey);
     }
 
     Core* clone() const override;

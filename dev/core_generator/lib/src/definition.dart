@@ -421,6 +421,7 @@ class Definition {
                       '{return;}'
                       'set${property.capitalizedName}(value);'
                       '${property.name}Changed();'
+                      'notifyPropertyChanged(${property.name}PropertyKey);'
                       '}');
         } else {
           code.writeln(((property.isVirtual || property.isPureVirtual)
@@ -438,6 +439,7 @@ class Definition {
                         '{return;}'
                         'm_${property.capitalizedName} = value;'
                         '${property.name}Changed();'
+                        'notifyPropertyChanged(${property.name}PropertyKey);'
                         '}');
           } else {
             code.writeln(

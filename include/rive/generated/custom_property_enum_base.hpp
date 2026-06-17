@@ -46,6 +46,7 @@ public:
         }
         m_PropertyValue = value;
         propertyValueChanged();
+        notifyPropertyChanged(propertyValuePropertyKey);
     }
 
     inline uint32_t enumId() const { return m_EnumId; }
@@ -57,6 +58,7 @@ public:
         }
         m_EnumId = value;
         enumIdChanged();
+        notifyPropertyChanged(enumIdPropertyKey);
     }
 
     Core* clone() const override;

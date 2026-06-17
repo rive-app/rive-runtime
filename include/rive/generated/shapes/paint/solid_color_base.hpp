@@ -43,6 +43,7 @@ public:
         }
         m_ColorValue = value;
         colorValueChanged();
+        notifyPropertyChanged(colorValuePropertyKey);
     }
 
     Core* clone() const override;

@@ -2,6 +2,7 @@
 #define _RIVE_DRAWABLE_HPP_
 #include "rive/generated/drawable_base.hpp"
 #include "rive/hit_info.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/renderer.hpp"
 #include "rive/clip_result.hpp"
 #include "rive/drawable_flag.hpp"
@@ -20,7 +21,7 @@ class Drawable : public DrawableBase
     friend class StateMachineInstance;
 
 private:
-    std::vector<ClippingShape*> m_ClippingShapes;
+    LazyVector<ClippingShape*> m_ClippingShapes;
 
     /// Used exclusively by the artboard;
     DrawRules* flattenedDrawRules = nullptr;
@@ -40,7 +41,7 @@ public:
     void addClippingShape(ClippingShape* shape);
     inline const std::vector<ClippingShape*>& clippingShapes() const
     {
-        return m_ClippingShapes;
+        return m_ClippingShapes.view();
     }
 
     virtual bool isHidden() const

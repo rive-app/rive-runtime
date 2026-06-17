@@ -37,7 +37,7 @@ bool TransformComponent::collapse(bool value)
 // status.
 void TransformComponent::markDirtyIfConstrained()
 {
-    if (m_Constraints.size() > 0)
+    if (!m_Constraints.empty())
     {
         addDirt(ComponentDirt::WorldTransform, true);
     }
@@ -86,7 +86,7 @@ void TransformComponent::updateWorldTransform()
 
 void TransformComponent::updateConstraints()
 {
-    for (auto constraint : m_Constraints)
+    for (auto* constraint : m_Constraints)
     {
         constraint->constrain(this);
     }

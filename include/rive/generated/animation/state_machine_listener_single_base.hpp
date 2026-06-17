@@ -49,6 +49,7 @@ public:
         }
         m_ListenerTypeValue = value;
         listenerTypeValueChanged();
+        notifyPropertyChanged(listenerTypeValuePropertyKey);
     }
 
     inline uint32_t eventId() const { return m_EventId; }
@@ -60,6 +61,7 @@ public:
         }
         m_EventId = value;
         eventIdChanged();
+        notifyPropertyChanged(eventIdPropertyKey);
     }
 
     virtual void decodeViewModelPathIds(Span<const uint8_t> value) = 0;

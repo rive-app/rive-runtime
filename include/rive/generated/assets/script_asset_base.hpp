@@ -53,6 +53,7 @@ public:
         }
         m_GeneratorFunctionRef = value;
         generatorFunctionRefChanged();
+        notifyPropertyChanged(generatorFunctionRefPropertyKey);
     }
 
     inline bool isModule() const { return m_IsModule; }
@@ -64,6 +65,7 @@ public:
         }
         m_IsModule = value;
         isModuleChanged();
+        notifyPropertyChanged(isModulePropertyKey);
     }
 
     inline uint32_t serializedImplementedMethods() const
@@ -78,6 +80,7 @@ public:
         }
         m_SerializedImplementedMethods = value;
         serializedImplementedMethodsChanged();
+        notifyPropertyChanged(serializedImplementedMethodsPropertyKey);
     }
 
     Core* clone() const override;

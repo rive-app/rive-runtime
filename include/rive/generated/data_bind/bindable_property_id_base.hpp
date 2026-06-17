@@ -43,6 +43,7 @@ public:
         }
         m_PropertyValue = value;
         propertyValueChanged();
+        notifyPropertyChanged(propertyValuePropertyKey);
     }
 
     void copy(const BindablePropertyIdBase& object)

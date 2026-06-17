@@ -43,6 +43,7 @@ public:
         }
         m_OperationType = value;
         operationTypeChanged();
+        notifyPropertyChanged(operationTypePropertyKey);
     }
 
     Core* clone() const override;

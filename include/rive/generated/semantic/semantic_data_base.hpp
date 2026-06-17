@@ -100,6 +100,7 @@ public:
         }
         m_Role = value;
         roleChanged();
+        notifyPropertyChanged(rolePropertyKey);
     }
 
     inline const std::string& label() const { return m_Label; }
@@ -111,6 +112,7 @@ public:
         }
         m_Label = value;
         labelChanged();
+        notifyPropertyChanged(labelPropertyKey);
     }
 
     inline const std::string& value() const { return m_Value; }
@@ -122,6 +124,7 @@ public:
         }
         m_Value = value;
         valueChanged();
+        notifyPropertyChanged(valuePropertyKey);
     }
 
     inline const std::string& hint() const { return m_Hint; }
@@ -133,6 +136,7 @@ public:
         }
         m_Hint = value;
         hintChanged();
+        notifyPropertyChanged(hintPropertyKey);
     }
 
     inline uint32_t headingLevel() const { return m_HeadingLevel; }
@@ -144,6 +148,7 @@ public:
         }
         m_HeadingLevel = value;
         headingLevelChanged();
+        notifyPropertyChanged(headingLevelPropertyKey);
     }
 
     inline uint32_t traitFlags() const { return m_TraitFlags; }
@@ -155,6 +160,7 @@ public:
         }
         m_TraitFlags = value;
         traitFlagsChanged();
+        notifyPropertyChanged(traitFlagsPropertyKey);
     }
 
     inline uint32_t stateFlags() const { return m_StateFlags; }
@@ -166,6 +172,7 @@ public:
         }
         m_StateFlags = value;
         stateFlagsChanged();
+        notifyPropertyChanged(stateFlagsPropertyKey);
     }
 
     Core* clone() const override;

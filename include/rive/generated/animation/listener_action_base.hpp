@@ -42,6 +42,7 @@ public:
         }
         m_Flags = value;
         flagsChanged();
+        notifyPropertyChanged(flagsPropertyKey);
     }
 
     void copy(const ListenerActionBase& object) { m_Flags = object.m_Flags; }

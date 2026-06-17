@@ -7,10 +7,11 @@ class DataBindContextValueAny : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueAny(DataBind* m_dataBind);
+    DataBindContextValueAny(DataBind* dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
-               bool isMainDirection) override;
+               bool isMainDirection,
+               DataBind* dataBind) override;
 };
 } // namespace rive
 

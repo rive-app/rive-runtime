@@ -10,11 +10,12 @@ DataBindContextValueAny::DataBindContextValueAny(DataBind* dataBind) :
 
 void DataBindContextValueAny::apply(Core* target,
                                     uint32_t propertyKey,
-                                    bool isMainDirection)
+                                    bool isMainDirection,
+                                    DataBind* dataBind)
 {
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto dataValue =
-        calculateUntypedDataValue(m_dataValue, isMainDirection, m_dataBind);
+        calculateUntypedDataValue(m_dataValue, isMainDirection, dataBind);
     switch (CoreRegistry::propertyFieldId(propertyKey))
     {
         case CoreDoubleType::id:

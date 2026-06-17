@@ -45,6 +45,7 @@ public:
         }
         m_Key = value;
         keyChanged();
+        notifyPropertyChanged(keyPropertyKey);
     }
 
     inline const std::string& value() const { return m_Value; }
@@ -56,6 +57,7 @@ public:
         }
         m_Value = value;
         valueChanged();
+        notifyPropertyChanged(valuePropertyKey);
     }
 
     Core* clone() const override;

@@ -47,6 +47,7 @@ public:
         }
         m_U = value;
         uChanged();
+        notifyPropertyChanged(uPropertyKey);
     }
 
     inline float v() const { return m_V; }
@@ -58,6 +59,7 @@ public:
         }
         m_V = value;
         vChanged();
+        notifyPropertyChanged(vPropertyKey);
     }
 
     Core* clone() const override;

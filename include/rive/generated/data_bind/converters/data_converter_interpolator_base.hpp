@@ -48,6 +48,7 @@ public:
         }
         m_InterpolationType = value;
         interpolationTypeChanged();
+        notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
     inline uint32_t interpolatorId() const { return m_InterpolatorId; }
@@ -59,6 +60,7 @@ public:
         }
         m_InterpolatorId = value;
         interpolatorIdChanged();
+        notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
     inline float duration() const { return m_Duration; }
@@ -70,6 +72,7 @@ public:
         }
         m_Duration = value;
         durationChanged();
+        notifyPropertyChanged(durationPropertyKey);
     }
 
     Core* clone() const override;

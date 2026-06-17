@@ -56,6 +56,7 @@ public:
         }
         m_BoneId = value;
         boneIdChanged();
+        notifyPropertyChanged(boneIdPropertyKey);
     }
 
     inline float xx() const { return m_Xx; }
@@ -67,6 +68,7 @@ public:
         }
         m_Xx = value;
         xxChanged();
+        notifyPropertyChanged(xxPropertyKey);
     }
 
     inline float yx() const { return m_Yx; }
@@ -78,6 +80,7 @@ public:
         }
         m_Yx = value;
         yxChanged();
+        notifyPropertyChanged(yxPropertyKey);
     }
 
     inline float xy() const { return m_Xy; }
@@ -89,6 +92,7 @@ public:
         }
         m_Xy = value;
         xyChanged();
+        notifyPropertyChanged(xyPropertyKey);
     }
 
     inline float yy() const { return m_Yy; }
@@ -100,6 +104,7 @@ public:
         }
         m_Yy = value;
         yyChanged();
+        notifyPropertyChanged(yyPropertyKey);
     }
 
     inline float tx() const { return m_Tx; }
@@ -111,6 +116,7 @@ public:
         }
         m_Tx = value;
         txChanged();
+        notifyPropertyChanged(txPropertyKey);
     }
 
     inline float ty() const { return m_Ty; }
@@ -122,6 +128,7 @@ public:
         }
         m_Ty = value;
         tyChanged();
+        notifyPropertyChanged(tyPropertyKey);
     }
 
     Core* clone() const override;

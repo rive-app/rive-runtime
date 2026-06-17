@@ -60,6 +60,7 @@ public:
         }
         m_Clip = value;
         clipChanged();
+        notifyPropertyChanged(clipPropertyKey);
     }
 
     inline float width() const { return m_Width; }
@@ -71,6 +72,7 @@ public:
         }
         m_Width = value;
         widthChanged();
+        notifyPropertyChanged(widthPropertyKey);
     }
 
     inline float height() const { return m_Height; }
@@ -82,6 +84,7 @@ public:
         }
         m_Height = value;
         heightChanged();
+        notifyPropertyChanged(heightPropertyKey);
     }
 
     inline uint32_t styleId() const { return m_StyleId; }
@@ -93,6 +96,7 @@ public:
         }
         m_StyleId = value;
         styleIdChanged();
+        notifyPropertyChanged(styleIdPropertyKey);
     }
 
     inline float fractionalWidth() const { return m_FractionalWidth; }
@@ -104,6 +108,7 @@ public:
         }
         m_FractionalWidth = value;
         fractionalWidthChanged();
+        notifyPropertyChanged(fractionalWidthPropertyKey);
     }
 
     inline float fractionalHeight() const { return m_FractionalHeight; }
@@ -115,6 +120,7 @@ public:
         }
         m_FractionalHeight = value;
         fractionalHeightChanged();
+        notifyPropertyChanged(fractionalHeightPropertyKey);
     }
 
     Core* clone() const override;

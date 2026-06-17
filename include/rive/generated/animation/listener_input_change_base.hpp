@@ -45,6 +45,7 @@ public:
         }
         m_InputId = value;
         inputIdChanged();
+        notifyPropertyChanged(inputIdPropertyKey);
     }
 
     inline uint32_t nestedInputId() const { return m_NestedInputId; }
@@ -56,6 +57,7 @@ public:
         }
         m_NestedInputId = value;
         nestedInputIdChanged();
+        notifyPropertyChanged(nestedInputIdPropertyKey);
     }
 
     void copy(const ListenerInputChangeBase& object)

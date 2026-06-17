@@ -2,6 +2,7 @@
 #define _RIVE_TRANSFORM_COMPONENT_HPP_
 #include "rive/generated/transform_component_base.hpp"
 #include "rive/intrinsically_sizeable.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
@@ -18,7 +19,7 @@ protected:
     Mat2D m_Transform;
     float m_RenderOpacity = 0.0f;
     WorldTransformComponent* m_ParentTransformComponent = nullptr;
-    std::vector<Constraint*> m_Constraints;
+    LazyVector<Constraint*> m_Constraints;
 
 protected:
     virtual void updateConstraints();
@@ -27,7 +28,7 @@ public:
     bool collapse(bool value) override;
     const std::vector<Constraint*>& constraints() const
     {
-        return m_Constraints;
+        return m_Constraints.view();
     }
     StatusCode onAddedClean(CoreContext* context) override;
     void buildDependencies() override;

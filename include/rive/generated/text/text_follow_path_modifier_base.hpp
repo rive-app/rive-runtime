@@ -56,6 +56,7 @@ public:
         }
         m_Radial = value;
         radialChanged();
+        notifyPropertyChanged(radialPropertyKey);
     }
 
     inline bool orient() const { return m_Orient; }
@@ -67,6 +68,7 @@ public:
         }
         m_Orient = value;
         orientChanged();
+        notifyPropertyChanged(orientPropertyKey);
     }
 
     inline float start() const { return m_Start; }
@@ -78,6 +80,7 @@ public:
         }
         m_Start = value;
         startChanged();
+        notifyPropertyChanged(startPropertyKey);
     }
 
     inline float end() const { return m_End; }
@@ -89,6 +92,7 @@ public:
         }
         m_End = value;
         endChanged();
+        notifyPropertyChanged(endPropertyKey);
     }
 
     inline float strength() const { return m_Strength; }
@@ -100,6 +104,7 @@ public:
         }
         m_Strength = value;
         strengthChanged();
+        notifyPropertyChanged(strengthPropertyKey);
     }
 
     inline float offset() const { return m_Offset; }
@@ -111,6 +116,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     Core* clone() const override;

@@ -43,6 +43,7 @@ public:
         }
         m_ConstraintId = value;
         constraintIdChanged();
+        notifyPropertyChanged(constraintIdPropertyKey);
     }
 
     void copy(const ScrollPhysicsBase& object)

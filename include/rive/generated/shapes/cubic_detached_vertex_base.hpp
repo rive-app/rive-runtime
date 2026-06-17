@@ -53,6 +53,7 @@ public:
         }
         m_InRotation = value;
         inRotationChanged();
+        notifyPropertyChanged(inRotationPropertyKey);
     }
 
     inline float inDistance() const { return m_InDistance; }
@@ -64,6 +65,7 @@ public:
         }
         m_InDistance = value;
         inDistanceChanged();
+        notifyPropertyChanged(inDistancePropertyKey);
     }
 
     inline float outRotation() const { return m_OutRotation; }
@@ -75,6 +77,7 @@ public:
         }
         m_OutRotation = value;
         outRotationChanged();
+        notifyPropertyChanged(outRotationPropertyKey);
     }
 
     inline float outDistance() const { return m_OutDistance; }
@@ -86,6 +89,7 @@ public:
         }
         m_OutDistance = value;
         outDistanceChanged();
+        notifyPropertyChanged(outDistancePropertyKey);
     }
 
     Core* clone() const override;

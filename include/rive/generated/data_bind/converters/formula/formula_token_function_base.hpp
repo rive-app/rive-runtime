@@ -44,6 +44,7 @@ public:
         }
         m_FunctionType = value;
         functionTypeChanged();
+        notifyPropertyChanged(functionTypePropertyKey);
     }
 
     Core* clone() const override;

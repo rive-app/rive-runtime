@@ -10,11 +10,12 @@ DataBindContextValueTrigger::DataBindContextValueTrigger(DataBind* dataBind) :
 
 void DataBindContextValueTrigger::apply(Core* target,
                                         uint32_t propertyKey,
-                                        bool isMainDirection)
+                                        bool isMainDirection,
+                                        DataBind* dataBind)
 {
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto value = calculateValue<DataValueTrigger, uint32_t>(m_dataValue,
                                                             isMainDirection,
-                                                            m_dataBind);
+                                                            dataBind);
     CoreRegistry::setUint(target, propertyKey, value);
 }

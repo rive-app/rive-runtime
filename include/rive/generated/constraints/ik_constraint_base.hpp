@@ -48,6 +48,7 @@ public:
         }
         m_InvertDirection = value;
         invertDirectionChanged();
+        notifyPropertyChanged(invertDirectionPropertyKey);
     }
 
     inline uint32_t parentBoneCount() const { return m_ParentBoneCount; }
@@ -59,6 +60,7 @@ public:
         }
         m_ParentBoneCount = value;
         parentBoneCountChanged();
+        notifyPropertyChanged(parentBoneCountPropertyKey);
     }
 
     Core* clone() const override;

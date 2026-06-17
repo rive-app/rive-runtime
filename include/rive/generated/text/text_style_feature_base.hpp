@@ -45,6 +45,7 @@ public:
         }
         m_Tag = value;
         tagChanged();
+        notifyPropertyChanged(tagPropertyKey);
     }
 
     inline uint32_t featureValue() const { return m_FeatureValue; }
@@ -56,6 +57,7 @@ public:
         }
         m_FeatureValue = value;
         featureValueChanged();
+        notifyPropertyChanged(featureValuePropertyKey);
     }
 
     Core* clone() const override;

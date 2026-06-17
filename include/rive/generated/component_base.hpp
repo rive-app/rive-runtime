@@ -46,6 +46,7 @@ public:
         }
         m_Name = value;
         nameChanged();
+        notifyPropertyChanged(namePropertyKey);
     }
 
     inline uint32_t parentId() const { return m_ParentId; }
@@ -57,6 +58,7 @@ public:
         }
         m_ParentId = value;
         parentIdChanged();
+        notifyPropertyChanged(parentIdPropertyKey);
     }
 
     void copy(const ComponentBase& object)

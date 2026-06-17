@@ -56,6 +56,7 @@ public:
         }
         m_InterpolationType = value;
         interpolationTypeChanged();
+        notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
     inline uint32_t interpolatorId() const { return m_InterpolatorId; }
@@ -67,6 +68,7 @@ public:
         }
         m_InterpolatorId = value;
         interpolatorIdChanged();
+        notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
     inline uint32_t flags() const { return m_Flags; }
@@ -78,6 +80,7 @@ public:
         }
         m_Flags = value;
         flagsChanged();
+        notifyPropertyChanged(flagsPropertyKey);
     }
 
     inline float minInput() const { return m_MinInput; }
@@ -89,6 +92,7 @@ public:
         }
         m_MinInput = value;
         minInputChanged();
+        notifyPropertyChanged(minInputPropertyKey);
     }
 
     inline float maxInput() const { return m_MaxInput; }
@@ -100,6 +104,7 @@ public:
         }
         m_MaxInput = value;
         maxInputChanged();
+        notifyPropertyChanged(maxInputPropertyKey);
     }
 
     inline float minOutput() const { return m_MinOutput; }
@@ -111,6 +116,7 @@ public:
         }
         m_MinOutput = value;
         minOutputChanged();
+        notifyPropertyChanged(minOutputPropertyKey);
     }
 
     inline float maxOutput() const { return m_MaxOutput; }
@@ -122,6 +128,7 @@ public:
         }
         m_MaxOutput = value;
         maxOutputChanged();
+        notifyPropertyChanged(maxOutputPropertyKey);
     }
 
     Core* clone() const override;

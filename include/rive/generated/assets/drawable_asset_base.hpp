@@ -46,6 +46,7 @@ public:
         }
         m_Height = value;
         heightChanged();
+        notifyPropertyChanged(heightPropertyKey);
     }
 
     inline float width() const { return m_Width; }
@@ -57,6 +58,7 @@ public:
         }
         m_Width = value;
         widthChanged();
+        notifyPropertyChanged(widthPropertyKey);
     }
 
     void copy(const DrawableAssetBase& object)

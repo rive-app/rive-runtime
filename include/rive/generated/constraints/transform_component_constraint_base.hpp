@@ -62,6 +62,7 @@ public:
         }
         m_MinMaxSpaceValue = value;
         minMaxSpaceValueChanged();
+        notifyPropertyChanged(minMaxSpaceValuePropertyKey);
     }
 
     inline float copyFactor() const { return m_CopyFactor; }
@@ -73,6 +74,7 @@ public:
         }
         m_CopyFactor = value;
         copyFactorChanged();
+        notifyPropertyChanged(copyFactorPropertyKey);
     }
 
     inline float minValue() const { return m_MinValue; }
@@ -84,6 +86,7 @@ public:
         }
         m_MinValue = value;
         minValueChanged();
+        notifyPropertyChanged(minValuePropertyKey);
     }
 
     inline float maxValue() const { return m_MaxValue; }
@@ -95,6 +98,7 @@ public:
         }
         m_MaxValue = value;
         maxValueChanged();
+        notifyPropertyChanged(maxValuePropertyKey);
     }
 
     inline bool offset() const { return m_Offset; }
@@ -106,6 +110,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     inline bool doesCopy() const { return m_DoesCopy; }
@@ -117,6 +122,7 @@ public:
         }
         m_DoesCopy = value;
         doesCopyChanged();
+        notifyPropertyChanged(doesCopyPropertyKey);
     }
 
     inline bool min() const { return m_Min; }
@@ -128,6 +134,7 @@ public:
         }
         m_Min = value;
         minChanged();
+        notifyPropertyChanged(minPropertyKey);
     }
 
     inline bool max() const { return m_Max; }
@@ -139,6 +146,7 @@ public:
         }
         m_Max = value;
         maxChanged();
+        notifyPropertyChanged(maxPropertyKey);
     }
 
     void copy(const TransformComponentConstraintBase& object)

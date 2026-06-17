@@ -45,6 +45,7 @@ public:
         }
         m_DrawableId = value;
         drawableIdChanged();
+        notifyPropertyChanged(drawableIdPropertyKey);
     }
 
     inline uint32_t placementValue() const { return m_PlacementValue; }
@@ -56,6 +57,7 @@ public:
         }
         m_PlacementValue = value;
         placementValueChanged();
+        notifyPropertyChanged(placementValuePropertyKey);
     }
 
     Core* clone() const override;

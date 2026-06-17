@@ -48,6 +48,7 @@ public:
         }
         m_IsClosed = value;
         isClosedChanged();
+        notifyPropertyChanged(isClosedPropertyKey);
     }
 
     void copy(const PointsCommonPathBase& object)

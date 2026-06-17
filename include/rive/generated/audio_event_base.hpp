@@ -46,6 +46,7 @@ public:
         }
         m_AssetId = value;
         assetIdChanged();
+        notifyPropertyChanged(assetIdPropertyKey);
     }
 
     Core* clone() const override;

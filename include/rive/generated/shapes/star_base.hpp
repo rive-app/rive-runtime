@@ -50,6 +50,7 @@ public:
         }
         m_InnerRadius = value;
         innerRadiusChanged();
+        notifyPropertyChanged(innerRadiusPropertyKey);
     }
 
     Core* clone() const override;

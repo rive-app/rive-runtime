@@ -46,6 +46,7 @@ public:
         }
         m_Radius = value;
         radiusChanged();
+        notifyPropertyChanged(radiusPropertyKey);
     }
 
     Core* clone() const override;

@@ -45,6 +45,7 @@ public:
         }
         m_Values = value;
         valuesChanged();
+        notifyPropertyChanged(valuesPropertyKey);
     }
 
     inline uint32_t indices() const { return m_Indices; }
@@ -56,6 +57,7 @@ public:
         }
         m_Indices = value;
         indicesChanged();
+        notifyPropertyChanged(indicesPropertyKey);
     }
 
     Core* clone() const override;

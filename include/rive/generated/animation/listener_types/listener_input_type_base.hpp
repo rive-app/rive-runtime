@@ -42,6 +42,7 @@ public:
         }
         m_ListenerTypeValue = value;
         listenerTypeValueChanged();
+        notifyPropertyChanged(listenerTypeValuePropertyKey);
     }
 
     Core* clone() const override;

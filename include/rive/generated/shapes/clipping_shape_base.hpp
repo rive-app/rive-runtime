@@ -48,6 +48,7 @@ public:
         }
         m_SourceId = value;
         sourceIdChanged();
+        notifyPropertyChanged(sourceIdPropertyKey);
     }
 
     inline uint32_t fillRule() const { return m_FillRule; }
@@ -59,6 +60,7 @@ public:
         }
         m_FillRule = value;
         fillRuleChanged();
+        notifyPropertyChanged(fillRulePropertyKey);
     }
 
     inline bool isVisible() const { return m_IsVisible; }
@@ -70,6 +72,7 @@ public:
         }
         m_IsVisible = value;
         isVisibleChanged();
+        notifyPropertyChanged(isVisiblePropertyKey);
     }
 
     Core* clone() const override;

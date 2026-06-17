@@ -43,6 +43,7 @@ public:
         }
         m_Decimals = value;
         decimalsChanged();
+        notifyPropertyChanged(decimalsPropertyKey);
     }
 
     Core* clone() const override;

@@ -48,6 +48,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -59,6 +60,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     Core* clone() const override;

@@ -50,6 +50,7 @@ public:
         }
         m_X = value;
         xChanged();
+        notifyPropertyChanged(xPropertyKey);
     }
 
     inline float y() const override { return m_Y; }
@@ -61,6 +62,7 @@ public:
         }
         m_Y = value;
         yChanged();
+        notifyPropertyChanged(yPropertyKey);
     }
 
     Core* clone() const override;

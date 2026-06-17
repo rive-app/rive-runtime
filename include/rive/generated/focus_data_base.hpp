@@ -50,6 +50,7 @@ public:
         }
         m_CanFocus = value;
         canFocusChanged();
+        notifyPropertyChanged(canFocusPropertyKey);
     }
 
     inline bool canTouch() const { return m_CanTouch; }
@@ -61,6 +62,7 @@ public:
         }
         m_CanTouch = value;
         canTouchChanged();
+        notifyPropertyChanged(canTouchPropertyKey);
     }
 
     inline bool canTraverse() const { return m_CanTraverse; }
@@ -72,6 +74,7 @@ public:
         }
         m_CanTraverse = value;
         canTraverseChanged();
+        notifyPropertyChanged(canTraversePropertyKey);
     }
 
     inline uint32_t edgeBehaviorValue() const { return m_EdgeBehaviorValue; }
@@ -83,6 +86,7 @@ public:
         }
         m_EdgeBehaviorValue = value;
         edgeBehaviorValueChanged();
+        notifyPropertyChanged(edgeBehaviorValuePropertyKey);
     }
 
     Core* clone() const override;

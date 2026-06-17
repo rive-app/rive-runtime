@@ -50,6 +50,7 @@ public:
         }
         m_PathFlags = value;
         pathFlagsChanged();
+        notifyPropertyChanged(pathFlagsPropertyKey);
     }
 
     inline bool isHole() const { return m_IsHole; }
@@ -61,6 +62,7 @@ public:
         }
         m_IsHole = value;
         isHoleChanged();
+        notifyPropertyChanged(isHolePropertyKey);
     }
 
     void copy(const PathBase& object)

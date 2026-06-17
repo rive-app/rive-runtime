@@ -46,6 +46,7 @@ public:
         }
         m_TargetId = value;
         targetIdChanged();
+        notifyPropertyChanged(targetIdPropertyKey);
     }
 
     inline bool preserveOffset() const { return m_PreserveOffset; }
@@ -57,6 +58,7 @@ public:
         }
         m_PreserveOffset = value;
         preserveOffsetChanged();
+        notifyPropertyChanged(preserveOffsetPropertyKey);
     }
 
     Core* clone() const override;
