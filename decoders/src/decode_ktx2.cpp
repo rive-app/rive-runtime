@@ -41,20 +41,11 @@ constexpr uint8_t Ktx2Identifier[12] = {
 
 constexpr uint32_t VK_FORMAT_BC7_UNORM_BLOCK = 145;
 constexpr uint32_t VK_FORMAT_BC7_SRGB_BLOCK = 146;
-
-// We only ship ETC2 RGBA8 (151 UNORM / 152 SRGB). The RGB8 (147/148) and
-// RGB-with-1-bit-alpha (149/150) variants are valid vkFormats but the rive
-// runtime always wants a 4-channel image; encoders should produce RGBA8.
 constexpr uint32_t VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK = 151;
 constexpr uint32_t VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK = 152;
-
-// ASTC LDR (VK_FORMAT_ASTC_<X>x<Y>_UNORM_BLOCK = 157,159,... and the SRGB
-// variant is the next value).
+// ASTC block range endpoints; the body maps the family by index between them.
 constexpr uint32_t VK_FORMAT_ASTC_4x4_UNORM_BLOCK = 157;
 constexpr uint32_t VK_FORMAT_ASTC_12x12_SRGB_BLOCK = 184;
-
-// ASTC block footprints come from <rive/decoders/astc_footprints.hpp>.
-
 constexpr uint32_t SupercompressionNone = 0;
 
 #pragma pack(push, 1)
@@ -87,11 +78,9 @@ static_assert(sizeof(Ktx2Header) == 68, "KTX2 header must be 68 bytes");
 static_assert(sizeof(Ktx2LevelIndex) == 24,
               "KTX2 level index entry must be 24 bytes");
 
-// Defensive caps.
 constexpr uint32_t MaxDimension = 16384;
 constexpr uint32_t MaxLevels = 16;
 
-// BC7 and ASTC LDR are 16 bytes/block. ETC2 RGB8 is 8.
 inline uint64_t expectedBlockBytes(uint32_t pixelWidth,
                                    uint32_t pixelHeight,
                                    uint32_t blockWidth,
@@ -164,6 +153,7 @@ bool DecodeKtx2(const uint8_t* bytes,
                      header.vkFormat);
         return false;
     }
+
     if (header.supercompressionScheme != SupercompressionNone)
     {
         std::fprintf(stderr,
