@@ -164,3 +164,57 @@ do
         buildoptions({ '-mssse3', '-msse4.1' })
     end
 end
+
+-- Encoder front-end and sharpyuv live in a separate static lib so consumers
+-- that only decode (e.g. unit tests with /fp:strict on MSVC) don't compile
+-- sharpyuv_gamma.c. Set LIBWEBP_BUILD_ENCODER = true before dofile()ing this
+-- script to emit the libwebp_enc project (recorder, texture_compressor).
+if LIBWEBP_BUILD_ENCODER then
+    project('libwebp_enc')
+    do
+        kind('StaticLib')
+        optimize('Speed')
+        dependson('libwebp')
+
+        includedirs({ libwebp })
+
+        files({
+            libwebp .. '/sharpyuv/sharpyuv.c',
+            libwebp .. '/sharpyuv/sharpyuv_cpu.c',
+            libwebp .. '/sharpyuv/sharpyuv_csp.c',
+            libwebp .. '/sharpyuv/sharpyuv_dsp.c',
+            libwebp .. '/sharpyuv/sharpyuv_gamma.c',
+            libwebp .. '/sharpyuv/sharpyuv_neon.c',
+            libwebp .. '/sharpyuv/sharpyuv_sse2.c',
+            libwebp .. '/src/enc/alpha_enc.c',
+            libwebp .. '/src/enc/analysis_enc.c',
+            libwebp .. '/src/enc/backward_references_cost_enc.c',
+            libwebp .. '/src/enc/backward_references_enc.c',
+            libwebp .. '/src/enc/config_enc.c',
+            libwebp .. '/src/enc/cost_enc.c',
+            libwebp .. '/src/enc/filter_enc.c',
+            libwebp .. '/src/enc/frame_enc.c',
+            libwebp .. '/src/enc/histogram_enc.c',
+            libwebp .. '/src/enc/iterator_enc.c',
+            libwebp .. '/src/enc/near_lossless_enc.c',
+            libwebp .. '/src/enc/picture_csp_enc.c',
+            libwebp .. '/src/enc/picture_enc.c',
+            libwebp .. '/src/enc/picture_psnr_enc.c',
+            libwebp .. '/src/enc/picture_rescale_enc.c',
+            libwebp .. '/src/enc/picture_tools_enc.c',
+            libwebp .. '/src/enc/predictor_enc.c',
+            libwebp .. '/src/enc/quant_enc.c',
+            libwebp .. '/src/enc/syntax_enc.c',
+            libwebp .. '/src/enc/token_enc.c',
+            libwebp .. '/src/enc/tree_enc.c',
+            libwebp .. '/src/enc/vp8l_enc.c',
+            libwebp .. '/src/enc/webp_enc.c',
+        })
+
+        filter({ 'system:windows', 'toolset:clang' })
+        do
+            buildoptions({ '-mssse3', '-msse4.1' })
+        end
+        filter({})
+    end
+end
