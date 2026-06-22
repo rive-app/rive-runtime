@@ -81,6 +81,9 @@ public:
 
     // Add child to parent (or to root nodes if parent is null)
     void addChild(rcp<FocusNode> parent, rcp<FocusNode> child);
+    // Insert as index-th child of parent (0 = first). Same re-parenting as
+    // addChild.
+    void addChild(rcp<FocusNode> parent, rcp<FocusNode> child, size_t index);
 
     // Remove child from its current parent (clears focus if needed)
     void removeChild(rcp<FocusNode> child);

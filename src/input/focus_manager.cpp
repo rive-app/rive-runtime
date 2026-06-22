@@ -9,6 +9,7 @@
 #include "rive/focus_data.hpp"
 #include "rive/math/aabb.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <cmath>
 #include <limits>
 #include <unordered_set>
@@ -182,6 +183,42 @@ void FocusManager::addChild(rcp<FocusNode> parent, rcp<FocusNode> child)
     {
         // Add to root nodes
         m_rootNodes.push_back(std::move(child));
+    }
+}
+
+void FocusManager::addChild(rcp<FocusNode> parent,
+                            rcp<FocusNode> child,
+                            size_t index)
+{
+    if (!child)
+    {
+        return;
+    }
+    if (child->parent())
+    {
+        child->removeFromParent();
+    }
+    else
+    {
+        auto it = std::find(m_rootNodes.begin(), m_rootNodes.end(), child);
+        if (it != m_rootNodes.end())
+        {
+            m_rootNodes.erase(it);
+        }
+    }
+    child->m_manager = this;
+    if (parent)
+    {
+        parent->insertChild(index, std::move(child));
+    }
+    else
+    {
+        if (index > m_rootNodes.size())
+        {
+            index = m_rootNodes.size();
+        }
+        m_rootNodes.insert(m_rootNodes.begin() + static_cast<ptrdiff_t>(index),
+                           std::move(child));
     }
 }
 
