@@ -310,7 +310,7 @@ public:
     rive::ore::Context* getOreContext() { return ore(); }
 #endif
 
-private:
+protected:
     friend class Draw;
     friend class PathDraw;
     friend class ImageRectDraw;
@@ -1016,7 +1016,7 @@ private:
             uint32_t joinSegmentCount,
             uint32_t contourIDWithFlags);
 
-    private:
+    protected:
         LogicalFlush* const m_flush;
         WriteOnlyMappedMemory<gpu::TessVertexSpan>& m_tessSpanData;
         const uint32_t m_pathID;
