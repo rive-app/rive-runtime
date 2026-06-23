@@ -518,6 +518,9 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         d3dCapabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+
+    m_platformFeatures.supportsClipScissor = true;
+
     // BC1–BC7 are required at D3D feature level 11.0+.
     m_platformFeatures.supportsTextureCompressionBC = true;
 
@@ -537,7 +540,8 @@ RenderContextD3DImpl::RenderContextD3DImpl(
               // Details on default state here:
     // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_rasterizer_desc
 
-    rasterDesc.ScissorEnable = FALSE;
+    // Always enable scissor - we'll set it to the full display when it's unused
+    rasterDesc.ScissorEnable = TRUE;
     rasterDesc.MultisampleEnable = FALSE;
     rasterDesc.AntialiasedLineEnable = FALSE;
     VERIFY_OK(m_gpu->CreateRasterizerState(
@@ -546,7 +550,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
 
     // ...And with scissor and no culling for the atlas fill.
     rasterDesc.CullMode = D3D11_CULL_NONE;
-    rasterDesc.ScissorEnable = TRUE;
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
         m_atlasFillRasterState.ReleaseAndGetAddressOf()));
@@ -558,7 +561,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         m_atlasStrokeRasterState.ReleaseAndGetAddressOf()));
 
     // ...And with wireframe for debugging.
-    rasterDesc.ScissorEnable = FALSE;
     rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
@@ -2032,6 +2034,13 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         !desc.fixedFunctionColorOutput &&
         !renderTarget->targetTextureSupportsUAV();
 
+    const auto fullUpdateScissorRect =
+        desc.renderTargetUpdateBounds.lossless_numeric_cast<uint16_t>();
+
+    // Start the current scissor rect out inside-out to guarantee that the first
+    //  rectangle we get doesn't match it.
+    auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
+
     for (const DrawBatch& batch : *desc.drawList)
     {
         DrawType drawType = batch.drawType;
@@ -2062,6 +2071,18 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             // There was an issue getting either the requested pipeline state or
             // its ubershader counterpart so we cannot draw anything.
             continue;
+        }
+
+        auto desiredScissorRect = batch.scissorRect.has_value()
+                                      ? fullUpdateScissorRect.intersectOrEmpty(
+                                            batch.scissorRect.value())
+                                      : fullUpdateScissorRect;
+
+        if (desiredScissorRect != currentScissorRect)
+        {
+            currentScissorRect = desiredScissorRect;
+            D3D11_RECT scissor = make_scissor(currentScissorRect);
+            m_gpuContext->RSSetScissorRects(1, &scissor);
         }
 
         if (auto imageTextureD3D =

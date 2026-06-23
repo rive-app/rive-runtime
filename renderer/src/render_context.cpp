@@ -1539,7 +1539,8 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Write out all the data for our high level draws, and build up a low-level
     // draw list.
-    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
+    if (!platformFeatures.supportsClipScissor &&
+        m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
     {
         for (const DrawUniquePtr& draw : m_draws)
         {
@@ -1911,10 +1912,6 @@ void RenderContext::LogicalFlush::writeResources()
         // bitmask, we insert a barrier between them.
         switch (m_flushDesc.interlockMode)
         {
-            case gpu::InterlockMode::rasterOrdering:
-                // rasterOrdering and clockwise modes don't reorder draws.
-                RIVE_UNREACHABLE();
-
             case gpu::InterlockMode::atomics:
             {
                 // In atomic mode, we need barriers any time draws overlap.
@@ -1929,9 +1926,10 @@ void RenderContext::LogicalFlush::writeResources()
                 break;
             }
 
+            case gpu::InterlockMode::rasterOrdering:
             case gpu::InterlockMode::clockwise:
-                // clockwise mode doesn't need barriers, but we still reorder in
-                // order to improve batching.
+                // clockwise and rasterOrdering modes don't need barriers, but
+                // we still reorder in order to improve batching.
                 break;
 
             case gpu::InterlockMode::clockwiseAtomic:

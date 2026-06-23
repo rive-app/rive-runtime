@@ -9,8 +9,16 @@
 #include "rive/refcnt.hpp"
 #include "rive/renderer/gpu.hpp"
 
+#include <optional>
+
 namespace rive::gpu
 {
+enum class ScissorAction : bool
+{
+    disable, // Disable scissor rect for this pipeline
+    ignore,  // Do not set or clear the scissor rect
+};
+
 // Lightweight wrapper around common GL state.
 class GLState : public RefCnt<GLState>
 {
@@ -28,6 +36,7 @@ public:
     // box before passing it to GL, which is why this function needs
     // renderTargetHeight.)
     void setScissor(IAABB, uint32_t renderTargetHeight);
+    void setScissor(AABBu16, uint32_t renderTargetHeight);
     // Set the scissor with the raw values that will be passed to glScissor().
     void setScissorRaw(uint32_t left,
                        uint32_t top,
@@ -41,7 +50,8 @@ public:
                        uint8_t stencilWriteMask);
     void setBlendEquation(gpu::BlendEquation);
     void disableBlending() { setBlendEquation(gpu::BlendEquation::none); }
-    void setPipelineState(const gpu::PipelineState&);
+    void setPipelineState(const gpu::PipelineState&,
+                          ScissorAction = ScissorAction::disable);
 
     void bindProgram(GLuint);
     void bindVAO(GLuint);

@@ -661,6 +661,9 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
         m_capabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsAtomicMode = true;
     m_platformFeatures.maxTextureSize = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+
+    m_platformFeatures.supportsClipScissor = true;
+
     // BC1–BC7 are required at D3D feature level 11.0+.
     m_platformFeatures.supportsTextureCompressionBC = true;
 
@@ -1570,12 +1573,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                               0.0f,
                               static_cast<float>(width),
                               static_cast<float>(height));
-    CD3DX12_RECT scissorRect(desc.renderTargetUpdateBounds.left,
-                             desc.renderTargetUpdateBounds.top,
-                             desc.renderTargetUpdateBounds.right,
-                             desc.renderTargetUpdateBounds.bottom);
     cmdList->RSSetViewports(1, &viewport);
-    cmdList->RSSetScissorRects(1, &scissorRect);
 
     // Setup and clear the PLS textures.
     {
@@ -1720,6 +1718,13 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     m_heapDescriptorOffset += imageDescriptorOffset;
 
+    const auto fullUpdateScissorRect =
+        desc.renderTargetUpdateBounds.lossless_numeric_cast<uint16_t>();
+
+    // Start the current scissor rect out inside-out to guarantee that the first
+    //  rectangle we get doesn't match it.
+    auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
+
     RIVE_PROF_GPUNAME_L(1, "DrawList");
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -1780,6 +1785,24 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             // There was an issue getting either the requested pipeline state or
             // its ubershader counterpart so we cannot draw anything.
             continue;
+        }
+
+        {
+            auto desiredScissorRect =
+                batch.scissorRect.has_value()
+                    ? fullUpdateScissorRect.intersectOrEmpty(
+                          batch.scissorRect.value())
+                    : fullUpdateScissorRect;
+
+            if (desiredScissorRect != currentScissorRect)
+            {
+                currentScissorRect = desiredScissorRect;
+                CD3DX12_RECT scissorRect{currentScissorRect.left,
+                                         currentScissorRect.top,
+                                         currentScissorRect.right,
+                                         currentScissorRect.bottom};
+                cmdList->RSSetScissorRects(1, &scissorRect);
+            }
         }
 
         cmdList->SetPipelineState(pipeline->m_d3dPipelineState.Get());

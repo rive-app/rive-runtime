@@ -41,6 +41,14 @@ template <typename T> struct TAABB
                 std::min(bottom, math::clamp_cast<T>(b.bottom))};
     }
 
+    // Do an intersection, but return a consistent, fully-zero rectangle if the
+    // intersection ends up empty or negative.
+    template <typename U> TAABB intersectOrEmpty(TAABB<U> b) const
+    {
+        auto r = intersect(b);
+        return r.empty() ? TAABB{} : r;
+    }
+
     template <typename U> TAABB<U> lossless_numeric_cast() const
     {
         return {

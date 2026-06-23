@@ -93,6 +93,16 @@ void GLState::setScissor(IAABB scissor, uint32_t renderTargetHeight)
                   scissor.height());
 }
 
+void GLState::setScissor(AABBu16 scissor, uint32_t renderTargetHeight)
+{
+    assert(scissor.right >= scissor.left);
+    assert(scissor.bottom >= scissor.top);
+    setScissorRaw(scissor.left,
+                  renderTargetHeight - scissor.bottom,
+                  scissor.width(),
+                  scissor.height());
+}
+
 void GLState::setScissorRaw(uint32_t left,
                             uint32_t top,
                             uint32_t width,
@@ -345,9 +355,19 @@ void GLState::setWriteMasks(bool colorWriteMask,
     }
 }
 
-void GLState::setPipelineState(const gpu::PipelineState& pipelineState)
+void GLState::setPipelineState(const gpu::PipelineState& pipelineState,
+                               ScissorAction scissorAction)
 {
-    disableScissor(); // Scissor isn't currently used in the pipeline state.
+    switch (scissorAction)
+    {
+        case ScissorAction::disable:
+            disableScissor();
+            break;
+
+        case ScissorAction::ignore:
+            break;
+    }
+
     setDepthStencilEnabled(pipelineState.depthTestEnabled,
                            pipelineState.stencilTestEnabled);
     if (pipelineState.stencilTestEnabled)

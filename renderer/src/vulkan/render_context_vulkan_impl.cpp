@@ -3596,15 +3596,11 @@ void RenderContextVulkanImpl::submitDrawList(
                 default:
                     // Default behavior is to use the batch's scissor rect,
                     // intersected with the render pass' rect.
-                    desiredScissorRect = batch.scissorRect.has_value()
-                                             ? renderPassScissorRect.intersect(
-                                                   batch.scissorRect.value())
-                                             : renderPassScissorRect;
-            }
-
-            if (desiredScissorRect.empty())
-            {
-                desiredScissorRect = {0, 0, 0, 0};
+                    desiredScissorRect =
+                        batch.scissorRect.has_value()
+                            ? renderPassScissorRect.intersectOrEmpty(
+                                  batch.scissorRect.value())
+                            : renderPassScissorRect;
             }
 
             if (desiredScissorRect != currentScissorRect)
