@@ -69,6 +69,12 @@ enum class ComponentDirt : unsigned short
     /// their render paths, mesh, points, etc.
     NSlicer = 1 << 13,
 
+    /// Set by Core::notifyPropertyChanged on a DataBind when its TARGET
+    /// property changes — distinct from Bindings (a source change). Lets a
+    /// TwoWay bind run target→source without update()'s source→target apply
+    /// clobbering the just-changed target value.
+    BindingsTarget = 1 << 13,
+
     /// Set when a ScriptedObject needs to call update on the scripted
     /// interface.
     ScriptUpdate = 1 << 14,

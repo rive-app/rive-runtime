@@ -32,7 +32,7 @@ void Core::notifyPropertyChanged(uint16_t propertyKey)
     {
         if (o->propertyKey() == propertyKey)
         {
-            o->addDirt(ComponentDirt::Bindings, false);
+            o->addDirt(ComponentDirt::BindingsTarget, false);
         }
     }
 }
