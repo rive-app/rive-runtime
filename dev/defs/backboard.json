@@ -400,7 +400,7 @@
     },
     "dependencyGraphState": {
       "type": "uint",
-      "initialValue": "255",
+      "initialValue": "1023",
       "key": {
         "int": 540,
         "string": "dependencygraphstate"
