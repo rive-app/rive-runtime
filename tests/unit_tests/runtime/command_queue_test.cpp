@@ -2369,6 +2369,73 @@ TEST_CASE("Set Artboard Size / Reset Artboard Size", "[CommandQueue]")
     serverThread.join();
 }
 
+class TestArtboardVolumeListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onArtboardVolumeReceived(const ArtboardHandle handle,
+                                          uint64_t requestId,
+                                          float volume) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_receivedVolume = volume;
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId;
+    ArtboardHandle m_handle;
+    float m_receivedVolume = -1.0f;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("Set Artboard Volume / Get Artboard Volume", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    commandQueue->setArtboardVolume(artboardHandle, 0.5f);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->volume() == 0.5f);
+        });
+
+    commandQueue->setArtboardVolume(artboardHandle, 0.0f);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->volume() == 0.0f);
+        });
+
+    // Test getter via listener
+    TestArtboardVolumeListener volumeListener;
+
+    auto listenerArtboard =
+        commandQueue->instantiateDefaultArtboard(fileHandle, &volumeListener);
+    volumeListener.m_handle = listenerArtboard;
+    volumeListener.m_requestId = 0x50;
+
+    commandQueue->setArtboardVolume(listenerArtboard, 0.75f);
+    commandQueue->requestArtboardVolume(listenerArtboard, 0x50);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(volumeListener.m_hasCallback);
+    CHECK(volumeListener.m_receivedVolume == 0.75f);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
@@ -3335,11 +3402,13 @@ public:
     {
         CHECK(handle == m_handle);
         CHECK(error.size());
+        m_requestIDs.push_back(requestId);
         ++m_receivedErrors;
     }
 
     size_t m_receivedErrors = 0;
     ArtboardHandle m_handle;
+    std::vector<uint64_t> m_requestIDs;
 };
 
 TEST_CASE("artboard errors", "[CommandQueue]")
@@ -3379,6 +3448,31 @@ TEST_CASE("artboard errors", "[CommandQueue]")
     commandQueue->processMessages();
 
     CHECK(badArtboardListener.m_receivedErrors == 2);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("Set Artboard Volume / Get Artboard Volume errors on invalid handles",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestArtboardErrorListener errorListener;
+    auto invalidHandle = reinterpret_cast<rive::ArtboardHandle>(0xFF);
+    errorListener.m_handle = invalidHandle;
+    commandQueue->setGlobalArtboardListener(&errorListener);
+
+    commandQueue->setArtboardVolume(invalidHandle, 0.5f, 0x51);
+    commandQueue->requestArtboardVolume(invalidHandle, 0x52);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(errorListener.m_receivedErrors == 2);
+    CHECK(errorListener.m_requestIDs[0] == 0x51);
+    CHECK(errorListener.m_requestIDs[1] == 0x52);
 
     commandQueue->disconnect();
     serverThread.join();

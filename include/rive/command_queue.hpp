@@ -254,6 +254,11 @@ public:
             uint64_t requestId,
             std::vector<std::string> stateMachineNames)
         {}
+
+        virtual void onArtboardVolumeReceived(const ArtboardHandle,
+                                              uint64_t requestId,
+                                              float volume)
+        {}
     };
 
     struct ViewModelInstanceData
@@ -681,6 +686,11 @@ public:
                                            std::string path,
                                            uint64_t requestId = 0);
 
+    void setArtboardVolume(ArtboardHandle,
+                           float volume,
+                           uint64_t requestId = 0);
+    void requestArtboardVolume(ArtboardHandle, uint64_t requestId = 0);
+
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
     void requestDefaultViewModelInfo(ArtboardHandle,
                                      FileHandle,
@@ -881,6 +891,8 @@ private:
         getViewModelListSize,
         clearViewModelList,
         listFileAssets,
+        setArtboardVolume,
+        getArtboardVolume
     };
 
     enum class Message
@@ -920,7 +932,8 @@ private:
         imageError,
         audioError,
         fontError,
-        stateMachineError
+        stateMachineError,
+        artboardVolumeReceived
     };
 
     friend class CommandServer;

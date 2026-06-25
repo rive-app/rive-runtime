@@ -1059,6 +1059,64 @@ bool CommandServer::processCommands()
             }
             break;
 
+            case CommandQueue::Command::setArtboardVolume:
+            {
+                ArtboardHandle handle;
+                float volume;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> volume;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto artboardInstance = getArtboardInstance(handle))
+                {
+                    artboardInstance->volume(volume);
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "artboard " << handle
+                        << " not found when trying to set artboard volume";
+                }
+            }
+            break;
+
+            case CommandQueue::Command::getArtboardVolume:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto artboard = getArtboardInstance(handle);
+                if (artboard)
+                {
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::artboardVolumeReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << artboard->volume();
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "Invalid artboard handle " << handle
+                        << " when getting artboard volume";
+                }
+                break;
+            }
+
             case CommandQueue::Command::deleteArtboard:
             {
                 ArtboardHandle handle;

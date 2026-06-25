@@ -173,6 +173,26 @@ void CommandQueue::resetArtboardSize(ArtboardHandle artboardHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::setArtboardVolume(ArtboardHandle artboardHandle,
+                                     float volume,
+                                     uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setArtboardVolume;
+    m_commandStream << artboardHandle;
+    m_commandStream << volume;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::requestArtboardVolume(ArtboardHandle artboardHandle,
+                                         uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getArtboardVolume;
+    m_commandStream << artboardHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle,
                                   uint64_t requestId)
 {
@@ -1245,6 +1265,34 @@ void CommandQueue::processMessages()
                         requestId,
                         std::move(defaultViewModel),
                         std::move(defaultViewModelInstance));
+                }
+
+                break;
+            }
+            case Message::artboardVolumeReceived:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                float volume;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> volume;
+                lock.unlock();
+
+                if (m_globalArtboardListener)
+                {
+                    m_globalArtboardListener->onArtboardVolumeReceived(
+                        handle,
+                        requestId,
+                        volume);
+                }
+
+                auto itr = m_artboardListeners.find(handle);
+                if (itr != m_artboardListeners.end())
+                {
+                    itr->second->onArtboardVolumeReceived(itr->first,
+                                                          requestId,
+                                                          volume);
                 }
 
                 break;
