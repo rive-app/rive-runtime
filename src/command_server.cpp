@@ -10,6 +10,7 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/semantic/semantic_manager.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 
@@ -466,6 +467,38 @@ Vec2D CommandServer::cursorPosForPointerEvent(
     Mat2D inverse = forward.invertOrIdentity();
 
     return inverse * pointerEvent.position;
+}
+
+// Maps a semantics bounds payload from artboard space to view space.
+// Templated so the same transform path can be reused for both
+// SemanticsDiffNode and SemanticsBoundsUpdate via bounds()/setBounds().
+template <typename T>
+static void mapSemanticsBounds(T& value, const Mat2D& transform)
+{
+    value.setBounds(transform.mapBoundingBox(value.bounds()));
+}
+
+// Applies artboard->view bounds mapping to all geometry-bearing collections
+// in a semantic diff before it is delivered to listeners.
+static void mapSemanticsDiffToViewSpace(SemanticsDiff& diff,
+                                        const Mat2D& transform)
+{
+    for (auto& node : diff.added)
+    {
+        mapSemanticsBounds(node, transform);
+    }
+    for (auto& node : diff.moved)
+    {
+        mapSemanticsBounds(node, transform);
+    }
+    for (auto& node : diff.updatedSemantic)
+    {
+        mapSemanticsBounds(node, transform);
+    }
+    for (auto& bounds : diff.updatedGeometry)
+    {
+        mapSemanticsBounds(bounds, transform);
+    }
 }
 
 void CommandServer::checkPropertySubscriptions()
@@ -1866,6 +1899,217 @@ bool CommandServer::processCommands()
                 messageStream << requestId;
                 // We don't remove from the artboard dependencies here because
                 // calling erase on a non existent key is fine.
+                break;
+            }
+
+            case CommandQueue::Command::enableSemantics:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    wrapper->instance->enableSemantics();
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for enableSemantics.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::drainSemanticsDiff:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                Fit fit;
+                float alignmentX;
+                float alignmentY;
+                float scaleFactor;
+                Vec2D viewBounds;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> fit;
+                commandStream >> alignmentX;
+                commandStream >> alignmentY;
+                commandStream >> scaleFactor;
+                commandStream >> viewBounds;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    auto* manager = wrapper->instance->semanticManager();
+                    if (manager == nullptr)
+                    {
+                        stateMachineLock.unlock();
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Semantics not enabled on state machine "
+                            << handle
+                            << "; call enableSemantics before "
+                               "drainSemanticsDiff.";
+                    }
+                    else
+                    {
+                        SemanticsDiff diff = manager->drainDiff();
+                        if (!diff.empty())
+                        {
+                            // Compute the transform while locked (it reads the
+                            // artboard); identity means no mapping.
+                            Mat2D transform;
+                            if (auto* artboard = wrapper->instance->artboard())
+                            {
+                                AABB artboardBounds = artboard->bounds();
+                                AABB surfaceBounds =
+                                    AABB(Vec2D{0.0f, 0.0f}, viewBounds);
+                                if (surfaceBounds.width() != 0.0f &&
+                                    surfaceBounds.height() != 0.0f)
+                                {
+                                    Alignment alignment(alignmentX, alignmentY);
+                                    transform =
+                                        rive::computeAlignment(fit,
+                                                               alignment,
+                                                               surfaceBounds,
+                                                               artboardBounds,
+                                                               scaleFactor);
+                                }
+                            }
+
+                            // Map the owned diff outside the lock.
+                            stateMachineLock.unlock();
+                            if (transform != Mat2D())
+                            {
+                                mapSemanticsDiffToViewSpace(diff, transform);
+                            }
+
+                            std::unique_lock<std::mutex> messageLock(
+                                m_commandQueue->m_messageMutex);
+                            messageStream
+                                << CommandQueue::Message::semanticsDiffReceived;
+                            messageStream << handle;
+                            messageStream << requestId;
+                            m_commandQueue->m_messageSemanticsDiffs
+                                << std::move(diff);
+                        }
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for drainSemanticsDiff.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::fireSemanticAction:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                uint32_t semanticNodeId;
+                SemanticActionType actionType;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> semanticNodeId;
+                commandStream >> actionType;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    if (wrapper->instance->semanticManager() == nullptr)
+                    {
+                        stateMachineLock.unlock();
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Semantics not enabled on state machine "
+                            << handle
+                            << "; call enableSemantics before "
+                               "fireSemanticAction.";
+                    }
+                    else
+                    {
+                        wrapper->instance->fireSemanticAction(semanticNodeId,
+                                                              actionType);
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for fireSemanticAction.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::requestSemanticFocus:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                uint32_t semanticNodeId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> semanticNodeId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    auto* manager = wrapper->instance->semanticManager();
+                    if (manager == nullptr)
+                    {
+                        stateMachineLock.unlock();
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Semantics not enabled on state machine "
+                            << handle
+                            << "; call enableSemantics before "
+                               "requestSemanticFocus.";
+                    }
+                    else
+                    {
+                        // A missing/non-focusable node is a silent no-op.
+                        manager->requestFocus(semanticNodeId);
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for requestSemanticFocus.";
+                }
                 break;
             }
 

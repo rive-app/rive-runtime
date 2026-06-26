@@ -669,6 +669,57 @@ void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::enableSemantics(StateMachineHandle stateMachineHandle,
+                                   uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::enableSemantics;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::drainSemanticsDiff(StateMachineHandle stateMachineHandle,
+                                      Fit fit,
+                                      Alignment alignment,
+                                      float scaleFactor,
+                                      Vec2D viewBounds,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::drainSemanticsDiff;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << fit;
+    m_commandStream << alignment.x();
+    m_commandStream << alignment.y();
+    m_commandStream << scaleFactor;
+    m_commandStream << viewBounds;
+}
+
+void CommandQueue::fireSemanticAction(StateMachineHandle stateMachineHandle,
+                                      uint32_t semanticNodeId,
+                                      SemanticActionType actionType,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::fireSemanticAction;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << semanticNodeId;
+    m_commandStream << actionType;
+}
+
+void CommandQueue::requestSemanticFocus(StateMachineHandle stateMachineHandle,
+                                        uint32_t semanticNodeId,
+                                        uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::requestSemanticFocus;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << semanticNodeId;
+}
+
 RenderImageHandle CommandQueue::decodeImage(
     std::vector<uint8_t> imageEncodedBytes,
     RenderImageListener* listener,
@@ -1858,7 +1909,45 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
-
+            case Message::semanticsDiffReceived:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                SemanticsDiff diff;
+                m_messageSemanticsDiffs >> diff;
+                lock.unlock();
+                auto itr = m_stateMachineListeners.find(handle);
+                const bool hasPerHandleListener =
+                    itr != m_stateMachineListeners.end();
+                if (m_globalStateMachineListener)
+                {
+                    // Copy to the global listener only when a per-handle
+                    // listener also needs the diff; otherwise move.
+                    if (hasPerHandleListener)
+                    {
+                        m_globalStateMachineListener->onSemanticsDiffReceived(
+                            handle,
+                            requestId,
+                            diff);
+                    }
+                    else
+                    {
+                        m_globalStateMachineListener->onSemanticsDiffReceived(
+                            handle,
+                            requestId,
+                            std::move(diff));
+                    }
+                }
+                if (hasPerHandleListener)
+                {
+                    itr->second->onSemanticsDiffReceived(handle,
+                                                         requestId,
+                                                         std::move(diff));
+                }
+                break;
+            }
             case Message::fileError:
             {
                 FileHandle handle;

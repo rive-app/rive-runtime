@@ -8,6 +8,8 @@
 #include "rive/refcnt.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/animation/semantic_listener_group.hpp"
+#include "rive/semantic/semantic_snapshot.hpp"
 
 #include <condition_variable>
 #include <cstdint>
@@ -334,6 +336,16 @@ public:
         virtual void onStateMachineSettled(const StateMachineHandle,
                                            uint64_t requestId)
         {}
+
+        // Delivered when an incremental semantic diff is available for this
+        // state machine. Emitted only when drainSemanticsDiff produces a
+        // non-empty diff. Bounds inside the diff are reported in view space
+        // using the fit/alignment/scale/view-bounds arguments provided to the
+        // drain command.
+        virtual void onSemanticsDiffReceived(const StateMachineHandle,
+                                             uint64_t requestId,
+                                             SemanticsDiff diff)
+        {}
     };
 
     CommandQueue();
@@ -563,6 +575,22 @@ public:
                              float timeToAdvance,
                              uint64_t requestId = 0);
 
+    // Enable the semantic subsystem on the given state machine. Must be
+    // called before diffs are delivered. Safe to call multiple times.
+    void enableSemantics(StateMachineHandle, uint64_t requestId = 0);
+
+    // Drain the current semantic diff for the given state machine.
+    // The response is delivered via
+    // StateMachineListener::onSemanticsDiffReceived when the diff is non-empty.
+    // Output bounds are mapped to view space using the provided fit/alignment/
+    // scale/view-bounds parameters.
+    void drainSemanticsDiff(StateMachineHandle,
+                            Fit fit,
+                            Alignment alignment,
+                            float scaleFactor,
+                            Vec2D viewBounds,
+                            uint64_t requestId = 0);
+
     // Pointer events
     struct PointerEvent
     {
@@ -583,6 +611,21 @@ public:
     void pointerExit(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
 
     void deleteStateMachine(StateMachineHandle, uint64_t requestId = 0);
+
+    // Fire a semantic action (tap / increase / decrease) on the given node.
+    // Fire-and-forget; reports a stateMachineError if the handle is unknown or
+    // semantics isn't enabled. An unknown node id is a silent no-op.
+    void fireSemanticAction(StateMachineHandle,
+                            uint32_t semanticNodeId,
+                            SemanticActionType actionType,
+                            uint64_t requestId = 0);
+
+    // Request focus on the given semantic node. Fire-and-forget; reports a
+    // stateMachineError if the handle is unknown or semantics isn't enabled.
+    // An unknown or non-focusable node id is a silent no-op.
+    void requestSemanticFocus(StateMachineHandle,
+                              uint32_t semanticNodeId,
+                              uint64_t requestId = 0);
 
     RenderImageHandle decodeImage(std::vector<uint8_t> imageEncodedBytes,
                                   RenderImageListener* listener = nullptr,
@@ -865,6 +908,10 @@ private:
         instantiateStateMachine,
         deleteStateMachine,
         advanceStateMachine,
+        enableSemantics,
+        drainSemanticsDiff,
+        fireSemanticAction,
+        requestSemanticFocus,
         bindViewModelInstance,
         runOnce,
         draw,
@@ -925,6 +972,7 @@ private:
         viewModelDeleted,
         stateMachineDeleted,
         stateMachineSettled,
+        semanticsDiffReceived,
         fileAssetsListed,
         fileError,
         artboardError,
@@ -964,6 +1012,7 @@ private:
     std::mutex m_messageMutex;
     PODStream m_messageStream;
     ObjectStream<std::string> m_messageNames;
+    ObjectStream<SemanticsDiff> m_messageSemanticsDiffs;
 
     // Listeners
     FileListener* m_globalFileListener = nullptr;
