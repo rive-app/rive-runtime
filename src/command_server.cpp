@@ -2113,6 +2113,35 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::clearSemanticFocus:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    if (auto* focusManager = wrapper->instance->focusManager())
+                    {
+                        focusManager->clearFocus();
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for clearSemanticFocus.";
+                }
+                break;
+            }
+
             case CommandQueue::Command::runOnce:
             {
                 CommandServerCallback callback;

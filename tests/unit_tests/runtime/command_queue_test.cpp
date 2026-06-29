@@ -9,6 +9,7 @@
 #include "rive/file.hpp"
 #include "rive/semantic/semantic_role.hpp"
 #include "rive/semantic/semantic_state.hpp"
+#include "rive/semantic/semantic_trait.hpp"
 #include "common/render_context_null.hpp"
 #include <fstream>
 
@@ -5633,14 +5634,15 @@ struct SemanticFixture
     ViewModelInstanceHandle viewModelHandle = RIVE_NULL_HANDLE;
     StateMachineHandle stateMachineHandle = RIVE_NULL_HANDLE;
 
-    SemanticFixture(SemanticTestListener* listener = nullptr)
+    SemanticFixture(SemanticTestListener* listener = nullptr,
+                    const char* rivPath = "assets/semantic/simpsons.riv")
     {
         commandQueue = make_rcp<CommandQueue>();
         nullContext = RenderContextNULL::MakeContext();
         server =
             std::make_unique<CommandServer>(commandQueue, nullContext.get());
 
-        std::ifstream stream("assets/semantic/simpsons.riv", std::ios::binary);
+        std::ifstream stream(rivPath, std::ios::binary);
         fileHandle = commandQueue->loadFile(
             std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
         artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
@@ -5856,12 +5858,13 @@ TEST_CASE("Semantics commands on invalid state machine handle",
                                         SemanticActionType::tap,
                                         0xE3);
     fx.commandQueue->requestSemanticFocus(bogusHandle, 42, 0xE4);
+    fx.commandQueue->clearSemanticFocus(bogusHandle, 0xE5);
 
     fx.pump();
 
     // One stateMachineError per semantic command; the instantiation failure is
     // an artboardError, so it does not reach this listener.
-    CHECK(bogusListener.m_errorCount == 4);
+    CHECK(bogusListener.m_errorCount == 5);
     CHECK(bogusListener.m_diffCount == 0);
 }
 
@@ -5997,6 +6000,53 @@ TEST_CASE("Semantics requestSemanticFocus on a valid node routes without error",
 
     // Routing to an enabled state machine must never surface an error,
     // regardless of whether the node ultimately accepts focus.
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics clearSemanticFocus removes Focused bit from focused node",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener,
+                       "assets/semantic/semantic_list_scroll_focus_fixed.riv");
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    // Find a node with the Focusable trait.
+    uint32_t focusableId = 0;
+    for (auto& kv : listener.m_model.nodes)
+    {
+        if (hasSemanticTrait(kv.second.traitFlags, SemanticTrait::Focusable))
+        {
+            focusableId = kv.second.id;
+            break;
+        }
+    }
+    REQUIRE(focusableId != 0);
+
+    // Focus it through the command queue.
+    fx.commandQueue->requestSemanticFocus(fx.stateMachineHandle, focusableId);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    auto it = listener.m_model.nodes.find(focusableId);
+    REQUIRE(it != listener.m_model.nodes.end());
+    CHECK(hasSemanticState(it->second.stateFlags, SemanticState::Focused));
+
+    // Clear focus through the command queue.
+    fx.commandQueue->clearSemanticFocus(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    it = listener.m_model.nodes.find(focusableId);
+    REQUIRE(it != listener.m_model.nodes.end());
+    CHECK_FALSE(
+        hasSemanticState(it->second.stateFlags, SemanticState::Focused));
     CHECK(listener.m_errorCount == 0);
 }
 

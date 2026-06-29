@@ -627,6 +627,10 @@ public:
                               uint32_t semanticNodeId,
                               uint64_t requestId = 0);
 
+    // Clear all semantic focus. Called when the screen reader moves
+    // focus entirely away from the hosting view.
+    void clearSemanticFocus(StateMachineHandle, uint64_t requestId = 0);
+
     RenderImageHandle decodeImage(std::vector<uint8_t> imageEncodedBytes,
                                   RenderImageListener* listener = nullptr,
                                   uint64_t requestId = 0);
@@ -912,6 +916,7 @@ private:
         drainSemanticsDiff,
         fireSemanticAction,
         requestSemanticFocus,
+        clearSemanticFocus,
         bindViewModelInstance,
         runOnce,
         draw,

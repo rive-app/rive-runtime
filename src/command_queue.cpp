@@ -720,6 +720,15 @@ void CommandQueue::requestSemanticFocus(StateMachineHandle stateMachineHandle,
     m_commandStream << semanticNodeId;
 }
 
+void CommandQueue::clearSemanticFocus(StateMachineHandle stateMachineHandle,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::clearSemanticFocus;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
 RenderImageHandle CommandQueue::decodeImage(
     std::vector<uint8_t> imageEncodedBytes,
     RenderImageListener* listener,
