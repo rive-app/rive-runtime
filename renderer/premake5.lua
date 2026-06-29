@@ -51,6 +51,11 @@ if not _OPTIONS['with-webgpu'] then
             'rive_sheenbidi',
             'rive_yoga',
         })
+        
+        filter({ 'options:with_rive_scripting' })
+        do
+        links({ 'luau_vm' })
+        end
         filter({ 'options:not no_rive_png' })
         do
             links({ 'zlib', 'libpng' })
