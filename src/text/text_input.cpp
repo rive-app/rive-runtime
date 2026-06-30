@@ -395,6 +395,26 @@ bool TextInput::keyInput(Key value,
                     return true;
                 }
                 break;
+            case Key::a:
+                if ((modifiers & systemModifier()) != KeyModifiers::none)
+                {
+                    m_rawTextInput.selectAll();
+                    markPaintDirty();
+                    return true;
+                }
+                break;
+            case Key::home:
+                m_rawTextInput.cursorLeft(CursorBoundary::line,
+                                          (modifiers & KeyModifiers::shift) !=
+                                              KeyModifiers::none);
+                markPaintDirty();
+                return true;
+            case Key::end:
+                m_rawTextInput.cursorRight(CursorBoundary::line,
+                                           (modifiers & KeyModifiers::shift) !=
+                                               KeyModifiers::none);
+                markPaintDirty();
+                return true;
             case Key::backspace:
                 m_rawTextInput.backspace(-1);
                 syncSourceTextFromRaw();
@@ -666,6 +686,22 @@ void TextInput::endDrag(Vec2D worldPosition)
     m_lastDragWorldPosition = Vec2D(NAN, NAN);
     m_scrollX = 0.0f;
     m_scrollY = 0.0f;
+}
+
+void TextInput::selectWord()
+{
+#ifdef WITH_RIVE_TEXT
+    m_rawTextInput.selectWord();
+    markPaintDirty();
+#endif
+}
+
+void TextInput::selectLine()
+{
+#ifdef WITH_RIVE_TEXT
+    m_rawTextInput.selectLine();
+    markPaintDirty();
+#endif
 }
 
 bool TextInput::advanceDrag(float elapsedSeconds)

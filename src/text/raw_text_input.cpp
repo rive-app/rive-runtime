@@ -470,6 +470,36 @@ void RawTextInput::selectWord()
     flag(Flags::selectionDirty);
 }
 
+void RawTextInput::selectAll()
+{
+    ensureShape();
+    m_idealCursorX = -1.0f;
+    CursorPosition start = CursorPosition::atIndex(0, m_shape);
+    CursorPosition end = CursorPosition::atIndex((uint32_t)length(), m_shape);
+    m_cursor = Cursor(start, end);
+    flag(Flags::selectionDirty);
+}
+
+void RawTextInput::selectLine()
+{
+    ensureShape();
+    m_idealCursorX = -1.0f;
+    CursorPosition cursor = m_cursor.start();
+    cursor.resolveLine(m_shape);
+    const OrderedLine* line = orderedLine(cursor);
+    if (line == nullptr)
+    {
+        return;
+    }
+    const auto& glyphLookup = m_shape.glyphLookup();
+    CursorPosition start(cursor.lineIndex(),
+                         line->firstCodePointIndex(glyphLookup));
+    CursorPosition end(cursor.lineIndex(),
+                       line->lastCodePointIndex(glyphLookup));
+    m_cursor = Cursor(start, end);
+    flag(Flags::selectionDirty);
+}
+
 const OrderedLine* RawTextInput::orderedLine(CursorPosition position) const
 {
     const std::vector<OrderedLine>& orderedLines = m_shape.orderedLines();
