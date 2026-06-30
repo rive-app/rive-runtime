@@ -11,9 +11,13 @@ GPUResource::~GPUResource() {}
 void GPUResource::onRefCntReachedZero() const
 {
     // GPUResourceManager will hold off on deleting "this" until its safe frame
-    // number has been reached.
+    // number has been reached. With no manager (the Metal Ore backend keeps
+    // native objects alive via ARC and command-buffer retention rather than a
+    // manager) there is no deferred reclaim, so delete now instead of leaking.
     if (m_manager)
         m_manager->onRenderingResourceReleased(const_cast<GPUResource*>(this));
+    else
+        delete const_cast<GPUResource*>(this);
 }
 
 GPUResourceManager::~GPUResourceManager()

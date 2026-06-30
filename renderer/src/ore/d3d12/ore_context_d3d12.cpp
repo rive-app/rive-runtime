@@ -569,6 +569,8 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
 void ContextD3D12::beginFrame(const FrameDescriptor& desc)
 {
 #if defined(ORE_BACKEND_D3D12)
+    m_currentFrameNumber = desc.currentFrameNumber;
+    m_safeFrameNumber = desc.safeFrameNumber;
     m_d3dCmdList =
         static_cast<ID3D12GraphicsCommandList*>(desc.externalCommandBuffer);
 
@@ -676,17 +678,13 @@ D3D12_GPU_DESCRIPTOR_HANDLE ContextD3D12::d3d12GpuSamplerGpuHandle(
 // d3d12MakeBuffer
 // ============================================================================
 
-rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
+bool ContextD3D12::d3d12AllocBufferBacking(
+    UINT64 alignedSize,
+    Microsoft::WRL::ComPtr<ID3D12Resource>& outResource,
+    void** outMapped)
 {
 #if defined(ORE_BACKEND_D3D12)
-    auto buffer =
-        rcp<BufferD3D12>(new BufferD3D12(m_manager, desc.size, desc.usage));
-
     // All ORE buffers live in UPLOAD heap — simple, safe for test workloads.
-    UINT64 alignedSize = desc.size;
-    if (desc.usage == BufferUsage::uniform)
-        alignedSize = (alignedSize + 255) & ~255ULL; // 256-byte CB alignment.
-
     D3D12_HEAP_PROPERTIES heapProps = {};
     heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
 
@@ -706,15 +704,41 @@ rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
         &resDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(buffer->m_d3dBuffer.GetAddressOf()));
+        IID_PPV_ARGS(outResource.GetAddressOf()));
     if (FAILED(hr))
-        return nullptr;
+        return false;
 
     // Persistently map. UPLOAD heap memory is write-combined; keep mapped.
     D3D12_RANGE readRange = {0, 0};
-    hr = buffer->m_d3dBuffer->Map(0, &readRange, &buffer->m_d3dMappedPtr);
-    if (FAILED(hr))
+    hr = outResource->Map(0, &readRange, outMapped);
+    return SUCCEEDED(hr);
+#else
+    (void)alignedSize;
+    (void)outResource;
+    (void)outMapped;
+    return false;
+#endif
+}
+
+rcp<Buffer> ContextD3D12::d3d12MakeBuffer(const BufferDesc& desc)
+{
+#if defined(ORE_BACKEND_D3D12)
+    auto buffer =
+        rcp<BufferD3D12>(new BufferD3D12(m_manager, desc.size, desc.usage));
+
+    UINT64 alignedSize = desc.size;
+    if (desc.usage == BufferUsage::uniform)
+        alignedSize = (alignedSize + 255) & ~255ULL; // 256-byte CB alignment.
+
+    if (!d3d12AllocBufferBacking(alignedSize,
+                                 buffer->m_d3dBuffer,
+                                 &buffer->m_d3dMappedPtr))
         return nullptr;
+
+    // Seed versioning state so a write after a bind orphans onto a fresh
+    // backing instead of racing the GPU still reading the bound one.
+    buffer->m_ctx = this;
+    buffer->m_allocatedSize = alignedSize;
 
     if (desc.data)
         memcpy(buffer->m_d3dMappedPtr, desc.data, desc.size);
@@ -1435,8 +1459,10 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
         assert(slot < 8);
         auto buffer = lite_rtti_cast<BufferD3D12*>(entry.buffer);
         assert(buffer != nullptr);
-        bg->m_d3dUBOAddresses[slot] =
-            buffer->m_d3dBuffer->GetGPUVirtualAddress() + entry.offset;
+        // Store the buffer, not its GPU-VA: the backing can change on a
+        // later update(), so the address must be resolved at apply time.
+        bg->m_d3dUBOBuffers[slot] = buffer;
+        bg->m_d3dUBOOffsets[slot] = entry.offset;
         bg->m_d3dUBOSizes[slot] =
             entry.size > 0 ? entry.size : static_cast<uint32_t>(buffer->size());
         bg->m_d3dUBOSlotMask |= static_cast<uint8_t>(1u << slot);

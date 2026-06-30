@@ -8,6 +8,9 @@
 
 #import <Metal/Metal.h>
 
+#include <atomic>
+#include <memory>
+
 namespace rive::ore
 {
 
@@ -49,6 +52,16 @@ public:
 
     ShaderTarget shaderTarget() const override { return ShaderTarget::msl; }
 
+    // Buffer versioning serials. currentSerial is the command buffer being
+    // recorded. completedSerial is the highest the GPU has finished, so a
+    // backing at or below it can be recycled. See ore_buffer_metal.mm.
+    uint64_t currentSerial() const { return m_currentSerial; }
+    uint64_t completedSerial() const
+    {
+        return m_completedSerial->load(std::memory_order_relaxed);
+    }
+    id<MTLDevice> device() const { return m_mtlDevice; }
+
     ContextMetal(const ContextMetal&) = delete;
     ContextMetal& operator=(const ContextMetal&) = delete;
 
@@ -79,6 +92,14 @@ private:
     id<MTLCommandBuffer> m_mtlCommandBuffer = nil;
 
     std::vector<rcp<BindGroup>> m_deferredBindGroups;
+
+    // Serial of the command buffer being recorded, bumped each frame.
+    uint64_t m_currentSerial = 0;
+    // Highest serial the GPU has finished. Written on the completion handler
+    // thread, read on the recording thread, hence atomic. shared_ptr so the
+    // handler stays valid even if the context dies first.
+    std::shared_ptr<std::atomic<uint64_t>> m_completedSerial =
+        std::make_shared<std::atomic<uint64_t>>(0);
 };
 
 } // namespace rive::ore

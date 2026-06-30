@@ -84,6 +84,21 @@ VkDescriptorSet DescriptorPoolGeneration::tryAllocate(VkDescriptorSetLayout dsl)
     return set;
 }
 
+ContextVulkan::DescriptorSetAllocation ContextVulkan::vkAllocateDescriptorSet(
+    VkDescriptorSetLayout dsl)
+{
+    if (m_currentDescriptorPool == nullptr)
+        m_currentDescriptorPool = make_rcp<DescriptorPoolGeneration>(m_vk);
+    VkDescriptorSet set = m_currentDescriptorPool->tryAllocate(dsl);
+    if (set == VK_NULL_HANDLE)
+    {
+        // Capacity or driver refusal. Roll a fresh generation and retry.
+        m_currentDescriptorPool = make_rcp<DescriptorPoolGeneration>(m_vk);
+        set = m_currentDescriptorPool->tryAllocate(dsl);
+    }
+    return {set, m_currentDescriptorPool};
+}
+
 // ============================================================================
 // Enum → VkFormat helper (shared with ore_texture_vulkan.cpp via header,
 // but declared again here as a file-local helper for the render pass builder).
@@ -856,29 +871,41 @@ rcp<Buffer> ContextVulkan::makeBuffer(const BufferDesc& desc)
             break;
     }
 
+    // Remembered so the buffer can allocate matching backings when it orphans
+    // on an update after bind. See BufferVulkan::acquireFreshBacking.
+    buffer->m_vkUsage = usage;
+
     VkBufferCreateInfo bufCI{};
     bufCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufCI.size = desc.size;
     bufCI.usage = usage;
 
-    // Host-visible, persistently mapped — direct CPU writes, no staging.
+    // Host visible and persistently mapped so CPU writes go direct, no staging.
     VmaAllocationCreateInfo allocCI{};
     allocCI.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     allocCI.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VmaAllocationInfo allocInfo{};
-    vmaCreateBuffer(m_vk->allocator(),
-                    &bufCI,
-                    &allocCI,
-                    &buffer->m_vkBuffer,
-                    &buffer->m_vmaAllocation,
-                    &allocInfo);
+    if (vmaCreateBuffer(m_vk->allocator(),
+                        &bufCI,
+                        &allocCI,
+                        &buffer->m_vkBuffer,
+                        &buffer->m_vmaAllocation,
+                        &allocInfo) != VK_SUCCESS)
+        return nullptr; // Allocation failed.
     buffer->m_vkMappedPtr = allocInfo.pMappedData;
 
     if (desc.data != nullptr)
     {
         memcpy(buffer->m_vkMappedPtr, desc.data, desc.size);
     }
+
+    // Seed the backing pool with this first allocation, mirrored above. The
+    // pool stays at one backing unless the buffer is updated after being bound.
+    buffer->m_pool.push_back({buffer->m_vkBuffer,
+                              buffer->m_vmaAllocation,
+                              buffer->m_vkMappedPtr,
+                              0});
 
     return buffer;
 }
@@ -1207,35 +1234,13 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
             ++dynamicCount;
     }
     bg->m_dynamicOffsetCount = dynamicCount;
+    bg->m_vkDSL = layout->m_vkDSL;
 
-    VkDescriptorSetLayout dsl = layout->m_vkDSL;
-    if (m_currentDescriptorPool == nullptr)
-    {
-        m_currentDescriptorPool = make_rcp<DescriptorPoolGeneration>(m_vk);
-    }
-    bg->m_vkDescriptorSet = m_currentDescriptorPool->tryAllocate(dsl);
-    if (bg->m_vkDescriptorSet == VK_NULL_HANDLE)
-    {
-        // Capacity or driver refusal. Roll a fresh generation and retry.
-        m_currentDescriptorPool = make_rcp<DescriptorPoolGeneration>(m_vk);
-        bg->m_vkDescriptorSet = m_currentDescriptorPool->tryAllocate(dsl);
-    }
-    if (bg->m_vkDescriptorSet == VK_NULL_HANDLE)
-    {
-        return nullptr;
-    }
-    bg->m_pool = m_currentDescriptorPool;
-
-    // Build VkWriteDescriptorSet entries for each binding. Vulkan binding
-    // numbers equal WGSL `@binding` directly (Vulkan is per-set namespaced).
-    // Validate against the layout's entries.
-    constexpr uint32_t kMaxWrites = 32;
-    VkWriteDescriptorSet writes[kMaxWrites] = {};
-    VkDescriptorBufferInfo bufferInfos[kMaxWrites] = {};
-    VkDescriptorImageInfo imageInfos[kMaxWrites] = {};
-    uint32_t writeIdx = 0;
-    uint32_t bufInfoIdx = 0;
-    uint32_t imgInfoIdx = 0;
+    // Validate and capture a replayable write recipe. Descriptor sets are
+    // resolved lazily at bind time in BindGroupVulkan::resolveDescriptorSet, so
+    // a UBO that orphans onto a fresh backing gets a set written against it.
+    // Vulkan binding numbers equal WGSL `@binding` directly since they are
+    // per set namespaced.
 
     // Resolves the layout's native descriptor binding for a WGSL @binding.
     // The SPIR-V emitter compacts sparse @binding's into per-group
@@ -1283,24 +1288,17 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         uint32_t dstBinding = 0;
         if (!resolveLayout(ubo.slot, BindingKind::uniformBuffer, &dstBinding))
             continue;
-        assert(writeIdx < kMaxWrites && bufInfoIdx < kMaxWrites);
 
-        VkDescriptorBufferInfo& bi = bufferInfos[bufInfoIdx++];
         auto buffer = lite_rtti_cast<BufferVulkan*>(ubo.buffer);
-        bi.buffer = buffer->m_vkBuffer;
-        bi.offset = ubo.offset;
-        bi.range = (ubo.size > 0) ? ubo.size : buffer->size();
-
-        VkWriteDescriptorSet& w = writes[writeIdx++];
-        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        w.dstSet = bg->m_vkDescriptorSet;
+        BindGroupVulkan::UBOWrite w;
+        w.buffer = buffer;
         w.dstBinding = dstBinding;
-        w.dstArrayElement = 0;
-        w.descriptorCount = 1;
-        w.descriptorType = layout->hasDynamicOffset(ubo.slot)
-                               ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
-                               : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        w.pBufferInfo = &bi;
+        w.offset = ubo.offset;
+        w.range = (ubo.size > 0) ? ubo.size : buffer->size();
+        w.type = layout->hasDynamicOffset(ubo.slot)
+                     ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
+                     : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bg->m_uboWrites.push_back(w);
 
         bg->m_retainedBuffers.push_back(ref_rcp(ubo.buffer));
     }
@@ -1313,7 +1311,6 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         uint32_t dstBinding = 0;
         if (!resolveLayout(tex.slot, BindingKind::sampledTexture, &dstBinding))
             continue;
-        assert(writeIdx < kMaxWrites && imgInfoIdx < kMaxWrites);
 
         // Queue any-layout to SHADER_READ_ONLY_OPTIMAL transition;
         // flushed before the next draw. Mirrors Dawn's
@@ -1329,21 +1326,15 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
                                   aspect,
                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        VkDescriptorImageInfo& ii = imageInfos[imgInfoIdx++];
         auto view = lite_rtti_cast<TextureViewVulkan*>(tex.view);
         assert(view != nullptr);
-        ii.imageView = view->m_vkImageView;
-        ii.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        ii.sampler = VK_NULL_HANDLE; // Sampler bound separately.
-
-        VkWriteDescriptorSet& w = writes[writeIdx++];
-        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        w.dstSet = bg->m_vkDescriptorSet;
+        BindGroupVulkan::ImageWrite w;
         w.dstBinding = dstBinding;
-        w.dstArrayElement = 0;
-        w.descriptorCount = 1;
-        w.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        w.pImageInfo = &ii;
+        w.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        w.imageView = view->m_vkImageView;
+        w.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        w.sampler = VK_NULL_HANDLE; // Sampler bound separately.
+        bg->m_imageWrites.push_back(w);
 
         bg->m_retainedViews.push_back(ref_rcp(tex.view));
     }
@@ -1355,30 +1346,23 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         uint32_t dstBinding = 0;
         if (!resolveLayout(samp.slot, BindingKind::sampler, &dstBinding))
             continue;
-        assert(writeIdx < kMaxWrites && imgInfoIdx < kMaxWrites);
 
-        VkDescriptorImageInfo& ii = imageInfos[imgInfoIdx++];
         auto sampler = lite_rtti_cast<SamplerVulkan*>(samp.sampler);
-        ii.sampler = sampler->m_vkSampler;
-        ii.imageView = VK_NULL_HANDLE;
-        ii.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        VkWriteDescriptorSet& w = writes[writeIdx++];
-        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        w.dstSet = bg->m_vkDescriptorSet;
+        BindGroupVulkan::ImageWrite w;
         w.dstBinding = dstBinding;
-        w.dstArrayElement = 0;
-        w.descriptorCount = 1;
-        w.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-        w.pImageInfo = &ii;
+        w.type = VK_DESCRIPTOR_TYPE_SAMPLER;
+        w.imageView = VK_NULL_HANDLE;
+        w.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        w.sampler = sampler->m_vkSampler;
+        bg->m_imageWrites.push_back(w);
 
         bg->m_retainedSamplers.push_back(ref_rcp(samp.sampler));
     }
 
-    if (writeIdx > 0)
-    {
-        m_vk->UpdateDescriptorSets(m_vk->device, writeIdx, writes, 0, nullptr);
-    }
+    // Resolve once now to preserve fail-fast on device OOM (matching the WGPU
+    // path); later orphans allocate additional sets as their UBOs need them.
+    if (bg->resolveDescriptorSet() == VK_NULL_HANDLE)
+        return nullptr;
 
     return bg;
 }

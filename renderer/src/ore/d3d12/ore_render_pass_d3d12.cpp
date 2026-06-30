@@ -176,8 +176,9 @@ void RenderPassD3D12::setVertexBuffer(uint32_t slot,
                       ? m_d3dCurrentPipeline->m_d3dVertexStrides[slot]
                       : 0;
 
+    buffer->markBound();
     D3D12_VERTEX_BUFFER_VIEW vbv = {};
-    vbv.BufferLocation = buffer->m_d3dBuffer->GetGPUVirtualAddress() + offset;
+    vbv.BufferLocation = buffer->currentGpuVA() + offset;
     vbv.SizeInBytes = buffer->m_size - offset;
     vbv.StrideInBytes = stride;
     m_d3dCmdList->IASetVertexBuffers(slot, 1, &vbv);
@@ -205,8 +206,9 @@ void RenderPassD3D12::setIndexBuffer(Buffer* inBuffer,
                                                        : DXGI_FORMAT_R16_UINT;
     m_d3dIndexOffset = offset;
 
+    buffer->markBound();
     D3D12_INDEX_BUFFER_VIEW ibv = {};
-    ibv.BufferLocation = buffer->m_d3dBuffer->GetGPUVirtualAddress() + offset;
+    ibv.BufferLocation = buffer->currentGpuVA() + offset;
     ibv.SizeInBytes = buffer->m_size - offset;
     ibv.Format = m_d3dIndexFormat;
     m_d3dCmdList->IASetIndexBuffer(&ibv);

@@ -158,6 +158,17 @@ private:
     // `vkDeferDestroy` if needed.
     VkDescriptorSetLayout m_vkEmptyDSL = VK_NULL_HANDLE;
     VkDescriptorSetLayout vkGetOrCreateEmptyDSL();
+
+    // Allocate a descriptor set from the active generation, rolling a fresh one
+    // on capacity. The returned pool ref keeps the set alive. Used by
+    // makeBindGroup and by BindGroupVulkan when a UBO orphans onto a new
+    // backing and needs a freshly written set.
+    struct DescriptorSetAllocation
+    {
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        rcp<DescriptorPoolGeneration> pool;
+    };
+    DescriptorSetAllocation vkAllocateDescriptorSet(VkDescriptorSetLayout dsl);
     // Render pass cache — typically <10 entries, keyed on format+load/store
     // ops.
     std::vector<std::pair<VKRenderPassKey, VkRenderPass>> m_vkRenderPassCache;

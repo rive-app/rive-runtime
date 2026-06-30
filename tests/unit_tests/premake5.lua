@@ -120,6 +120,10 @@ do
             'CoreGraphics.framework',
             'CoreText.framework',
         })
+        -- The ore helper pulls in <Metal/Metal.h>, so compile this test as
+        -- Obj-C++ on Apple instead of the C++ glob.
+        files({ 'renderer/ore_buffer_race_test.mm' })
+        removefiles({ 'renderer/ore_buffer_race_test.cpp' })
     end
 
     filter({ 'toolset:not msc' })
