@@ -46,6 +46,10 @@ static bool focusNodeEligibleForTraversal(FocusNode* node)
     return focusNodeEligibleForFocus(node);
 }
 
+// Defined later in this file; used by setFocus to descend a scope to its first
+// eligible leaf.
+static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager);
+
 void FocusManager::dropFocusIfFocusTargetHidden()
 {
     if (m_primaryFocus == nullptr)
@@ -106,6 +110,24 @@ void FocusManager::removeManager(rcp<FocusNode> node)
 
 void FocusManager::setFocus(rcp<FocusNode> node)
 {
+    // Focus always rests on a leaf: if handed a scope (a node with eligible
+    // traversable descendants), descend to its first eligible leaf — matching
+    // Tab/arrow traversal, which never lands focus on a scope. Falls back to
+    // the node itself when it has no eligible leaf.
+    //
+    // Gate the descent on the requested target being eligible for focus, so a
+    // programmatic focus on an ineligible target (canFocus==false, collapsed,
+    // hidden, opacity 0, ...) stays a no-op as before, rather than reaching an
+    // eligible descendant and bypassing the early-return guards below.
+    if (node != nullptr && focusNodeEligibleForFocus(node.get()))
+    {
+        FocusNode* leaf = getFirstLeaf(node.get(), this);
+        if (leaf != nullptr)
+        {
+            node = ref_rcp(leaf);
+        }
+    }
+
     if (node == m_primaryFocus)
     {
         return;

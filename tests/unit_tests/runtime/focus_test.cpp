@@ -981,6 +981,114 @@ TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
     CHECK(state.expectsKeyboardInput == false);
 }
 
+TEST_CASE("FocusManager setFocus on a scope descends to first leaf",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf1 = make_rcp<FocusNode>();
+    auto leaf2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // Focusing the scope resolves to its first eligible leaf.
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == leaf1);
+}
+
+TEST_CASE("FocusManager setFocus on a scope descends depth-first",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto row = make_rcp<FocusNode>();
+    auto leaf = make_rcp<FocusNode>();
+    auto sibling = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, row);
+    manager.addChild(row, leaf);
+    manager.addChild(scope, sibling);
+
+    // Depth-first: first leaf is the leaf nested under the first child (row).
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == leaf);
+}
+
+TEST_CASE("FocusManager setFocus on a scope with no eligible leaf falls back",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto child = make_rcp<FocusNode>();
+    // Child cannot be traversed, so the scope has no eligible leaf to descend
+    // to. The scope itself remains the focus target (preserves prior behavior).
+    child->canTraverse(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, child);
+
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == scope);
+}
+
+TEST_CASE("FocusManager setFocus on an ineligible scope is a no-op",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf = make_rcp<FocusNode>();
+    // The requested target itself cannot be focused. Descent must not reach an
+    // eligible descendant — focus stays unchanged (no-op), matching the prior
+    // early-return guard behavior.
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf);
+
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusManager setFocus on a leaf is unchanged", "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf1 = make_rcp<FocusNode>();
+    auto leaf2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // Directly focusing a leaf still focuses that exact leaf (no-op descent).
+    manager.setFocus(leaf2);
+    CHECK(manager.primaryFocus() == leaf2);
+}
+
+TEST_CASE("FocusManager Tab after focusing a scope traverses leaf siblings",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf1 = make_rcp<FocusNode>();
+    auto leaf2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // Focusing the scope lands on the first leaf; Tab then advances to the
+    // scope's next leaf rather than skipping the scope's children.
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == leaf1);
+
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leaf2);
+}
+
 } // namespace rive
 
 TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
