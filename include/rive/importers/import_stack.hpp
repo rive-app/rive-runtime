@@ -102,9 +102,21 @@ public:
         return false;
     }
 
+    // The major/minor version of the file being imported. Objects can read
+    // this during import() to gate behavior on the file format version.
+    int majorVersion() const { return m_majorVersion; }
+    int minorVersion() const { return m_minorVersion; }
+    void version(int major, int minor)
+    {
+        m_majorVersion = major;
+        m_minorVersion = minor;
+    }
+
 private:
     std::unordered_map<uint16_t, std::unique_ptr<ImportStackObject>> m_latests;
     std::vector<ImportStackObject*> m_lastAdded;
+    int m_majorVersion = 0;
+    int m_minorVersion = 0;
 };
 } // namespace rive
 #endif

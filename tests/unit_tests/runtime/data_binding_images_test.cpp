@@ -8,6 +8,7 @@
 #include <rive/shapes/paint/color.hpp>
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/image.hpp>
+#include <rive/layout_component.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/text/text_value_run.hpp>
 #include <rive/custom_property_number.hpp>
@@ -426,4 +427,153 @@ TEST_CASE("Image fit & alignment images 3", "[silver]")
     }
 
     CHECK(silver.matches("image_fit_alignment_3"));
+}
+
+TEST_CASE("Image fit & alignment with image scaling", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/image_fit_alignment_updated_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 60;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("image_fit_alignment_updated_test"));
+}
+
+// The image_fit_alignment asset stores a non-default scaleX/scaleY on its
+// layout images. Pre-7.2 files overwrite that with the layout fit (the stored
+// scale is ignored). 7.2+ files keep it as the user scale and compose it on top
+// of the fit. We patch the file header's minor version to exercise both paths
+// from the same asset.
+TEST_CASE("Layout image composes user scale on top of fit for 7.2 files",
+          "[assets]")
+{
+    auto legacyBytes = ReadFile("assets/image_fit_alignment.riv");
+    REQUIRE(legacyBytes.size() > 6);
+    REQUIRE(legacyBytes[0] == 'R');
+    REQUIRE(legacyBytes[1] == 'I');
+    REQUIRE(legacyBytes[2] == 'V');
+    REQUIRE(legacyBytes[3] == 'E');
+    // Major/minor are single-byte varuints here.
+    REQUIRE(legacyBytes[4] == 7);
+    REQUIRE(legacyBytes[5] < 2);
+
+    auto modernBytes = legacyBytes;
+    modernBytes[5] = 2; // bump the minor version to 7.2
+
+    auto xAxisScale = [](const rive::Mat2D& m) {
+        return rive::Vec2D(m[0], m[1]).length();
+    };
+
+    // Loads the file, binds its view model, and holds the file/artboard/state
+    // machine alive plus the layout images in artboard order (identical between
+    // the two files since they share bytes).
+    struct Loaded
+    {
+        rive::rcp<rive::File> file;
+        std::unique_ptr<rive::ArtboardInstance> artboard;
+        std::unique_ptr<rive::StateMachineInstance> stateMachine;
+        std::vector<rive::Image*> images;
+    };
+    auto load = [](std::vector<uint8_t>& bytes,
+                   rive::Factory* factory) -> Loaded {
+        Loaded loaded;
+        rive::ImportResult result;
+        loaded.file = rive::File::import(bytes, factory, &result);
+        REQUIRE(result == rive::ImportResult::success);
+        loaded.artboard = loaded.file->artboardNamed("Main");
+        REQUIRE(loaded.artboard != nullptr);
+        loaded.stateMachine = loaded.artboard->stateMachineAt(0);
+        REQUIRE(loaded.stateMachine != nullptr);
+        int viewModelId = loaded.artboard->viewModelId();
+        auto vmi =
+            viewModelId == -1
+                ? loaded.file->createViewModelInstance(loaded.artboard.get())
+                : loaded.file->createViewModelInstance(viewModelId, 0);
+        loaded.stateMachine->bindViewModelInstance(vmi);
+        loaded.stateMachine->advanceAndApply(0.1f);
+        for (auto image : loaded.artboard->objects<rive::Image>())
+        {
+            if (image->parent() != nullptr &&
+                image->parent()->is<rive::LayoutComponent>())
+            {
+                loaded.images.push_back(image);
+            }
+        }
+        return loaded;
+    };
+
+    // Use SerializingFactory so the in-band images actually decode (it gives
+    // real image dimensions, which the fit depends on). One per file, kept
+    // alive for the file's lifetime.
+    rive::SerializingFactory legacyFactory;
+    rive::SerializingFactory modernFactory;
+    auto legacy = load(legacyBytes, &legacyFactory);
+    auto modern = load(modernBytes, &modernFactory);
+    REQUIRE(!legacy.images.empty());
+    REQUIRE(legacy.images.size() == modern.images.size());
+
+    // The layout is animated and may start collapsed (fit ~ 0). Advance both
+    // files in lockstep (identical state) until a layout image is open, then
+    // pick that image. This avoids depending on async decode timing landing on
+    // an open frame.
+    rive::NoOpRenderer renderer;
+    size_t pick = legacy.images.size();
+    for (int frame = 0; frame < 120 && pick == legacy.images.size(); frame++)
+    {
+        for (size_t i = 0; i < legacy.images.size(); i++)
+        {
+            if (xAxisScale(legacy.images[i]->worldTransform()) > 1.0f)
+            {
+                pick = i;
+                break;
+            }
+        }
+        if (pick != legacy.images.size())
+        {
+            break;
+        }
+        legacy.stateMachine->advanceAndApply(0.016f);
+        modern.stateMachine->advanceAndApply(0.016f);
+    }
+    REQUIRE(pick != legacy.images.size());
+
+    auto legacyImage = legacy.images[pick];
+    auto modernImage = modern.images[pick];
+
+    // 7.2 keeps the stored (non-default) user scale; legacy overwrites it with
+    // the fit.
+    float userScaleX = modernImage->scaleX();
+    REQUIRE(userScaleX != Approx(1.0f));
+    CHECK(legacyImage->scaleX() != Approx(userScaleX));
+
+    // Modern renders at fit * userScale; legacy at fit only (same layout
+    // state).
+    float legacyScale = xAxisScale(legacyImage->worldTransform());
+    float modernScale = xAxisScale(modernImage->worldTransform());
+    REQUIRE(legacyScale > 0.0f);
+    CHECK(modernScale == Approx(legacyScale * userScaleX));
 }

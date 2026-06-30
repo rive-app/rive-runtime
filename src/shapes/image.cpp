@@ -96,6 +96,13 @@ StatusCode Image::import(ImportStack& importStack)
     {
         return result;
     }
+    // Files exported before 7.2 overwrite scaleX/scaleY with the layout fit, so
+    // any stored scale on a layout image was ignored. Keep that legacy behavior
+    // for those files; newer files compose the fit as a separate scale so the
+    // user scale stays editable/animatable.
+    int major = importStack.majorVersion();
+    int minor = importStack.minorVersion();
+    m_layoutScaleSeparate = major > 7 || (major == 7 && minor >= 2);
     return Super::import(importStack);
 }
 
@@ -129,6 +136,7 @@ void Image::assetUpdated()
 Core* Image::clone() const
 {
     Image* twin = ImageBase::clone()->as<Image>();
+    twin->m_layoutScaleSeparate = m_layoutScaleSeparate;
     if (m_fileAsset != nullptr)
     {
         twin->setAsset(m_fileAsset);
@@ -230,6 +238,10 @@ void Image::controlSize(Vec2D size,
 void Image::updateTransform()
 {
     Super::updateTransform();
+    // Compose the layout fit scale on top of the user transform (innermost), so
+    // the user's scaleX/scaleY (built by Super) remain free to be animated:
+    //   M = T(offset) * UserLocal * S(fitScale)
+    m_Transform.scaleByValues(m_layoutScaleX, m_layoutScaleY);
     m_Transform[4] += m_layoutOffsetX;
     m_Transform[5] += m_layoutOffsetY;
 }
@@ -323,10 +335,26 @@ void Image::updateImageScale()
             newOffsetY = -scaledTop + heightRemainder * yAlign;
         }
 
-        if (newScaleX != scaleX() || newScaleY != scaleY())
+        if (m_layoutScaleSeparate)
         {
-            scaleX(newScaleX);
-            scaleY(newScaleY);
+            if (newScaleX != m_layoutScaleX || newScaleY != m_layoutScaleY)
+            {
+                m_layoutScaleX = newScaleX;
+                m_layoutScaleY = newScaleY;
+                // Fit scale is composed in updateTransform(), so changing it
+                // must mark the local transform dirty (not just the world
+                // transform).
+                markTransformDirty();
+            }
+        }
+        else
+        {
+            // Legacy (pre-7.2): the fit overwrites the user scale.
+            if (newScaleX != scaleX() || newScaleY != scaleY())
+            {
+                scaleX(newScaleX);
+                scaleY(newScaleY);
+            }
         }
     }
     if (newOffsetX != m_layoutOffsetX || newOffsetY != m_layoutOffsetY)

@@ -35,6 +35,17 @@ private:
     float m_layoutHeight = NAN;
     float m_layoutOffsetX = 0.0f;
     float m_layoutOffsetY = 0.0f;
+    // The layout-driven fit scale is stored separately (rather than written
+    // into scaleX/scaleY) so the user-facing scale stays free to be
+    // edited/animated. It is composed with the local transform in
+    // updateTransform().
+    float m_layoutScaleX = 1.0f;
+    float m_layoutScaleY = 1.0f;
+    // Whether the file applies the layout fit as a separate scale (7.2+).
+    // Legacy files overwrite scaleX/scaleY with the fit instead. Set from the
+    // file version at import; defaults to the modern behavior for
+    // runtime-created images.
+    bool m_layoutScaleSeparate = true;
     void updateImageScale();
 
 public:
@@ -57,6 +68,10 @@ public:
                      LayoutDirection direction) override;
     float width() const;
     float height() const;
+    // Effective render scale: the user-facing scaleX/scaleY composed with the
+    // layout fit scale. Equals the user scale when not in a layout.
+    float renderScaleX() const { return scaleX() * m_layoutScaleX; }
+    float renderScaleY() const { return scaleY() * m_layoutScaleY; }
     void assetUpdated() override;
     AABB localBounds() const override;
     void updateTransform() override;
