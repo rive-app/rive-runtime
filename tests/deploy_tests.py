@@ -627,7 +627,11 @@ def launch_player(test_harness_server):
         cmd += ["--options", args.options]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
-    rivsqueue.put(args.src)
+    if os.path.isdir(args.src):
+        for riv in glob.iglob(os.path.join(args.src, "*.riv")):
+            rivsqueue.put(riv)
+    else:
+        rivsqueue.put(args.src)
     player = CheckProcess(cmd, env)
     player.start()
     return player
