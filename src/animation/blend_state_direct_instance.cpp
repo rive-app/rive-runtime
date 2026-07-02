@@ -42,7 +42,8 @@ void BlendStateDirectInstance::advance(
             auto bindableInstance =
                 stateMachineInstance->bindablePropertyInstance(
                     bindableProperty);
-            if (bindableInstance->is<BindablePropertyNumber>())
+            if (bindableInstance &&
+                bindableInstance->is<BindablePropertyNumber>())
             {
                 auto bindableNumber =
                     bindableInstance->as<BindablePropertyNumber>();
