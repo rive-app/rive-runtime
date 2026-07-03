@@ -160,7 +160,7 @@ function rive_tools_project(name, project_kind)
             '_WINSOCK_DEPRECATED_NO_WARNINGS',
             'UNICODE',
         })
-        if rive_target_os == 'windows' then
+        if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
             externalincludedirs({
                 dx12_headers .. '/include/directx',
             })
@@ -351,6 +351,11 @@ function rive_tools_project(name, project_kind)
         links({ 'skia', 'rive_skia_renderer' })
     end
 
+    filter({ 'options:for_unreal' })
+    do
+        defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
+    end
+
     filter('system:emscripten')
     do
         targetextension('.js')
@@ -422,20 +427,20 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
 
+    filter({'options:for_unreal'})
+    do
+        removefiles({'common/offscreen_render_target_*', 'common/offscreen_rendertarget_*',})
+    end
+
     filter({ 'options:not no_tools_shader_hotloading' })
     do
      files({ RIVE_PLS_DIR .. '/shader_hotload/**.cpp'} )
     end
     
-    if rive_target_os == 'windows' then
+    if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
         externalincludedirs({
             dx12_headers .. '/include/directx',
         })
-    end
-
-    filter({ 'options:for_unreal' })
-    do
-        defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
     end
 
     filter({ 'toolset:not msc' })

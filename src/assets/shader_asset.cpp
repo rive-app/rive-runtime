@@ -3,7 +3,7 @@
 
 using namespace rive;
 
-bool rive::ShaderAsset::decode(Span<uint8_t> data, Factory* factory)
+bool rive::ShaderAsset::decode(Span<const uint8_t> data, Factory* factory)
 {
     // `data` is always a SignedContentHeader envelope
     // (`[flags:1][sig:64?][RSTB...]`) shared with ScriptAsset. Raw-RSTB

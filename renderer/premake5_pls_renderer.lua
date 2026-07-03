@@ -28,7 +28,7 @@ if _OPTIONS['with_vulkan'] then
     })
 end
 
-if rive_target_os == 'windows' then
+if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
     dx12_headers = dependency.github('microsoft/DirectX-Headers', 'v1.615.0')
 end
 
@@ -40,6 +40,20 @@ do
     defines({ 'RIVE_DESKTOP_GL' })
 end
 
+filter({ 'system:windows or macosx or linux', 'options:with_rive_canvas', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_GL', 'RIVE_ORE' })
+end
+
+-- Ore backend selection — defined globally so tests and consumers also see them.
+-- Only active when --with_rive_canvas is enabled.
+-- RIVE_ORE is defined whenever any ore backend is active, so C++ code can guard
+-- ore API calls without enumerating every backend.
+filter({ 'system:macosx or ios', 'options:with_rive_canvas', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_METAL', 'RIVE_ORE' })
+end
+
 -- Enable @try/@catch in Metal ORE for graceful error handling at runtime.
 -- Not used in tools/fuzz builds where crashing on Metal exceptions is preferred.
 filter({ 'system:macosx or ios', 'options:with_objc_exceptions' })
@@ -47,15 +61,81 @@ do
     defines({ 'RIVE_OBJC_EXCEPTIONS=1' })
 end
 
+-- macOS also gets ORE_BACKEND_GL so ore GMs work with ANGLE (GL on desktop).
+filter({ 'system:macosx', 'options:with_rive_canvas', 'options:not no_gl', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_GL' })
+end
+
+filter({ 'system:windows', 'options:with_rive_canvas', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_D3D11', 'ORE_BACKEND_D3D12', 'RIVE_ORE' })
+end
+
+filter({'options:with_rive_canvas', 'options:for_unreal' })
+do
+    defines({ 'ORE_BACKEND_RHI', 'RIVE_ORE' })
+end
+
+-- WebGPU ORE backend (Dawn, or native/emscripten WebGPU). Defined wherever the
+-- WebGPU renderer (src/webgpu) compiles, so RenderContextWebGPUImpl's
+-- makeOreContext() can resolve ContextWGPU::Make. Coexists with the platform's
+-- native ORE backend(s) (D3D/GL/…), mirroring how the renderers coexist.
+filter({ 'options:with-webgpu or with-dawn', 'options:with_rive_canvas', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_WGPU', 'RIVE_ORE' })
+end
+
 filter('system:android')
 do
     defines({ 'RIVE_ANDROID' })
 end
 
+filter({ 'system:android', 'options:with_rive_canvas', 'options:not no_gl', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_GL', 'RIVE_ORE' })
+end
+
+-- Android + wagyu: Ore routes through the WebGPU/wagyu device instead of raw GL.
+-- Runtime dispatch inside ORE_BACKEND_WGPU selects GLSLRAW (GLES) or GLSL (Vulkan).
+filter({ 'system:android', 'options:with_rive_canvas', 'options:with_wagyu', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_WGPU', 'RIVE_ORE' })
+end
+
+-- Android + native Vulkan (no wagyu): raw Vulkan ORE backend.
+-- Takes SPIR-V directly; traditional VkRenderPass for TBDR tile memory efficiency.
+-- When GL is also enabled (the default), both backends coexist in the same binary
+-- via VK+GL dispatch files (src/ore/vulkan/ore_*_vk_gl.cpp).
+filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:with_vulkan', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_VK' })
+end
+
+-- Linux: native Vulkan ORE backend (requires --with_vulkan for headers and VMA).
+-- Also enables the ORE GL backend so the same binary can service `--backend gl`
+-- via the VK+GL dispatch TUs, parallel to the Android VK+GL configuration.
+filter({ 'system:linux', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_VK', 'ORE_BACKEND_GL', 'RIVE_ORE' })
+end
+
+-- macOS / Windows: when the Vulkan renderer is compiled (--with_vulkan), the
+-- vulkan render-context impl references the Vulkan ORE backend via makeOreContext().
+-- Enable the backend so ContextVulkan::Make is defined and ORE_BACKEND_VK-gated
+-- sections compile. Mirrors the linux/android Vulkan ORE configuration.
+filter({ 'system:macosx or windows', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_VK', 'RIVE_ORE' })
+end
+
+
 newoption({
     trigger = 'with_objc_exceptions',
     description = 'enable @try/@catch in Metal ORE (requires -fobjc-exceptions)',
 })
+
+
 
 newoption({
     trigger = 'with-dawn',
@@ -70,6 +150,18 @@ end
 filter('system:emscripten')
 do
     defines({ 'RIVE_WEBGL' })
+end
+
+-- Emscripten + wagyu: Ore routes through the WebGPU/wagyu device.
+-- Runtime dispatch inside ORE_BACKEND_WGPU selects GLSLRAW (GLES) or GLSL (Vulkan).
+filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:with_wagyu', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_WGPU', 'RIVE_ORE' })
+end
+
+filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:not no_gl', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_GL', 'RIVE_ORE' })
 end
 
 newoption({
@@ -171,12 +263,15 @@ if os.host() == 'macosx' then
         makecommand = makecommand .. ' rive_pls_macosx_metallib'
     end
 end
+
 if rive_target_os == 'windows' then
     makecommand = makecommand .. ' d3d'
 end
-if _OPTIONS['with_vulkan'] then
+
+if _OPTIONS['with_vulkan'] or _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] then
     makecommand = makecommand .. ' spirv'
 end
+
 if _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] then
     if _OPTIONS['raw_shaders'] then
         makecommand = makecommand .. ' WGSL_FLAGS="--raw"'
@@ -219,39 +314,6 @@ if _OPTIONS['with_microprofile'] then
     microprofile = dependency.github(RIVE_MICROPROFILE_URL, RIVE_MICROPROFILE_VERSION)
 end
 
--- Ore defines outside of project because we want them to be defined for every proeject
-filter({ 'options:with_rive_canvas' })
-do
-    defines({ 'RIVE_ORE' })
-end
-
-filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:with_rive_canvas' })
-do
-    defines({ 'ORE_BACKEND_METAL' })
-end
-
-filter({ 'system:windows', 'options:with_rive_canvas' })
-do
-    defines({ 'ORE_BACKEND_D3D11', 'ORE_BACKEND_D3D12' })
-end
-
--- No gl for iOS
-filter({ 'system:not ios', 'options:with_rive_canvas', 'options:not no_gl' })
-do
-    defines({ 'ORE_BACKEND_GL' })
-end
-
--- No vulkan for iOS
-filter({ 'system:not ios', 'options:with_rive_canvas', 'options:with_vulkan' })
-do
-    defines({ 'ORE_BACKEND_VK' })
-end
-
-filter({ 'options:with_rive_canvas', 'options:with-dawn or with-webgpu' })
-do
-    defines({ 'ORE_BACKEND_WGPU' })
-end
-
 project('rive_pls_renderer')
 do
     kind('StaticLib')
@@ -287,7 +349,7 @@ do
         files({ 'src/vulkan/*.cpp' })
     end
 
-    if rive_target_os == 'windows' then
+    if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
         externalincludedirs({
             dx12_headers .. '/include/directx',
         })
@@ -321,7 +383,12 @@ do
         })
     end
 
-    filter({ 'system:windows or macosx or linux' })
+    filter({ 'system:not ios', 'options:not no_gl', 'options:with_rive_canvas', 'options:not for_unreal' })
+    do
+        files({'src/ore/gl/*.cpp'})
+    end
+
+    filter({ 'system:windows or macosx or linux', 'options:not for_unreal' })
     do
         files({
             'src/gl/pls_impl_webgl.cpp', -- Emulate WebGL with ANGLE.
@@ -332,7 +399,7 @@ do
         }) -- GL loader library for ANGLE.
     end
 
-    filter('system:android')
+    filter({'system:android', 'options:not for_unreal'})
     do
         files({
             'src/gl/load_gles_extensions.cpp',
@@ -342,8 +409,24 @@ do
 
     filter({ 'system:macosx or ios', 'options:not nop-obj-c' })
     do
-        files({ 'src/metal/*.mm' })
         buildoptions({ '-fobjc-arc' })
+    end
+
+    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:not for_unreal' })
+    do
+        files({ 'src/metal/*.mm' })
+    end
+
+    -- Shared cross-backend Ore sources. Compiled whenever canvas is on,
+    -- regardless of which GPU backend(s) are active.
+    filter({ 'options:with_rive_canvas' })
+    do
+        files({ 'src/ore/*.cpp' })
+    end
+
+    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:with_rive_canvas', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/metal/*.mm' })
     end
 
     -- Enable -fobjc-exceptions for .mm files when @try/@catch is active.
@@ -359,41 +442,95 @@ do
         buildoptions({ '-fobjc-exceptions' })
     end
 
-    filter({ 'options:with_rive_canvas' })
+    -- Enable -fobjc-exceptions for .mm files when @try/@catch is active.
+    -- Uses a files: filter so the flag doesn't hit .cpp compilations
+    -- (clang warns on -fobjc-exceptions for non-ObjC++ sources).
+    filter({
+        'system:macosx or ios',
+        'options:not nop-obj-c',
+        'options:with_objc_exceptions',
+        'files:**.mm',
+    })
     do
-        files({ 'src/ore/*.cpp', 'src/ore/*.hpp' })
+        buildoptions({ '-fobjc-exceptions' })
     end
 
-    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:with_rive_canvas' })
-    do
-        files({ 'src/ore/metal/*.mm', 'src/ore/metal/*.hpp' })
-    end
 
-    filter({ 'system:windows', 'options:with_rive_canvas' })
-    do
-        files({ 'src/ore/d3d11/*.cpp', 'src/ore/d3d11/*.hpp' })
-        files({ 'src/ore/d3d12/*.cpp', 'src/ore/d3d12/*.hpp' })
-    end
-
-    -- No gl for iOS
-    filter({ 'system:not ios', 'options:with_rive_canvas', 'options:not no_gl' })
-    do
-        files({ 'src/ore/gl/*.cpp', 'src/ore/gl/*.hpp' })
-    end
-
-    filter({ 'system:macosx', 'options:not nop-obj-c', 'options:with_rive_canvas', 'options:not no_gl' })
+    -- macOS also compiles the ore GL backend (via ObjC++ wrappers) so ore
+    -- works with ANGLE. Both METAL and GL backends coexist in the same binary.
+    filter({ 'system:macosx', 'options:not nop-obj-c', 'options:with_rive_canvas', 'options:not no_gl', 'options:not for_unreal' })
     do
         files({ 'src/ore/gl/*.mm' })
     end
 
-    filter({ 'options:with_rive_canvas', 'options:with_vulkan' })
+
+    filter({ 'system:windows', 'options:with_rive_canvas', 'options:not for_unreal' })
     do
-        files({ 'src/ore/vulkan/*.cpp', 'src/ore/vulkan/*.hpp'})
+        files({ 'src/ore/d3d11/*.cpp' })
+        files({ 'src/ore/d3d12/*.cpp' })
     end
 
-    filter({ 'options:with_rive_canvas', 'options:with-dawn or with-webgpu' })
+    -- WebGPU ORE backend sources. Compiled wherever the WebGPU renderer
+    -- (src/webgpu) compiles, so ContextWGPU::Make is defined. Coexists with the
+    -- platform's native ORE backend(s).
+    filter({ 'options:with-webgpu or with-dawn', 'options:with_rive_canvas', 'options:not for_unreal' })
     do
-        files({ 'src/ore/wgpu/*.cpp', 'src/ore/wgpu/*.hpp' })
+        files({ 'src/ore/wgpu/*.cpp' })
+    end
+
+
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:not with_vulkan', 'options:not no_gl', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/gl/*.cpp' })
+    end
+
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:with_wagyu', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/wgpu/*.cpp' })
+    end
+
+    filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:with_wagyu', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/wgpu/*.cpp' })
+    end
+
+    -- Android VK: always include Vulkan backend files.
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:with_vulkan', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/vulkan/*.cpp' })
+    end
+
+    -- Android VK+GL: both backends coexist. Standalone files compile to
+    -- static-helper-only objects (method bodies guarded out by the other
+    -- backend's define). VK+GL dispatch files (ore_*_vk_gl.cpp) in the
+    -- vulkan/ directory provide the actual method implementations.
+    filter({ 'system:android', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:with_vulkan', 'options:not no_gl', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/gl/*.cpp' })
+    end
+
+    if _OPTIONS['with_vulkan'] then
+        filter({ 'system:linux', 'options:with_rive_canvas', 'options:not for_unreal' })
+        do
+            externalincludedirs({
+                vulkan_headers .. '/include',
+                vulkan_memory_allocator .. '/include',
+            })
+            files({ 'src/ore/vulkan/*.cpp', 'src/ore/gl/*.cpp' })
+        end
+    end
+
+    -- macOS / Windows: compile the Vulkan ORE backend alongside the Vulkan
+    -- renderer. The vulkan/VMA include dirs are already added project-wide in
+    -- the `if _OPTIONS['with_vulkan']` block above.
+    filter({ 'system:macosx or windows', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/vulkan/*.cpp' })
+    end
+
+    filter({ 'system:emscripten', 'options:with_rive_canvas', 'options:not with_wagyu', 'options:not no_gl', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/gl/*.cpp' })
     end
 
     filter({ 'options:with-dawn' })
@@ -432,12 +569,6 @@ do
         defines({ 'RIVE_DECODERS' })
     end
 
-    -- RIVE_KTX2 must also be visible to the renderer (not just the decoders
-    -- lib) so the `#ifdef RIVE_KTX2` dispatch block in render_context.cpp
-    -- compiles in. Gate it on `not no-rive-decoders` AS WELL — without the
-    -- decoders lib linked (e.g. the wasm webgl2 build) the renderer would
-    -- compile a call to rive::DecodeKtx2 that has no definition, breaking
-    -- the link.
     filter({ 'options:not no-rive-decoders', 'options:not no_rive_ktx2' })
     do
         defines({ 'RIVE_KTX2' })
@@ -464,6 +595,10 @@ do
     filter('system:windows')
     do
         architecture('x64')
+    end
+
+    filter({'system:windows', 'options:not for_unreal'})
+    do
         files({ 'src/d3d/*.cpp' })
         files({ 'src/d3d11/*.cpp' })
         files({ 'src/d3d12/*.cpp' })

@@ -50,6 +50,7 @@ if not _OPTIONS['with-webgpu'] then
             'rive_harfbuzz',
             'rive_sheenbidi',
             'rive_yoga',
+            'luau_vm'
         })
         filter({ 'options:not no_rive_png' })
         do
@@ -100,7 +101,7 @@ if not _OPTIONS['with-webgpu'] then
             externalincludedirs({ optick .. '/src'})
         end
 
-        if rive_target_os == 'windows' then
+        if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
             externalincludedirs({
                 dx12_headers .. '/include/directx',
             })

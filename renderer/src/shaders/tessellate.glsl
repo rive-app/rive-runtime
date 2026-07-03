@@ -14,7 +14,7 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-// RHI Version > 5.8 failes to parse this when it's multi line
+// RHI Version > 5.8 fails to parse this when it's multi line
 // End in '_' because D3D interprets the '1' as a semantic index.
 ATTR(0, float4, @a_p0p1_);
 ATTR(1, float4, @a_p2p3_);
@@ -25,9 +25,10 @@ ATTR(4, uint, @a_reflectionX0X1);
 ATTR(5, uint, @a_segmentCounts);
 ATTR(6, uint, @a_contourIDWithFlags);
 #else
-ATTR(3,
-     uint4,
-     @a_args); // [x0x1, reflectionX0X1, segmentCounts, contourIDWithFlags]
+// [x0x1, reflectionX0X1, segmentCounts,
+// contourIDWithFlags]
+// RHI Version > 5.8 fails to parse this when it's multi line
+ATTR(3, uint4, @a_args);
 #endif
 ATTR_BLOCK_END
 #endif

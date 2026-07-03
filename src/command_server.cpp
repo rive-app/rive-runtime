@@ -678,6 +678,7 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
 #ifdef WITH_RIVE_SCRIPTING
+                std::cout << "Rive: Command Server Scripting Enabled.\n";
                 auto scriptingContext =
                     std::make_unique<CPPRuntimeScriptingContext>(m_factory);
                 scriptingContext->setRenderContext(m_factory);

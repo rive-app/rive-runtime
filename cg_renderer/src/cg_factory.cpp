@@ -609,7 +609,8 @@ AutoCF<CGImageRef> CGRenderer::FlipCGImageInY(AutoCF<CGImageRef> image)
     auto w = CGImageGetWidth(image);
     auto h = CGImageGetHeight(image);
     AutoCF space = CGColorSpaceCreateDeviceRGB();
-    auto info = kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
+    auto info = static_cast<uint>(kCGBitmapByteOrder32Big) |
+                static_cast<uint>(kCGImageAlphaPremultipliedLast);
     AutoCF ctx = CGBitmapContextCreate(nullptr, w, h, 8, 0, space, info);
     CGContextConcatCTM(ctx, CGAffineTransformMake(1, 0, 0, -1, 0, h));
     CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), image);

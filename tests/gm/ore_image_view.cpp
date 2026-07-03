@@ -33,7 +33,8 @@ using namespace rive;
 using namespace rive::gpu;
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_VK) || defined(ORE_BACKEND_WGPU) ||                    \
-    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
+    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12) ||                \
+    defined(ORE_BACKEND_RHI)
 using namespace rive::ore;
 #endif
 
@@ -56,7 +57,8 @@ static void make4x4Checkerboard(uint8_t pixels[4 * 4 * 4])
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_VK) || defined(ORE_BACKEND_WGPU) ||                    \
-    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
+    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12) ||                \
+    defined(ORE_BACKEND_RHI)
 #define ORE_IMAGE_VIEW_ACTIVE
 #endif
 
