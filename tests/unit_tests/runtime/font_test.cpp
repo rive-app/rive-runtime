@@ -90,6 +90,36 @@ TEST_CASE("Inspect Font Styles", "[text_styles]")
     }
 }
 
+TEST_CASE("font exposes cap and x height for vertical trim", "[text_styles]")
+{
+    // Latin text fonts have an 'H' and 'x'; their tops must sit between the
+    // baseline and the ascent, with the x-height below the cap-height. All of
+    // capHeight/xHeight/ascent are stored negative (up is -Y).
+    std::vector<const char*> fontPaths = {
+        "assets/fonts/Inter_18pt-Regular.ttf",
+        "assets/Montserrat.ttf",
+    };
+    for (const char* path : fontPaths)
+    {
+        SECTION(path)
+        {
+            rive::rcp<Font> font = loadFont(path);
+            const Font::LineMetrics& metrics = font->lineMetrics();
+
+            REQUIRE(metrics.capHeight < 0.0f);
+            REQUIRE(metrics.capHeight >= metrics.ascent);
+            // x-height is below the cap-height (less far above the baseline).
+            REQUIRE(metrics.xHeight > metrics.capHeight);
+            REQUIRE(metrics.xHeight < 0.0f);
+
+            // The size-scaled accessors scale linearly.
+            REQUIRE(font->capHeight(20.0f) ==
+                    Approx(metrics.capHeight * 20.0f));
+            REQUIRE(font->xHeight(20.0f) == Approx(metrics.xHeight * 20.0f));
+        }
+    }
+}
+
 TEST_CASE("fallback glyphs are found", "[text_fallback]")
 {
     REQUIRE(fallbackFonts.empty());

@@ -43,6 +43,7 @@ public:
         }
         m_Flags = value;
         flagsChanged();
+        notifyPropertyChanged(flagsPropertyKey);
     }
 
     void copy(const LayerStateBase& object)

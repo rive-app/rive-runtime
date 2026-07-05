@@ -32,6 +32,7 @@ public:
 
     bool isRunning() { return m_isRunning; }
     float target() { return m_target; }
+    float current() { return m_current; }
     float clamp(float rangeMin, float rangeMax, float value);
     void run(float acceleration,
              float rangeMin,

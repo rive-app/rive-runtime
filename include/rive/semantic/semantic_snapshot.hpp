@@ -1,6 +1,8 @@
 #ifndef _RIVE_SEMANTIC_SNAPSHOT_HPP_
 #define _RIVE_SEMANTIC_SNAPSHOT_HPP_
 
+#include "rive/math/aabb.hpp"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -28,6 +30,16 @@ struct SemanticsDiffNode
     int32_t parentId = -1;
     // Sibling position under parent (or root index if parent is -1).
     uint32_t siblingIndex = 0;
+
+    AABB bounds() const { return AABB(minX, minY, maxX, maxY); }
+
+    void setBounds(const AABB& value)
+    {
+        minX = value.minX;
+        minY = value.minY;
+        maxX = value.maxX;
+        maxY = value.maxY;
+    }
 };
 
 // Parent children list update for robust reorder/reparent sync.
@@ -49,6 +61,16 @@ struct SemanticsBoundsUpdate
     float minY = 0.0f;
     float maxX = 0.0f;
     float maxY = 0.0f;
+
+    AABB bounds() const { return AABB(minX, minY, maxX, maxY); }
+
+    void setBounds(const AABB& value)
+    {
+        minX = value.minX;
+        minY = value.minY;
+        maxX = value.maxX;
+        maxY = value.maxY;
+    }
 };
 
 // Incremental delta payload emitted by SemanticManager::refresh().

@@ -145,7 +145,8 @@ class RenderContextGLImpl::PLSImplRWTexture
 
         // Bind and initialize the PLS backing textures.
         renderContextImpl->state()->setPipelineState(
-            gpu::COLOR_ONLY_PIPELINE_STATE);
+            gpu::COLOR_ONLY_PIPELINE_STATE,
+            ScissorAction::ignore);
         renderContextImpl->state()->setScissor(desc.renderTargetUpdateBounds,
                                                renderTarget->height());
 

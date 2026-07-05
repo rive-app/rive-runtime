@@ -242,12 +242,14 @@ void ScrollConstraint::addLayoutChild(LayoutNodeProvider* child)
 
 void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
 {
+    // Scale once so the inertial release phase matches the drag feel.
+    Vec2D scaledDelta(delta.x * dragMultiplier(), delta.y * dragMultiplier());
     if (m_physics != nullptr)
     {
-        m_physics->accumulate(delta, timeStamp);
+        m_physics->accumulate(scaledDelta, timeStamp);
     }
-    scrollOffsetX(offsetX() + delta.x);
-    scrollOffsetY(offsetY() + delta.y);
+    scrollOffsetX(offsetX() + scaledDelta.x);
+    scrollOffsetY(offsetY() + scaledDelta.y);
 }
 
 std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
@@ -312,7 +314,23 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
         scrollOffsetX(offset.x);
         scrollOffsetY(offset.y);
     }
-    return m_physics->enabled();
+    // Detect a paused pointer during drag: if scrollOffset hasn't changed
+    // since the last new-frame advance, accumulate() didn't fire and speed
+    // is stale.
+    if ((flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame)
+    {
+        bool hasMoved = scrollOffsetX() != m_lastFrameOffsetX ||
+                        scrollOffsetY() != m_lastFrameOffsetY;
+        if ((m_isScrollBarDragging || m_isDragging) && !hasMoved)
+        {
+            clearVelocity();
+        }
+        m_lastFrameOffsetX = scrollOffsetX();
+        m_lastFrameOffsetY = scrollOffsetY();
+    }
+    // Keep advancing while a drag is active so the next new-frame advance can
+    // detect a paused pointer and clear velocity when the pointer holds still.
+    return m_physics->enabled() || m_isScrollBarDragging || m_isDragging;
 }
 
 std::vector<DraggableProxy*> ScrollConstraint::draggables()
@@ -393,6 +411,8 @@ StatusCode ScrollConstraint::onAddedDirty(CoreContext* context)
 void ScrollConstraint::initPhysics()
 {
     m_isDragging = true;
+    m_lastFrameOffsetX = scrollOffsetX();
+    m_lastFrameOffsetY = scrollOffsetY();
     if (m_physics != nullptr)
     {
         m_physics->prepare(direction());
@@ -404,6 +424,14 @@ void ScrollConstraint::stopPhysics()
     if (m_physics != nullptr)
     {
         m_physics->reset();
+    }
+}
+
+void ScrollConstraint::clearVelocity()
+{
+    if (m_physics != nullptr)
+    {
+        m_physics->clearVelocity();
     }
 }
 

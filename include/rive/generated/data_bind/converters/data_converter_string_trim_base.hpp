@@ -43,6 +43,7 @@ public:
         }
         m_TrimType = value;
         trimTypeChanged();
+        notifyPropertyChanged(trimTypePropertyKey);
     }
 
     Core* clone() const override;

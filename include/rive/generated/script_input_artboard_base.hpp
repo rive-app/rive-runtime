@@ -44,6 +44,7 @@ public:
         }
         m_ArtboardId = value;
         artboardIdChanged();
+        notifyPropertyChanged(artboardIdPropertyKey);
     }
 
     Core* clone() const override;

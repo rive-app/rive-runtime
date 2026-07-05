@@ -160,7 +160,7 @@ function rive_tools_project(name, project_kind)
             '_WINSOCK_DEPRECATED_NO_WARNINGS',
             'UNICODE',
         })
-        if rive_target_os == 'windows' then
+        if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
             externalincludedirs({
                 dx12_headers .. '/include/directx',
             })
@@ -351,12 +351,17 @@ function rive_tools_project(name, project_kind)
         links({ 'skia', 'rive_skia_renderer' })
     end
 
+    filter({ 'options:for_unreal' })
+    do
+        defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
+    end
+
     filter('system:emscripten')
     do
         targetextension('.js')
         linkoptions({
             '-sEXPORTED_FUNCTIONS=_main,_rive_print_message_on_server,_malloc,_free',
-            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
+            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU32',
             '-sENVIRONMENT=web',
             '-sUSE_GLFW=3',
             '-sMIN_WEBGL_VERSION=2',
@@ -371,11 +376,28 @@ function rive_tools_project(name, project_kind)
         })
     end
 
-    filter({ 'system:emscripten', 'options:with-webgpu', 'options:not with_wagyu' })
+    filter({
+        'system:emscripten',
+        'options:with-webgpu',
+        'options:not with_wagyu',
+        'options:webgpu-version=1',
+    })
     do
-        linkoptions({
-            '-sUSE_WEBGPU',
-        })
+        -- webgpu-version=1 keeps the legacy -sUSE_WEBGPU library.
+        linkoptions({ '-sUSE_WEBGPU' })
+    end
+
+    filter({
+        'system:emscripten',
+        'options:with-webgpu',
+        'options:not with_wagyu',
+        'options:webgpu-version=2',
+    })
+    do
+        -- webgpu-version=2 uses Dawn's emdawnwebgpu port (the new "future"
+        -- webgpu.h API) so it runs in a real browser.
+        buildoptions({ '--use-port=emdawnwebgpu' })
+        linkoptions({ '--use-port=emdawnwebgpu' })
     end
 
     filter('files:**.html')
@@ -405,20 +427,20 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
 
+    filter({'options:for_unreal'})
+    do
+        removefiles({'common/offscreen_render_target_*', 'common/offscreen_rendertarget_*',})
+    end
+
     filter({ 'options:not no_tools_shader_hotloading' })
     do
      files({ RIVE_PLS_DIR .. '/shader_hotload/**.cpp'} )
     end
     
-    if rive_target_os == 'windows' then
+    if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
         externalincludedirs({
             dx12_headers .. '/include/directx',
         })
-    end
-
-    filter({ 'options:for_unreal' })
-    do
-        defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
     end
 
     filter({ 'toolset:not msc' })

@@ -47,6 +47,7 @@ public:
         }
         m_KeyType = value;
         keyTypeChanged();
+        notifyPropertyChanged(keyTypePropertyKey);
     }
 
     inline uint32_t keyPhase() const { return m_KeyPhase; }
@@ -58,6 +59,7 @@ public:
         }
         m_KeyPhase = value;
         keyPhaseChanged();
+        notifyPropertyChanged(keyPhasePropertyKey);
     }
 
     inline uint32_t modifiers() const { return m_Modifiers; }
@@ -69,6 +71,7 @@ public:
         }
         m_Modifiers = value;
         modifiersChanged();
+        notifyPropertyChanged(modifiersPropertyKey);
     }
 
     Core* clone() const override;

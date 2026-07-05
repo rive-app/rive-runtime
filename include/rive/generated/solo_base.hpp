@@ -47,6 +47,7 @@ public:
         }
         m_ActiveComponentId = value;
         activeComponentIdChanged();
+        notifyPropertyChanged(activeComponentIdPropertyKey);
     }
 
     Core* clone() const override;

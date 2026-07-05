@@ -54,10 +54,12 @@ void RenderPassVulkan::setVertexBuffer(uint32_t slot,
     VkDeviceSize vkOffset = offset;
     auto buffer = lite_rtti_cast<BufferVulkan*>(inBuffer);
     assert(buffer != nullptr);
+    buffer->markBound();
+    VkBuffer vkBuffer = buffer->current();
     m_vkContext->m_vk->CmdBindVertexBuffers(m_vkCmdBuf,
                                             slot,
                                             1,
-                                            &buffer->m_vkBuffer,
+                                            &vkBuffer,
                                             &vkOffset);
 }
 
@@ -67,12 +69,13 @@ void RenderPassVulkan::setIndexBuffer(Buffer* inBuffer,
 {
     auto buffer = lite_rtti_cast<BufferVulkan*>(inBuffer);
     assert(buffer != nullptr);
-    m_vkIndexBuffer = buffer->m_vkBuffer;
+    buffer->markBound();
+    m_vkIndexBuffer = buffer->current();
     m_vkIndexType = (format == IndexFormat::uint32) ? VK_INDEX_TYPE_UINT32
                                                     : VK_INDEX_TYPE_UINT16;
     m_vkIndexOffset = offset;
     m_vkContext->m_vk->CmdBindIndexBuffer(m_vkCmdBuf,
-                                          buffer->m_vkBuffer,
+                                          m_vkIndexBuffer,
                                           offset,
                                           m_vkIndexType);
 }
@@ -88,13 +91,28 @@ void RenderPassVulkan::setBindGroup(uint32_t groupIndex,
 
     auto bg = lite_rtti_cast<BindGroupVulkan*>(inBg);
     assert(bg != nullptr);
+    // Resolve the live backing of each UBO. Only stamp the UBOs bound after a
+    // successful resolve, so a failed (OOM) resolve doesn't force later
+    // update()s to orphan needlessly.
+    VkDescriptorSet set = bg->resolveDescriptorSet();
+    if (set == VK_NULL_HANDLE)
+    {
+        // Descriptor set allocation failed (device OOM). Report it instead of
+        // binding null; the Lua layer reads lastError after the call. Pre-fix
+        // this surfaced at makeBindGroup time.
+        m_vkContext->setLastError(
+            "ore: Vulkan descriptor set allocation failed for group %u",
+            groupIndex);
+        return;
+    }
+    bg->markUBOsBound();
     m_vkContext->m_vk->CmdBindDescriptorSets(
         m_vkCmdBuf,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         m_currentPipeline->m_vkPipelineLayout,
         groupIndex,
         1,
-        &bg->m_vkDescriptorSet,
+        &set,
         dynamicOffsetCount,
         dynamicOffsets);
 

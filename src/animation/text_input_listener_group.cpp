@@ -1,11 +1,24 @@
 #include "rive/animation/text_input_listener_group.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/file.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/text/text_input.hpp"
+#include <chrono>
 
 using namespace rive;
+
+long long TextInputListenerGroup::nowMicros(float timeStamp) const
+{
+    if (File::deterministicMode)
+    {
+        return (long long)(timeStamp * 1000000.0f);
+    }
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+               std::chrono::high_resolution_clock::now().time_since_epoch())
+        .count();
+}
 
 TextInputListenerGroup::TextInputListenerGroup(
     TextInput* textInput,
@@ -64,6 +77,23 @@ ProcessEventResult TextInputListenerGroup::processEvent(
     if (prevPhase != GestureClickPhase::down &&
         newPhase == GestureClickPhase::down)
     {
+        // Detect double/triple-click from the time and distance since the
+        // previous click.
+        long long now = nowMicros(timeStamp);
+        long long dt = now - m_lastClickTime;
+        float dist = Vec2D::distance(position, m_lastClickPosition);
+        if (dt >= 0 && dt <= kMultiClickIntervalUs &&
+            dist <= kMultiClickDistance)
+        {
+            m_clickCount = m_clickCount >= 3 ? 1 : m_clickCount + 1;
+        }
+        else
+        {
+            m_clickCount = 1;
+        }
+        m_lastClickTime = now;
+        m_lastClickPosition = position;
+
         m_textInput->startDrag(position);
         m_isDragging = true;
 
@@ -82,6 +112,17 @@ ProcessEventResult TextInputListenerGroup::processEvent(
                     break;
                 }
             }
+        }
+
+        // Select the word (double-click) or visual line (triple-click) at the
+        // cursor that startDrag just placed.
+        if (m_clickCount == 2)
+        {
+            m_textInput->selectWord();
+        }
+        else if (m_clickCount == 3)
+        {
+            m_textInput->selectLine();
         }
         return ProcessEventResult::scroll;
     }

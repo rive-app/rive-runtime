@@ -46,6 +46,7 @@ public:
         }
         m_Length = value;
         lengthChanged();
+        notifyPropertyChanged(lengthPropertyKey);
     }
 
     inline bool lengthIsPercentage() const { return m_LengthIsPercentage; }
@@ -57,6 +58,7 @@ public:
         }
         m_LengthIsPercentage = value;
         lengthIsPercentageChanged();
+        notifyPropertyChanged(lengthIsPercentagePropertyKey);
     }
 
     Core* clone() const override;

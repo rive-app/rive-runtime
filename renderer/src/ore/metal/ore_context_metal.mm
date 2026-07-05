@@ -415,23 +415,29 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 inline rcp<Buffer> ContextMetal::mtlMakeBuffer(const BufferDesc& desc)
 {
     auto buffer = rcp<BufferMetal>(new BufferMetal(desc.size, desc.usage));
+    buffer->m_ctx = this;
+    id<MTLBuffer> mtlBuffer;
     if (desc.data)
     {
-        buffer->m_mtlBuffer =
+        mtlBuffer =
             [m_mtlDevice newBufferWithBytes:desc.data
                                      length:desc.size
                                     options:MTLResourceStorageModeShared];
     }
     else
     {
-        buffer->m_mtlBuffer =
+        mtlBuffer =
             [m_mtlDevice newBufferWithLength:desc.size
                                      options:MTLResourceStorageModeShared];
     }
+    if (mtlBuffer == nil)
+        return nullptr; // Allocation failed.
     if (desc.label)
     {
-        buffer->m_mtlBuffer.label = @(desc.label);
+        mtlBuffer.label = @(desc.label);
+        buffer->m_label = desc.label;
     }
+    buffer->m_pool.push_back({mtlBuffer, 0});
     return buffer;
 }
 
@@ -910,7 +916,7 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
         auto* buf = lite_rtti_cast<BufferMetal*>(u.buffer);
         assert(buf);
         BindGroupMetal::MTLBufferBinding binding;
-        binding.buffer = buf->m_mtlBuffer;
+        binding.src = buf;
         binding.offset = u.offset;
         binding.binding = u.slot;
         if (!lookupStages(u.slot,
@@ -1144,6 +1150,8 @@ std::unique_ptr<ContextMetal> ContextMetal::Make(id<MTLDevice> device,
 void ContextMetal::beginFrame(const FrameDescriptor&)
 {
     m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
+    // Serial of the command buffer about to be recorded.
+    ++m_currentSerial;
 }
 
 void ContextMetal::waitForGPU()
@@ -1167,15 +1175,21 @@ void ContextMetal::endFrame()
         // and Apple-Silicon shared-memory races. Refcount drops happen
         // on a Metal-internal thread; safe because each resource's
         // destructor is `delete this` against ARC-managed handles.
-        if (!m_deferredBindGroups.empty())
-        {
-            __block std::vector<rcp<BindGroup>> deferred =
-                std::move(m_deferredBindGroups);
-            m_deferredBindGroups.clear();
-            [m_mtlCommandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
-              deferred.clear();
-            }];
-        }
+        __block std::vector<rcp<BindGroup>> deferred =
+            std::move(m_deferredBindGroups);
+        m_deferredBindGroups.clear();
+        // Publish GPU completion so backings up to this serial can be reused.
+        uint64_t finishedSerial = m_currentSerial;
+        std::shared_ptr<std::atomic<uint64_t>> completed = m_completedSerial;
+        [m_mtlCommandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
+          deferred.clear();
+          uint64_t prev = completed->load(std::memory_order_relaxed);
+          while (finishedSerial > prev &&
+                 !completed->compare_exchange_weak(
+                     prev, finishedSerial, std::memory_order_relaxed))
+          {
+          }
+        }];
         [m_mtlCommandBuffer commit];
         m_mtlCommandBuffer = nil;
     }

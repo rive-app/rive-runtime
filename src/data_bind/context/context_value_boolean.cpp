@@ -10,11 +10,12 @@ DataBindContextValueBoolean::DataBindContextValueBoolean(DataBind* dataBind) :
 
 void DataBindContextValueBoolean::apply(Core* target,
                                         uint32_t propertyKey,
-                                        bool isMainDirection)
+                                        bool isMainDirection,
+                                        DataBind* dataBind)
 {
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto value = calculateValue<DataValueBoolean, bool>(m_dataValue,
                                                         isMainDirection,
-                                                        m_dataBind);
+                                                        dataBind);
     CoreRegistry::setBool(target, propertyKey, value);
 }

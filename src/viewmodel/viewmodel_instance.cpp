@@ -96,6 +96,16 @@ bool ViewModelInstance::replaceViewModelByName(const std::string& name,
                             ->referenceViewModelInstance();
                     propertyValue->as<ViewModelInstanceViewModel>()
                         ->referenceViewModelInstance(value);
+                    // Invalidate value-level dependents (e.g. scripted property
+                    // wrappers) so cached references to the previous instance
+                    // are dropped. Multiple dependents can share this property.
+                    // Snapshot because relinkDataBind can mutate the dependents
+                    // list.
+                    auto dependentsSnapshot = propertyValue->dependents();
+                    for (auto& dependent : dependentsSnapshot)
+                    {
+                        dependent->relinkDataBind();
+                    }
                     rebindDependents();
                     if (previousViewModelInstance)
                     {
@@ -123,6 +133,15 @@ bool ViewModelInstance::replaceViewModelByProperty(
                     ->referenceViewModelInstance();
             propertyValue->as<ViewModelInstanceViewModel>()
                 ->referenceViewModelInstance(value);
+            // Invalidate value-level dependents (e.g. scripted property
+            // wrappers) so cached references to the previous instance are
+            // dropped. Multiple dependents can share this property. Snapshot
+            // because relinkDataBind can mutate the dependents list.
+            auto dependentsSnapshot = propertyValue->dependents();
+            for (auto& dependent : dependentsSnapshot)
+            {
+                dependent->relinkDataBind();
+            }
             rebindDependents();
             if (previousViewModelInstance)
             {

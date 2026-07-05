@@ -61,6 +61,7 @@ public:
         }
         m_ModifierFlags = value;
         modifierFlagsChanged();
+        notifyPropertyChanged(modifierFlagsPropertyKey);
     }
 
     inline float originX() const { return m_OriginX; }
@@ -72,6 +73,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -83,6 +85,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     inline float opacity() const { return m_Opacity; }
@@ -94,6 +97,7 @@ public:
         }
         m_Opacity = value;
         opacityChanged();
+        notifyPropertyChanged(opacityPropertyKey);
     }
 
     inline float x() const { return m_X; }
@@ -105,6 +109,7 @@ public:
         }
         m_X = value;
         xChanged();
+        notifyPropertyChanged(xPropertyKey);
     }
 
     inline float y() const { return m_Y; }
@@ -116,6 +121,7 @@ public:
         }
         m_Y = value;
         yChanged();
+        notifyPropertyChanged(yPropertyKey);
     }
 
     inline float rotation() const { return m_Rotation; }
@@ -127,6 +133,7 @@ public:
         }
         m_Rotation = value;
         rotationChanged();
+        notifyPropertyChanged(rotationPropertyKey);
     }
 
     inline float scaleX() const { return m_ScaleX; }
@@ -138,6 +145,7 @@ public:
         }
         m_ScaleX = value;
         scaleXChanged();
+        notifyPropertyChanged(scaleXPropertyKey);
     }
 
     inline float scaleY() const { return m_ScaleY; }
@@ -149,6 +157,7 @@ public:
         }
         m_ScaleY = value;
         scaleYChanged();
+        notifyPropertyChanged(scaleYPropertyKey);
     }
 
     Core* clone() const override;

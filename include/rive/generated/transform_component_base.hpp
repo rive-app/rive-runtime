@@ -49,6 +49,7 @@ public:
         }
         m_Rotation = value;
         rotationChanged();
+        notifyPropertyChanged(rotationPropertyKey);
     }
 
     inline float scaleX() const { return m_ScaleX; }
@@ -60,6 +61,7 @@ public:
         }
         m_ScaleX = value;
         scaleXChanged();
+        notifyPropertyChanged(scaleXPropertyKey);
     }
 
     inline float scaleY() const { return m_ScaleY; }
@@ -71,6 +73,7 @@ public:
         }
         m_ScaleY = value;
         scaleYChanged();
+        notifyPropertyChanged(scaleYPropertyKey);
     }
 
     void copy(const TransformComponentBase& object)

@@ -44,6 +44,7 @@ public:
         }
         m_DirectionValue = value;
         directionValueChanged();
+        notifyPropertyChanged(directionValuePropertyKey);
     }
 
     void copy(const DraggableConstraintBase& object)

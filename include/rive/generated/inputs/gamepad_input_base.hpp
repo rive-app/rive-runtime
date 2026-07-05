@@ -49,6 +49,7 @@ public:
         }
         m_Kind = value;
         kindChanged();
+        notifyPropertyChanged(kindPropertyKey);
     }
 
     inline uint32_t mapping() const { return m_Mapping; }
@@ -60,6 +61,7 @@ public:
         }
         m_Mapping = value;
         mappingChanged();
+        notifyPropertyChanged(mappingPropertyKey);
     }
 
     inline uint32_t inputIndex() const { return m_InputIndex; }
@@ -71,6 +73,7 @@ public:
         }
         m_InputIndex = value;
         inputIndexChanged();
+        notifyPropertyChanged(inputIndexPropertyKey);
     }
 
     inline uint32_t buttonPhase() const { return m_ButtonPhase; }
@@ -82,6 +85,7 @@ public:
         }
         m_ButtonPhase = value;
         buttonPhaseChanged();
+        notifyPropertyChanged(buttonPhasePropertyKey);
     }
 
     Core* clone() const override;

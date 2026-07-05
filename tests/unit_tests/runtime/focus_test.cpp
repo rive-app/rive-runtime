@@ -4,6 +4,9 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
+#include "rive/artboard_component_list.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/node.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "utils/no_op_factory.hpp"
@@ -289,6 +292,34 @@ TEST_CASE("FocusManager removeChild clears focus", "[FocusManager]")
     manager.removeChild(node);
     CHECK(manager.primaryFocus() == nullptr);
     CHECK(focusable.blurredCount == 1);
+}
+
+TEST_CASE(
+    "List row reparent: FocusNode removeFromParent preserves primary focus",
+    "[FocusManager][list]")
+{
+    FocusManager manager;
+    MockFocusable fLeaf;
+    auto scope = make_rcp<FocusNode>(nullptr);
+    scope->canFocus(true);
+    scope->canTraverse(true);
+    auto row = make_rcp<FocusNode>(nullptr);
+    row->canFocus(true);
+    row->canTraverse(true);
+    auto leaf = make_rcp<FocusNode>(&fLeaf);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, row);
+    manager.addChild(row, leaf);
+    manager.setFocus(leaf);
+    CHECK(manager.primaryFocus() == leaf);
+
+    row->removeFromParent();
+    CHECK(manager.primaryFocus() == leaf);
+
+    manager.addChild(scope, row, 0);
+    CHECK(manager.primaryFocus() == leaf);
+    CHECK(fLeaf.blurredCount == 0);
 }
 
 TEST_CASE("FocusManager input routing", "[FocusManager]")
@@ -950,6 +981,114 @@ TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
     CHECK(state.expectsKeyboardInput == false);
 }
 
+TEST_CASE("FocusManager setFocus on a scope descends to first leaf",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf1 = make_rcp<FocusNode>();
+    auto leaf2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // Focusing the scope resolves to its first eligible leaf.
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == leaf1);
+}
+
+TEST_CASE("FocusManager setFocus on a scope descends depth-first",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto row = make_rcp<FocusNode>();
+    auto leaf = make_rcp<FocusNode>();
+    auto sibling = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, row);
+    manager.addChild(row, leaf);
+    manager.addChild(scope, sibling);
+
+    // Depth-first: first leaf is the leaf nested under the first child (row).
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == leaf);
+}
+
+TEST_CASE("FocusManager setFocus on a scope with no eligible leaf falls back",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto child = make_rcp<FocusNode>();
+    // Child cannot be traversed, so the scope has no eligible leaf to descend
+    // to. The scope itself remains the focus target (preserves prior behavior).
+    child->canTraverse(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, child);
+
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == scope);
+}
+
+TEST_CASE("FocusManager setFocus on an ineligible scope is a no-op",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf = make_rcp<FocusNode>();
+    // The requested target itself cannot be focused. Descent must not reach an
+    // eligible descendant — focus stays unchanged (no-op), matching the prior
+    // early-return guard behavior.
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf);
+
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusManager setFocus on a leaf is unchanged", "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf1 = make_rcp<FocusNode>();
+    auto leaf2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // Directly focusing a leaf still focuses that exact leaf (no-op descent).
+    manager.setFocus(leaf2);
+    CHECK(manager.primaryFocus() == leaf2);
+}
+
+TEST_CASE("FocusManager Tab after focusing a scope traverses leaf siblings",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto leaf1 = make_rcp<FocusNode>();
+    auto leaf2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // Focusing the scope lands on the first leaf; Tab then advances to the
+    // scope's next leaf rather than skipping the scope's children.
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == leaf1);
+
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leaf2);
+}
+
 } // namespace rive
 
 TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
@@ -970,18 +1109,21 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
                                         ->as<rive::ViewModelInstanceBoolean>();
 
     stateMachine->bindViewModelInstance(vmi);
+    // ===> Frame 0
     auto renderer = silver.makeRenderer();
     stateMachine->advanceAndApply(0.016f);
+    // ===> Frame 1
     artboard->draw(renderer.get());
     silver.addFrame();
 
+    focusManager->focusNext();
     focusManager->focusNext();
     // Focus on an element
     REQUIRE(focusManager->primaryFocus() != nullptr);
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+    // ===> Frame 2
     silver.addFrame();
-
     // Hide the element, ensure the focus has been dropped
     opacityProp->propertyValue(0);
     // First advance sets the opacity to 0
@@ -990,33 +1132,40 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
     stateMachine->advanceAndApply(0.016f);
     REQUIRE(focusManager->primaryFocus() == nullptr);
     artboard->draw(renderer.get());
+    // ===> Frame 3
     silver.addFrame();
 
     opacityProp->propertyValue(1);
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+    // ===> Frame 4
     silver.addFrame();
+    focusManager->focusNext();
     focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
     REQUIRE(focusManager->primaryFocus() != nullptr);
     artboard->draw(renderer.get());
+    // ===> Frame 5
     silver.addFrame();
     isMainLayout2VisibleProp->propertyValue(false);
     stateMachine->advanceAndApply(0.016f);
     focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+    // ===> Frame 6
     silver.addFrame();
 
     // Toggles only between visible focused elements
     focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+    // ===> Frame 7
     silver.addFrame();
     focusManager->focusNext();
     focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+    // ===> Frame 8
     silver.addFrame();
 
     // Fully rotates over all nodes
@@ -1024,22 +1173,27 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
     stateMachine->advanceAndApply(0.016f);
     focusManager->focusNext();
     artboard->draw(renderer.get());
+    // ===> Frame 9
     silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    // ===> Frame 10
+    silver.addFrame();
+    focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
     focusManager->focusNext();
     artboard->draw(renderer.get());
+    // ===> Frame 11
     silver.addFrame();
+    focusManager->focusNext();
     stateMachine->advanceAndApply(0.016f);
-    focusManager->focusNext();
-    focusManager->focusNext();
     artboard->draw(renderer.get());
+    // ===> Frame 12
     silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
     focusManager->focusNext();
-    artboard->draw(renderer.get());
-    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
-    focusManager->focusNext();
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("focus_collapsing"));
@@ -1420,4 +1574,153 @@ TEST_CASE("Focus traversal clears focus when it reaches edge of root scope",
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("focusable_element"));
+}
+
+TEST_CASE("ArtboardComponentList list scope is registered on shared "
+          "FocusManager",
+          "[FocusManager][list]")
+{
+    auto file = ReadRiveFile("assets/component_list_1.riv");
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+    auto sm = artboard->stateMachineAt(0);
+    REQUIRE(sm != nullptr);
+    artboard->advance(0.0f);
+
+    auto* list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    auto* fm = artboard->focusManager();
+    REQUIRE(fm != nullptr);
+
+    artboard->buildFocusTree(artboard->focusManager(), nullptr);
+    auto scope = list->listScopeFocusNode();
+    REQUIRE(scope != nullptr);
+    CHECK(scope->manager() == fm);
+    CHECK(scope->name() == "ArtboardComponentListScope");
+    CHECK(scope->canFocus() == true);
+    CHECK(scope->canTraverse() == true);
+    CHECK(scope->focusable() == nullptr);
+}
+
+TEST_CASE("List under Node: when parent has a direct FocusData, "
+          "findClosestFocusNode from list matches that node",
+          "[FocusManager][list]")
+{
+    // buildFocusTreeVisit pass-1: at most one direct child FocusData per
+    // container; if present, its focusNode is the scope for siblings (e.g. the
+    // list host). The walk-based fallback from the old findClosest for the
+    // no-direct-FocusData case is not used by the focus build anymore.
+    auto file = ReadRiveFile("assets/component_list_1.riv");
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+    auto sm = artboard->stateMachineAt(0);
+    REQUIRE(sm != nullptr);
+    artboard->advance(0.0f);
+
+    auto* list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    auto* p = list->parent();
+    REQUIRE(p != nullptr);
+    REQUIRE(p->is<rive::Node>());
+
+    rive::rcp<rive::FocusNode> fromFirstDirectFd;
+    for (auto* ch : p->as<rive::Node>()->children())
+    {
+        if (ch != nullptr && ch->is<rive::FocusData>())
+        {
+            fromFirstDirectFd = ch->as<rive::FocusData>()->focusNode();
+            break;
+        }
+    }
+    if (fromFirstDirectFd != nullptr)
+    {
+        CHECK(rive::FocusData::findClosestFocusNode(list) == fromFirstDirectFd);
+    }
+}
+
+TEST_CASE("Focus is correctly built and updated for lists", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/list_focus_order.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto focusManager = stateMachine->focusManager();
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto stageProcessedProp = vmi->propertyValue("stageProcessed")
+                                  ->as<rive::ViewModelInstanceBoolean>();
+    auto stageCountProp =
+        vmi->propertyValue("stageCount")->as<rive::ViewModelInstanceNumber>();
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Focuses on first element of tree
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Focuses on last element of list
+    focusManager->focusNext();
+    focusManager->focusNext();
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Inserts one element at end of list
+    stageProcessedProp->propertyValue(false);
+    stageCountProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Focus is on that new element
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Focused elements is moved in the list and keeps focus
+    stageProcessedProp->propertyValue(false);
+    stageCountProp->propertyValue(2);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Focusing on the next element correctly focuses on the next element on the
+    // list
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Removing the focused element from the list, clears the focus
+    stageProcessedProp->propertyValue(false);
+    stageCountProp->propertyValue(3);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Focuses back on first element of tree
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("list_focus_order"));
 }

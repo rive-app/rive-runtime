@@ -80,8 +80,9 @@ void RenderPassWGPU::setVertexBuffer(uint32_t slot,
     validate();
     auto buffer = lite_rtti_cast<BufferWGPU*>(inBuffer);
     assert(buffer);
+    buffer->markBound();
     m_wgpuPassEncoder.SetVertexBuffer(slot,
-                                      buffer->m_wgpuBuffer,
+                                      buffer->current(),
                                       offset,
                                       buffer->size() - offset);
 }
@@ -96,10 +97,11 @@ void RenderPassWGPU::setIndexBuffer(Buffer* inBuffer,
     wgpu::IndexFormat wFmt = (format == IndexFormat::uint32)
                                  ? wgpu::IndexFormat::Uint32
                                  : wgpu::IndexFormat::Uint16;
-    m_wgpuIndexBuffer = buffer->m_wgpuBuffer;
+    buffer->markBound();
+    m_wgpuIndexBuffer = buffer->current();
     m_wgpuIndexFormat = wFmt;
     m_wgpuIndexOffset = offset;
-    m_wgpuPassEncoder.SetIndexBuffer(buffer->m_wgpuBuffer,
+    m_wgpuPassEncoder.SetIndexBuffer(m_wgpuIndexBuffer,
                                      wFmt,
                                      offset,
                                      buffer->size() - offset);
@@ -113,8 +115,22 @@ void RenderPassWGPU::setBindGroup(uint32_t groupIndex,
     validate();
     auto bg = lite_rtti_cast<BindGroupWGPU*>(inBg);
     assert(bg != nullptr);
+    // Resolve the live backing of each UBO. Only stamp the UBOs bound after a
+    // successful resolve, so a failed (OOM) resolve doesn't force later
+    // update()s to orphan needlessly.
+    const wgpu::BindGroup& wgpuBg = bg->resolveBindGroup();
+    if (wgpuBg == nullptr)
+    {
+        // Bind group creation failed (device OOM). Report instead of binding
+        // null; the Lua layer reads lastError after the call.
+        m_wgpuContext->setLastError(
+            "ore: WGPU bind group creation failed for group %u",
+            groupIndex);
+        return;
+    }
+    bg->markUBOsBound();
     m_wgpuPassEncoder.SetBindGroup(groupIndex,
-                                   bg->m_wgpuBindGroup,
+                                   wgpuBg,
                                    dynamicOffsetCount,
                                    dynamicOffsets);
 

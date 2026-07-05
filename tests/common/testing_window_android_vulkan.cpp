@@ -456,6 +456,7 @@ private:
             .presentModePreferences =
                 {
                     VK_PRESENT_MODE_IMMEDIATE_KHR,
+                    VK_PRESENT_MODE_MAILBOX_KHR,
                     VK_PRESENT_MODE_FIFO_KHR,
                 },
             .imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |

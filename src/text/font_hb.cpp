@@ -475,7 +475,27 @@ static rive::Font::LineMetrics make_lmx(hb_font_t* font)
 
     hb_font_extents_t extents;
     hb_font_get_h_extents(font, &extents);
-    return {-extents.ascender * gInvScale, -extents.descender * gInvScale};
+
+    // Cap height / x-height: distances from the baseline to the top of capital
+    // and lowercase letters, stored negative (up is -Y) to match ascent. We
+    // measure the 'H' and 'x' glyphs directly (their top-side bearing) rather
+    // than the OS/2 metrics, since the metrics API is compiled out of this
+    // HarfBuzz build (HB_NO_METRICS). Each falls back to the ascent for fonts
+    // without the reference glyph so vertical trim becomes a no-op at the top.
+    float ascent = -extents.ascender * gInvScale;
+    auto measureGlyphTop = [&](hb_codepoint_t unicode) -> float {
+        hb_codepoint_t glyph = 0;
+        hb_glyph_extents_t glyphExtents;
+        if (hb_font_get_nominal_glyph(font, unicode, &glyph) &&
+            hb_font_get_glyph_extents(font, glyph, &glyphExtents))
+        {
+            return -glyphExtents.y_bearing * gInvScale;
+        }
+        return ascent;
+    };
+    float capHeight = measureGlyphTop('H');
+    float xHeight = measureGlyphTop('x');
+    return {ascent, -extents.descender * gInvScale, capHeight, xHeight};
 }
 
 HBFont::HBFont(hb_font_t* font) : HBFont(font, {}, {}, {}) {}

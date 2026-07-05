@@ -46,6 +46,7 @@ public:
         }
         m_PropertyKey = value;
         propertyKeyChanged();
+        notifyPropertyChanged(propertyKeyPropertyKey);
     }
 
     inline uint32_t flags() const { return m_Flags; }
@@ -57,6 +58,7 @@ public:
         }
         m_Flags = value;
         flagsChanged();
+        notifyPropertyChanged(flagsPropertyKey);
     }
 
     inline uint32_t converterId() const { return m_ConverterId; }
@@ -68,6 +70,7 @@ public:
         }
         m_ConverterId = value;
         converterIdChanged();
+        notifyPropertyChanged(converterIdPropertyKey);
     }
 
     Core* clone() const override;

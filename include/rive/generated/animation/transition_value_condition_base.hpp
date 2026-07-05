@@ -44,6 +44,7 @@ public:
         }
         m_OpValue = value;
         opValueChanged();
+        notifyPropertyChanged(opValuePropertyKey);
     }
 
     void copy(const TransitionValueConditionBase& object)

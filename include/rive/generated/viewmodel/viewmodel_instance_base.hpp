@@ -44,6 +44,7 @@ public:
         }
         m_ViewModelId = value;
         viewModelIdChanged();
+        notifyPropertyChanged(viewModelIdPropertyKey);
     }
 
     Core* clone() const override;

@@ -73,8 +73,10 @@ void DataBindContainer::removeDataBind(DataBind* dataBind)
     }
     if (dataBind->inDirtyList())
     {
-        // Membership flag doesn't distinguish dirty vs pending-dirty, so check
-        // both — but only when the flag says one of them contains it.
+        // Membership flag doesn't distinguish which dirty list contains the
+        // bind, so scan all four — toSource + toTarget × active + pending.
+        eraseOne(m_dirtyToSourceDataBinds);
+        eraseOne(m_pendingDirtyToSourceDataBinds);
         eraseOne(m_dirtyDataBinds);
         eraseOne(m_pendingDirtyDataBinds);
         dataBind->inDirtyList(false);
@@ -94,12 +96,11 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
         return;
     }
     m_dataBinds.push_back(dataBind);
-    // Any data bind that is applied to source needs to be updated regardless of
-    // it having dirt or not. The reason is that they depend on changes of the
-    // value of the target, which is not propagated as dirt to the data binding
-    // object. That's why there is a separate list for these that is constantly
-    // updated.
-    if (dataBind->toSource())
+    // toSource binds: prefer push notifications when the target supports it
+    // (Alternative A — Core::notifyPropertyChanged). Fall back to per-frame
+    // polling via m_persistingDataBinds for the few derived/computed targets
+    // that don't go through a generated property setter.
+    if (dataBind->toSource() && !dataBind->targetSupportsPush())
     {
         m_persistingDataBinds.push_back(dataBind);
         dataBind->inPersistingList(true);
@@ -152,7 +153,8 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
     {
         return;
     }
-    if (m_persistingDataBinds.size() == 0 && m_dirtyDataBinds.size() == 0)
+    if (m_persistingDataBinds.size() == 0 &&
+        m_dirtyToSourceDataBinds.size() == 0 && m_dirtyDataBinds.size() == 0)
     {
         return;
     }
@@ -164,15 +166,26 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
             updateDataBind(dataBind, applyTargetToSource);
         }
     }
+    // Push-driven toSource binds, processed before any toTarget binds so
+    // their source values land before dependents apply this frame — matches
+    // the order that m_persistingDataBinds used to give us under polling.
+    for (auto& dataBind : m_dirtyToSourceDataBinds)
+    {
+        dataBind->inDirtyList(false);
+        updateDataBind(dataBind, applyTargetToSource);
+    }
     for (auto& dataBind : m_dirtyDataBinds)
     {
-        // data binds on this list don't need to apply target to source because
-        // any data bind that applies to source is collected on the
-        // m_persistingDataBinds list
+        // Pure toTarget binds — updateSourceBinding is a guarded no-op here.
         dataBind->inDirtyList(false);
-        updateDataBind(dataBind, false);
+        updateDataBind(dataBind, applyTargetToSource);
     }
+    m_dirtyToSourceDataBinds.clear();
     m_dirtyDataBinds.clear();
+    if (m_pendingDirtyToSourceDataBinds.size() > 0)
+    {
+        m_dirtyToSourceDataBinds.swap(m_pendingDirtyToSourceDataBinds);
+    }
     if (m_pendingDirtyDataBinds.size() > 0)
     {
         m_dirtyDataBinds.swap(m_pendingDirtyDataBinds);
@@ -220,7 +233,9 @@ void DataBindContainer::sortDataBinds()
 
 void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
 {
-    if (dataBind->toSource())
+    // toSource binds on the polling fallback path are processed via
+    // m_persistingDataBinds — don't also enroll them in m_dirtyDataBinds.
+    if (dataBind->toSource() && dataBind->inPersistingList())
     {
         return;
     }
@@ -228,8 +243,16 @@ void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
     {
         return;
     }
+    // Push-driven toSource binds go into a dedicated list that
+    // updateDataBinds drains *before* m_dirtyDataBinds, preserving the
+    // ordering polling gave us (target→source first, then source→target).
+    // TwoWay binds (both flags set) sit here too — their updateDataBind
+    // call runs both directions, but the source-apply happens first.
     auto& insertingList =
-        m_isProcessing ? m_pendingDirtyDataBinds : m_dirtyDataBinds;
+        dataBind->toSource()
+            ? (m_isProcessing ? m_pendingDirtyToSourceDataBinds
+                              : m_dirtyToSourceDataBinds)
+            : (m_isProcessing ? m_pendingDirtyDataBinds : m_dirtyDataBinds);
     insertingList.push_back(dataBind);
     dataBind->inDirtyList(true);
 }

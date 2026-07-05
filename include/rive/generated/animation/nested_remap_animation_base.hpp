@@ -46,6 +46,7 @@ public:
         }
         m_Time = value;
         timeChanged();
+        notifyPropertyChanged(timePropertyKey);
     }
 
     Core* clone() const override;

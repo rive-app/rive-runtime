@@ -43,6 +43,7 @@ public:
         }
         m_EventId = value;
         eventIdChanged();
+        notifyPropertyChanged(eventIdPropertyKey);
     }
 
     Core* clone() const override;

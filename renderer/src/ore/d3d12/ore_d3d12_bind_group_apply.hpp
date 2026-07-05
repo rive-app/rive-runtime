@@ -19,6 +19,7 @@
 #include "rive/renderer/ore/ore_context_d3d12.hpp"
 #include "ore_render_pass_d3d12.hpp"
 #include "ore_bind_group_d3d12.hpp"
+#include "ore_buffer_d3d12.hpp"
 #include "ore_pipeline_d3d12.hpp"
 
 #include <d3d12.h>
@@ -73,8 +74,12 @@ inline void RenderPassD3D12::d3d12ApplyBindGroup(uint32_t groupIndex,
                 m_d3dContext->d3d12GpuSrvCpuHandle(heapStart + offset++);
             if (bg->m_d3dUBOSlotMask & (1u << globalSlot))
             {
+                // Resolve the live backing now and mark it bound so a later
+                // update() orphans instead of racing this draw.
+                BufferD3D12* ubo = bg->m_d3dUBOBuffers[globalSlot];
+                ubo->markBound();
                 D3D12_GPU_VIRTUAL_ADDRESS gpuVA =
-                    bg->m_d3dUBOAddresses[globalSlot];
+                    ubo->currentGpuVA() + bg->m_d3dUBOOffsets[globalSlot];
                 if ((bg->m_d3dUBODynamicOffsetMask & (1u << globalSlot)) &&
                     dynIdx < dynamicOffsetCount)
                 {

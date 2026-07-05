@@ -48,6 +48,7 @@ public:
         }
         m_IsRelative = value;
         isRelativeChanged();
+        notifyPropertyChanged(isRelativePropertyKey);
     }
 
     Core* clone() const override;

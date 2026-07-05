@@ -66,6 +66,7 @@ public:
         }
         m_ModifyFrom = value;
         modifyFromChanged();
+        notifyPropertyChanged(modifyFromPropertyKey);
     }
 
     inline float modifyTo() const { return m_ModifyTo; }
@@ -77,6 +78,7 @@ public:
         }
         m_ModifyTo = value;
         modifyToChanged();
+        notifyPropertyChanged(modifyToPropertyKey);
     }
 
     inline float strength() const { return m_Strength; }
@@ -88,6 +90,7 @@ public:
         }
         m_Strength = value;
         strengthChanged();
+        notifyPropertyChanged(strengthPropertyKey);
     }
 
     inline uint32_t unitsValue() const { return m_UnitsValue; }
@@ -99,6 +102,7 @@ public:
         }
         m_UnitsValue = value;
         unitsValueChanged();
+        notifyPropertyChanged(unitsValuePropertyKey);
     }
 
     inline uint32_t typeValue() const { return m_TypeValue; }
@@ -110,6 +114,7 @@ public:
         }
         m_TypeValue = value;
         typeValueChanged();
+        notifyPropertyChanged(typeValuePropertyKey);
     }
 
     inline uint32_t modeValue() const { return m_ModeValue; }
@@ -121,6 +126,7 @@ public:
         }
         m_ModeValue = value;
         modeValueChanged();
+        notifyPropertyChanged(modeValuePropertyKey);
     }
 
     inline bool clamp() const { return m_Clamp; }
@@ -132,6 +138,7 @@ public:
         }
         m_Clamp = value;
         clampChanged();
+        notifyPropertyChanged(clampPropertyKey);
     }
 
     inline float falloffFrom() const { return m_FalloffFrom; }
@@ -143,6 +150,7 @@ public:
         }
         m_FalloffFrom = value;
         falloffFromChanged();
+        notifyPropertyChanged(falloffFromPropertyKey);
     }
 
     inline float falloffTo() const { return m_FalloffTo; }
@@ -154,6 +162,7 @@ public:
         }
         m_FalloffTo = value;
         falloffToChanged();
+        notifyPropertyChanged(falloffToPropertyKey);
     }
 
     inline float offset() const { return m_Offset; }
@@ -165,6 +174,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     inline uint32_t runId() const { return m_RunId; }
@@ -176,6 +186,7 @@ public:
         }
         m_RunId = value;
         runIdChanged();
+        notifyPropertyChanged(runIdPropertyKey);
     }
 
     Core* clone() const override;

@@ -60,6 +60,7 @@ public:
         }
         m_InstanceWidth = value;
         instanceWidthChanged();
+        notifyPropertyChanged(instanceWidthPropertyKey);
     }
 
     inline float instanceHeight() const { return m_InstanceHeight; }
@@ -71,6 +72,7 @@ public:
         }
         m_InstanceHeight = value;
         instanceHeightChanged();
+        notifyPropertyChanged(instanceHeightPropertyKey);
     }
 
     inline uint32_t instanceWidthUnitsValue() const
@@ -85,6 +87,7 @@ public:
         }
         m_InstanceWidthUnitsValue = value;
         instanceWidthUnitsValueChanged();
+        notifyPropertyChanged(instanceWidthUnitsValuePropertyKey);
     }
 
     inline uint32_t instanceHeightUnitsValue() const
@@ -99,6 +102,7 @@ public:
         }
         m_InstanceHeightUnitsValue = value;
         instanceHeightUnitsValueChanged();
+        notifyPropertyChanged(instanceHeightUnitsValuePropertyKey);
     }
 
     inline uint32_t instanceWidthScaleType() const
@@ -113,6 +117,7 @@ public:
         }
         m_InstanceWidthScaleType = value;
         instanceWidthScaleTypeChanged();
+        notifyPropertyChanged(instanceWidthScaleTypePropertyKey);
     }
 
     inline uint32_t instanceHeightScaleType() const
@@ -127,6 +132,7 @@ public:
         }
         m_InstanceHeightScaleType = value;
         instanceHeightScaleTypeChanged();
+        notifyPropertyChanged(instanceHeightScaleTypePropertyKey);
     }
 
     Core* clone() const override;

@@ -1,7 +1,16 @@
-<canvas id="canvas"></canvas>
+<!-- Black background so that pixels with alpha are more obvious, rather than
+     being composited into the browser below. -->
+<canvas id="canvas" style="background-color: black"></canvas>
 <script>
   window.onhashchange = function() { location.reload(); }
   function printMessageOnServer(text) {
+        // Don't try to use things like "Module['_malloc']" before the
+        // emscripten runtime is initialized; early stderr only logs to the
+        // browser console (not the deploy_tests.py terminal as well) instead of
+        // crashing.
+        if (typeof runtimeInitialized === 'undefined' || !runtimeInitialized) {
+            return;
+        }
         const lengthBytes = lengthBytesUTF8(text) + 1;
         const stringOnWasmHeap = Module['_malloc'](lengthBytes);
         stringToUTF8(text, stringOnWasmHeap, lengthBytes);

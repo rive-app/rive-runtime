@@ -164,6 +164,17 @@
       "description": "Whether the scroll constraint is being dragged, is scrolling, or is being moved by a scrollbar constraint",
       "bindable": true,
       "passthrough": true
+    },
+    "dragMultiplier": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 1029,
+        "string": "dragmultiplier"
+      },
+      "description": "The ratio of pointer movement to scroll movement. Default is 1:1",
+      "bindable": true
     }
   }
 }

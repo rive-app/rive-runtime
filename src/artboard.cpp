@@ -3,6 +3,8 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
+#include "rive/component.hpp"
+#include "rive/container_component.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/semantic/semantic_data.hpp"
@@ -26,6 +28,7 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/node.hpp"
 #include "rive/foreground_layout_drawable.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_leaf.hpp"
@@ -1870,6 +1873,82 @@ FocusData* Artboard::rootFocusDataAt(size_t index) const
     return nullptr;
 }
 
+namespace
+{
+// Depth-first in scene (Container child) order so FocusManager child order
+// (tab) matches the hierarchy, not the flat m_Objects / grouped passes.
+// At most one FocusData is allowed as a direct child of a container; it is
+// registered in a first pass, then child traversal skips that FocusData.
+void buildFocusTreeVisit(FocusManager* focusManager,
+                         Component* component,
+                         rcp<FocusNode> focusNode)
+{
+    if (component == nullptr)
+    {
+        return;
+    }
+    if (component->is<NestedArtboard>())
+    {
+        auto* nestedHost = component->as<NestedArtboard>();
+        auto* nestedArtboard = nestedHost->artboardInstance(0);
+        if (nestedArtboard != nullptr &&
+            nestedArtboard->focusManager() != focusManager)
+        {
+            nestedArtboard->cleanupFocusTree();
+            nestedArtboard->buildFocusTree(focusManager, focusNode);
+        }
+        for (auto* animation : nestedHost->nestedAnimations())
+        {
+            if (animation->is<NestedStateMachine>())
+            {
+                auto* nsm = animation->as<NestedStateMachine>();
+                auto* smi = nsm->stateMachineInstance();
+                if (smi != nullptr && smi->focusManager() != focusManager)
+                {
+                    smi->setExternalFocusManager(focusManager);
+                }
+            }
+        }
+    }
+    else if (component->is<ArtboardComponentList>())
+    {
+        auto* list = component->as<ArtboardComponentList>();
+        list->ensureListScopeFocusNode(focusManager, focusNode);
+    }
+    if (component->is<ContainerComponent>())
+    {
+        auto* cc = component->as<ContainerComponent>();
+        FocusData* directFd = nullptr;
+        for (Component* ch : cc->children())
+        {
+            if (ch != nullptr && ch->is<FocusData>())
+            {
+                directFd = ch->as<FocusData>();
+                break;
+            }
+        }
+        rcp<FocusNode> recurseWith;
+        if (directFd != nullptr)
+        {
+            focusManager->addChild(focusNode, directFd->focusNode());
+            recurseWith = directFd->focusNode();
+        }
+        else
+        {
+            recurseWith = focusNode;
+        }
+        for (Component* ch : cc->children())
+        {
+            if (ch == nullptr || ch->is<FocusData>())
+            {
+                continue;
+            }
+            buildFocusTreeVisit(focusManager, ch, recurseWith);
+        }
+    }
+}
+} // namespace
+
 void Artboard::buildFocusTree(FocusManager* focusManager,
                               rcp<FocusNode> parentFocusNode)
 {
@@ -1895,101 +1974,9 @@ void Artboard::buildFocusTree(FocusManager* focusManager,
     rcp<FocusNode> effectiveParent = parentFocusNode;
 #endif
 
-    // Register all FocusData in this artboard
-    for (auto* obj : m_Objects)
+    if (as<ContainerComponent>() != nullptr)
     {
-        if (obj != nullptr && obj->is<FocusData>())
-        {
-            auto* fd = obj->as<FocusData>();
-            auto* localParent = fd->findParentFocusData();
-
-            rcp<FocusNode> parentNode = localParent != nullptr
-                                            ? localParent->focusNode()
-                                            : effectiveParent;
-
-            focusManager->addChild(parentNode, fd->focusNode());
-        }
-    }
-    // Propagate focus registration to nested artboards that might have been
-    // created before this artboard's focusManager was available. This handles
-    // ArtboardComponentList and NestedArtboard items that were initialized
-    // before the parent StateMachineInstance was created.
-    //
-    // We check if the nested artboard's focusManager is DIFFERENT from ours.
-    // If it is, that means it created its own internal focusManager when it
-    // should be sharing the parent's. We rebuild its focus tree with the
-    // correct shared focusManager.
-
-    // Handle NestedArtboard instances
-    for (auto* nestedArtboardHost : m_NestedArtboards)
-    {
-        // Find closest focus node (handles artboard boundaries)
-        auto hostParentNode =
-            FocusData::findClosestFocusNode(nestedArtboardHost);
-        if (hostParentNode == nullptr)
-        {
-            hostParentNode = effectiveParent;
-        }
-
-        auto* nestedArtboard = nestedArtboardHost->artboardInstance(0);
-        if (nestedArtboard != nullptr &&
-            nestedArtboard->focusManager() != focusManager)
-        {
-            // Clean up old focus tree if it exists (with wrong focusManager)
-            nestedArtboard->cleanupFocusTree();
-            nestedArtboard->buildFocusTree(focusManager, hostParentNode);
-        }
-
-        // Also update the external focus manager on any nested state machines.
-        // This handles the case where initializeAnimation was called before
-        // the parent artboard had a focus manager.
-        for (auto* animation : nestedArtboardHost->nestedAnimations())
-        {
-            if (animation->is<NestedStateMachine>())
-            {
-                auto* nsm = animation->as<NestedStateMachine>();
-                auto* smi = nsm->stateMachineInstance();
-                if (smi != nullptr && smi->focusManager() != focusManager)
-                {
-                    smi->setExternalFocusManager(focusManager);
-                }
-            }
-        }
-    }
-
-    // Handle ArtboardComponentList instances
-    for (auto* componentList : m_ComponentLists)
-    {
-        // Find closest focus node (handles artboard boundaries)
-        auto hostParentNode = FocusData::findClosestFocusNode(componentList);
-        if (hostParentNode == nullptr)
-        {
-            hostParentNode = effectiveParent;
-        }
-
-        for (size_t i = 0; i < componentList->artboardCount(); i++)
-        {
-            auto* nestedArtboard =
-                componentList->artboardInstance(static_cast<int>(i));
-            if (nestedArtboard != nullptr &&
-                nestedArtboard->focusManager() != focusManager)
-            {
-                // Clean up old focus tree if it exists (with wrong
-                // focusManager)
-                nestedArtboard->cleanupFocusTree();
-                nestedArtboard->buildFocusTree(focusManager, hostParentNode);
-            }
-
-            // Also update the state machine's external focus manager.
-            // This handles the case where linkStateMachine was called before
-            // the parent artboard had a focus manager.
-            auto* smi =
-                componentList->stateMachineInstance(static_cast<int>(i));
-            if (smi != nullptr && smi->focusManager() != focusManager)
-            {
-                smi->setExternalFocusManager(focusManager);
-            }
-        }
+        buildFocusTreeVisit(focusManager, this, std::move(effectiveParent));
     }
 }
 
@@ -2055,6 +2042,11 @@ void Artboard::cleanupFocusTree()
                 nestedArtboard->cleanupFocusTree();
             }
         }
+    }
+
+    for (auto* componentList : m_ComponentLists)
+    {
+        componentList->removeListScopeFocusNode();
     }
 
     // Clear the active focus manager reference

@@ -13,10 +13,11 @@ DataBindContextValueArtboard::DataBindContextValueArtboard(DataBind* dataBind) :
 
 void DataBindContextValueArtboard::apply(Core* target,
                                          uint32_t propertyKey,
-                                         bool isMainDirection)
+                                         bool isMainDirection,
+                                         DataBind* dataBind)
 {
-    syncSourceValue();
-    auto source = m_dataBind->source();
+    syncSourceValue(dataBind);
+    auto source = dataBind->source();
     if (source != nullptr && source->is<ViewModelInstanceArtboard>())
     {
         auto artboardReferencer = ArtboardReferencer::from(target);
@@ -31,7 +32,7 @@ void DataBindContextValueArtboard::apply(Core* target,
             auto value =
                 calculateValue<DataValueArtboard, uint32_t>(m_dataValue,
                                                             isMainDirection,
-                                                            m_dataBind);
+                                                            dataBind);
             CoreRegistry::setUint(target, propertyKey, value);
         }
     }

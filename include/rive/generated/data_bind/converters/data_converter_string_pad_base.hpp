@@ -49,6 +49,7 @@ public:
         }
         m_Length = value;
         lengthChanged();
+        notifyPropertyChanged(lengthPropertyKey);
     }
 
     inline const std::string& text() const { return m_Text; }
@@ -60,6 +61,7 @@ public:
         }
         m_Text = value;
         textChanged();
+        notifyPropertyChanged(textPropertyKey);
     }
 
     inline uint32_t padType() const { return m_PadType; }
@@ -71,6 +73,7 @@ public:
         }
         m_PadType = value;
         padTypeChanged();
+        notifyPropertyChanged(padTypePropertyKey);
     }
 
     Core* clone() const override;

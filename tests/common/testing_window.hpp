@@ -235,7 +235,7 @@ public:
 
     virtual void hotloadShaders() {}
 
-#if defined(__APPLE__) && !defined(RIVE_UNREAL)
+#if defined(__APPLE__)
     // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
     // this cross-platform header (same pattern as externalCommandBuffer).
     virtual void* metalQueue() const { return nullptr; }

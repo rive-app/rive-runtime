@@ -11,7 +11,6 @@ namespace rive
 class DataBindContextValue
 {
 protected:
-    DataBind* m_dataBind = nullptr;
     DataValue* m_dataValue = nullptr;
     DataBindContextTargetValue m_targetValue;
     bool m_isValid = false;
@@ -27,16 +26,18 @@ public:
     };
     virtual void applyToSource(Core* component,
                                uint32_t propertyKey,
-                               bool isMainDirection);
+                               bool isMainDirection,
+                               DataBind* dataBind);
     virtual void apply(Core* component,
                        uint32_t propertyKey,
-                       bool isMainDirection) {};
+                       bool isMainDirection,
+                       DataBind* dataBind) {};
     void invalidate() { m_isValid = false; };
     virtual bool syncTargetValue(Core* target, uint32_t propertyKey)
     {
         return false;
     };
-    void syncSourceValue();
+    void syncSourceValue(DataBind* dataBind);
     DataValue* calculateUntypedDataValue(DataValue* input,
                                          bool isMainDirection,
                                          DataBind* dataBind)
@@ -77,23 +78,23 @@ public:
     template <typename T = DataValue,
               typename U,
               typename V = ViewModelInstanceValue>
-    void calculateValueAndApply(bool isMainDirection)
+    void calculateValueAndApply(bool isMainDirection, DataBind* dataBind)
     {
         // Check if target value changed or binding has been invalidated
-        if (m_targetValue.syncTargetValue() || !m_isValid)
+        if (m_targetValue.syncTargetValue(dataBind) || !m_isValid)
         {
             // Calculate new value after converters are applied
             auto value = calculateDataValue<T>(m_targetValue.dataValue(),
                                                isMainDirection,
-                                               m_dataBind);
+                                               dataBind);
             if (value)
             {
 
                 // Apply value to source
-                m_dataBind->suppressDirt(true);
-                auto source = m_dataBind->source();
+                dataBind->suppressDirt(true);
+                auto source = dataBind->source();
                 source->as<V>()->applyValue(value->template as<T>());
-                m_dataBind->suppressDirt(false);
+                dataBind->suppressDirt(false);
                 m_isValid = true;
             }
         }

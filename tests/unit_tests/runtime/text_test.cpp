@@ -1,4 +1,5 @@
 #include "rive/text/text.hpp"
+#include "rive/generated/core_registry.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive_file_reader.hpp"
@@ -109,6 +110,97 @@ TEST_CASE("simple text loads", "[text]")
         REQUIRE(textObjects[0]->localBounds().width() == 0.0f);
         REQUIRE(textObjects[0]->localBounds().height() == 0.0f);
     }
+}
+
+TEST_CASE("vertical trim shrinks the box to the chosen band", "[text]")
+{
+    auto file = ReadRiveFile("assets/hello_world.riv");
+    auto artboard = file->artboard();
+    auto text = artboard->find<rive::Text>()[0];
+    rive::NoOpRenderer renderer;
+
+    auto measureHeight = [&](rive::TextTrimTop top,
+                             rive::TextTrimBottom bottom) {
+        text->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
+        artboard->advance(0.0f);
+        artboard->draw(&renderer);
+        return text->localBounds().height();
+    };
+
+    // Auto-width so the height is driven entirely by the line metrics.
+    text->sizingValue((uint32_t)rive::TextSizing::autoWidth);
+    float normalHeight =
+        measureHeight(rive::TextTrimTop::none, rive::TextTrimBottom::none);
+    float normalWidth = text->localBounds().width();
+    REQUIRE(normalHeight > 0.0f);
+
+    // Cap + baseline removes the ascent above the caps and the whole descent.
+    float capHeight =
+        measureHeight(rive::TextTrimTop::cap, rive::TextTrimBottom::alphabetic);
+    REQUIRE(capHeight > 0.0f);
+    REQUIRE(capHeight < normalHeight);
+    REQUIRE(text->localBounds().width() == Approx(normalWidth));
+
+    // x-height sits below the cap line, so trimming to it removes even more.
+    float exHeight =
+        measureHeight(rive::TextTrimTop::ex, rive::TextTrimBottom::alphabetic);
+    REQUIRE(exHeight > 0.0f);
+    REQUIRE(exHeight < capHeight);
+
+    // Trimming only the top leaves a taller box than also trimming the bottom.
+    float topOnlyHeight =
+        measureHeight(rive::TextTrimTop::cap, rive::TextTrimBottom::none);
+    REQUIRE(topOnlyHeight > capHeight);
+    REQUIRE(topOnlyHeight < normalHeight);
+}
+
+TEST_CASE("vertical trim top/bottom uint passthroughs pack into the mask",
+          "[text]")
+{
+    rive::Text text;
+
+    // The two uint bitmask passthroughs write disjoint byte-wide fields of the
+    // single packed verticalTrimValue, matching packTextVerticalTrim().
+    rive::CoreRegistry::setUint(&text,
+                                rive::TextBase::verticalTrimTopValuePropertyKey,
+                                (uint32_t)rive::TextTrimTop::ex);
+    rive::CoreRegistry::setUint(
+        &text,
+        rive::TextBase::verticalTrimBottomValuePropertyKey,
+        (uint32_t)rive::TextTrimBottom::text);
+
+    REQUIRE(text.verticalTrimValue() ==
+            rive::packTextVerticalTrim(rive::TextTrimTop::ex,
+                                       rive::TextTrimBottom::text));
+    REQUIRE(text.verticalTrimTop() == rive::TextTrimTop::ex);
+    REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
+
+    // Read-back through the registry returns the per-field values.
+    REQUIRE(rive::CoreRegistry::getUint(
+                &text,
+                rive::TextBase::verticalTrimTopValuePropertyKey) ==
+            (uint32_t)rive::TextTrimTop::ex);
+    REQUIRE(rive::CoreRegistry::getUint(
+                &text,
+                rive::TextBase::verticalTrimBottomValuePropertyKey) ==
+            (uint32_t)rive::TextTrimBottom::text);
+
+    // Rewriting one field leaves the other untouched.
+    rive::CoreRegistry::setUint(&text,
+                                rive::TextBase::verticalTrimTopValuePropertyKey,
+                                (uint32_t)rive::TextTrimTop::cap);
+    REQUIRE(text.verticalTrimTop() == rive::TextTrimTop::cap);
+    REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
+
+    // Overflow beyond the 8-bit field is masked off, never bleeding into the
+    // neighbouring field.
+    rive::CoreRegistry::setUint(&text,
+                                rive::TextBase::verticalTrimTopValuePropertyKey,
+                                0x1FF);
+    REQUIRE(rive::CoreRegistry::getUint(
+                &text,
+                rive::TextBase::verticalTrimTopValuePropertyKey) == 0xFF);
+    REQUIRE(text.verticalTrimBottom() == rive::TextTrimBottom::text);
 }
 
 TEST_CASE("ellipsis is shown", "[text]")
@@ -647,4 +739,34 @@ TEST_CASE("Fit font size", "[text]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("fit_font_size_test"));
+}
+
+TEST_CASE("Vertical Trim", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/text_vertical_trim_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.16f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("text_vertical_trim_test"));
 }

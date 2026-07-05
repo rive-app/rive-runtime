@@ -47,6 +47,7 @@ public:
     static const uint16_t velocityXPropertyKey = 1023;
     static const uint16_t velocityYPropertyKey = 1024;
     static const uint16_t scrollActivePropertyKey = 1025;
+    static const uint16_t dragMultiplierPropertyKey = 1029;
 
 protected:
     float m_ScrollOffsetX = 0.0f;
@@ -58,6 +59,7 @@ protected:
     bool m_Infinite = false;
     bool m_Interactive = true;
     float m_Threshold = 0.0f;
+    float m_DragMultiplier = 1.0f;
 
 public:
     inline float scrollOffsetX() const { return m_ScrollOffsetX; }
@@ -69,6 +71,7 @@ public:
         }
         m_ScrollOffsetX = value;
         scrollOffsetXChanged();
+        notifyPropertyChanged(scrollOffsetXPropertyKey);
     }
 
     inline float scrollOffsetY() const { return m_ScrollOffsetY; }
@@ -80,6 +83,7 @@ public:
         }
         m_ScrollOffsetY = value;
         scrollOffsetYChanged();
+        notifyPropertyChanged(scrollOffsetYPropertyKey);
     }
 
     virtual void setScrollPercentX(float value) = 0;
@@ -92,6 +96,7 @@ public:
         }
         setScrollPercentX(value);
         scrollPercentXChanged();
+        notifyPropertyChanged(scrollPercentXPropertyKey);
     }
 
     virtual void setScrollPercentY(float value) = 0;
@@ -104,6 +109,7 @@ public:
         }
         setScrollPercentY(value);
         scrollPercentYChanged();
+        notifyPropertyChanged(scrollPercentYPropertyKey);
     }
 
     virtual void setScrollIndex(float value) = 0;
@@ -116,6 +122,7 @@ public:
         }
         setScrollIndex(value);
         scrollIndexChanged();
+        notifyPropertyChanged(scrollIndexPropertyKey);
     }
 
     inline bool snap() const { return m_Snap; }
@@ -127,6 +134,7 @@ public:
         }
         m_Snap = value;
         snapChanged();
+        notifyPropertyChanged(snapPropertyKey);
     }
 
     inline uint32_t physicsTypeValue() const { return m_PhysicsTypeValue; }
@@ -138,6 +146,7 @@ public:
         }
         m_PhysicsTypeValue = value;
         physicsTypeValueChanged();
+        notifyPropertyChanged(physicsTypeValuePropertyKey);
     }
 
     inline uint32_t physicsId() const { return m_PhysicsId; }
@@ -149,6 +158,7 @@ public:
         }
         m_PhysicsId = value;
         physicsIdChanged();
+        notifyPropertyChanged(physicsIdPropertyKey);
     }
 
     inline bool virtualize() const { return m_Virtualize; }
@@ -160,6 +170,7 @@ public:
         }
         m_Virtualize = value;
         virtualizeChanged();
+        notifyPropertyChanged(virtualizePropertyKey);
     }
 
     inline bool infinite() const { return m_Infinite; }
@@ -171,6 +182,7 @@ public:
         }
         m_Infinite = value;
         infiniteChanged();
+        notifyPropertyChanged(infinitePropertyKey);
     }
 
     inline bool interactive() const { return m_Interactive; }
@@ -182,6 +194,7 @@ public:
         }
         m_Interactive = value;
         interactiveChanged();
+        notifyPropertyChanged(interactivePropertyKey);
     }
 
     inline float threshold() const { return m_Threshold; }
@@ -193,6 +206,7 @@ public:
         }
         m_Threshold = value;
         thresholdChanged();
+        notifyPropertyChanged(thresholdPropertyKey);
     }
 
     virtual void setVelocityX(float value) = 0;
@@ -205,6 +219,7 @@ public:
         }
         setVelocityX(value);
         velocityXChanged();
+        notifyPropertyChanged(velocityXPropertyKey);
     }
 
     virtual void setVelocityY(float value) = 0;
@@ -217,6 +232,7 @@ public:
         }
         setVelocityY(value);
         velocityYChanged();
+        notifyPropertyChanged(velocityYPropertyKey);
     }
 
     virtual void setScrollActive(bool value) = 0;
@@ -229,6 +245,18 @@ public:
         }
         setScrollActive(value);
         scrollActiveChanged();
+        notifyPropertyChanged(scrollActivePropertyKey);
+    }
+
+    inline float dragMultiplier() const { return m_DragMultiplier; }
+    void dragMultiplier(float value)
+    {
+        if (m_DragMultiplier == value)
+        {
+            return;
+        }
+        m_DragMultiplier = value;
+        dragMultiplierChanged();
     }
 
     Core* clone() const override;
@@ -243,6 +271,7 @@ public:
         m_Infinite = object.m_Infinite;
         m_Interactive = object.m_Interactive;
         m_Threshold = object.m_Threshold;
+        m_DragMultiplier = object.m_DragMultiplier;
         DraggableConstraint::copy(object);
     }
 
@@ -277,6 +306,9 @@ public:
             case thresholdPropertyKey:
                 m_Threshold = CoreDoubleType::deserialize(reader);
                 return true;
+            case dragMultiplierPropertyKey:
+                m_DragMultiplier = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return DraggableConstraint::deserialize(propertyKey, reader);
     }
@@ -297,6 +329,7 @@ protected:
     virtual void velocityXChanged() {}
     virtual void velocityYChanged() {}
     virtual void scrollActiveChanged() {}
+    virtual void dragMultiplierChanged() {}
 };
 } // namespace rive
 

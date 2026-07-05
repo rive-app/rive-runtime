@@ -399,23 +399,7 @@ static wgpu::VertexStepMode oreStepModeToWGPU(VertexStepMode mode)
 // ============================================================================
 // Shader compilation helpers
 // ============================================================================
-
-#ifdef RIVE_DAWN
-static wgpu::ShaderModule compileDawnWGSLShader(wgpu::Device device,
-                                                const char* source,
-                                                uint32_t codeSize)
-{
-    WGPUShaderSourceWGSL wgslDesc = WGPU_SHADER_SOURCE_WGSL_INIT;
-    wgslDesc.code.data = source;
-    wgslDesc.code.length = codeSize > 0 ? codeSize : WGPU_STRLEN;
-
-    WGPUShaderModuleDescriptor descriptor = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
-    descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wgslDesc);
-
-    return wgpu::ShaderModule::Acquire(
-        wgpuDeviceCreateShaderModule(device.Get(), &descriptor));
-}
-#elif RIVE_WAGYU
+#ifdef RIVE_WAGYU
 static wgpu::ShaderModule compileWagyuShader(wgpu::Device device,
                                              const char* source,
                                              uint32_t codeSize,
@@ -429,6 +413,21 @@ static wgpu::ShaderModule compileWagyuShader(wgpu::Device device,
 
     WGPUShaderModuleDescriptor descriptor = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
     descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wagyuDesc);
+
+    return wgpu::ShaderModule::Acquire(
+        wgpuDeviceCreateShaderModule(device.Get(), &descriptor));
+}
+#else
+static wgpu::ShaderModule compileWGSLShader(wgpu::Device device,
+                                            const char* source,
+                                            uint32_t codeSize)
+{
+    WGPUShaderSourceWGSL wgslDesc = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgslDesc.code.data = source;
+    wgslDesc.code.length = codeSize > 0 ? codeSize : WGPU_STRLEN;
+
+    WGPUShaderModuleDescriptor descriptor = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+    descriptor.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wgslDesc);
 
     return wgpu::ShaderModule::Acquire(
         wgpuDeviceCreateShaderModule(device.Get(), &descriptor));
@@ -485,6 +484,7 @@ void ContextWGPU::beginFrame(const FrameDescriptor& desc)
     assert(desc.externalCommandBuffer != nullptr);
     m_wgpuCommandEncoder = std::move(
         *static_cast<wgpu::CommandEncoder*>(desc.externalCommandBuffer));
+    ++m_frameSerial;
 }
 
 void ContextWGPU::waitForGPU() {} // WGPU submit is synchronous for Dawn.
@@ -506,6 +506,8 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
 {
     auto buffer = rcp<BufferWGPU>(new BufferWGPU(desc.size, desc.usage));
     buffer->m_wgpuQueue = m_wgpuQueue; // addref'd copy for WriteBuffer
+    buffer->m_wgpuDevice = m_wgpuDevice;
+    buffer->m_ctx = this;
 
     wgpu::BufferUsage usage = wgpu::BufferUsage::CopyDst;
     switch (desc.usage)
@@ -523,6 +525,7 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
             usage |= wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc;
             break;
     }
+    buffer->m_wgpuUsage = usage;
 
     wgpu::BufferDescriptor wDesc{};
     wDesc.label = desc.label;
@@ -530,11 +533,21 @@ rcp<Buffer> ContextWGPU::makeBuffer(const BufferDesc& desc)
     wDesc.usage = usage;
     wDesc.mappedAtCreation = false;
 
-    buffer->m_wgpuBuffer = m_wgpuDevice.CreateBuffer(&wDesc);
+    wgpu::Buffer wbuf = m_wgpuDevice.CreateBuffer(&wDesc);
+    if (wbuf == nullptr)
+        return nullptr; // Allocation failed.
+    buffer->m_pool.push_back({std::move(wbuf), 0});
 
+    // A buffer created with initial data seeds its CPU shadow now so a later
+    // partial update that orphans rewrites the fresh backing with real
+    // contents, not zeros. A buffer with no initial data allocates the shadow
+    // lazily on first update, so a never-updated buffer carries no extra host
+    // memory.
     if (desc.data != nullptr)
     {
-        m_wgpuQueue.WriteBuffer(buffer->m_wgpuBuffer, 0, desc.data, desc.size);
+        m_wgpuQueue.WriteBuffer(buffer->current(), 0, desc.data, desc.size);
+        const auto* bytes = static_cast<const uint8_t*>(desc.data);
+        buffer->m_shadow.assign(bytes, bytes + desc.size);
     }
 
     return buffer;
@@ -637,14 +650,7 @@ rcp<ShaderModule> ContextWGPU::makeShaderModule(const ShaderModuleDesc& desc)
                             ? desc.codeSize
                             : static_cast<uint32_t>(strlen(source));
 
-#ifdef RIVE_DAWN
-    assert(desc.language == ShaderLanguage::wgsl &&
-           "Dawn ore backend only supports WGSL shaders");
-    module->m_wgpuShaderModule =
-        compileDawnWGSLShader(m_wgpuDevice, source, codeSize);
-    assert(module->m_wgpuShaderModule != nullptr &&
-           "Ore Dawn WGSL shader compilation failed");
-#elif RIVE_WAGYU
+#ifdef RIVE_WAGYU
     WGPUWagyuShaderLanguage language;
     if (desc.language == ShaderLanguage::wgsl)
     {
@@ -664,6 +670,13 @@ rcp<ShaderModule> ContextWGPU::makeShaderModule(const ShaderModuleDesc& desc)
 
     assert(module->m_wgpuShaderModule != nullptr &&
            "Ore WGPU wagyu shader compilation failed");
+#else
+    assert(desc.language == ShaderLanguage::wgsl &&
+           "Dawn/emdawn ore backend only supports WGSL shaders");
+    module->m_wgpuShaderModule =
+        compileWGSLShader(m_wgpuDevice, source, codeSize);
+    assert(module->m_wgpuShaderModule != nullptr &&
+           "Ore Dawn WGSL shader compilation failed");
 #endif
 
     module->applyBindingMapFromDesc(desc);
@@ -993,24 +1006,23 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
         return true;
     };
 
-    uint32_t totalCapacity =
-        desc.uboCount + desc.textureCount + desc.samplerCount;
-    std::vector<wgpu::BindGroupEntry> entries(totalCapacity);
-    uint32_t idx = 0;
+    // Capture a replayable recipe instead of building the bind group inline,
+    // so it can be rebuilt against a UBO's fresh backing after an orphan.
+    bg->m_wgpuBGL = layout->m_wgpuBGL;
+    bg->m_label = desc.label ? desc.label : "";
 
     for (uint32_t i = 0; i < desc.uboCount; ++i)
     {
         const auto& ubo = desc.ubos[i];
         if (!checkLayout(ubo.slot, BindingKind::uniformBuffer))
             continue;
-        wgpu::BindGroupEntry& e = entries[idx++];
-        e = {};
-        e.binding = ubo.slot;
         auto buffer = lite_rtti_cast<BufferWGPU*>(ubo.buffer);
         assert(buffer != nullptr);
-        e.buffer = buffer->m_wgpuBuffer;
-        e.offset = ubo.offset;
-        e.size = (ubo.size > 0) ? ubo.size : buffer->size();
+        bg->m_uboEntries.push_back(
+            {buffer,
+             ubo.slot,
+             ubo.offset,
+             (ubo.size > 0) ? ubo.size : buffer->size()});
         bg->m_retainedBuffers.push_back(ref_rcp(buffer));
     }
 
@@ -1019,12 +1031,9 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
         const auto& tex = desc.textures[i];
         if (!checkLayout(tex.slot, BindingKind::sampledTexture))
             continue;
-        wgpu::BindGroupEntry& e = entries[idx++];
-        e = {};
-        e.binding = tex.slot;
         auto view = lite_rtti_cast<TextureViewWGPU*>(tex.view);
         assert(view != nullptr);
-        e.textureView = view->m_wgpuTextureView;
+        bg->m_texEntries.push_back({tex.slot, view->m_wgpuTextureView});
         bg->m_retainedViews.push_back(ref_rcp(view));
     }
 
@@ -1033,23 +1042,14 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
         const auto& samp = desc.samplers[i];
         if (!checkLayout(samp.slot, BindingKind::sampler))
             continue;
-        wgpu::BindGroupEntry& e = entries[idx++];
-        e = {};
-        e.binding = samp.slot;
         auto sampler = lite_rtti_cast<SamplerWGPU*>(samp.sampler);
         assert(sampler != nullptr);
-        e.sampler = sampler->m_wgpuSampler;
+        bg->m_sampEntries.push_back({samp.slot, sampler->m_wgpuSampler});
         bg->m_retainedSamplers.push_back(ref_rcp(sampler));
     }
 
-    wgpu::BindGroupDescriptor bgDesc{};
-    bgDesc.label = desc.label;
-    bgDesc.layout = layout->m_wgpuBGL;
-    bgDesc.entryCount = idx;
-    bgDesc.entries = (idx > 0) ? entries.data() : nullptr;
-
-    bg->m_wgpuBindGroup = m_wgpuDevice.CreateBindGroup(&bgDesc);
-    if (bg->m_wgpuBindGroup == nullptr)
+    // Build the initial bind group against the current backings.
+    if (bg->resolveBindGroup() == nullptr)
         return nullptr;
 
     return bg;

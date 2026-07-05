@@ -43,6 +43,7 @@ public:
         }
         m_TargetId = value;
         targetIdChanged();
+        notifyPropertyChanged(targetIdPropertyKey);
     }
 
     Core* clone() const override;

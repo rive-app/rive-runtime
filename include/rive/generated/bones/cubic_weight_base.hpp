@@ -50,6 +50,7 @@ public:
         }
         m_InValues = value;
         inValuesChanged();
+        notifyPropertyChanged(inValuesPropertyKey);
     }
 
     inline uint32_t inIndices() const { return m_InIndices; }
@@ -61,6 +62,7 @@ public:
         }
         m_InIndices = value;
         inIndicesChanged();
+        notifyPropertyChanged(inIndicesPropertyKey);
     }
 
     inline uint32_t outValues() const { return m_OutValues; }
@@ -72,6 +74,7 @@ public:
         }
         m_OutValues = value;
         outValuesChanged();
+        notifyPropertyChanged(outValuesPropertyKey);
     }
 
     inline uint32_t outIndices() const { return m_OutIndices; }
@@ -83,6 +86,7 @@ public:
         }
         m_OutIndices = value;
         outIndicesChanged();
+        notifyPropertyChanged(outIndicesPropertyKey);
     }
 
     Core* clone() const override;

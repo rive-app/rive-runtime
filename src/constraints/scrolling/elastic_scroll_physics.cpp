@@ -5,10 +5,20 @@ using namespace rive;
 
 Vec2D ElasticScrollPhysics::advance(float elapsedSeconds)
 {
+    // Capture per-axis position before advancing so we can derive current
+    // velocity from the actual frame-to-frame motion and write it into the
+    // base m_speed (used for velocity reporting).
+    float prevX = m_physicsX != nullptr ? m_physicsX->current() : 0.0f;
+    float prevY = m_physicsY != nullptr ? m_physicsY->current() : 0.0f;
     float advanceX =
         m_physicsX != nullptr ? m_physicsX->advance(elapsedSeconds) : 0.0f;
     float advanceY =
         m_physicsY != nullptr ? m_physicsY->advance(elapsedSeconds) : 0.0f;
+    if (elapsedSeconds > 0)
+    {
+        m_speed = Vec2D((advanceX - prevX) / elapsedSeconds,
+                        (advanceY - prevY) / elapsedSeconds);
+    }
     bool isRunningX = m_physicsX != nullptr && m_physicsX->isRunning();
     bool isRunningY = m_physicsY != nullptr && m_physicsY->isRunning();
     if (!isRunningX && !isRunningY)
@@ -199,16 +209,19 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     {
         float endTarget = -(m_current + m_speed / m_friction);
         float sectionSize = contentSize != 0 ? contentSize : 1;
-        float viewportSectionSize = viewportSize != 0 ? viewportSize : 1;
         int multiple = rangeMax == std::numeric_limits<float>::infinity()
                            ? std::floor(endTarget / sectionSize)
                            : 0;
         float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
                                  ? math::positive_mod(endTarget, sectionSize)
                                  : endTarget;
+        // -rangeMin is the max positive scroll position. It already accounts
+        // for viewport trailing padding (rangeMin = maxOffset =
+        // viewportSize - contentSize - paddingEnd), whereas contentSize -
+        // viewportSize does not.
         float maxTarget = rangeMax == std::numeric_limits<float>::infinity()
                               ? std::numeric_limits<float>::infinity()
-                              : sectionSize - viewportSectionSize;
+                              : -rangeMin;
         float closest = std::numeric_limits<float>::max();
         float snapTarget = 0;
         for (auto snap : snappingPoints)
@@ -218,6 +231,18 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
             {
                 closest = diff;
                 snapTarget = snap + (multiple * sectionSize);
+            }
+        }
+        // Treat the padded end-of-scroll as a candidate snap. Otherwise a
+        // fling past the last item snaps backward to that item's leading
+        // edge, dropping the trailing padding.
+        if (maxTarget != std::numeric_limits<float>::infinity())
+        {
+            float diff = std::abs(maxTarget - modEndTarget);
+            if (diff < closest)
+            {
+                closest = diff;
+                snapTarget = maxTarget;
             }
         }
         snapTarget = std::min(snapTarget, maxTarget);

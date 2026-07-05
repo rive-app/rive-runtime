@@ -51,6 +51,7 @@ public:
         }
         m_FontSize = value;
         fontSizeChanged();
+        notifyPropertyChanged(fontSizePropertyKey);
     }
 
     inline float lineHeight() const { return m_LineHeight; }
@@ -62,6 +63,7 @@ public:
         }
         m_LineHeight = value;
         lineHeightChanged();
+        notifyPropertyChanged(lineHeightPropertyKey);
     }
 
     inline float letterSpacing() const { return m_LetterSpacing; }
@@ -73,6 +75,7 @@ public:
         }
         m_LetterSpacing = value;
         letterSpacingChanged();
+        notifyPropertyChanged(letterSpacingPropertyKey);
     }
 
     inline uint32_t fontAssetId() const { return m_FontAssetId; }
@@ -84,6 +87,7 @@ public:
         }
         m_FontAssetId = value;
         fontAssetIdChanged();
+        notifyPropertyChanged(fontAssetIdPropertyKey);
     }
 
     Core* clone() const override;

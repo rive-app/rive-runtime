@@ -79,6 +79,11 @@ struct TextBoundsInfo
     float totalHeight;
     int ellipsisLine;
     bool isEllipsisLineLast;
+    // Vertical trim removed from the top (ascent above the first line's cap- or
+    // x-height) and bottom (descent below the last line's baseline / natural
+    // descent). Both are zero when trim is disabled (TextTrimTop/Bottom::none).
+    float topTrim;
+    float bottomTrim;
 };
 
 enum class LineIter : uint8_t
@@ -184,6 +189,14 @@ public:
     TextSizing effectiveSizing() const;
     TextOverflow overflow() const { return (TextOverflow)overflowValue(); }
     TextOrigin textOrigin() const { return (TextOrigin)originValue(); }
+    TextTrimTop verticalTrimTop() const
+    {
+        return textTrimTop(verticalTrimValue());
+    }
+    TextTrimBottom verticalTrimBottom() const
+    {
+        return textTrimBottom(verticalTrimValue());
+    }
     TextWrap wrap() const { return (TextWrap)wrapValue(); }
     VerticalTextAlign verticalAlign() const
     {
@@ -266,6 +279,7 @@ protected:
                     bool withModifiers = true,
                     float fontScale = 1.0f) const;
     void originValueChanged() override;
+    void verticalTrimValueChanged() override;
 
 private:
 #ifdef WITH_RIVE_TEXT

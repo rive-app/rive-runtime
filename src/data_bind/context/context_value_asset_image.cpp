@@ -10,10 +10,10 @@ DataBindContextValueAssetImage::DataBindContextValueAssetImage(
     DataBindContextValue(dataBind)
 {}
 
-rcp<ImageAsset> DataBindContextValueAssetImage::fileAsset()
+rcp<ImageAsset> DataBindContextValueAssetImage::fileAsset(DataBind* dataBind)
 {
-    auto file = m_dataBind->file();
-    auto source = m_dataBind->source();
+    auto file = dataBind->file();
+    auto source = dataBind->source();
     if (file != nullptr && source != nullptr &&
         source->is<ViewModelInstanceAssetImage>())
     {
@@ -30,25 +30,26 @@ rcp<ImageAsset> DataBindContextValueAssetImage::fileAsset()
 
 void DataBindContextValueAssetImage::apply(Core* target,
                                            uint32_t propertyKey,
-                                           bool isMainDirection)
+                                           bool isMainDirection,
+                                           DataBind* dataBind)
 {
     if (target->is<Image>())
     {
-        auto asset = fileAsset();
+        auto asset = fileAsset(dataBind);
         if (asset != nullptr)
         {
             target->as<Image>()->setAsset(asset);
         }
         else
         {
-            auto source = m_dataBind->source();
+            auto source = dataBind->source();
             target->as<Image>()->setAsset(
                 source->as<ViewModelInstanceAssetImage>()->asset());
         }
     }
     else if (target->is<BindablePropertyAsset>())
     {
-        auto source = m_dataBind->source();
+        auto source = dataBind->source();
         target->as<BindablePropertyAsset>()->imageValue(
             source->as<ViewModelInstanceAssetImage>()->asset()->renderImage());
         CoreRegistry::setUint(
@@ -58,7 +59,7 @@ void DataBindContextValueAssetImage::apply(Core* target,
     }
     else
     {
-        auto source = m_dataBind->source();
+        auto source = dataBind->source();
         CoreRegistry::setUint(
             target,
             propertyKey,

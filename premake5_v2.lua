@@ -174,7 +174,7 @@ do
     end
 
     filter({})
-    
+
     if _OPTIONS['with_optick'] then
         includedirs({ optick .. '/src' })
     end
@@ -211,6 +211,12 @@ do
     do
         -- lua_gpu.cpp and lua_scripted_context.cpp include renderer (C++17) headers.
         includedirs({ 'renderer/include' })
+    end
+    filter({ 'options:with_rive_canvas', 'options:not cpp20' })
+    do
+        -- We need to also set the dialect to C++17 when building with Rive
+        -- canvas, unless we're also setting it to C++20 (in which case we
+        -- want to keep that preference)
         cppdialect('C++17')
     end
     -- On Apple, ore_context.hpp imports Metal.h (ORE_BACKEND_METAL is globally

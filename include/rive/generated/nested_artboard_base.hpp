@@ -61,6 +61,7 @@ public:
         }
         m_ArtboardId = value;
         artboardIdChanged();
+        notifyPropertyChanged(artboardIdPropertyKey);
     }
 
     virtual void decodeDataBindPathIds(Span<const uint8_t> value) = 0;
@@ -75,6 +76,7 @@ public:
         }
         m_IsPaused = value;
         isPausedChanged();
+        notifyPropertyChanged(isPausedPropertyKey);
     }
 
     inline float speed() const { return m_Speed; }
@@ -86,6 +88,7 @@ public:
         }
         m_Speed = value;
         speedChanged();
+        notifyPropertyChanged(speedPropertyKey);
     }
 
     inline float quantize() const { return m_Quantize; }
@@ -97,6 +100,7 @@ public:
         }
         m_Quantize = value;
         quantizeChanged();
+        notifyPropertyChanged(quantizePropertyKey);
     }
 
     inline bool isStateful() const { return m_IsStateful; }
@@ -108,6 +112,7 @@ public:
         }
         m_IsStateful = value;
         isStatefulChanged();
+        notifyPropertyChanged(isStatefulPropertyKey);
     }
 
     Core* clone() const override;

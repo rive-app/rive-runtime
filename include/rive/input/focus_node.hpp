@@ -105,6 +105,7 @@ public:
     bool isScope() const { return !m_children.empty(); }
 
     void addChild(rcp<FocusNode> child);
+    void insertChild(size_t index, rcp<FocusNode> child);
     void removeChild(rcp<FocusNode> child);
 
     // Remove this node from its current parent (used internally)

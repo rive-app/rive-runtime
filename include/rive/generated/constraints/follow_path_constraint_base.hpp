@@ -51,6 +51,7 @@ public:
         }
         m_Distance = value;
         distanceChanged();
+        notifyPropertyChanged(distancePropertyKey);
     }
 
     inline bool orient() const { return m_Orient; }
@@ -62,6 +63,7 @@ public:
         }
         m_Orient = value;
         orientChanged();
+        notifyPropertyChanged(orientPropertyKey);
     }
 
     inline bool offset() const { return m_Offset; }
@@ -73,6 +75,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     Core* clone() const override;

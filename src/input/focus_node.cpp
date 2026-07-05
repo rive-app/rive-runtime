@@ -4,6 +4,7 @@
 
 #include "rive/input/focus_node.hpp"
 #include <algorithm>
+#include <cstddef>
 
 namespace rive
 {
@@ -20,6 +21,22 @@ void FocusNode::addChild(rcp<FocusNode> child)
 
     child->m_parent = this;
     m_children.push_back(std::move(child));
+}
+
+void FocusNode::insertChild(size_t index, rcp<FocusNode> child)
+{
+    if (!child)
+    {
+        return;
+    }
+    child->removeFromParent();
+    child->m_parent = this;
+    if (index > m_children.size())
+    {
+        index = m_children.size();
+    }
+    m_children.insert(m_children.begin() + static_cast<ptrdiff_t>(index),
+                      std::move(child));
 }
 
 void FocusNode::removeChild(rcp<FocusNode> child)

@@ -12,7 +12,8 @@ public:
     DataBindContextValueViewModel(DataBind* m_dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
-               bool isMainDirection) override;
+               bool isMainDirection,
+               DataBind* dataBind) override;
 };
 } // namespace rive
 

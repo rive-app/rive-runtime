@@ -45,6 +45,7 @@ public:
         }
         m_AnimationId = value;
         animationIdChanged();
+        notifyPropertyChanged(animationIdPropertyKey);
     }
 
     Core* clone() const override;

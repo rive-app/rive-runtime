@@ -59,6 +59,7 @@ public:
         }
         m_Fps = value;
         fpsChanged();
+        notifyPropertyChanged(fpsPropertyKey);
     }
 
     inline uint32_t duration() const { return m_Duration; }
@@ -70,6 +71,7 @@ public:
         }
         m_Duration = value;
         durationChanged();
+        notifyPropertyChanged(durationPropertyKey);
     }
 
     inline float speed() const { return m_Speed; }
@@ -81,6 +83,7 @@ public:
         }
         m_Speed = value;
         speedChanged();
+        notifyPropertyChanged(speedPropertyKey);
     }
 
     inline uint32_t loopValue() const { return m_LoopValue; }
@@ -92,6 +95,7 @@ public:
         }
         m_LoopValue = value;
         loopValueChanged();
+        notifyPropertyChanged(loopValuePropertyKey);
     }
 
     inline uint32_t workStart() const { return m_WorkStart; }
@@ -103,6 +107,7 @@ public:
         }
         m_WorkStart = value;
         workStartChanged();
+        notifyPropertyChanged(workStartPropertyKey);
     }
 
     inline uint32_t workEnd() const { return m_WorkEnd; }
@@ -114,6 +119,7 @@ public:
         }
         m_WorkEnd = value;
         workEndChanged();
+        notifyPropertyChanged(workEndPropertyKey);
     }
 
     inline bool enableWorkArea() const { return m_EnableWorkArea; }
@@ -125,6 +131,7 @@ public:
         }
         m_EnableWorkArea = value;
         enableWorkAreaChanged();
+        notifyPropertyChanged(enableWorkAreaPropertyKey);
     }
 
     inline bool quantize() const { return m_Quantize; }
@@ -136,6 +143,7 @@ public:
         }
         m_Quantize = value;
         quantizeChanged();
+        notifyPropertyChanged(quantizePropertyKey);
     }
 
     Core* clone() const override;

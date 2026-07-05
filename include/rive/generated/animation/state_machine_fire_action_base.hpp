@@ -42,6 +42,7 @@ public:
         }
         m_OccursValue = value;
         occursValueChanged();
+        notifyPropertyChanged(occursValuePropertyKey);
     }
 
     void copy(const StateMachineFireActionBase& object)

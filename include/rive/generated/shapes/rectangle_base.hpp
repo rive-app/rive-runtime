@@ -58,6 +58,7 @@ public:
         }
         m_LinkCornerRadius = value;
         linkCornerRadiusChanged();
+        notifyPropertyChanged(linkCornerRadiusPropertyKey);
     }
 
     inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
@@ -69,6 +70,7 @@ public:
         }
         m_CornerRadiusTL = value;
         cornerRadiusTLChanged();
+        notifyPropertyChanged(cornerRadiusTLPropertyKey);
     }
 
     inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
@@ -80,6 +82,7 @@ public:
         }
         m_CornerRadiusTR = value;
         cornerRadiusTRChanged();
+        notifyPropertyChanged(cornerRadiusTRPropertyKey);
     }
 
     inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
@@ -91,6 +94,7 @@ public:
         }
         m_CornerRadiusBL = value;
         cornerRadiusBLChanged();
+        notifyPropertyChanged(cornerRadiusBLPropertyKey);
     }
 
     inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
@@ -102,6 +106,7 @@ public:
         }
         m_CornerRadiusBR = value;
         cornerRadiusBRChanged();
+        notifyPropertyChanged(cornerRadiusBRPropertyKey);
     }
 
     Core* clone() const override;

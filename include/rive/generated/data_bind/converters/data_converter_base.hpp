@@ -43,6 +43,7 @@ public:
         }
         m_Name = value;
         nameChanged();
+        notifyPropertyChanged(namePropertyKey);
     }
 
     void copy(const DataConverterBase& object) { m_Name = object.m_Name; }

@@ -43,6 +43,7 @@ public:
         }
         m_ActionType = value;
         actionTypeChanged();
+        notifyPropertyChanged(actionTypePropertyKey);
     }
 
     Core* clone() const override;

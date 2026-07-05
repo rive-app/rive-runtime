@@ -27,6 +27,7 @@
 #include <rive/viewmodel/viewmodel_instance_list_item.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -2270,4 +2271,61 @@ TEST_CASE("Artboard properties conditions work without binding", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("artboard_width_test"));
+}
+
+// Regression for the push-notifier TwoWay clobber. A target-property change
+// notifies the bind via Core::notifyPropertyChanged. Before the fix that set
+// ComponentDirt::Bindings, which also fired update() (source→target); under
+// source-to-target precedence that apply runs first and overwrites the
+// just-changed target with the stale source value, so the subsequent
+// target→source read sees the clobbered value and the change never reaches the
+// source. The fix marks the target trigger with ComponentDirt::BindingsTarget,
+// which update() ignores. Without it, the CHECKs below read 100 (the clobbering
+// source value) instead of the new target.
+TEST_CASE("TwoWay target change reaches source under source-first precedence",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/bidirectional_precedence.riv");
+    auto artboard = file->artboardNamed("source_first");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+    // Source values differ from the authored target; source-first precedence
+    // makes the source win on the initial sync, so the source value (100) is
+    // what a spurious source→target apply would clobber the target with.
+    xProp->propertyValue(100.0f);
+    yProp->propertyValue(100.0f);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    // The two TwoWay binds target an (unnamed) node's x/y — reach it through a
+    // bind rather than by name.
+    rive::Node* targetNode = nullptr;
+    for (auto* db : artboard->dataBinds())
+    {
+        if (db->target() != nullptr && db->target()->is<rive::Node>())
+        {
+            targetNode = db->target()->as<rive::Node>();
+            break;
+        }
+    }
+    REQUIRE(targetNode != nullptr);
+
+    // Change the TARGET directly. This is the trigger that regressed: with the
+    // fix it propagates target→source; without it the source→target apply
+    // overwrites these with the source value (100) first.
+    targetNode->x(700.0f);
+    targetNode->y(800.0f);
+
+    stateMachine->advanceAndApply(0.016f);
+
+    CHECK(xProp->propertyValue() == 700.0f);
+    CHECK(yProp->propertyValue() == 800.0f);
 }

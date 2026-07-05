@@ -48,6 +48,7 @@ public:
         }
         m_Distance = value;
         distanceChanged();
+        notifyPropertyChanged(distancePropertyKey);
     }
 
     inline uint32_t modeValue() const { return m_ModeValue; }
@@ -59,6 +60,7 @@ public:
         }
         m_ModeValue = value;
         modeValueChanged();
+        notifyPropertyChanged(modeValuePropertyKey);
     }
 
     Core* clone() const override;

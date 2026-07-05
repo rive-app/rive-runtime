@@ -55,6 +55,7 @@ public:
         }
         m_StateToId = value;
         stateToIdChanged();
+        notifyPropertyChanged(stateToIdPropertyKey);
     }
 
     inline uint32_t flags() const { return m_Flags; }
@@ -66,6 +67,7 @@ public:
         }
         m_Flags = value;
         flagsChanged();
+        notifyPropertyChanged(flagsPropertyKey);
     }
 
     inline uint32_t duration() const { return m_Duration; }
@@ -77,6 +79,7 @@ public:
         }
         m_Duration = value;
         durationChanged();
+        notifyPropertyChanged(durationPropertyKey);
     }
 
     inline uint32_t exitTime() const { return m_ExitTime; }
@@ -88,6 +91,7 @@ public:
         }
         m_ExitTime = value;
         exitTimeChanged();
+        notifyPropertyChanged(exitTimePropertyKey);
     }
 
     inline uint32_t interpolationType() const { return m_InterpolationType; }
@@ -99,6 +103,7 @@ public:
         }
         m_InterpolationType = value;
         interpolationTypeChanged();
+        notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
     inline uint32_t interpolatorId() const { return m_InterpolatorId; }
@@ -110,6 +115,7 @@ public:
         }
         m_InterpolatorId = value;
         interpolatorIdChanged();
+        notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
     inline uint32_t randomWeight() const { return m_RandomWeight; }
@@ -121,6 +127,7 @@ public:
         }
         m_RandomWeight = value;
         randomWeightChanged();
+        notifyPropertyChanged(randomWeightPropertyKey);
     }
 
     Core* clone() const override;

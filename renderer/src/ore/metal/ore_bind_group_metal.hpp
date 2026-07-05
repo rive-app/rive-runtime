@@ -8,13 +8,16 @@ namespace rive::ore
 {
 class ContextMetal;
 class RenderPassMetal;
+class BufferMetal;
 
 class BindGroupMetal : public LITE_RTTI_OVERRIDE(BindGroup, BindGroupMetal)
 {
 public:
     struct MTLBufferBinding
     {
-        id<MTLBuffer> buffer = nil;
+        // Source buffer, not a raw handle, so the live backing resolves at
+        // encode time. Kept alive by m_retainedBuffers.
+        BufferMetal* src = nullptr;
         uint32_t offset = 0;
         uint32_t binding = 0; // WGSL @binding, for sort
         bool hasDynamicOffset = false;

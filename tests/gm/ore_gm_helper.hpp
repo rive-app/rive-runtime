@@ -21,7 +21,8 @@
 // Multiple backends may be active simultaneously (e.g. Metal + GL on macOS).
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 #include "rive/renderer/ore/ore_context.hpp"
 #include <memory>
 #endif
@@ -68,7 +69,8 @@
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 #include "ore_gm_shaders.rstb.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/assets/shader_asset.hpp"
@@ -121,6 +123,12 @@ inline bool isOreBackendActive()
         return true;
     }
 #endif
+#if defined(ORE_BACKEND_RHI)
+    if (b == TestingWindow::Backend::rhi)
+    {
+        return true;
+    }
+#endif
     return false;
 }
 
@@ -135,7 +143,8 @@ struct OreGMContext
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
         if (!renderContext || !isOreBackendActive())
             return false;
 
@@ -169,6 +178,12 @@ struct OreGMContext
 #endif
 #if defined(ORE_BACKEND_D3D12)
         if (b == TestingWindow::Backend::d3d12)
+        {
+            return true;
+        }
+#endif
+#if defined(ORE_BACKEND_RHI)
+        if (b == TestingWindow::Backend::rhi)
         {
             return true;
         }
@@ -301,7 +316,8 @@ inline std::vector<uint8_t> compileHLSL(const char* source,
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 
 enum OreGMShader : uint32_t
 {
@@ -371,6 +387,10 @@ inline uint8_t shaderTargetForBackend()
 #endif
 #if defined(ORE_BACKEND_D3D12)
     if (b == TestingWindow::Backend::d3d12)
+        return 3; // HLSL SM5
+#endif
+#if defined(ORE_BACKEND_RHI)
+    if (b == TestingWindow::Backend::rhi)
         return 3; // HLSL SM5
 #endif
 #if defined(ORE_BACKEND_WGPU)

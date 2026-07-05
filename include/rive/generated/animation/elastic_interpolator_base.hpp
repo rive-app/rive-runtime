@@ -48,6 +48,7 @@ public:
         }
         m_EasingValue = value;
         easingValueChanged();
+        notifyPropertyChanged(easingValuePropertyKey);
     }
 
     inline float amplitude() const { return m_Amplitude; }
@@ -59,6 +60,7 @@ public:
         }
         m_Amplitude = value;
         amplitudeChanged();
+        notifyPropertyChanged(amplitudePropertyKey);
     }
 
     inline float period() const { return m_Period; }
@@ -70,6 +72,7 @@ public:
         }
         m_Period = value;
         periodChanged();
+        notifyPropertyChanged(periodPropertyKey);
     }
 
     Core* clone() const override;

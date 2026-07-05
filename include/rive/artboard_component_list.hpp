@@ -10,11 +10,13 @@
 #include "rive/property_recorder.hpp"
 #include "rive/file.hpp"
 #include "rive/artboard_host.hpp"
+#include "rive/input/focus_node.hpp"
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/symbol_type.hpp"
 #include "rive/virtualizing_component.hpp"
+#include "rive/refcnt.hpp"
 #include <memory>
 #include <stdio.h>
 #include <unordered_map>
@@ -25,6 +27,7 @@ class LayoutComponent;
 class ScrollConstraint;
 class ArtboardListMapRule;
 class ArtboardListDrawIndexDependent;
+class FocusManager;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
@@ -106,6 +109,7 @@ public:
     Artboard* findArtboard(
         const rcp<ViewModelInstanceListItem>& listItem) const;
     void addVirtualizable(int index) override;
+    void virtualizableChanged() override;
     void removeVirtualizable(int index) override;
     void setVisibleIndices(int start, int end) override
     {
@@ -136,6 +140,13 @@ public:
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;
     void addMapRule(ArtboardListMapRule*);
     int type() const override { return coreType(); }
+
+    /// Create/parent a synthetic list scope FocusNode (structural, no
+    /// Focusable) so list item focus trees group under it. Idempotent.
+    void ensureListScopeFocusNode(FocusManager* focusManager,
+                                  rcp<FocusNode> hostParent);
+    rcp<FocusNode> listScopeFocusNode() const { return m_listScopeFocusNode; }
+    void removeListScopeFocusNode();
 
     /// Rebuilds the ordered-list cache when invalid (list, visibility, or
     /// drawIndex sort inputs changed).
@@ -196,6 +207,22 @@ private:
         m_artboardOverridesMap;
     std::unordered_map<int, int> m_artboardMapRules;
 
+    // Synthetic scope that parents all list item focus subtrees; no Focusable.
+    rcp<FocusNode> m_listScopeFocusNode = nullptr;
+    // One structural row per list item index, direct child of
+    // m_listScopeFocusNode.
+    std::vector<rcp<FocusNode>> m_listRowFocusNodes;
+
+    void syncListRowNodesWithList(FocusManager* fm);
+    void syncListRowNodesWithList(
+        FocusManager* fm,
+        const std::vector<rcp<ViewModelInstanceListItem>>& previousListItems,
+        const std::vector<rcp<FocusNode>>& previousRowNodes);
+    rcp<FocusNode> makeListRowFocusNode() const;
+    void reparentListRowsInScope(FocusManager* fm);
+    bool listItemNeedsBuildUnderRow(FocusManager* parentFM,
+                                    ArtboardInstance* inst,
+                                    rcp<FocusNode> row) const;
     void attachArtboardOverride(ArtboardInstance*,
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);

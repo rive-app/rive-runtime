@@ -111,6 +111,12 @@ public:
     // Selects the word at the cursor.
     void selectWord();
 
+    // Selects the entire text.
+    void selectAll();
+
+    // Selects the visual line at the cursor.
+    void selectLine();
+
     std::string text() const;
     void text(std::string value);
     void textPreserveCursor(std::string value);

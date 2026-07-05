@@ -49,6 +49,7 @@ public:
         }
         m_DistanceEnd = value;
         distanceEndChanged();
+        notifyPropertyChanged(distanceEndPropertyKey);
     }
 
     inline float distanceOffset() const { return m_DistanceOffset; }
@@ -60,6 +61,7 @@ public:
         }
         m_DistanceOffset = value;
         distanceOffsetChanged();
+        notifyPropertyChanged(distanceOffsetPropertyKey);
     }
 
     Core* clone() const override;

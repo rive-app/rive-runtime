@@ -151,8 +151,8 @@ std::vector<float> SliceMesh::uvStops(AxisType forAxis)
     float imageSize = forAxis == AxisType::X ? m_nslicer->image()->width()
                                              : m_nslicer->image()->height();
     float imageScale =
-        std::abs(forAxis == AxisType::X ? m_nslicer->image()->scaleX()
-                                        : m_nslicer->image()->scaleY());
+        std::abs(forAxis == AxisType::X ? m_nslicer->image()->renderScaleX()
+                                        : m_nslicer->image()->renderScaleY());
     if (imageSize == 0 || imageScale == 0)
     {
         return {};
@@ -171,10 +171,10 @@ std::vector<float> SliceMesh::vertexStops(
     Image* image = m_nslicer->image();
     float imageSize = forAxis == AxisType::X ? image->width() : image->height();
 
-    // When doing calcualtions, we assume scale is always non-negative to keep
+    // When doing calculations, we assume scale is always non-negative to keep
     // everything in image space.
-    float imageScale =
-        std::abs(forAxis == AxisType::X ? image->scaleX() : image->scaleY());
+    float imageScale = std::abs(forAxis == AxisType::X ? image->renderScaleX()
+                                                       : image->renderScaleY());
     if (imageSize == 0 || imageScale == 0)
     {
         return {};
@@ -233,8 +233,8 @@ uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
 
     // The size of each repeated tile in image space
     Image* image = m_nslicer->image();
-    float scaleX = std::abs(image->scaleX());
-    float scaleY = std::abs(image->scaleY());
+    float scaleX = std::abs(image->renderScaleX());
+    float scaleY = std::abs(image->renderScaleY());
 
     if (scaleX == 0 || scaleY == 0)
     {

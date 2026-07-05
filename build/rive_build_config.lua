@@ -218,6 +218,12 @@ do
     optimize('On')
 end
 
+-- Generate PDBs in Release builds on Windows for Sentry crash symbolication.
+filter({ 'options:config=release', 'system:windows' })
+do
+    symbols('On')
+end
+
 filter({ 'options:config=release', 'options:not no-lto', 'system:not macosx', 'system:not ios' })
 do
     if linktimeoptimization then
@@ -789,7 +795,7 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
         local emsdk_dir = os.getenv('EMSDK'):gsub("/", "\\")
         local emsdk_tools_dir = emsdk_dir .. "\\upstream\\emscripten\\"
         for key, value in pairs(emsdk_tools) do
-            emsdk_tools[key] = "sh " .. emsdk_tools_dir .. value
+            emsdk_tools[key] = "python3 " .. emsdk_tools_dir .. value .. ".py"
         end
     end
     function premake.tools.emsdk.gettoolname(cfg, tool)

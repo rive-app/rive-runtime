@@ -46,6 +46,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     inline bool normalized() const { return m_Normalized; }
@@ -57,6 +58,7 @@ public:
         }
         m_Normalized = value;
         normalizedChanged();
+        notifyPropertyChanged(normalizedPropertyKey);
     }
 
     void copy(const AxisBase& object)

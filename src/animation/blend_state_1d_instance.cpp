@@ -100,7 +100,8 @@ void BlendState1DInstance::advance(float seconds,
         auto bindablePropertyInstance =
             stateMachineInstance->bindablePropertyInstance(
                 blendState->bindableProperty());
-        if (bindablePropertyInstance->is<BindablePropertyNumber>())
+        if (bindablePropertyInstance &&
+            bindablePropertyInstance->is<BindablePropertyNumber>())
         {
             value = bindablePropertyInstance->as<BindablePropertyNumber>()
                         ->propertyValue();

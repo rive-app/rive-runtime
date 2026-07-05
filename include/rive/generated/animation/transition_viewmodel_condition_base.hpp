@@ -43,6 +43,7 @@ public:
         }
         m_OpValue = value;
         opValueChanged();
+        notifyPropertyChanged(opValuePropertyKey);
     }
 
     Core* clone() const override;

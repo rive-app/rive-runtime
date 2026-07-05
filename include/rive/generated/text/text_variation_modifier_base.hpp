@@ -48,6 +48,7 @@ public:
         }
         m_AxisTag = value;
         axisTagChanged();
+        notifyPropertyChanged(axisTagPropertyKey);
     }
 
     inline float axisValue() const { return m_AxisValue; }
@@ -59,6 +60,7 @@ public:
         }
         m_AxisValue = value;
         axisValueChanged();
+        notifyPropertyChanged(axisValuePropertyKey);
     }
 
     Core* clone() const override;

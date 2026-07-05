@@ -17,6 +17,7 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/lua/scripting_vm.hpp"
+#include "rive/renderer/render_context.hpp"
 #endif
 #include "assets/roboto_flex.ttf.hpp"
 #include <stdio.h>

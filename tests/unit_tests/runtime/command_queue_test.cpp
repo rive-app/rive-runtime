@@ -7,6 +7,9 @@
 #include "rive/command_queue.hpp"
 #include "rive/command_server.hpp"
 #include "rive/file.hpp"
+#include "rive/semantic/semantic_role.hpp"
+#include "rive/semantic/semantic_state.hpp"
+#include "rive/semantic/semantic_trait.hpp"
 #include "common/render_context_null.hpp"
 #include <fstream>
 
@@ -41,6 +44,18 @@ bool operator==(const CommandQueue::FileListener::ViewModelPropertyData& l,
 }
 bool operator!=(const CommandQueue::FileListener::ViewModelPropertyData& l,
                 const CommandQueue::FileListener::ViewModelPropertyData& r)
+{
+    return !(l == r);
+}
+bool operator==(const CommandQueue::FileListener::FileAssetData& l,
+                const CommandQueue::FileListener::FileAssetData& r)
+{
+    return l.name == r.name && l.assetID == r.assetID &&
+           l.cdnUUID == r.cdnUUID && l.cdnBaseURL == r.cdnBaseURL &&
+           l.fileExtension == r.fileExtension && l.type == r.type;
+}
+bool operator!=(const CommandQueue::FileListener::FileAssetData& l,
+                const CommandQueue::FileListener::FileAssetData& r)
 {
     return !(l == r);
 }
@@ -79,7 +94,9 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 
 #include "catch.hpp"
 #include <rive/assets/audio_asset.hpp>
+#include <rive/assets/file_asset.hpp>
 #include <rive/assets/font_asset.hpp>
+#include <rive/assets/image_asset.hpp>
 #include <rive/assets/script_asset.hpp>
 
 using namespace rive;
@@ -2355,6 +2372,73 @@ TEST_CASE("Set Artboard Size / Reset Artboard Size", "[CommandQueue]")
     serverThread.join();
 }
 
+class TestArtboardVolumeListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onArtboardVolumeReceived(const ArtboardHandle handle,
+                                          uint64_t requestId,
+                                          float volume) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_receivedVolume = volume;
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId;
+    ArtboardHandle m_handle;
+    float m_receivedVolume = -1.0f;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("Set Artboard Volume / Get Artboard Volume", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    commandQueue->setArtboardVolume(artboardHandle, 0.5f);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->volume() == 0.5f);
+        });
+
+    commandQueue->setArtboardVolume(artboardHandle, 0.0f);
+
+    commandQueue->runOnce(
+        [artboardHandle = artboardHandle](CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            CHECK(artboard->volume() == 0.0f);
+        });
+
+    // Test getter via listener
+    TestArtboardVolumeListener volumeListener;
+
+    auto listenerArtboard =
+        commandQueue->instantiateDefaultArtboard(fileHandle, &volumeListener);
+    volumeListener.m_handle = listenerArtboard;
+    volumeListener.m_requestId = 0x50;
+
+    commandQueue->setArtboardVolume(listenerArtboard, 0.75f);
+    commandQueue->requestArtboardVolume(listenerArtboard, 0x50);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(volumeListener.m_hasCallback);
+    CHECK(volumeListener.m_receivedVolume == 0.75f);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
@@ -3321,11 +3405,13 @@ public:
     {
         CHECK(handle == m_handle);
         CHECK(error.size());
+        m_requestIDs.push_back(requestId);
         ++m_receivedErrors;
     }
 
     size_t m_receivedErrors = 0;
     ArtboardHandle m_handle;
+    std::vector<uint64_t> m_requestIDs;
 };
 
 TEST_CASE("artboard errors", "[CommandQueue]")
@@ -3365,6 +3451,31 @@ TEST_CASE("artboard errors", "[CommandQueue]")
     commandQueue->processMessages();
 
     CHECK(badArtboardListener.m_receivedErrors == 2);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("Set Artboard Volume / Get Artboard Volume errors on invalid handles",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestArtboardErrorListener errorListener;
+    auto invalidHandle = reinterpret_cast<rive::ArtboardHandle>(0xFF);
+    errorListener.m_handle = invalidHandle;
+    commandQueue->setGlobalArtboardListener(&errorListener);
+
+    commandQueue->setArtboardVolume(invalidHandle, 0.5f, 0x51);
+    commandQueue->requestArtboardVolume(invalidHandle, 0x52);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(errorListener.m_receivedErrors == 2);
+    CHECK(errorListener.m_requestIDs[0] == 0x51);
+    CHECK(errorListener.m_requestIDs[1] == 0x52);
 
     commandQueue->disconnect();
     serverThread.join();
@@ -5221,4 +5332,789 @@ TEST_CASE("dependency lifetime management", "[CommandQueue]")
 
     commandQueue->disconnect();
     serverThread.join();
+}
+
+class FileAssetsListenerCallback : public CommandQueue::FileListener
+{
+public:
+    void onFileAssetsListed(const FileHandle fileHandle,
+                            uint64_t requestId,
+                            std::vector<FileAssetData> assets) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(fileHandle == m_fileHandle);
+        m_assets = std::move(assets);
+        m_hasCallback = true;
+    }
+
+    void onFileError(const FileHandle fileHandle,
+                     uint64_t requestId,
+                     std::string error) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(fileHandle == m_fileHandle);
+        m_errorMessage = std::move(error);
+        m_hasError = true;
+    }
+
+    bool m_hasCallback = false;
+    bool m_hasError = false;
+    FileHandle m_fileHandle = RIVE_NULL_HANDLE;
+    uint64_t m_requestId = 0;
+    std::vector<FileAssetData> m_assets;
+    std::string m_errorMessage;
+};
+
+TEST_CASE("file assets listed - image asset", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 42;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+    REQUIRE(listener.m_assets.size() == 1);
+
+    auto& asset = listener.m_assets[0];
+    CHECK(asset.name == "one.png");
+    CHECK(asset.assetID == 45008);
+    CHECK(asset.cdnUUID == "edcb1816-8405-4983-acd2-16db48d85df4");
+    CHECK(asset.cdnBaseURL == "https://public.uat.rive.app/cdn/uuid");
+    CHECK(asset.fileExtension == "png");
+    CHECK(asset.type == 105);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - font asset", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 43;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+    REQUIRE(listener.m_assets.size() == 1);
+
+    auto& asset = listener.m_assets[0];
+    CHECK(asset.name == "Inter");
+    CHECK(asset.assetID == 43276);
+    CHECK(asset.cdnBaseURL == "https://public.uat.rive.app/cdn/uuid");
+    CHECK(asset.fileExtension == "ttf");
+    CHECK(asset.type == 141);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - type IDs match runtime", "[CommandQueue]")
+{
+    uint16_t imageType = ImageAsset::typeKey;
+    uint16_t fontType = FontAsset::typeKey;
+    uint16_t audioType = AudioAsset::typeKey;
+    CHECK(imageType == 105);
+    CHECK(fontType == 141);
+    CHECK(audioType == 406);
+}
+
+TEST_CASE("file assets listed - empty file", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/two_artboards.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 44;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+    CHECK(listener.m_assets.empty());
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - invalid handle", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    FileHandle badHandle =
+        reinterpret_cast<FileHandle>(static_cast<uintptr_t>(999));
+    listener.m_fileHandle = badHandle;
+    listener.m_requestId = 45;
+
+    commandQueue->setGlobalFileListener(&listener);
+    commandQueue->requestFileAssets(badHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!listener.m_hasCallback);
+    CHECK(listener.m_hasError);
+
+    commandQueue->setGlobalFileListener(nullptr);
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("file assets listed - all assets returned", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    listener.m_fileHandle = fileHandle;
+    listener.m_requestId = 46;
+
+    commandQueue->requestFileAssets(fileHandle, listener.m_requestId);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_hasCallback);
+
+    // Verify the count matches the total file assets (no filtering)
+    commandQueue->runOnce([fileHandle, &listener](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        auto allAssets = file->assets();
+        CHECK(listener.m_assets.size() == allAssets.size());
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+// ============================================================
+// Semantics
+// ============================================================
+
+namespace
+{
+// Flatten a diff's added+moved+updatedSemantic nodes into a single list,
+// useful for locating a specific node by role in test assertions.
+struct SemanticTestModel
+{
+    std::unordered_map<uint32_t, SemanticsDiffNode> nodes;
+
+    void apply(const SemanticsDiff& diff)
+    {
+        for (auto id : diff.removed)
+            nodes.erase(id);
+        for (auto& n : diff.added)
+            nodes[n.id] = n;
+        for (auto& n : diff.moved)
+            nodes[n.id] = n;
+        for (auto& n : diff.updatedSemantic)
+        {
+            auto it = nodes.find(n.id);
+            if (it != nodes.end())
+            {
+                // updatedSemantic carries full content, preserve existing
+                // geometry if present.
+                float minX = it->second.minX, minY = it->second.minY;
+                float maxX = it->second.maxX, maxY = it->second.maxY;
+                it->second = n;
+                it->second.minX = minX;
+                it->second.minY = minY;
+                it->second.maxX = maxX;
+                it->second.maxY = maxY;
+            }
+            else
+            {
+                nodes[n.id] = n;
+            }
+        }
+        for (auto& n : diff.updatedGeometry)
+        {
+            auto it = nodes.find(n.id);
+            if (it != nodes.end())
+            {
+                it->second.minX = n.minX;
+                it->second.minY = n.minY;
+                it->second.maxX = n.maxX;
+                it->second.maxY = n.maxY;
+            }
+        }
+    }
+};
+
+class SemanticTestListener : public CommandQueue::StateMachineListener
+{
+public:
+    void onStateMachineSettled(const StateMachineHandle, uint64_t) override
+    {
+        m_settleCount++;
+    }
+
+    void onStateMachineError(const StateMachineHandle,
+                             uint64_t requestId,
+                             std::string error) override
+    {
+        m_errorCount++;
+        m_lastErrorRequestId = requestId;
+        m_lastError = std::move(error);
+    }
+
+    void onSemanticsDiffReceived(const StateMachineHandle handle,
+                                 uint64_t requestId,
+                                 SemanticsDiff diff) override
+    {
+        CHECK(handle == m_handle);
+        m_diffCount++;
+        m_lastDiffRequestId = requestId;
+        m_model.apply(diff);
+        m_lastDiff = std::move(diff);
+    }
+
+    StateMachineHandle m_handle = RIVE_NULL_HANDLE;
+    int m_settleCount = 0;
+    int m_diffCount = 0;
+    int m_errorCount = 0;
+    uint64_t m_lastDiffRequestId = 0;
+    uint64_t m_lastErrorRequestId = 0;
+    std::string m_lastError;
+    SemanticsDiff m_lastDiff;
+    SemanticTestModel m_model;
+};
+
+// Helper that spins up server, loads semantic/simpsons.riv, creates artboard +
+// default view model instance + state machine, and returns the handles.
+// Caller owns the commandQueue and server lifetime.
+struct SemanticFixture
+{
+    rcp<CommandQueue> commandQueue;
+    std::unique_ptr<gpu::RenderContext> nullContext;
+    std::unique_ptr<CommandServer> server;
+    FileHandle fileHandle = RIVE_NULL_HANDLE;
+    ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
+    ViewModelInstanceHandle viewModelHandle = RIVE_NULL_HANDLE;
+    StateMachineHandle stateMachineHandle = RIVE_NULL_HANDLE;
+
+    SemanticFixture(SemanticTestListener* listener = nullptr,
+                    const char* rivPath = "assets/semantic/simpsons.riv")
+    {
+        commandQueue = make_rcp<CommandQueue>();
+        nullContext = RenderContextNULL::MakeContext();
+        server =
+            std::make_unique<CommandServer>(commandQueue, nullContext.get());
+
+        std::ifstream stream(rivPath, std::ios::binary);
+        fileHandle = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+        artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+        viewModelHandle =
+            commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                              artboardHandle);
+        stateMachineHandle =
+            commandQueue->instantiateDefaultStateMachine(artboardHandle,
+                                                         listener);
+        commandQueue->bindViewModelInstance(stateMachineHandle,
+                                            viewModelHandle);
+        if (listener)
+            listener->m_handle = stateMachineHandle;
+    }
+
+    // Advance N frames to let the state machine settle into a steady state,
+    // mirroring the warmup that semantic_simpsons_test.dart does before
+    // reading its initial tree.
+    void warmup(int frames = 10, float dt = 0.1f)
+    {
+        for (int i = 0; i < frames; ++i)
+        {
+            commandQueue->advanceStateMachine(stateMachineHandle, dt);
+        }
+    }
+
+    void drain(uint64_t requestId = 0,
+               Fit fit = Fit::contain,
+               Alignment alignment = Alignment::center,
+               float scaleFactor = 1.0f,
+               Vec2D viewBounds = Vec2D(500.0f, 500.0f))
+    {
+        commandQueue->drainSemanticsDiff(stateMachineHandle,
+                                         fit,
+                                         alignment,
+                                         scaleFactor,
+                                         viewBounds,
+                                         requestId);
+    }
+
+    void pump()
+    {
+        server->processCommands();
+        commandQueue->processMessages();
+    }
+};
+} // namespace
+
+TEST_CASE("Semantics advance does not auto-deliver diff", "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.pump();
+
+    CHECK(listener.m_diffCount == 0);
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics enable + initial diff on drainSemanticsDiff",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    CHECK(listener.m_diffCount >= 1);
+    CHECK(listener.m_errorCount == 0);
+    CHECK(!listener.m_model.nodes.empty());
+
+    // The fixture should include a tabList (simpsons.riv layout).
+    bool foundTabList = false;
+    for (auto& kv : listener.m_model.nodes)
+    {
+        if (kv.second.role == static_cast<uint32_t>(SemanticRole::tabList))
+        {
+            foundTabList = true;
+            break;
+        }
+    }
+    CHECK(foundTabList);
+}
+
+TEST_CASE("Semantics no diff when not enabled", "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    fx.warmup();
+    fx.pump();
+
+    CHECK(listener.m_diffCount == 0);
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics drainSemanticsDiff errors when not enabled",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    const uint64_t reqId = 0x1234;
+    fx.drain(reqId);
+    fx.pump();
+
+    CHECK(listener.m_diffCount == 0);
+    CHECK(listener.m_errorCount == 1);
+    CHECK(listener.m_lastErrorRequestId == reqId);
+}
+
+TEST_CASE("Semantics drainSemanticsDiff only emits for non-empty diff",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    const uint64_t reqId = 0xABCD;
+    fx.drain(reqId);
+    fx.pump();
+
+    CHECK(listener.m_diffCount == 1);
+    CHECK(listener.m_lastDiffRequestId == reqId);
+    CHECK(listener.m_errorCount == 0);
+
+    // No changes since the previous drain: no callback expected.
+    fx.drain(0xBCDE);
+    fx.pump();
+
+    CHECK(listener.m_diffCount == 1);
+    CHECK(listener.m_lastDiffRequestId == reqId);
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics fireSemanticAction tap changes selected tab",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    // Find tabs and the one that's currently selected.
+    uint32_t selectedTabId = 0;
+    uint32_t otherTabId = 0;
+    for (auto& kv : listener.m_model.nodes)
+    {
+        const auto& node = kv.second;
+        if (node.role != static_cast<uint32_t>(SemanticRole::tab))
+            continue;
+        if (hasSemanticState(node.stateFlags, SemanticState::Selected))
+            selectedTabId = node.id;
+        else if (otherTabId == 0)
+            otherTabId = node.id;
+    }
+    REQUIRE(selectedTabId != 0);
+    REQUIRE(otherTabId != 0);
+
+    // Fire tap on the other tab, then advance to let the state machine
+    // process the deferred action and update the data-bound selection.
+    fx.commandQueue->fireSemanticAction(fx.stateMachineHandle,
+                                        otherTabId,
+                                        SemanticActionType::tap);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    auto itOther = listener.m_model.nodes.find(otherTabId);
+    auto itInitial = listener.m_model.nodes.find(selectedTabId);
+    REQUIRE(itOther != listener.m_model.nodes.end());
+    REQUIRE(itInitial != listener.m_model.nodes.end());
+    CHECK(
+        hasSemanticState(itOther->second.stateFlags, SemanticState::Selected));
+    CHECK(!hasSemanticState(itInitial->second.stateFlags,
+                            SemanticState::Selected));
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics commands on invalid state machine handle",
+          "[CommandQueue]")
+{
+    SemanticTestListener bogusListener;
+    SemanticFixture fx; // no main listener — we only watch the bogus one.
+
+    // A state machine handle whose instantiation fails (name not found). The
+    // listener is bound to the handle, so per-handle state-machine errors route
+    // to it; the instantiation failure goes to the artboard channel instead.
+    auto bogusHandle = fx.commandQueue->instantiateStateMachineNamed(
+        fx.artboardHandle,
+        "this state machine does not exist",
+        &bogusListener);
+    bogusListener.m_handle = bogusHandle;
+
+    fx.commandQueue->enableSemantics(bogusHandle, 0xE1);
+    fx.commandQueue->drainSemanticsDiff(bogusHandle,
+                                        Fit::contain,
+                                        Alignment::center,
+                                        1.0f,
+                                        Vec2D(500.0f, 500.0f),
+                                        0xE2);
+    fx.commandQueue->fireSemanticAction(bogusHandle,
+                                        42,
+                                        SemanticActionType::tap,
+                                        0xE3);
+    fx.commandQueue->requestSemanticFocus(bogusHandle, 42, 0xE4);
+    fx.commandQueue->clearSemanticFocus(bogusHandle, 0xE5);
+
+    fx.pump();
+
+    // One stateMachineError per semantic command; the instantiation failure is
+    // an artboardError, so it does not reach this listener.
+    CHECK(bogusListener.m_errorCount == 5);
+    CHECK(bogusListener.m_diffCount == 0);
+}
+
+TEST_CASE("Semantics drainSemanticsDiff maps bounds into view space",
+          "[CommandQueue]")
+{
+    // This validates the view-space mapping math by running the same .riv
+    // through drainSemanticsDiff twice (small and large views), then comparing
+    // width/height ratios for the same semantic node id.
+    auto captureTabsById = [](Vec2D viewBounds)
+        -> std::unordered_map<uint32_t, SemanticsDiffNode> {
+        SemanticTestListener listener;
+        SemanticFixture fx(&listener);
+        fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+        fx.warmup();
+        fx.drain(0, Fit::contain, Alignment::center, 1.0f, viewBounds);
+        fx.pump();
+
+        REQUIRE(listener.m_diffCount >= 1);
+
+        std::unordered_map<uint32_t, SemanticsDiffNode> tabsById;
+        for (auto& kv : listener.m_model.nodes)
+        {
+            const auto& node = kv.second;
+            if (node.role != static_cast<uint32_t>(SemanticRole::tab))
+            {
+                continue;
+            }
+            AABB nodeBounds = node.bounds();
+            if (nodeBounds.width() > 0.0f && nodeBounds.height() > 0.0f)
+            {
+                tabsById[node.id] = node;
+            }
+        }
+        return tabsById;
+    };
+
+    Vec2D smallViewBounds(200.0f, 200.0f);
+    Vec2D largeViewBounds(800.0f, 800.0f);
+
+    auto smallTabs = captureTabsById(smallViewBounds);
+    auto largeTabs = captureTabsById(largeViewBounds);
+
+    REQUIRE(!smallTabs.empty());
+    REQUIRE(!largeTabs.empty());
+
+    bool foundSharedTabId = false;
+    uint32_t sharedTabId = 0;
+    for (const auto& kv : smallTabs)
+    {
+        if (largeTabs.find(kv.first) != largeTabs.end())
+        {
+            foundSharedTabId = true;
+            sharedTabId = kv.first;
+            break;
+        }
+    }
+    REQUIRE(foundSharedTabId);
+
+    const auto& smallTab = smallTabs.at(sharedTabId);
+    const auto& largeTab = largeTabs.at(sharedTabId);
+
+    float smallWidth = smallTab.bounds().width();
+    float smallHeight = smallTab.bounds().height();
+    float largeWidth = largeTab.bounds().width();
+    float largeHeight = largeTab.bounds().height();
+
+    float expectedScale = largeViewBounds.x / smallViewBounds.x;
+
+    CHECK(largeWidth > smallWidth);
+    CHECK(largeHeight > smallHeight);
+    CHECK(largeWidth / smallWidth == Approx(expectedScale).epsilon(0.01));
+    CHECK(largeHeight / smallHeight == Approx(expectedScale).epsilon(0.01));
+}
+
+TEST_CASE("Semantics requestSemanticFocus errors when not enabled",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    // No enableSemantics: the command must surface a stateMachineError rather
+    // than silently no-op (consistent with drainSemanticsDiff).
+    const uint64_t reqId = 0x5151;
+    fx.commandQueue->requestSemanticFocus(fx.stateMachineHandle, 1, reqId);
+    fx.pump();
+
+    CHECK(listener.m_errorCount == 1);
+    CHECK(listener.m_lastErrorRequestId == reqId);
+    CHECK(listener.m_diffCount == 0);
+}
+
+TEST_CASE("Semantics fireSemanticAction errors when not enabled",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    // No enableSemantics: the command must surface a stateMachineError rather
+    // than silently no-op (consistent with drainSemanticsDiff).
+    const uint64_t reqId = 0x5252;
+    fx.commandQueue->fireSemanticAction(fx.stateMachineHandle,
+                                        1,
+                                        SemanticActionType::tap,
+                                        reqId);
+    fx.pump();
+
+    CHECK(listener.m_errorCount == 1);
+    CHECK(listener.m_lastErrorRequestId == reqId);
+    CHECK(listener.m_diffCount == 0);
+}
+
+TEST_CASE("Semantics requestSemanticFocus on a valid node routes without error",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener);
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    REQUIRE(!listener.m_model.nodes.empty());
+
+    // Route a focus request for a real node to an enabled state machine.
+    // (FocusNode-level focus behavior is covered by focus_test.cpp.)
+    const uint32_t targetId = listener.m_model.nodes.begin()->first;
+    fx.commandQueue->requestSemanticFocus(fx.stateMachineHandle, targetId);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    // Routing to an enabled state machine must never surface an error,
+    // regardless of whether the node ultimately accepts focus.
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics clearSemanticFocus removes Focused bit from focused node",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener,
+                       "assets/semantic/semantic_list_scroll_focus_fixed.riv");
+
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    // Find a node with the Focusable trait.
+    uint32_t focusableId = 0;
+    for (auto& kv : listener.m_model.nodes)
+    {
+        if (hasSemanticTrait(kv.second.traitFlags, SemanticTrait::Focusable))
+        {
+            focusableId = kv.second.id;
+            break;
+        }
+    }
+    REQUIRE(focusableId != 0);
+
+    // Focus it through the command queue.
+    fx.commandQueue->requestSemanticFocus(fx.stateMachineHandle, focusableId);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    auto it = listener.m_model.nodes.find(focusableId);
+    REQUIRE(it != listener.m_model.nodes.end());
+    CHECK(hasSemanticState(it->second.stateFlags, SemanticState::Focused));
+
+    // Clear focus through the command queue.
+    fx.commandQueue->clearSemanticFocus(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain();
+    fx.pump();
+
+    it = listener.m_model.nodes.find(focusableId);
+    REQUIRE(it != listener.m_model.nodes.end());
+    CHECK_FALSE(
+        hasSemanticState(it->second.stateFlags, SemanticState::Focused));
+    CHECK(listener.m_errorCount == 0);
+}
+
+TEST_CASE("Semantics drainSemanticsDiff honors scaleFactor when the view "
+          "matches the artboard",
+          "[CommandQueue]")
+{
+    // Fit::layout scales by scaleFactor, so bounds must be mapped into view
+    // space even when the view matches the artboard.
+
+    // Discover the artboard bounds so the view can be set equal to them.
+    AABB artboardBounds(0.0f, 0.0f, 0.0f, 0.0f);
+    {
+        SemanticFixture probe;
+        probe.commandQueue->runOnce([&](CommandServer* server) {
+            auto* ab = server->getArtboardInstance(probe.artboardHandle);
+            REQUIRE(ab != nullptr);
+            artboardBounds = ab->bounds();
+        });
+        probe.pump();
+    }
+    // surfaceBounds is AABB(origin, viewBounds), so view == artboard needs an
+    // origin-based artboard.
+    REQUIRE(artboardBounds.left() == Approx(0.0f));
+    REQUIRE(artboardBounds.top() == Approx(0.0f));
+    REQUIRE(artboardBounds.width() > 0.0f);
+    REQUIRE(artboardBounds.height() > 0.0f);
+
+    const Vec2D viewBounds(artboardBounds.width(), artboardBounds.height());
+
+    auto boundsByIdAtScale =
+        [&](float scaleFactor) -> std::unordered_map<uint32_t, AABB> {
+        SemanticTestListener listener;
+        SemanticFixture fx(&listener);
+        fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+        fx.warmup();
+        fx.drain(0, Fit::layout, Alignment::center, scaleFactor, viewBounds);
+        fx.pump();
+        std::unordered_map<uint32_t, AABB> out;
+        for (auto& kv : listener.m_model.nodes)
+        {
+            AABB b = kv.second.bounds();
+            if (b.width() > 0.0f && b.height() > 0.0f)
+            {
+                out[kv.first] = b;
+            }
+        }
+        return out;
+    };
+
+    auto atScale1 = boundsByIdAtScale(1.0f);
+    auto atScale2 = boundsByIdAtScale(2.0f);
+    REQUIRE(!atScale1.empty());
+
+    // Doubling scaleFactor must double the mapped node sizes.
+    bool comparedAny = false;
+    for (const auto& kv : atScale1)
+    {
+        auto it = atScale2.find(kv.first);
+        if (it == atScale2.end())
+        {
+            continue;
+        }
+        CHECK(it->second.width() / kv.second.width() ==
+              Approx(2.0f).epsilon(0.02));
+        CHECK(it->second.height() / kv.second.height() ==
+              Approx(2.0f).epsilon(0.02));
+        comparedAny = true;
+    }
+    REQUIRE(comparedAny);
 }

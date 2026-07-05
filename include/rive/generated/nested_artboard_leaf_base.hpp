@@ -54,6 +54,7 @@ public:
         }
         m_Fit = value;
         fitChanged();
+        notifyPropertyChanged(fitPropertyKey);
     }
 
     inline float alignmentX() const { return m_AlignmentX; }
@@ -65,6 +66,7 @@ public:
         }
         m_AlignmentX = value;
         alignmentXChanged();
+        notifyPropertyChanged(alignmentXPropertyKey);
     }
 
     inline float alignmentY() const { return m_AlignmentY; }
@@ -76,6 +78,7 @@ public:
         }
         m_AlignmentY = value;
         alignmentYChanged();
+        notifyPropertyChanged(alignmentYPropertyKey);
     }
 
     Core* clone() const override;

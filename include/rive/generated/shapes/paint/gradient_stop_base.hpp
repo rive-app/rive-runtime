@@ -46,6 +46,7 @@ public:
         }
         m_ColorValue = value;
         colorValueChanged();
+        notifyPropertyChanged(colorValuePropertyKey);
     }
 
     inline float position() const { return m_Position; }
@@ -57,6 +58,7 @@ public:
         }
         m_Position = value;
         positionChanged();
+        notifyPropertyChanged(positionPropertyKey);
     }
 
     Core* clone() const override;

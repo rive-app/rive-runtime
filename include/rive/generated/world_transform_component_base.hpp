@@ -44,6 +44,7 @@ public:
         }
         m_Opacity = value;
         opacityChanged();
+        notifyPropertyChanged(opacityPropertyKey);
     }
 
     void copy(const WorldTransformComponentBase& object)

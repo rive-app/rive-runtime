@@ -33,7 +33,17 @@
         "int": 1013,
         "string": "mips"
       },
-      "description": "Whether to generate a full mip chain. Only applies to BC7.",
+      "description": "Whether to generate a full mip chain. Applies to GPU-compressed formats (BC7/ASTC/ETC2).",
+      "runtime": false
+    },
+    "astcBlockSize": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1030,
+        "string": "astcblocksize"
+      },
+      "description": "ASTC block-size index when format == astc. 0=4x4, 1=6x6, 2=8x8, 3=12x12. Ignored for non-ASTC formats.",
       "runtime": false
     }
   }

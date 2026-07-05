@@ -52,6 +52,7 @@ public:
         }
         m_Points = value;
         pointsChanged();
+        notifyPropertyChanged(pointsPropertyKey);
     }
 
     inline float cornerRadius() const { return m_CornerRadius; }
@@ -63,6 +64,7 @@ public:
         }
         m_CornerRadius = value;
         cornerRadiusChanged();
+        notifyPropertyChanged(cornerRadiusPropertyKey);
     }
 
     Core* clone() const override;

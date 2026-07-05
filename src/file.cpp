@@ -295,6 +295,7 @@ rcp<File> File::import(Span<const uint8_t> bytes,
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
     ImportStack importStack;
+    importStack.version(header.majorVersion(), header.minorVersion());
 #ifdef WITH_RIVE_SCRIPTING
     std::vector<InBandContent> inBandContent;
 #endif

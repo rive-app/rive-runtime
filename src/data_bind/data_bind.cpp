@@ -30,9 +30,11 @@
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/formula/formula_token.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/generated/node_base.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
@@ -292,12 +294,62 @@ void DataBind::bind()
     {
         m_dataConverter->reset();
     }
+    // if this is a toSource bind on a push-capable target,
+    // subscribe to the target's notifyPropertyChanged stream instead of
+    // relying on per-frame polling. The container consults targetSupportsPush()
+    // to decide whether to also enroll the bind in m_persistingDataBinds.
+    //
+    // bind() can be called more than once on the same DataBind (e.g. when
+    // ArtboardComponentList rebinds list items as the viewmodel changes).
+    // Unsubscribe first if we previously subscribed — otherwise
+    // addPropertyObserver would prepend the same node twice and form a cycle
+    // that makes notifyPropertyChanged loop forever. The Observing flag
+    // gates this so we don't deref m_target when we never subscribed (which
+    // would be a UAF if the target was freed first).
+    if (hasFlag(Flag::Observing) && m_target != nullptr)
+    {
+        m_target->removePropertyObserver(this);
+        setFlag(Flag::Observing, false);
+    }
+    if (toSource() && m_target != nullptr && targetSupportsPush())
+    {
+        m_target->addPropertyObserver(this);
+        setFlag(Flag::Observing, true);
+    }
     addDirt(ComponentDirt::Bindings, true);
+}
+
+void DataBind::target(Core* value)
+{
+    if (m_target == value)
+    {
+        return;
+    }
+    // Drop the subscription only when we actually have one — otherwise
+    // dereferencing m_target is a UAF if the old target was freed before us
+    // (we wouldn't have been notified via onTargetDestroyed because we
+    // weren't in its observer list).
+    if (hasFlag(Flag::Observing) && m_target != nullptr)
+    {
+        m_target->removePropertyObserver(this);
+        setFlag(Flag::Observing, false);
+    }
+    m_target = value;
+    if (toSource() && m_target != nullptr && targetSupportsPush())
+    {
+        m_target->addPropertyObserver(this);
+        setFlag(Flag::Observing, true);
+    }
 }
 
 void DataBind::unbind()
 {
     clearSource();
+    if (hasFlag(Flag::Observing) && m_target != nullptr)
+    {
+        m_target->removePropertyObserver(this);
+        setFlag(Flag::Observing, false);
+    }
     if (m_dataConverter != nullptr)
     {
         m_dataConverter->unbind();
@@ -307,6 +359,55 @@ void DataBind::unbind()
         delete m_ContextValue;
         m_ContextValue = nullptr;
     }
+}
+
+bool DataBind::targetSupportsPush() const
+{
+    if (m_target == nullptr)
+    {
+        return false;
+    }
+    // Push works for any property whose value is exposed via a generated
+    // setter that calls notifyPropertyChanged (i.e. anything in *_base.hpp).
+    // The following targets are computed/derived and don't fit the push
+    // model — leave them on the polling path:
+    //
+    //   * Solo's activeComponentId — derived from active child, no setter
+    //   * BindablePropertyAsset's image — loaded asynchronously, no setter
+    //   * BindablePropertyViewModel's value — set via dedicated method
+    //   * ViewModelInstanceViewModel's reference — set via dedicated method
+    //   * Node's computed* properties — written multiple times per frame by
+    //     the transform/layout pipeline; pushing on every intermediate write
+    //     triggers dependent binds mid-computation and shifts per-frame
+    //     ordering. Polling at end of frame captures only the settled value.
+    auto key = propertyKey();
+    if (key == SoloBase::activeComponentIdPropertyKey ||
+        key == NodeBase::computedLocalXPropertyKey ||
+        key == NodeBase::computedLocalYPropertyKey ||
+        key == NodeBase::computedWorldXPropertyKey ||
+        key == NodeBase::computedWorldYPropertyKey ||
+        key == NodeBase::computedRootXPropertyKey ||
+        key == NodeBase::computedRootYPropertyKey ||
+        key == NodeBase::computedWidthPropertyKey ||
+        key == NodeBase::computedHeightPropertyKey ||
+        key == ShapeBase::lengthPropertyKey ||
+        key == ScrollConstraintBase::scrollIndexPropertyKey ||
+        key == ScrollConstraintBase::scrollPercentXPropertyKey ||
+        key == ScrollConstraintBase::scrollPercentYPropertyKey ||
+        key == ScrollConstraintBase::velocityXPropertyKey ||
+        key == ScrollConstraintBase::velocityYPropertyKey ||
+        key == ScrollConstraintBase::scrollActivePropertyKey)
+    {
+        return false;
+    }
+    auto t = m_target->coreType();
+    if (t == BindablePropertyAssetBase::typeKey ||
+        t == BindablePropertyViewModelBase::typeKey ||
+        t == ViewModelInstanceViewModelBase::typeKey)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool DataBind::canSkip()
@@ -328,10 +429,20 @@ void DataBind::update(ComponentDirt value)
             auto flagsValue = static_cast<DataBindFlags>(flags());
             if (toTarget())
             {
+                // Alternative A: a TwoWay bind subscribes to its target via
+                // Core::notifyPropertyChanged. Without suppression, writing
+                // the target here would push-notify ourselves and add a
+                // spurious dirt entry, causing an extra updateSourceBinding
+                // pass in the same frame (silver tests collapse_data_binds-
+                // test_2 / virtualize_blendmode regress). Mirror the
+                // suppressDirt pattern used by the source-apply path.
+                suppressDirt(true);
                 m_ContextValue->apply(m_target,
                                       propertyKey(),
                                       (flagsValue & DataBindFlags::Direction) ==
-                                          DataBindFlags::ToTarget);
+                                          DataBindFlags::ToTarget,
+                                      this);
+                suppressDirt(false);
             }
         }
     }
@@ -347,18 +458,16 @@ void DataBind::updateDependents()
 
 void DataBind::updateSourceBinding(bool invalidate)
 {
-    if (toSource())
+    if (toSource() && m_target && m_ContextValue != nullptr)
     {
-        if (m_ContextValue != nullptr)
+        if (invalidate)
         {
-            if (invalidate)
-            {
-                m_ContextValue->invalidate();
-            }
-            m_ContextValue->applyToSource(m_target,
-                                          propertyKey(),
-                                          isMainToSource());
+            m_ContextValue->invalidate();
         }
+        m_ContextValue->applyToSource(m_target,
+                                      propertyKey(),
+                                      isMainToSource(),
+                                      this);
     }
 }
 
@@ -377,7 +486,7 @@ bool DataBind::sourceToTargetRunsFirst()
 
 void DataBind::addDirt(ComponentDirt value, bool recurse)
 {
-    if (m_suppressDirt || (m_Dirt & value) == value)
+    if (hasFlag(Flag::SuppressDirt) || (m_Dirt & value) == value)
     {
         // Already marked.
         return;
@@ -395,7 +504,7 @@ void DataBind::addDirt(ComponentDirt value, bool recurse)
     {
         m_ContextValue->invalidate();
     }
-    if (m_container && !m_isCollapsed)
+    if (m_container && !hasFlag(Flag::Collapsed))
     {
         m_container->addDirtyDataBind(this);
     }
@@ -436,7 +545,7 @@ bool DataBind::isNameBased()
 
 bool DataBind::advance(float elapsedTime)
 {
-    if (converter() && m_Source && !m_isCollapsed)
+    if (converter() && m_Source && !hasFlag(Flag::Collapsed))
     {
         return converter()->advance(elapsedTime);
     }
@@ -449,14 +558,14 @@ File* DataBind::file() const { return m_file; };
 
 void DataBind::collapse(bool isCollapsed)
 {
-    if (m_isCollapsed == isCollapsed ||
+    if (hasFlag(Flag::Collapsed) == isCollapsed ||
         propertyKey() == LayoutComponentStyleBase::displayValuePropertyKey ||
-        toSource())
+        !targetSupportsPush())
     {
         return;
     }
-    m_isCollapsed = isCollapsed;
-    if (!m_isCollapsed && m_Dirt != ComponentDirt::None && m_container)
+    setFlag(Flag::Collapsed, isCollapsed);
+    if (!isCollapsed && m_Dirt != ComponentDirt::None && m_container)
     {
         m_container->addDirtyDataBind(this);
     }

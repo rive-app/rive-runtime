@@ -49,6 +49,7 @@ public:
         }
         m_Speed = value;
         speedChanged();
+        notifyPropertyChanged(speedPropertyKey);
     }
 
     inline bool isPlaying() const { return m_IsPlaying; }
@@ -60,6 +61,7 @@ public:
         }
         m_IsPlaying = value;
         isPlayingChanged();
+        notifyPropertyChanged(isPlayingPropertyKey);
     }
 
     Core* clone() const override;

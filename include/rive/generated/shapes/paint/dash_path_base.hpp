@@ -47,6 +47,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     inline bool offsetIsPercentage() const { return m_OffsetIsPercentage; }
@@ -58,6 +59,7 @@ public:
         }
         m_OffsetIsPercentage = value;
         offsetIsPercentageChanged();
+        notifyPropertyChanged(offsetIsPercentagePropertyKey);
     }
 
     Core* clone() const override;

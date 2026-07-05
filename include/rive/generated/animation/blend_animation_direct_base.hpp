@@ -48,6 +48,7 @@ public:
         }
         m_InputId = value;
         inputIdChanged();
+        notifyPropertyChanged(inputIdPropertyKey);
     }
 
     inline float mixValue() const { return m_MixValue; }
@@ -59,6 +60,7 @@ public:
         }
         m_MixValue = value;
         mixValueChanged();
+        notifyPropertyChanged(mixValuePropertyKey);
     }
 
     inline uint32_t blendSource() const { return m_BlendSource; }
@@ -70,6 +72,7 @@ public:
         }
         m_BlendSource = value;
         blendSourceChanged();
+        notifyPropertyChanged(blendSourcePropertyKey);
     }
 
     Core* clone() const override;

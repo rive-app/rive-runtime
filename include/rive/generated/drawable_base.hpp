@@ -49,6 +49,7 @@ public:
         }
         m_BlendModeValue = value;
         blendModeValueChanged();
+        notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
     inline uint32_t drawableFlags() const { return m_DrawableFlags; }
@@ -60,6 +61,7 @@ public:
         }
         m_DrawableFlags = value;
         drawableFlagsChanged();
+        notifyPropertyChanged(drawableFlagsPropertyKey);
     }
 
     void copy(const DrawableBase& object)

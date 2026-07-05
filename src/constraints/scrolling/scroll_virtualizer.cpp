@@ -1,6 +1,7 @@
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/constraints/scrolling/scroll_virtualizer.hpp"
+#include <set>
 
 using namespace rive;
 
@@ -79,6 +80,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
     int currentChildIndex = 0;
     bool isHorz = m_direction == VirtualizedDirection::horizontal;
     float gap = isHorz ? scroll->gap().x : scroll->gap().y;
+    std::set<VirtualizingComponent*> changedVirtualizingComponents;
 
     for (int i = 0; i < children.size(); i++)
     {
@@ -269,6 +271,7 @@ recycle:
                         if (item == nullptr)
                         {
                             virt->addVirtualizable(childIndex);
+                            changedVirtualizingComponents.emplace(virt);
                         }
 
                         auto size = getItemSize(child, childIndex, isHorz);
@@ -321,6 +324,10 @@ recycle:
                 virt->setVisibleIndices(visible.x, visible.y);
             }
         }
+    }
+    for (auto& virtualizingComponent : changedVirtualizingComponents)
+    {
+        virtualizingComponent->virtualizableChanged();
     }
 }
 

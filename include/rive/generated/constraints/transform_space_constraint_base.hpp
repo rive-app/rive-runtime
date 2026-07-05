@@ -47,6 +47,7 @@ public:
         }
         m_SourceSpaceValue = value;
         sourceSpaceValueChanged();
+        notifyPropertyChanged(sourceSpaceValuePropertyKey);
     }
 
     inline uint32_t destSpaceValue() const { return m_DestSpaceValue; }
@@ -58,6 +59,7 @@ public:
         }
         m_DestSpaceValue = value;
         destSpaceValueChanged();
+        notifyPropertyChanged(destSpaceValuePropertyKey);
     }
 
     void copy(const TransformSpaceConstraintBase& object)

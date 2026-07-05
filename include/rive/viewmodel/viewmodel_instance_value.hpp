@@ -4,6 +4,7 @@
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/dependency_helper.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/viewmodel/viewmodel_value_dependent.hpp"
 #include "rive/component.hpp"
 #include "rive/component_dirt.hpp"
@@ -40,16 +41,33 @@ private:
     ViewModelProperty* m_ViewModelProperty = nullptr;
     static std::string defaultName;
     ValueFlags m_changeFlags;
-    std::vector<ViewModelInstanceValueDelegate*> m_delegates;
-    std::vector<ViewModelInstanceValueDelegate*> m_delegatesCopy;
+    LazyVector<ViewModelInstanceValueDelegate*> m_delegates;
+    LazyVector<ViewModelInstanceValueDelegate*> m_delegatesCopy;
     void registerSymbol();
 
 public:
     void addDelegate(ViewModelInstanceValueDelegate* delegate);
     void removeDelegate(ViewModelInstanceValueDelegate* delegate);
 
+    // Required by DependencyHelper's CRTP base. onComponentDirty is never
+    // actually invoked on ViewModelInstanceValue's dependency chain — the
+    // previous design stored &local_param here (a dangling pointer) and was
+    // saved only by nothing reading it. We keep a stub returning nullptr; if
+    // anything ever calls it, the deref will crash loudly rather than
+    // silently use freed stack memory. The stub also satisfies the CRTP
+    // contract so the templated onComponentDirty member can instantiate.
+    rcp<ViewModelInstance>* dependencyRoot() const { return nullptr; }
+
 protected:
-    DependencyHelper<rcp<ViewModelInstance>, ViewModelValueDependent>
+    // Kept as a member rather than a base because ViewModelInstanceValue
+    // already inherits DependencyHelper transitively via Component (see
+    // ViewModelInstanceValueBase). Inheriting a second DependencyHelper
+    // would make `addDependent` ambiguous across the two instantiations.
+    // The 8 B savings from the CRTP refactor still apply — the helper no
+    // longer stores its own root pointer.
+    DependencyHelper<rcp<ViewModelInstance>,
+                     ViewModelValueDependent,
+                     ViewModelInstanceValue>
         m_DependencyHelper;
     ViewModelInstance* m_viewModelInstance = nullptr;
     void addDirt(ComponentDirt value);
@@ -74,9 +92,9 @@ public:
     bool hasChanged();
     void onValueChanged();
     const std::string& name() const;
-    std::vector<ViewModelValueDependent*>& dependents()
+    const std::vector<ViewModelValueDependent*>& dependents() const
     {
-        return m_DependencyHelper.mutableDependents();
+        return m_DependencyHelper.dependents();
     }
 };
 

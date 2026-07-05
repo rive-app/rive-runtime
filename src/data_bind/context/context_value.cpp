@@ -18,10 +18,16 @@
 
 using namespace rive;
 
-DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
-    m_dataBind(dataBind)
+DataBindContextValue::DataBindContextValue(DataBind* dataBind)
 {
-    m_targetValue.initialize(dataBind);
+    // Only allocate the target-side cache for binds that will read from the
+    // target (toSource or TwoWay). Pure toTarget binds never touch
+    // m_targetValue — calculateValueAndApply is only reached via
+    // applyToSource(), which is guarded by toSource() in updateSourceBinding.
+    if (dataBind->toSource())
+    {
+        m_targetValue.initialize(dataBind);
+    }
     auto source = dataBind->source();
     if (source != nullptr)
     {
@@ -88,9 +94,9 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
     }
 }
 
-void DataBindContextValue::syncSourceValue()
+void DataBindContextValue::syncSourceValue(DataBind* dataBind)
 {
-    auto source = m_dataBind->source();
+    auto source = dataBind->source();
     if (source != nullptr)
     {
         switch (source->coreType())
@@ -155,9 +161,10 @@ void DataBindContextValue::syncSourceValue()
 
 void DataBindContextValue::applyToSource(Core* component,
                                          uint32_t propertyKey,
-                                         bool isMainDirection)
+                                         bool isMainDirection,
+                                         DataBind* dataBind)
 {
-    auto source = m_dataBind->source();
+    auto source = dataBind->source();
     switch (source->coreType())
     {
         case ViewModelInstanceNumberBase::typeKey:
@@ -165,41 +172,47 @@ void DataBindContextValue::applyToSource(Core* component,
 
             calculateValueAndApply<DataValueNumber,
                                    float,
-                                   ViewModelInstanceNumber>(isMainDirection);
+                                   ViewModelInstanceNumber>(isMainDirection,
+                                                            dataBind);
         }
         break;
         case ViewModelInstanceStringBase::typeKey:
         {
             calculateValueAndApply<DataValueString,
                                    std::string,
-                                   ViewModelInstanceString>(isMainDirection);
+                                   ViewModelInstanceString>(isMainDirection,
+                                                            dataBind);
         }
         break;
         case ViewModelInstanceColorBase::typeKey:
         {
             calculateValueAndApply<DataValueColor, int, ViewModelInstanceColor>(
-                isMainDirection);
+                isMainDirection,
+                dataBind);
         }
         break;
         case ViewModelInstanceBooleanBase::typeKey:
         {
             calculateValueAndApply<DataValueBoolean,
                                    bool,
-                                   ViewModelInstanceBoolean>(isMainDirection);
+                                   ViewModelInstanceBoolean>(isMainDirection,
+                                                             dataBind);
         }
         break;
         case ViewModelInstanceEnumBase::typeKey:
         {
             calculateValueAndApply<DataValueInteger,
                                    uint32_t,
-                                   ViewModelInstanceEnum>(isMainDirection);
+                                   ViewModelInstanceEnum>(isMainDirection,
+                                                          dataBind);
         }
         break;
         case ViewModelInstanceTriggerBase::typeKey:
         {
             calculateValueAndApply<DataValueInteger,
                                    uint32_t,
-                                   ViewModelInstanceTrigger>(isMainDirection);
+                                   ViewModelInstanceTrigger>(isMainDirection,
+                                                             dataBind);
         }
         break;
         case ViewModelInstanceSymbolListIndexBase::typeKey:
@@ -207,29 +220,32 @@ void DataBindContextValue::applyToSource(Core* component,
             calculateValueAndApply<DataValueInteger,
                                    uint32_t,
                                    ViewModelInstanceSymbolListIndex>(
-                isMainDirection);
+                isMainDirection,
+                dataBind);
         }
         break;
         case ViewModelInstanceAssetImageBase::typeKey:
         {
             calculateValueAndApply<DataValueInteger,
                                    uint32_t,
-                                   ViewModelInstanceAssetImage>(
-                isMainDirection);
+                                   ViewModelInstanceAssetImage>(isMainDirection,
+                                                                dataBind);
         }
         break;
         case ViewModelInstanceArtboardBase::typeKey:
         {
             calculateValueAndApply<DataValueInteger,
                                    uint32_t,
-                                   ViewModelInstanceArtboard>(isMainDirection);
+                                   ViewModelInstanceArtboard>(isMainDirection,
+                                                              dataBind);
         }
         break;
         case ViewModelInstanceViewModelBase::typeKey:
         {
             calculateValueAndApply<DataValueViewModel,
                                    ViewModelInstance*,
-                                   ViewModelInstanceViewModel>(isMainDirection);
+                                   ViewModelInstanceViewModel>(isMainDirection,
+                                                               dataBind);
         }
         break;
     }

@@ -64,11 +64,11 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend,
 
     // Disable KHR_blend_equation_advanced, which is necessary for this to
     // repro.
+#ifndef RIVE_TOOLS_NO_GL
     bool hadBlendAdvancedCoherentKHR = false;
     bool hadBlendAdvancedKHR = false;
     if (renderContext != nullptr)
     {
-#ifndef RIVE_TOOLS_NO_GL
         if (gpu::RenderContextGLImpl* glImpl =
                 TestingWindow::Get()->renderContextGLImpl())
         {
@@ -79,8 +79,8 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend,
                 glImpl->testingOnly_setBlendAdvancedKHRSupported(false);
             renderContext->beginFrame(preserveRenderTargetFrameDesc);
         }
-#endif
     }
+#endif
 
     {
         AutoRestore ar(renderer, true);
@@ -156,11 +156,11 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend2,
 
     // Disable KHR_blend_equation_advanced, which is necessary for this to
     // repro.
+#ifndef RIVE_TOOLS_NO_GL
     bool hadBlendAdvancedCoherentKHR = false;
     bool hadBlendAdvancedKHR = false;
     if (renderContext != nullptr)
     {
-#ifndef RIVE_TOOLS_NO_GL
         if (gpu::RenderContextGLImpl* glImpl =
                 TestingWindow::Get()->renderContextGLImpl())
         {
@@ -171,8 +171,8 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend2,
                 glImpl->testingOnly_setBlendAdvancedKHRSupported(false);
             renderContext->beginFrame(preserveRenderTargetFrameDesc);
         }
-#endif
     }
+#endif
 
     {
         AutoRestore ar(renderer, true);

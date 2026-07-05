@@ -68,6 +68,12 @@ public:
     // Use this to select between GLES and Vulkan GLSL shader source.
     bool isGLES() const { return m_wgpuBackend == WGPUBackend::OpenGLES; }
 
+    // Monotonic frame serial for buffer versioning. A backing bound this frame
+    // is not reused until a later frame, when its WriteBuffer is ordered after
+    // this frame's submit. The host does not thread frame numbers to the wgpu
+    // backend, so the context owns the serial.
+    uint64_t currentFrameSerial() const { return m_frameSerial; }
+
     ContextWGPU(const ContextWGPU&) = delete;
     ContextWGPU& operator=(const ContextWGPU&) = delete;
 
@@ -87,6 +93,7 @@ private:
     wgpu::Device m_wgpuDevice;
     wgpu::Queue m_wgpuQueue;
     wgpu::CommandEncoder m_wgpuCommandEncoder;
+    uint64_t m_frameSerial = 0;
 };
 
 } // namespace rive::ore

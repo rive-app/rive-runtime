@@ -1779,6 +1779,9 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     const ContextOptions& contextOptions) :
     m_device(device), m_queue(queue), m_contextOptions(contextOptions)
 {
+    wgpu::Limits deviceLimits = {};
+    const bool deviceLimitsValid = m_device.GetLimits(&deviceLimits);
+
 #ifdef RIVE_WAGYU
     m_capabilities.backendType = static_cast<wgpu::BackendType>(
         wgpuWagyuAdapterGetBackend(adapter.Get()));
@@ -1812,7 +1815,16 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     }
 #endif
 
-    m_platformFeatures.supportsAtomicMode = true;
+    // InterlockMode::atomics binds the color, clip, and coverage PLS planes as
+    // storage buffers in the fragment stage. Only advertise support for atomic
+    // mode if the device allows at least 3 buffers per stage.
+    m_platformFeatures.supportsAtomicMode =
+        deviceLimitsValid && deviceLimits.maxStorageBuffersPerShaderStage >= 3;
+    if (!m_platformFeatures.supportsAtomicMode)
+    {
+        printf(
+            "WARNING: atomic mode disabled because deviceLimits.maxStorageBuffersPerShaderStage is not at least 3.");
+    }
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
     m_platformFeatures.clipSpaceBottomUp = true;
@@ -2150,7 +2162,7 @@ wgpu::Texture RenderTargetWebGPU::dstColorTexture()
                      wgpu::TextureUsage::RenderAttachment,
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
-            .format = wgpu::TextureFormat::RGBA8Unorm,
+            .format = m_framebufferFormat,
             .sampleCount = 1,
         };
         m_dstColorTexture = m_device.CreateTexture(&desc);
@@ -2520,7 +2532,7 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
     wgpu::TextureFormat wgpuFormat = wgpu::TextureFormat::RGBA8Unorm;
     uint32_t bytesPerBlock = 4;
 
-    bool isCompressed = false;
+    RIVE_DEBUG_CODE(bool isCompressed = false);
 
     switch (format)
     {
@@ -2530,7 +2542,7 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
         case GPUTextureFormat::bc7:
             wgpuFormat = wgpu::TextureFormat::BC7RGBAUnorm;
             bytesPerBlock = 16;
-            isCompressed = true;
+            RIVE_DEBUG_CODE(isCompressed = true);
             break;
         case GPUTextureFormat::astc:
         {
@@ -2547,7 +2559,7 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
                 2 * idx);
 
             bytesPerBlock = 16;
-            isCompressed = true;
+            RIVE_DEBUG_CODE(isCompressed = true);
             break;
         }
         case GPUTextureFormat::etc2:

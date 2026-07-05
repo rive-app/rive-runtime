@@ -146,6 +146,43 @@
       },
       "description": "Path to the list providing the text runs",
       "bindable": true
+    },
+    "verticalTrimValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1026,
+        "string": "verticaltrimvalue"
+      },
+      "description": "Packed bitflag to represent both bottom and top trim."
+    },
+    "verticalTrimTopValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1027,
+        "string": "verticaltrimtopvalue"
+      },
+      "description": "TextTrimTop edge (none/cap/ex). Low byte of verticalTrimValue.",
+      "bindable": true,
+      "animates": true,
+      "passthroughForBitmask": "verticalTrimValue",
+      "passthroughBit": 0,
+      "passthroughBitWidth": 8
+    },
+    "verticalTrimBottomValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1028,
+        "string": "verticaltrimbottomvalue"
+      },
+      "description": "TextTrimBottom edge (none/alphabetic/text). Second byte of verticalTrimValue.",
+      "bindable": true,
+      "animates": true,
+      "passthroughForBitmask": "verticalTrimValue",
+      "passthroughBit": 8,
+      "passthroughBitWidth": 8
     }
   }
 }

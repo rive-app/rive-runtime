@@ -44,6 +44,7 @@ public:
         }
         m_Volume = value;
         volumeChanged();
+        notifyPropertyChanged(volumePropertyKey);
     }
 
     void copy(const ExportAudioBase& object)

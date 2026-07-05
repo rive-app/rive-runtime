@@ -50,6 +50,7 @@ public:
         }
         m_Url = value;
         urlChanged();
+        notifyPropertyChanged(urlPropertyKey);
     }
 
     inline uint32_t targetValue() const { return m_TargetValue; }
@@ -61,6 +62,7 @@ public:
         }
         m_TargetValue = value;
         targetValueChanged();
+        notifyPropertyChanged(targetValuePropertyKey);
     }
 
     Core* clone() const override;

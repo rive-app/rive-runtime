@@ -45,6 +45,7 @@ public:
         }
         m_Value = value;
         valueChanged();
+        notifyPropertyChanged(valuePropertyKey);
     }
 
     Core* clone() const override;

@@ -42,6 +42,7 @@ public:
         }
         m_ConverterId = value;
         converterIdChanged();
+        notifyPropertyChanged(converterIdPropertyKey);
     }
 
     Core* clone() const override;

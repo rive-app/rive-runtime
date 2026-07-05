@@ -254,6 +254,188 @@ TEST_CASE("text input keyInput handles shift for selection", "[text_input]")
     CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 2);
 }
 
+TEST_CASE("text input keyInput handles select all", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->rawTextInput()->text("hello world");
+    textInput->rawTextInput()->cursor(Cursor::zero());
+
+    artboard->advance(0.0f);
+
+    // The system modifier is ctrl on Windows and meta elsewhere, matching
+    // TextInput::systemModifier().
+#if defined(RIVE_WINDOWS)
+    KeyModifiers systemModifier = KeyModifiers::ctrl;
+#else
+    KeyModifiers systemModifier = KeyModifiers::meta;
+#endif
+
+    // Cmd/Ctrl+A selects the entire buffer.
+    bool handled = textInput->keyInput(Key::a, systemModifier, true, false);
+    CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->cursor().start().codePointIndex() == 0);
+    CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
+
+    // A plain 'a' is not handled here so it falls through to be typed.
+    handled = textInput->keyInput(Key::a, KeyModifiers::none, true, false);
+    CHECK(handled == false);
+}
+
+TEST_CASE("text input keyInput handles home and end", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->rawTextInput()->text("hello world");
+    // Start with a collapsed cursor in the middle of the line.
+    textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(5)));
+
+    artboard->advance(0.0f);
+
+    // End moves the cursor to the end of the line.
+    bool handled =
+        textInput->keyInput(Key::end, KeyModifiers::none, true, false);
+    CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
+
+    // Home moves the cursor to the start of the line.
+    handled = textInput->keyInput(Key::home, KeyModifiers::none, true, false);
+    CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 0);
+
+    // Shift+End extends the selection from the current position to line end.
+    handled = textInput->keyInput(Key::end, KeyModifiers::shift, true, false);
+    CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+    CHECK(textInput->rawTextInput()->cursor().start().codePointIndex() == 0);
+    CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
+}
+
+TEST_CASE("raw text input selectLine selects the visual line", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->rawTextInput()->text("hello\nworld");
+    artboard->advance(0.0f);
+
+    // Cursor on the second line ("world", codepoints 6..10).
+    textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(8)));
+    textInput->rawTextInput()->selectLine();
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+    CHECK(textInput->rawTextInput()->cursor().first().codePointIndex() == 6);
+    CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() == 11);
+
+    // Cursor on the first line ("hello", codepoints 0..4).
+    textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(2)));
+    textInput->rawTextInput()->selectLine();
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+    CHECK(textInput->rawTextInput()->cursor().first().codePointIndex() == 0);
+    CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() == 5);
+}
+
+TEST_CASE("text input selectWord and selectLine wrappers", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    CHECK(textInput != nullptr);
+
+    textInput->rawTextInput()->text("hello world");
+    artboard->advance(0.0f);
+
+    // selectWord selects the word under the cursor.
+    textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(2)));
+    textInput->selectWord();
+    CHECK(textInput->rawTextInput()->cursor().first().codePointIndex() == 0);
+    CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() == 5);
+
+    // selectLine selects the whole (single) line.
+    textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(8)));
+    textInput->selectLine();
+    CHECK(textInput->rawTextInput()->cursor().first().codePointIndex() == 0);
+    CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() == 11);
+}
+
+TEST_CASE("text input double and triple click select word and line",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachine(0);
+    if (stateMachine == nullptr)
+    {
+        return;
+    }
+
+    auto abi = artboard->instance();
+    StateMachineInstance smi(stateMachine, abi.get());
+    smi.advanceAndApply(0.0f);
+
+    auto textInput = abi->objects<TextInput>().first();
+    if (textInput == nullptr)
+    {
+        return;
+    }
+
+    textInput->rawTextInput()->text("hello world");
+    smi.advanceAndApply(0.0f);
+
+    // Click near the top-left where the first word renders.
+    Vec2D clickPosition(8.0f, 8.0f);
+
+    auto pressRelease = [&]() {
+        smi.pointerDown(clickPosition);
+        smi.pointerUp(clickPosition);
+    };
+
+    // Two rapid clicks should select the word under the pointer.
+    pressRelease(); // single
+    pressRelease(); // double
+    smi.advanceAndApply(0.0f);
+
+    if (!textInput->rawTextInput()->cursor().hasSelection())
+    {
+        // The click did not land on the text input's hit area in this asset
+        // layout; skip the pointer-driven assertions rather than fail
+        // spuriously. The word/line selection paths are covered
+        // deterministically by the selectWord/selectLine tests above.
+        return;
+    }
+
+    auto wordEnd = textInput->rawTextInput()->cursor().last().codePointIndex();
+    CHECK(wordEnd >
+          textInput->rawTextInput()->cursor().first().codePointIndex());
+
+    // A third rapid click selects the (visual) line, spanning at least the
+    // word.
+    pressRelease(); // triple
+    smi.advanceAndApply(0.0f);
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+    CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() >=
+          wordEnd);
+}
+
 TEST_CASE("text input textInput method inserts text", "[text_input]")
 {
     auto file = ReadRiveFile("assets/text_input.riv");

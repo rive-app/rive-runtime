@@ -10,6 +10,7 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/semantic/semantic_manager.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 
@@ -468,6 +469,38 @@ Vec2D CommandServer::cursorPosForPointerEvent(
     return inverse * pointerEvent.position;
 }
 
+// Maps a semantics bounds payload from artboard space to view space.
+// Templated so the same transform path can be reused for both
+// SemanticsDiffNode and SemanticsBoundsUpdate via bounds()/setBounds().
+template <typename T>
+static void mapSemanticsBounds(T& value, const Mat2D& transform)
+{
+    value.setBounds(transform.mapBoundingBox(value.bounds()));
+}
+
+// Applies artboard->view bounds mapping to all geometry-bearing collections
+// in a semantic diff before it is delivered to listeners.
+static void mapSemanticsDiffToViewSpace(SemanticsDiff& diff,
+                                        const Mat2D& transform)
+{
+    for (auto& node : diff.added)
+    {
+        mapSemanticsBounds(node, transform);
+    }
+    for (auto& node : diff.moved)
+    {
+        mapSemanticsBounds(node, transform);
+    }
+    for (auto& node : diff.updatedSemantic)
+    {
+        mapSemanticsBounds(node, transform);
+    }
+    for (auto& bounds : diff.updatedGeometry)
+    {
+        mapSemanticsBounds(bounds, transform);
+    }
+}
+
 void CommandServer::checkPropertySubscriptions()
 {
     for (auto& subscription : m_propertySubscriptions)
@@ -645,6 +678,7 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
 #ifdef WITH_RIVE_SCRIPTING
+                std::cout << "Rive: Command Server Scripting Enabled.\n";
                 auto scriptingContext =
                     std::make_unique<CPPRuntimeScriptingContext>(m_factory);
                 scriptingContext->setRenderContext(m_factory);
@@ -1058,6 +1092,64 @@ bool CommandServer::processCommands()
                 }
             }
             break;
+
+            case CommandQueue::Command::setArtboardVolume:
+            {
+                ArtboardHandle handle;
+                float volume;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> volume;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto artboardInstance = getArtboardInstance(handle))
+                {
+                    artboardInstance->volume(volume);
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "artboard " << handle
+                        << " not found when trying to set artboard volume";
+                }
+            }
+            break;
+
+            case CommandQueue::Command::getArtboardVolume:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto artboard = getArtboardInstance(handle);
+                if (artboard)
+                {
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::artboardVolumeReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << artboard->volume();
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "Invalid artboard handle " << handle
+                        << " when getting artboard volume";
+                }
+                break;
+            }
 
             case CommandQueue::Command::deleteArtboard:
             {
@@ -1811,6 +1903,246 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::enableSemantics:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    wrapper->instance->enableSemantics();
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for enableSemantics.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::drainSemanticsDiff:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                Fit fit;
+                float alignmentX;
+                float alignmentY;
+                float scaleFactor;
+                Vec2D viewBounds;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> fit;
+                commandStream >> alignmentX;
+                commandStream >> alignmentY;
+                commandStream >> scaleFactor;
+                commandStream >> viewBounds;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    auto* manager = wrapper->instance->semanticManager();
+                    if (manager == nullptr)
+                    {
+                        stateMachineLock.unlock();
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Semantics not enabled on state machine "
+                            << handle
+                            << "; call enableSemantics before "
+                               "drainSemanticsDiff.";
+                    }
+                    else
+                    {
+                        SemanticsDiff diff = manager->drainDiff();
+                        if (!diff.empty())
+                        {
+                            // Compute the transform while locked (it reads the
+                            // artboard); identity means no mapping.
+                            Mat2D transform;
+                            if (auto* artboard = wrapper->instance->artboard())
+                            {
+                                AABB artboardBounds = artboard->bounds();
+                                AABB surfaceBounds =
+                                    AABB(Vec2D{0.0f, 0.0f}, viewBounds);
+                                if (surfaceBounds.width() != 0.0f &&
+                                    surfaceBounds.height() != 0.0f)
+                                {
+                                    Alignment alignment(alignmentX, alignmentY);
+                                    transform =
+                                        rive::computeAlignment(fit,
+                                                               alignment,
+                                                               surfaceBounds,
+                                                               artboardBounds,
+                                                               scaleFactor);
+                                }
+                            }
+
+                            // Map the owned diff outside the lock.
+                            stateMachineLock.unlock();
+                            if (transform != Mat2D())
+                            {
+                                mapSemanticsDiffToViewSpace(diff, transform);
+                            }
+
+                            std::unique_lock<std::mutex> messageLock(
+                                m_commandQueue->m_messageMutex);
+                            messageStream
+                                << CommandQueue::Message::semanticsDiffReceived;
+                            messageStream << handle;
+                            messageStream << requestId;
+                            m_commandQueue->m_messageSemanticsDiffs
+                                << std::move(diff);
+                        }
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for drainSemanticsDiff.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::fireSemanticAction:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                uint32_t semanticNodeId;
+                SemanticActionType actionType;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> semanticNodeId;
+                commandStream >> actionType;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    if (wrapper->instance->semanticManager() == nullptr)
+                    {
+                        stateMachineLock.unlock();
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Semantics not enabled on state machine "
+                            << handle
+                            << "; call enableSemantics before "
+                               "fireSemanticAction.";
+                    }
+                    else
+                    {
+                        wrapper->instance->fireSemanticAction(semanticNodeId,
+                                                              actionType);
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for fireSemanticAction.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::requestSemanticFocus:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                uint32_t semanticNodeId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> semanticNodeId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    auto* manager = wrapper->instance->semanticManager();
+                    if (manager == nullptr)
+                    {
+                        stateMachineLock.unlock();
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Semantics not enabled on state machine "
+                            << handle
+                            << "; call enableSemantics before "
+                               "requestSemanticFocus.";
+                    }
+                    else
+                    {
+                        // A missing/non-focusable node is a silent no-op.
+                        manager->requestFocus(semanticNodeId);
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for requestSemanticFocus.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::clearSemanticFocus:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    if (auto* focusManager = wrapper->instance->focusManager())
+                    {
+                        focusManager->clearFocus();
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for clearSemanticFocus.";
+                }
+                break;
+            }
+
             case CommandQueue::Command::runOnce:
             {
                 CommandServerCallback callback;
@@ -1878,6 +2210,48 @@ bool CommandServer::processCommands()
                                               CommandQueue::Message::fileError)
                         << "Invalid file handle " << handle
                         << " when getting list of artboards";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::listFileAssets:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto fileAssets = file->assets();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::fileAssetsListed;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << fileAssets.size();
+                    for (const auto& asset : fileAssets)
+                    {
+                        messageStream << asset->assetId();
+                        messageStream << asset->coreType();
+                        m_commandQueue->m_messageNames << asset->name();
+                        m_commandQueue->m_messageNames << asset->cdnUuidStr();
+                        m_commandQueue->m_messageNames << asset->cdnBaseUrl();
+                        m_commandQueue->m_messageNames
+                            << asset->fileExtension();
+                    }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              requestId,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of file assets";
                 }
 
                 break;

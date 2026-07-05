@@ -15,13 +15,14 @@ DataBindContextValueViewModel::DataBindContextValueViewModel(
 
 void DataBindContextValueViewModel::apply(Core* target,
                                           uint32_t propertyKey,
-                                          bool isMainDirection)
+                                          bool isMainDirection,
+                                          DataBind* dataBind)
 {
-    syncSourceValue();
+    syncSourceValue(dataBind);
     auto value =
         calculateValue<DataValueViewModel, ViewModelInstance*>(m_dataValue,
                                                                isMainDirection,
-                                                               m_dataBind);
+                                                               dataBind);
     if (target != nullptr)
     {
         auto consumer = DataBindViewModelConsumer::from(target);

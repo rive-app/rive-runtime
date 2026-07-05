@@ -71,6 +71,12 @@ public:
     /// Called when the user ends dragging on the text input.
     void endDrag(Vec2D worldPosition);
 
+    /// Selects the word at the current cursor (e.g. on double-click).
+    void selectWord();
+
+    /// Selects the visual line at the current cursor (e.g. on triple-click).
+    void selectLine();
+
     /// Advance edge scrolling during drag. Returns true if still scrolling.
     bool advanceDrag(float elapsedSeconds);
     bool advanceComponent(float elapsedSeconds,

@@ -39,6 +39,45 @@ enum class TextOrigin : uint8_t
     baseline
 };
 
+// Top edge the vertical bounding box is trimmed to.
+enum class TextTrimTop : uint8_t
+{
+    none = 0, // No trim: box top stays at the font ascent.
+    cap = 1,  // Box top at the cap-height line.
+    ex = 2,   // Box top at the x-height line.
+};
+
+// Bottom edge the vertical bounding box is trimmed to.
+enum class TextTrimBottom : uint8_t
+{
+    none = 0,       // No trim: box bottom stays at the font descent.
+    alphabetic = 1, // Box bottom at the baseline.
+    text = 2,       // Box bottom at the text (natural descent) line.
+};
+
+// Text::verticalTrimValue packs an independent top and bottom trim edge so new
+// edge types can be added later without introducing a new property. The top
+// edge occupies the low byte and the bottom edge the next byte; the remaining
+// bits (and the high 16) are reserved for future values.
+constexpr uint32_t textTrimTopShift = 0;
+constexpr uint32_t textTrimBottomShift = 8;
+constexpr uint32_t textTrimFieldMask = 0xFF;
+
+inline TextTrimTop textTrimTop(uint32_t packed)
+{
+    return (TextTrimTop)((packed >> textTrimTopShift) & textTrimFieldMask);
+}
+inline TextTrimBottom textTrimBottom(uint32_t packed)
+{
+    return (TextTrimBottom)((packed >> textTrimBottomShift) &
+                            textTrimFieldMask);
+}
+inline uint32_t packTextVerticalTrim(TextTrimTop top, TextTrimBottom bottom)
+{
+    return ((uint32_t)top << textTrimTopShift) |
+           ((uint32_t)bottom << textTrimBottomShift);
+}
+
 // Representation of a single unicode codepoint.
 using Unichar = uint32_t;
 // Id for a glyph within a font.
@@ -153,6 +192,11 @@ public:
     struct LineMetrics
     {
         float ascent, descent;
+        // Distances from the baseline to the top of capital / lowercase
+        // letters, stored negative (up is -Y) like ascent. Both fall back to
+        // ascent when the font does not provide the metric.
+        float capHeight = 0.0f;
+        float xHeight = 0.0f;
     };
 
     const LineMetrics& lineMetrics() const { return m_lineMetrics; }
@@ -160,6 +204,10 @@ public:
     float ascent(float size) const { return m_lineMetrics.ascent * size; }
 
     float descent(float size) const { return m_lineMetrics.descent * size; }
+
+    float capHeight(float size) const { return m_lineMetrics.capHeight * size; }
+
+    float xHeight(float size) const { return m_lineMetrics.xHeight * size; }
 
     // Variable axis available for the font.
     struct Axis

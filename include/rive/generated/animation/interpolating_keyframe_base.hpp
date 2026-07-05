@@ -45,6 +45,7 @@ public:
         }
         m_InterpolationType = value;
         interpolationTypeChanged();
+        notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
     inline uint32_t interpolatorId() const { return m_InterpolatorId; }
@@ -56,6 +57,7 @@ public:
         }
         m_InterpolatorId = value;
         interpolatorIdChanged();
+        notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
     void copy(const InterpolatingKeyFrameBase& object)

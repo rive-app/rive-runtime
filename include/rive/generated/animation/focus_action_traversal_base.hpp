@@ -44,6 +44,7 @@ public:
         }
         m_TraversalKind = value;
         traversalKindChanged();
+        notifyPropertyChanged(traversalKindPropertyKey);
     }
 
     Core* clone() const override;

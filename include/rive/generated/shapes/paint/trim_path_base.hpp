@@ -50,6 +50,7 @@ public:
         }
         m_Start = value;
         startChanged();
+        notifyPropertyChanged(startPropertyKey);
     }
 
     inline float end() const { return m_End; }
@@ -61,6 +62,7 @@ public:
         }
         m_End = value;
         endChanged();
+        notifyPropertyChanged(endPropertyKey);
     }
 
     inline float offset() const { return m_Offset; }
@@ -72,6 +74,7 @@ public:
         }
         m_Offset = value;
         offsetChanged();
+        notifyPropertyChanged(offsetPropertyKey);
     }
 
     inline uint32_t modeValue() const { return m_ModeValue; }
@@ -83,6 +86,7 @@ public:
         }
         m_ModeValue = value;
         modeValueChanged();
+        notifyPropertyChanged(modeValuePropertyKey);
     }
 
     Core* clone() const override;

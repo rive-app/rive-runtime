@@ -44,6 +44,7 @@ public:
         }
         m_Speed = value;
         speedChanged();
+        notifyPropertyChanged(speedPropertyKey);
     }
 
     void copy(const AdvanceableStateBase& object)

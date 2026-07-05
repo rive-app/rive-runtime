@@ -30,7 +30,6 @@ DataBindContextTargetValue::~DataBindContextTargetValue()
 
 void DataBindContextTargetValue::initialize(DataBind* dataBind)
 {
-    m_dataBind = dataBind;
     switch (CoreRegistry::propertyFieldId(dataBind->propertyKey()))
     {
         case CoreUintType::id:
@@ -98,40 +97,44 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
     }
 }
 
-bool DataBindContextTargetValue::syncTargetValue()
+bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
 {
-    switch (CoreRegistry::propertyFieldId(m_dataBind->propertyKey()))
+    if (!dataBind->target())
+    {
+        return false;
+    }
+    switch (CoreRegistry::propertyFieldId(dataBind->propertyKey()))
     {
         case CoreUintType::id:
         {
-            if (m_dataBind->propertyKey() ==
+            if (dataBind->propertyKey() ==
                     SoloBase::activeComponentIdPropertyKey &&
-                m_dataBind->target() && m_dataBind->target()->is<Solo>())
+                dataBind->target()->is<Solo>())
             {
-                auto target = m_dataBind->target()->as<Solo>();
-                if (m_dataBind->sourceOutputType() == DataType::string)
+                auto target = dataBind->target()->as<Solo>();
+                if (dataBind->sourceOutputType() == DataType::string)
                 {
                     auto value = target->getActiveChildName();
                     return updateValue<DataValueString, std::string>(value);
                 }
-                else if (m_dataBind->sourceOutputType() == DataType::number)
+                else if (dataBind->sourceOutputType() == DataType::number)
                 {
                     auto value = (float)target->getActiveChildIndex();
                     return updateValue<DataValueNumber, float>(value);
                 }
-                else if (m_dataBind->sourceOutputType() == DataType::integer)
+                else if (dataBind->sourceOutputType() == DataType::integer)
                 {
                     auto value = target->getActiveChildIndex();
                     return updateValue<DataValueInteger, int>(value);
                 }
-                else if (m_dataBind->sourceOutputType() == DataType::enumType)
+                else if (dataBind->sourceOutputType() == DataType::enumType)
                 {
                     auto activeChildName = target->getActiveChildName();
-                    if (m_dataBind->source() &&
-                        m_dataBind->source()->is<ViewModelInstanceEnum>())
+                    if (dataBind->source() &&
+                        dataBind->source()->is<ViewModelInstanceEnum>())
                     {
                         auto viewModelInstanceEnum =
-                            m_dataBind->source()->as<ViewModelInstanceEnum>();
+                            dataBind->source()->as<ViewModelInstanceEnum>();
                         if (viewModelInstanceEnum->viewModelProperty())
                         {
                             auto enumProperty =
@@ -149,12 +152,12 @@ bool DataBindContextTargetValue::syncTargetValue()
                     }
                 }
             }
-            else if (m_dataBind->target()->coreType() ==
+            else if (dataBind->target()->coreType() ==
                      BindablePropertyAssetBase::typeKey)
             {
-                auto value = CoreRegistry::getUint(m_dataBind->target(),
-                                                   m_dataBind->propertyKey());
-                auto fileAsset = m_dataBind->target()
+                auto value = CoreRegistry::getUint(dataBind->target(),
+                                                   dataBind->propertyKey());
+                auto fileAsset = dataBind->target()
                                      ->as<BindablePropertyAsset>()
                                      ->fileAsset();
                 bool didChange = false;
@@ -171,11 +174,11 @@ bool DataBindContextTargetValue::syncTargetValue()
                 }
                 return didChange;
             }
-            else if (m_dataBind->target()->coreType() ==
+            else if (dataBind->target()->coreType() ==
                      BindablePropertyViewModelBase::typeKey)
             {
                 bool didChange = false;
-                auto viewModelInstance = m_dataBind->target()
+                auto viewModelInstance = dataBind->target()
                                              ->as<BindablePropertyViewModel>()
                                              ->viewModelInstanceValue();
                 if (m_targetValue->is<DataValueViewModel>() &&
@@ -188,12 +191,12 @@ bool DataBindContextTargetValue::syncTargetValue()
                 }
                 return didChange;
             }
-            else if (m_dataBind->target()->coreType() ==
+            else if (dataBind->target()->coreType() ==
                      ViewModelInstanceViewModelBase::typeKey)
             {
                 bool didChange = false;
                 auto viewModelInstanceViewModel =
-                    m_dataBind->target()->as<ViewModelInstanceViewModel>();
+                    dataBind->target()->as<ViewModelInstanceViewModel>();
                 if (viewModelInstanceViewModel->referenceViewModelInstance()
                         .get() !=
                     m_targetValue->as<DataValueViewModel>()->value())
@@ -207,37 +210,37 @@ bool DataBindContextTargetValue::syncTargetValue()
             }
             else
             {
-                auto value = CoreRegistry::getUint(m_dataBind->target(),
-                                                   m_dataBind->propertyKey());
+                auto value = CoreRegistry::getUint(dataBind->target(),
+                                                   dataBind->propertyKey());
                 return updateValue<DataValueInteger, int>(value);
             }
         }
         break;
         case CoreColorType::id:
         {
-            auto value = CoreRegistry::getColor(m_dataBind->target(),
-                                                m_dataBind->propertyKey());
+            auto value = CoreRegistry::getColor(dataBind->target(),
+                                                dataBind->propertyKey());
             return updateValue<DataValueColor, int>(value);
         }
         break;
         case CoreDoubleType::id:
         {
-            auto value = CoreRegistry::getDouble(m_dataBind->target(),
-                                                 m_dataBind->propertyKey());
+            auto value = CoreRegistry::getDouble(dataBind->target(),
+                                                 dataBind->propertyKey());
             return updateValue<DataValueNumber, float>(value);
         }
         break;
         case CoreStringType::id:
         {
-            auto value = CoreRegistry::getString(m_dataBind->target(),
-                                                 m_dataBind->propertyKey());
+            auto value = CoreRegistry::getString(dataBind->target(),
+                                                 dataBind->propertyKey());
             return updateValue<DataValueString, std::string>(value);
         }
         break;
         case CoreBoolType::id:
         {
-            auto value = CoreRegistry::getBool(m_dataBind->target(),
-                                               m_dataBind->propertyKey());
+            auto value = CoreRegistry::getBool(dataBind->target(),
+                                               dataBind->propertyKey());
             return updateValue<DataValueBoolean, bool>(value);
         }
         break;

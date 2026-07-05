@@ -173,6 +173,26 @@ void CommandQueue::resetArtboardSize(ArtboardHandle artboardHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::setArtboardVolume(ArtboardHandle artboardHandle,
+                                     float volume,
+                                     uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setArtboardVolume;
+    m_commandStream << artboardHandle;
+    m_commandStream << volume;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::requestArtboardVolume(ArtboardHandle artboardHandle,
+                                         uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getArtboardVolume;
+    m_commandStream << artboardHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle,
                                   uint64_t requestId)
 {
@@ -649,6 +669,66 @@ void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::enableSemantics(StateMachineHandle stateMachineHandle,
+                                   uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::enableSemantics;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::drainSemanticsDiff(StateMachineHandle stateMachineHandle,
+                                      Fit fit,
+                                      Alignment alignment,
+                                      float scaleFactor,
+                                      Vec2D viewBounds,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::drainSemanticsDiff;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << fit;
+    m_commandStream << alignment.x();
+    m_commandStream << alignment.y();
+    m_commandStream << scaleFactor;
+    m_commandStream << viewBounds;
+}
+
+void CommandQueue::fireSemanticAction(StateMachineHandle stateMachineHandle,
+                                      uint32_t semanticNodeId,
+                                      SemanticActionType actionType,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::fireSemanticAction;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << semanticNodeId;
+    m_commandStream << actionType;
+}
+
+void CommandQueue::requestSemanticFocus(StateMachineHandle stateMachineHandle,
+                                        uint32_t semanticNodeId,
+                                        uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::requestSemanticFocus;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << semanticNodeId;
+}
+
+void CommandQueue::clearSemanticFocus(StateMachineHandle stateMachineHandle,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::clearSemanticFocus;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
 RenderImageHandle CommandQueue::decodeImage(
     std::vector<uint8_t> imageEncodedBytes,
     RenderImageListener* listener,
@@ -900,6 +980,14 @@ void CommandQueue::requestArtboardNames(FileHandle fileHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::requestFileAssets(FileHandle fileHandle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listFileAssets;
+    m_commandStream << fileHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::requestViewModelInstanceViewModelName(
     ViewModelInstanceHandle viewModelInstanceHandle,
     uint64_t requestId)
@@ -1138,6 +1226,42 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+            case Message::fileAssetsListed:
+            {
+                size_t numAssets;
+                FileHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numAssets;
+                std::vector<FileListener::FileAssetData> assets(numAssets);
+                for (auto& asset : assets)
+                {
+                    m_messageStream >> asset.assetID;
+                    m_messageStream >> asset.type;
+                    m_messageNames >> asset.name;
+                    m_messageNames >> asset.cdnUUID;
+                    m_messageNames >> asset.cdnBaseURL;
+                    m_messageNames >> asset.fileExtension;
+                }
+                lock.unlock();
+
+                if (m_globalFileListener)
+                {
+                    m_globalFileListener->onFileAssetsListed(handle,
+                                                             requestId,
+                                                             assets);
+                }
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onFileAssetsListed(itr->first,
+                                                    requestId,
+                                                    std::move(assets));
+                }
+                break;
+            }
             case Message::stateMachinesListed:
             {
                 size_t numStateMachines;
@@ -1201,6 +1325,34 @@ void CommandQueue::processMessages()
                         requestId,
                         std::move(defaultViewModel),
                         std::move(defaultViewModelInstance));
+                }
+
+                break;
+            }
+            case Message::artboardVolumeReceived:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                float volume;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> volume;
+                lock.unlock();
+
+                if (m_globalArtboardListener)
+                {
+                    m_globalArtboardListener->onArtboardVolumeReceived(
+                        handle,
+                        requestId,
+                        volume);
+                }
+
+                auto itr = m_artboardListeners.find(handle);
+                if (itr != m_artboardListeners.end())
+                {
+                    itr->second->onArtboardVolumeReceived(itr->first,
+                                                          requestId,
+                                                          volume);
                 }
 
                 break;
@@ -1766,7 +1918,45 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
-
+            case Message::semanticsDiffReceived:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                SemanticsDiff diff;
+                m_messageSemanticsDiffs >> diff;
+                lock.unlock();
+                auto itr = m_stateMachineListeners.find(handle);
+                const bool hasPerHandleListener =
+                    itr != m_stateMachineListeners.end();
+                if (m_globalStateMachineListener)
+                {
+                    // Copy to the global listener only when a per-handle
+                    // listener also needs the diff; otherwise move.
+                    if (hasPerHandleListener)
+                    {
+                        m_globalStateMachineListener->onSemanticsDiffReceived(
+                            handle,
+                            requestId,
+                            diff);
+                    }
+                    else
+                    {
+                        m_globalStateMachineListener->onSemanticsDiffReceived(
+                            handle,
+                            requestId,
+                            std::move(diff));
+                    }
+                }
+                if (hasPerHandleListener)
+                {
+                    itr->second->onSemanticsDiffReceived(handle,
+                                                         requestId,
+                                                         std::move(diff));
+                }
+                break;
+            }
             case Message::fileError:
             {
                 FileHandle handle;

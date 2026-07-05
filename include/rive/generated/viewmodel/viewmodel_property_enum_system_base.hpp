@@ -45,6 +45,7 @@ public:
         }
         m_EnumType = value;
         enumTypeChanged();
+        notifyPropertyChanged(enumTypePropertyKey);
     }
 
     Core* clone() const override;

@@ -45,6 +45,7 @@ public:
         }
         m_FolderPath = value;
         folderPathChanged();
+        notifyPropertyChanged(folderPathPropertyKey);
     }
 
     void copy(const TextAssetBase& object)

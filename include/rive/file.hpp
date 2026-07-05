@@ -81,7 +81,9 @@ public:
     /// Major version number supported by the runtime.
     static const int majorVersion = 7;
     /// Minor version number supported by the runtime.
-    static const int minorVersion = 0;
+    /// 7.2: images in a layout apply their fit as a separate scale, leaving
+    /// the user-facing scaleX/scaleY free to be edited/animated on top.
+    static const int minorVersion = 2;
     /// deterministicMode sets a static seed for randomization and uses
     /// timestamps for scrolling.
     static bool deterministicMode;

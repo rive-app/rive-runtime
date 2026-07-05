@@ -158,7 +158,8 @@ void RenderPassMetal::setVertexBuffer(uint32_t slot,
 {
     validate();
     auto* b = static_cast<BufferMetal*>(buffer);
-    [m_mtlEncoder setVertexBuffer:b->m_mtlBuffer
+    b->markBound();
+    [m_mtlEncoder setVertexBuffer:b->current()
                            offset:offset
                           atIndex:slot + kMetalVertexBufferBase];
 }
@@ -169,7 +170,8 @@ void RenderPassMetal::setIndexBuffer(Buffer* buffer,
 {
     validate();
     auto* b = static_cast<BufferMetal*>(buffer);
-    m_mtlIndexBuffer = b->m_mtlBuffer;
+    b->markBound();
+    m_mtlIndexBuffer = b->current();
     m_mtlIndexType = oreIndexFormatToMTL(format);
     m_mtlIndexBufferOffset = offset;
 }
@@ -190,12 +192,15 @@ void RenderPassMetal::setBindGroup(uint32_t groupIndex,
         uint32_t offset = b.offset;
         if (b.hasDynamicOffset && dynIdx < dynamicOffsetCount)
             offset += dynamicOffsets[dynIdx++];
+        // Resolve the live backing and mark it bound.
+        b.src->markBound();
+        id<MTLBuffer> mtlBuffer = b.src->current();
         if (b.vsSlot != BindingMap::kAbsent)
-            [m_mtlEncoder setVertexBuffer:b.buffer
+            [m_mtlEncoder setVertexBuffer:mtlBuffer
                                    offset:offset
                                   atIndex:b.vsSlot];
         if (b.fsSlot != BindingMap::kAbsent)
-            [m_mtlEncoder setFragmentBuffer:b.buffer
+            [m_mtlEncoder setFragmentBuffer:mtlBuffer
                                      offset:offset
                                     atIndex:b.fsSlot];
     }

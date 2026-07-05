@@ -59,6 +59,7 @@ public:
         }
         m_AssetId = value;
         assetIdChanged();
+        notifyPropertyChanged(assetIdPropertyKey);
     }
 
     inline float originX() const { return m_OriginX; }
@@ -70,6 +71,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -81,6 +83,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     inline uint32_t fit() const { return m_Fit; }
@@ -92,6 +95,7 @@ public:
         }
         m_Fit = value;
         fitChanged();
+        notifyPropertyChanged(fitPropertyKey);
     }
 
     inline float alignmentX() const { return m_AlignmentX; }
@@ -103,6 +107,7 @@ public:
         }
         m_AlignmentX = value;
         alignmentXChanged();
+        notifyPropertyChanged(alignmentXPropertyKey);
     }
 
     inline float alignmentY() const { return m_AlignmentY; }
@@ -114,6 +119,7 @@ public:
         }
         m_AlignmentY = value;
         alignmentYChanged();
+        notifyPropertyChanged(alignmentYPropertyKey);
     }
 
     Core* clone() const override;

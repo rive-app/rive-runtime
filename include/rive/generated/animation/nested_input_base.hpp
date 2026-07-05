@@ -43,6 +43,7 @@ public:
         }
         m_InputId = value;
         inputIdChanged();
+        notifyPropertyChanged(inputIdPropertyKey);
     }
 
     void copy(const NestedInputBase& object)

@@ -500,6 +500,8 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 #endif
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
+    m_platformFeatures.supportsClipScissor = true;
+
     // Texture compression support varies by Apple platform family.
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS) ||      \
     defined(RIVE_IOS_SIMULATOR) || defined(RIVE_XROS_SIMULATOR) ||             \
@@ -1280,7 +1282,7 @@ static MTLViewport make_viewport(uint32_t x,
     };
 }
 
-static MTLScissorRect make_scissor(const TAABB<uint16_t>& scissor)
+static MTLScissorRect make_scissor(const AABBu16& scissor)
 {
     return {
         static_cast<NSUInteger>(scissor.left),
@@ -1736,6 +1738,13 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
 
     // Execute the DrawList.
+
+    // Start the current scissor rect inside out to guarantee that the first
+    // rectangle we get doesn't match it.
+    const auto fullRenderTargetScissorRect =
+        desc.renderTargetUpdateBounds.lossless_numeric_cast<uint16_t>();
+    auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
+
     id<MTLRenderCommandEncoder> encoder = makeRenderPassForDraws(
         desc, pass, commandBuffer, baselineShaderMiscFlags);
     for (const DrawBatch& batch : *desc.drawList)
@@ -1798,6 +1807,21 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             // Skip the draw.
             continue;
         }
+
+        {
+            auto desiredScissorRect =
+                batch.scissorRect.has_value()
+                    ? fullRenderTargetScissorRect.intersectOrEmpty(
+                          batch.scissorRect.value())
+                    : fullRenderTargetScissorRect;
+
+            if (desiredScissorRect != currentScissorRect)
+            {
+                currentScissorRect = desiredScissorRect;
+                [encoder setScissorRect:make_scissor(currentScissorRect)];
+            }
+        }
+
         id<MTLRenderPipelineState> drawPipelineState =
             drawPipeline->pipelineState(renderTarget->pixelFormat());
 

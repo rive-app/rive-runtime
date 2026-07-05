@@ -54,6 +54,7 @@ public:
         }
         m_SpaceValue = value;
         spaceValueChanged();
+        notifyPropertyChanged(spaceValuePropertyKey);
     }
 
     inline float strength() const { return m_Strength; }
@@ -65,6 +66,7 @@ public:
         }
         m_Strength = value;
         strengthChanged();
+        notifyPropertyChanged(strengthPropertyKey);
     }
 
     inline float offsetX() const { return m_OffsetX; }
@@ -76,6 +78,7 @@ public:
         }
         m_OffsetX = value;
         offsetXChanged();
+        notifyPropertyChanged(offsetXPropertyKey);
     }
 
     inline float offsetY() const { return m_OffsetY; }
@@ -87,6 +90,7 @@ public:
         }
         m_OffsetY = value;
         offsetYChanged();
+        notifyPropertyChanged(offsetYPropertyKey);
     }
 
     inline bool inner() const { return m_Inner; }
@@ -98,6 +102,7 @@ public:
         }
         m_Inner = value;
         innerChanged();
+        notifyPropertyChanged(innerPropertyKey);
     }
 
     Core* clone() const override;

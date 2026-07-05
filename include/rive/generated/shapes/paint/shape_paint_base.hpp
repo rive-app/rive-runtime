@@ -47,6 +47,7 @@ public:
         }
         m_IsVisible = value;
         isVisibleChanged();
+        notifyPropertyChanged(isVisiblePropertyKey);
     }
 
     inline uint32_t blendModeValue() const { return m_BlendModeValue; }
@@ -58,6 +59,7 @@ public:
         }
         m_BlendModeValue = value;
         blendModeValueChanged();
+        notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
     void copy(const ShapePaintBase& object)

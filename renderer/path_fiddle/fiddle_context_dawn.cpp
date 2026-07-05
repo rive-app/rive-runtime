@@ -157,6 +157,9 @@ public:
                             strcmp(m_options.gpuNameFilter, "integrated") == 0
                         ? WGPUPowerPreference_LowPower
                         : WGPUPowerPreference_HighPerformance,
+                // If desired, this is where we can select different backends
+                // for testing purposes.
+                // .backendType = WGPUBackendType_Vulkan,
                 .compatibleSurface = m_surface.Get(),
             };
 

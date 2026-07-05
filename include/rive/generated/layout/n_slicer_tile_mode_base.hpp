@@ -45,6 +45,7 @@ public:
         }
         m_PatchIndex = value;
         patchIndexChanged();
+        notifyPropertyChanged(patchIndexPropertyKey);
     }
 
     inline uint32_t style() const { return m_Style; }
@@ -56,6 +57,7 @@ public:
         }
         m_Style = value;
         styleChanged();
+        notifyPropertyChanged(stylePropertyKey);
     }
 
     Core* clone() const override;

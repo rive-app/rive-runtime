@@ -53,6 +53,7 @@ public:
         }
         m_Thickness = value;
         thicknessChanged();
+        notifyPropertyChanged(thicknessPropertyKey);
     }
 
     inline uint32_t cap() const { return m_Cap; }
@@ -64,6 +65,7 @@ public:
         }
         m_Cap = value;
         capChanged();
+        notifyPropertyChanged(capPropertyKey);
     }
 
     inline uint32_t join() const { return m_Join; }
@@ -75,6 +77,7 @@ public:
         }
         m_Join = value;
         joinChanged();
+        notifyPropertyChanged(joinPropertyKey);
     }
 
     inline bool transformAffectsStroke() const
@@ -89,6 +92,7 @@ public:
         }
         m_TransformAffectsStroke = value;
         transformAffectsStrokeChanged();
+        notifyPropertyChanged(transformAffectsStrokePropertyKey);
     }
 
     Core* clone() const override;

@@ -43,6 +43,7 @@ public:
         }
         m_Strength = value;
         strengthChanged();
+        notifyPropertyChanged(strengthPropertyKey);
     }
 
     void copy(const ConstraintBase& object)

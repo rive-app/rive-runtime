@@ -42,6 +42,7 @@ public:
         }
         m_AnimationId = value;
         animationIdChanged();
+        notifyPropertyChanged(animationIdPropertyKey);
     }
 
     void copy(const BlendAnimationBase& object)

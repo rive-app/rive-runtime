@@ -47,6 +47,7 @@ public:
         }
         setLength(value);
         lengthChanged();
+        notifyPropertyChanged(lengthPropertyKey);
     }
 
     Core* clone() const override;

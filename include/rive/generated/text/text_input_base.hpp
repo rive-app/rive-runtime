@@ -55,6 +55,7 @@ public:
         }
         m_Text = value;
         textChanged();
+        notifyPropertyChanged(textPropertyKey);
     }
 
     inline float selectionRadius() const { return m_SelectionRadius; }
@@ -66,6 +67,7 @@ public:
         }
         m_SelectionRadius = value;
         selectionRadiusChanged();
+        notifyPropertyChanged(selectionRadiusPropertyKey);
     }
 
     inline bool multiline() const { return m_Multiline; }
@@ -77,6 +79,7 @@ public:
         }
         m_Multiline = value;
         multilineChanged();
+        notifyPropertyChanged(multilinePropertyKey);
     }
 
     Core* clone() const override;

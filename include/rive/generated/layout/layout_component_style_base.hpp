@@ -193,6 +193,7 @@ public:
         }
         m_GapHorizontal = value;
         gapHorizontalChanged();
+        notifyPropertyChanged(gapHorizontalPropertyKey);
     }
 
     inline float gapVertical() const { return m_GapVertical; }
@@ -204,6 +205,7 @@ public:
         }
         m_GapVertical = value;
         gapVerticalChanged();
+        notifyPropertyChanged(gapVerticalPropertyKey);
     }
 
     inline float maxWidth() const { return m_MaxWidth; }
@@ -215,6 +217,7 @@ public:
         }
         m_MaxWidth = value;
         maxWidthChanged();
+        notifyPropertyChanged(maxWidthPropertyKey);
     }
 
     inline float maxHeight() const { return m_MaxHeight; }
@@ -226,6 +229,7 @@ public:
         }
         m_MaxHeight = value;
         maxHeightChanged();
+        notifyPropertyChanged(maxHeightPropertyKey);
     }
 
     inline float minWidth() const { return m_MinWidth; }
@@ -237,6 +241,7 @@ public:
         }
         m_MinWidth = value;
         minWidthChanged();
+        notifyPropertyChanged(minWidthPropertyKey);
     }
 
     inline float minHeight() const { return m_MinHeight; }
@@ -248,6 +253,7 @@ public:
         }
         m_MinHeight = value;
         minHeightChanged();
+        notifyPropertyChanged(minHeightPropertyKey);
     }
 
     inline float borderLeft() const { return m_BorderLeft; }
@@ -259,6 +265,7 @@ public:
         }
         m_BorderLeft = value;
         borderLeftChanged();
+        notifyPropertyChanged(borderLeftPropertyKey);
     }
 
     inline float borderRight() const { return m_BorderRight; }
@@ -270,6 +277,7 @@ public:
         }
         m_BorderRight = value;
         borderRightChanged();
+        notifyPropertyChanged(borderRightPropertyKey);
     }
 
     inline float borderTop() const { return m_BorderTop; }
@@ -281,6 +289,7 @@ public:
         }
         m_BorderTop = value;
         borderTopChanged();
+        notifyPropertyChanged(borderTopPropertyKey);
     }
 
     inline float borderBottom() const { return m_BorderBottom; }
@@ -292,6 +301,7 @@ public:
         }
         m_BorderBottom = value;
         borderBottomChanged();
+        notifyPropertyChanged(borderBottomPropertyKey);
     }
 
     inline float marginLeft() const { return m_MarginLeft; }
@@ -303,6 +313,7 @@ public:
         }
         m_MarginLeft = value;
         marginLeftChanged();
+        notifyPropertyChanged(marginLeftPropertyKey);
     }
 
     inline float marginRight() const { return m_MarginRight; }
@@ -314,6 +325,7 @@ public:
         }
         m_MarginRight = value;
         marginRightChanged();
+        notifyPropertyChanged(marginRightPropertyKey);
     }
 
     inline float marginTop() const { return m_MarginTop; }
@@ -325,6 +337,7 @@ public:
         }
         m_MarginTop = value;
         marginTopChanged();
+        notifyPropertyChanged(marginTopPropertyKey);
     }
 
     inline float marginBottom() const { return m_MarginBottom; }
@@ -336,6 +349,7 @@ public:
         }
         m_MarginBottom = value;
         marginBottomChanged();
+        notifyPropertyChanged(marginBottomPropertyKey);
     }
 
     inline float paddingLeft() const { return m_PaddingLeft; }
@@ -347,6 +361,7 @@ public:
         }
         m_PaddingLeft = value;
         paddingLeftChanged();
+        notifyPropertyChanged(paddingLeftPropertyKey);
     }
 
     inline float paddingRight() const { return m_PaddingRight; }
@@ -358,6 +373,7 @@ public:
         }
         m_PaddingRight = value;
         paddingRightChanged();
+        notifyPropertyChanged(paddingRightPropertyKey);
     }
 
     inline float paddingTop() const { return m_PaddingTop; }
@@ -369,6 +385,7 @@ public:
         }
         m_PaddingTop = value;
         paddingTopChanged();
+        notifyPropertyChanged(paddingTopPropertyKey);
     }
 
     inline float paddingBottom() const { return m_PaddingBottom; }
@@ -380,6 +397,7 @@ public:
         }
         m_PaddingBottom = value;
         paddingBottomChanged();
+        notifyPropertyChanged(paddingBottomPropertyKey);
     }
 
     inline float positionLeft() const { return m_PositionLeft; }
@@ -391,6 +409,7 @@ public:
         }
         m_PositionLeft = value;
         positionLeftChanged();
+        notifyPropertyChanged(positionLeftPropertyKey);
     }
 
     inline float positionRight() const { return m_PositionRight; }
@@ -402,6 +421,7 @@ public:
         }
         m_PositionRight = value;
         positionRightChanged();
+        notifyPropertyChanged(positionRightPropertyKey);
     }
 
     inline float positionTop() const { return m_PositionTop; }
@@ -413,6 +433,7 @@ public:
         }
         m_PositionTop = value;
         positionTopChanged();
+        notifyPropertyChanged(positionTopPropertyKey);
     }
 
     inline float positionBottom() const { return m_PositionBottom; }
@@ -424,6 +445,7 @@ public:
         }
         m_PositionBottom = value;
         positionBottomChanged();
+        notifyPropertyChanged(positionBottomPropertyKey);
     }
 
     inline float flex() const { return m_Flex; }
@@ -435,6 +457,7 @@ public:
         }
         m_Flex = value;
         flexChanged();
+        notifyPropertyChanged(flexPropertyKey);
     }
 
     inline float flexGrow() const { return m_FlexGrow; }
@@ -446,6 +469,7 @@ public:
         }
         m_FlexGrow = value;
         flexGrowChanged();
+        notifyPropertyChanged(flexGrowPropertyKey);
     }
 
     inline float flexShrink() const { return m_FlexShrink; }
@@ -457,6 +481,7 @@ public:
         }
         m_FlexShrink = value;
         flexShrinkChanged();
+        notifyPropertyChanged(flexShrinkPropertyKey);
     }
 
     inline float flexBasis() const { return m_FlexBasis; }
@@ -468,6 +493,7 @@ public:
         }
         m_FlexBasis = value;
         flexBasisChanged();
+        notifyPropertyChanged(flexBasisPropertyKey);
     }
 
     inline uint32_t flexBasisUnitsValue() const
@@ -482,6 +508,7 @@ public:
         }
         m_FlexBasisUnitsValue = value;
         flexBasisUnitsValueChanged();
+        notifyPropertyChanged(flexBasisUnitsValuePropertyKey);
     }
 
     inline float aspectRatio() const { return m_AspectRatio; }
@@ -493,6 +520,7 @@ public:
         }
         m_AspectRatio = value;
         aspectRatioChanged();
+        notifyPropertyChanged(aspectRatioPropertyKey);
     }
 
     inline uint32_t layoutWidthScaleType() const
@@ -507,6 +535,7 @@ public:
         }
         m_LayoutWidthScaleType = value;
         layoutWidthScaleTypeChanged();
+        notifyPropertyChanged(layoutWidthScaleTypePropertyKey);
     }
 
     inline uint32_t layoutHeightScaleType() const
@@ -521,6 +550,7 @@ public:
         }
         m_LayoutHeightScaleType = value;
         layoutHeightScaleTypeChanged();
+        notifyPropertyChanged(layoutHeightScaleTypePropertyKey);
     }
 
     inline uint32_t layoutAlignmentType() const
@@ -535,6 +565,7 @@ public:
         }
         m_LayoutAlignmentType = value;
         layoutAlignmentTypeChanged();
+        notifyPropertyChanged(layoutAlignmentTypePropertyKey);
     }
 
     inline uint32_t animationStyleType() const { return m_AnimationStyleType; }
@@ -546,6 +577,7 @@ public:
         }
         m_AnimationStyleType = value;
         animationStyleTypeChanged();
+        notifyPropertyChanged(animationStyleTypePropertyKey);
     }
 
     inline uint32_t interpolationType() const { return m_InterpolationType; }
@@ -557,6 +589,7 @@ public:
         }
         m_InterpolationType = value;
         interpolationTypeChanged();
+        notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
     inline uint32_t interpolatorId() const { return m_InterpolatorId; }
@@ -568,6 +601,7 @@ public:
         }
         m_InterpolatorId = value;
         interpolatorIdChanged();
+        notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
     inline float interpolationTime() const { return m_InterpolationTime; }
@@ -579,6 +613,7 @@ public:
         }
         m_InterpolationTime = value;
         interpolationTimeChanged();
+        notifyPropertyChanged(interpolationTimePropertyKey);
     }
 
     inline uint32_t displayValue() const { return m_DisplayValue; }
@@ -590,6 +625,7 @@ public:
         }
         m_DisplayValue = value;
         displayValueChanged();
+        notifyPropertyChanged(displayValuePropertyKey);
     }
 
     inline uint32_t positionTypeValue() const { return m_PositionTypeValue; }
@@ -601,6 +637,7 @@ public:
         }
         m_PositionTypeValue = value;
         positionTypeValueChanged();
+        notifyPropertyChanged(positionTypeValuePropertyKey);
     }
 
     inline uint32_t flexDirectionValue() const { return m_FlexDirectionValue; }
@@ -612,6 +649,7 @@ public:
         }
         m_FlexDirectionValue = value;
         flexDirectionValueChanged();
+        notifyPropertyChanged(flexDirectionValuePropertyKey);
     }
 
     inline uint32_t directionValue() const { return m_DirectionValue; }
@@ -623,6 +661,7 @@ public:
         }
         m_DirectionValue = value;
         directionValueChanged();
+        notifyPropertyChanged(directionValuePropertyKey);
     }
 
     inline uint32_t alignContentValue() const { return m_AlignContentValue; }
@@ -634,6 +673,7 @@ public:
         }
         m_AlignContentValue = value;
         alignContentValueChanged();
+        notifyPropertyChanged(alignContentValuePropertyKey);
     }
 
     inline uint32_t alignItemsValue() const { return m_AlignItemsValue; }
@@ -645,6 +685,7 @@ public:
         }
         m_AlignItemsValue = value;
         alignItemsValueChanged();
+        notifyPropertyChanged(alignItemsValuePropertyKey);
     }
 
     inline uint32_t alignSelfValue() const { return m_AlignSelfValue; }
@@ -656,6 +697,7 @@ public:
         }
         m_AlignSelfValue = value;
         alignSelfValueChanged();
+        notifyPropertyChanged(alignSelfValuePropertyKey);
     }
 
     inline uint32_t justifyContentValue() const
@@ -670,6 +712,7 @@ public:
         }
         m_JustifyContentValue = value;
         justifyContentValueChanged();
+        notifyPropertyChanged(justifyContentValuePropertyKey);
     }
 
     inline uint32_t flexWrapValue() const { return m_FlexWrapValue; }
@@ -681,6 +724,7 @@ public:
         }
         m_FlexWrapValue = value;
         flexWrapValueChanged();
+        notifyPropertyChanged(flexWrapValuePropertyKey);
     }
 
     inline uint32_t overflowValue() const { return m_OverflowValue; }
@@ -692,6 +736,7 @@ public:
         }
         m_OverflowValue = value;
         overflowValueChanged();
+        notifyPropertyChanged(overflowValuePropertyKey);
     }
 
     inline bool intrinsicallySizedValue() const
@@ -706,6 +751,7 @@ public:
         }
         m_IntrinsicallySizedValue = value;
         intrinsicallySizedValueChanged();
+        notifyPropertyChanged(intrinsicallySizedValuePropertyKey);
     }
 
     inline uint32_t widthUnitsValue() const { return m_WidthUnitsValue; }
@@ -717,6 +763,7 @@ public:
         }
         m_WidthUnitsValue = value;
         widthUnitsValueChanged();
+        notifyPropertyChanged(widthUnitsValuePropertyKey);
     }
 
     inline uint32_t heightUnitsValue() const { return m_HeightUnitsValue; }
@@ -728,6 +775,7 @@ public:
         }
         m_HeightUnitsValue = value;
         heightUnitsValueChanged();
+        notifyPropertyChanged(heightUnitsValuePropertyKey);
     }
 
     inline uint32_t borderLeftUnitsValue() const
@@ -742,6 +790,7 @@ public:
         }
         m_BorderLeftUnitsValue = value;
         borderLeftUnitsValueChanged();
+        notifyPropertyChanged(borderLeftUnitsValuePropertyKey);
     }
 
     inline uint32_t borderRightUnitsValue() const
@@ -756,6 +805,7 @@ public:
         }
         m_BorderRightUnitsValue = value;
         borderRightUnitsValueChanged();
+        notifyPropertyChanged(borderRightUnitsValuePropertyKey);
     }
 
     inline uint32_t borderTopUnitsValue() const
@@ -770,6 +820,7 @@ public:
         }
         m_BorderTopUnitsValue = value;
         borderTopUnitsValueChanged();
+        notifyPropertyChanged(borderTopUnitsValuePropertyKey);
     }
 
     inline uint32_t borderBottomUnitsValue() const
@@ -784,6 +835,7 @@ public:
         }
         m_BorderBottomUnitsValue = value;
         borderBottomUnitsValueChanged();
+        notifyPropertyChanged(borderBottomUnitsValuePropertyKey);
     }
 
     inline uint32_t marginLeftUnitsValue() const
@@ -798,6 +850,7 @@ public:
         }
         m_MarginLeftUnitsValue = value;
         marginLeftUnitsValueChanged();
+        notifyPropertyChanged(marginLeftUnitsValuePropertyKey);
     }
 
     inline uint32_t marginRightUnitsValue() const
@@ -812,6 +865,7 @@ public:
         }
         m_MarginRightUnitsValue = value;
         marginRightUnitsValueChanged();
+        notifyPropertyChanged(marginRightUnitsValuePropertyKey);
     }
 
     inline uint32_t marginTopUnitsValue() const
@@ -826,6 +880,7 @@ public:
         }
         m_MarginTopUnitsValue = value;
         marginTopUnitsValueChanged();
+        notifyPropertyChanged(marginTopUnitsValuePropertyKey);
     }
 
     inline uint32_t marginBottomUnitsValue() const
@@ -840,6 +895,7 @@ public:
         }
         m_MarginBottomUnitsValue = value;
         marginBottomUnitsValueChanged();
+        notifyPropertyChanged(marginBottomUnitsValuePropertyKey);
     }
 
     inline uint32_t paddingLeftUnitsValue() const
@@ -854,6 +910,7 @@ public:
         }
         m_PaddingLeftUnitsValue = value;
         paddingLeftUnitsValueChanged();
+        notifyPropertyChanged(paddingLeftUnitsValuePropertyKey);
     }
 
     inline uint32_t paddingRightUnitsValue() const
@@ -868,6 +925,7 @@ public:
         }
         m_PaddingRightUnitsValue = value;
         paddingRightUnitsValueChanged();
+        notifyPropertyChanged(paddingRightUnitsValuePropertyKey);
     }
 
     inline uint32_t paddingTopUnitsValue() const
@@ -882,6 +940,7 @@ public:
         }
         m_PaddingTopUnitsValue = value;
         paddingTopUnitsValueChanged();
+        notifyPropertyChanged(paddingTopUnitsValuePropertyKey);
     }
 
     inline uint32_t paddingBottomUnitsValue() const
@@ -896,6 +955,7 @@ public:
         }
         m_PaddingBottomUnitsValue = value;
         paddingBottomUnitsValueChanged();
+        notifyPropertyChanged(paddingBottomUnitsValuePropertyKey);
     }
 
     inline uint32_t positionLeftUnitsValue() const
@@ -910,6 +970,7 @@ public:
         }
         m_PositionLeftUnitsValue = value;
         positionLeftUnitsValueChanged();
+        notifyPropertyChanged(positionLeftUnitsValuePropertyKey);
     }
 
     inline uint32_t positionRightUnitsValue() const
@@ -924,6 +985,7 @@ public:
         }
         m_PositionRightUnitsValue = value;
         positionRightUnitsValueChanged();
+        notifyPropertyChanged(positionRightUnitsValuePropertyKey);
     }
 
     inline uint32_t positionTopUnitsValue() const
@@ -938,6 +1000,7 @@ public:
         }
         m_PositionTopUnitsValue = value;
         positionTopUnitsValueChanged();
+        notifyPropertyChanged(positionTopUnitsValuePropertyKey);
     }
 
     inline uint32_t positionBottomUnitsValue() const
@@ -952,6 +1015,7 @@ public:
         }
         m_PositionBottomUnitsValue = value;
         positionBottomUnitsValueChanged();
+        notifyPropertyChanged(positionBottomUnitsValuePropertyKey);
     }
 
     inline uint32_t gapHorizontalUnitsValue() const
@@ -966,6 +1030,7 @@ public:
         }
         m_GapHorizontalUnitsValue = value;
         gapHorizontalUnitsValueChanged();
+        notifyPropertyChanged(gapHorizontalUnitsValuePropertyKey);
     }
 
     inline uint32_t gapVerticalUnitsValue() const
@@ -980,6 +1045,7 @@ public:
         }
         m_GapVerticalUnitsValue = value;
         gapVerticalUnitsValueChanged();
+        notifyPropertyChanged(gapVerticalUnitsValuePropertyKey);
     }
 
     inline uint32_t minWidthUnitsValue() const { return m_MinWidthUnitsValue; }
@@ -991,6 +1057,7 @@ public:
         }
         m_MinWidthUnitsValue = value;
         minWidthUnitsValueChanged();
+        notifyPropertyChanged(minWidthUnitsValuePropertyKey);
     }
 
     inline uint32_t minHeightUnitsValue() const
@@ -1005,6 +1072,7 @@ public:
         }
         m_MinHeightUnitsValue = value;
         minHeightUnitsValueChanged();
+        notifyPropertyChanged(minHeightUnitsValuePropertyKey);
     }
 
     inline uint32_t maxWidthUnitsValue() const { return m_MaxWidthUnitsValue; }
@@ -1016,6 +1084,7 @@ public:
         }
         m_MaxWidthUnitsValue = value;
         maxWidthUnitsValueChanged();
+        notifyPropertyChanged(maxWidthUnitsValuePropertyKey);
     }
 
     inline uint32_t maxHeightUnitsValue() const
@@ -1030,6 +1099,7 @@ public:
         }
         m_MaxHeightUnitsValue = value;
         maxHeightUnitsValueChanged();
+        notifyPropertyChanged(maxHeightUnitsValuePropertyKey);
     }
 
     inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
@@ -1041,6 +1111,7 @@ public:
         }
         m_LinkCornerRadius = value;
         linkCornerRadiusChanged();
+        notifyPropertyChanged(linkCornerRadiusPropertyKey);
     }
 
     inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
@@ -1052,6 +1123,7 @@ public:
         }
         m_CornerRadiusTL = value;
         cornerRadiusTLChanged();
+        notifyPropertyChanged(cornerRadiusTLPropertyKey);
     }
 
     inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
@@ -1063,6 +1135,7 @@ public:
         }
         m_CornerRadiusTR = value;
         cornerRadiusTRChanged();
+        notifyPropertyChanged(cornerRadiusTRPropertyKey);
     }
 
     inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
@@ -1074,6 +1147,7 @@ public:
         }
         m_CornerRadiusBL = value;
         cornerRadiusBLChanged();
+        notifyPropertyChanged(cornerRadiusBLPropertyKey);
     }
 
     inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
@@ -1085,6 +1159,7 @@ public:
         }
         m_CornerRadiusBR = value;
         cornerRadiusBRChanged();
+        notifyPropertyChanged(cornerRadiusBRPropertyKey);
     }
 
     Core* clone() const override;

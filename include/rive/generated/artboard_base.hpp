@@ -56,6 +56,7 @@ public:
         }
         m_OriginX = value;
         originXChanged();
+        notifyPropertyChanged(originXPropertyKey);
     }
 
     inline float originY() const { return m_OriginY; }
@@ -67,6 +68,7 @@ public:
         }
         m_OriginY = value;
         originYChanged();
+        notifyPropertyChanged(originYPropertyKey);
     }
 
     inline uint32_t defaultStateMachineId() const
@@ -81,6 +83,7 @@ public:
         }
         m_DefaultStateMachineId = value;
         defaultStateMachineIdChanged();
+        notifyPropertyChanged(defaultStateMachineIdPropertyKey);
     }
 
     inline uint32_t viewModelId() const { return m_ViewModelId; }
@@ -92,6 +95,7 @@ public:
         }
         m_ViewModelId = value;
         viewModelIdChanged();
+        notifyPropertyChanged(viewModelIdPropertyKey);
     }
 
     Core* clone() const override;

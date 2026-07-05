@@ -47,6 +47,7 @@ public:
         }
         m_StyleId = value;
         styleIdChanged();
+        notifyPropertyChanged(styleIdPropertyKey);
     }
 
     inline const std::string& text() const { return m_Text; }
@@ -58,6 +59,7 @@ public:
         }
         m_Text = value;
         textChanged();
+        notifyPropertyChanged(textPropertyKey);
     }
 
     Core* clone() const override;

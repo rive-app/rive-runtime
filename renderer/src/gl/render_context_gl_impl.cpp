@@ -209,6 +209,16 @@ RenderContextGLImpl::RenderContextGLImpl(
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
     m_platformFeatures.maxTextureSize = maxTextureSize;
 
+    if (!capabilities.isAdreno || capabilities.adrenoSeries < 600 ||
+        capabilities.adrenoSeries >= 700)
+    {
+        // Currently there's what appears to be a driver bug where setting a
+        // scissor rect on the atlasBlit step (even if the rect is the full
+        // render target) causes some display corruption. Until we can find a
+        // workaround, just disable clip scissor on Adreno 6xx models.
+        m_platformFeatures.supportsClipScissor = true;
+    }
+
     m_platformFeatures.supportsTextureCompressionBC =
         m_capabilities.EXT_texture_compression_s3tc &&
         m_capabilities.EXT_texture_compression_bptc;
@@ -470,7 +480,9 @@ void RenderContextGLImpl::buildAtlasRenderPipelines()
 #ifndef RIVE_ANDROID
             defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32UI_PLS_ANGLE);
             m_atlasFillPipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasFillPipelineState.colorWriteEnabled = false;
             m_atlasStrokePipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasStrokePipelineState.colorWriteEnabled = false;
 #else
             RIVE_UNREACHABLE();
 #endif
@@ -2384,7 +2396,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
         // Finish setting up the atlas render pass and clear the atlas.
-        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE,
+                                  ScissorAction::ignore);
 
         glBindFramebuffer(GL_FRAMEBUFFER, m_atlasRenderFBO);
         glViewport(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
@@ -2449,7 +2462,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glClearBufferiv(GL_COLOR, 0, clearZero4i);
                 glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
                                 GL_FRAMEBUFFER_BARRIER_BIT);
-                m_state->setWriteMasks(false, false, 0);
                 glBindImageTexture(0,
                                    m_atlasRenderTexture,
                                    0,
@@ -2468,7 +2480,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         // Draw the atlas fills.
         if (desc.atlasFillBatchCount != 0)
         {
-            m_state->setPipelineState(m_atlasFillPipelineState);
+            m_state->setPipelineState(m_atlasFillPipelineState,
+                                      ScissorAction::ignore);
             m_state->bindProgram(m_atlasFillProgram);
             for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
             {
@@ -2491,7 +2504,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         // Draw the atlas strokes.
         if (desc.atlasStrokeBatchCount != 0)
         {
-            m_state->setPipelineState(m_atlasStrokePipelineState);
+            m_state->setPipelineState(m_atlasStrokePipelineState,
+                                      ScissorAction::ignore);
             m_state->bindProgram(m_atlasStrokeProgram);
             for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
             {
@@ -2721,6 +2735,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
     bool clipPlanesEnabled = false;
 
+    const auto fullUpdateScissorRect =
+        desc.renderTargetUpdateBounds.lossless_numeric_cast<uint16_t>();
+
     // Execute the DrawList.
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -2794,8 +2811,18 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 clipPlanesEnabled = needsClipPlanes;
             }
         }
-#endif
-        m_state->setPipelineState(pipelineState);
+
+        if (batch.scissorRect.has_value())
+        {
+            auto scissorRect = fullUpdateScissorRect.intersectOrEmpty(
+                batch.scissorRect.value());
+            m_state->setPipelineState(pipelineState, ScissorAction::ignore);
+            m_state->setScissor(scissorRect, renderTarget->height());
+        }
+        else
+        {
+            m_state->setPipelineState(pipelineState);
+        }
 
         if (enums::any_flag_set(batch.barriers,
                                 BarrierFlags::plsAtomic |
@@ -3120,7 +3147,8 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
         glutils::Uniform1iByName(m_blitAsDrawProgram, GLSL_sourceTexture, 0);
     }
 
-    m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
+    m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE,
+                              ScissorAction::ignore);
     m_state->setScissor(bounds, renderTargetHeight);
     m_state->bindProgram(m_blitAsDrawProgram);
     m_state->bindVAO(m_emptyVAO);

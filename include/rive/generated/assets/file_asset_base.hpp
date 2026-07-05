@@ -50,6 +50,7 @@ public:
         }
         m_AssetId = value;
         assetIdChanged();
+        notifyPropertyChanged(assetIdPropertyKey);
     }
 
     virtual void decodeCdnUuid(Span<const uint8_t> value) = 0;
@@ -64,6 +65,7 @@ public:
         }
         m_CdnBaseUrl = value;
         cdnBaseUrlChanged();
+        notifyPropertyChanged(cdnBaseUrlPropertyKey);
     }
 
     void copy(const FileAssetBase& object)

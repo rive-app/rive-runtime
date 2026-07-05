@@ -58,6 +58,7 @@ public:
         }
         m_X = value;
         xChanged();
+        notifyPropertyChanged(xPropertyKey);
     }
 
     inline float y() const override { return m_Y; }
@@ -69,6 +70,7 @@ public:
         }
         m_Y = value;
         yChanged();
+        notifyPropertyChanged(yPropertyKey);
     }
 
     virtual void setComputedLocalX(float value) = 0;
@@ -81,6 +83,7 @@ public:
         }
         setComputedLocalX(value);
         computedLocalXChanged();
+        notifyPropertyChanged(computedLocalXPropertyKey);
     }
 
     virtual void setComputedLocalY(float value) = 0;
@@ -93,6 +96,7 @@ public:
         }
         setComputedLocalY(value);
         computedLocalYChanged();
+        notifyPropertyChanged(computedLocalYPropertyKey);
     }
 
     virtual void setComputedWorldX(float value) = 0;
@@ -105,6 +109,7 @@ public:
         }
         setComputedWorldX(value);
         computedWorldXChanged();
+        notifyPropertyChanged(computedWorldXPropertyKey);
     }
 
     virtual void setComputedWorldY(float value) = 0;
@@ -117,6 +122,7 @@ public:
         }
         setComputedWorldY(value);
         computedWorldYChanged();
+        notifyPropertyChanged(computedWorldYPropertyKey);
     }
 
     virtual void setComputedRootX(float value) = 0;
@@ -129,6 +135,7 @@ public:
         }
         setComputedRootX(value);
         computedRootXChanged();
+        notifyPropertyChanged(computedRootXPropertyKey);
     }
 
     virtual void setComputedRootY(float value) = 0;
@@ -141,6 +148,7 @@ public:
         }
         setComputedRootY(value);
         computedRootYChanged();
+        notifyPropertyChanged(computedRootYPropertyKey);
     }
 
     virtual void setComputedWidth(float value) = 0;
@@ -153,6 +161,7 @@ public:
         }
         setComputedWidth(value);
         computedWidthChanged();
+        notifyPropertyChanged(computedWidthPropertyKey);
     }
 
     virtual void setComputedHeight(float value) = 0;
@@ -165,6 +174,7 @@ public:
         }
         setComputedHeight(value);
         computedHeightChanged();
+        notifyPropertyChanged(computedHeightPropertyKey);
     }
 
     Core* clone() const override;

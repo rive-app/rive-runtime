@@ -48,6 +48,7 @@ public:
         }
         m_ListSource = value;
         listSourceChanged();
+        notifyPropertyChanged(listSourcePropertyKey);
     }
 
     Core* clone() const override;

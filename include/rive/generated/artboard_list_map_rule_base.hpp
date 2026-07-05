@@ -45,6 +45,7 @@ public:
         }
         m_ArtboardId = value;
         artboardIdChanged();
+        notifyPropertyChanged(artboardIdPropertyKey);
     }
 
     inline uint32_t viewModelId() const { return m_ViewModelId; }
@@ -56,6 +57,7 @@ public:
         }
         m_ViewModelId = value;
         viewModelIdChanged();
+        notifyPropertyChanged(viewModelIdPropertyKey);
     }
 
     Core* clone() const override;
