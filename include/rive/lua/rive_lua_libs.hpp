@@ -347,6 +347,9 @@ enum class LuaAtoms : int16_t
     writeToBuffer,
     invertAffine,
 
+    // Vector
+    writeVec4,
+
     // Gamepad
     axes,
     gamepadMapping,

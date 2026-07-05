@@ -873,21 +873,45 @@ static int gpubuffer_write(lua_State* L)
     {
         luaL_typeerror(L, 2, "buffer");
     }
-    uint32_t offset =
+    uint32_t dstOffset =
         lua_isnumber(L, 3) ? static_cast<uint32_t>(lua_tonumber(L, 3)) : 0;
+    uint32_t srcOffset =
+        lua_isnumber(L, 4) ? static_cast<uint32_t>(lua_tonumber(L, 4)) : 0;
+    if (srcOffset > len)
+    {
+        luaL_error(L,
+                   "GPUBuffer:write: srcOffset(%u) exceeds source buffer "
+                   "size(%u)",
+                   srcOffset,
+                   (uint32_t)len);
+    }
+    uint32_t byteLength = lua_isnumber(L, 5)
+                              ? static_cast<uint32_t>(lua_tonumber(L, 5))
+                              : static_cast<uint32_t>(len - srcOffset);
 
-    if (offset + len > self->buffer->size())
+    if (uint64_t(srcOffset) + byteLength > len)
+    {
+        luaL_error(L,
+                   "GPUBuffer:write: srcOffset(%u) + byteLength(%u) exceeds "
+                   "source buffer size(%u)",
+                   srcOffset,
+                   byteLength,
+                   (uint32_t)len);
+    }
+    if (uint64_t(dstOffset) + byteLength > self->buffer->size())
     {
         luaL_error(L,
                    "GPUBuffer:write: offset(%u) + size(%u) = %u exceeds "
                    "buffer size(%u)",
-                   offset,
-                   (uint32_t)len,
-                   (uint32_t)(offset + len),
+                   dstOffset,
+                   byteLength,
+                   (uint32_t)(dstOffset + byteLength),
                    self->buffer->size());
     }
 
-    self->buffer->update(data, static_cast<uint32_t>(len), offset);
+    self->buffer->update(static_cast<const uint8_t*>(data) + srcOffset,
+                         byteLength,
+                         dstOffset);
     return 0;
 }
 

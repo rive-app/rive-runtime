@@ -90,6 +90,27 @@ static int mat4_perspectiveReverseZ(lua_State* L)
     return 1;
 }
 
+static int mat4_lookAt(lua_State* L)
+{
+    const float* eye = luaL_checkvector(L, 1);
+    const float* center = luaL_checkvector(L, 2);
+    const float* up = luaL_checkvector(L, 3);
+    lua_pushmat4(L, Mat4::lookAt(eye, center, up));
+    return 1;
+}
+
+static int mat4_ortho(lua_State* L)
+{
+    float l = float(luaL_checknumber(L, 1));
+    float r = float(luaL_checknumber(L, 2));
+    float b = float(luaL_checknumber(L, 3));
+    float t = float(luaL_checknumber(L, 4));
+    float n = float(luaL_checknumber(L, 5));
+    float f = float(luaL_checknumber(L, 6));
+    lua_pushmat4(L, Mat4::ortho(l, r, b, t, n, f, /*zeroToOne=*/true));
+    return 1;
+}
+
 // In-place: Mat4.multiply(out, a, b)  ->  out = a * b. Returns out.
 // Avoids per-call userdata allocation in tight loops.
 static int mat4_static_multiply(lua_State* L)
@@ -379,6 +400,8 @@ static const luaL_Reg mat4StaticMethods[] = {
     {"fromRotationZ", mat4_fromRotationZ},
     {"perspective", mat4_perspective},
     {"perspectiveReverseZ", mat4_perspectiveReverseZ},
+    {"lookAt", mat4_lookAt},
+    {"ortho", mat4_ortho},
     {"multiply", mat4_static_multiply},
     {"multiplyAffine", mat4_static_multiplyAffine},
     {"invert", mat4_static_invert},
