@@ -29,8 +29,8 @@ from genericpath import exists
 import argparse
 import glob
 import csv
-from multiprocessing import Pool
-from functools import partial
+import threading
+import queue
 from xml.etree import ElementTree as ET
 from typing import TypeVar
 import shutil
@@ -53,9 +53,6 @@ clean_mode.add_argument("-x", "--clean", action='store_true', help="delete golde
 clean_mode.add_argument("-f", "--fails_only", action='store_true', help="delete images of all tests except for fails, also only adds failing tests to index.html, acts the same as -x if histogram_compare is false")
 
 args = parser.parse_args()
-
-# _winapi.WaitForMultipleObjects only supports 64 handles, which we exceed if we span >61 diff jobs.
-args.jobs = min(args.jobs, 61)
 
 status_filename_base = "_imagediff_status"
 status_filename_pattern = f"{status_filename_base}_%i_*.txt" % os.getpid()
@@ -237,11 +234,6 @@ def shallow_copy_images(src, dest):
     for file in file_names:
         shutil.copyfile(file.path, os.path.join(dest, file.name))
 
-def remove_suffix(name, oldsuffix):
-    if name.endswith(oldsuffix):
-        name = name[:-len(oldsuffix)]
-    return name
-
 def write_csv(entries, origpath, candidatepath, diffpath, missing_candidates):
     origpath = os.path.relpath(origpath, diffpath)
     candidatepath = os.path.relpath(candidatepath, diffpath)
@@ -301,29 +293,44 @@ def write_min_csv(total_passing, total_failing, total_missing_candidates, total_
         csv_writer.writerow({'type':'identical', 'number' : str(total_identical)})
         csv_writer.writerow({'type':'total', 'number' : str(total_entries)})
 
-def call_imagediff(filename, golden, candidate, output, parent_pid):
-    cmd = [PYTHON, "image_diff.py",
-           "-n", remove_suffix(filename, ".png"),
-           "-g", os.path.join(golden, filename),
-           "-c", os.path.join(candidate, filename),
+def diff_worker(index, work_queue, golden, candidate, output, parent_pid):
+    # One long-lived image_diff.py process that pulls filenames off the shared
+    # work_queue one at a time. Keeping the process alive means cv2 is imported
+    # only once (that import + process spawn dominate on Windows).
+    cmd = [PYTHON, "image_diff.py", "--serve",
+           "-g", golden,
+           "-c", candidate,
            # Each process writes its own status file in order to avoid race conditions.
-           "-s", "%s_%i_%i.txt" % (status_filename_base, parent_pid, os.getpid())]
+           "-s", "%s_%i_%i.txt" % (status_filename_base, parent_pid, index)]
     if output is not None:
         cmd.extend(["-o", output])
     if args.verbose:
         cmd.extend(["-v", "-l"])
     if args.histogram_compare:
         cmd.extend(["-H"])
-    
+
     if show_commands:
-        str = ""
-        for c in cmd:
-            str += c + " "
-        print(str)
-    
-    if 0 != subprocess.call(cmd):
-        print("Error calling " + cmd[0])
-        return -1
+        print(" ".join(cmd))
+
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            text=True)
+    try:
+        while True:
+            try:
+                filename = work_queue.get_nowait()
+            except queue.Empty:
+                break
+            proc.stdin.write(filename + "\n")
+            proc.stdin.flush()
+            # Block until the worker signals it finished this image. If the pipe
+            # closed early the worker died; stop feeding it (the missing status
+            # line is caught by the line-count check in diff_directory_shallow).
+            if proc.stdout.readline().strip() != "done":
+                print("image_diff.py worker %i died processing %s" % (index, filename))
+                break
+    finally:
+        proc.stdin.close()
+        proc.wait()
 
 def parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details):
     total_lines = 0
@@ -364,14 +371,26 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
         print("Diffing %i candidates..." % len(intersect_filenames))
     sys.stdout.flush()
 
-#   generate the diffs (if any) and write to the status file
-    f = partial(call_imagediff,
-                golden=golden_path,
-                candidate=candidates_path,
-                output=output_path,
-                parent_pid=os.getpid())
-    
-    Pool(args.jobs).map(f, intersect_filenames)
+    # Fill a shared queue with every filename.
+    work_queue = queue.Queue()
+    for filename in intersect_filenames:
+        work_queue.put(filename)
+
+    # Generate the diffs (if any) and write to the status file(s). Start up to
+    # `jobs` long-lived image_diff.py workers that each pull filenames off the
+    # queue as fast as they can finish them.
+    njobs = min(args.jobs, len(intersect_filenames))
+    parent_pid = os.getpid()
+    threads = []
+    for index in range(njobs):
+        t = threading.Thread(target=diff_worker,
+                             args=(index, work_queue, golden_path,
+                                   candidates_path, output_path, parent_pid))
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join()
+
     (total_lines, entries, success) = parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details)
     
     entries.extend(missing)

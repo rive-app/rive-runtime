@@ -150,12 +150,12 @@ do
         python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
     else
         echo
-        echo "Checking $ID..."
+        echo "Deploying $ID..."
         rm -fr .gold/candidates/$ID
         python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
         
         echo
-        echo "Checking $ID..."
+        echo "Diffing $ID..."
         rm -fr .gold/diffs/$ID && mkdir -p .gold/diffs/$ID
         python3 diff.py $DIFF_ARGS -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
             || open_file .gold/diffs/$ID/index.html
