@@ -54,7 +54,7 @@ if not _OPTIONS['with-webgpu'] then
         
         filter({ 'options:with_rive_scripting' })
         do
-        links({ 'luau_vm' })
+            links({ 'luau_vm' })
         end
         filter({ 'options:not no_rive_png' })
         do
