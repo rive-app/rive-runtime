@@ -693,6 +693,14 @@ void File::registerScripts()
         ScriptingVM* vm = m_scriptingVM.get();
         if (vm != nullptr)
         {
+            // Set up the Data global (view model constructors) on the active
+            // VM, whether it was created here or supplied externally (e.g. by
+            // the CommandServer). Skip it when the VM's owner builds Data
+            // itself, as the editor does in Dart.
+            if (!vm->context()->initializesDataGlobalExternally())
+            {
+                initializeLuaData(vm->state(), m_ViewModels);
+            }
             for (auto scriptAsset : scripts)
             {
                 // At runtime, if the script is verified, add it to be
@@ -729,7 +737,6 @@ void File::makeScriptingVM()
     cleanupScriptingVM();
     auto context = std::make_unique<CPPRuntimeScriptingContext>(m_factory);
     m_scriptingVM = make_rcp<ScriptingVM>(std::move(context));
-    initializeLuaData(m_scriptingVM->state(), m_ViewModels);
 }
 
 lua_State* File::scriptingState()

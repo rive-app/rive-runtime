@@ -237,6 +237,44 @@ TEST_CASE("script has access to user created view models via Data", "[silver]")
     CHECK(silver.matches("script_create_viewmodel_instance"));
 }
 
+// Regression test for rive-ios#454: when a ScriptingVM is supplied to
+// File::import (as the CommandServer does on iOS), the Lua `Data` global —
+// which exposes view model constructors like Data.ProbeChipVM.new() — must
+// still be initialized. Before the fix, initializeLuaData only ran inside
+// makeScriptingVM(), which is skipped when an external VM is provided, so
+// `Data` was nil in scripts.
+TEST_CASE("Data global is initialized when a ScriptingVM is provided to import",
+          "[scripting]")
+{
+    // Mirror CommandServer::processCommands: create the VM up front and pass
+    // it into File::import.
+    auto context =
+        std::make_unique<rive::CPPRuntimeScriptingContext>(&gNoOpFactory);
+    auto vm = rive::make_rcp<rive::ScriptingVM>(std::move(context));
+
+    auto bytes = ReadFile("assets/data_global_repro.riv");
+    rive::ImportResult result;
+    auto file =
+        rive::File::import(bytes, &gNoOpFactory, &result, nullptr, vm.get());
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+
+    // The file adopts the VM we supplied...
+    REQUIRE(file->scriptingVM() == vm.get());
+
+    // ...and its `Data` global is a populated table (was nil before the fix),
+    // exposing the file's view model as a constructor.
+    lua_State* L = vm->state();
+    REQUIRE(L != nullptr);
+    lua_getglobal(L, "Data");
+    REQUIRE(lua_istable(L, -1));
+    lua_getfield(L, -1, "ProbeChipVM");
+    REQUIRE(lua_istable(L, -1));
+    lua_getfield(L, -1, "new");
+    CHECK(lua_isfunction(L, -1));
+    lua_pop(L, 3);
+}
+
 TEST_CASE("script has access to the data bound view model", "[silver]")
 {
     rive::SerializingFactory silver;

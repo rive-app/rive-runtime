@@ -1482,6 +1482,10 @@ public:
     virtual void printEndLine() = 0;
     virtual int pCall(lua_State* state, int nargs, int nresults) = 0;
 
+    // When true, the VM's owner sets up the Lua `Data` global itself (the
+    // editor builds it in Dart), so File should not call initializeLuaData.
+    virtual bool initializesDataGlobalExternally() const { return false; }
+
     // Add a module to be registered later via performRegistration()
     void addModule(ModuleDetails* moduleDetails);
     // Perform registration of all added modules, handling dependencies and
