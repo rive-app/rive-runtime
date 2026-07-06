@@ -247,19 +247,19 @@ end
 makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
 
 if os.host() == 'macosx' then
-    if _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'system' then
+    if rive_target_os == 'ios' and _OPTIONS['variant'] == 'system' then
         makecommand = makecommand .. ' rive_pls_ios_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'emulator' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'emulator' then
         makecommand = makecommand .. ' rive_pls_ios_simulator_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'xros' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'xros' then
         makecommand = makecommand .. ' rive_renderer_xros_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'xrsimulator' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'xrsimulator' then
         makecommand = makecommand .. ' rive_renderer_xros_simulator_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'appletvos' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'appletvos' then
         makecommand = makecommand .. ' rive_renderer_appletvos_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'appletvsimulator' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'appletvsimulator' then
         makecommand = makecommand .. ' rive_renderer_appletvsimulator_metallib'
-    else
+    elseif rive_target_os == 'macosx' then
         makecommand = makecommand .. ' rive_pls_macosx_metallib'
     end
 end
