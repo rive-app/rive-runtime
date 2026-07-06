@@ -2252,5 +2252,15 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name);
 // Implemented in lua_scripted_context.cpp.
 int lua_push_gpu_features(lua_State* L);
 
+#ifdef WITH_RIVE_TOOLS
+// Push a ScriptedBlob copying `data`, or an empty blob when data is null or
+// size is 0. Only tooling constructs blobs from loose bytes; the runtime
+// wraps in-file assets. Implemented in lua_blob.cpp.
+int lua_push_blob(lua_State* L,
+                  const char* name,
+                  const uint8_t* data,
+                  size_t size);
+#endif
+
 #endif
 #endif

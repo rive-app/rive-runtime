@@ -163,6 +163,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"image", (int16_t)LuaAtoms::image},
     {"blob", (int16_t)LuaAtoms::blob},
     {"size", (int16_t)LuaAtoms::size},
+    {"name", (int16_t)LuaAtoms::name},
     {"duration", (int16_t)LuaAtoms::duration},
     {"setTime", (int16_t)LuaAtoms::setTime},
     {"setTimeFrames", (int16_t)LuaAtoms::setTimeFrames},
