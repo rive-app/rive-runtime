@@ -908,6 +908,19 @@ void Artboard::drawCanvases()
     internalDrawCanvases();
 }
 
+void Artboard::advanceScriptedViewModels()
+{
+#ifdef WITH_RIVE_SCRIPTING
+    if (m_scriptingVM != nullptr)
+    {
+        if (auto* context = m_scriptingVM->context())
+        {
+            context->advanceDetachedViewModels();
+        }
+    }
+#endif
+}
+
 void Artboard::internalDrawCanvases()
 {
     for (auto obj : m_ScriptedObjects)

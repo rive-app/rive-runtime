@@ -380,6 +380,10 @@ public:
 #ifdef WITH_RIVE_SCRIPTING
     void scriptingVM(ScriptingVM* value) { m_scriptingVM = value; }
 #endif
+    // Advances detached scripted view model instances (those with no parents),
+    // which are not reachable from the bound view model tree. No-op when
+    // scripting is disabled. Called at the end of each frame.
+    void advanceScriptedViewModels();
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 

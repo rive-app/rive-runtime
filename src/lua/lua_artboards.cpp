@@ -21,10 +21,12 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
-    rcp<DataContext> parentDataContext) :
+    rcp<DataContext> parentDataContext,
+    ScriptingContext* scriptingContext) :
     m_file(file),
     m_artboard(std::move(artboardInstance)),
-    m_stateMachine(m_artboard->defaultStateMachine())
+    m_stateMachine(m_artboard->defaultStateMachine()),
+    m_scriptingContext(scriptingContext)
 {
     if (viewModelInstance)
     {
@@ -47,10 +49,21 @@ ScriptReffedArtboard::ScriptReffedArtboard(
             m_stateMachine->bindViewModelInstance(m_viewModelInstance);
         }
     }
+    // Keep the bound instance tracked for end-of-frame advance for as long as
+    // this artboard uses it — even if the script drops its ScriptedViewModel
+    // wrapper. Covers both the passed-in and the auto-created instance.
+    if (m_scriptingContext != nullptr)
+    {
+        m_scriptingContext->trackViewModelInstance(m_viewModelInstance);
+    }
 }
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
 {
+    if (m_scriptingContext != nullptr)
+    {
+        m_scriptingContext->untrackViewModelInstance(m_viewModelInstance.get());
+    }
     // Make sure state machine is deleted before artboard since
     // StateMachineInstance destructor accesses the artboard.
     m_stateMachine = nullptr;
@@ -92,7 +105,9 @@ bool ScriptedArtboard::advance(float seconds)
     auto machine = stateMachine();
     if (machine)
     {
-        return machine->advanceAndApply(seconds);
+        // A scripted artboard's view models are advanced/reset by the host
+        // frame, not by this script-driven advance, so skip the VM consume.
+        return machine->advanceAndApply(seconds, false);
     }
     else
     {
@@ -471,11 +486,12 @@ ScriptedArtboard::ScriptedArtboard(
     rcp<ViewModelInstance> viewModelInstance,
     rcp<DataContext> dataContext) :
     m_state(L),
-    m_scriptReffedArtboard(
-        make_rcp<ScriptReffedArtboard>(file,
-                                       std::move(artboardInstance),
-                                       viewModelInstance,
-                                       dataContext)),
+    m_scriptReffedArtboard(make_rcp<ScriptReffedArtboard>(
+        file,
+        std::move(artboardInstance),
+        viewModelInstance,
+        dataContext,
+        static_cast<ScriptingContext*>(lua_getthreaddata(L)))),
     m_dataContext(dataContext)
 {}
 

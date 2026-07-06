@@ -2573,6 +2573,12 @@ void StateMachineInstance::reset()
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
+    return advanceAndApply(seconds, true);
+}
+
+bool StateMachineInstance::advanceAndApply(float seconds,
+                                           bool advanceViewModels)
+{
     RIVE_PROF_SCOPE_L(1)
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
     // to true.
@@ -2607,12 +2613,25 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         {
             keepGoing = true;
         }
-        reset();
+        if (advanceViewModels)
+        {
+            reset(); // advancedDataContext() (VM consume) + artboard reset
+        }
+        else
+        {
+            m_artboardInstance->reset(); // artboard component reset only
+        }
 
         if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
         {
             break;
         }
+    }
+    if (advanceViewModels)
+    {
+        // Advance detached scripted view models (created via scripts, not part
+        // of the bound view model tree) at the end of the frame.
+        m_artboardInstance->advanceScriptedViewModels();
     }
     return keepGoing || !m_reportedEvents.empty() ||
            !m_reportedListenerViewModels.empty();

@@ -180,6 +180,44 @@ TEST_CASE("state machine led by enums and triggers", "[data binding]")
     REQUIRE(shapeMapped->y() == 350);
 }
 
+// advanceAndApply(secs, advanceViewModels=false) runs the state machine but
+// must NOT consume the bound view model instances. This is what
+// ScriptedArtboard::advance uses so a script-driven nested artboard doesn't
+// reset view models owned by the host frame.
+TEST_CASE("advanceAndApply can skip view model reset", "[data binding]")
+{
+    auto file = ReadRiveFile("assets/data_binding_test.riv");
+
+    auto artboard = file->artboard("artboard-2")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    auto machine = artboard->defaultStateMachine();
+    REQUIRE(machine != nullptr);
+    machine->bindViewModelInstance(viewModelInstance);
+
+    auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
+    REQUIRE(triggerProperty != nullptr);
+    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+    auto trigger = triggerProperty->as<rive::ViewModelInstanceTrigger>();
+
+    // Settle initial state.
+    machine->advanceAndApply(0.0f);
+
+    // advanceViewModels=false: the bound view model is not consumed, so a
+    // trigger set before the advance is retained (the host frame will consume
+    // it, not this advance).
+    trigger->propertyValue(1);
+    machine->advanceAndApply(0.0f, false);
+    CHECK(trigger->propertyValue() == 1);
+
+    // The default (advanceViewModels=true) path consumes the trigger, resetting
+    // it to 0 via ViewModelInstance::advanced().
+    machine->advanceAndApply(0.0f, true);
+    CHECK(trigger->propertyValue() == 0);
+}
+
 TEST_CASE("calculate and to string converters with numbers", "[data binding]")
 {
     auto file = ReadRiveFile("assets/data_binding_test.riv");

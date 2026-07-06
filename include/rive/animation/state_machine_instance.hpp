@@ -142,6 +142,11 @@ public:
     const LayerState* stateChangedByIndex(size_t index) const;
 
     bool advanceAndApply(float secs) override;
+    // When advanceViewModels is false, skips consuming/advancing the bound and
+    // detached view model instances (used when a script drives a nested
+    // scripted artboard, whose view models are advanced by the host frame
+    // instead). Animation and artboard component reset still run.
+    bool advanceAndApply(float secs, bool advanceViewModels);
     void advancedDataContext();
     void reset();
     std::string name() const override;

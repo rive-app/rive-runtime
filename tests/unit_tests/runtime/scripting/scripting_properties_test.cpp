@@ -843,3 +843,52 @@ TEST_CASE("Image read from propertyValue", "[silver]")
 
     CHECK(silver.matches("image_scripting_property_value"));
 }
+
+TEST_CASE("Reset detached view model instances at end of frame", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/reset_shared_viewmodel_instance_test.riv",
+                             &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto valueProp = vmi->propertyValue("tri1")->as<ViewModelInstanceTrigger>();
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    valueProp->trigger();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    valueProp->trigger();
+    stateMachine->pointerDown(rive::Vec2D(45.0f, 165.0f));
+    stateMachine->pointerUp(rive::Vec2D(45.0f, 165.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(45.0f, 165.0f));
+    stateMachine->pointerUp(rive::Vec2D(45.0f, 165.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("reset_shared_viewmodel_instance_test"));
+}

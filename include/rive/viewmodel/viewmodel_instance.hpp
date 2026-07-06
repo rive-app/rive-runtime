@@ -61,6 +61,7 @@ public:
     void advanced();
     void addParent(ViewModelInstance*);
     void removeParent(ViewModelInstance*);
+    bool hasParents() const { return !m_parents.empty(); }
     void addDependent(DataBindContainer*);
     void removeDependent(DataBindContainer*);
 #ifdef TESTING

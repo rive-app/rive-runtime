@@ -1,6 +1,7 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/async/work_pool.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_context.hpp"
@@ -980,6 +981,45 @@ void ScriptingContext::disposeOrphanScriptedProperties()
     m_orphanScriptedProperties.clear();
 }
 #endif
+
+void ScriptingContext::trackViewModelInstance(rcp<ViewModelInstance> instance)
+{
+    if (instance == nullptr)
+    {
+        return;
+    }
+    auto& tracked = m_trackedViewModelInstances[instance.get()];
+    tracked.instance = instance;
+    tracked.registrations++;
+}
+
+void ScriptingContext::untrackViewModelInstance(ViewModelInstance* instance)
+{
+    if (instance == nullptr)
+    {
+        return;
+    }
+    auto it = m_trackedViewModelInstances.find(instance);
+    if (it != m_trackedViewModelInstances.end() &&
+        --it->second.registrations <= 0)
+    {
+        m_trackedViewModelInstances.erase(it);
+    }
+}
+
+void ScriptingContext::advanceDetachedViewModels()
+{
+    for (auto& entry : m_trackedViewModelInstances)
+    {
+        ViewModelInstance* instance = entry.second.instance.get();
+        // Only advance detached roots. Instances with parents are already
+        // reached through the bound tree or their detached-root ancestor.
+        if (!instance->hasParents())
+        {
+            instance->advanced();
+        }
+    }
+}
 
 // ── WorkPool integration ───────────────────────────────────────────────────
 // getGlobalWorkPool() is defined in work_pool.cpp (shared singleton).

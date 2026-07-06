@@ -357,10 +357,25 @@ ScriptedViewModel::ScriptedViewModel(lua_State* L,
                                      rcp<ViewModel> viewModel,
                                      rcp<ViewModelInstance> viewModelInstance) :
     m_state(L), m_viewModel(viewModel), m_viewModelInstance(viewModelInstance)
-{}
+{
+    // Register the instance so detached ones (no parents) get advanced at the
+    // end of each frame. Tracking is keyed to owner lifetime, so the instance
+    // stays tracked while any owner (this wrapper, a scripted artboard) is
+    // alive. Store the context so unregistration in the destructor does not
+    // depend on lua_getthreaddata during Lua finalization.
+    m_scriptingContext = scriptingContext(L);
+    if (m_scriptingContext != nullptr)
+    {
+        m_scriptingContext->trackViewModelInstance(m_viewModelInstance);
+    }
+}
 
 ScriptedViewModel::~ScriptedViewModel()
 {
+    if (m_scriptingContext != nullptr)
+    {
+        m_scriptingContext->untrackViewModelInstance(m_viewModelInstance.get());
+    }
     for (auto itr : m_propertyRefs)
     {
         lua_unref(m_state, itr.second);
