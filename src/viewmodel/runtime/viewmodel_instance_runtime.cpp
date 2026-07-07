@@ -10,6 +10,8 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_enum_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_trigger_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_list_index_runtime.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -126,6 +128,9 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
                             propertyName);
                     case DataType::trigger:
                         return viewModelInstanceRuntime->propertyTrigger(
+                            propertyName);
+                    case DataType::symbolListIndex:
+                        return viewModelInstanceRuntime->propertyListIndex(
                             propertyName);
                     default:
                         break;
@@ -265,6 +270,22 @@ ViewModelInstanceListRuntime* ViewModelInstanceRuntime::propertyList(
         return viewModelInstance
             ->getPropertyInstance<ViewModelInstanceList,
                                   ViewModelInstanceListRuntime>(propertyName);
+    }
+    return nullptr;
+}
+
+ViewModelInstanceListIndexRuntime* ViewModelInstanceRuntime::propertyListIndex(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceSymbolListIndex,
+                                  ViewModelInstanceListIndexRuntime>(
+                propertyName);
     }
     return nullptr;
 }

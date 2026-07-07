@@ -235,6 +235,41 @@ TEST_CASE("Setting a bindable artboard clears stale bound instance",
     CHECK(vmiArtboard->boundViewModelInstance() == nullptr);
 }
 
+TEST_CASE("Runtime artboard property exposes the bound artboard name",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+
+    auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
+    auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
+    REQUIRE(runtimeArtboard != nullptr);
+
+    auto sourceA = file->bindableArtboardNamed("ch1");
+    auto sourceB = file->bindableArtboardNamed("ch2");
+    REQUIRE(sourceA != nullptr);
+    REQUIRE(sourceB != nullptr);
+
+    // The name reflects the currently bound bindable artboard.
+    runtimeArtboard->value(sourceA);
+    CHECK(runtimeArtboard->artboardName() == "ch1");
+
+    // Rebinding updates the reported name.
+    runtimeArtboard->value(sourceB);
+    CHECK(runtimeArtboard->artboardName() == "ch2");
+
+    // Clearing the source reports an empty name rather than dangling.
+    runtimeArtboard->value(nullptr);
+    CHECK(runtimeArtboard->artboardName().empty());
+}
+
 TEST_CASE("Test default data binding artboard from different source",
           "[data binding]")
 {
