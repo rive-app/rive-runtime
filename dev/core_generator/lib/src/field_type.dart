@@ -16,6 +16,12 @@ abstract class FieldType {
   final String _runtimeCoreType;
   String get runtimeCoreType => _runtimeCoreType;
 
+  /// The field type that owns registry dispatch and the property field-type id
+  /// for this type. Defaults to the type itself; narrow aliases (e.g. uint8)
+  /// override this to fold into a wider type (uint) so dispatch and the wire
+  /// format stay shared.
+  FieldType get registryType => this;
+
   final bool storesData;
 
   FieldType(

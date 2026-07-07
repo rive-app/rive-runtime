@@ -238,6 +238,7 @@ public:
         }
         m_VerticalTrimValue = value;
         verticalTrimValueChanged();
+        notifyPropertyChanged(verticalTrimValuePropertyKey);
     }
 
     Core* clone() const override;

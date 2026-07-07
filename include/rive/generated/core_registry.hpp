@@ -1062,6 +1062,9 @@ public:
             case NSlicerTileModeBase::stylePropertyKey:
                 object->as<NSlicerTileModeBase>()->style(value);
                 break;
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
+                object->as<LayoutComponentStyleBase>()->interpolatorId(value);
+                break;
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->flexBasisUnitsValue(
                     value);
@@ -1085,9 +1088,6 @@ public:
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
                 object->as<LayoutComponentStyleBase>()->interpolationType(
                     value);
-                break;
-            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
-                object->as<LayoutComponentStyleBase>()->interpolatorId(value);
                 break;
             case LayoutComponentStyleBase::displayValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->displayValue(value);
@@ -3188,6 +3188,8 @@ public:
                 return object->as<NSlicerTileModeBase>()->patchIndex();
             case NSlicerTileModeBase::stylePropertyKey:
                 return object->as<NSlicerTileModeBase>()->style();
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
+                return object->as<LayoutComponentStyleBase>()->interpolatorId();
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->flexBasisUnitsValue();
@@ -3206,8 +3208,6 @@ public:
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->interpolationType();
-            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->interpolatorId();
             case LayoutComponentStyleBase::displayValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->displayValue();
             case LayoutComponentStyleBase::positionTypeValuePropertyKey:
@@ -4376,13 +4376,13 @@ public:
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
             case NSlicerTileModeBase::patchIndexPropertyKey:
             case NSlicerTileModeBase::stylePropertyKey:
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
             case LayoutComponentStyleBase::animationStyleTypePropertyKey:
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
-            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
             case LayoutComponentStyleBase::displayValuePropertyKey:
             case LayoutComponentStyleBase::positionTypeValuePropertyKey:
             case LayoutComponentStyleBase::flexDirectionValuePropertyKey:
@@ -5021,6 +5021,8 @@ public:
                 return object->is<NSlicerTileModeBase>();
             case NSlicerTileModeBase::stylePropertyKey:
                 return object->is<NSlicerTileModeBase>();
+            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
+                return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
@@ -5032,8 +5034,6 @@ public:
             case LayoutComponentStyleBase::animationStyleTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::displayValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();

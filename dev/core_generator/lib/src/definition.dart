@@ -683,11 +683,15 @@ class Definition {
     var getSetFieldTypes = <FieldType, List<Property>>{};
     for (final definition in runtimeDefinitions) {
       for (final property in definition.properties) {
-        usedFieldTypes[property.type] ??= [];
-        usedFieldTypes[property.type]!.add(property);
+        // Group by registryType so narrow aliases (e.g. uint8) fold into their
+        // wider type (uint): set/get dispatch and the property field-type id
+        // stay shared, keeping existing keyframes and files compatible.
+        final registryType = property.type.registryType;
+        usedFieldTypes[registryType] ??= [];
+        usedFieldTypes[registryType]!.add(property);
         if (!property.isEncoded) {
-          getSetFieldTypes[property.type] ??= [];
-          getSetFieldTypes[property.type]!.add(property);
+          getSetFieldTypes[registryType] ??= [];
+          getSetFieldTypes[registryType]!.add(property);
         }
       }
     }

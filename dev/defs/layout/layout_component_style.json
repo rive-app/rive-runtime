@@ -314,16 +314,6 @@
       "description": "Flex basis value.",
       "bindable": true
     },
-    "flexBasisUnitsValue": {
-      "type": "uint",
-      "initialValue": "3",
-      "group": "flexbasis",
-      "key": {
-        "int": 705,
-        "string": "flexbasisunitsvalue"
-      },
-      "description": "Flex basis unit value"
-    },
     "aspectRatio": {
       "type": "double",
       "initialValue": "0",
@@ -334,63 +324,6 @@
       },
       "description": "Aspect ratio value.",
       "bindable": true
-    },
-    "edgeConstraints": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 545,
-        "string": "edgeconstraints"
-      },
-      "runtime": false
-    },
-    "layoutWidthScaleType": {
-      "type": "uint",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 655,
-        "string": "layoutwidthscaletype"
-      },
-      "bindable": true
-    },
-    "layoutHeightScaleType": {
-      "type": "uint",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 656,
-        "string": "layoutheightscaletype"
-      },
-      "bindable": true
-    },
-    "layoutAlignmentType": {
-      "type": "uint",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 632,
-        "string": "layoutalignmenttype"
-      },
-      "bindable": true
-    },
-    "animationStyleType": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 589,
-        "string": "animationstyletype"
-      },
-      "description": "The type of animation none|custom|inherit applied to this layout."
-    },
-    "interpolationType": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 590,
-        "string": "interpolationtype"
-      },
-      "description": "The type of interpolation index in KeyframeInterpolation applied to this layout."
     },
     "interpolatorId": {
       "type": "Id",
@@ -414,8 +347,75 @@
       "description": "The time over which the interpolator applies.",
       "bindable": true
     },
+    "flexBasisUnitsValue": {
+      "type": "uint8",
+      "initialValue": "3",
+      "group": "flexbasis",
+      "key": {
+        "int": 705,
+        "string": "flexbasisunitsvalue"
+      },
+      "description": "Flex basis unit value"
+    },
+    "edgeConstraints": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 545,
+        "string": "edgeconstraints"
+      },
+      "runtime": false
+    },
+    "layoutWidthScaleType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 655,
+        "string": "layoutwidthscaletype"
+      },
+      "bindable": true
+    },
+    "layoutHeightScaleType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 656,
+        "string": "layoutheightscaletype"
+      },
+      "bindable": true
+    },
+    "layoutAlignmentType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 632,
+        "string": "layoutalignmenttype"
+      },
+      "bindable": true
+    },
+    "animationStyleType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 589,
+        "string": "animationstyletype"
+      },
+      "description": "The type of animation none|custom|inherit applied to this layout."
+    },
+    "interpolationType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 590,
+        "string": "interpolationtype"
+      },
+      "description": "The type of interpolation index in KeyframeInterpolation applied to this layout."
+    },
     "displayValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -426,7 +426,7 @@
       "bindable": true
     },
     "positionTypeValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "1",
       "animates": true,
       "key": {
@@ -437,7 +437,7 @@
       "bindable": true
     },
     "flexDirectionValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "2",
       "animates": true,
       "key": {
@@ -448,7 +448,7 @@
       "bindable": true
     },
     "directionValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -459,7 +459,7 @@
       "bindable": true
     },
     "alignContentValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -469,7 +469,7 @@
       "description": ""
     },
     "alignItemsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "1",
       "animates": true,
       "key": {
@@ -479,7 +479,7 @@
       "description": ""
     },
     "alignSelfValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -489,7 +489,7 @@
       "description": ""
     },
     "justifyContentValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -499,7 +499,7 @@
       "description": ""
     },
     "flexWrapValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -510,7 +510,7 @@
       "bindable": true
     },
     "overflowValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -531,7 +531,7 @@
       "bindable": true
     },
     "widthUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "1",
       "key": {
         "int": 607,
@@ -540,7 +540,7 @@
       "description": ""
     },
     "heightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "1",
       "key": {
         "int": 608,
@@ -549,7 +549,7 @@
       "description": ""
     },
     "borderLeftUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -559,7 +559,7 @@
       "description": ""
     },
     "borderRightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -569,7 +569,7 @@
       "description": ""
     },
     "borderTopUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -579,7 +579,7 @@
       "description": ""
     },
     "borderBottomUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -589,7 +589,7 @@
       "description": ""
     },
     "marginLeftUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmargin",
       "key": {
@@ -599,7 +599,7 @@
       "description": ""
     },
     "marginRightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmargin",
       "key": {
@@ -609,7 +609,7 @@
       "description": ""
     },
     "marginTopUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmargin",
       "key": {
@@ -619,7 +619,7 @@
       "description": ""
     },
     "marginBottomUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmargin",
       "key": {
@@ -629,7 +629,7 @@
       "description": ""
     },
     "paddingLeftUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutpadding",
       "key": {
@@ -639,7 +639,7 @@
       "description": ""
     },
     "paddingRightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutpadding",
       "key": {
@@ -649,7 +649,7 @@
       "description": ""
     },
     "paddingTopUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutpadding",
       "key": {
@@ -659,7 +659,7 @@
       "description": ""
     },
     "paddingBottomUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutpadding",
       "key": {
@@ -669,7 +669,7 @@
       "description": ""
     },
     "positionLeftUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutposition",
       "key": {
@@ -680,7 +680,7 @@
       "bindable": true
     },
     "positionRightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutposition",
       "key": {
@@ -691,7 +691,7 @@
       "bindable": true
     },
     "positionTopUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutposition",
       "key": {
@@ -702,7 +702,7 @@
       "bindable": true
     },
     "positionBottomUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutposition",
       "key": {
@@ -713,7 +713,7 @@
       "bindable": true
     },
     "gapHorizontalUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutgap",
       "key": {
@@ -723,7 +723,7 @@
       "description": ""
     },
     "gapVerticalUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutgap",
       "key": {
@@ -733,7 +733,7 @@
       "description": ""
     },
     "minWidthUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmin",
       "key": {
@@ -743,7 +743,7 @@
       "description": ""
     },
     "minHeightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmin",
       "key": {
@@ -753,7 +753,7 @@
       "description": ""
     },
     "maxWidthUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmax",
       "key": {
@@ -763,7 +763,7 @@
       "description": ""
     },
     "maxHeightUnitsValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "group": "layoutmax",
       "key": {

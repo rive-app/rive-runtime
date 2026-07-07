@@ -257,6 +257,7 @@ public:
         }
         m_DragMultiplier = value;
         dragMultiplierChanged();
+        notifyPropertyChanged(dragMultiplierPropertyKey);
     }
 
     Core* clone() const override;
