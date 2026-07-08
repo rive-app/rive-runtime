@@ -1,5 +1,6 @@
 #include <rive/file.hpp>
 #include <rive/node.hpp>
+#include <algorithm>
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
 #include <utils/no_op_renderer.hpp>
@@ -1476,6 +1477,26 @@ TEST_CASE("View model runtime properties", "[data binding]")
     auto numChi = instance->propertyNumber("chi/chi-num");
     REQUIRE(numChi != nullptr);
     REQUIRE(numChi->dataType() == rive::DataType::number);
+
+    // Enum properties expose the backing enum's name while non-enum properties
+    // leave enumName empty.
+    auto properties = instance->properties();
+    auto findProperty = [&properties](const std::string& name) {
+        return std::find_if(properties.begin(),
+                            properties.end(),
+                            [&name](const rive::PropertyData& data) {
+                                return data.name == name;
+                            });
+    };
+    auto enuData = findProperty("enu");
+    REQUIRE(enuData != properties.end());
+    REQUIRE(enuData->type == rive::DataType::enumType);
+    REQUIRE(enuData->enumName == "Horizontal Align");
+
+    auto numData = findProperty("num");
+    REQUIRE(numData != properties.end());
+    REQUIRE(numData->type == rive::DataType::number);
+    REQUIRE(numData->enumName.empty());
 }
 
 TEST_CASE("Trigger fires single change on listener", "[data binding]")

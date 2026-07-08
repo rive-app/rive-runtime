@@ -16,6 +16,7 @@ struct PropertyData
 {
     DataType type;
     std::string name;
+    std::string enumName;
 };
 
 class ViewModelRuntime : public RefCnt<ViewModelRuntime>
