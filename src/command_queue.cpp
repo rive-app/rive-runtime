@@ -35,9 +35,15 @@ CommandQueue::CommandQueue() {}
 
 CommandQueue::~CommandQueue() {}
 
-FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
-                                  FileListener* listener,
-                                  uint64_t requestId)
+FileHandle CommandQueue::loadFile(
+    std::vector<uint8_t> rivBytes,
+    FileListener* listener,
+    uint64_t requestId
+#ifdef WITH_RIVE_SCRIPTING
+    ,
+    ScriptingContextFactory scriptingContextFactory
+#endif
+)
 {
     auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
 
@@ -54,6 +60,9 @@ FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
     m_commandStream << handle;
     m_commandStream << requestId;
     m_byteVectors << std::move(rivBytes);
+#ifdef WITH_RIVE_SCRIPTING
+    m_scriptingContextFactories << std::move(scriptingContextFactory);
+#endif
 
     return handle;
 }

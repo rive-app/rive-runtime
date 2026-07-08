@@ -676,11 +676,25 @@ bool CommandServer::processCommands()
                 commandStream >> handle;
                 commandStream >> requestId;
                 m_commandQueue->m_byteVectors >> rivBytes;
+#ifdef WITH_RIVE_SCRIPTING
+                ScriptingContextFactory scriptingContextFactory;
+                m_commandQueue->m_scriptingContextFactories >>
+                    scriptingContextFactory;
+#endif
                 lock.unlock();
 #ifdef WITH_RIVE_SCRIPTING
                 std::cout << "Rive: Command Server Scripting Enabled.\n";
-                auto scriptingContext =
-                    std::make_unique<CPPRuntimeScriptingContext>(m_factory);
+                // Use the host-provided scripting context when supplied (e.g.
+                // Unreal routes console/error output to UE_LOG); otherwise fall
+                // back to the default CPP runtime context.
+                std::unique_ptr<ScriptingContext> scriptingContext =
+                    scriptingContextFactory ? scriptingContextFactory(m_factory)
+                                            : nullptr;
+                if (scriptingContext == nullptr)
+                {
+                    scriptingContext =
+                        std::make_unique<CPPRuntimeScriptingContext>(m_factory);
+                }
                 scriptingContext->setRenderContext(m_factory);
                 auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
                 rcp<rive::File> file = rive::File::import(rivBytes,

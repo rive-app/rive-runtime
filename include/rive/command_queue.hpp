@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -41,6 +42,7 @@ class File;
 class ArtboardInstance;
 class StateMachineInstance;
 class CommandServer;
+class ScriptingContext;
 
 RIVE_DEFINE_HANDLE(FontHandle);
 RIVE_DEFINE_HANDLE(FileHandle);
@@ -54,6 +56,15 @@ RIVE_DEFINE_HANDLE(DrawKey);
 // Function poimter that gets called back from the server thread.
 using CommandServerCallback = std::function<void(CommandServer*)>;
 using CommandServerDrawCallback = std::function<void(DrawKey, CommandServer*)>;
+
+// Creates the ScriptingContext used for a loaded file's Lua VM. Invoked on the
+// command server thread with the server's Factory so the context is built with
+// the correct factory on the correct thread. Return nullptr (or leave the
+// factory empty) to fall back to the default CPPRuntimeScriptingContext. Used
+// by hosts (e.g. Unreal) to redirect Lua console/error output to their own
+// logging.
+using ScriptingContextFactory =
+    std::function<std::unique_ptr<ScriptingContext>(Factory*)>;
 
 struct ViewModelEnum
 {
@@ -351,9 +362,15 @@ public:
     CommandQueue();
     ~CommandQueue();
 
-    FileHandle loadFile(std::vector<uint8_t> rivBytes,
-                        FileListener* listener = nullptr,
-                        uint64_t requestId = 0);
+    FileHandle loadFile(
+        std::vector<uint8_t> rivBytes,
+        FileListener* listener = nullptr,
+        uint64_t requestId = 0
+#ifdef WITH_RIVE_SCRIPTING
+        ,
+        ScriptingContextFactory scriptingContextFactory = nullptr
+#endif
+    );
 
     void deleteFile(FileHandle, uint64_t requestId = 0);
 
@@ -1008,6 +1025,9 @@ private:
     ObjectStream<rcp<AudioSource>> m_externalAudioSources;
     ObjectStream<rcp<Font>> m_externalFonts;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
+#ifdef WITH_RIVE_SCRIPTING
+    ObjectStream<ScriptingContextFactory> m_scriptingContextFactories;
+#endif
     ObjectStream<PointerEvent> m_pointerEvents;
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
