@@ -546,6 +546,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             case TransitionViewModelCondition::typeKey:
             case TransitionArtboardCondition::typeKey:
+            case TransitionFocusCondition::typeKey:
                 stackObject =
                     std::make_unique<TransitionViewModelConditionImporter>(
                         object->as<TransitionViewModelCondition>());

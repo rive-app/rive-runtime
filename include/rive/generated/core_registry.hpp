@@ -21,6 +21,7 @@
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/focus_action.hpp"
+#include "rive/animation/focus_action_clear.hpp"
 #include "rive/animation/focus_action_target.hpp"
 #include "rive/animation/focus_action_traversal.hpp"
 #include "rive/animation/interpolating_keyframe.hpp"
@@ -78,6 +79,7 @@
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_artboard_condition.hpp"
 #include "rive/animation/transition_bool_condition.hpp"
+#include "rive/animation/transition_focus_condition.hpp"
 #include "rive/animation/transition_comparator.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_input_condition.hpp"
@@ -555,6 +557,8 @@ public:
                 return new TransitionViewModelCondition();
             case TransitionArtboardConditionBase::typeKey:
                 return new TransitionArtboardCondition();
+            case TransitionFocusConditionBase::typeKey:
+                return new TransitionFocusCondition();
             case AnyStateBase::typeKey:
                 return new AnyState();
             case BlendState1DInputBase::typeKey:
@@ -583,6 +587,8 @@ public:
                 return new KeyFrameColor();
             case FocusActionTraversalBase::typeKey:
                 return new FocusActionTraversal();
+            case FocusActionClearBase::typeKey:
+                return new FocusActionClear();
             case StateMachineBase::typeKey:
                 return new StateMachine();
             case StateMachineFireEventBase::typeKey:
@@ -1458,6 +1464,9 @@ public:
             case ImageBase::fitPropertyKey:
                 object->as<ImageBase>()->fit(value);
                 break;
+            case FocusDataBase::focusFlagsPropertyKey:
+                object->as<FocusDataBase>()->focusFlags(value);
+                break;
             case FocusDataBase::edgeBehaviorValuePropertyKey:
                 object->as<FocusDataBase>()->edgeBehaviorValue(value);
                 break;
@@ -1977,14 +1986,56 @@ public:
                 object->as<ClippingShapeBase>()->isVisible(value);
                 break;
             case FocusDataBase::canFocusPropertyKey:
-                object->as<FocusDataBase>()->canFocus(value);
+            {
+                auto* _o = object->as<FocusDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->focusFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 0);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->focusFlags(_next);
+                    }
+                }
                 break;
+            }
             case FocusDataBase::canTouchPropertyKey:
-                object->as<FocusDataBase>()->canTouch(value);
+            {
+                auto* _o = object->as<FocusDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->focusFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 1);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->focusFlags(_next);
+                    }
+                }
                 break;
+            }
             case FocusDataBase::canTraversePropertyKey:
-                object->as<FocusDataBase>()->canTraverse(value);
+            {
+                auto* _o = object->as<FocusDataBase>();
+                if (_o)
+                {
+                    const uint32_t _cur = _o->focusFlags();
+                    const uint32_t _bm = static_cast<uint32_t>(1u << 2);
+                    const uint32_t _next = static_cast<uint32_t>(
+                        (_cur & ~_bm) |
+                        (value ? _bm : static_cast<uint32_t>(0)));
+                    if (_cur != _next)
+                    {
+                        _o->focusFlags(_next);
+                    }
+                }
                 break;
+            }
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
                 object->as<CustomPropertyBooleanBase>()->propertyValue(value);
                 break;
@@ -3477,6 +3528,8 @@ public:
                 return object->as<ImageBase>()->assetId();
             case ImageBase::fitPropertyKey:
                 return object->as<ImageBase>()->fit();
+            case FocusDataBase::focusFlagsPropertyKey:
+                return object->as<FocusDataBase>()->focusFlags();
             case FocusDataBase::edgeBehaviorValuePropertyKey:
                 return object->as<FocusDataBase>()->edgeBehaviorValue();
             case DrawRulesBase::drawTargetIdPropertyKey:
@@ -3830,12 +3883,6 @@ public:
                 return object->as<RectangleBase>()->linkCornerRadius();
             case ClippingShapeBase::isVisiblePropertyKey:
                 return object->as<ClippingShapeBase>()->isVisible();
-            case FocusDataBase::canFocusPropertyKey:
-                return object->as<FocusDataBase>()->canFocus();
-            case FocusDataBase::canTouchPropertyKey:
-                return object->as<FocusDataBase>()->canTouch();
-            case FocusDataBase::canTraversePropertyKey:
-                return object->as<FocusDataBase>()->canTraverse();
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyBooleanBase>()->propertyValue();
             case LayoutComponentBase::clipPropertyKey:
@@ -4501,6 +4548,7 @@ public:
             case PolygonBase::pointsPropertyKey:
             case ImageBase::assetIdPropertyKey:
             case ImageBase::fitPropertyKey:
+            case FocusDataBase::focusFlagsPropertyKey:
             case FocusDataBase::edgeBehaviorValuePropertyKey:
             case DrawRulesBase::drawTargetIdPropertyKey:
             case LayoutComponentBase::styleIdPropertyKey:
@@ -4657,9 +4705,6 @@ public:
             case PointsCommonPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
-            case FocusDataBase::canFocusPropertyKey:
-            case FocusDataBase::canTouchPropertyKey:
-            case FocusDataBase::canTraversePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
             case DataBindPathBase::isRelativePropertyKey:
@@ -5259,6 +5304,8 @@ public:
                 return object->is<ImageBase>();
             case ImageBase::fitPropertyKey:
                 return object->is<ImageBase>();
+            case FocusDataBase::focusFlagsPropertyKey:
+                return object->is<FocusDataBase>();
             case FocusDataBase::edgeBehaviorValuePropertyKey:
                 return object->is<FocusDataBase>();
             case DrawRulesBase::drawTargetIdPropertyKey:

@@ -1,0 +1,8 @@
+{
+  "name": "FocusActionClear",
+  "key": {
+    "int": 1037,
+    "string": "focusactionclear"
+  },
+  "extends": "animation/focus_action.json"
+}

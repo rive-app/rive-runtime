@@ -87,9 +87,7 @@ public:
     void update(ComponentDirt value) override;
 
 protected:
-    void canFocusChanged() override;
-    void canTouchChanged() override;
-    void canTraverseChanged() override;
+    void focusFlagsChanged() override;
     void edgeBehaviorValueChanged() override;
     void nameChanged() override;
 

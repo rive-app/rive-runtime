@@ -6,32 +6,52 @@
   },
   "extends": "component.json",
   "properties": {
+    "focusFlags": {
+      "type": "uint",
+      "initialValue": "7",
+      "animates": true,
+      "key": {
+        "int": 1033,
+        "string": "focusflags"
+      },
+      "description": "Bitmask for focus flags",
+      "bindable": true
+    },
     "canFocus": {
       "type": "bool",
-      "initialValue": "true",
+      "animates": true,
       "key": {
         "int": 953,
         "string": "canfocus"
       },
-      "description": "Master switch - can this node receive focus at all?"
+      "description": "Master switch - can this node receive focus at all?",
+      "bindable": true,
+      "passthroughForBitmask": "focusFlags",
+      "passthroughBit": 0
     },
     "canTouch": {
       "type": "bool",
-      "initialValue": "true",
+      "animates": true,
       "key": {
         "int": 954,
         "string": "cantouch"
       },
-      "description": "Can receive focus via pointer/touch click"
+      "description": "Can receive focus via pointer/touch click",
+      "bindable": true,
+      "passthroughForBitmask": "focusFlags",
+      "passthroughBit": 1
     },
     "canTraverse": {
       "type": "bool",
-      "initialValue": "true",
+      "animates": true,
       "key": {
         "int": 955,
         "string": "cantraverse"
       },
-      "description": "Included in Tab/Shift+Tab traversal"
+      "description": "Included in Tab/Shift+Tab traversal",
+      "bindable": true,
+      "passthroughForBitmask": "focusFlags",
+      "passthroughBit": 2
     },
     "edgeBehaviorValue": {
       "type": "uint",

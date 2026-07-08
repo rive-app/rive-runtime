@@ -249,6 +249,14 @@ public:
                                       : &m_focusManager;
     }
 
+    /// Const overload of [focusManager], used by read-only consumers such as
+    /// condition evaluation.
+    const FocusManager* focusManager() const
+    {
+        return m_externalFocusManager ? m_externalFocusManager
+                                      : &m_focusManager;
+    }
+
     /// Check if this state machine is using an external focus manager.
     bool hasExternalFocusManager() const
     {

@@ -29,52 +29,30 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
+    static const uint16_t focusFlagsPropertyKey = 1033;
     static const uint16_t canFocusPropertyKey = 953;
+    static const uint32_t canFocusBitmask = 1u << 0;
     static const uint16_t canTouchPropertyKey = 954;
+    static const uint32_t canTouchBitmask = 1u << 1;
     static const uint16_t canTraversePropertyKey = 955;
+    static const uint32_t canTraverseBitmask = 1u << 2;
     static const uint16_t edgeBehaviorValuePropertyKey = 956;
 
 protected:
-    bool m_CanFocus = true;
-    bool m_CanTouch = true;
-    bool m_CanTraverse = true;
+    uint32_t m_FocusFlags = 7;
     uint32_t m_EdgeBehaviorValue = 0;
 
 public:
-    inline bool canFocus() const { return m_CanFocus; }
-    void canFocus(bool value)
+    inline uint32_t focusFlags() const { return m_FocusFlags; }
+    void focusFlags(uint32_t value)
     {
-        if (m_CanFocus == value)
+        if (m_FocusFlags == value)
         {
             return;
         }
-        m_CanFocus = value;
-        canFocusChanged();
-        notifyPropertyChanged(canFocusPropertyKey);
-    }
-
-    inline bool canTouch() const { return m_CanTouch; }
-    void canTouch(bool value)
-    {
-        if (m_CanTouch == value)
-        {
-            return;
-        }
-        m_CanTouch = value;
-        canTouchChanged();
-        notifyPropertyChanged(canTouchPropertyKey);
-    }
-
-    inline bool canTraverse() const { return m_CanTraverse; }
-    void canTraverse(bool value)
-    {
-        if (m_CanTraverse == value)
-        {
-            return;
-        }
-        m_CanTraverse = value;
-        canTraverseChanged();
-        notifyPropertyChanged(canTraversePropertyKey);
+        m_FocusFlags = value;
+        focusFlagsChanged();
+        notifyPropertyChanged(focusFlagsPropertyKey);
     }
 
     inline uint32_t edgeBehaviorValue() const { return m_EdgeBehaviorValue; }
@@ -92,9 +70,7 @@ public:
     Core* clone() const override;
     void copy(const FocusDataBase& object)
     {
-        m_CanFocus = object.m_CanFocus;
-        m_CanTouch = object.m_CanTouch;
-        m_CanTraverse = object.m_CanTraverse;
+        m_FocusFlags = object.m_FocusFlags;
         m_EdgeBehaviorValue = object.m_EdgeBehaviorValue;
         Component::copy(object);
     }
@@ -103,14 +79,8 @@ public:
     {
         switch (propertyKey)
         {
-            case canFocusPropertyKey:
-                m_CanFocus = CoreBoolType::deserialize(reader);
-                return true;
-            case canTouchPropertyKey:
-                m_CanTouch = CoreBoolType::deserialize(reader);
-                return true;
-            case canTraversePropertyKey:
-                m_CanTraverse = CoreBoolType::deserialize(reader);
+            case focusFlagsPropertyKey:
+                m_FocusFlags = CoreUintType::deserialize(reader);
                 return true;
             case edgeBehaviorValuePropertyKey:
                 m_EdgeBehaviorValue = CoreUintType::deserialize(reader);
@@ -120,9 +90,7 @@ public:
     }
 
 protected:
-    virtual void canFocusChanged() {}
-    virtual void canTouchChanged() {}
-    virtual void canTraverseChanged() {}
+    virtual void focusFlagsChanged() {}
     virtual void edgeBehaviorValueChanged() {}
 };
 } // namespace rive

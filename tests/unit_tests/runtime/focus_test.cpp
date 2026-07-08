@@ -1,5 +1,9 @@
 #include <catch.hpp>
+#include "rive/animation/focus_action_clear.hpp"
 #include "rive/animation/focus_action_traversal.hpp"
+#include "rive/animation/transition_condition_op.hpp"
+#include "rive/animation/transition_focus_condition.hpp"
+#include "rive/animation/transition_property_component_comparator.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
@@ -1089,6 +1093,104 @@ TEST_CASE("FocusManager Tab after focusing a scope traverses leaf siblings",
     CHECK(manager.primaryFocus() == leaf2);
 }
 
+// =============================================================================
+// FocusActionClear Tests
+// =============================================================================
+
+TEST_CASE("FocusActionClear perform clears the primary focus",
+          "[FocusActionClear]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    FocusManager* fm = smi.focusManager();
+    MockFocusable f1;
+    auto node1 = make_rcp<FocusNode>(&f1);
+    fm->addChild(nullptr, node1);
+    fm->setFocus(node1);
+    REQUIRE(fm->primaryFocus() == node1);
+
+    FocusActionClear action;
+    action.perform(&smi, ListenerInvocation::none());
+
+    CHECK(fm->primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusActionClear perform is a no-op when nothing is focused",
+          "[FocusActionClear]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    REQUIRE(smi.focusManager()->primaryFocus() == nullptr);
+
+    FocusActionClear action;
+    action.perform(&smi, ListenerInvocation::none());
+
+    CHECK(smi.focusManager()->primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusActionClear perform ignores null StateMachineInstance",
+          "[FocusActionClear]")
+{
+    FocusActionClear action;
+    // Must not dereference the null instance.
+    action.perform(nullptr, ListenerInvocation::none());
+}
+
+// =============================================================================
+// TransitionFocusCondition Tests
+// =============================================================================
+
+TEST_CASE("TransitionFocusCondition uses the reassigned core type key",
+          "[TransitionFocusCondition]")
+{
+    // Locks in the collision fix: master's font PR claimed 1035, so this
+    // condition was reassigned to 1038. A regression here means a type-key
+    // clash on import/export.
+    // Copy into a local to avoid ODR-using the in-class static constant
+    // (which has no out-of-line definition) when binding it to Catch2's
+    // by-reference comparison expressions.
+    uint16_t typeKey = TransitionFocusConditionBase::typeKey;
+    CHECK(typeKey == 1038);
+
+    auto condition = std::make_unique<TransitionFocusCondition>();
+    CHECK(condition->coreType() == typeKey);
+    CHECK(condition->is<TransitionFocusCondition>());
+}
+
+TEST_CASE("TransitionFocusCondition evaluate returns false for a null "
+          "StateMachineInstance",
+          "[TransitionFocusCondition]")
+{
+    // Heap allocation value-initializes the (comparator) members to null, so
+    // the guard clauses and destructor are well-defined even without import.
+    auto condition = std::make_unique<TransitionFocusCondition>();
+    CHECK(condition->evaluate(nullptr, nullptr) == false);
+}
+
+TEST_CASE("TransitionFocusCondition evaluate returns false when no target "
+          "comparator is configured",
+          "[TransitionFocusCondition]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    auto condition = std::make_unique<TransitionFocusCondition>();
+    // With neither comparator set to a TransitionPropertyComponentComparator,
+    // there is no focus target to evaluate against, so the condition is false.
+    CHECK(condition->evaluate(&smi, nullptr) == false);
+}
+
 } // namespace rive
 
 TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
@@ -1723,4 +1825,39 @@ TEST_CASE("Focus is correctly built and updated for lists", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("list_focus_order"));
+}
+
+TEST_CASE("Focus based transitions work", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/focus_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto focusManager = stateMachine->focusManager();
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(55.0, 65.0));
+    stateMachine->pointerUp(rive::Vec2D(55.0, 65.0));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->pointerDown(rive::Vec2D(442.0, 65.0));
+    stateMachine->pointerUp(rive::Vec2D(442.0, 65.0));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("focus_test"));
 }

@@ -57,9 +57,9 @@ rcp<FocusNode> FocusData::focusNode()
     if (m_focusNode == nullptr)
     {
         m_focusNode = rcp<FocusNode>(new FocusNode(this));
-        m_focusNode->canFocus(m_CanFocus);
-        m_focusNode->canTouch(m_CanTouch);
-        m_focusNode->canTraverse(m_CanTraverse);
+        m_focusNode->canFocus((focusFlags() & canFocusBitmask) != 0);
+        m_focusNode->canTouch((focusFlags() & canTouchBitmask) != 0);
+        m_focusNode->canTraverse((focusFlags() & canTraverseBitmask) != 0);
         m_focusNode->edgeBehavior(
             static_cast<EdgeBehavior>(m_EdgeBehaviorValue));
         m_focusNode->name(name());
@@ -369,27 +369,13 @@ void FocusData::blurred()
     }
 }
 
-void FocusData::canFocusChanged()
+void FocusData::focusFlagsChanged()
 {
     if (m_focusNode != nullptr)
     {
-        m_focusNode->canFocus(m_CanFocus);
-    }
-}
-
-void FocusData::canTouchChanged()
-{
-    if (m_focusNode != nullptr)
-    {
-        m_focusNode->canTouch(m_CanTouch);
-    }
-}
-
-void FocusData::canTraverseChanged()
-{
-    if (m_focusNode != nullptr)
-    {
-        m_focusNode->canTraverse(m_CanTraverse);
+        m_focusNode->canFocus((focusFlags() & canFocusBitmask) != 0);
+        m_focusNode->canTouch((focusFlags() & canTouchBitmask) != 0);
+        m_focusNode->canTraverse((focusFlags() & canTraverseBitmask) != 0);
     }
 }
 
