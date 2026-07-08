@@ -83,8 +83,15 @@ VulkanHeadlessFrameSynchronizer::VulkanHeadlessFrameSynchronizer(
 
 VulkanHeadlessFrameSynchronizer::~VulkanHeadlessFrameSynchronizer()
 {
-    // Don't do anything until everything is flushed through.
-    m_vkDeviceWaitIdle(vkDevice());
+    // Guard against partial construction: if the base constructor failed (e.g.
+    // an OOM creating a fence), this destructor still runs even though the
+    // derived device function pointers were never loaded. Calling the null
+    // m_vkDeviceWaitIdle here would segfault and crash the whole process.
+    if (m_vkDeviceWaitIdle != nullptr)
+    {
+        // Don't do anything until everything is flushed through.
+        m_vkDeviceWaitIdle(vkDevice());
+    }
 }
 
 bool VulkanHeadlessFrameSynchronizer::isFrameStarted() const

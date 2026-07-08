@@ -63,7 +63,7 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
 
         VK_CONFIRM_OR_RETURN_MSG(
             m_vkCreateFence(m_device, &fenceCreateInfo, nullptr, &sync.fence),
-            "Failed to create Vulkan fance");
+            "Failed to create Vulkan fence");
 
         VkCommandBufferAllocateInfo cbufferAllocateInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -104,19 +104,34 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
 
 VulkanFrameSynchronizer::~VulkanFrameSynchronizer()
 {
+    // The instance command function pointers are loaded first thing in the
+    // constructor, but if construction failed partway (e.g. an OOM creating a
+    // fence) this destructor still runs while some pointers are null. Guard
+    // every call so teardown of a partially-constructed object cannot segfault.
+    //
     // Note that the derived class will have already waited for the device to be
     // idle so we can safely destroy things here.
     for (auto& frame : m_inFlightFrames)
     {
-        destroySemaphore(frame.semaphore);
-        m_vkFreeCommandBuffers(m_device,
-                               m_commandPool,
-                               1,
-                               &frame.commandBuffer);
-        m_vkDestroyFence(m_device, frame.fence, nullptr);
+        if (m_vkDestroySemaphore != nullptr)
+        {
+            destroySemaphore(frame.semaphore);
+        }
+        if (m_vkFreeCommandBuffers != nullptr &&
+            m_commandPool != VK_NULL_HANDLE)
+        {
+            m_vkFreeCommandBuffers(m_device,
+                                   m_commandPool,
+                                   1,
+                                   &frame.commandBuffer);
+        }
+        if (m_vkDestroyFence != nullptr)
+        {
+            m_vkDestroyFence(m_device, frame.fence, nullptr);
+        }
     }
 
-    if (m_commandPool != VK_NULL_HANDLE)
+    if (m_commandPool != VK_NULL_HANDLE && m_vkDestroyCommandPool != nullptr)
     {
         m_vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     }
