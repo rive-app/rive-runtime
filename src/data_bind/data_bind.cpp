@@ -17,6 +17,7 @@
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_any.hpp"
 #include "rive/data_bind/context/context_value_asset_image.hpp"
+#include "rive/data_bind/context/context_value_asset_font.hpp"
 #include "rive/data_bind/context/context_value_artboard.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
@@ -195,6 +196,8 @@ DataType DataBind::sourceOutputType()
                 return DataType::symbolListIndex;
             case ViewModelInstanceAssetImageBase::typeKey:
                 return DataType::assetImage;
+            case ViewModelInstanceAssetFontBase::typeKey:
+                return DataType::assetFont;
             case ViewModelInstanceArtboardBase::typeKey:
                 return DataType::artboard;
             case ViewModelInstanceViewModelBase::typeKey:
@@ -277,6 +280,9 @@ void DataBind::bind()
             break;
         case DataType::assetImage:
             m_ContextValue = new DataBindContextValueAssetImage(this);
+            break;
+        case DataType::assetFont:
+            m_ContextValue = new DataBindContextValueAssetFont(this);
             break;
         case DataType::artboard:
             m_ContextValue = new DataBindContextValueArtboard(this);

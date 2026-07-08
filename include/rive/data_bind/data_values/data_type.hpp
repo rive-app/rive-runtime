@@ -44,6 +44,9 @@ enum class DataType : unsigned int
     /// Artboard.
     artboard = 12,
 
+    /// Asset Font.
+    assetFont = 13,
+
     /// Special case, this type is used to indicate it uses the input type.
     input = 99,
 

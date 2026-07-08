@@ -306,6 +306,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
@@ -322,6 +323,7 @@
 #include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/viewmodel/viewmodel_property_artboard.hpp"
 #include "rive/viewmodel/viewmodel_property_asset.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
@@ -395,6 +397,8 @@ public:
                 return new ViewModelPropertyColor();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
+            case ViewModelPropertyAssetFontBase::typeKey:
+                return new ViewModelPropertyAssetFont();
             case ViewModelInstanceBooleanBase::typeKey:
                 return new ViewModelInstanceBoolean();
             case ViewModelInstanceListBase::typeKey:
@@ -415,6 +419,8 @@ public:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
+            case ViewModelInstanceAssetFontBase::typeKey:
+                return new ViewModelInstanceAssetFont();
             case DataEnumValueBase::typeKey:
                 return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:

@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelPropertyAssetFont",
+  "key": {
+    "int": 1034,
+    "string": "viewmodelpropertyassetfont"
+  },
+  "extends": "viewmodel/viewmodel_property_asset.json"
+}

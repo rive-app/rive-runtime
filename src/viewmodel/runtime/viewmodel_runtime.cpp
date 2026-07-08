@@ -2,6 +2,7 @@
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_image.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -88,6 +89,9 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
                 break;
             case ViewModelPropertyAssetImage::typeKey:
                 type = DataType::assetImage;
+                break;
+            case ViewModelPropertyAssetFont::typeKey:
+                type = DataType::assetFont;
                 break;
             case ViewModelPropertyArtboard::typeKey:
                 type = DataType::artboard;

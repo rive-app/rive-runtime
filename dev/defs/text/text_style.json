@@ -44,7 +44,8 @@
       "key": {
         "int": 279,
         "string": "fontassetid"
-      }
+      },
+      "bindable": true
     },
     "familyName": {
       "type": "String",

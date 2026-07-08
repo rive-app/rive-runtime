@@ -1177,6 +1177,9 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                 case ViewModelPropertyAssetImageBase::typeKey:
                     viewModelInstanceValue = new ViewModelInstanceAssetImage();
                     break;
+                case ViewModelPropertyAssetFontBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceAssetFont();
+                    break;
                 case ViewModelPropertySymbolListIndexBase::typeKey:
                     viewModelInstanceValue =
                         new ViewModelInstanceSymbolListIndex();

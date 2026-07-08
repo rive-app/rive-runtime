@@ -1,0 +1,38 @@
+#ifndef _RIVE_VIEW_MODEL_INSTANCE_ASSET_FONT_BASE_HPP_
+#define _RIVE_VIEW_MODEL_INSTANCE_ASSET_FONT_BASE_HPP_
+#include "rive/viewmodel/viewmodel_instance_asset.hpp"
+namespace rive
+{
+class ViewModelInstanceAssetFontBase : public ViewModelInstanceAsset
+{
+protected:
+    typedef ViewModelInstanceAsset Super;
+
+public:
+    static const uint16_t typeKey = 1035;
+
+    /// Helper to quickly determine if a core object extends another without
+    /// RTTI at runtime.
+    bool isTypeOf(uint16_t typeKey) const override
+    {
+        switch (typeKey)
+        {
+            case ViewModelInstanceAssetFontBase::typeKey:
+            case ViewModelInstanceAssetBase::typeKey:
+            case ViewModelInstanceValueBase::typeKey:
+            case ComponentBase::typeKey:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    uint16_t coreType() const override { return typeKey; }
+
+    Core* clone() const override;
+
+protected:
+};
+} // namespace rive
+
+#endif
