@@ -2,6 +2,9 @@
 #include "catch.hpp"
 #include "lua.h"
 #include "scripting_test_utilities.hpp"
+#include "utils/serializing_factory.hpp"
+#include "rive_file_reader.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 
 using namespace rive;
 
@@ -102,4 +105,27 @@ TEST_CASE("color static methods work", "[scripting]")
                                        "return Color.lerp(black, white, 0.5)")
                              .state(),
                          -1) == 0xff808080);
+}
+
+TEST_CASE("Scripted color converter", "[scripting]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_color_data_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("script_color_data_test"));
 }
