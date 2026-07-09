@@ -2391,6 +2391,38 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::getArtboardSize:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto artboard = getArtboardInstance(handle);
+                if (artboard)
+                {
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::artboardSizeReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << artboard->width();
+                    messageStream << artboard->height();
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "Invalid artboard handle " << handle
+                        << " when getting artboard size";
+                }
+                break;
+            }
+
             case CommandQueue::Command::getDefaultViewModel:
             {
                 FileHandle fileHandle;

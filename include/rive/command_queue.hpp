@@ -272,6 +272,12 @@ public:
                                               uint64_t requestId,
                                               float volume)
         {}
+
+        virtual void onArtboardSizeReceived(const ArtboardHandle,
+                                            uint64_t requestId,
+                                            float width,
+                                            float height)
+        {}
     };
 
     struct ViewModelInstanceData
@@ -755,6 +761,7 @@ public:
                            uint64_t requestId = 0);
     void requestArtboardVolume(ArtboardHandle, uint64_t requestId = 0);
 
+    void requestArtboardSize(ArtboardHandle, uint64_t requestId = 0);
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
     void requestDefaultViewModelInfo(ArtboardHandle,
                                      FileHandle,
@@ -961,7 +968,8 @@ private:
         clearViewModelList,
         listFileAssets,
         setArtboardVolume,
-        getArtboardVolume
+        getArtboardVolume,
+        getArtboardSize
     };
 
     enum class Message
@@ -996,6 +1004,7 @@ private:
         stateMachineSettled,
         semanticsDiffReceived,
         fileAssetsListed,
+        artboardSizeReceived,
         fileError,
         artboardError,
         viewModelError,

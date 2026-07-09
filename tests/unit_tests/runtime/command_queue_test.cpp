@@ -2331,9 +2331,6 @@ TEST_CASE("Set Artboard Size / Reset Artboard Size", "[CommandQueue]")
 
     auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
 
-    rive::ArtboardHandle InvalidHandle =
-        reinterpret_cast<rive::ArtboardHandle>(0xFF);
-
     commandQueue->setArtboardSize(artboardHandle, 1000, 1000);
 
     commandQueue->runOnce(
@@ -2362,9 +2359,6 @@ TEST_CASE("Set Artboard Size / Reset Artboard Size", "[CommandQueue]")
             CHECK(artboard->width() == artboard->originalWidth());
             CHECK(artboard->height() == artboard->originalHeight());
         });
-
-    commandQueue->setArtboardSize(InvalidHandle, 10, 10);
-    commandQueue->resetArtboardSize(InvalidHandle);
 
     wait_for_server(commandQueue.get());
 
@@ -3481,6 +3475,31 @@ TEST_CASE("Set Artboard Volume / Get Artboard Volume errors on invalid handles",
     serverThread.join();
 }
 
+TEST_CASE("Set Artboard Size / Reset Artboard Size errors on invalid handles",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestArtboardErrorListener errorListener;
+    auto invalidHandle = reinterpret_cast<rive::ArtboardHandle>(0xFF);
+    errorListener.m_handle = invalidHandle;
+    commandQueue->setGlobalArtboardListener(&errorListener);
+
+    commandQueue->setArtboardSize(invalidHandle, 10, 10, 1, 0x51);
+    commandQueue->resetArtboardSize(invalidHandle, 0x52);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(errorListener.m_receivedErrors == 2);
+    CHECK(errorListener.m_requestIDs[0] == 0x51);
+    CHECK(errorListener.m_requestIDs[1] == 0x52);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class TestArtboardListener : public CommandQueue::ArtboardListener
 {
 public:
@@ -3551,6 +3570,116 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     commandQueue->processMessages();
 
     CHECK(!artboardListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestArtboardSizeListener : public CommandQueue::ArtboardListener
+{
+public:
+    void onArtboardSizeReceived(const ArtboardHandle handle,
+                                uint64_t requestId,
+                                float width,
+                                float height) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(requestId == m_requestId);
+        m_width = width;
+        m_height = height;
+        m_hasCallback = true;
+    }
+
+    void onArtboardError(const ArtboardHandle handle,
+                         uint64_t requestId,
+                         std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(!error.empty());
+        m_hasError = true;
+    }
+
+    uint64_t m_requestId = 0;
+    ArtboardHandle m_handle = RIVE_NULL_HANDLE;
+    float m_width = 0;
+    float m_height = 0;
+    bool m_hasCallback = false;
+    bool m_hasError = false;
+};
+
+TEST_CASE("requestArtboardSize", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    TestArtboardSizeListener listener;
+    auto artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle, &listener);
+    listener.m_handle = artboardHandle;
+
+    SECTION("returns default artboard size")
+    {
+        listener.m_requestId = 0x50;
+        commandQueue->requestArtboardSize(artboardHandle, listener.m_requestId);
+
+        float expectedWidth = 0;
+        float expectedHeight = 0;
+        commandQueue->runOnce([artboardHandle, &expectedWidth, &expectedHeight](
+                                  CommandServer* server) {
+            auto artboard = server->getArtboardInstance(artboardHandle);
+            expectedWidth = artboard->originalWidth();
+            expectedHeight = artboard->originalHeight();
+        });
+
+        wait_for_server(commandQueue.get());
+        commandQueue->processMessages();
+
+        CHECK(listener.m_hasCallback);
+        CHECK(listener.m_width == expectedWidth);
+        CHECK(listener.m_height == expectedHeight);
+    }
+
+    SECTION("returns size after setArtboardSize")
+    {
+        commandQueue->setArtboardSize(artboardHandle, 1000, 500);
+
+        listener.m_requestId = 0x51;
+        commandQueue->requestArtboardSize(artboardHandle, listener.m_requestId);
+
+        wait_for_server(commandQueue.get());
+        commandQueue->processMessages();
+
+        CHECK(listener.m_hasCallback);
+        CHECK(listener.m_width == 1000.f);
+        CHECK(listener.m_height == 500.f);
+    }
+
+    SECTION("reports error for invalid handle")
+    {
+        rive::ArtboardHandle invalidHandle =
+            reinterpret_cast<rive::ArtboardHandle>(0xFF);
+
+        TestArtboardSizeListener globalListener;
+        globalListener.m_handle = invalidHandle;
+        globalListener.m_requestId = 0x52;
+        commandQueue->setGlobalArtboardListener(&globalListener);
+
+        commandQueue->requestArtboardSize(invalidHandle,
+                                          globalListener.m_requestId);
+
+        wait_for_server(commandQueue.get());
+        commandQueue->processMessages();
+
+        CHECK(!globalListener.m_hasCallback);
+        CHECK(globalListener.m_hasError);
+
+        commandQueue->setGlobalArtboardListener(nullptr);
+    }
 
     commandQueue->disconnect();
     serverThread.join();

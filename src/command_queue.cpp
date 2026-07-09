@@ -1124,6 +1124,15 @@ void CommandQueue::requestViewModelInstanceListClear(
     m_names << path;
 }
 
+void CommandQueue::requestArtboardSize(ArtboardHandle artboardHandle,
+                                       uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getArtboardSize;
+    m_commandStream << artboardHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
                                             uint64_t requestId)
 {
@@ -1966,6 +1975,35 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+
+            case Message::artboardSizeReceived:
+            {
+                ArtboardHandle handle;
+                uint64_t requestId;
+                float width, height;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> width;
+                m_messageStream >> height;
+                lock.unlock();
+                if (m_globalArtboardListener)
+                {
+                    m_globalArtboardListener->onArtboardSizeReceived(handle,
+                                                                     requestId,
+                                                                     width,
+                                                                     height);
+                }
+                auto itr = m_artboardListeners.find(handle);
+                if (itr != m_artboardListeners.end())
+                {
+                    itr->second->onArtboardSizeReceived(handle,
+                                                        requestId,
+                                                        width,
+                                                        height);
+                }
+                break;
+            }
+
             case Message::fileError:
             {
                 FileHandle handle;
