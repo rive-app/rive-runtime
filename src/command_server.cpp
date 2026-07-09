@@ -739,18 +739,23 @@ bool CommandServer::processCommands()
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
-                m_files.erase(handle);
                 auto itr = m_fileDependencies.find(handle);
                 if (itr != m_fileDependencies.end())
                 {
-                    auto& artboardVector = itr->second;
+                    // Detach the dependency list before cascading:
+                    // cleanupArtboard un-registers artboards from
+                    // m_fileDependencies, which would otherwise mutate the
+                    // vector while we iterate it.
+                    auto artboardVector = std::move(itr->second);
+                    m_fileDependencies.erase(itr);
                     for (auto artboardHandle : artboardVector)
                     {
                         cleanupArtboard(artboardHandle, requestId);
                     }
-
-                    m_fileDependencies.erase(itr);
                 }
+                // Erase the file after the cascade; dependent artboards and
+                // state machines may reference file-owned data.
+                m_files.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
                 messageStream << CommandQueue::Message::fileDeleted;
@@ -1022,6 +1027,9 @@ bool CommandServer::processCommands()
                     {
                         m_artboardDependencies[handle] = {};
                         m_artboards[handle] = std::move(artboard);
+                        assert(m_fileDependencies.find(fileHandle) !=
+                               m_fileDependencies.end());
+                        m_fileDependencies[fileHandle].push_back(handle);
 
                         std::unique_lock<std::mutex> messageLock(
                             m_commandQueue->m_messageMutex);
@@ -1172,9 +1180,9 @@ bool CommandServer::processCommands()
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
+                // cleanupArtboard also un-registers the artboard from
+                // m_fileDependencies.
                 cleanupArtboard(handle, requestId);
-                // We don't remove from the file dependencies here because
-                // calling erase on a non existent key is fine.
                 break;
             }
 

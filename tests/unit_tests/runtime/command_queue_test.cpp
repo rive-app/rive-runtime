@@ -264,6 +264,115 @@ TEST_CASE("state machine management", "[CommandQueue]")
     serverThread.join();
 }
 
+TEST_CASE("deleteFile cascade-deletes live artboards and their state machines",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/multiple_state_machines.riv",
+                         std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle1 =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    ArtboardHandle artboardHandle2 =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle sm1 =
+        commandQueue->instantiateStateMachineNamed(artboardHandle1, "one");
+    StateMachineHandle sm2 =
+        commandQueue->instantiateStateMachineNamed(artboardHandle2, "two");
+    commandQueue->runOnce([fileHandle,
+                           artboardHandle1,
+                           artboardHandle2,
+                           sm1,
+                           sm2](CommandServer* server) {
+        REQUIRE(server->getFile(fileHandle) != nullptr);
+        REQUIRE(server->getArtboardInstance(artboardHandle1) != nullptr);
+        REQUIRE(server->getArtboardInstance(artboardHandle2) != nullptr);
+        REQUIRE(server->getStateMachineInstance(sm1) != nullptr);
+        REQUIRE(server->getStateMachineInstance(sm2) != nullptr);
+    });
+
+    // Delete the file WITHOUT deleting its artboards or state machines first.
+    // The file's dependency cascade must clean all of them up.
+    commandQueue->deleteFile(fileHandle);
+    commandQueue->runOnce([fileHandle,
+                           artboardHandle1,
+                           artboardHandle2,
+                           sm1,
+                           sm2](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle1) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle2) == nullptr);
+        CHECK(server->getStateMachineInstance(sm1) == nullptr);
+        CHECK(server->getStateMachineInstance(sm2) == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("explicit deletes before deleteFile do not double-clean",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/multiple_state_machines.riv",
+                         std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle sm =
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "one");
+
+    commandQueue->deleteStateMachine(sm);
+    commandQueue->deleteArtboard(artboardHandle);
+    commandQueue->deleteFile(fileHandle);
+    commandQueue->runOnce(
+        [fileHandle, artboardHandle, sm](CommandServer* server) {
+            CHECK(server->getFile(fileHandle) == nullptr);
+            CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
+            CHECK(server->getStateMachineInstance(sm) == nullptr);
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("commands on cascade-deleted handles are safely rejected",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/multiple_state_machines.riv",
+                         std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle sm =
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "one");
+
+    commandQueue->deleteFile(fileHandle);
+
+    // The client still holds handles to the cascade-deleted objects; using
+    // them must route through the normal unknown-handle error path.
+    commandQueue->advanceStateMachine(sm, 0.016f);
+    commandQueue->deleteStateMachine(sm);
+    commandQueue->deleteArtboard(artboardHandle);
+    commandQueue->runOnce([artboardHandle, sm](CommandServer* server) {
+        CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
+        CHECK(server->getStateMachineInstance(sm) == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("default artboard & state machine", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();

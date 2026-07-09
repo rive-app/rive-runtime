@@ -6,6 +6,7 @@
 
 #include "rive/command_queue.hpp"
 #include "rive/hit_result.hpp"
+#include <algorithm>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -172,6 +173,14 @@ private:
                 }
 
                 m_artboardDependencies.erase(dependencyItr);
+            }
+            for (auto& fileDependency : m_fileDependencies)
+            {
+                auto& artboardVector = fileDependency.second;
+                artboardVector.erase(std::remove(artboardVector.begin(),
+                                                 artboardVector.end(),
+                                                 handle),
+                                     artboardVector.end());
             }
             m_artboards.erase(itr);
             std::unique_lock<std::mutex> lock(m_commandQueue->m_messageMutex);
