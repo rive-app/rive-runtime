@@ -1838,7 +1838,6 @@ TEST_CASE("Focus based transitions work", "[silver]")
     silver.frameSize(artboard->width(), artboard->height());
 
     auto stateMachine = artboard->stateMachineAt(0);
-    auto focusManager = stateMachine->focusManager();
 
     auto vmi = file->createDefaultViewModelInstance(artboard.get());
 

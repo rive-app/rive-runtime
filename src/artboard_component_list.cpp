@@ -366,7 +366,10 @@ std::unique_ptr<StateMachineInstance> ArtboardComponentList::
 {
     if (artboard != nullptr)
     {
-        auto stateMachineInstance = artboard->stateMachineAt(0);
+        const int defaultIndex = artboard->defaultStateMachineIndex();
+        const size_t stateMachineIndex =
+            defaultIndex >= 0 ? static_cast<size_t>(defaultIndex) : 0u;
+        auto stateMachineInstance = artboard->stateMachineAt(stateMachineIndex);
         linkStateMachineToArtboard(stateMachineInstance.get(), artboard);
         return stateMachineInstance;
     }
