@@ -556,10 +556,7 @@ private:
             //
             // (Initialized with a maximally negative rectangle whose union with
             // any other rectangle will be equal to that same rectangle.)
-            AABBu16 readBounds = {std::numeric_limits<uint16_t>::max(),
-                                  std::numeric_limits<uint16_t>::max(),
-                                  std::numeric_limits<uint16_t>::min(),
-                                  std::numeric_limits<uint16_t>::min()};
+            AABBu16 readBounds = AABBu16::makeMaximallyNegative();
         };
 
         const ClipInfo& getClipInfo(uint32_t clipID)

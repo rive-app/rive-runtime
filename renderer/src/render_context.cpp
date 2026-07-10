@@ -79,15 +79,15 @@ constexpr static size_t gradient_data_height(size_t simpleRampCount,
 // Returns true if the current bounds poke outside of the containing bounds (and
 // thus would need to be clipped against them)
 inline bool needsScissor(IAABB currentBounds,
-                         AABBu16 containingBounds,
+                         IAABB containingBounds,
                          uint32_t renderTargetWidth,
                          uint32_t renderTargetHeight)
 {
     // intersect the current bounds with the screen dimensions before testing so
     // that if we end up outside the containing bounds on a side that is also a
     // screen edge it doesn't matter.
-    return !currentBounds.contains(containingBounds.intersect(
-        AABBu16::MakeWH(renderTargetWidth, renderTargetHeight)));
+    return !containingBounds.contains(currentBounds.intersect(
+        IAABB::MakeWH(renderTargetWidth, renderTargetHeight)));
 }
 
 inline GradientContentKey::GradientContentKey(rcp<const Gradient> gradient) :
@@ -1664,42 +1664,65 @@ void RenderContext::LogicalFlush::writeResources()
              ++drawIndex)
         {
             Draw* draw = m_draws[drawIndex].get();
-            int4 drawBounds = simd::load4i(&m_draws[drawIndex]->pixelBounds());
 
             int16_t scissorID = 0;
+            auto drawPixelBoundRect = draw->pixelBounds();
+
+            if (platformFeatures.supportsClipScissor &&
+                (draw->clipID() != 0 ||
+                 draw->clippingPixelBounds().has_value()))
             {
                 const auto drawClipID = draw->clipID();
+
+                // Start with either the clipping pixel bounds (if they exist)
+                // or a maximally-large rectangle.
+                auto clipBounds =
+                    draw->clippingPixelBounds().value_or(IAABB::makeMaximal());
+
                 if (drawClipID != 0)
                 {
-                    const auto drawBounds = draw->pixelBounds();
-                    const auto clipBounds =
-                        getClipInfo(drawClipID).tightenedBounds;
-                    if (platformFeatures.supportsClipScissor &&
-                        needsScissor(drawBounds,
-                                     clipBounds,
-                                     frameDescriptor().renderTargetWidth,
-                                     frameDescriptor().renderTargetHeight))
-                    {
-                        // If the value is already in the map, get it, otherwise
-                        // we'll add the next new ID (which is 1 + the size of
-                        // the array, since we're using "0" as "no scissor")
-                        auto result = m_ctx->m_scissorIDLookup.try_emplace(
-                            clipBounds,
-                            m_ctx->m_prevScissorID + 1);
-                        scissorID = result.first->second;
-                        assert(scissorID > 0);
-                        if (scissorID > m_ctx->m_prevScissorID)
-                        {
-                            ++m_ctx->m_prevScissorID;
-                        }
+                    // Intersect with the tightened clip bounds if there was a
+                    // clip in the stack (which may be tighter than it was when
+                    // originally rendered - but also there may have been a clip
+                    // rect that happened after this clip path, which is why the
+                    // intersect still needs to happen)
+                    clipBounds = clipBounds.intersect(
+                        getClipInfo(drawClipID).tightenedBounds);
+                }
 
-                        // Update the scissor rect for this draw so we can
-                        // ensure it doesn't batch with draws with different
-                        // scissor rects.
-                        draw->setScissorRect(clipBounds);
+                const auto drawBounds = draw->pixelBounds();
+
+                if (needsScissor(drawBounds,
+                                 clipBounds,
+                                 frameDescriptor().renderTargetWidth,
+                                 frameDescriptor().renderTargetHeight))
+                {
+                    drawPixelBoundRect = clipBounds;
+
+                    const auto clipBoundsU16 =
+                        clipBounds.clamp_cast<uint16_t>();
+
+                    // If the value is already in the map, get it, otherwise
+                    // we'll add the next new ID (which is 1 + the size of
+                    // the array, since we're using "0" as "no scissor")
+                    auto result = m_ctx->m_scissorIDLookup.try_emplace(
+                        clipBoundsU16,
+                        m_ctx->m_prevScissorID + 1);
+                    scissorID = result.first->second;
+                    assert(scissorID > 0);
+                    if (scissorID > m_ctx->m_prevScissorID)
+                    {
+                        ++m_ctx->m_prevScissorID;
                     }
+
+                    // Update the scissor rect for this draw so we can
+                    // ensure it doesn't batch with draws with different
+                    // scissor rects.
+                    draw->setScissorRect(clipBoundsU16);
                 }
             }
+
+            int4 drawBounds = simd::load4i(&drawPixelBoundRect);
 
             // Add one extra pixel of padding to the draw bounds to make
             // absolutely certain we get no overlapping pixels, which destroy
@@ -2399,7 +2422,7 @@ void RenderContext::LogicalFlush::tightenClipBounds()
             // bounds.
             auto& clipInfo = getWritableClipInfo(draw->clipID());
             clipInfo.readBounds = clipInfo.readBounds.join(
-                draw->pixelBounds().clamp_cast<uint16_t>());
+                draw->clippedPixelBounds().clamp_cast<uint16_t>());
         }
     }
 }

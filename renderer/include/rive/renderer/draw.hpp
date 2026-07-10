@@ -52,6 +52,11 @@ public:
     Texture* imageTexture() const { return m_imageTextureRef; }
     ImageSampler imageSampler() const { return m_imageSampler; }
     const IAABB& pixelBounds() const { return m_pixelBounds; }
+    const IAABB& clippedPixelBounds() const { return m_clippedPixelBounds; }
+    const std::optional<IAABB>& clippingPixelBounds() const
+    {
+        return m_clippingPixelBounds;
+    }
     const Mat2D& matrix() const { return m_matrix; }
     BlendMode blendMode() const { return m_blendMode; }
     Type type() const { return m_type; }
@@ -90,9 +95,13 @@ public:
 
     // Clipping setup.
     void setClipID(uint32_t clipID);
-    void setClipRect(const gpu::ClipRectInverseMatrix* m)
+    void setClipRect(const gpu::ClipRectInverseMatrix* m,
+                     IAABB clippingPixelBounds)
     {
         m_clipRectInverseMatrix = m;
+        m_clippingPixelBounds = clippingPixelBounds;
+        m_clippedPixelBounds =
+            m_clippedPixelBounds.intersect(clippingPixelBounds);
     }
 
     void setScissorRect(AABBu16 rect) { m_scissorRect = rect; }
@@ -164,6 +173,8 @@ protected:
     const Mat2D m_matrix;
     const BlendMode m_blendMode;
     const Type m_type;
+    IAABB m_clippedPixelBounds;
+    std::optional<IAABB> m_clippingPixelBounds;
 
     uint32_t m_clipID = 0;
     const gpu::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
@@ -217,7 +228,8 @@ public:
                               FillRule,
                               const RiveRenderPaint*,
                               float modulatedOpacity,
-                              RawPath* scratchPath);
+                              RawPath* scratchPath,
+                              std::optional<IAABB> pixelBounds = {});
 
     // Determines how coverage is calculated for antialiasing and feathers.
     // CoverageType is mostly decided by the InterlockMode, but we keep these

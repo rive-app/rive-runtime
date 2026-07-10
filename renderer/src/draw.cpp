@@ -353,8 +353,8 @@ Draw::Draw(IAABB pixelBounds,
     m_pixelBounds(pixelBounds),
     m_matrix(matrix),
     m_blendMode(blendMode),
-    m_type(type)
-
+    m_type(type),
+    m_clippedPixelBounds(pixelBounds)
 {
     if (m_blendMode != BlendMode::srcOver)
     {
@@ -423,7 +423,8 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                              FillRule fillRule,
                              const RiveRenderPaint* paint,
                              float modulatedOpacity,
-                             RawPath* scratchPath)
+                             RawPath* scratchPath,
+                             std::optional<IAABB> precomputedPixelBounds)
 {
     RIVE_PROF_SCOPE_L(2);
     assert(path != nullptr);
@@ -435,63 +436,77 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                            context->platformFeatures(),
                            context->frameInterlockMode());
 
-    // Compute the screen-space bounding box.
-    AABB mappedBounds;
-    if (context->frameInterlockMode() == gpu::InterlockMode::rasterOrdering &&
-        coverageType != CoverageType::atlas)
+    IAABB pixelBounds;
+
+    // In debug mode, we want to always calculate the bounds and validate
+    // against the pre-calculated ones so skip this
+#ifdef NDEBUG
+    if (precomputedPixelBounds.has_value())
     {
-        // In rasterOrdering mode we can use a looser bounding box since we
-        // don't do reordering.
-        mappedBounds = matrix.mapBoundingBox(path->getBounds());
+        // These were already computed so we don't need to do it again.
+        pixelBounds = *precomputedPixelBounds;
     }
     else
+#endif
     {
-        // Otherwise find a tight bounding box in order to maximize reordering.
-        mappedBounds =
-            matrix.mapBoundingBox(path->getRawPath().points().data(),
-                                  path->getRawPath().points().count());
-    }
-    assert(mappedBounds.width() >= 0);
-    assert(mappedBounds.height() >= 0);
-    if (paint->getIsStroked() || paint->getFeather() != 0)
-    {
-        // Outset the path's bounding box to account for stroking & feathering.
-        float outset = 0;
-        if (paint->getIsStroked())
+        // We weren't given pre-computed bounds, so calculate them.
+        AABB mappedBounds = matrix.mapBoundingBox(path->getRawPath().points());
+
+        assert(mappedBounds.width() >= 0);
+        assert(mappedBounds.height() >= 0);
+        if (paint->getIsStroked() || paint->getFeather() != 0)
         {
-            outset = paint->getThickness() * .5f;
-            if (paint->getJoin() == StrokeJoin::miter)
+            // Outset the path's bounding box to account for stroking &
+            // feathering.
+            float outset = 0;
+            if (paint->getIsStroked())
             {
-                // Miter joins may be longer than the stroke radius.
-                outset *= RIVE_MITER_LIMIT;
+                outset = paint->getThickness() * .5f;
+                if (paint->getJoin() == StrokeJoin::miter)
+                {
+                    // Miter joins may be longer than the stroke radius.
+                    outset *= RIVE_MITER_LIMIT;
+                }
+                else if (paint->getCap() == StrokeCap::square)
+                {
+                    // The diagonal of a square cap is longer than the stroke
+                    // radius.
+                    outset *= math::SQRT2;
+                }
             }
-            else if (paint->getCap() == StrokeCap::square)
+            if (paint->getFeather() != 0)
             {
-                // The diagonal of a square cap is longer than the stroke
-                // radius.
-                outset *= math::SQRT2;
+                outset += find_feather_radius(paint->getFeather());
             }
+            AABB strokePixelOutset =
+                matrix.mapBoundingBox({0, 0, outset, outset});
+            // Add an extra pixel to the stroke outset radius to account for:
+            //   * Butt caps and bevel joins bleed out 1/2 AA width.
+            //   * With Manhattan sytle AA, an AA width can be as large as
+            //   sqrt(2).
+            //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
+            mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
+                                               strokePixelOutset.height() + 1);
         }
-        if (paint->getFeather() != 0)
-        {
-            outset += find_feather_radius(paint->getFeather());
-        }
-        AABB strokePixelOutset = matrix.mapBoundingBox({0, 0, outset, outset});
-        // Add an extra pixel to the stroke outset radius to account for:
-        //   * Butt caps and bevel joins bleed out 1/2 AA width.
-        //   * With Manhattan sytle AA, an AA width can be as large as sqrt(2).
-        //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
-        mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
-                                           strokePixelOutset.height() + 1);
+
+        pixelBounds = mappedBounds.roundOut();
     }
 
-    IAABB pixelBounds = mappedBounds.roundOut();
+    // In debug mode, we always compute the pixel bounds, so validate that the
+    // value we got was exactly the same as the precomputed bounds.
+    assert(!precomputedPixelBounds.has_value() ||
+           pixelBounds == *precomputedPixelBounds);
+
     bool doTriangulation = false;
     const AABB& localBounds = path->getBounds();
     if (context->isOutsideCurrentFrame(pixelBounds))
     {
-        return DrawUniquePtr();
+        // Anything precomputing the pixel bounds should be checking against the
+        // screen bounds rather than letting it bubble down into here.
+        assert(!precomputedPixelBounds.has_value());
+        return nullptr;
     }
+
     if (!paint->getIsStroked() && paint->getFeather() == 0)
     {
         // Use interior triangulation to draw filled paths if they're large

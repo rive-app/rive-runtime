@@ -208,13 +208,24 @@ RenderContextGLImpl::RenderContextGLImpl(
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
     m_platformFeatures.maxTextureSize = maxTextureSize;
 
-    if (!capabilities.isAdreno || capabilities.adrenoSeries < 600 ||
-        capabilities.adrenoSeries >= 700)
+    if (capabilities.isAdreno && capabilities.adrenoSeries >= 600 &&
+        capabilities.adrenoSeries < 700)
     {
         // Currently there's what appears to be a driver bug where setting a
         // scissor rect on the atlasBlit step (even if the rect is the full
         // render target) causes some display corruption. Until we can find a
         // workaround, just disable clip scissor on Adreno 6xx models.
+        m_platformFeatures.supportsClipScissor = false;
+    }
+    else if (capabilities.isANGLESystemDriver)
+    {
+        // Scissor-based clipping causes odd issues on these devices as well.
+        // This is tracked by the following Github issue:
+        // https://github.com/rive-app/rive/issues/12991
+        m_platformFeatures.supportsClipScissor = false;
+    }
+    else
+    {
         m_platformFeatures.supportsClipScissor = true;
     }
 
@@ -2810,18 +2821,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (batch.scissorRect.has_value())
-        {
-            auto scissorRect = fullUpdateScissorRect.intersectOrEmpty(
-                batch.scissorRect.value());
-            m_state->setPipelineState(pipelineState, ScissorAction::ignore);
-            m_state->setScissor(scissorRect, renderTarget->height());
-        }
-        else
-        {
-            m_state->setPipelineState(pipelineState);
-        }
-
         if (enums::any_flag_set(batch.barriers,
                                 BarrierFlags::plsAtomic |
                                     BarrierFlags::plsAtomicPreResolve))
@@ -2843,6 +2842,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 assert(desc.interlockMode == gpu::InterlockMode::msaa);
                 assert(batch.dstReadList != nullptr);
                 renderTarget->bindDstColorFramebuffer(GL_DRAW_FRAMEBUFFER);
+                m_state->disableScissor();
                 for (const Draw* draw = batch.dstReadList; draw != nullptr;
                      draw = draw->nextDstRead())
                 {
@@ -2854,6 +2854,18 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 }
                 renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
             }
+        }
+
+        if (batch.scissorRect.has_value())
+        {
+            auto scissorRect = fullUpdateScissorRect.intersectOrEmpty(
+                batch.scissorRect.value());
+            m_state->setPipelineState(pipelineState, ScissorAction::ignore);
+            m_state->setScissor(scissorRect, renderTarget->height());
+        }
+        else
+        {
+            m_state->setPipelineState(pipelineState);
         }
 
         switch (drawType)
