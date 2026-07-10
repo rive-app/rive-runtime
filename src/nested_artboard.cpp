@@ -1,4 +1,5 @@
 #include "rive/nested_artboard.hpp"
+#include "rive/nested_artboard_origin.hpp"
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
 #include "rive/file.hpp"
@@ -81,6 +82,28 @@ void NestedArtboard::nest(Artboard* artboard)
     // This allows for swapping after initial load (after onAddedClean has
     // already been called).
     m_referencedArtboard->host(this);
+    // Re-push any authored origin override onto the freshly mounted instance.
+    // On initial import the override child may not be linked yet; onAddedClean
+    // covers that case.
+    applyOriginOverride();
+}
+
+void NestedArtboard::applyOriginOverride()
+{
+    if (m_referencedArtboard == nullptr || !m_referencedArtboard->isInstance())
+    {
+        return;
+    }
+    for (auto child : children())
+    {
+        if (child->is<NestedArtboardOrigin>())
+        {
+            auto origin = child->as<NestedArtboardOrigin>();
+            m_referencedArtboard->originX(origin->originX());
+            m_referencedArtboard->originY(origin->originY());
+            return;
+        }
+    }
 }
 
 bool NestedArtboard::tryScheduleBindStateful()
@@ -355,6 +378,9 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
             animation->initializeAnimation(m_Instance.get());
         }
         m_referencedArtboard->host(this);
+        // Children are linked by now, so an authored origin override child is
+        // resolvable; push it onto the mounted instance.
+        applyOriginOverride();
     }
 
     // ViewModelInstance children are only added to NestedArtboards

@@ -398,6 +398,8 @@ public:
     Vec2D origin() const;
     void xChanged() override;
     void yChanged() override;
+    void originXChanged() override;
+    void originYChanged() override;
 
     void resetSize()
     {

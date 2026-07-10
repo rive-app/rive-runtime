@@ -1741,6 +1741,26 @@ void Artboard::yChanged()
     markHostTransformDirty();
 }
 
+// Origin has no dedicated animation/change plumbing, so a live change (e.g. a
+// nested artboard origin override, or a keyframed artboard origin) would leave
+// the cached render path and layout stale. Invalidate the background/clip path
+// (updateRenderPath reads origin) and force the update pass to re-run so the
+// content is repositioned. Components dirt is what a hosting NestedArtboard
+// keys off (see NestedArtboard::advanceComponent) to re-run our updatePass;
+// markHostTransformDirty notifies the host that our transform moved.
+void Artboard::originXChanged()
+{
+    // Base originXChanged is a no-op; go straight to invalidation.
+    addDirt(ComponentDirt::Path | ComponentDirt::Components);
+    markHostTransformDirty();
+}
+
+void Artboard::originYChanged()
+{
+    addDirt(ComponentDirt::Path | ComponentDirt::Components);
+    markHostTransformDirty();
+}
+
 AABB Artboard::bounds() const
 {
     return m_FrameOrigin ? AABB(0.0f, 0.0f, layoutWidth(), layoutHeight())

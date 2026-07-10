@@ -79,9 +79,9 @@
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_artboard_condition.hpp"
 #include "rive/animation/transition_bool_condition.hpp"
-#include "rive/animation/transition_focus_condition.hpp"
 #include "rive/animation/transition_comparator.hpp"
 #include "rive/animation/transition_condition.hpp"
+#include "rive/animation/transition_focus_condition.hpp"
 #include "rive/animation/transition_input_condition.hpp"
 #include "rive/animation/transition_number_condition.hpp"
 #include "rive/animation/transition_property_artboard_comparator.hpp"
@@ -227,6 +227,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
+#include "rive/nested_artboard_origin.hpp"
 #include "rive/node.hpp"
 #include "rive/open_url_event.hpp"
 #include "rive/script_input_artboard.hpp"
@@ -389,6 +390,8 @@ public:
                 return new ViewModelPropertyAsset();
             case DataEnumSystemBase::typeKey:
                 return new DataEnumSystem();
+            case ViewModelPropertyAssetFontBase::typeKey:
+                return new ViewModelPropertyAssetFont();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
             case ViewModelInstanceBase::typeKey:
@@ -399,8 +402,6 @@ public:
                 return new ViewModelPropertyColor();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
-            case ViewModelPropertyAssetFontBase::typeKey:
-                return new ViewModelPropertyAssetFont();
             case ViewModelInstanceBooleanBase::typeKey:
                 return new ViewModelInstanceBoolean();
             case ViewModelInstanceListBase::typeKey:
@@ -411,18 +412,18 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
+            case ViewModelInstanceAssetBase::typeKey:
+                return new ViewModelInstanceAsset();
+            case ViewModelInstanceAssetFontBase::typeKey:
+                return new ViewModelInstanceAssetFont();
             case ViewModelPropertyStringBase::typeKey:
                 return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
             case ViewModelPropertyTriggerBase::typeKey:
                 return new ViewModelPropertyTrigger();
-            case ViewModelInstanceAssetBase::typeKey:
-                return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
-            case ViewModelInstanceAssetFontBase::typeKey:
-                return new ViewModelInstanceAssetFont();
             case DataEnumValueBase::typeKey:
                 return new DataEnumValue();
             case CustomPropertyTriggerBase::typeKey:
@@ -513,6 +514,8 @@ public:
                 return new NestedSimpleAnimation();
             case AnimationStateBase::typeKey:
                 return new AnimationState();
+            case FocusActionClearBase::typeKey:
+                return new FocusActionClear();
             case NestedTriggerBase::typeKey:
                 return new NestedTrigger();
             case ScriptedListenerActionBase::typeKey:
@@ -549,16 +552,16 @@ public:
                 return new ListenerAlignTarget();
             case ScriptedTransitionConditionBase::typeKey:
                 return new ScriptedTransitionCondition();
+            case TransitionViewModelConditionBase::typeKey:
+                return new TransitionViewModelCondition();
+            case TransitionFocusConditionBase::typeKey:
+                return new TransitionFocusCondition();
             case TransitionNumberConditionBase::typeKey:
                 return new TransitionNumberCondition();
             case TransitionValueBooleanComparatorBase::typeKey:
                 return new TransitionValueBooleanComparator();
-            case TransitionViewModelConditionBase::typeKey:
-                return new TransitionViewModelCondition();
             case TransitionArtboardConditionBase::typeKey:
                 return new TransitionArtboardCondition();
-            case TransitionFocusConditionBase::typeKey:
-                return new TransitionFocusCondition();
             case AnyStateBase::typeKey:
                 return new AnyState();
             case BlendState1DInputBase::typeKey:
@@ -587,8 +590,6 @@ public:
                 return new KeyFrameColor();
             case FocusActionTraversalBase::typeKey:
                 return new FocusActionTraversal();
-            case FocusActionClearBase::typeKey:
-                return new FocusActionClear();
             case StateMachineBase::typeKey:
                 return new StateMachine();
             case StateMachineFireEventBase::typeKey:
@@ -831,6 +832,8 @@ public:
                 return new BindablePropertyViewModel();
             case NestedArtboardLeafBase::typeKey:
                 return new NestedArtboardLeaf();
+            case NestedArtboardOriginBase::typeKey:
+                return new NestedArtboardOrigin();
             case WeightBase::typeKey:
                 return new Weight();
             case BoneBase::typeKey:
@@ -969,12 +972,12 @@ public:
                 object->as<ViewModelInstanceSymbolListIndexBase>()
                     ->propertyValue(value);
                 break;
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
+                break;
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceViewModelBase>()->propertyValue(
                     value);
-                break;
-            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
-                object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
                 break;
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 object->as<CustomPropertyTriggerBase>()->propertyValue(value);
@@ -1343,11 +1346,11 @@ public:
                 object->as<ScriptedTransitionConditionBase>()->scriptAssetId(
                     value);
                 break;
-            case TransitionValueConditionBase::opValuePropertyKey:
-                object->as<TransitionValueConditionBase>()->opValue(value);
-                break;
             case TransitionViewModelConditionBase::opValuePropertyKey:
                 object->as<TransitionViewModelConditionBase>()->opValue(value);
+                break;
+            case TransitionValueConditionBase::opValuePropertyKey:
+                object->as<TransitionValueConditionBase>()->opValue(value);
                 break;
             case BlendState1DInputBase::inputIdPropertyKey:
                 object->as<BlendState1DInputBase>()->inputId(value);
@@ -2965,6 +2968,12 @@ public:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
                 object->as<NestedArtboardLeafBase>()->alignmentY(value);
                 break;
+            case NestedArtboardOriginBase::originXPropertyKey:
+                object->as<NestedArtboardOriginBase>()->originX(value);
+                break;
+            case NestedArtboardOriginBase::originYPropertyKey:
+                object->as<NestedArtboardOriginBase>()->originY(value);
+                break;
             case BoneBase::lengthPropertyKey:
                 object->as<BoneBase>()->length(value);
                 break;
@@ -3171,11 +3180,11 @@ public:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceSymbolListIndexBase>()
                     ->propertyValue();
-            case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
-                return object->as<ViewModelInstanceViewModelBase>()
-                    ->propertyValue();
             case ViewModelInstanceAssetBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceAssetBase>()
+                    ->propertyValue();
+            case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceViewModelBase>()
                     ->propertyValue();
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyTriggerBase>()->propertyValue();
@@ -3445,11 +3454,11 @@ public:
             case ScriptedTransitionConditionBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedTransitionConditionBase>()
                     ->scriptAssetId();
-            case TransitionValueConditionBase::opValuePropertyKey:
-                return object->as<TransitionValueConditionBase>()->opValue();
             case TransitionViewModelConditionBase::opValuePropertyKey:
                 return object->as<TransitionViewModelConditionBase>()
                     ->opValue();
+            case TransitionValueConditionBase::opValuePropertyKey:
+                return object->as<TransitionValueConditionBase>()->opValue();
             case BlendState1DInputBase::inputIdPropertyKey:
                 return object->as<BlendState1DInputBase>()->inputId();
             case FocusActionTargetBase::targetIdPropertyKey:
@@ -4279,6 +4288,10 @@ public:
                 return object->as<NestedArtboardLeafBase>()->alignmentX();
             case NestedArtboardLeafBase::alignmentYPropertyKey:
                 return object->as<NestedArtboardLeafBase>()->alignmentY();
+            case NestedArtboardOriginBase::originXPropertyKey:
+                return object->as<NestedArtboardOriginBase>()->originX();
+            case NestedArtboardOriginBase::originYPropertyKey:
+                return object->as<NestedArtboardOriginBase>()->originY();
             case BoneBase::lengthPropertyKey:
                 return object->as<BoneBase>()->length();
             case RootBoneBase::xPropertyKey:
@@ -4397,8 +4410,8 @@ public:
             case ViewModelInstanceListBase::listSourcePropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
-            case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+            case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
             case DrawTargetBase::placementValuePropertyKey:
@@ -4508,8 +4521,8 @@ public:
             case ListenerBoolChangeBase::valuePropertyKey:
             case ListenerAlignTargetBase::targetIdPropertyKey:
             case ScriptedTransitionConditionBase::scriptAssetIdPropertyKey:
-            case TransitionValueConditionBase::opValuePropertyKey:
             case TransitionViewModelConditionBase::opValuePropertyKey:
+            case TransitionValueConditionBase::opValuePropertyKey:
             case BlendState1DInputBase::inputIdPropertyKey:
             case FocusActionTargetBase::targetIdPropertyKey:
             case TransitionValueIdComparatorBase::valuePropertyKey:
@@ -4893,6 +4906,8 @@ public:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
+            case NestedArtboardOriginBase::originXPropertyKey:
+            case NestedArtboardOriginBase::originYPropertyKey:
             case BoneBase::lengthPropertyKey:
             case RootBoneBase::xPropertyKey:
             case RootBoneBase::yPropertyKey:
@@ -5008,10 +5023,10 @@ public:
                 return object->is<ViewModelInstanceTriggerBase>();
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceSymbolListIndexBase>();
-            case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
-                return object->is<ViewModelInstanceViewModelBase>();
             case ViewModelInstanceAssetBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceAssetBase>();
+            case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceViewModelBase>();
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 return object->is<CustomPropertyTriggerBase>();
             case DrawTargetBase::drawableIdPropertyKey:
@@ -5225,10 +5240,10 @@ public:
                 return object->is<ListenerAlignTargetBase>();
             case ScriptedTransitionConditionBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedTransitionConditionBase>();
-            case TransitionValueConditionBase::opValuePropertyKey:
-                return object->is<TransitionValueConditionBase>();
             case TransitionViewModelConditionBase::opValuePropertyKey:
                 return object->is<TransitionViewModelConditionBase>();
+            case TransitionValueConditionBase::opValuePropertyKey:
+                return object->is<TransitionValueConditionBase>();
             case BlendState1DInputBase::inputIdPropertyKey:
                 return object->is<BlendState1DInputBase>();
             case FocusActionTargetBase::targetIdPropertyKey:
@@ -6036,6 +6051,10 @@ public:
                 return object->is<NestedArtboardLeafBase>();
             case NestedArtboardLeafBase::alignmentYPropertyKey:
                 return object->is<NestedArtboardLeafBase>();
+            case NestedArtboardOriginBase::originXPropertyKey:
+                return object->is<NestedArtboardOriginBase>();
+            case NestedArtboardOriginBase::originYPropertyKey:
+                return object->is<NestedArtboardOriginBase>();
             case BoneBase::lengthPropertyKey:
                 return object->is<BoneBase>();
             case RootBoneBase::xPropertyKey:

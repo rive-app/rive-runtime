@@ -1,0 +1,32 @@
+{
+  "name": "NestedArtboardOrigin",
+  "key": {
+    "int": 1039,
+    "string": "nestedartboardorigin"
+  },
+  "extends": "component.json",
+  "properties": {
+    "originX": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1040,
+        "string": "nestedoriginx"
+      },
+      "description": "Origin X factor override applied to the nested artboard instance.",
+      "bindable": true
+    },
+    "originY": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1041,
+        "string": "nestedoriginy"
+      },
+      "description": "Origin Y factor override applied to the nested artboard instance.",
+      "bindable": true
+    }
+  }
+}

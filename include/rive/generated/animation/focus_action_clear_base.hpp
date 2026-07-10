@@ -29,7 +29,6 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     Core* clone() const override;
-    void copy(const FocusActionClearBase& object) { FocusAction::copy(object); }
 
 protected:
 };
