@@ -322,7 +322,10 @@ void DataBind::bind()
         m_target->addPropertyObserver(this);
         setFlag(Flag::Observing, true);
     }
-    addDirt(ComponentDirt::Bindings, true);
+    // (Re)bind is a reconcile, not a one-sided change: mark every direction the
+    // bind supports so both sides sync in favor order (as before origin gating
+    // existed). A one-sided change instead marks only its own direction bit.
+    addDirt(reconcileDirt(), true);
 }
 
 void DataBind::target(Core* value)
@@ -490,12 +493,39 @@ bool DataBind::sourceToTargetRunsFirst()
            DataBindFlags::SourceToTargetRunsFirst;
 }
 
+ComponentDirt DataBind::reconcileDirt()
+{
+    return (toTarget() ? ComponentDirt::Bindings : ComponentDirt::None) |
+           (toSource() ? ComponentDirt::BindingsTarget : ComponentDirt::None);
+}
+
 void DataBind::addDirt(ComponentDirt value, bool recurse)
 {
     if (hasFlag(Flag::SuppressDirt) || (m_Dirt & value) == value)
     {
         // Already marked.
         return;
+    }
+
+    // Latch the direction this change came from so a converter that re-dirties
+    // us over multiple frames (interpolators) re-asserts the same direction —
+    // per-frame dirt gets cleared and can't carry the origin forward. Placed
+    // after the guards above so a suppressed self-notify (from applying either
+    // direction) can't flip the origin. Record a single origin, never the OR:
+    // a reconcile marks both bits, in which case the favored direction wins.
+    bool hasSource = enums::is_flag_set(value, ComponentDirt::Bindings);
+    bool hasTarget = enums::is_flag_set(value, ComponentDirt::BindingsTarget);
+    if (hasSource && hasTarget)
+    {
+        setFlag(Flag::TargetOrigin, !sourceToTargetRunsFirst());
+    }
+    else if (hasTarget)
+    {
+        setFlag(Flag::TargetOrigin, true);
+    }
+    else if (hasSource)
+    {
+        setFlag(Flag::TargetOrigin, false);
     }
 
     m_Dirt |= value;

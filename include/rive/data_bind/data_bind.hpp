@@ -63,6 +63,13 @@ public:
     {
         setFlag(Flag::InPersistingList, value);
     }
+    // Persisted direction of the change currently in flight. Set by addDirt
+    // from the Bindings / BindingsTarget bit it receives, and read by a
+    // converter's markConverterDirty so a multi-frame interpolation keeps
+    // re-asserting the SAME direction (per-frame dirt is cleared every update
+    // and can't carry the origin across frames). Defaults to source (false),
+    // matching the historical hardcoded markConverterDirty behavior.
+    bool targetOrigin() const { return hasFlag(Flag::TargetOrigin); }
 
     // Intrusive observer-list linkage. Used by Core to chain DataBinds that
     // have subscribed to push notifications for a given (target, propertyKey).
@@ -81,9 +88,9 @@ public:
     }
 
 private:
-    // Four state bits packed into one byte. Each bool used to live in its own
+    // State bits packed into one byte. Each bool used to live in its own
     // 1B slot with up to 7B of padding between fields, costing ~16B per
-    // DataBind across the four flags. Packed they fit in one byte.
+    // DataBind across the flags. Packed they fit in one byte.
     enum class Flag : uint8_t
     {
         Collapsed = 1 << 0,
@@ -91,6 +98,11 @@ private:
         InPersistingList = 1 << 2,
         SuppressDirt = 1 << 3,
         Observing = 1 << 4,
+        // Latched direction of the in-flight change: set means the change
+        // originated from the target (target→source), clear means the source
+        // (source→target). Persists across frames so interpolators re-assert
+        // it.
+        TargetOrigin = 1 << 5,
     };
     uint8_t m_flags = 0;
     bool hasFlag(Flag f) const
@@ -117,6 +129,9 @@ protected:
     DataBindContextValue* m_ContextValue = nullptr;
     DataConverter* m_dataConverter = nullptr;
     bool bindsOnce();
+    // Dirt to (re)sync a bind in both supported directions on bind/reconcile —
+    // Bindings for toTarget, BindingsTarget for toSource, both for TwoWay.
+    ComponentDirt reconcileDirt();
     File* m_file;
 #ifdef WITH_RIVE_TOOLS
 public:

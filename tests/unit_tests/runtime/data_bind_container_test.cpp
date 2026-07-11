@@ -280,3 +280,97 @@ TEST_CASE("pending-dirty binds swap into dirty on next tick",
 
     c.deleteDataBinds();
 }
+
+TEST_CASE("source-originated dirt does not run target->source",
+          "[data_bind_container]")
+{
+    // A non-persisting bind carrying only source-flavored dirt must NOT trigger
+    // the target->source apply — otherwise (once a converter's Dependents dirt
+    // invalidates the cached value) it clobbers the source's fresh value with
+    // the stale target before update() propagates it.
+    TestContainer c;
+    auto* b = makeBind(DataBindFlags::ToTarget);
+    c.addDataBind(b);
+    REQUIRE(b->inPersistingList() == false);
+    b->dirt(ComponentDirt::Bindings);
+    c.addDirtyDataBind(b);
+
+    c.updateDataBinds();
+
+    CHECK(b->updateCalls == 1);
+    CHECK(b->updateSourceBindingCalls == 0);
+
+    // Same, but for the interpolator-driven frame shape that markConverterDirty
+    // produces (Bindings | Dependents) — the Dependents bit must not re-open
+    // the target->source path for a source-originated change.
+    b->dirt(ComponentDirt::Bindings | ComponentDirt::Dependents);
+    c.addDirtyDataBind(b);
+    c.updateDataBinds();
+    CHECK(b->updateSourceBindingCalls == 0);
+
+    c.deleteDataBinds();
+}
+
+TEST_CASE("target-originated dirt runs target->source", "[data_bind_container]")
+{
+    TestContainer c;
+    auto* b = makeBind(DataBindFlags::ToTarget);
+    c.addDataBind(b);
+    b->dirt(ComponentDirt::BindingsTarget);
+    c.addDirtyDataBind(b);
+
+    c.updateDataBinds();
+
+    CHECK(b->updateSourceBindingCalls == 1);
+
+    c.deleteDataBinds();
+}
+
+TEST_CASE("persisting bind polls target->source regardless of origin",
+          "[data_bind_container]")
+{
+    // Polled (non-push) toSource targets never receive BindingsTarget, so the
+    // gate must still run target->source for them every frame.
+    TestContainer c;
+    auto* b = makeBind(DataBindFlags::ToSource);
+    c.addDataBind(b);
+    REQUIRE(b->inPersistingList() == true);
+    b->dirt(ComponentDirt::Bindings);
+
+    c.updateDataBinds();
+
+    CHECK(b->updateSourceBindingCalls == 1);
+
+    c.deleteDataBinds();
+}
+
+TEST_CASE("addDirt latches a single change origin", "[data_bind_container]")
+{
+    auto* b = makeBind(DataBindFlags::ToTarget);
+    b->addDirt(ComponentDirt::Bindings, false);
+    CHECK(b->targetOrigin() == false);
+    b->addDirt(ComponentDirt::BindingsTarget, false);
+    CHECK(b->targetOrigin() == true);
+    // Suppressed self-notify must not flip the latched origin.
+    b->suppressDirt(true);
+    b->addDirt(ComponentDirt::Bindings, false);
+    CHECK(b->targetOrigin() == true);
+    b->suppressDirt(false);
+    delete b;
+
+    // Reconcile marks both bits — the favored direction wins the origin.
+    auto* favorTarget = makeBind(DataBindFlags::TwoWay);
+    favorTarget->addDirt(ComponentDirt::Bindings |
+                             ComponentDirt::BindingsTarget,
+                         false);
+    CHECK(favorTarget->targetOrigin() == true);
+    delete favorTarget;
+
+    auto* favorSource = makeBind(DataBindFlags::TwoWay |
+                                 DataBindFlags::SourceToTargetRunsFirst);
+    favorSource->addDirt(ComponentDirt::Bindings |
+                             ComponentDirt::BindingsTarget,
+                         false);
+    CHECK(favorSource->targetOrigin() == false);
+    delete favorSource;
+}

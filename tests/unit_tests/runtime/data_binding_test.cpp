@@ -2005,6 +2005,73 @@ TEST_CASE("Bidirectional data binding with target to source precedence",
     CHECK(silver.matches("bidirectional_precedence-target_first"));
 }
 
+// End-to-end sanity for a source change on a target-first TwoWay bind: the
+// source value must reach the target and must not be reverted. (The full
+// clobber only bites when a converter's Dependents dirt invalidates the cached
+// target, re-opening the target→source apply — see the container-level guard
+// "source-originated dirt does not run target->source" in
+// data_bind_container_test.cpp, which fails without the origin gate. This asset
+// has no converter, so it exercises the source→target path through the real
+// apply machinery.)
+TEST_CASE("TwoWay source change reaches target under target-first precedence",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/bidirectional_precedence.riv");
+    auto artboard = file->artboardNamed("target_first");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+    xProp->propertyValue(100.0f);
+    yProp->propertyValue(100.0f);
+
+    stateMachine->bindViewModelInstance(vmi);
+    // Settle the initial sync — target-first precedence makes the authored
+    // target values win and flow back into the source.
+    stateMachine->advanceAndApply(0.0f);
+    for (int i = 0; i < 10; i++)
+    {
+        stateMachine->advanceAndApply(0.016f);
+    }
+
+    rive::Node* targetNode = nullptr;
+    for (auto* db : artboard->dataBinds())
+    {
+        if (db->target() != nullptr && db->target()->is<rive::Node>())
+        {
+            targetNode = db->target()->as<rive::Node>();
+            break;
+        }
+    }
+    REQUIRE(targetNode != nullptr);
+
+    // After settling the source mirrors the target (they are two-way bound and
+    // the target won the initial sync).
+    REQUIRE(xProp->propertyValue() == targetNode->x());
+    REQUIRE(yProp->propertyValue() == targetNode->y());
+
+    // Change the SOURCE to clearly distinct values. With the fix this
+    // propagates source→target only; the buggy behavior ran target→source first
+    // and reverted the source to the (stale) target value.
+    xProp->propertyValue(500.0f);
+    yProp->propertyValue(600.0f);
+    for (int i = 0; i < 20; i++)
+    {
+        stateMachine->advanceAndApply(0.016f);
+    }
+
+    // Source keeps its new value (not clobbered) and reaches the target.
+    CHECK(xProp->propertyValue() == 500.0f);
+    CHECK(yProp->propertyValue() == 600.0f);
+    CHECK(targetNode->x() == 500.0f);
+    CHECK(targetNode->y() == 600.0f);
+}
+
 TEST_CASE("Artboards as conditions", "[silver]")
 {
     SerializingFactory silver;

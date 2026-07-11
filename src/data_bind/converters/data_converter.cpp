@@ -35,8 +35,15 @@ void DataConverter::markConverterDirty()
 {
     if (m_parentDataBind != nullptr)
     {
+        // Re-assert the direction of the change currently in flight rather than
+        // hardcoding source→target: a target-originated interpolation must keep
+        // flowing target→source across the frames it advances. Dependents keeps
+        // the context value invalidated so the apply re-runs (and steps the
+        // interpolator) every frame.
         m_parentDataBind->addDirt(ComponentDirt::Dependents |
-                                      ComponentDirt::Bindings,
+                                      (m_parentDataBind->targetOrigin()
+                                           ? ComponentDirt::BindingsTarget
+                                           : ComponentDirt::Bindings),
                                   false);
     }
 }

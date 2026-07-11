@@ -125,7 +125,19 @@ void DataBindContainer::updateDataBind(DataBind* dataBind,
         dataBind->updateDependents();
     }
 
-    if (applyTargetToSource && !dataBind->sourceToTargetRunsFirst())
+    // Only push target→source when this change actually came from the target
+    // (BindingsTarget), or when the target is polled every frame because it
+    // can't push (persisting list). Otherwise a source-originated change on a
+    // target-first bind would run target→source first and clobber the source's
+    // new value with the stale target value before update() propagates it.
+    // update() itself stays gated on Bindings (source-originated), so a
+    // target-only change is a no-op there.
+    bool wantsTargetToSource =
+        applyTargetToSource &&
+        (dataBind->inPersistingList() ||
+         (d & ComponentDirt::BindingsTarget) == ComponentDirt::BindingsTarget);
+
+    if (wantsTargetToSource && !dataBind->sourceToTargetRunsFirst())
     {
 
         dataBind->updateSourceBinding();
@@ -135,7 +147,7 @@ void DataBindContainer::updateDataBind(DataBind* dataBind,
         dataBind->dirt(ComponentDirt::None);
         dataBind->update(d);
     }
-    if (applyTargetToSource && dataBind->sourceToTargetRunsFirst())
+    if (wantsTargetToSource && dataBind->sourceToTargetRunsFirst())
     {
 
         dataBind->updateSourceBinding();

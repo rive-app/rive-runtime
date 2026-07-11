@@ -475,3 +475,78 @@ TEST_CASE("Data bound artboard with view model instance resets its properties",
 
     CHECK(silver.matches("bindable_artboard_nesty"));
 }
+
+TEST_CASE(
+    "Data bound artboards with multiple targets bound to same property bidirectionally",
+    "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/bidirectional_binding_source.riv", &silver);
+    auto file2 =
+        ReadRiveFile("assets/bidirectional_binding_target_1.riv", &silver);
+    auto file3 =
+        ReadRiveFile("assets/bidirectional_binding_target_2.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto renderer = silver.makeRenderer();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto abProp = vmi->propertyValue("costume_db_artboard")
+                      ->as<ViewModelInstanceArtboard>();
+
+    auto costume1 = file2->bindableArtboardNamed("costume_artboard");
+    auto costume2 = file3->bindableArtboardNamed("costume_artboard");
+
+    auto newProp =
+        vmi->propertyValue("costume_db_bool")->as<ViewModelInstanceBoolean>();
+    newProp->propertyValue(true);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume2);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume2);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("bidirectional_binding_source"));
+}

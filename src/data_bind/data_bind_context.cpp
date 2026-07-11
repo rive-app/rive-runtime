@@ -79,7 +79,9 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
         }
         else
         {
-            addDirt(ComponentDirt::Bindings, true);
+            // Source unchanged — re-sync both supported directions in favor
+            // order (a reconcile, not a one-sided change). See bind().
+            addDirt(reconcileDirt(), true);
         }
         if (m_dataConverter != nullptr)
         {
