@@ -6,7 +6,6 @@
 
 #include "generated/shaders/metal.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/image_draw_uniforms.glsl.hpp"
 #include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
@@ -138,10 +137,6 @@ void BackgroundShaderCompiler::threadMain()
                              gpu::glsl::constants,
                              gpu::glsl::flush_uniforms,
                              gpu::glsl::common];
-        if (drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
-        {
-            [source appendFormat:@"%s\n", gpu::glsl::image_draw_uniforms];
-        }
         if (enums::is_flag_set(shaderFeatures,
                                ShaderFeatures::ENABLE_ADVANCED_BLEND))
         {

@@ -253,7 +253,6 @@ static wgpu::ShaderModule compile_shader_module_wgsl(
 
 #include "generated/shaders/glsl.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/image_draw_uniforms.glsl.hpp"
 #include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
@@ -598,17 +597,6 @@ public:
                     },
             },
             {
-                .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                .visibility =
-                    wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer =
-                    {
-                        .type = wgpu::BufferBindingType::Uniform,
-                        .hasDynamicOffset = true,
-                        .minBindingSize = sizeof(gpu::ImageDrawUniforms),
-                    },
-            },
-            {
                 .binding = DST_COLOR_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .texture =
@@ -618,7 +606,7 @@ public:
                     },
             },
         }};
-        static_assert(DRAW_BINDINGS_COUNT == 11);
+        static_assert(DRAW_BINDINGS_COUNT == 10);
 
         wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
             .entryCount = DRAW_BINDINGS_COUNT,
@@ -1451,7 +1439,6 @@ public:
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
                         break;
                     case DrawType::imageMesh:
-                        glsl << gpu::glsl::image_draw_uniforms << '\n';
                         glsl << gpu::glsl::draw_image_mesh_vert << '\n';
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
                         break;
@@ -2909,6 +2896,40 @@ wgpu::Buffer RenderContextWebGPUImpl::atomicPLSCoverageBuffer()
     return m_atomicPLSCoverageBuffer;
 }
 
+// Appends Rive's ImageDrawInstance attribs. The caller is responsible for
+// placing these in a vertex buffer layout with WGPUVertexStepMode_Instance and
+// arrayStride = sizeof(gpu::ImageDrawInstance).
+template <uint32_t Capacity>
+static void appendImageDrawInstanceAttribs(
+    StackVector<WGPUVertexAttribute, Capacity>& attrs)
+{
+    attrs.push_back({
+        .format = WGPUVertexFormat_Float32x4,
+        .offset = (IMAGE_VIEW_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                  sizeof(uint32_t) * 4,
+        .shaderLocation = IMAGE_VIEW_MATRIX_ATTRIB_IDX,
+    });
+    attrs.push_back({
+        .format = WGPUVertexFormat_Float32x4,
+        .offset = (IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX -
+                   IMAGE_FIRST_ATTRIB_IDX) *
+                  sizeof(uint32_t) * 4,
+        .shaderLocation = IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
+    });
+    attrs.push_back({
+        .format = WGPUVertexFormat_Float32x4,
+        .offset = (IMAGE_TRANSLATES_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                  sizeof(uint32_t) * 4,
+        .shaderLocation = IMAGE_TRANSLATES_ATTRIB_IDX,
+    }); // translations
+    attrs.push_back({
+        .format = WGPUVertexFormat_Uint32x4,
+        .offset = (IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                  sizeof(uint32_t) * 4,
+        .shaderLocation = IMAGE_PACKED_ATTRIBS_IDX,
+    });
+}
+
 wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     gpu::DrawType drawType,
     gpu::ShaderFeatures shaderFeatures,
@@ -2921,8 +2942,12 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     const wgsl::Shader* fragmentShader,
     const gpu::PipelineState& pipelineState)
 {
-    std::vector<WGPUVertexAttribute> attrs;
-    std::vector<WGPUVertexBufferLayout> vertexBufferLayouts;
+    // The most vertex buffers any draw type binds is the image mesh: position,
+    // uv, and the per-instance attribute buffer.
+    StackVector<WGPUVertexBufferLayout, 3> vertexBufferLayouts;
+    // The image-draw attribs come last, so the most vertex attribs used across
+    // all 3 buffers is determined by the final image attrib.
+    StackVector<WGPUVertexAttribute, IMAGE_LAST_ATTRIB_IDX + 1> attrs;
     WGPUPrimitiveTopology topology;
     switch (drawType)
     {
@@ -2937,21 +2962,19 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x4,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x4,
-                    .offset = 4 * sizeof(float),
-                    .shaderLocation = 1,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 4 * sizeof(float),
+                .shaderLocation = 1,
+            });
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
-            vertexBufferLayouts[0].attributeCount = std::size(attrs);
+            vertexBufferLayouts.push_back(WGPU_VERTEX_BUFFER_LAYOUT_INIT);
+            vertexBufferLayouts[0].attributeCount = attrs.size();
             vertexBufferLayouts[0].attributes = attrs.data();
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::PatchVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
@@ -2963,16 +2986,14 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x3,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x3,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
-            vertexBufferLayouts[0].attributeCount = std::size(attrs);
+            vertexBufferLayouts.push_back(WGPU_VERTEX_BUFFER_LAYOUT_INIT);
+            vertexBufferLayouts[0].attributeCount = attrs.size();
             vertexBufferLayouts[0].attributes = attrs.data();
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::TriangleVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
@@ -2982,40 +3003,43 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         }
         case DrawType::imageRect:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x4,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
+            appendImageDrawInstanceAttribs(attrs);
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
-            vertexBufferLayouts[0].attributeCount = std::size(attrs);
-            vertexBufferLayouts[0].attributes = attrs.data();
+            vertexBufferLayouts.push_back_n(2, WGPU_VERTEX_BUFFER_LAYOUT_INIT);
+            vertexBufferLayouts[0].attributeCount = 1;
+            vertexBufferLayouts[0].attributes = &attrs[0];
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::ImageRectVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
+
+            assert(attrs.size() == 1 + IMAGE_ATTRIB_COUNT);
+            vertexBufferLayouts[1].attributeCount = IMAGE_ATTRIB_COUNT;
+            vertexBufferLayouts[1].attributes = &attrs[1];
+            vertexBufferLayouts[1].arrayStride = sizeof(gpu::ImageDrawInstance);
+            vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Instance;
 
             topology = WGPUPrimitiveTopology_TriangleList;
             break;
         }
         case DrawType::imageMesh:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x2,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x2,
-                    .offset = 0,
-                    .shaderLocation = 1,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x2,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x2,
+                .offset = 0,
+                .shaderLocation = 1,
+            });
+            appendImageDrawInstanceAttribs(attrs);
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT,
-                                   WGPU_VERTEX_BUFFER_LAYOUT_INIT};
+            vertexBufferLayouts.push_back_n(3, WGPU_VERTEX_BUFFER_LAYOUT_INIT);
 
             vertexBufferLayouts[0].attributeCount = 1;
             vertexBufferLayouts[0].attributes = &attrs[0];
@@ -3026,6 +3050,12 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             vertexBufferLayouts[1].attributes = &attrs[1];
             vertexBufferLayouts[1].arrayStride = sizeof(float) * 2;
             vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Vertex;
+
+            assert(attrs.size() == 2 + IMAGE_ATTRIB_COUNT);
+            vertexBufferLayouts[2].attributeCount = IMAGE_ATTRIB_COUNT;
+            vertexBufferLayouts[2].attributes = &attrs[2];
+            vertexBufferLayouts[2].arrayStride = sizeof(gpu::ImageDrawInstance);
+            vertexBufferLayouts[2].stepMode = WGPUVertexStepMode_Instance;
 
             topology = WGPUPrimitiveTopology_TriangleList;
             break;
@@ -3253,8 +3283,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 .entryPoint = WGPU_STRING_VIEW("main"),
                 .constantCount = vertexConstantCount,
                 .constants = vertexConstantEntries,
-                .bufferCount = std::size(vertexBufferLayouts),
-                .buffers = vertexBufferLayouts.data(),
+                .bufferCount = vertexBufferLayouts.size(),
+                .buffers = vertexBufferLayouts.dataOrNull(),
             },
         .primitive =
             {
@@ -3965,11 +3995,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             .textureView = m_gradientTextureView,
         },
         {
-            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
-            .size = sizeof(gpu::ImageDrawUniforms),
-        },
-        {
             .binding = DST_COLOR_TEXTURE_IDX,
             .textureView = desc.interlockMode == gpu::InterlockMode::msaa &&
                            !desc.fixedFunctionColorOutput
@@ -4271,8 +4296,15 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     wgpu::BindGroup perFlushBindings =
         m_device.CreateBindGroup(&perFlushBindGroupDesc);
 
+    // The drawEncoder isn't necessarily created yet. (e.g., MSAA sometimes
+    // defers creation of the drawEncoder until the first barrier.) So defer
+    // binding the per-flush uniforms until we know the drawEncoder is valid.
+    bool needsPerFlushBindings = true;
+
+    wgpu::TextureView boundImageTextureView = {};
+    const ImageSampler* boundImageSampler;
+
     // Execute the DrawList.
-    bool needsNewBindings = true;
     for (const DrawBatch& batch : *desc.drawList)
     {
         DrawType drawType = batch.drawType;
@@ -4286,8 +4318,18 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // the barrier. Make sure to give the new drawEncoder our
                 // current bindings.
                 drawEncoder = renderPass->encoder();
-                needsNewBindings = true;
+                needsPerFlushBindings = true;
+                boundImageTextureView = {};
             }
+        }
+
+        if (needsPerFlushBindings)
+        {
+            drawEncoder.SetBindGroup(PER_FLUSH_BINDINGS_SET,
+                                     perFlushBindings,
+                                     0,
+                                     nullptr);
+            needsPerFlushBindings = false;
         }
 
         // Bind the appropriate image texture, if any.
@@ -4296,7 +4338,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 static_cast<const TextureWebGPUImpl*>(batch.imageTexture))
         {
             imageTextureView = imageTexture->textureView();
-            needsNewBindings = true;
         }
         else if (drawType == gpu::DrawType::renderPassInitialize &&
                  desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
@@ -4308,7 +4349,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // attachment (not the target), so the target texture is free to
                 // be sampled here to seed the color buffer. No dst copy needed.
                 imageTextureView = renderTarget->targetTextureView();
-                needsNewBindings = true;
             }
             else if (desc.interlockMode == gpu::InterlockMode::msaa)
             {
@@ -4316,20 +4356,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // as the resolve target, so it seeds from the dstColorTexture
                 // (copied from the framebuffer previously) instead.
                 imageTextureView = renderTarget->dstColorTextureView();
-                needsNewBindings = true;
             }
         }
-
-        if (needsNewBindings ||
-            // Image draws always re-bind because they update the dynamic offset
-            // to their uniforms.
-            gpu::DrawTypeIsImageDraw(drawType))
+        if (boundImageTextureView.Get() != imageTextureView.Get() ||
+            *boundImageSampler != batch.imageSampler)
         {
-            drawEncoder.SetBindGroup(PER_FLUSH_BINDINGS_SET,
-                                     perFlushBindings,
-                                     1,
-                                     &batch.imageDrawDataOffset);
-
             wgpu::BindGroupEntry perDrawBindingEntries[] = {
                 {
                     .binding = IMAGE_TEXTURE_IDX,
@@ -4355,7 +4386,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                      0,
                                      nullptr);
 
-            needsNewBindings = false;
+            boundImageTextureView = std::move(imageTextureView);
+            boundImageSampler = &batch.imageSampler;
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
@@ -4483,9 +4515,9 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 drawEncoder.SetVertexBuffer(0, m_pathPatchVertexBuffer);
                 drawEncoder.SetIndexBuffer(m_pathPatchIndexBuffer,
                                            wgpu::IndexFormat::Uint16);
-                drawEncoder.DrawIndexed(gpu::PatchIndexCount(drawType),
+                drawEncoder.DrawIndexed(batch.indexCountPerInstance,
                                         batch.elementCount,
-                                        gpu::PatchBaseIndex(drawType),
+                                        batch.baseIndex,
                                         0,
                                         batch.baseElement);
                 break;
@@ -4506,11 +4538,21 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 drawEncoder.SetVertexBuffer(0, m_imageRectVertexBuffer);
+                // Select the batch's fistInstance by offsetting the buffer
+                // binding. We do this rather than "firstInstance=baseElement"
+                // on the draw call because baseInstance support isn't portable
+                // on GL, and we have seen drivers with bugs in their emulation.
+                drawEncoder.SetVertexBuffer(
+                    1,
+                    webgpu_buffer(imageDrawInstanceBufferRing()),
+                    batch.baseElement * sizeof(gpu::ImageDrawInstance));
                 drawEncoder.SetIndexBuffer(m_imageRectIndexBuffer,
                                            wgpu::IndexFormat::Uint16);
-                drawEncoder.DrawIndexed(std::size(gpu::kImageRectIndices),
-                                        1,
-                                        batch.baseElement);
+                drawEncoder.DrawIndexed(batch.indexCountPerInstance,
+                                        batch.elementCount,
+                                        batch.baseIndex,
+                                        0,
+                                        0);
                 break;
             }
 
@@ -4524,11 +4566,21 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                     batch.indexBuffer);
                 drawEncoder.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
                 drawEncoder.SetVertexBuffer(1, uvBuffer->submittedBuffer());
+                // Select the batch's fistInstance by offsetting the buffer
+                // binding. We do this rather than "firstInstance=baseElement"
+                // on the draw call because baseInstance support isn't portable
+                // on GL, and we have seen drivers with bugs in their emulation.
+                drawEncoder.SetVertexBuffer(
+                    2,
+                    webgpu_buffer(imageDrawInstanceBufferRing()),
+                    batch.baseElement * sizeof(gpu::ImageDrawInstance));
                 drawEncoder.SetIndexBuffer(indexBuffer->submittedBuffer(),
                                            wgpu::IndexFormat::Uint16);
-                drawEncoder.DrawIndexed(batch.elementCount,
-                                        1,
-                                        batch.baseElement);
+                drawEncoder.DrawIndexed(batch.indexCountPerInstance,
+                                        batch.elementCount,
+                                        batch.baseIndex,
+                                        0,
+                                        0);
                 break;
             }
 

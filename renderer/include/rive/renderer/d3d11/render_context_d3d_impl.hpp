@@ -293,7 +293,6 @@ private:
 
     ComPtr<ID3D11Buffer> m_flushUniforms;
     ComPtr<ID3D11Buffer> m_drawUniforms;
-    ComPtr<ID3D11Buffer> m_imageDrawUniforms;
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState>

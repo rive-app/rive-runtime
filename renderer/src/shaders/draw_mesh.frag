@@ -49,13 +49,13 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
 #ifdef @DRAW_IMAGE_MESH
-PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
+PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
 #else
 PLS_FRAG_COLOR_MAIN(@drawFragmentMain)
 #endif
 #else
 #ifdef @DRAW_IMAGE_MESH
-PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
+PLS_MAIN(@drawFragmentMain)
 #else
 PLS_MAIN(@drawFragmentMain)
 #endif
@@ -65,9 +65,6 @@ PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_paint, float4);
     VARYING_UNPACK(v_atlasCoord, float2);
 #endif
-#ifdef @DRAW_IMAGE_MESH
-    VARYING_UNPACK(v_texCoord, float2);
-#endif
 #ifdef @ENABLE_CLIPPING
     VARYING_UNPACK(v_clipID, half);
 #endif
@@ -76,6 +73,13 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 #if defined(@ATLAS_BLIT) && defined(@ENABLE_ADVANCED_BLEND)
     VARYING_UNPACK(v_blendMode, half);
+#endif
+#ifdef @DRAW_IMAGE_MESH
+    VARYING_UNPACK(v_imageTexCoord, float2);
+    VARYING_UNPACK(v_imageOpacity, half);
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_imageBlendMode, ushort);
+#endif
 #endif
 
 #ifdef @ATLAS_BLIT
@@ -89,7 +93,7 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @DRAW_IMAGE_MESH
     half4 color = TEXTURE_SAMPLE_DYNAMIC_LODBIAS(@imageTexture,
                                                  imageSampler,
-                                                 v_texCoord,
+                                                 v_imageTexCoord,
                                                  uniforms.mipMapLODBias);
     half coverage = 1.;
 #endif
@@ -128,7 +132,7 @@ PLS_MAIN(@drawFragmentMain)
 
 #ifdef @DRAW_IMAGE_MESH
     // Apply opacity after clipping.
-    coverage *= imageDrawUniforms.opacity;
+    coverage *= v_imageOpacity;
 #endif
 
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
@@ -149,7 +153,7 @@ PLS_MAIN(@drawFragmentMain)
         // We may want to experiment with dynamically not premultiplying here
         // and in find_paint_color() when the blend mode is srcOver.
         color.rgb = unmultiply_rgb(color);
-        ushort blendMode = cast_uint_to_ushort(imageDrawUniforms.blendMode);
+        ushort blendMode = v_imageBlendMode;
 #endif
 
         if (blendMode != BLEND_SRC_OVER)

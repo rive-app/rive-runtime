@@ -128,6 +128,22 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, float4, @a_imageRectVertex);
 ATTR_BLOCK_END
+
+ATTR_BLOCK_BEGIN(ImageDrawAttrs)
+ATTR(IMAGE_VIEW_MATRIX_ATTRIB_IDX, float4, @a_imageDrawViewMatrix);
+ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
+     float4,
+     @a_imageDrawClipRectInverseMatrix);
+ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
+#ifdef SPLIT_UINT4_ATTRIBUTES
+ATTR(IMAGE_SPLIT_OPACITY_ATTRIB_IDX, uint, @a_imageDrawOpacity);
+ATTR(IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
+ATTR(IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
+ATTR(IMAGE_SPLIT_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
+#else
+ATTR(IMAGE_PACKED_ATTRIBS_IDX, uint4, @a_imageDrawPacked);
+#endif
+ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
@@ -136,17 +152,55 @@ NO_PERSPECTIVE VARYING(1, half, v_edgeCoverage);
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 #endif
+@OPTIONALLY_FLAT VARYING(3, half, v_imageOpacity);
+#ifdef @ENABLE_CLIPPING
+FLAT VARYING(4, ushort, v_imageClipID);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+FLAT VARYING(5, ushort, v_imageBlendMode);
+#endif
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
+IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
+                       Attrs,
+                       attrs,
+                       ImageDrawAttrs,
+                       imageDrawAttrs,
+                       _vertexID,
+                       _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_imageRectVertex, float4);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawViewMatrix, float4);
+    ATTR_UNPACK(_instanceID,
+                imageDrawAttrs,
+                @a_imageDrawClipRectInverseMatrix,
+                float4);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
+#ifdef SPLIT_UINT4_ATTRIBUTES
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
+    uint4 @a_imageDrawPacked = uint4(@a_imageDrawOpacity,
+                                     @a_imageDrawClipID,
+                                     @a_imageDrawBlendMode,
+                                     @a_imageDrawZIndex);
+#else
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawPacked, uint4);
+#endif
 
     VARYING_INIT(v_texCoord, float2);
     VARYING_INIT(v_edgeCoverage, half);
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
+#endif
+    VARYING_INIT(v_imageOpacity, half);
+#ifdef @ENABLE_CLIPPING
+    VARYING_INIT(v_imageClipID, ushort);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_INIT(v_imageBlendMode, ushort);
 #endif
 
     bool isOuterVertex =
@@ -154,7 +208,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     v_edgeCoverage = isOuterVertex ? .0 : 1.;
 
     float2 vertexPosition = @a_imageRectVertex.xy;
-    float2x2 M = make_float2x2(imageDrawUniforms.viewMatrix);
+    float2x2 M = make_float2x2(@a_imageDrawViewMatrix);
     float2x2 MIT = transpose(inverse(M));
     if (!isOuterVertex)
     {
@@ -186,7 +240,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     v_texCoord = vertexPosition;
-    vertexPosition = MUL(M, vertexPosition) + imageDrawUniforms.translate;
+    vertexPosition = MUL(M, vertexPosition) + @a_imageDrawTranslates.xy;
 
     if (isOuterVertex)
     {
@@ -200,10 +254,18 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (@ENABLE_CLIP_RECT)
     {
         v_clipRect = find_clip_rect_coverage_distances(
-            make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-            imageDrawUniforms.clipRectInverseTranslate,
+            make_float2x2(@a_imageDrawClipRectInverseMatrix),
+            @a_imageDrawTranslates.zw,
             vertexPosition);
     }
+#endif
+
+    v_imageOpacity = uintBitsToFloat(@a_imageDrawPacked.x);
+#ifdef @ENABLE_CLIPPING
+    v_imageClipID = cast_uint_to_ushort(@a_imageDrawPacked.y);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawPacked.z);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -212,6 +274,13 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_PACK(v_edgeCoverage);
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
+#endif
+    VARYING_PACK(v_imageOpacity);
+#ifdef @ENABLE_CLIPPING
+    VARYING_PACK(v_imageClipID);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_PACK(v_imageBlendMode);
 #endif
     EMIT_VERTEX(pos);
 }
@@ -226,12 +295,35 @@ ATTR_BLOCK_END
 ATTR_BLOCK_BEGIN(UVAttr)
 ATTR(1, float2, @a_texCoord);
 ATTR_BLOCK_END
+
+ATTR_BLOCK_BEGIN(ImageDrawAttrs)
+ATTR(IMAGE_VIEW_MATRIX_ATTRIB_IDX, float4, @a_imageDrawViewMatrix);
+ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
+     float4,
+     @a_imageDrawClipRectInverseMatrix);
+ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
+#ifdef SPLIT_UINT4_ATTRIBUTES
+ATTR(IMAGE_SPLIT_OPACITY_ATTRIB_IDX, uint, @a_imageDrawOpacity);
+ATTR(IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
+ATTR(IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
+ATTR(IMAGE_SPLIT_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
+#else
+ATTR(IMAGE_PACKED_ATTRIBS_IDX, uint4, @a_imageDrawPacked);
+#endif
+ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float2, v_texCoord);
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(1, float4, v_clipRect);
+#endif
+@OPTIONALLY_FLAT VARYING(3, half, v_imageOpacity);
+#ifdef @ENABLE_CLIPPING
+FLAT VARYING(4, ushort, v_imageClipID);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+FLAT VARYING(5, ushort, v_imageBlendMode);
 #endif
 VARYING_BLOCK_END
 
@@ -241,28 +333,63 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                        position,
                        UVAttr,
                        uv,
+                       ImageDrawAttrs,
+                       imageDrawAttrs,
                        _vertexID)
 {
     ATTR_UNPACK(_vertexID, position, @a_position, float2);
     ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawViewMatrix, float4);
+    ATTR_UNPACK(_instanceID,
+                imageDrawAttrs,
+                @a_imageDrawClipRectInverseMatrix,
+                float4);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
+#ifdef SPLIT_UINT4_ATTRIBUTES
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
+    uint4 @a_imageDrawPacked = uint4(@a_imageDrawOpacity,
+                                     @a_imageDrawClipID,
+                                     @a_imageDrawBlendMode,
+                                     @a_imageDrawZIndex);
+#else
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawPacked, uint4);
+#endif
 
     VARYING_INIT(v_texCoord, float2);
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
 #endif
+    VARYING_INIT(v_imageOpacity, half);
+#ifdef @ENABLE_CLIPPING
+    VARYING_INIT(v_imageClipID, ushort);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_INIT(v_imageBlendMode, ushort);
+#endif
 
-    float2x2 M = make_float2x2(imageDrawUniforms.viewMatrix);
-    float2 vertexPosition = MUL(M, @a_position) + imageDrawUniforms.translate;
+    float2x2 M = make_float2x2(@a_imageDrawViewMatrix);
+    float2 vertexPosition = MUL(M, @a_position) + @a_imageDrawTranslates.xy;
     v_texCoord = @a_texCoord;
 
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
         v_clipRect = find_clip_rect_coverage_distances(
-            make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-            imageDrawUniforms.clipRectInverseTranslate,
+            make_float2x2(@a_imageDrawClipRectInverseMatrix),
+            @a_imageDrawTranslates.zw,
             vertexPosition);
     }
+#endif
+
+    v_imageOpacity = uintBitsToFloat(@a_imageDrawPacked.x);
+#ifdef @ENABLE_CLIPPING
+    v_imageClipID = cast_uint_to_ushort(@a_imageDrawPacked.y);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawPacked.z);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -270,6 +397,13 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     VARYING_PACK(v_texCoord);
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
+#endif
+    VARYING_PACK(v_imageOpacity);
+#ifdef @ENABLE_CLIPPING
+    VARYING_PACK(v_imageClipID);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_PACK(v_imageBlendMode);
 #endif
     EMIT_VERTEX(pos);
 }
@@ -563,12 +697,9 @@ INLINE void emit_pls_clip(CLIP_VALUE_TYPE fragClipOut PLS_CONTEXT_DECL)
 
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
 #define ATOMIC_PLS_MAIN PLS_FRAG_COLOR_MAIN
-#define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS                                    \
-    PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS
 #define EMIT_ATOMIC_PLS EMIT_PLS_AND_FRAG_COLOR
 #else // !FIXED_FUNCTION_COLOR_OUTPUT
 #define ATOMIC_PLS_MAIN PLS_MAIN
-#define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS PLS_MAIN_WITH_IMAGE_UNIFORMS
 #define EMIT_ATOMIC_PLS EMIT_PLS
 #endif
 
@@ -767,7 +898,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #endif // @DRAW_INTERIOR_TRIANGLES || @ATLAS_BLIT
 
 #ifdef @DRAW_IMAGE
-ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
+ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @DRAW_IMAGE_RECT
@@ -775,6 +906,13 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
+#endif
+    VARYING_UNPACK(v_imageOpacity, half);
+#ifdef @ENABLE_CLIPPING
+    VARYING_UNPACK(v_imageClipID, ushort);
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_imageBlendMode, ushort);
 #endif
 
     // Start by finding the image color. We have to do this immediately instead
@@ -808,7 +946,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif
     // TODO: consider not resolving the prior paint if we're solid and the prior
     // paint is not a clip update: (imageColor.a == 1. &&
-    //                              imageDrawUniforms.blendMode ==
+    //                              v_imageBlendMode ==
     //                              BLEND_SRC_OVER && priorPaintType !=
     //                              CLIP_UPDATE_PAINT_TYPE)
     resolve_paint(lastPathID,
@@ -824,32 +962,31 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 // the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to
                         // ENABLE_CLIPPING?
-    if (@ENABLE_CLIPPING && imageDrawUniforms.clipID != 0u)
+    if (@ENABLE_CLIPPING && v_imageClipID != 0u)
     {
         CLIP_VALUE_TYPE clipData = HAS_UPDATED_CLIP_VALUE(fragClipOut)
                                        ? fragClipOut
                                        : PLS_LOAD_CLIP_TYPE(clipBuffer);
-        apply_clip(imageDrawUniforms.clipID, clipData, imageCoverage);
+        apply_clip(v_imageClipID, clipData, imageCoverage);
     }
 #endif // ENABLE_CLIPPING
 
 // Prepare imageColor for premultiplied src-over blending.
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && defined(@ENABLE_ADVANCED_BLEND)
-    if (@ENABLE_ADVANCED_BLEND && imageDrawUniforms.blendMode != BLEND_SRC_OVER)
+    if (@ENABLE_ADVANCED_BLEND && v_imageBlendMode != BLEND_SRC_OVER)
     {
         // Calculate what dstColorPremul will be after applying fragColorOut.
         half4 dstColorPremul =
             PLS_LOAD4F(colorBuffer) * (1. - fragColorOut.a) + fragColorOut;
         // Calculate the imageColor to emit *BEFORE* src-over blending, such
         // that the post-src-over-blend result is equivalent to the blendMode.
-        imageColor.rgb = advanced_color_blend(
-                             unmultiply_rgb(imageColor),
-                             dstColorPremul,
-                             cast_uint_to_ushort(imageDrawUniforms.blendMode)) *
+        imageColor.rgb = advanced_color_blend(unmultiply_rgb(imageColor),
+                                              dstColorPremul,
+                                              v_imageBlendMode) *
                          imageColor.a;
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
-    imageColor *= imageCoverage * cast_float_to_half(imageDrawUniforms.opacity);
+    imageColor *= imageCoverage * v_imageOpacity;
 
 #if defined(@NEEDS_GAMMA_CORRECTION)
     imageColor = gamma_to_linear(imageColor);

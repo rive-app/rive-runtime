@@ -632,7 +632,6 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_pipelineManager(device, capabilities, shaderCompilationMode),
     m_resourceManager(make_rcp<D3D12ResourceManager>(device)),
     m_flushUniformBufferPool(m_resourceManager, sizeof(FlushUniforms)),
-    m_imageDrawUniformBufferPool(m_resourceManager, sizeof(ImageDrawUniforms)),
     m_pathBufferPool(m_resourceManager),
     m_paintBufferPool(m_resourceManager),
     m_paintAuxBufferPool(m_resourceManager),
@@ -640,6 +639,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_gradSpanBufferPool(m_resourceManager),
     m_tessSpanBufferPool(m_resourceManager),
     m_triangleBufferPool(m_resourceManager),
+    m_imageDrawInstanceBufferPool(m_resourceManager, sizeof(ImageDrawInstance)),
     // this is 64kb which is the smallest heap that can be sent to gpu
     m_srvUavCbvHeapPool(m_resourceManager,
                         MAX_DESCRIPTOR_HEAPS_PER_FLUSH,
@@ -1004,7 +1004,6 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
 {
     // These should all have gotten recycled at the end of the last frame.
     assert(m_flushUniformBuffer == nullptr);
-    assert(m_imageDrawUniformBuffer == nullptr);
     assert(m_pathBuffer == nullptr);
     assert(m_paintBuffer == nullptr);
     assert(m_paintAuxBuffer == nullptr);
@@ -1012,6 +1011,7 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     assert(m_gradSpanBuffer == nullptr);
     assert(m_tessSpanBuffer == nullptr);
     assert(m_triangleBuffer == nullptr);
+    assert(m_imageDrawInstanceBuffer == nullptr);
 
     assert(m_srvUavCbvHeap == nullptr);
     assert(m_cpuSrvUavCbvHeap == nullptr);
@@ -1030,7 +1030,6 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
 
     // Acquire buffers for the flush.
     m_flushUniformBuffer = m_flushUniformBufferPool.acquire();
-    m_imageDrawUniformBuffer = m_imageDrawUniformBufferPool.acquire();
     m_pathBuffer = m_pathBufferPool.acquire();
     m_paintBuffer = m_paintBufferPool.acquire();
     m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
@@ -1038,13 +1037,13 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
     m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
     m_triangleBuffer = m_triangleBufferPool.acquire();
+    m_imageDrawInstanceBuffer = m_imageDrawInstanceBufferPool.acquire();
 
     m_srvUavCbvHeap = m_srvUavCbvHeapPool.acquire();
     m_cpuSrvUavCbvHeap = m_cpuSrvUavCbvHeapPool.acquire();
     m_samplerHeap = m_samplerHeapPool.acquire();
 
     VNAME_D3D12_OBJECT(m_flushUniformBuffer);
-    VNAME_D3D12_OBJECT(m_imageDrawUniformBuffer);
     VNAME_D3D12_OBJECT(m_pathBuffer);
     VNAME_D3D12_OBJECT(m_paintBuffer);
     VNAME_D3D12_OBJECT(m_paintAuxBuffer);
@@ -1052,6 +1051,7 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     VNAME_D3D12_OBJECT(m_gradSpanBuffer);
     VNAME_D3D12_OBJECT(m_tessSpanBuffer);
     VNAME_D3D12_OBJECT(m_triangleBuffer);
+    VNAME_D3D12_OBJECT(m_imageDrawInstanceBuffer);
 
     m_isFirstFlushOfFrame = true;
 
@@ -1121,7 +1121,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         // sync everything first logical flush,
         // copies are slow, so do it all at once
         m_flushUniformBuffer->sync(copyCmdList, 0);
-        m_imageDrawUniformBuffer->sync(copyCmdList, 0);
         if (desc.pathCount > 0)
         {
             m_pathBuffer->sync(copyCmdList, 0);
@@ -1147,6 +1146,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         {
             m_triangleBuffer->sync(copyCmdList, 0);
         }
+
+        m_imageDrawInstanceBuffer->sync(copyCmdList, 0);
 
         // mark all UAVS, thse only need to happen the fist time since they
         // won't change per logical flush
@@ -1274,6 +1275,18 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         FLUSH_UNIFORM_BUFFFER_SIG_INDEX,
         m_flushUniformBuffer->resource()->getGPUVirtualAddress() +
             desc.flushUniformDataOffsetInBytes);
+
+    // Bind the image-draw-attribute records as a per-instance vertex buffer
+    // once; each image draw selects its record via the draw call's base
+    // instance (batch.baseElement).
+    // NOTE: Even if there are no image draws, we have still allocated a
+    // single-element instance buffer.
+    D3D12_VERTEX_BUFFER_VIEW imageDrawInstanceVBV =
+        m_imageDrawInstanceBuffer->resource()->vertexBufferView(
+            sizeof(gpu::ImageDrawInstance));
+    cmdList->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                1,
+                                &imageDrawInstanceVBV);
 
     if (desc.pathCount > 0)
     {
@@ -1927,9 +1940,9 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                     VERTEX_DRAW_UNIFORM_SIG_INDEX,
                     batch.baseElement,
                     0);
-                cmdList->DrawIndexedInstanced(PatchIndexCount(drawType),
+                cmdList->DrawIndexedInstanced(batch.indexCountPerInstance,
                                               batch.elementCount,
-                                              PatchBaseIndex(drawType),
+                                              batch.baseIndex,
                                               0,
                                               batch.baseElement);
                 break;
@@ -1955,17 +1968,11 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 auto IBV = m_imageRectIndexBuffer->indexBufferView();
                 cmdList->IASetIndexBuffer(&IBV);
 
-                cmdList->SetGraphicsRootConstantBufferView(
-                    IMAGE_UNIFORM_BUFFFER_SIG_INDEX,
-                    m_imageDrawUniformBuffer->resource()
-                            ->getGPUVirtualAddress() +
-                        batch.imageDrawDataOffset);
-
-                cmdList->DrawIndexedInstanced(std::size(gpu::kImageRectIndices),
-                                              1,
+                cmdList->DrawIndexedInstanced(batch.indexCountPerInstance,
+                                              batch.elementCount,
+                                              batch.baseIndex,
                                               0,
-                                              0,
-                                              0);
+                                              batch.baseElement);
                 break;
             }
             case DrawType::imageMesh:
@@ -1999,17 +2006,11 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 auto IBV = iBuffer->indexBufferView();
                 cmdList->IASetIndexBuffer(&IBV);
 
-                cmdList->SetGraphicsRootConstantBufferView(
-                    IMAGE_UNIFORM_BUFFFER_SIG_INDEX,
-                    m_imageDrawUniformBuffer->resource()
-                            ->getGPUVirtualAddress() +
-                        batch.imageDrawDataOffset);
-
-                cmdList->DrawIndexedInstanced(batch.elementCount,
-                                              1,
-                                              batch.baseElement,
+                cmdList->DrawIndexedInstanced(batch.indexCountPerInstance,
+                                              batch.elementCount,
+                                              batch.baseIndex,
                                               0,
-                                              0);
+                                              batch.baseElement);
                 break;
             }
             case DrawType::renderPassResolve:
@@ -2076,7 +2077,6 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
 {
     // Recycle buffers.
     m_flushUniformBufferPool.recycle(std::move(m_flushUniformBuffer));
-    m_imageDrawUniformBufferPool.recycle(std::move(m_imageDrawUniformBuffer));
     m_pathBufferPool.recycle(std::move(m_pathBuffer));
     m_paintBufferPool.recycle(std::move(m_paintBuffer));
     m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
@@ -2084,6 +2084,7 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
     m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
     m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
     m_triangleBufferPool.recycle(std::move(m_triangleBuffer));
+    m_imageDrawInstanceBufferPool.recycle(std::move(m_imageDrawInstanceBuffer));
 
     m_srvUavCbvHeapPool.recycle(std::move(m_srvUavCbvHeap));
     m_cpuSrvUavCbvHeapPool.recycle(std::move(m_cpuSrvUavCbvHeap));

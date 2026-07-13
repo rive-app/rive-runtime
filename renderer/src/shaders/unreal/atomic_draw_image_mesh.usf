@@ -1,4 +1,5 @@
 #define DRAW_IMAGE
 #define DRAW_IMAGE_MESH
+#define SPLIT_UINT4_ATTRIBUTES 1
 #include "/Engine/Public/Platform.ush"
 #include "atomic_base.ush"

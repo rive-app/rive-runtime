@@ -17,7 +17,6 @@
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include <array>
-#include <optional>
 #include <unordered_map>
 
 class PushRetrofittedTrianglesGMDraw;
@@ -358,7 +357,6 @@ private:
         }
 
         size_t flushUniformBufferCount = 0;
-        size_t imageDrawUniformBufferCount = 0;
         size_t pathBufferCount = 0;
         size_t paintBufferCount = 0;
         size_t paintAuxBufferCount = 0;
@@ -366,6 +364,7 @@ private:
         size_t gradSpanBufferCount = 0;
         size_t tessSpanBufferCount = 0;
         size_t triangleVertexBufferCount = 0;
+        size_t imageDrawInstanceBufferCount = 0;
         size_t gradTextureHeight = 0;
         size_t tessTextureHeight = 0;
         size_t atlasTextureWidth = 0;
@@ -452,7 +451,7 @@ private:
     WriteOnlyMappedMemory<gpu::GradientSpan> m_gradSpanData;
     WriteOnlyMappedMemory<gpu::TessVertexSpan> m_tessSpanData;
     WriteOnlyMappedMemory<gpu::TriangleVertex> m_triangleVertexData;
-    WriteOnlyMappedMemory<gpu::ImageDrawUniforms> m_imageDrawUniformData;
+    WriteOnlyMappedMemory<gpu::ImageDrawInstance> m_imageDrawInstanceData;
 
     // Simple allocator for trivially-destructible data that needs to persist
     // until the current frame has completed. All memory in this allocator is

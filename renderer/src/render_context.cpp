@@ -776,7 +776,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     // flush.
     const ResourceAllocationCounts resourceRequirements = {
         .flushUniformBufferCount = m_logicalFlushes.size(),
-        .imageDrawUniformBufferCount = totalFrameResourceCounts.imageDrawCount,
         .pathBufferCount =
             totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount,
         .paintBufferCount =
@@ -791,6 +790,7 @@ void RenderContext::flush(const FlushResources& flushResources)
             totalFrameResourceCounts.maxTessellatedSegmentCount,
         .triangleVertexBufferCount =
             totalFrameResourceCounts.maxTriangleVertexCount,
+        .imageDrawInstanceBufferCount = totalFrameResourceCounts.imageDrawCount,
         .gradTextureHeight = layoutCounts.maxGradTextureHeight,
         .tessTextureHeight = layoutCounts.maxTessTextureHeight,
         .atlasTextureWidth = layoutCounts.maxAtlasWidth,
@@ -847,7 +847,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     // create some slack for growth.
     constexpr static ResourceAllocationCounts OVERALLOC_x4 = {
         .flushUniformBufferCount = 5,        // 125%
-        .imageDrawUniformBufferCount = 5,    // 125%
         .pathBufferCount = 5,                // 125%
         .paintBufferCount = 5,               // 125%
         .paintAuxBufferCount = 5,            // 125%
@@ -855,6 +854,7 @@ void RenderContext::flush(const FlushResources& flushResources)
         .gradSpanBufferCount = 5,            // 125%
         .tessSpanBufferCount = 5,            // 125%
         .triangleVertexBufferCount = 5,      // 125%
+        .imageDrawInstanceBufferCount = 5,   // 125%
         .gradTextureHeight = 5,              // 125%
         .tessTextureHeight = 5,              // 125%
         .atlasTextureWidth = 5,              // 125%
@@ -899,7 +899,6 @@ void RenderContext::flush(const FlushResources& flushResources)
         // threshold.
         constexpr static ResourceAllocationCounts SHRINK_THRESHOLD_x3 = {
             .flushUniformBufferCount = 2,        // 66.7%
-            .imageDrawUniformBufferCount = 2,    // 66.7%
             .pathBufferCount = 2,                // 66.7%
             .paintBufferCount = 2,               // 66.7%
             .paintAuxBufferCount = 2,            // 66.7%
@@ -907,6 +906,7 @@ void RenderContext::flush(const FlushResources& flushResources)
             .gradSpanBufferCount = 2,            // 66.7%
             .tessSpanBufferCount = 2,            // 66.7%
             .triangleVertexBufferCount = 2,      // 66.7%
+            .imageDrawInstanceBufferCount = 2,   // 66.7%
             .gradTextureHeight = 2,              // 66.7%
             .tessTextureHeight = 2,              // 66.7%
             .atlasTextureWidth = 2,              // 66.7%
@@ -958,7 +958,7 @@ void RenderContext::flush(const FlushResources& flushResources)
         }
 
         assert(m_flushUniformData.elementsWritten() == m_logicalFlushes.size());
-        assert(m_imageDrawUniformData.elementsWritten() ==
+        assert(m_imageDrawInstanceData.elementsWritten() ==
                totalFrameResourceCounts.imageDrawCount);
         assert(m_pathData.elementsWritten() ==
                totalFrameResourceCounts.pathCount +
@@ -2589,17 +2589,6 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                                          sizeof(gpu::FlushUniforms));
     }
 
-    LOG_BUFFER_RING_SIZE(imageDrawUniformBufferCount,
-                         sizeof(gpu::ImageDrawUniforms));
-    if (allocs.imageDrawUniformBufferCount !=
-            m_currentResourceAllocations.imageDrawUniformBufferCount ||
-        forceRealloc)
-    {
-        m_impl->resizeImageDrawUniformBuffer(
-            allocs.imageDrawUniformBufferCount *
-            sizeof(gpu::ImageDrawUniforms));
-    }
-
     LOG_BUFFER_RING_SIZE(pathBufferCount, sizeof(gpu::PathData));
     if (allocs.pathBufferCount !=
             m_currentResourceAllocations.pathBufferCount ||
@@ -2665,6 +2654,17 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
     {
         m_impl->resizeTriangleVertexBuffer(allocs.triangleVertexBufferCount *
                                            sizeof(gpu::TriangleVertex));
+    }
+
+    LOG_BUFFER_RING_SIZE(imageDrawInstanceBufferCount,
+                         sizeof(gpu::ImageDrawInstance));
+    if (allocs.imageDrawInstanceBufferCount !=
+            m_currentResourceAllocations.imageDrawInstanceBufferCount ||
+        forceRealloc)
+    {
+        m_impl->resizeImageDrawInstanceBuffer(
+            allocs.imageDrawInstanceBufferCount *
+            sizeof(gpu::ImageDrawInstance));
     }
 
     assert(allocs.gradTextureHeight <= kMaxTextureHeight);
@@ -2794,16 +2794,6 @@ bool RenderContext::mapResourceBuffers(
     }
     assert(m_flushUniformData.hasRoomFor(mapCounts.flushUniformBufferCount));
 
-    if (mapCounts.imageDrawUniformBufferCount > 0)
-    {
-        HANDLE_MAP_FAILURE(m_imageDrawUniformData.mapElements(
-            m_impl.get(),
-            &RenderContextImpl::mapImageDrawUniformBuffer,
-            mapCounts.imageDrawUniformBufferCount));
-    }
-    assert(m_imageDrawUniformData.hasRoomFor(
-        mapCounts.imageDrawUniformBufferCount > 0));
-
     if (mapCounts.pathBufferCount > 0)
     {
         HANDLE_MAP_FAILURE(
@@ -2868,6 +2858,16 @@ bool RenderContext::mapResourceBuffers(
     assert(
         m_triangleVertexData.hasRoomFor(mapCounts.triangleVertexBufferCount));
 
+    if (mapCounts.imageDrawInstanceBufferCount > 0)
+    {
+        HANDLE_MAP_FAILURE(m_imageDrawInstanceData.mapElements(
+            m_impl.get(),
+            &RenderContextImpl::mapImageDrawInstanceBuffer,
+            mapCounts.imageDrawInstanceBufferCount));
+    }
+    assert(m_imageDrawInstanceData.hasRoomFor(
+        mapCounts.imageDrawInstanceBufferCount > 0));
+
 #undef HANDLE_MAP_FAILURE
     return true;
 }
@@ -2882,13 +2882,6 @@ void RenderContext::unmapResourceBuffers(
             m_impl.get(),
             &RenderContextImpl::unmapFlushUniformBuffer,
             mapCounts.flushUniformBufferCount);
-    }
-    if (m_imageDrawUniformData)
-    {
-        m_imageDrawUniformData.unmapElements(
-            m_impl.get(),
-            &RenderContextImpl::unmapImageDrawUniformBuffer,
-            mapCounts.imageDrawUniformBufferCount);
     }
     if (m_pathData)
     {
@@ -2933,6 +2926,13 @@ void RenderContext::unmapResourceBuffers(
             m_impl.get(),
             &RenderContextImpl::unmapTriangleVertexBuffer,
             mapCounts.triangleVertexBufferCount);
+    }
+    if (m_imageDrawInstanceData)
+    {
+        m_imageDrawInstanceData.unmapElements(
+            m_impl.get(),
+            &RenderContextImpl::unmapImageDrawInstanceBuffer,
+            mapCounts.imageDrawInstanceBufferCount);
     }
 }
 
@@ -3448,22 +3448,22 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
     // with an image paint instead of calling this method.
     assert(!m_ctx->frameSupportsImagePaintForPaths());
 
-    size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
-    m_ctx->m_imageDrawUniformData.emplace_back(draw->matrix(),
-                                               draw->opacity(),
-                                               draw->clipRectInverseMatrix(),
-                                               draw->clipID(),
-                                               draw->blendMode(),
-                                               m_currentZIndex);
+    const uint32_t imageDrawBaseInstance =
+        math::lossless_numeric_cast<uint32_t>(
+            m_ctx->m_imageDrawInstanceData.elementsWritten());
+    m_ctx->m_imageDrawInstanceData.emplace_back(draw->matrix(),
+                                                draw->opacity(),
+                                                draw->clipRectInverseMatrix(),
+                                                draw->clipID(),
+                                                draw->blendMode(),
+                                                m_currentZIndex);
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageRect,
                                 m_baselineShaderMiscFlags,
                                 PaintType::image,
                                 1,
-                                0);
-    batch.imageDrawDataOffset =
-        math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
+                                imageDrawBaseInstance);
     return batch;
 }
 
@@ -3473,25 +3473,26 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
 
-    size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
-    m_ctx->m_imageDrawUniformData.emplace_back(draw->matrix(),
-                                               draw->opacity(),
-                                               draw->clipRectInverseMatrix(),
-                                               draw->clipID(),
-                                               draw->blendMode(),
-                                               m_currentZIndex);
+    const uint32_t imageDrawBaseInstance =
+        math::lossless_numeric_cast<uint32_t>(
+            m_ctx->m_imageDrawInstanceData.elementsWritten());
+    m_ctx->m_imageDrawInstanceData.emplace_back(draw->matrix(),
+                                                draw->opacity(),
+                                                draw->clipRectInverseMatrix(),
+                                                draw->clipID(),
+                                                draw->blendMode(),
+                                                m_currentZIndex);
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageMesh,
                                 m_baselineShaderMiscFlags,
                                 PaintType::image,
-                                draw->indexCount(),
-                                0);
+                                1, // one instance (the mesh)
+                                imageDrawBaseInstance);
+    batch.indexCountPerInstance = draw->indexCount();
     batch.vertexBuffer = draw->vertexBuffer();
     batch.uvBuffer = draw->uvBuffer();
     batch.indexBuffer = draw->indexBuffer();
-    batch.imageDrawDataOffset =
-        math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
     return batch;
 }
 
@@ -3619,6 +3620,107 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
     // can't combine draws that use different textures.
     return (currentDrawTexture == nextDrawTexture) &&
            (currentImageSamplerKey == nextImageSamplerKey);
+}
+
+constexpr uint32_t patchIndexCount(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+            return kMidpointFanPatchIndexCount;
+        case DrawType::midpointFanCenterAAPatches:
+            return kMidpointFanCenterAAPatchIndexCount;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchIndexCount;
+        case DrawType::msaaStrokes:
+            return kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+            return kMidpointFanPatchIndexCount -
+                   kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaOuterCubics:
+            return kOuterCurvePatchIndexCount -
+                   kOuterCurvePatchBorderIndexCount;
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            RIVE_UNREACHABLE();
+    }
+    RIVE_UNREACHABLE();
+}
+
+constexpr uint32_t patchBaseIndex(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::msaaStrokes:
+            return kMidpointFanPatchBaseIndex;
+        case DrawType::midpointFanCenterAAPatches:
+            return kMidpointFanCenterAAPatchBaseIndex;
+        case DrawType::outerCurvePatches:
+            return kOuterCurvePatchBaseIndex;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+            return kMidpointFanPatchBaseIndex +
+                   kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaOuterCubics:
+            return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            RIVE_UNREACHABLE();
+    }
+    RIVE_UNREACHABLE();
+}
+
+static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+            batch->indexCountPerInstance = patchIndexCount(drawType);
+            batch->baseIndex = patchBaseIndex(drawType);
+            break;
+        case DrawType::imageRect:
+            batch->indexCountPerInstance = std::size(kImageRectIndices);
+            batch->baseIndex = 0;
+            break;
+        case DrawType::imageMesh:
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            batch->indexCountPerInstance = 0;
+            batch->baseIndex = 0;
+            break;
+        default:
+            RIVE_UNREACHABLE();
+    }
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
@@ -3749,6 +3851,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                                         draw->blendMode(),
                                         draw->imageSampler(),
                                         m_pendingBarriers);
+        assignDrawIndices(drawType, batch);
     }
     else
     {

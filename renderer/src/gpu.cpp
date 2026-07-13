@@ -805,6 +805,24 @@ static void write_matrix(volatile float* dst, const Mat2D& matrix)
     }
 }
 
+// Writes just the 2x2 (scale & skew) part of a Mat2D.
+static void write2x2(volatile float* dst, const Mat2D& matrix)
+{
+    const float* vals = matrix.values();
+    for (size_t i = 0; i < 4; ++i)
+    {
+        dst[i] = vals[i];
+    }
+}
+
+// Writes just the translation part of a Mat2D.
+static void writeTranslate(volatile float* dst, const Mat2D& matrix)
+{
+    const float* vals = matrix.values();
+    dst[0] = vals[4];
+    dst[1] = vals[5];
+}
+
 void PathData::set(const Mat2D& m,
                    float strokeRadius,
                    float featherRadius,
@@ -1004,7 +1022,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
     }
 }
 
-ImageDrawUniforms::ImageDrawUniforms(
+ImageDrawInstance::ImageDrawInstance(
     const Mat2D& matrix,
     float opacity,
     const ClipRectInverseMatrix* clipRectInverseMatrix,
@@ -1012,12 +1030,56 @@ ImageDrawUniforms::ImageDrawUniforms(
     BlendMode blendMode,
     uint32_t zIndex)
 {
-    write_matrix(m_matrix, matrix);
+    // The backends bind the 4 attributes at byte offset i*16, relying on this
+    // grouping.
+    static_assert(ImageDrawInstance::FirstAttribIdx == IMAGE_FIRST_ATTRIB_IDX);
+    static_assert(ImageDrawInstance::LastAttribIdx == IMAGE_LAST_ATTRIB_IDX);
+    static_assert(offsetof(ImageDrawInstance, m_viewMatrix) ==
+                  (IMAGE_VIEW_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4);
+    static_assert(
+        offsetof(ImageDrawInstance, m_clipRectInverseMatrix) ==
+        (IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+            sizeof(uint32_t) * 4);
+    static_assert(offsetof(ImageDrawInstance, m_translate) ==
+                  (IMAGE_TRANSLATES_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4);
+    static_assert(offsetof(ImageDrawInstance, m_opacity) ==
+                  (IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4);
+
+    // When SPLIT_UINT4_ATTRIBUTES is set (Unreal RHI, whose shader compiler
+    // mishandles a uint4 vertex attribute), the packed uint4 is bound as four
+    // separate uint attributes at consecutive locations.
+    static_assert(IMAGE_SPLIT_OPACITY_ATTRIB_IDX == IMAGE_PACKED_ATTRIBS_IDX);
+    static_assert(
+        offsetof(ImageDrawInstance, m_clipID) ==
+        ((IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) * 4 +
+         (IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX - IMAGE_SPLIT_OPACITY_ATTRIB_IDX)) *
+            sizeof(uint32_t));
+    static_assert(
+        offsetof(ImageDrawInstance, m_blendMode) ==
+        ((IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) * 4 +
+         (IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX - IMAGE_SPLIT_OPACITY_ATTRIB_IDX)) *
+            sizeof(uint32_t));
+    static_assert(
+        offsetof(ImageDrawInstance, m_zIndex) ==
+        ((IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) * 4 +
+         (IMAGE_SPLIT_ZINDEX_ATTRIB_IDX - IMAGE_SPLIT_OPACITY_ATTRIB_IDX)) *
+            sizeof(uint32_t));
+    static_assert(sizeof(ImageDrawInstance) ==
+                  IMAGE_ATTRIB_COUNT * sizeof(uint32_t) * 4);
+
+    const Mat2D clipRectInverseMatrixToWrite =
+        clipRectInverseMatrix != nullptr
+            ? clipRectInverseMatrix->inverseMatrix()
+            : ClipRectInverseMatrix::WideOpen().inverseMatrix();
+
+    write2x2(m_viewMatrix, matrix);
+    write2x2(m_clipRectInverseMatrix, clipRectInverseMatrixToWrite);
+    writeTranslate(m_translate, matrix);
+    writeTranslate(m_clipRectInverseTranslate, clipRectInverseMatrixToWrite);
     m_opacity = opacity;
-    write_matrix(m_clipRectInverseMatrix,
-                 clipRectInverseMatrix != nullptr
-                     ? clipRectInverseMatrix->inverseMatrix()
-                     : ClipRectInverseMatrix::WideOpen().inverseMatrix());
     m_clipID = clipID;
     m_blendMode = ConvertBlendModeToPLSBlendMode(blendMode);
     m_zIndex = zIndex;

@@ -15,7 +15,6 @@ class RenderContextHelperImpl : public RenderContextImpl
 {
 public:
     void resizeFlushUniformBuffer(size_t sizeInBytes) override;
-    void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
     void resizePathBuffer(size_t sizeInBytes,
                           gpu::StorageBufferStructure) override;
     void resizePaintBuffer(size_t sizeInBytes,
@@ -27,9 +26,9 @@ public:
     void resizeGradSpanBuffer(size_t sizeInBytes) override;
     void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
     void resizeTriangleVertexBuffer(size_t sizeInBytes) override;
+    void resizeImageDrawInstanceBuffer(size_t sizeInBytes) override;
 
     void* mapFlushUniformBuffer(size_t mapSizeInBytes) override;
-    void* mapImageDrawUniformBuffer(size_t mapSizeInBytes) override;
     void* mapPathBuffer(size_t mapSizeInBytes) override;
     void* mapPaintBuffer(size_t mapSizeInBytes) override;
     void* mapPaintAuxBuffer(size_t mapSizeInBytes) override;
@@ -37,9 +36,9 @@ public:
     void* mapGradSpanBuffer(size_t mapSizeInBytes) override;
     void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
     void* mapTriangleVertexBuffer(size_t mapSizeInBytes) override;
+    void* mapImageDrawInstanceBuffer(size_t mapSizeInBytes) override;
 
     void unmapFlushUniformBuffer(size_t mapSizeInBytes) override;
-    void unmapImageDrawUniformBuffer(size_t mapSizeInBytes) override;
     void unmapPathBuffer(size_t mapSizeInBytes) override;
     void unmapPaintBuffer(size_t mapSizeInBytes) override;
     void unmapPaintAuxBuffer(size_t mapSizeInBytes) override;
@@ -47,6 +46,7 @@ public:
     void unmapGradSpanBuffer(size_t mapSizeInBytes) override;
     void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
     void unmapTriangleVertexBuffer(size_t mapSizeInBytes) override;
+    void unmapImageDrawInstanceBuffer(size_t mapSizeInBytes) override;
 
     double secondsNow() const override
     {
@@ -56,10 +56,6 @@ public:
 
 protected:
     BufferRing* flushUniformBufferRing() { return m_flushUniformBuffer.get(); }
-    BufferRing* imageDrawUniformBufferRing()
-    {
-        return m_imageDrawUniformBuffer.get();
-    }
     BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
     BufferRing* paintBufferRing() { return m_paintBuffer.get(); }
     BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
@@ -67,6 +63,10 @@ protected:
     BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
     BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
+    BufferRing* imageDrawInstanceBufferRing()
+    {
+        return m_imageDrawInstanceBuffer.get();
+    }
 
     virtual std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) = 0;
@@ -78,7 +78,6 @@ protected:
 
 private:
     std::unique_ptr<BufferRing> m_flushUniformBuffer;
-    std::unique_ptr<BufferRing> m_imageDrawUniformBuffer;
     std::unique_ptr<BufferRing> m_pathBuffer;
     std::unique_ptr<BufferRing> m_paintBuffer;
     std::unique_ptr<BufferRing> m_paintAuxBuffer;
@@ -86,6 +85,7 @@ private:
     std::unique_ptr<BufferRing> m_gradSpanBuffer;
     std::unique_ptr<BufferRing> m_tessSpanBuffer;
     std::unique_ptr<BufferRing> m_triangleBuffer;
+    std::unique_ptr<BufferRing> m_imageDrawInstanceBuffer;
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
 };

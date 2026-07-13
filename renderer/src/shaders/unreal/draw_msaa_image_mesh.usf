@@ -1,6 +1,7 @@
 #define OPTIONALLY_FLAT flat
 #define DRAW_IMAGE 1
 #define DRAW_IMAGE_MESH 1
+#define SPLIT_UINT4_ATTRIBUTES 1
 #define RENDER_MODE_MSAA 1
 
 #if ENABLE_CLIP_RECT
@@ -14,7 +15,6 @@
 #include "/Engine/Private/Common.ush"
 #else
 #include "flush_uniforms.minified.ush"
-#include "image_draw_uniforms.minified.ush"
 #endif
 
 #include "Generated/constants.minified.ush"

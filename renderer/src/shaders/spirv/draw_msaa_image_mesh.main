@@ -9,7 +9,6 @@
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"
 #include "flush_uniforms.minified.glsl"
-#include "image_draw_uniforms.minified.glsl"
 #include "common.minified.glsl"
 #include "advanced_blend.minified.glsl"
 #include "draw_image_mesh.minified.vert"

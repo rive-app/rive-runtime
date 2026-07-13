@@ -326,8 +326,16 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         uint _instanceID = _instanceIDWithoutBase + $baseInstance;             \
         Varyings _varyings;
 
-#define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)     \
-    Varyings NAME(Attrs attrs, uint _vertexID : $SV_VertexID)                  \
+#define IMAGE_RECT_VERTEX_MAIN(NAME,                                           \
+                               Attrs,                                          \
+                               attrs,                                          \
+                               ImageDrawAttrs,                                 \
+                               imageDrawAttrs,                                 \
+                               _vertexID,                                      \
+                               _instanceID)                                    \
+    Varyings NAME(Attrs attrs,                                                 \
+                  ImageDrawAttrs imageDrawAttrs,                               \
+                  uint _vertexID : $SV_VertexID)                               \
     {                                                                          \
         Varyings _varyings;                                                    \
         float4 _pos;
@@ -337,9 +345,12 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
                                position,                                       \
                                UVAttr,                                         \
                                uv,                                             \
+                               ImageDrawAttrs,                                 \
+                               imageDrawAttrs,                                 \
                                _vertexID)                                      \
     Varyings NAME(PositionAttr position,                                       \
                   UVAttr uv,                                                   \
+                  ImageDrawAttrs imageDrawAttrs,                               \
                   uint _vertexID : $SV_VertexID)                               \
     {                                                                          \
         Varyings _varyings;                                                    \

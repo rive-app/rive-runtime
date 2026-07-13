@@ -1904,13 +1904,13 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                             length:sizeof(uint32_t)
                            atIndex:METAL_BUFFER_IDX(
                                        PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
-                [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                    indexCount:gpu::PatchIndexCount(drawType)
-                                     indexType:MTLIndexTypeUInt16
-                                   indexBuffer:m_pathPatchIndexBuffer
-                             indexBufferOffset:gpu::PatchBaseIndex(drawType) *
-                                               sizeof(uint16_t)
-                                 instanceCount:batch.elementCount];
+                [encoder
+                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                               indexCount:batch.indexCountPerInstance
+                                indexType:MTLIndexTypeUInt16
+                              indexBuffer:m_pathPatchIndexBuffer
+                        indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
+                            instanceCount:batch.elementCount];
                 break;
             }
             case DrawType::interiorTriangulation:
@@ -1931,15 +1931,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             {
                 [encoder setRenderPipelineState:drawPipelineState];
                 [encoder
-                    setVertexBuffer:mtl_buffer(imageDrawUniformBufferRing())
-                             offset:batch.imageDrawDataOffset
-                            atIndex:METAL_BUFFER_IDX(
-                                        IMAGE_DRAW_UNIFORM_BUFFER_IDX)];
-                [encoder
-                    setFragmentBuffer:mtl_buffer(imageDrawUniformBufferRing())
-                               offset:batch.imageDrawDataOffset
-                              atIndex:METAL_BUFFER_IDX(
-                                          IMAGE_DRAW_UNIFORM_BUFFER_IDX)];
+                    setVertexBuffer:mtl_buffer(imageDrawInstanceBufferRing())
+                             offset:batch.baseElement *
+                                    sizeof(gpu::ImageDrawInstance)
+                            atIndex:2];
                 [encoder setCullMode:MTLCullModeNone];
                 if (drawType == DrawType::imageRect)
                 {
@@ -1949,10 +1944,11 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                      atIndex:0];
                     [encoder
                         drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                   indexCount:std::size(gpu::kImageRectIndices)
+                                   indexCount:batch.indexCountPerInstance
                                     indexType:MTLIndexTypeUInt16
                                   indexBuffer:m_imageRectIndexBuffer
-                            indexBufferOffset:0];
+                            indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
+                                instanceCount:batch.elementCount];
                 }
                 else
                 {
@@ -1971,10 +1967,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                      atIndex:1];
                     [encoder
                         drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                   indexCount:batch.elementCount
+                                   indexCount:batch.indexCountPerInstance
                                     indexType:MTLIndexTypeUInt16
                                   indexBuffer:indexBuffer->submittedBuffer()
-                            indexBufferOffset:batch.baseElement *
+                            indexBufferOffset:batch.baseIndex *
                                               sizeof(uint16_t)];
                 }
                 break;

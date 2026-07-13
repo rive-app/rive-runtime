@@ -10,11 +10,11 @@
 #include "rive/renderer/render_canvas.hpp"
 #include <rive/renderer/ore/ore_context_d3d11.hpp>
 #endif
+#include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
 
 #include <D3DCompiler.h>
-#include <mutex>
 
 #include "generated/shaders/tessellate.glsl.exports.h"
 
@@ -250,69 +250,63 @@ bool D3D11PipelineManager::setPipelineState(
 std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
     compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
-    D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
-    uint32_t vertexAttribCount;
+    StackVector<D3D11_INPUT_ELEMENT_DESC, IMAGE_LAST_ATTRIB_IDX + 1> layoutDesc;
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-            layoutDesc[0] = {GLSL_a_patchVertexData,
-                             0,
-                             DXGI_FORMAT_R32G32B32A32_FLOAT,
-                             PATCH_VERTEX_DATA_SLOT,
-                             D3D11_APPEND_ALIGNED_ELEMENT,
-                             D3D11_INPUT_PER_VERTEX_DATA,
-                             0};
-            layoutDesc[1] = {GLSL_a_mirroredVertexData,
-                             0,
-                             DXGI_FORMAT_R32G32B32A32_FLOAT,
-                             PATCH_VERTEX_DATA_SLOT,
-                             D3D11_APPEND_ALIGNED_ELEMENT,
-                             D3D11_INPUT_PER_VERTEX_DATA,
-                             0};
-            vertexAttribCount = 2;
+            layoutDesc.push_back({GLSL_a_patchVertexData,
+                                  0,
+                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                  PATCH_VERTEX_DATA_SLOT,
+                                  D3D11_APPEND_ALIGNED_ELEMENT,
+                                  D3D11_INPUT_PER_VERTEX_DATA,
+                                  0});
+            layoutDesc.push_back({GLSL_a_mirroredVertexData,
+                                  0,
+                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                  PATCH_VERTEX_DATA_SLOT,
+                                  D3D11_APPEND_ALIGNED_ELEMENT,
+                                  D3D11_INPUT_PER_VERTEX_DATA,
+                                  0});
             break;
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
-            layoutDesc[0] = {GLSL_a_triangleVertex,
-                             0,
-                             DXGI_FORMAT_R32G32B32_FLOAT,
-                             TRIANGLE_VERTEX_DATA_SLOT,
-                             0,
-                             D3D11_INPUT_PER_VERTEX_DATA,
-                             0};
-            vertexAttribCount = 1;
+            layoutDesc.push_back({GLSL_a_triangleVertex,
+                                  0,
+                                  DXGI_FORMAT_R32G32B32_FLOAT,
+                                  TRIANGLE_VERTEX_DATA_SLOT,
+                                  0,
+                                  D3D11_INPUT_PER_VERTEX_DATA,
+                                  0});
             break;
         case DrawType::imageRect:
-            layoutDesc[0] = {GLSL_a_imageRectVertex,
-                             0,
-                             DXGI_FORMAT_R32G32B32A32_FLOAT,
-                             IMAGE_RECT_VERTEX_DATA_SLOT,
-                             0,
-                             D3D11_INPUT_PER_VERTEX_DATA,
-                             0};
-            vertexAttribCount = 1;
+            layoutDesc.push_back({GLSL_a_imageRectVertex,
+                                  0,
+                                  DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                  IMAGE_RECT_VERTEX_DATA_SLOT,
+                                  0,
+                                  D3D11_INPUT_PER_VERTEX_DATA,
+                                  0});
             break;
         case DrawType::imageMesh:
-            layoutDesc[0] = {GLSL_a_position,
-                             0,
-                             DXGI_FORMAT_R32G32_FLOAT,
-                             IMAGE_MESH_VERTEX_DATA_SLOT,
-                             D3D11_APPEND_ALIGNED_ELEMENT,
-                             D3D11_INPUT_PER_VERTEX_DATA,
-                             0};
-            layoutDesc[1] = {GLSL_a_texCoord,
-                             0,
-                             DXGI_FORMAT_R32G32_FLOAT,
-                             IMAGE_MESH_UV_DATA_SLOT,
-                             D3D11_APPEND_ALIGNED_ELEMENT,
-                             D3D11_INPUT_PER_VERTEX_DATA,
-                             0};
-            vertexAttribCount = 2;
+            layoutDesc.push_back({GLSL_a_position,
+                                  0,
+                                  DXGI_FORMAT_R32G32_FLOAT,
+                                  IMAGE_MESH_VERTEX_DATA_SLOT,
+                                  D3D11_APPEND_ALIGNED_ELEMENT,
+                                  D3D11_INPUT_PER_VERTEX_DATA,
+                                  0});
+            layoutDesc.push_back({GLSL_a_texCoord,
+                                  0,
+                                  DXGI_FORMAT_R32G32_FLOAT,
+                                  IMAGE_MESH_UV_DATA_SLOT,
+                                  D3D11_APPEND_ALIGNED_ELEMENT,
+                                  D3D11_INPUT_PER_VERTEX_DATA,
+                                  0});
             break;
         case DrawType::renderPassResolve:
-            vertexAttribCount = 0;
             break;
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
@@ -326,10 +320,44 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
             RIVE_UNREACHABLE();
     }
 
+    // Image draws receive their data as instanced vertex attributes, all from
+    // IMAGE_DRAW_INSTANCE_DATA_SLOT. See gpu::ImageDrawInstance.
+    if (gpu::DrawTypeIsImageDraw(drawType))
+    {
+        layoutDesc.push_back({GLSL_a_imageDrawViewMatrix,
+                              0,
+                              DXGI_FORMAT_R32G32B32A32_FLOAT,
+                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                              D3D11_APPEND_ALIGNED_ELEMENT,
+                              D3D11_INPUT_PER_INSTANCE_DATA,
+                              1});
+        layoutDesc.push_back({GLSL_a_imageDrawClipRectInverseMatrix,
+                              0,
+                              DXGI_FORMAT_R32G32B32A32_FLOAT,
+                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                              D3D11_APPEND_ALIGNED_ELEMENT,
+                              D3D11_INPUT_PER_INSTANCE_DATA,
+                              1});
+        layoutDesc.push_back({GLSL_a_imageDrawTranslates,
+                              0,
+                              DXGI_FORMAT_R32G32B32A32_FLOAT,
+                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                              D3D11_APPEND_ALIGNED_ELEMENT,
+                              D3D11_INPUT_PER_INSTANCE_DATA,
+                              1});
+        layoutDesc.push_back({GLSL_a_imageDrawPacked,
+                              0,
+                              DXGI_FORMAT_R32G32B32A32_UINT,
+                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                              D3D11_APPEND_ALIGNED_ELEMENT,
+                              D3D11_INPUT_PER_INSTANCE_DATA,
+                              1});
+    }
+
     auto result = std::make_unique<D3D11DrawVertexShader>();
 
-    VERIFY_OK(device()->CreateInputLayout(layoutDesc,
-                                          vertexAttribCount,
+    VERIFY_OK(device()->CreateInputLayout(layoutDesc.data(),
+                                          layoutDesc.size(),
                                           blob->GetBufferPointer(),
                                           blob->GetBufferSize(),
                                           &result->layout));
@@ -666,13 +694,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         VERIFY_OK(m_gpu->CreateBuffer(&desc,
                                       nullptr,
                                       m_drawUniforms.ReleaseAndGetAddressOf()));
-
-        desc.ByteWidth = sizeof(gpu::ImageDrawUniforms);
-        desc.StructureByteStride = sizeof(gpu::ImageDrawUniforms);
-        VERIFY_OK(
-            m_gpu->CreateBuffer(&desc,
-                                nullptr,
-                                m_imageDrawUniforms.ReleaseAndGetAddressOf()));
     }
 
     // Create a linear sampler for the gradient & feather textures.
@@ -1613,12 +1634,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         0);
 
     ID3D11Buffer* uniformBuffers[] = {m_flushUniforms.Get(),
-                                      m_drawUniforms.Get(),
-                                      m_imageDrawUniforms.Get()};
+                                      m_drawUniforms.Get()};
     static_assert(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX ==
                   FLUSH_UNIFORM_BUFFER_IDX + 1);
-    static_assert(IMAGE_DRAW_UNIFORM_BUFFER_IDX ==
-                  PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX + 1);
     m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
                                        std::size(uniformBuffers),
                                        uniformBuffers);
@@ -2022,12 +2040,21 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                        1,
                                        m_atlasTextureSRV.GetAddressOf());
 
-    m_gpuContext->PSSetConstantBuffers(IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                                       1,
-                                       m_imageDrawUniforms.GetAddressOf());
-
-    const char* const imageDrawUniformData =
-        heap_buffer_contents(imageDrawUniformBufferRing());
+    if (imageDrawInstanceBufferRing() != nullptr)
+    {
+        // Bind the image-draw-attribute records as a per-instance vertex buffer
+        // once; each image draw selects its record via the draw call's base
+        // instance (batch.baseElement).
+        ID3D11Buffer* imageDrawInstanceBuffer =
+            flush_buffer(m_gpuContext.Get(), imageDrawInstanceBufferRing());
+        UINT instanceStride = sizeof(gpu::ImageDrawInstance);
+        UINT instanceOffset = 0;
+        m_gpuContext->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                         1,
+                                         &imageDrawInstanceBuffer,
+                                         &instanceStride,
+                                         &instanceOffset);
+    }
 
     bool renderPassHasCoalescedResolveAndTransfer =
         desc.interlockMode == gpu::InterlockMode::atomics &&
@@ -2124,9 +2151,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                                 0,
                                                 0);
                 RIVE_PROF_GPUNAME_L(2, "Patches");
-                m_gpuContext->DrawIndexedInstanced(PatchIndexCount(drawType),
+                m_gpuContext->DrawIndexedInstanced(batch.indexCountPerInstance,
                                                    batch.elementCount,
-                                                   PatchBaseIndex(drawType),
+                                                   batch.baseIndex,
                                                    0,
                                                    batch.baseElement);
                 break;
@@ -2156,16 +2183,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                                0);
                 m_gpuContext->RSSetState(
                     m_doubleSidedRasterState[desc.wireframe].Get());
-                m_gpuContext->UpdateSubresource(m_imageDrawUniforms.Get(),
-                                                0,
-                                                NULL,
-                                                imageDrawUniformData +
-                                                    batch.imageDrawDataOffset,
-                                                0,
-                                                0);
-                m_gpuContext->DrawIndexed(std::size(gpu::kImageRectIndices),
-                                          0,
-                                          0);
+                m_gpuContext->DrawIndexedInstanced(batch.indexCountPerInstance,
+                                                   batch.elementCount,
+                                                   batch.baseIndex,
+                                                   0,
+                                                   batch.baseElement);
                 break;
             }
             case DrawType::imageMesh:
@@ -2198,16 +2220,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                                0);
                 m_gpuContext->RSSetState(
                     m_doubleSidedRasterState[desc.wireframe].Get());
-                m_gpuContext->UpdateSubresource(m_imageDrawUniforms.Get(),
-                                                0,
-                                                NULL,
-                                                imageDrawUniformData +
-                                                    batch.imageDrawDataOffset,
-                                                0,
-                                                0);
-                m_gpuContext->DrawIndexed(batch.elementCount,
-                                          batch.baseElement,
-                                          0);
+                m_gpuContext->DrawIndexedInstanced(batch.indexCountPerInstance,
+                                                   batch.elementCount,
+                                                   batch.baseIndex,
+                                                   0,
+                                                   batch.baseElement);
                 break;
             }
             case DrawType::renderPassResolve:

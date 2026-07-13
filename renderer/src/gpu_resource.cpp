@@ -37,6 +37,7 @@ void GPUResourceManager::advanceFrameNumber(uint64_t nextFrameNumber,
 
     m_currentFrameNumber = nextFrameNumber;
     m_safeFrameNumber = safeFrameNumber;
+    m_didAdvanceFrameNumber = true;
 
     // Delete all resources whose safe frame number has been reached.
     while (!m_resourcePurgatory.empty() &&
@@ -50,7 +51,18 @@ void GPUResourceManager::advanceFrameNumber(uint64_t nextFrameNumber,
 void GPUResourceManager::onRenderingResourceReleased(GPUResource* resource)
 {
     assert(resource->manager() == this);
-    if (m_currentFrameNumber > m_safeFrameNumber)
+
+    // Hold the resource in purgatory (rather than freeing it now) only if GPU
+    // work that might reference it could still be in flight:
+    //   * during normal rendering, while frames are unfinished
+    //     (m_currentFrameNumber > m_safeFrameNumber); or
+    //   * before the first frame (!m_didAdvanceFrameNumber), where a one-shot
+    //     upload may have submitted work referencing a just-released staging
+    //     buffer while m_currentFrameNumber == m_safeFrameNumber == 0.
+    // Otherwise -- the GPU has caught up to the current frame during rendering,
+    // or we're in a shutdown cycle (which implies m_didAdvanceFrameNumber) --
+    // delete immediately.
+    if (m_currentFrameNumber > m_safeFrameNumber || !m_didAdvanceFrameNumber)
     {
         // Hold this resource until its safe frame number is reached.
         assert(resource->debugging_refcnt() == 0);
@@ -61,7 +73,6 @@ void GPUResourceManager::onRenderingResourceReleased(GPUResource* resource)
     }
     else
     {
-        // We're in a shutdown cycle. Delete immediately.
         delete resource;
     }
 }

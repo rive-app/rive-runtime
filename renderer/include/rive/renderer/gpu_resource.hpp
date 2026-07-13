@@ -93,6 +93,14 @@ private:
     uint64_t m_currentFrameNumber = 0;
     uint64_t m_safeFrameNumber = 0;
 
+    // False until advanceFrameNumber() has been called at least once (including
+    // the shutdown transition). While false we're in the pre-first-frame
+    // window, where m_currentFrameNumber == m_safeFrameNumber == 0 -- otherwise
+    // indistinguishable from a GPU-caught-up state -- but a one-shot upload
+    // submitted during initialization can leave GPU work referencing a
+    // just-released staging resource, so such releases must go to purgatory.
+    bool m_didAdvanceFrameNumber = false;
+
     // Temporary container for GPUResource instances that have been fully
     // released, but need to persist until their safe frame number is reached.
     std::deque<ZombieResource> m_resourcePurgatory;

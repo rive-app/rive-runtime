@@ -8,7 +8,6 @@
 
 #include <d3dcompiler.h>
 
-#include "generated/shaders/image_draw_uniforms.glsl.hpp"
 #include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/atomic_draw.glsl.hpp"
@@ -121,10 +120,6 @@ static std::string build_shader(DrawType drawType,
                            ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
         s << glsl::advanced_blend << '\n';
-    }
-    if (drawType == DrawType::imageMesh || drawType == DrawType::imageRect)
-    {
-        s << glsl::image_draw_uniforms << '\n';
     }
     if (interlockMode == InterlockMode::rasterOrdering)
     {

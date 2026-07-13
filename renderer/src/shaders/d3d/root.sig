@@ -49,14 +49,13 @@
 // go, to change a heap we would have to create a new one and use SetHeaps which
 // is very slow
 #define FLUSH_UNIFORM_BUFFFER_SIG_INDEX 0
-#define IMAGE_UNIFORM_BUFFFER_SIG_INDEX 1
-#define VERTEX_DRAW_UNIFORM_SIG_INDEX 2
-#define DYNAMIC_SRV_SIG_INDEX 3
-#define STATIC_SRV_SIG_INDEX 4
-#define IMAGE_SIG_INDEX 5
-#define UAV_SIG_INDEX 6
-#define SAMPLER_SIG_INDEX 7
-#define DYNAMIC_SAMPLER_SIG_INDEX 8
+#define VERTEX_DRAW_UNIFORM_SIG_INDEX 1
+#define DYNAMIC_SRV_SIG_INDEX 2
+#define STATIC_SRV_SIG_INDEX 3
+#define IMAGE_SIG_INDEX 4
+#define UAV_SIG_INDEX 5
+#define SAMPLER_SIG_INDEX 6
+#define DYNAMIC_SAMPLER_SIG_INDEX 7
 
 #define SRV_START_HEAP_INDEX PATH_BUFFER_HEAP_OFFSET
 #define UAV_START_HEAP_INDEX ATOMIC_COLOR_HEAP_OFFSET
@@ -68,26 +67,36 @@
 #define ATLAS_RTV_HEAP_OFFSET 2
 #define TARGET_RTV_HEAP_OFFSET 3
 
-// The root signature macro doesn't seem to support string splicing. We need to manually ensure the numbers here stay in sync with the above definitions.
+// ROOT_SIG is only consumed by fxc when compiling the root signature. Guard it
+// (and its constants.glsl include) out of the C++ translation units that pull in
+// this file just for the heap/sig-index constants above -- they neither need
+// ROOT_SIG nor should pull the shader constants into their translation unit.
+#ifndef __cplusplus
+
+#include "../constants.glsl"
+#define RIVE_STRINGIZE(X) #X
+#define RIVE_STR(X) RIVE_STRINGIZE(X)
+
 #define ROOT_SIG "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT), " \
-    "CBV(b0, flags=DATA_VOLATILE, visibility=SHADER_VISIBILITY_ALL), "\
-    "CBV(b2, flags=DATA_VOLATILE, visibility=SHADER_VISIBILITY_ALL), "\
-    "RootConstants(num32BitConstants=1, b1, visibility=SHADER_VISIBILITY_VERTEX), "\
-    "DescriptorTable(SRV(t3), "\
-                    "SRV(t4),"\
-                    "SRV(t5),"\
-                    "SRV(t6), visibility=SHADER_VISIBILITY_ALL), "\
-    "DescriptorTable(SRV(t8, flags=DESCRIPTORS_VOLATILE),"\
-                    "SRV(t9, flags=DESCRIPTORS_VOLATILE), "\
-                    "SRV(t10, flags=DESCRIPTORS_VOLATILE), " \
-                    "SRV(t11, flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_ALL), "\
-    "DescriptorTable(SRV(t12, flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL), "\
-    "DescriptorTable(UAV(u0, flags=DESCRIPTORS_VOLATILE | DATA_VOLATILE),"\
-                    "UAV(u1, flags=DATA_VOLATILE),"\
-                    "UAV(u2, flags=DESCRIPTORS_VOLATILE | DATA_VOLATILE),"\
-                    "UAV(u3, flags=DATA_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL),"\
-    "DescriptorTable(Sampler(s8),"\
-                    "Sampler(s9),"\
-                    "Sampler(s10),"\
-                    "Sampler(s11), visibility=SHADER_VISIBILITY_ALL),"\
-    "DescriptorTable(Sampler(s12, flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL) "
+    "CBV(b" RIVE_STR(FLUSH_UNIFORM_BUFFER_IDX) ", flags=DATA_VOLATILE, visibility=SHADER_VISIBILITY_ALL), "\
+    "RootConstants(num32BitConstants=1, b" RIVE_STR(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX) ", visibility=SHADER_VISIBILITY_VERTEX), "\
+    "DescriptorTable(SRV(t" RIVE_STR(PATH_BUFFER_IDX) "), "\
+                    "SRV(t" RIVE_STR(PAINT_BUFFER_IDX) "),"\
+                    "SRV(t" RIVE_STR(PAINT_AUX_BUFFER_IDX) "),"\
+                    "SRV(t" RIVE_STR(CONTOUR_BUFFER_IDX) "), visibility=SHADER_VISIBILITY_ALL), "\
+    "DescriptorTable(SRV(t" RIVE_STR(TESS_VERTEX_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE),"\
+                    "SRV(t" RIVE_STR(GRAD_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), "\
+                    "SRV(t" RIVE_STR(FEATHER_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), "\
+                    "SRV(t" RIVE_STR(ATLAS_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_ALL), "\
+    "DescriptorTable(SRV(t" RIVE_STR(IMAGE_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL), "\
+    "DescriptorTable(UAV(u" RIVE_STR(COLOR_PLANE_IDX) ", flags=DESCRIPTORS_VOLATILE | DATA_VOLATILE),"\
+                    "UAV(u" RIVE_STR(CLIP_PLANE_IDX) ", flags=DATA_VOLATILE),"\
+                    "UAV(u" RIVE_STR(SCRATCH_COLOR_PLANE_IDX) ", flags=DESCRIPTORS_VOLATILE | DATA_VOLATILE),"\
+                    "UAV(u" RIVE_STR(COVERAGE_PLANE_IDX) ", flags=DATA_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL),"\
+    "DescriptorTable(Sampler(s" RIVE_STR(TESS_VERTEX_TEXTURE_IDX) "),"\
+                    "Sampler(s" RIVE_STR(GRAD_TEXTURE_IDX) "),"\
+                    "Sampler(s" RIVE_STR(FEATHER_TEXTURE_IDX) "),"\
+                    "Sampler(s" RIVE_STR(ATLAS_TEXTURE_IDX) "), visibility=SHADER_VISIBILITY_ALL),"\
+    "DescriptorTable(Sampler(s" RIVE_STR(IMAGE_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL) "
+
+#endif // __cplusplus

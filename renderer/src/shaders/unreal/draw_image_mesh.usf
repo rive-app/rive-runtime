@@ -2,6 +2,7 @@
 #define OPTIONALLY_FLAT flat
 #define DRAW_IMAGE
 #define DRAW_IMAGE_MESH
+#define SPLIT_UINT4_ATTRIBUTES 1
 #define ENABLE_RASTERIZER_ORDERED_VIEWS
 
 #include "parse_environment.ush"
@@ -11,7 +12,6 @@
 #include "/Engine/Private/Common.ush"
 #else
 #include "flush_uniforms.minified.ush"
-#include "image_draw_uniforms.minified.ush"
 #endif
 
 #include "Generated/constants.minified.ush"

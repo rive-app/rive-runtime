@@ -386,15 +386,13 @@ public:
 
     void onceAfterGM() override
     {
-        // Mali devices with a driver version before 50 have been known to run
-        // out of memory, so for these devices, tear down the device between
-        // GMs.
+        // Mali drivers appear to have an internal memory leak, so for these
+        // devices, tear down the device between tests.
         // Adreno devices pre 1.3 (specifically Galaxy A11, Adreno 506, running
         // Vulkan 1.1) also have sporadic crashes, and tearing down the device
         // appears to help.
         if (m_device != nullptr &&
-            ((strstr(m_device->name().c_str(), "Mali") != nullptr &&
-              m_device->driverVersion().major < 50) ||
+            (strstr(m_device->name().c_str(), "Mali") != nullptr ||
              (strstr(m_device->name().c_str(), "Adreno (TM) 5") != nullptr &&
               m_device->vulkanFeatures().apiVersion < VK_API_VERSION_1_3)))
         {

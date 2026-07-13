@@ -713,72 +713,6 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
     RIVE_UNREACHABLE();
 }
 
-constexpr static uint32_t PatchIndexCount(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-            return kMidpointFanPatchIndexCount;
-        case DrawType::midpointFanCenterAAPatches:
-            return kMidpointFanCenterAAPatchIndexCount;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchIndexCount;
-        case DrawType::msaaStrokes:
-            return kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-            return kMidpointFanPatchIndexCount -
-                   kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaOuterCubics:
-            return kOuterCurvePatchIndexCount -
-                   kOuterCurvePatchBorderIndexCount;
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            RIVE_UNREACHABLE();
-    }
-    RIVE_UNREACHABLE();
-}
-
-constexpr static uint32_t PatchBaseIndex(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::msaaStrokes:
-            return kMidpointFanPatchBaseIndex;
-        case DrawType::midpointFanCenterAAPatches:
-            return kMidpointFanCenterAAPatchBaseIndex;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchBaseIndex;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-            return kMidpointFanPatchBaseIndex +
-                   kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaOuterCubics:
-            return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            RIVE_UNREACHABLE();
-    }
-    RIVE_UNREACHABLE();
-}
-
 // Specifies what to do with the render target at the beginning of a flush.
 enum class LoadAction
 {
@@ -1203,8 +1137,15 @@ struct DrawBatch
     const DrawType drawType;
     ShaderMiscFlags shaderMiscFlags;
     DrawContents drawContents;
-    uint32_t elementCount; // Vertex, index, or instance count.
-    uint32_t baseElement;  // Base vertex, index, or instance.
+    // elementCount/baseElement are the "splice axis": the run that grows when
+    // adjacent batches combine. For instanced draws (paths, image draws) that
+    // is instances; for non-indexed triangle runs (interiorTriangulation,
+    // atlasBlit, clipReset) it is vertices.
+    uint32_t elementCount; // Instance count, or vertex count for triangle runs.
+    uint32_t baseElement;  // Base instance, or base vertex for triangle runs.
+    // Geometry parameters for indexed-instanced types (paths and image draws).
+    uint32_t indexCountPerInstance = 0;
+    uint32_t baseIndex = 0;
     rive::BlendMode firstBlendMode;
     BarrierFlags barriers; // Barriers to execute before drawing this batch.
     std::optional<AABBu16> scissorRect;
@@ -1212,7 +1153,6 @@ struct DrawBatch
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
 
     // DrawType::imageRect and DrawType::imageMesh.
-    uint32_t imageDrawDataOffset = 0;
     Texture* imageTexture = nullptr;
     const ImageSampler imageSampler = ImageSampler::LinearClamp();
 
@@ -1697,13 +1637,23 @@ private:
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
-// Per-draw uniforms used by image meshes.
-struct ImageDrawUniforms
+// Per-draw instanced attributes used by imageMeshes and imageRects.
+struct ImageDrawInstance
 {
 public:
-    ImageDrawUniforms() = default;
+    // This data is bound to image shaders as 4 tightly-packed instanced
+    // attributes. The vertex shader unpacks them.
+    //   attr 2 (float4): viewMatrix (2x2)
+    //   attr 3 (float4): clipRectInverseMatrix (2x2)
+    //   attr 4 (float4): translates for view & clipRectInverseMatrix
+    //   attr 5 (uint4) : opacity (uintBitsToFloat), clipID, blendMode, zIndex
+    constexpr static size_t FirstAttribIdx = 2;
+    constexpr static size_t LastAttribIdx = 5;
+    constexpr static size_t AttribCount = LastAttribIdx + 1 - FirstAttribIdx;
 
-    ImageDrawUniforms(const Mat2D&,
+    ImageDrawInstance() = default;
+
+    ImageDrawInstance(const Mat2D&,
                       float opacity,
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
@@ -1711,23 +1661,14 @@ public:
                       uint32_t zIndex);
 
 private:
-    WRITEONLY float m_matrix[6];
+    WRITEONLY float m_viewMatrix[4];
+    WRITEONLY float m_clipRectInverseMatrix[4];
+    WRITEONLY float m_translate[2];
+    WRITEONLY float m_clipRectInverseTranslate[2];
     WRITEONLY float m_opacity;
-    WRITEONLY float m_padding = 0;
-    WRITEONLY float m_clipRectInverseMatrix[6];
     WRITEONLY uint32_t m_clipID;
     WRITEONLY uint32_t m_blendMode;
-    WRITEONLY uint32_t m_zIndex; // gpu::InterlockMode::msaa only.
-    // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 68];
-
-    constexpr void staticChecks()
-    {
-        static_assert(offsetof(ImageDrawUniforms, m_matrix) % 16 == 0);
-        static_assert(
-            offsetof(ImageDrawUniforms, m_clipRectInverseMatrix) % 16 == 0);
-        static_assert(sizeof(ImageDrawUniforms) == 256);
-    }
+    WRITEONLY uint32_t m_zIndex;
 };
 
 #undef WRITEONLY

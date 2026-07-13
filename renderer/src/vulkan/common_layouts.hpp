@@ -1,6 +1,7 @@
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/vulkan/vkutil.hpp"
 #include "shaders/constants.glsl"
+#include <array>
 #include <vulkan/vulkan.h>
 
 // Common layout descriptors shared by various pipelines.
@@ -61,59 +62,118 @@ constexpr VkPipelineVertexInputStateCreateInfo INTERIOR_TRI_VERTEX_INPUT_STATE =
         .pVertexAttributeDescriptions = INTERIOR_TRI_VERTEX_ATTRIBS,
 };
 
-constexpr VkVertexInputBindingDescription IMAGE_RECT_INPUT_BINDINGS[] = {{
-    .binding = 0,
-    .stride = sizeof(rive::gpu::ImageRectVertex),
-    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-}};
-constexpr VkVertexInputAttributeDescription IMAGE_RECT_VERTEX_ATTRIBS[] = {
+// Concatenates the given geometryAttribs with Rive's ImageDrawInstance attribs
+// (bound at 'binding').
+template <typename... GeometryAttribs>
+constexpr std::array<VkVertexInputAttributeDescription,
+                     sizeof...(GeometryAttribs) + IMAGE_ATTRIB_COUNT>
+appendImageDrawInstanceAttribs(uint32_t binding,
+                               GeometryAttribs... geometryAttribs)
+{
+    return {{
+        geometryAttribs...,
+        {
+            .location = IMAGE_VIEW_MATRIX_ATTRIB_IDX,
+            .binding = binding,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = (IMAGE_VIEW_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4,
+        },
+        {
+            .location = IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
+            .binding = binding,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = (IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX -
+                       IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4,
+        },
+        {
+            .location = IMAGE_TRANSLATES_ATTRIB_IDX,
+            .binding = binding,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = (IMAGE_TRANSLATES_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4,
+        },
+        {
+            .location = IMAGE_PACKED_ATTRIBS_IDX,
+            .binding = binding,
+            .format = VK_FORMAT_R32G32B32A32_UINT,
+            .offset = (IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) *
+                      sizeof(uint32_t) * 4,
+        },
+    }};
+}
+
+constexpr uint32_t ImageRectGeometryBufferBinding = 0;
+constexpr uint32_t ImageRectImageAttribBufferBinding = 1;
+constexpr VkVertexInputBindingDescription ImageRectInputBindings[] = {
     {
+        .binding = ImageRectGeometryBufferBinding,
+        .stride = sizeof(rive::gpu::ImageRectVertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    },
+    {
+        .binding = ImageRectImageAttribBufferBinding,
+        .stride = sizeof(rive::gpu::ImageDrawInstance),
+        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
+    },
+};
+constexpr auto ImageRectVertexAttribs = appendImageDrawInstanceAttribs(
+    ImageRectImageAttribBufferBinding,
+    VkVertexInputAttributeDescription{
         .location = 0,
-        .binding = 0,
+        .binding = ImageRectGeometryBufferBinding,
         .format = VK_FORMAT_R32G32B32A32_SFLOAT,
         .offset = 0,
-    },
-};
+    });
 constexpr VkPipelineVertexInputStateCreateInfo IMAGE_RECT_VERTEX_INPUT_STATE = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-    .vertexBindingDescriptionCount = std::size(IMAGE_RECT_INPUT_BINDINGS),
-    .pVertexBindingDescriptions = IMAGE_RECT_INPUT_BINDINGS,
-    .vertexAttributeDescriptionCount = std::size(IMAGE_RECT_VERTEX_ATTRIBS),
-    .pVertexAttributeDescriptions = IMAGE_RECT_VERTEX_ATTRIBS,
+    .vertexBindingDescriptionCount = std::size(ImageRectInputBindings),
+    .pVertexBindingDescriptions = ImageRectInputBindings,
+    .vertexAttributeDescriptionCount = std::size(ImageRectVertexAttribs),
+    .pVertexAttributeDescriptions = ImageRectVertexAttribs.data(),
 };
 
-constexpr VkVertexInputBindingDescription IMAGE_MESH_INPUT_BINDINGS[] = {
+constexpr uint32_t ImageMeshVertexBufferBinding = 0;
+constexpr uint32_t ImageMeshUVBufferBinding = 1;
+constexpr uint32_t ImageMeshImageAttribBufferBinding = 2;
+constexpr VkVertexInputBindingDescription ImageMeshInputBindings[] = {
     {
-        .binding = 0,
+        .binding = ImageMeshVertexBufferBinding,
         .stride = sizeof(float) * 2,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     },
     {
-        .binding = 1,
+        .binding = ImageMeshUVBufferBinding,
         .stride = sizeof(float) * 2,
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
     },
-};
-constexpr VkVertexInputAttributeDescription IMAGE_MESH_VERTEX_ATTRIBS[] = {
     {
-        .location = 0,
-        .binding = 0,
-        .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = 0,
-    },
-    {
-        .location = 1,
-        .binding = 1,
-        .format = VK_FORMAT_R32G32_SFLOAT,
-        .offset = 0,
+        .binding = ImageMeshImageAttribBufferBinding,
+        .stride = sizeof(rive::gpu::ImageDrawInstance),
+        .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE,
     },
 };
+constexpr auto ImageMeshVertexAttribs =
+    appendImageDrawInstanceAttribs(ImageMeshImageAttribBufferBinding,
+                                   VkVertexInputAttributeDescription{
+                                       .location = 0,
+                                       .binding = ImageMeshVertexBufferBinding,
+                                       .format = VK_FORMAT_R32G32_SFLOAT,
+                                       .offset = 0,
+                                   },
+                                   VkVertexInputAttributeDescription{
+                                       .location = 1,
+                                       .binding = ImageMeshUVBufferBinding,
+                                       .format = VK_FORMAT_R32G32_SFLOAT,
+                                       .offset = 0,
+                                   });
 constexpr VkPipelineVertexInputStateCreateInfo IMAGE_MESH_VERTEX_INPUT_STATE = {
     .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-    .vertexBindingDescriptionCount = std::size(IMAGE_MESH_INPUT_BINDINGS),
-    .pVertexBindingDescriptions = IMAGE_MESH_INPUT_BINDINGS,
-    .vertexAttributeDescriptionCount = std::size(IMAGE_MESH_VERTEX_ATTRIBS),
-    .pVertexAttributeDescriptions = IMAGE_MESH_VERTEX_ATTRIBS,
+    .vertexBindingDescriptionCount = std::size(ImageMeshInputBindings),
+    .pVertexBindingDescriptions = ImageMeshInputBindings,
+    .vertexAttributeDescriptionCount = std::size(ImageMeshVertexAttribs),
+    .pVertexAttributeDescriptions = ImageMeshVertexAttribs.data(),
 };
 
 constexpr VkPipelineVertexInputStateCreateInfo EMPTY_VERTEX_INPUT_STATE = {

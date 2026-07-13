@@ -22,7 +22,6 @@
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/image_draw_uniforms.glsl.hpp"
 #include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
@@ -394,6 +393,13 @@ RenderContextGLImpl::RenderContextGLImpl(
 
     // We draw imageRects when in atomic mode.
     m_state->bindVAO(m_imageRectVAO);
+    glEnableVertexAttribArray(0);
+    for (GLuint loc = IMAGE_FIRST_ATTRIB_IDX; loc <= IMAGE_LAST_ATTRIB_IDX;
+         ++loc)
+    {
+        glEnableVertexAttribArray(loc);
+        glVertexAttribDivisor(loc, 1);
+    }
 
     m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
     glBufferData(GL_ARRAY_BUFFER,
@@ -401,7 +407,6 @@ RenderContextGLImpl::RenderContextGLImpl(
                  gpu::kImageRectVertices,
                  GL_STATIC_DRAW);
 
-    glEnableVertexAttribArray(0);
     glVertexAttribPointer(0,
                           4,
                           GL_FLOAT,
@@ -418,7 +423,12 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-
+    for (GLuint loc = IMAGE_FIRST_ATTRIB_IDX; loc <= IMAGE_LAST_ATTRIB_IDX;
+         ++loc)
+    {
+        glEnableVertexAttribArray(loc);
+        glVertexAttribDivisor(loc, 1);
+    }
     if (m_plsImpl != nullptr)
     {
         m_plsImpl->init(m_state);
@@ -1792,7 +1802,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
                 case gpu::DrawType::imageMesh:
-                    sources.push_back(gpu::glsl::image_draw_uniforms);
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
@@ -1812,10 +1821,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
             break;
 
         case gpu::InterlockMode::atomics:
-            if (gpu::DrawTypeIsImageDraw(drawType))
-            {
-                sources.push_back(gpu::glsl::image_draw_uniforms);
-            }
             sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
@@ -1844,7 +1849,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_msaa_object_frag);
                     break;
                 case gpu::DrawType::imageMesh:
-                    sources.push_back(glsl::image_draw_uniforms);
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
                     sources.push_back(gpu::glsl::draw_msaa_object_frag);
                     break;
@@ -2032,13 +2036,6 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
         enums::no_flags_set(shaderMiscFlags,
                             gpu::ShaderMiscFlags::clipUpdateOnly |
                                 gpu::ShaderMiscFlags::borrowedCoveragePass);
-    if (isImageDraw)
-    {
-        glUniformBlockBinding(
-            m_id,
-            glGetUniformBlockIndex(m_id, GLSL_ImageDrawUniforms),
-            IMAGE_DRAW_UNIFORM_BUFFER_IDX);
-    }
     if (isTessellationDraw)
     {
         glutils::Uniform1iByName(m_id,
@@ -2125,6 +2122,40 @@ RenderContextGLImpl::DrawProgram::~DrawProgram()
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
 {
     return static_cast<const BufferRingGLImpl*>(bufferRing)->bufferID();
+}
+
+// Setup the per-draw gpu::ImageDrawInstance buffer. GL has no portable
+// baseInstance, so point the instance attributes at this draw's record via a
+// byteOffset instead.
+static void setImageDrawInstanceAttribs(size_t byteOffset)
+{
+    glVertexAttribPointer(IMAGE_VIEW_MATRIX_ATTRIB_IDX,
+                          4,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(gpu::ImageDrawInstance),
+                          reinterpret_cast<const void*>(byteOffset));
+    glVertexAttribPointer(
+        IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
+        4,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(gpu::ImageDrawInstance),
+        reinterpret_cast<const void*>(byteOffset + sizeof(uint32_t) * 4));
+    glVertexAttribPointer(
+        IMAGE_TRANSLATES_ATTRIB_IDX,
+        4,
+        GL_FLOAT,
+        GL_FALSE,
+        sizeof(gpu::ImageDrawInstance),
+        reinterpret_cast<const void*>(byteOffset + sizeof(uint32_t) * 8));
+    glVertexAttribIPointer(
+        IMAGE_PACKED_ATTRIBS_IDX,
+        4,
+        GL_UNSIGNED_INT,
+        sizeof(gpu::ImageDrawInstance),
+        reinterpret_cast<const void*>(byteOffset + sizeof(uint32_t) * 12));
+    static_assert(sizeof(gpu::ImageDrawInstance) == sizeof(uint32_t) * 16);
 }
 
 static void bind_storage_buffer(const GLCapabilities& capabilities,
@@ -2888,8 +2919,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 }
                 drawIndexedInstancedNoInstancedAttribs(
                     GL_TRIANGLES,
-                    gpu::PatchIndexCount(drawType),
-                    gpu::PatchBaseIndex(drawType),
+                    batch.indexCountPerInstance,
+                    batch.baseIndex,
                     batch.elementCount,
                     batch.baseElement,
                     drawProgram->baseInstanceUniformLocation(),
@@ -2943,15 +2974,17 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 assert(m_plsImpl->rasterOrderingKnownDisabled());
                 assert(m_imageRectVAO != 0);
                 m_state->bindVAO(m_imageRectVAO);
-                glBindBufferRange(GL_UNIFORM_BUFFER,
-                                  IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                                  gl_buffer_id(imageDrawUniformBufferRing()),
-                                  batch.imageDrawDataOffset,
-                                  sizeof(gpu::ImageDrawUniforms));
-                glDrawElements(GL_TRIANGLES,
-                               std::size(gpu::kImageRectIndices),
-                               GL_UNSIGNED_SHORT,
-                               nullptr);
+                m_state->bindBuffer(
+                    GL_ARRAY_BUFFER,
+                    gl_buffer_id(imageDrawInstanceBufferRing()));
+                setImageDrawInstanceAttribs(batch.baseElement *
+                                            sizeof(gpu::ImageDrawInstance));
+                glDrawElementsInstanced(GL_TRIANGLES,
+                                        batch.indexCountPerInstance,
+                                        GL_UNSIGNED_SHORT,
+                                        reinterpret_cast<const void*>(
+                                            batch.baseIndex * sizeof(uint16_t)),
+                                        batch.elementCount);
                 break;
             }
 
@@ -2971,22 +3004,23 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->bufferID());
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+                m_state->bindBuffer(
+                    GL_ARRAY_BUFFER,
+                    gl_buffer_id(imageDrawInstanceBufferRing()));
+                setImageDrawInstanceAttribs(batch.baseElement *
+                                            sizeof(gpu::ImageDrawInstance));
                 m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER,
                                     indexBuffer->bufferID());
-                glBindBufferRange(GL_UNIFORM_BUFFER,
-                                  IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                                  gl_buffer_id(imageDrawUniformBufferRing()),
-                                  batch.imageDrawDataOffset,
-                                  sizeof(gpu::ImageDrawUniforms));
                 if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
                 {
                     m_plsImpl->ensureRasterOrderingEnabled(this, desc, true);
                 }
-                glDrawElements(GL_TRIANGLES,
-                               batch.elementCount,
-                               GL_UNSIGNED_SHORT,
-                               reinterpret_cast<const void*>(batch.baseElement *
-                                                             sizeof(uint16_t)));
+                glDrawElementsInstanced(GL_TRIANGLES,
+                                        batch.indexCountPerInstance,
+                                        GL_UNSIGNED_SHORT,
+                                        reinterpret_cast<const void*>(
+                                            batch.baseIndex * sizeof(uint16_t)),
+                                        batch.elementCount);
                 break;
             }
 

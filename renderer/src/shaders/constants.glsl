@@ -137,27 +137,28 @@
 // bindings as low as 7.)
 #define FLUSH_UNIFORM_BUFFER_IDX 0
 #define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 1
-#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 2
-#define PATH_BUFFER_IDX 3
-#define PAINT_BUFFER_IDX 4
-#define PAINT_AUX_BUFFER_IDX 5
-#define CONTOUR_BUFFER_IDX 6
+#define PATH_BUFFER_IDX 2
+#define PAINT_BUFFER_IDX 3
+#define PAINT_AUX_BUFFER_IDX 4
+#define CONTOUR_BUFFER_IDX 5
 // Coverage buffer used in coverageAtomic mode.
-#define COVERAGE_BUFFER_IDX 7
-#define TESS_VERTEX_TEXTURE_IDX 8
-#define GRAD_TEXTURE_IDX 9
-#define FEATHER_TEXTURE_IDX 10
-#define ATLAS_TEXTURE_IDX 11
-#define IMAGE_TEXTURE_IDX 12
-#define DST_COLOR_TEXTURE_IDX 13
-#define DEFAULT_BINDINGS_SET_SIZE 14
+#define COVERAGE_BUFFER_IDX 6
+#define TESS_VERTEX_TEXTURE_IDX 7
+#define GRAD_TEXTURE_IDX 8
+#define FEATHER_TEXTURE_IDX 9
+#define ATLAS_TEXTURE_IDX 10
+#define IMAGE_TEXTURE_IDX 11
+#define DST_COLOR_TEXTURE_IDX 12
+#define DEFAULT_BINDINGS_SET_SIZE 13
 
 // WebGPU needs image sampler index as a separate value.
-#define WEBGPU_IMAGE_SAMPLER_IDX 14
-#define WEBGPU_BINDINGS_SET_SIZE 15
+#define WEBGPU_IMAGE_SAMPLER_IDX 13
+#define WEBGPU_BINDINGS_SET_SIZE 14
 
-// Metal doesn't allow us to bind buffers index 0 or 1. Offset them by 2.
-#define METAL_BUFFER_IDX(IDX) (2 + IDX)
+// In Metal, vertex attributes just come in as buffers. Since we use up to 3
+// vertex attrib buffers, offset the Rive resources by 3 so they don't alias
+// with vertex attribs.
+#define METAL_BUFFER_IDX(IDX) (3 + IDX)
 
 // PLS textures are accessed at the same index as their PLS planes, so we put
 // them in a separate binding set.
@@ -185,6 +186,23 @@
 // NOTE: Atomic mode does not use SCRATCH_COLOR_PLANE_IDX, which is why we chose
 // to alias this one.
 #define COALESCED_ATOMIC_RESOLVE_IDX SCRATCH_COLOR_PLANE_IDX
+
+// Index of each instanced attribute for image draws.
+#define IMAGE_FIRST_ATTRIB_IDX 2
+#define IMAGE_VIEW_MATRIX_ATTRIB_IDX 2
+#define IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX 3
+#define IMAGE_TRANSLATES_ATTRIB_IDX 4
+#define IMAGE_PACKED_ATTRIBS_IDX 5
+#define IMAGE_LAST_ATTRIB_IDX 5
+#define IMAGE_ATTRIB_COUNT (IMAGE_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+
+// When SPLIT_UINT4_ATTRIBUTES is set (Unreal RHI, whose shader compiler
+// mishandles a uint4 vertex attribute), the packed uint4 is bound as four
+// separate uint attributes at these consecutive locations.
+#define IMAGE_SPLIT_OPACITY_ATTRIB_IDX 5
+#define IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX 6
+#define IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX 7
+#define IMAGE_SPLIT_ZINDEX_ATTRIB_IDX 8
 
 // MSAA attaches different resources to the framebuffer instead of PLS planes.
 #define MSAA_DEPTH_STENCIL_IDX 1u

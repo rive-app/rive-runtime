@@ -5,6 +5,7 @@
 #include "rive/renderer/d3d12/d3d12.hpp"
 #include "rive/renderer/d3d/pipeline_manager.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/stack_vector.hpp"
 
 namespace rive::gpu
 {
@@ -12,8 +13,9 @@ namespace rive::gpu
 // states
 struct D3D12DrawVertexShader
 {
-    D3D12_INPUT_ELEMENT_DESC m_layoutDesc[2];
-    uint32_t m_vertexAttribCount;
+    StackVector<D3D12_INPUT_ELEMENT_DESC,
+                gpu::ImageDrawInstance::LastAttribIdx + 1>
+        m_layoutDesc;
     ComPtr<ID3DBlob> m_shader;
 };
 
