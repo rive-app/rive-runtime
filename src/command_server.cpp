@@ -1853,6 +1853,188 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::setViewModelInstance:
+            {
+                StateMachineHandle handle;
+                ViewModelInstanceHandle viewModel;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> viewModel;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    if (auto viewModelInstance =
+                            getViewModelInstance(viewModel))
+                    {
+                        std::unique_lock<std::mutex> accesLock(
+                            stateMachineWrapper->m_mutex);
+                        stateMachineWrapper->instance->setViewModelInstance(
+                            viewModelInstance->instance());
+                    }
+                    else
+                    {
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "View model instance " << viewModel
+                            << " not found when trying to set the main view "
+                               "model instance on a state machine";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for setting view model instance.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::setGlobalViewModelInstance:
+            {
+                StateMachineHandle handle;
+                ViewModelInstanceHandle viewModel;
+                uint64_t requestId;
+                std::string name;
+                commandStream >> handle;
+                commandStream >> viewModel;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    if (auto viewModelInstance =
+                            getViewModelInstance(viewModel))
+                    {
+                        std::unique_lock<std::mutex> accesLock(
+                            stateMachineWrapper->m_mutex);
+                        if (!stateMachineWrapper->instance
+                                 ->setGlobalViewModelInstance(
+                                     name,
+                                     viewModelInstance->instance()))
+                        {
+                            ErrorReporter<StateMachineHandle>(
+                                this,
+                                handle,
+                                requestId,
+                                CommandQueue::Message::stateMachineError)
+                                << "Could not set global view model instance "
+                                << viewModel << " under name " << name
+                                << " on a state machine";
+                        }
+                    }
+                    else
+                    {
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "View model instance " << viewModel
+                            << " not found when trying to set a global view "
+                               "model instance on a state machine";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for setting global view model instance.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::getGlobalViewModelInstance:
+            {
+                StateMachineHandle handle;
+                ViewModelInstanceHandle viewHandle;
+                uint64_t requestId;
+                std::string name;
+                commandStream >> handle;
+                commandStream >> viewHandle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    rcp<ViewModelInstance> viewModelInstance;
+                    {
+                        std::unique_lock<std::mutex> accesLock(
+                            stateMachineWrapper->m_mutex);
+                        viewModelInstance = stateMachineWrapper->instance
+                                                ->globalViewModelInstance(name);
+                    }
+                    if (viewModelInstance != nullptr)
+                    {
+                        m_viewModels[viewHandle] =
+                            make_rcp<ViewModelInstanceRuntime>(
+                                viewModelInstance);
+                    }
+                    else
+                    {
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            viewHandle,
+                            requestId,
+                            CommandQueue::Message::viewModelError)
+                            << "No global view model instance bound under name "
+                            << name << " on a state machine";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        viewHandle,
+                        requestId,
+                        CommandQueue::Message::viewModelError)
+                        << "State machine " << handle
+                        << " not found for getting global view model instance.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::bind:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> accesLock(
+                        stateMachineWrapper->m_mutex);
+                    stateMachineWrapper->instance->bind();
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for binding data context.";
+                }
+                break;
+            }
+
             case CommandQueue::Command::advanceStateMachine:
             {
                 StateMachineHandle handle;
@@ -2539,6 +2721,42 @@ bool CommandServer::processCommands()
                                               CommandQueue::Message::fileError)
                         << "Invalid file handle " << handle
                         << " when getting list of view models";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::listGlobalViewModelNames:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto names = file->globalViewModelNames();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::globalViewModelNamesListed;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << names.size();
+                    for (auto& name : names)
+                    {
+                        m_commandQueue->m_messageNames << name;
+                    }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              requestId,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of global view models";
                 }
                 break;
             }

@@ -11,10 +11,35 @@
 #include "rive/data_bind/data_bind_path.hpp"
 #include "rive/clip_result.hpp"
 #include "rive/text/text_input.hpp"
+#include "rive/view_model_type.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
 #include <limits>
 #include <cassert>
 
 using namespace rive;
+
+namespace
+{
+std::vector<rcp<ViewModelInstance>> buildVMIList(
+    const rcp<ViewModelInstance>& primary,
+    const std::vector<rcp<ViewModelInstance>>& globals)
+{
+    std::vector<rcp<ViewModelInstance>> list;
+    list.reserve((primary != nullptr ? 1 : 0) + globals.size());
+    if (primary != nullptr)
+    {
+        list.push_back(primary);
+    }
+    for (auto& g : globals)
+    {
+        if (g != nullptr)
+        {
+            list.push_back(g);
+        }
+    }
+    return list;
+}
+} // namespace
 
 NestedArtboard::NestedArtboard() {}
 NestedArtboard::~NestedArtboard()
@@ -44,6 +69,9 @@ NestedArtboard::~NestedArtboard()
     m_activeViewModelInstance = nullptr;
     m_ownsActiveVmi = false;
     m_hasPendingStatefulBinding = false;
+    // Release our extra refs on the global VMI children (the artboard's
+    // m_Objects still holds its own ref for each).
+    m_globalViewModelInstances.clear();
 }
 
 Core* NestedArtboard::clone() const
@@ -120,13 +148,14 @@ bool NestedArtboard::tryScheduleBindStateful()
 void NestedArtboard::bindStateful()
 {
     m_hasPendingStatefulBinding = false;
-    bindArtboardInstance(m_activeViewModelInstance, m_dataContext);
-}
-
-void NestedArtboard::bindArtboardInstance(ViewModelInstance* instance,
-                                          rcp<DataContext> parent)
-{
-    artboardInstance()->bindViewModelInstance(ref_rcp(instance), parent);
+    if (artboardInstance() == nullptr)
+    {
+        return;
+    }
+    // Active VMI is the local-root binding; append the global VMI children.
+    auto list = buildVMIList(ref_rcp(m_activeViewModelInstance),
+                             m_globalViewModelInstances);
+    artboardInstance()->bindViewModelInstances(std::move(list), m_dataContext);
     for (auto& animation : m_NestedAnimations)
     {
         if (animation->is<NestedStateMachine>())
@@ -383,15 +412,35 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
         applyOriginOverride();
     }
 
-    // ViewModelInstance children are only added to NestedArtboards
-    // that wrap a stateful component Artboard. We borrow the child VMI as the
-    // initial active binding; the parent Artboard's m_Objects teardown owns
-    // its lifetime.
-    if (auto vmi = findStatefulChildVmi())
+    // ViewModelInstance children belong to NestedArtboards that wrap a
+    // stateful component Artboard. A single "standard" VMI becomes the active
+    // local-root binding (borrowed; the parent Artboard's m_Objects teardown
+    // owns its lifetime), and any number of "global" VMIs are appended to the
+    // data context passed down to the wrapped artboard.
+    for (auto child : children())
     {
-        m_activeViewModelInstance = vmi;
-        m_ownsActiveVmi = false;
+        if (!child->is<ViewModelInstance>())
+        {
+            continue;
+        }
+        auto vmi = child->as<ViewModelInstance>();
+        auto vm = vmi->viewModel();
+        auto type = vm != nullptr
+                        ? static_cast<ViewModelType>(vm->viewModelType())
+                        : ViewModelType::standard;
         m_file->completeViewModelProperties(vmi);
+        if (type == ViewModelType::global)
+        {
+            // The artboard's m_Objects owns the construction ref; take an
+            // extra ref so the list outlives any teardown ordering.
+            m_globalViewModelInstances.push_back(ref_rcp(vmi));
+        }
+        else if (m_activeViewModelInstance == nullptr)
+        {
+            // Borrow the first standard child VMI as the active binding.
+            m_activeViewModelInstance = vmi;
+            m_ownsActiveVmi = false;
+        }
     }
     tryScheduleBindStateful();
 
@@ -570,23 +619,40 @@ void NestedArtboard::internalDataContext(rcp<DataContext> value)
     m_dataContext = value;
     m_viewModelInstance = nullptr;
 
-    if (artboardInstance() != nullptr)
+    if (artboardInstance() == nullptr)
     {
-        // If we have a stateful ViewModelInstance, bind it to the artboard
-        // instance.
-        if (tryScheduleBindStateful())
-        {
-            return;
-        }
+        return;
+    }
 
-        // Non-stateful path: just propagate the data context.
-        artboardInstance()->internalDataContext(value);
+    // If we have a stateful ViewModelInstance, bind it (with globals) via
+    // the scheduled stateful path.
+    if (tryScheduleBindStateful())
+    {
+        return;
+    }
+
+    if (!m_globalViewModelInstances.empty())
+    {
+        auto list = buildVMIList(nullptr, m_globalViewModelInstances);
+        artboardInstance()->bindViewModelInstances(std::move(list), value);
         for (auto& animation : m_NestedAnimations)
         {
             if (animation->is<NestedStateMachine>())
             {
-                animation->as<NestedStateMachine>()->dataContext(value);
+                animation->as<NestedStateMachine>()->dataContext(
+                    artboardInstance()->dataContext());
             }
+        }
+        return;
+    }
+
+    // Non-stateful path with no globals: just propagate the data context.
+    artboardInstance()->internalDataContext(value);
+    for (auto& animation : m_NestedAnimations)
+    {
+        if (animation->is<NestedStateMachine>())
+        {
+            animation->as<NestedStateMachine>()->dataContext(value);
         }
     }
 }
@@ -600,7 +666,7 @@ void NestedArtboard::relinkDataContext(rcp<ViewModelInstance> viewModelInstance)
         auto dataContext = instance->dataContext();
         if (dataContext != nullptr)
         {
-            if (dataContext->viewModelInstance() != viewModelInstance)
+            if (dataContext->mainViewModelInstance() != viewModelInstance)
             {
                 dataContext->viewModelInstance(viewModelInstance);
             }
@@ -646,14 +712,55 @@ void NestedArtboard::bindViewModelInstance(
 {
     m_dataContext = parent;
     m_viewModelInstance = viewModelInstance;
-    if (artboardInstance() != nullptr)
+    if (artboardInstance() == nullptr)
     {
-        // Stateful nested artboards must keep their own instance as the local
-        // root context, while the incoming instance remains the parent context.
-        ViewModelInstance* instanceToBind = m_activeViewModelInstance != nullptr
-                                                ? m_activeViewModelInstance
-                                                : viewModelInstance.get();
-        bindArtboardInstance(instanceToBind, parent);
+        return;
+    }
+
+    // Stateful: local root is the active VMI; append nested globals.
+    if (m_activeViewModelInstance != nullptr)
+    {
+        auto list = buildVMIList(ref_rcp(m_activeViewModelInstance),
+                                 m_globalViewModelInstances);
+        artboardInstance()->bindViewModelInstances(std::move(list), parent);
+        for (auto& animation : m_NestedAnimations)
+        {
+            if (animation->is<NestedStateMachine>())
+            {
+                animation->as<NestedStateMachine>()->dataContext(
+                    artboardInstance()->dataContext());
+            }
+        }
+        return;
+    }
+
+    // Non-stateful with a passed VMI or nested globals: build composite DC.
+    if (viewModelInstance != nullptr || !m_globalViewModelInstances.empty())
+    {
+        auto list = buildVMIList(viewModelInstance, m_globalViewModelInstances);
+        artboardInstance()->bindViewModelInstances(std::move(list), parent);
+        for (auto& animation : m_NestedAnimations)
+        {
+            if (animation->is<NestedStateMachine>())
+            {
+                animation->as<NestedStateMachine>()->dataContext(
+                    artboardInstance()->dataContext());
+            }
+        }
+        return;
+    }
+
+    // Nothing to merge in — propagate parent context unchanged (legacy
+    // passthrough). Binding a null instance would call
+    // Artboard::bindViewModelInstance(nullptr, ...), which now triggers
+    // unbind(); use internalDataContext to keep the parent context wired.
+    artboardInstance()->internalDataContext(parent);
+    for (auto& animation : m_NestedAnimations)
+    {
+        if (animation->is<NestedStateMachine>())
+        {
+            animation->as<NestedStateMachine>()->dataContext(parent);
+        }
     }
 }
 

@@ -65,6 +65,44 @@ void ViewModelInstance::addValue(ViewModelInstanceValue* value)
     m_PropertyValues.push_back(rcp<ViewModelInstanceValue>(value));
 }
 
+bool ViewModelInstance::removeValue(uint32_t propertyId)
+{
+    for (auto it = m_PropertyValues.begin(); it != m_PropertyValues.end(); ++it)
+    {
+        auto value = *it;
+        if (value->viewModelPropertyId() != propertyId)
+        {
+            continue;
+        }
+        // Mirror the destructor cleanup for nested view model references.
+        if (value->is<ViewModelInstanceViewModel>())
+        {
+            auto vmInstanceViewModel = value->as<ViewModelInstanceViewModel>();
+            if (vmInstanceViewModel->referenceViewModelInstance())
+            {
+                vmInstanceViewModel->referenceViewModelInstance()->removeParent(
+                    this);
+            }
+        }
+        // Drop any symbol-table entry pointing at this value.
+        for (auto sit = m_propertySymbols.begin();
+             sit != m_propertySymbols.end();)
+        {
+            if (sit->second == value.get())
+            {
+                sit = m_propertySymbols.erase(sit);
+            }
+            else
+            {
+                ++sit;
+            }
+        }
+        m_PropertyValues.erase(it); // rcp releases the value
+        return true;
+    }
+    return false;
+}
+
 ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
 {
     for (auto value : m_PropertyValues)

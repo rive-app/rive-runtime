@@ -42,6 +42,9 @@
 #include "rive/animation/nested_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/view_model_type.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/shapes/shape.hpp"
@@ -2566,7 +2569,7 @@ void Artboard::relinkDataContext()
             m_DataContext->getViewModelInstance(artboardHost->dataBindPath());
         if (value == nullptr)
         {
-            value = m_DataContext->viewModelInstance();
+            value = m_DataContext->mainViewModelInstance();
         }
         artboardHost->relinkDataContext(value);
     }
@@ -2594,10 +2597,7 @@ void Artboard::clearDataContext()
 {
     if (m_DataContext)
     {
-        if (m_DataContext->viewModelInstance())
-        {
-            m_DataContext->viewModelInstance()->removeDependent(this);
-        }
+        m_DataContext->removeDependentContainer(this);
         m_DataContext = nullptr;
     }
     for (auto artboardHost : m_ArtboardHosts)
@@ -2632,6 +2632,8 @@ void Artboard::dataContext(rcp<DataContext> value)
     internalDataContext(value);
 }
 
+rcp<const File> Artboard::artboardFile() const { return nullptr; }
+
 void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance)
 {
     bindViewModelInstance(viewModelInstance, nullptr);
@@ -2645,14 +2647,112 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
         unbind();
         return;
     }
-    clearDataContext();
-    auto dataContext = make_rcp<DataContext>(viewModelInstance);
-    if (dataContext->viewModelInstance())
+    setViewModelInstance(std::move(viewModelInstance));
+    if (parent != nullptr && m_DataContext != nullptr)
     {
-        dataContext->viewModelInstance()->addDependent(this);
+        m_DataContext->parent(parent);
     }
+    bind();
+}
+
+void Artboard::setViewModelInstance(rcp<ViewModelInstance> viewModelInstance)
+{
+    if (viewModelInstance == nullptr)
+    {
+        return;
+    }
+    if (m_DataContext == nullptr)
+    {
+        m_DataContext = make_rcp<DataContext>(viewModelInstance);
+        m_DataContext->addDependentContainer(this);
+        return;
+    }
+    // The data context re-points every attached container (this artboard and
+    // any state machines sharing the context) off the old main and onto the new
+    // one.
+    m_DataContext->setMainViewModelInstance(viewModelInstance);
+}
+
+void Artboard::bindViewModelInstances(
+    std::vector<rcp<ViewModelInstance>> viewModelInstances,
+    rcp<DataContext> parent)
+{
+    if (viewModelInstances.empty())
+    {
+        unbind();
+        return;
+    }
+    clearDataContext();
+    auto dataContext = make_rcp<DataContext>(std::move(viewModelInstances));
+    dataContext->addDependentContainer(this);
     dataContext->parent(parent);
     internalDataContext(dataContext);
+}
+
+void Artboard::bind()
+{
+    if (m_DataContext != nullptr)
+    {
+        internalDataContext(m_DataContext);
+    }
+}
+
+rcp<ViewModelInstance> Artboard::globalViewModelInstance(
+    const std::string& name)
+{
+    // Pure read: returns the instance in the named slot only if one has been
+    // set/bound; never creates.
+    if (m_DataContext == nullptr)
+    {
+        return nullptr;
+    }
+    auto f = artboardFile();
+    if (f == nullptr)
+    {
+        return nullptr;
+    }
+    return m_DataContext->instanceForSlot(f->viewModelId(name));
+}
+
+bool Artboard::setGlobalViewModelInstance(
+    const std::string& name,
+    rcp<ViewModelInstance> viewModelInstance)
+{
+    if (viewModelInstance == nullptr)
+    {
+        return false;
+    }
+    auto f = artboardFile();
+    if (f == nullptr)
+    {
+        return false;
+    }
+    // The slot is addressed by the named view model (its file index), not by
+    // the instance's own view model — so an override instance of a different
+    // view model can be placed on the slot.
+    uint32_t slotKey = f->viewModelId(name);
+    if (slotKey >= f->viewModelCount())
+    {
+        return false;
+    }
+    // Only global view models get a slot; a non-global name is not a valid
+    // global slot and must not be slotted.
+    auto slotViewModel = f->viewModel(slotKey);
+    if (slotViewModel == nullptr ||
+        static_cast<ViewModelType>(slotViewModel->viewModelType()) !=
+            ViewModelType::global)
+    {
+        return false;
+    }
+    if (m_DataContext == nullptr)
+    {
+        m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+        m_DataContext->addDependentContainer(this);
+    }
+    // The data context re-points every attached container off any previous
+    // instance occupying this slot and onto the new one.
+    m_DataContext->setViewModelInstanceForSlot(slotKey, viewModelInstance);
+    return true;
 }
 
 bool Artboard::isAncestor(const Artboard* artboard)
@@ -2705,6 +2805,10 @@ ArtboardInstance::~ArtboardInstance() {}
 
 void ArtboardInstance::file(rcp<const File> file) { m_file = std::move(file); }
 
+rcp<const File> ArtboardInstance::file() const { return m_file; }
+
+rcp<const File> ArtboardInstance::artboardFile() const { return m_file; }
+
 std::unique_ptr<LinearAnimationInstance> ArtboardInstance::animationAt(
     size_t index)
 {
@@ -2723,14 +2827,32 @@ std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineAt(
     size_t index)
 {
     auto sm = this->stateMachine(index);
-    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+    if (sm == nullptr)
+    {
+        return nullptr;
+    }
+    auto smInstance = std::make_unique<StateMachineInstance>(sm, this);
+    if (auto dc = dataContext())
+    {
+        smInstance->inheritDataContext(dc);
+    }
+    return smInstance;
 }
 
 std::unique_ptr<StateMachineInstance> ArtboardInstance::stateMachineNamed(
     const std::string& name)
 {
     auto sm = this->stateMachine(name);
-    return sm ? std::make_unique<StateMachineInstance>(sm, this) : nullptr;
+    if (sm == nullptr)
+    {
+        return nullptr;
+    }
+    auto smInstance = std::make_unique<StateMachineInstance>(sm, this);
+    if (auto dc = dataContext())
+    {
+        smInstance->inheritDataContext(dc);
+    }
+    return smInstance;
 }
 
 std::unique_ptr<StateMachineInstance> ArtboardInstance::defaultStateMachine()

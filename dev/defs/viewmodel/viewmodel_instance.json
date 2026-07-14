@@ -65,6 +65,16 @@
       },
       "description": "Whether the instance should be exported for runtime.",
       "runtime": false
+    },
+    "isOverride": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 1034,
+        "string": "isoverride"
+      },
+      "description": "Whether this instance is an override of a global ViewModel instance.",
+      "runtime": false
     }
   }
 }

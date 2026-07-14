@@ -51,8 +51,7 @@
         "int": 981,
         "string": "viewmodeltype"
       },
-      "description": "Indentifies view models that have special uses, like text input view models",
-      "runtime": false
+      "description": "Identifies view models that have special uses, like text input view models"
     }
   }
 }

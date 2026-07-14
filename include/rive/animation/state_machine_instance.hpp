@@ -90,6 +90,10 @@ private:
         StateMachineLayerInstance* layerInstance);
 
     rcp<DataContext> m_DataContext = nullptr;
+    // Ensures the current data context holds an instance for the artboard's
+    // main view model and for every global view model in the file, creating
+    // (completing) any that are missing before the context is applied.
+    void completeViewModelInstances();
     void addToHitLookup(Component* target,
                         bool isLayoutComponent,
                         std::unordered_map<Component*, HitDrawable*>& hitLookup,
@@ -124,7 +128,24 @@ public:
     SMITrigger* getTrigger(const std::string& name) const override;
     void bindViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) override;
+    // Sets the main (non-global) view model instance in the data context
+    // without rebinding. Call bind() to apply. A global instance is routed to
+    // setGlobalViewModelInstance.
+    void setViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
+    // Sets/replaces the global view model instance bound under the given global
+    // view model name without rebinding, preserving the main instance and the
+    // other globals' order. Returns false if the name does not match the
+    // instance's global view model. Call bind() to apply.
+    bool setGlobalViewModelInstance(const std::string& name,
+                                    rcp<ViewModelInstance> viewModelInstance);
+    // Applies the current data context: rebinds artboard + state machine data
+    // binds in a single pass. No-op if nothing has been set.
+    void bind();
+    // @returns the global view model instance currently bound under the given
+    // name, or nullptr if none has been set. Never creates.
+    rcp<ViewModelInstance> globalViewModelInstance(const std::string& name);
     void bindDataContext(rcp<DataContext> dataContext);
+    void inheritDataContext(rcp<DataContext> dataContext);
     void dataContext(rcp<DataContext> dataContext);
     rcp<DataContext> dataContext() const { return m_DataContext; }
     void rebind() override;

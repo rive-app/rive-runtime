@@ -63,6 +63,10 @@
 #include "rive/focus_data.hpp"
 #include "rive/node.hpp"
 #include "rive/semantic/semantic_data.hpp"
+#include "rive/view_model_type.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/file.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include <array>
 #include <memory>
 #include <unordered_map>
@@ -2686,26 +2690,167 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
     return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
+void StateMachineInstance::setViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance)
+{
+    if (viewModelInstance == nullptr)
+    {
+        return;
+    }
+    if (m_DataContext == nullptr)
+    {
+        m_DataContext = make_rcp<DataContext>(viewModelInstance);
+        m_DataContext->addDependentContainer(this);
+        return;
+    }
+    // The data context re-points every attached container (this state machine,
+    // the artboard, and any sibling state machines sharing the context) off the
+    // old main and onto the new one.
+    m_DataContext->setMainViewModelInstance(viewModelInstance);
+}
+
+bool StateMachineInstance::setGlobalViewModelInstance(
+    const std::string& name,
+    rcp<ViewModelInstance> viewModelInstance)
+{
+    if (viewModelInstance == nullptr)
+    {
+        return false;
+    }
+    auto file = m_artboardInstance->file();
+    if (file == nullptr)
+    {
+        return false;
+    }
+    // The slot is addressed by the named view model (its file index), not by
+    // the instance's own view model — so an override instance of a different
+    // view model can be placed on the slot.
+    uint32_t slotKey = file->viewModelId(name);
+    if (slotKey >= file->viewModelCount())
+    {
+        return false;
+    }
+    // Only global view models get a slot; a non-global name is not a valid
+    // global slot and must not be slotted.
+    auto slotViewModel = file->viewModel(slotKey);
+    if (slotViewModel == nullptr ||
+        static_cast<ViewModelType>(slotViewModel->viewModelType()) !=
+            ViewModelType::global)
+    {
+        return false;
+    }
+    if (m_DataContext == nullptr)
+    {
+        m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+        m_DataContext->addDependentContainer(this);
+    }
+    // The data context re-points every attached container off any previous
+    // instance occupying this slot and onto the new one.
+    m_DataContext->setViewModelInstanceForSlot(slotKey, viewModelInstance);
+    return true;
+}
+
+void StateMachineInstance::bind()
+{
+    if (m_DataContext == nullptr)
+    {
+        return;
+    }
+    // Make sure every view model instance the data context needs exists before
+    // it is applied: the main instance plus one for each global view model.
+    // Any that are missing are created (completed) on the fly.
+    completeViewModelInstances();
+    // Apply the current data context: rebind the artboard and state machine
+    // data binds in a single pass.
+    m_artboardInstance->internalDataContext(m_DataContext);
+    internalDataContext(m_DataContext);
+}
+
+void StateMachineInstance::completeViewModelInstances()
+{
+    auto file = m_artboardInstance->file();
+    if (file == nullptr)
+    {
+        return;
+    }
+    // Ensure a main instance is present. The main is the entry not on the slot
+    // keys; if there is none, create the artboard's default and place it first.
+    if (m_DataContext->mainViewModelInstance() == nullptr)
+    {
+        auto main = file->createDefaultViewModelInstance(m_artboardInstance);
+        if (main != nullptr)
+        {
+            // setMainViewModelInstance re-points every attached container onto
+            // the new instance.
+            m_DataContext->setMainViewModelInstance(main);
+        }
+    }
+    // Ensure an instance exists for each global view model slot, creating any
+    // missing ones. Occupancy is checked by slot key, so a cross-view-model
+    // override already sitting in a slot is not treated as empty.
+    for (auto* viewModel : file->globalViewModels())
+    {
+        uint32_t slotKey = file->viewModelId(viewModel->name());
+        if (m_DataContext->instanceForSlot(slotKey) != nullptr)
+        {
+            continue;
+        }
+        auto instance = file->createDefaultViewModelInstance(viewModel);
+        if (instance != nullptr)
+        {
+            // setViewModelInstanceForSlot re-points every attached container
+            // onto the new instance.
+            m_DataContext->setViewModelInstanceForSlot(slotKey, instance);
+        }
+    }
+}
+
 void StateMachineInstance::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance)
 {
-    clearDataContext();
-    auto dataContext = make_rcp<DataContext>(viewModelInstance);
-    viewModelInstance->addDependent(this);
-    m_artboardInstance->clearDataContext();
-    m_artboardInstance->internalDataContext(dataContext);
-    internalDataContext(dataContext);
+    if (viewModelInstance == nullptr)
+    {
+        clearDataContext();
+        m_artboardInstance->unbind();
+        return;
+    }
+    setViewModelInstance(std::move(viewModelInstance));
+    bind();
+}
+
+rcp<ViewModelInstance> StateMachineInstance::globalViewModelInstance(
+    const std::string& name)
+{
+    // Pure read: returns the instance in the named slot only if one has been
+    // set/bound; never creates.
+    if (m_DataContext == nullptr)
+    {
+        return nullptr;
+    }
+    auto file = m_artboardInstance->file();
+    if (file == nullptr)
+    {
+        return nullptr;
+    }
+    return m_DataContext->instanceForSlot(file->viewModelId(name));
 }
 
 void StateMachineInstance::bindDataContext(rcp<DataContext> dataContext)
 {
     clearDataContext();
-    if (dataContext->viewModelInstance())
-    {
-        dataContext->viewModelInstance()->addDependent(this);
-    }
+    dataContext->addDependentContainer(this);
     m_artboardInstance->clearDataContext();
     m_artboardInstance->internalDataContext(dataContext);
+    internalDataContext(dataContext);
+}
+
+void StateMachineInstance::inheritDataContext(rcp<DataContext> dataContext)
+{
+    if (dataContext == nullptr)
+    {
+        return;
+    }
+    dataContext->addDependentContainer(this);
     internalDataContext(dataContext);
 }
 
@@ -2756,10 +2901,7 @@ void StateMachineInstance::clearDataContext()
 {
     if (m_DataContext)
     {
-        if (m_DataContext->viewModelInstance())
-        {
-            m_DataContext->viewModelInstance()->removeDependent(this);
-        }
+        m_DataContext->removeDependentContainer(this);
         m_DataContext = nullptr;
     }
     for (auto& listenerViewModel : m_listenerViewModels)

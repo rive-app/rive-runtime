@@ -3848,8 +3848,9 @@ TEST_CASE("bindViewModelInstance", "[CommandQueue]")
         auto viewModel = server->getViewModelInstance(viewModelHandle);
         CHECK(viewModel != nullptr);
 
-        CHECK(stateMachine->artboard()->dataContext()->viewModelInstance() ==
-              viewModel->instance());
+        CHECK(
+            stateMachine->artboard()->dataContext()->mainViewModelInstance() ==
+            viewModel->instance());
     });
 
     auto badInstanceHandle =
@@ -6246,4 +6247,158 @@ TEST_CASE("Semantics drainSemanticsDiff honors scaleFactor when the view "
         comparedAny = true;
     }
     REQUIRE(comparedAny);
+}
+
+class GlobalNamesListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onGlobalViewModelNamesListed(
+        const FileHandle handle,
+        uint64_t requestId,
+        std::vector<std::string> names) override
+    {
+        m_handle = handle;
+        m_requestId = requestId;
+        m_names = std::move(names);
+        m_hasCallback = true;
+    }
+
+    bool m_hasCallback = false;
+    FileHandle m_handle = RIVE_NULL_HANDLE;
+    uint64_t m_requestId = 0;
+    std::vector<std::string> m_names;
+};
+
+TEST_CASE("Global View Model Names Listed", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    {
+        GlobalNamesListener listener;
+        std::ifstream stream("assets/global_variables_test.riv",
+                             std::ios::binary);
+        FileHandle fileHandle = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+            &listener);
+
+        commandQueue->requestGlobalViewModelNames(fileHandle, 7);
+
+        wait_for_server(commandQueue.get());
+        commandQueue->processMessages();
+
+        CHECK(listener.m_hasCallback);
+        CHECK(listener.m_handle == fileHandle);
+        CHECK(listener.m_requestId == 7);
+        CHECK_FALSE(listener.m_names.empty());
+        for (auto& name : listener.m_names)
+        {
+            CHECK_FALSE(name.empty());
+        }
+    }
+
+    // An invalid file yields no callback (file error instead).
+    {
+        GlobalNamesListener listener;
+        FileHandle fileHandle =
+            commandQueue->loadFile(std::vector<uint8_t>(1024 * 1024, {}),
+                                   &listener);
+
+        commandQueue->requestGlobalViewModelNames(fileHandle, 8);
+
+        wait_for_server(commandQueue.get());
+        commandQueue->processMessages();
+
+        CHECK(!listener.m_hasCallback);
+    }
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class GlobalInstanceListener : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelInstanceViewModelNameReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        std::string viewModelName) override
+    {
+        m_handle = handle;
+        m_viewModelName = viewModelName;
+        m_hasNameCallback = true;
+    }
+
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          uint64_t requestId,
+                                          std::string error) override
+    {
+        m_handle = handle;
+        m_error = error;
+        m_hasErrorCallback = true;
+    }
+
+    bool m_hasNameCallback = false;
+    bool m_hasErrorCallback = false;
+    ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
+    std::string m_viewModelName;
+    std::string m_error;
+};
+
+TEST_CASE("Set/Bind/Get Global View Model Instance", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    GlobalNamesListener fileListener;
+    std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    // Discover a global view model name.
+    commandQueue->requestGlobalViewModelNames(fileHandle, 1);
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+    REQUIRE(fileListener.m_hasCallback);
+    REQUIRE_FALSE(fileListener.m_names.empty());
+    const std::string globalName = fileListener.m_names.front();
+
+    // Default artboard + state machine.
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto stateMachine = commandQueue->instantiateDefaultStateMachine(artboard);
+
+    // Instantiate a default instance of the global view model, set it on the
+    // global slot, and apply with bind().
+    auto globalVmi =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          globalName);
+    commandQueue->setGlobalViewModelInstance(stateMachine,
+                                             globalName,
+                                             globalVmi);
+    commandQueue->bind(stateMachine);
+
+    // Reading the global back yields a handle to the bound instance; confirm it
+    // maps to the same global view model.
+    GlobalInstanceListener okListener;
+    auto fetched = commandQueue->globalViewModelInstance(stateMachine,
+                                                         globalName,
+                                                         &okListener);
+    commandQueue->requestViewModelInstanceViewModelName(fetched, 2);
+
+    // Reading an unknown global name reports an error and maps nothing.
+    GlobalInstanceListener errListener;
+    commandQueue->globalViewModelInstance(stateMachine,
+                                          "not-a-global",
+                                          &errListener,
+                                          3);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(okListener.m_hasNameCallback);
+    CHECK(okListener.m_viewModelName == globalName);
+    CHECK(errListener.m_hasErrorCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
 }

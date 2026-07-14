@@ -950,6 +950,9 @@ public:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 object->as<ViewModelPropertyEnumSystemBase>()->enumType(value);
                 break;
+            case ViewModelBase::viewModelTypePropertyKey:
+                object->as<ViewModelBase>()->viewModelType(value);
+                break;
             case DataEnumSystemBase::enumTypePropertyKey:
                 object->as<DataEnumSystemBase>()->enumType(value);
                 break;
@@ -3164,6 +3167,8 @@ public:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 return object->as<ViewModelPropertyEnumSystemBase>()
                     ->enumType();
+            case ViewModelBase::viewModelTypePropertyKey:
+                return object->as<ViewModelBase>()->viewModelType();
             case DataEnumSystemBase::enumTypePropertyKey:
                 return object->as<DataEnumSystemBase>()->enumType();
             case ViewModelPropertyViewModelBase::
@@ -4403,6 +4408,7 @@ public:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
             case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
+            case ViewModelBase::viewModelTypePropertyKey:
             case DataEnumSystemBase::enumTypePropertyKey:
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
@@ -5010,6 +5016,8 @@ public:
                 return object->is<ViewModelInstanceArtboardBase>();
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 return object->is<ViewModelPropertyEnumSystemBase>();
+            case ViewModelBase::viewModelTypePropertyKey:
+                return object->is<ViewModelBase>();
             case DataEnumSystemBase::enumTypePropertyKey:
                 return object->is<DataEnumSystemBase>();
             case ViewModelPropertyViewModelBase::

@@ -852,7 +852,7 @@ void ArtboardComponentList::reset()
                 auto dataContext = itr->second->dataContext();
                 if (dataContext != nullptr)
                 {
-                    auto boundInstance = dataContext->viewModelInstance();
+                    auto boundInstance = dataContext->mainViewModelInstance();
                     if (boundInstance != nullptr &&
                         boundInstance != viewModelInstance)
                     {

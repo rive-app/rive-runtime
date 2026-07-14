@@ -179,7 +179,17 @@ public:
 
     size_t viewModelCount() const { return m_ViewModels.size(); }
     ViewModel* viewModel(std::string name);
-    ViewModel* viewModel(size_t index);
+    ViewModel* viewModel(size_t index) const;
+    /// @returns the file index (definition order) of the view model with the
+    /// given name — the slot key used for data-context slots — or the view
+    /// model count if no such view model exists.
+    uint32_t viewModelId(const std::string& name) const;
+    /// @returns the global view models (viewModelType == global), in file
+    /// reference order.
+    std::vector<ViewModel*> globalViewModels() const;
+    /// @returns the names of the global view models (viewModelType == global),
+    /// in file reference order.
+    std::vector<std::string> globalViewModelNames() const;
     ViewModelRuntime* defaultArtboardViewModel(Artboard* artboard) const;
     ViewModelRuntime* viewModelByIndex(size_t index) const;
     ViewModelRuntime* viewModelByName(std::string name) const;

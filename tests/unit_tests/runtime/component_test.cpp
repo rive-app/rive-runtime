@@ -573,7 +573,7 @@ TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
     REQUIRE(strokedAbInst != nullptr);
     auto strokedCtx = strokedAbInst->dataContext();
     REQUIRE(strokedCtx != nullptr);
-    auto strokedVmi = strokedCtx->viewModelInstance();
+    auto strokedVmi = strokedCtx->mainViewModelInstance();
     REQUIRE(strokedVmi != nullptr);
     auto strokeWidthProp = strokedVmi->propertyValue("strokeWidth");
     REQUIRE(strokeWidthProp != nullptr);
@@ -598,7 +598,7 @@ TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
     REQUIRE(buttonAbInst != nullptr);
     auto buttonCtx = buttonAbInst->dataContext();
     REQUIRE(buttonCtx != nullptr);
-    auto buttonVmi = buttonCtx->viewModelInstance();
+    auto buttonVmi = buttonCtx->mainViewModelInstance();
     REQUIRE(buttonVmi != nullptr);
     // Button's VM has count/tint/label/clipped/clicked/click but
     // does NOT have strokeWidth.
@@ -629,7 +629,7 @@ TEST_CASE("Stateful Component dynamic artboard swap via VMI artboard "
     REQUIRE(buttonAbInst3 != nullptr);
     auto buttonCtx3 = buttonAbInst3->dataContext();
     REQUIRE(buttonCtx3 != nullptr);
-    auto buttonVmi3 = buttonCtx3->viewModelInstance();
+    auto buttonVmi3 = buttonCtx3->mainViewModelInstance();
     REQUIRE(buttonVmi3 != nullptr);
     CHECK(buttonVmi3->propertyValue("count") != nullptr);
     CHECK(buttonVmi3->propertyValue("strokeWidth") == nullptr);
@@ -738,7 +738,7 @@ TEST_CASE("Stateful nested artboard borrows stateful child on matching VM and "
         {
             return nullptr;
         }
-        return ctx->viewModelInstance().get();
+        return ctx->mainViewModelInstance().get();
     };
 
     auto runFrames = [&](int n) {

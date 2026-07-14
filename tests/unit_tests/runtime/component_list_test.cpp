@@ -139,7 +139,8 @@ TEST_CASE("Component List Artboards Data Context", "[component_list]")
         auto artboard = list->artboardInstance(i);
         REQUIRE(artboard != nullptr);
         auto context = artboard->dataContext();
-        auto vmString = context->viewModelInstance()->propertyValue("Label");
+        auto vmString =
+            context->mainViewModelInstance()->propertyValue("Label");
         REQUIRE(vmString->is<rive::ViewModelInstanceString>());
         REQUIRE(
             vmString->as<rive::ViewModelInstanceString>()->propertyValue() ==

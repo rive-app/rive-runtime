@@ -24,7 +24,6 @@ void DataBindContainer::unbindDataBinds()
 
 void DataBindContainer::bindDataBindsFromContext(DataContext* dataContext)
 {
-
     for (auto& dataBind : m_dataBinds)
     {
         if (dataBind->is<DataBindContext>())

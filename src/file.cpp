@@ -95,6 +95,7 @@
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/view_model_type.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -826,6 +827,11 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
         artboardInstance->scriptingVM(m_scriptingVM.get());
 #endif
         artboardInstance->file(ref_rcp(this));
+
+        // Global view model instances are no longer auto-created here. Callers
+        // (e.g. the high-level runtime's autoBind, or explicit
+        // setGlobalViewModelInstance) create and bind them on demand.
+
         return artboardInstance;
     }
     return nullptr;
@@ -1299,13 +1305,50 @@ ViewModel* File::viewModel(std::string name)
     return nullptr;
 }
 
-ViewModel* File::viewModel(size_t index)
+ViewModel* File::viewModel(size_t index) const
 {
     if (index < m_ViewModels.size())
     {
         return m_ViewModels[index];
     }
     return nullptr;
+}
+
+uint32_t File::viewModelId(const std::string& name) const
+{
+    for (uint32_t i = 0; i < m_ViewModels.size(); i++)
+    {
+        auto vm = m_ViewModels[i];
+        if (vm != nullptr && vm->name() == name)
+        {
+            return i;
+        }
+    }
+    return static_cast<uint32_t>(m_ViewModels.size());
+}
+
+std::vector<ViewModel*> File::globalViewModels() const
+{
+    std::vector<ViewModel*> viewModels;
+    for (ViewModel* vm : m_ViewModels)
+    {
+        if (vm != nullptr && static_cast<ViewModelType>(vm->viewModelType()) ==
+                                 ViewModelType::global)
+        {
+            viewModels.push_back(vm);
+        }
+    }
+    return viewModels;
+}
+
+std::vector<std::string> File::globalViewModelNames() const
+{
+    std::vector<std::string> names;
+    for (ViewModel* vm : globalViewModels())
+    {
+        names.push_back(vm->name());
+    }
+    return names;
 }
 
 ViewModelRuntime* File::viewModelByIndex(size_t index) const

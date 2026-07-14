@@ -658,6 +658,63 @@ void CommandQueue::bindViewModelInstance(StateMachineHandle handle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::setViewModelInstance(StateMachineHandle handle,
+                                        ViewModelInstanceHandle viewModel,
+                                        uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstance;
+    m_commandStream << handle;
+    m_commandStream << viewModel;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::setGlobalViewModelInstance(StateMachineHandle handle,
+                                              std::string name,
+                                              ViewModelInstanceHandle viewModel,
+                                              uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setGlobalViewModelInstance;
+    m_commandStream << handle;
+    m_commandStream << viewModel;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+ViewModelInstanceHandle CommandQueue::globalViewModelInstance(
+    StateMachineHandle handle,
+    std::string name,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getGlobalViewModelInstance;
+    m_commandStream << handle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+    m_names << name;
+
+    return viewHandle;
+}
+
+void CommandQueue::bind(StateMachineHandle handle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::bind;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::advanceStateMachine(StateMachineHandle stateMachineHandle,
                                        float timeToAdvance,
                                        uint64_t requestId)
@@ -976,6 +1033,15 @@ void CommandQueue::requestViewModelNames(FileHandle fileHandle,
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::listViewModels;
+    m_commandStream << fileHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::requestGlobalViewModelNames(FileHandle fileHandle,
+                                               uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listGlobalViewModelNames;
     m_commandStream << fileHandle;
     m_commandStream << requestId;
 }
@@ -1431,6 +1497,40 @@ void CommandQueue::processMessages()
                     itr->second->onViewModelsListed(itr->first,
                                                     requestId,
                                                     std::move(viewModelNames));
+                }
+
+                break;
+            }
+            case Message::globalViewModelNamesListed:
+            {
+                size_t numViewModels;
+                FileHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numViewModels;
+                std::vector<std::string> globalViewModelNames(numViewModels);
+                for (auto& name : globalViewModelNames)
+                {
+                    m_messageNames >> name;
+                }
+                lock.unlock();
+
+                if (m_globalFileListener)
+                {
+                    m_globalFileListener->onGlobalViewModelNamesListed(
+                        handle,
+                        requestId,
+                        globalViewModelNames);
+                }
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onGlobalViewModelNamesListed(
+                        itr->first,
+                        requestId,
+                        std::move(globalViewModelNames));
                 }
 
                 break;

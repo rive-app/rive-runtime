@@ -47,6 +47,11 @@ protected:
     // dynamically-created bound VMI for a different ViewModel (owned here, see
     // m_ownsActiveVmi).
     ViewModelInstance* m_activeViewModelInstance = nullptr;
+    // Global ViewModelInstance children — appended to the data context passed
+    // down to the wrapped artboard. The artboard's m_Objects owns the
+    // construction ref; this list holds an extra ref (see ref_rcp in
+    // onAddedClean) so it stays valid regardless of teardown ordering.
+    std::vector<rcp<ViewModelInstance>> m_globalViewModelInstances;
 
 protected:
 private:
@@ -59,8 +64,6 @@ private:
     void nest(Artboard* artboard);
     bool tryScheduleBindStateful();
     void bindStateful();
-    void bindArtboardInstance(ViewModelInstance* instance,
-                              rcp<DataContext> parent);
     // Walks children() for the first ViewModelInstance child (the stateful
     // component VMI authored in the editor). Returns nullptr if none.
     ViewModelInstance* findStatefulChildVmi() const;

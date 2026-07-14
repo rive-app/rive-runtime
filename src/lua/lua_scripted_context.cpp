@@ -131,9 +131,9 @@ int ScriptedContext::pushViewModel(lua_State* state)
     if (m_scriptedObject)
     {
         auto dataContext = m_scriptedObject->dataContext();
-        if (dataContext && dataContext->viewModelInstance())
+        if (dataContext && dataContext->mainViewModelInstance())
         {
-            auto viewModelInstance = dataContext->viewModelInstance();
+            auto viewModelInstance = dataContext->mainViewModelInstance();
             lua_newrive<ScriptedViewModel>(
                 state,
                 state,

@@ -420,6 +420,25 @@ public:
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                rcp<DataContext> parent);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
+    void bindViewModelInstances(
+        std::vector<rcp<ViewModelInstance>> viewModelInstances,
+        rcp<DataContext> parent);
+    // Sets the main (non-global) view model instance in the data context
+    // without rebinding. Call bind() to apply. A global instance is routed to
+    // setGlobalViewModelInstance.
+    void setViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
+    // Sets/replaces the global view model instance bound under the given global
+    // view model name without rebinding, preserving the main instance and the
+    // other globals' order. Returns false if the name does not match the
+    // instance's global view model. Call bind() to apply.
+    bool setGlobalViewModelInstance(const std::string& name,
+                                    rcp<ViewModelInstance> viewModelInstance);
+    // Applies the current data context: rebinds the artboard's data binds.
+    // No-op if nothing has been set.
+    void bind();
+    // @returns the global view model instance currently bound under the given
+    // name, or nullptr if none has been set. Never creates.
+    rcp<ViewModelInstance> globalViewModelInstance(const std::string& name);
     void rebuildDataBind(DataBind*) override;
 
     bool hasAudio() const;
@@ -662,6 +681,12 @@ public:
         m_rootTransformCallback = callback;
     }
 #endif
+
+protected:
+    // The File backing this artboard, when it is an instance. Used to lazily
+    // create default global view model instances. The base Artboard (e.g. an
+    // editor-time artboard) has no backing file.
+    virtual rcp<const File> artboardFile() const;
 };
 
 class ArtboardInstance : public Artboard
@@ -673,6 +698,9 @@ public:
     /// Holds a reference to the File that vended this instance so the File
     /// outlives the instance.
     void file(rcp<const File> file);
+    /// @returns the File that vended this instance, if any. Used to lazily
+    /// create default global view model instances on demand.
+    rcp<const File> file() const;
 
     std::unique_ptr<LinearAnimationInstance> animationAt(size_t index);
     std::unique_ptr<LinearAnimationInstance> animationNamed(
@@ -701,6 +729,9 @@ public:
     SMINumber* getNumber(const std::string& name, const std::string& path);
     SMITrigger* getTrigger(const std::string& name, const std::string& path);
     TextValueRun* getTextRun(const std::string& name, const std::string& path);
+
+protected:
+    rcp<const File> artboardFile() const override;
 
 private:
     rcp<const File> m_file;

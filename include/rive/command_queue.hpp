@@ -145,6 +145,12 @@ public:
                                         std::vector<std::string> viewModelNames)
         {}
 
+        virtual void onGlobalViewModelNamesListed(
+            const FileHandle,
+            uint64_t requestId,
+            std::vector<std::string> globalViewModelNames)
+        {}
+
         virtual void onViewModelInstanceNamesListed(
             const FileHandle,
             uint64_t requestId,
@@ -594,6 +600,33 @@ public:
                                ViewModelInstanceHandle,
                                uint64_t requestId = 0);
 
+    // Sets the main (non-global) view model instance without rebinding. Call
+    // bind() to apply.
+    void setViewModelInstance(StateMachineHandle,
+                              ViewModelInstanceHandle,
+                              uint64_t requestId = 0);
+
+    // Sets/replaces the global view model instance bound under the given global
+    // view model name without rebinding. Call bind() to apply. Reports a state
+    // machine error if the name does not match a global view model.
+    void setGlobalViewModelInstance(StateMachineHandle,
+                                    std::string name,
+                                    ViewModelInstanceHandle,
+                                    uint64_t requestId = 0);
+
+    // Returns a handle to the global view model instance currently bound under
+    // the given name. Never creates: if none is bound, reports a view model
+    // error and the returned handle maps to nothing.
+    ViewModelInstanceHandle globalViewModelInstance(
+        StateMachineHandle,
+        std::string name,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    // Applies the current data context: rebinds artboard + state machine data
+    // binds in a single pass. No-op if nothing has been set.
+    void bind(StateMachineHandle, uint64_t requestId = 0);
+
     void advanceStateMachine(StateMachineHandle,
                              float timeToAdvance,
                              uint64_t requestId = 0);
@@ -715,6 +748,7 @@ public:
     void disconnect();
 
     void requestViewModelNames(FileHandle, uint64_t requestId = 0);
+    void requestGlobalViewModelNames(FileHandle, uint64_t requestId = 0);
     void requestArtboardNames(FileHandle, uint64_t requestId = 0);
     void requestFileAssets(FileHandle, uint64_t requestId = 0);
     void requestViewModelInstanceViewModelName(ViewModelInstanceHandle,
@@ -942,6 +976,10 @@ private:
         requestSemanticFocus,
         clearSemanticFocus,
         bindViewModelInstance,
+        setViewModelInstance,
+        setGlobalViewModelInstance,
+        getGlobalViewModelInstance,
+        bind,
         runOnce,
         draw,
         cancelDraw,
@@ -960,6 +998,7 @@ private:
         listStateMachines,
         getDefaultViewModel,
         listViewModels,
+        listGlobalViewModelNames,
         listViewModelInstanceNames,
         listViewModelProperties,
         listViewModelPropertyValue,
@@ -982,6 +1021,7 @@ private:
         defaultViewModelReceived,
         viewModelInstanceViewModelNameReceived,
         viewModelsListend,
+        globalViewModelNamesListed,
         viewModelInstanceNamesListed,
         viewModelPropertiesListed,
         viewModelPropertyValueReceived,
