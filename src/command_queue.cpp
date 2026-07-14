@@ -1063,15 +1063,6 @@ void CommandQueue::requestFileAssets(FileHandle fileHandle, uint64_t requestId)
     m_commandStream << requestId;
 }
 
-void CommandQueue::requestViewModelInstanceViewModelName(
-    ViewModelInstanceHandle viewModelInstanceHandle,
-    uint64_t requestId)
-{
-    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::getViewModelInstanceViewModelName;
-    m_commandStream << viewModelInstanceHandle;
-    m_commandStream << requestId;
-}
 void CommandQueue::requestViewModelEnums(FileHandle fileHandle,
                                          uint64_t requestId)
 {
@@ -1102,6 +1093,26 @@ void CommandQueue::requestViewModelInstanceNames(FileHandle handle,
     m_commandStream << handle;
     m_commandStream << requestId;
     m_names << viewModelName;
+}
+
+void CommandQueue::requestViewModelInstanceViewModelName(
+    ViewModelInstanceHandle viewModelInstanceHandle,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getViewModelInstanceViewModelName;
+    m_commandStream << viewModelInstanceHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::requestViewModelInstanceName(
+    ViewModelInstanceHandle viewModelInstanceHandle,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getViewModelInstanceName;
+    m_commandStream << viewModelInstanceHandle;
+    m_commandStream << requestId;
 }
 
 void CommandQueue::requestViewModelInstanceBool(ViewModelInstanceHandle handle,
@@ -1466,6 +1477,33 @@ void CommandQueue::processMessages()
                         handle,
                         requestId,
                         viewModelName);
+                }
+                break;
+            }
+            case Message::viewModelInstanceNameReceived:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                std::string instanceName;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageNames >> instanceName;
+
+                lock.unlock();
+                if (m_globalViewModelListener)
+                {
+                    m_globalViewModelListener->onViewModelInstanceNameReceived(
+                        handle,
+                        requestId,
+                        instanceName);
+                }
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelInstanceNameReceived(
+                        handle,
+                        requestId,
+                        std::move(instanceName));
                 }
                 break;
             }

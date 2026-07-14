@@ -3182,23 +3182,44 @@ public:
         m_hasCallback = true;
     }
 
+    virtual void onViewModelInstanceNameReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        std::string instanceName) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        CHECK(instanceName == m_expectedInstanceName);
+        m_hasInstanceNameCallback = true;
+    }
+
     virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
                                           uint64_t requestId,
                                           std::string error) override
     {
         CHECK(handle == m_handle);
         CHECK(error.size());
+        if (requestId == m_instanceNameErrorRequestId)
+        {
+            m_hasInstanceNameError = true;
+        }
         ++m_receivedErrors;
     }
 
     uint64_t m_requestId = 0;
     ViewModelInstanceHandle m_handle;
     std::string m_expectedViewModelName;
+    std::string m_expectedInstanceName;
     bool m_hasCallback = false;
+    bool m_hasInstanceNameCallback = false;
+    uint64_t m_instanceNameErrorRequestId = 0;
+    bool m_hasInstanceNameError = false;
     int m_receivedErrors = 0;
 };
 
-TEST_CASE("requestViewModelInstanceViewModelName", "[CommandQueue]")
+TEST_CASE("requestViewModelInstanceViewModelName and "
+          "requestViewModelInstanceName",
+          "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
     std::thread serverThread(server_thread, commandQueue);
@@ -3219,15 +3240,19 @@ TEST_CASE("requestViewModelInstanceViewModelName", "[CommandQueue]")
 
     vmListener.m_handle = vmHandle;
     vmListener.m_expectedViewModelName = "Test All";
+    vmListener.m_expectedInstanceName = "Test Default";
     vmListener.m_requestId = 0x50;
 
     commandQueue->requestViewModelInstanceViewModelName(vmHandle,
                                                         vmListener.m_requestId);
+    commandQueue->requestViewModelInstanceName(vmHandle,
+                                               vmListener.m_requestId);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
 
     CHECK(vmListener.m_hasCallback);
+    CHECK(vmListener.m_hasInstanceNameCallback);
 
     // A handle that resolves to a null instance on the server (invalid view
     // model name) should not trigger the success callback but should produce
@@ -3239,14 +3264,20 @@ TEST_CASE("requestViewModelInstanceViewModelName", "[CommandQueue]")
                                                         "Blah",
                                                         &badListener);
     badListener.m_handle = badHandle;
+    badListener.m_instanceNameErrorRequestId = 0x52;
 
-    commandQueue->requestViewModelInstanceViewModelName(badHandle);
+    commandQueue->requestViewModelInstanceViewModelName(badHandle, 0x51);
+    commandQueue->requestViewModelInstanceName(
+        badHandle,
+        badListener.m_instanceNameErrorRequestId);
 
     wait_for_server(commandQueue.get());
 
     commandQueue->processMessages();
 
     CHECK(!badListener.m_hasCallback);
+    CHECK(!badListener.m_hasInstanceNameCallback);
+    CHECK(badListener.m_hasInstanceNameError);
     CHECK(badListener.m_receivedErrors >= 1);
 
     commandQueue->disconnect();
@@ -5084,9 +5115,16 @@ public:
                                    std::string,
                                    viewModelName);
 
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelInstanceNameReceived,
+                                   ViewModelInstanceHandle,
+                                   19,
+                                   std::string,
+                                   instanceName);
+
     size_t m_size = 2;
     std::string m_path = "Test List";
     std::string m_viewModelName = "Test All";
+    std::string m_instanceName = "Test Default";
     ViewModelInstanceHandle m_handle;
     CommandQueue::ViewModelInstanceData m_instanceData = {
         .metaData = PropertyData{DataType::boolean, "Test Bool"},
@@ -5178,6 +5216,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     commandQueue->requestViewModelInstanceBool(viewModel, "Test Bool", 13);
     commandQueue->requestViewModelInstanceListSize(viewModel, "Test List", 14);
     commandQueue->requestViewModelInstanceViewModelName(viewModel, 18);
+    commandQueue->requestViewModelInstanceName(viewModel, 19);
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
@@ -5202,6 +5241,8 @@ TEST_CASE("global Listener", "[CommandQueue]")
                    onViewModelListSizeReceived);
     CHECK_CALLBACK(globalViewModelInstanceListener,
                    onViewModelInstanceViewModelNameReceived);
+    CHECK_CALLBACK(globalViewModelInstanceListener,
+                   onViewModelInstanceNameReceived);
 
     CHECK_CALLBACK(globalArtboardListener, onArtboardDeleted);
     CHECK_CALLBACK(globalArtboardListener, onStateMachineInstantiated);

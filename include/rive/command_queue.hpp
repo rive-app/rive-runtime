@@ -310,14 +310,20 @@ public:
                                             ViewModelInstanceHandle>
     {
     public:
+        virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
+                                              uint64_t requestId,
+                                              std::string error)
+        {}
+
         virtual void onViewModelInstanceViewModelNameReceived(
             const ViewModelInstanceHandle,
             uint64_t requestId,
             std::string viewModelName)
         {}
-        virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
-                                              uint64_t requestId,
-                                              std::string error)
+        virtual void onViewModelInstanceNameReceived(
+            const ViewModelInstanceHandle handle,
+            uint64_t requestId,
+            std::string instanceName)
         {}
 
         virtual void onViewModelDeleted(const ViewModelInstanceHandle,
@@ -721,8 +727,16 @@ public:
     // Create unique draw key for draw.
     DrawKey createDrawKey();
 
-    // Executes a one-time callback on the server. This may eventualy become a
-    // testing-only method.
+    /**
+     * Executes a one-time callback directly on the command server.
+     *
+     * This is an escape hatch for tests and runtime-specific operations that
+     * cannot be represented by the shared command and message protocol. Do not
+     * use it to implement capabilities common to multiple runtimes; add a
+     * canonical command, message, and listener callback instead.
+     *
+     * @param callback The callback to execute on the command server.
+     */
     void runOnce(CommandServerCallback);
 
     // Run draw function for given draw key, only the latest function passed
@@ -751,8 +765,6 @@ public:
     void requestGlobalViewModelNames(FileHandle, uint64_t requestId = 0);
     void requestArtboardNames(FileHandle, uint64_t requestId = 0);
     void requestFileAssets(FileHandle, uint64_t requestId = 0);
-    void requestViewModelInstanceViewModelName(ViewModelInstanceHandle,
-                                               uint64_t requestId = 0);
     void requestViewModelEnums(FileHandle, uint64_t requestId = 0);
     void requestViewModelPropertyDefinitions(FileHandle,
                                              std::string viewModelName,
@@ -761,6 +773,12 @@ public:
     void requestViewModelInstanceNames(FileHandle,
                                        std::string viewModelName,
                                        uint64_t requestId = 0);
+
+    void requestViewModelInstanceViewModelName(ViewModelInstanceHandle,
+                                               uint64_t requestId = 0);
+
+    void requestViewModelInstanceName(ViewModelInstanceHandle handle,
+                                      uint64_t requestId = 0);
 
     void requestViewModelInstanceBool(ViewModelInstanceHandle,
                                       std::string path,
@@ -1003,6 +1021,7 @@ private:
         listViewModelProperties,
         listViewModelPropertyValue,
         getViewModelInstanceViewModelName,
+        getViewModelInstanceName,
         getViewModelListSize,
         clearViewModelList,
         listFileAssets,
@@ -1020,6 +1039,7 @@ private:
         stateMachinesListed,
         defaultViewModelReceived,
         viewModelInstanceViewModelNameReceived,
+        viewModelInstanceNameReceived,
         viewModelsListend,
         globalViewModelNamesListed,
         viewModelInstanceNamesListed,
