@@ -93,7 +93,7 @@ private:
     std::vector<AdvancingComponent*> m_advancingComponents;
     rcp<DataContext> m_DataContext = nullptr;
 #ifdef WITH_RIVE_SCRIPTING
-    ScriptingVM* m_scriptingVM = nullptr;
+    rcp<ScriptingVM> m_scriptingVM = nullptr;
 #endif
     bool m_JoysticksApplyBeforeUpdate = true;
 
@@ -378,7 +378,10 @@ public:
     }
     rcp<DataContext> dataContext() { return m_DataContext; }
 #ifdef WITH_RIVE_SCRIPTING
-    void scriptingVM(ScriptingVM* value) { m_scriptingVM = value; }
+    void scriptingVM(rcp<ScriptingVM> value)
+    {
+        m_scriptingVM = std::move(value);
+    }
 #endif
     // Advances detached scripted view model instances (those with no parents),
     // which are not reachable from the bound view model tree. No-op when

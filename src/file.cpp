@@ -824,7 +824,7 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
     {
         auto artboardInstance = ab->instance();
 #ifdef WITH_RIVE_SCRIPTING
-        artboardInstance->scriptingVM(m_scriptingVM.get());
+        artboardInstance->scriptingVM(m_scriptingVM);
 #endif
         artboardInstance->file(ref_rcp(this));
 
