@@ -6,6 +6,7 @@
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
@@ -653,6 +654,112 @@ TEST_CASE("ScrollConstraint scrollIndex with hidden items", "[silver]")
     rive::File::deterministicMode = false;
 }
 
+TEST_CASE("ScrollConstraint index intent across hidden layout", "[silver]")
+{
+    rive::File::deterministicMode = true;
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scroll_intent.riv", &silver);
+
+    auto artboard = file->artboard()->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto smi = artboard->defaultStateMachine();
+    REQUIRE(smi != nullptr);
+
+    auto display =
+        vmi->propertyValue("display")->as<rive::ViewModelInstanceEnum>();
+    auto scrollIndex =
+        vmi->propertyValue("scrollIndex")->as<rive::ViewModelInstanceNumber>();
+
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE_FALSE(scrolls.empty());
+    auto scroll = scrolls[0];
+    // LayoutComponent re-declares isCollapsed as protected; read it through
+    // the public Component interface.
+    rive::Component* content = scroll->content();
+    auto offset = [&]() {
+        return scroll->constrainsVertical() ? scroll->scrollOffsetY()
+                                            : scroll->scrollOffsetX();
+    };
+
+    auto renderer = silver.makeRenderer();
+    float dt = 1.0f / 60.0f;
+
+    smi->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    for (int frame = 0; frame < 35; frame++)
+    {
+        // Visible: an index set applies immediately.
+        if (frame == 5)
+        {
+            scrollIndex->propertyValue(2.0f);
+        }
+        if (frame == 6)
+        {
+            REQUIRE(offset() < 0);
+        }
+        // Hide the scrolling layout.
+        if (frame == 10)
+        {
+            display->value(1);
+        }
+        if (frame == 11)
+        {
+            REQUIRE(content->isCollapsed());
+        }
+        // Hidden: the set is held and reads back verbatim.
+        if (frame == 15)
+        {
+            scrollIndex->propertyValue(4.0f);
+        }
+        if (frame == 16)
+        {
+            REQUIRE(scroll->scrollIndex() == 4.0f);
+        }
+        // Show again: the held index resolves against fresh layout.
+        if (frame == 20)
+        {
+            display->value(0);
+        }
+        if (frame == 21)
+        {
+            REQUIRE_FALSE(content->isCollapsed());
+            REQUIRE(offset() < 0);
+        }
+        // Visible: out-of-range clamps to the end of the scroll range.
+        if (frame == 25)
+        {
+            scrollIndex->propertyValue(100.0f);
+        }
+        if (frame == 26)
+        {
+            REQUIRE(offset() == (scroll->constrainsVertical()
+                                     ? scroll->maxOffsetY()
+                                     : scroll->maxOffsetX()));
+        }
+        // Back to the start.
+        if (frame == 30)
+        {
+            scrollIndex->propertyValue(0.0f);
+        }
+        silver.addFrame();
+        smi->advanceAndApply(dt);
+        artboard->draw(renderer.get());
+    }
+    REQUIRE(offset() == 0);
+
+    CHECK(silver.matches("scroll_intent"));
+
+    rive::File::deterministicMode = false;
+}
+
 // =========================================================================
 // Velocity-tracking tests for ScrollConstraint.
 //
@@ -936,4 +1043,62 @@ TEST_CASE("Scrollbar release zeros velocity", "[layoutscroll]")
     CHECK_FALSE(scroll->physics()->isRunning());
 
     rive::File::deterministicMode = false;
+}
+
+TEST_CASE("ScrollConstraint index set before layout resolves on advance",
+          "[layoutscroll]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+
+    auto artboard = file->artboard();
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // Layout hasn't run; the index is held and reads back verbatim.
+    scroll->setScrollIndex(2);
+    REQUIRE(scroll->scrollIndex() == 2);
+    REQUIRE(scroll->offsetY() == 0);
+
+    // First advance runs layout; the intent resolves.
+    artboard->advance(0.0f);
+    REQUIRE(scroll->offsetY() == -220.0f);
+    REQUIRE(scroll->scrollIndex() == 2);
+}
+
+TEST_CASE("ScrollConstraint percent set before layout resolves on advance",
+          "[layoutscroll]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+
+    auto artboard = file->artboard();
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // Layout hasn't run; the percent is held and reads back verbatim.
+    scroll->setScrollPercentY(0.5f);
+    REQUIRE(scroll->scrollPercentY() == 0.5f);
+    REQUIRE(scroll->offsetY() == 0);
+
+    // First advance runs layout; the intent resolves.
+    artboard->advance(0.0f);
+    REQUIRE(scroll->offsetY() == -305.0f);
+    REQUIRE(scroll->scrollPercentY() == 0.5f);
+}
+
+TEST_CASE("ScrollConstraint out-of-range index clamps to the ends",
+          "[layoutscroll]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+
+    auto artboard = file->artboard();
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+    artboard->advance(0.0f);
+
+    // Past the end: clamps to max scroll; readback reports the actual index.
+    scroll->setScrollIndex(99);
+    REQUIRE(scroll->offsetY() == -610.0f);
+    REQUIRE(scroll->scrollIndex() == Approx(5.54545f));
+
+    // Before the start: clamps to zero.
+    scroll->setScrollIndex(-5);
+    REQUIRE(scroll->offsetY() == 0.0f);
+    REQUIRE(scroll->scrollIndex() == 0);
 }

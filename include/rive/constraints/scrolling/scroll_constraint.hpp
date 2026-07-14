@@ -19,6 +19,20 @@ class ScrollConstraint : public ScrollConstraintBase,
                          public LayoutConstraint
 {
 private:
+    // Coordinate space a scroll write was expressed in.
+    enum class ScrollSpace : uint8_t
+    {
+        none,
+        percent,
+        index,
+    };
+    // A percent/index write awaiting conversion to an offset.
+    struct ScrollAxisIntent
+    {
+        ScrollSpace space = ScrollSpace::none;
+        float value = 0;
+    };
+
     ScrollPhysics* m_physics;
     ScrollVirtualizer* m_virtualizer = nullptr;
     std::vector<LayoutNodeProvider*> m_layoutChildren;
@@ -37,13 +51,32 @@ private:
     bool m_isScrollBarDragging = false;
     bool m_hasListChildren = false;
 
+    // Unresolved writes per axis; held until layout can convert.
+    ScrollAxisIntent m_intentX;
+    ScrollAxisIntent m_intentY;
+
     AABB boundsForFlatIndex(size_t index);
-    Vec2D positionAtIndex(float index);
+    /// Returns false when layout can't resolve the index yet; out-of-range
+    /// indices clamp to the ends.
+    bool positionAtIndex(float index, Vec2D& outPosition);
     float indexAtPosition(Vec2D pos);
     float maxOffsetXForPercent();
     float maxOffsetYForPercent();
     bool isBoundsCollapsed(AABB bounds);
     std::vector<Vec2D> collectSnapPoints();
+    bool scrollLayoutResolvable(bool isX);
+    float clampResolvedOffset(float value, bool isX);
+    bool resolveIntent(const ScrollAxisIntent& intent,
+                       bool isX,
+                       float& outOffset);
+    void setIntentX(ScrollAxisIntent intent);
+    void setIntentY(ScrollAxisIntent intent);
+    void resolveScrollIntents();
+    void clearScrollIntents()
+    {
+        m_intentX.space = ScrollSpace::none;
+        m_intentY.space = ScrollSpace::none;
+    }
 
 public:
     ~ScrollConstraint();
@@ -121,6 +154,8 @@ public:
     {
         if (!m_isScrollBarDragging && value)
         {
+            // User interaction supersedes held intents.
+            clearScrollIntents();
             // Prime the snapshot so the first advance comparison is
             // meaningful (otherwise a stale value falsely flags motion).
             m_lastFrameOffsetX = scrollOffsetX();
