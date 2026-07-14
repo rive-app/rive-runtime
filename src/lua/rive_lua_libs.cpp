@@ -449,20 +449,27 @@ static int lua_requireinternal(lua_State* L, const char* requirerChunkname)
     lua_settop(L, 1);
     const char* path = luaL_checkstring(L, 1);
 
-    if (checkRegisteredModules(L, path) == 1)
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+
+    // Scoped so the string is destroyed before luaL_error longjmps.
     {
-        return 1;
+        std::string cacheKey = path;
+        if (context != nullptr && requirerChunkname != nullptr)
+        {
+            cacheKey = context->resolveRequire(requirerChunkname, path);
+        }
+
+        if (checkRegisteredModules(L, cacheKey.c_str()) == 1)
+        {
+            return 1;
+        }
     }
 
     // Record missing dependency if we're registering a module
-    if (requirerChunkname)
+    if (requirerChunkname != nullptr && context != nullptr)
     {
-        ScriptingContext* context =
-            static_cast<ScriptingContext*>(lua_getthreaddata(L));
-        if (context)
-        {
-            context->recordMissingDependency(requirerChunkname, path);
-        }
+        context->recordMissingDependency(requirerChunkname, path);
     }
 
     luaL_error(L, "require could not find a script named %s", path);
@@ -640,8 +647,13 @@ bool ScriptingVM::loadModule(lua_State* L,
 // loadModule). On success, replaces the thread with the module result.
 // If isUtility, also registers the result in the require cache.
 // Returns true on success.
-bool ScriptingVM::executeModule(lua_State* L, const char* name, bool isUtility)
+bool ScriptingVM::executeModule(lua_State* L,
+                                const char* name,
+                                bool isUtility,
+                                const char* chunkname)
 {
+    const char* display = chunkname != nullptr ? chunkname : name;
+
     // The module thread should be on top of the stack.
     lua_State* ML = lua_tothread(L, -1);
     if (ML == nullptr)
@@ -654,22 +666,24 @@ bool ScriptingVM::executeModule(lua_State* L, const char* name, bool isUtility)
     {
         if (lua_gettop(ML) == 0)
         {
-            lua_pushfstring(ML, "%s:1: module must return a value", name);
+            lua_pushfstring(ML, "%s:1: module must return a value", display);
         }
         else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
         {
             lua_pushfstring(ML,
                             "%s:1: module must return a table or function",
-                            name);
+                            display);
         }
     }
     else if (status == LUA_YIELD)
     {
-        lua_pushfstring(ML, "%s:1: module can not yield", name);
+        lua_pushfstring(ML, "%s:1: module can not yield", display);
     }
     else if (!lua_isstring(ML, -1))
     {
-        lua_pushfstring(ML, "%s:1: unknown error while running module", name);
+        lua_pushfstring(ML,
+                        "%s:1: unknown error while running module",
+                        display);
     }
 
     // add ML result to L stack
@@ -741,10 +755,101 @@ static void dump_stack(lua_State* state)
 
 void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
 
+std::string ScriptingContext::scopedKey(const std::string& name, ScopeKey scope)
+{
+    if (scope.isRoot())
+    {
+        return name;
+    }
+    // 0x1F cannot occur in a module path, so no escaping needed.
+    return name + '\x1f' + std::to_string(scope.libraryId) + ':' +
+           std::to_string(scope.libraryVersionId);
+}
+
+std::string ScriptingContext::readableChunkname(const std::string& name,
+                                                ScopeKey scope)
+{
+    if (scope.isRoot())
+    {
+        return name;
+    }
+    // Colon free, tooling parses trace locations as chunkname:line.
+    return std::to_string(scope.libraryId) + '-' +
+           std::to_string(scope.libraryVersionId) + '/' + name;
+}
+
+ScopeKey ScriptingContext::scopeOf(const std::string& chunkname)
+{
+    auto it = m_moduleByChunkname.find(chunkname);
+    if (it != m_moduleByChunkname.end())
+    {
+        return it->second->scope();
+    }
+    auto seeded = m_chunknameScopes.find(chunkname);
+    return seeded != m_chunknameScopes.end() ? seeded->second : ScopeKey{};
+}
+
+void ScriptingContext::setChunknameScope(const std::string& chunkname,
+                                         ScopeKey scope)
+{
+    m_chunknameScopes[chunkname] = scope;
+}
+
+ScopeKey ScriptingContext::resolveImport(ScopeKey caller,
+                                         const std::string& request,
+                                         std::string& outPath)
+{
+    static const std::string kLibraryPrefix = "lib:";
+    if (request.compare(0, kLibraryPrefix.size(), kLibraryPrefix) == 0)
+    {
+        std::string rest = request.substr(kLibraryPrefix.size());
+        size_t slash = rest.find('/');
+        std::string libraryName =
+            slash == std::string::npos ? rest : rest.substr(0, slash);
+        outPath =
+            slash == std::string::npos ? std::string() : rest.substr(slash + 1);
+        auto callerIt = m_pins.find(caller);
+        if (callerIt != m_pins.end())
+        {
+            auto pinIt = callerIt->second.find(libraryName);
+            if (pinIt != callerIt->second.end())
+            {
+                return pinIt->second;
+            }
+        }
+        // Sentinel scope so an unpinned library errors instead of rebinding
+        // to a same named module in the caller's scope.
+        return ScopeKey{~uint64_t(0), ~uint64_t(0)};
+    }
+    outPath = request;
+    return caller;
+}
+
+std::string ScriptingContext::resolveRequire(
+    const std::string& requirerChunkname,
+    const std::string& request)
+{
+    ScopeKey caller = scopeOf(requirerChunkname);
+    std::string path;
+    ScopeKey target = resolveImport(caller, request, path);
+    return scopedKey(path, target);
+}
+
+void ScriptingContext::addImport(ScopeKey caller,
+                                 const std::string& libraryName,
+                                 ScopeKey target)
+{
+    m_pins[caller][libraryName] = target;
+}
+
 void ScriptingContext::addModule(ModuleDetails* moduleDetails)
 {
     m_modulesToRegister.push_back(moduleDetails);
-    m_moduleLookup[moduleDetails->moduleName()] = moduleDetails;
+    ScopeKey scope = moduleDetails->scope();
+    m_moduleLookup[scopedKey(moduleDetails->moduleName(), scope)] =
+        moduleDetails;
+    m_moduleByChunkname[readableChunkname(moduleDetails->moduleName(), scope)] =
+        moduleDetails;
 }
 
 bool ScriptingContext::tryRegisterModule(lua_State* state,
@@ -757,14 +862,18 @@ bool ScriptingContext::tryRegisterModule(lua_State* state,
         return false;
     }
 #endif
-    const std::string& name = moduleDetails->moduleName();
+    ScopeKey scope = moduleDetails->scope();
+    std::string cacheKey = scopedKey(moduleDetails->moduleName(), scope);
+    std::string chunkname =
+        readableChunkname(moduleDetails->moduleName(), scope);
     bool registerSuccess = false;
     int functionRef = 0;
     if (moduleDetails->isProtocolScript())
     {
         if (ScriptingVM::registerScript(state,
-                                        name.c_str(),
-                                        moduleDetails->moduleBytecode()))
+                                        cacheKey.c_str(),
+                                        moduleDetails->moduleBytecode(),
+                                        chunkname.c_str()))
         {
             // registerScript leaves the function on the stack
             if (static_cast<lua_Type>(lua_type(state, -1)) == LUA_TFUNCTION)
@@ -778,8 +887,9 @@ bool ScriptingContext::tryRegisterModule(lua_State* state,
     else
     {
         if (ScriptingVM::registerModule(state,
-                                        name.c_str(),
-                                        moduleDetails->moduleBytecode()))
+                                        cacheKey.c_str(),
+                                        moduleDetails->moduleBytecode(),
+                                        chunkname.c_str()))
         {
             registerSuccess = true;
         }
@@ -805,10 +915,11 @@ void ScriptingContext::performRegistration(lua_State* state)
         {
             continue;
         }
-        std::string moduleName = moduleDetails->moduleName();
+        std::string cacheKey =
+            scopedKey(moduleDetails->moduleName(), moduleDetails->scope());
 
         // Skip if already registered
-        if (checkRegisteredModules(state, moduleName.c_str()) == 1)
+        if (checkRegisteredModules(state, cacheKey.c_str()) == 1)
         {
             lua_pop(state, 1);
             continue;
@@ -894,24 +1005,33 @@ void ScriptingContext::recordMissingDependency(
     const std::string& requiringModule,
     const std::string& missingModule)
 {
-    if (!requiringModule.empty())
+    if (requiringModule.empty())
     {
-        ModuleDetails* moduleDetails = m_moduleLookup[requiringModule];
-        if (moduleDetails != nullptr)
-        {
-            moduleDetails->addMissingDependency(missingModule);
-            m_pendingModules.insert(moduleDetails);
-        }
+        return;
     }
+    auto it = m_moduleByChunkname.find(requiringModule);
+    if (it == m_moduleByChunkname.end())
+    {
+        return;
+    }
+    ModuleDetails* moduleDetails = it->second;
+    // The topological sort looks up m_moduleLookup by scoped key.
+    std::string path;
+    ScopeKey target =
+        resolveImport(moduleDetails->scope(), missingModule, path);
+    moduleDetails->addMissingDependency(scopedKey(path, target));
+    m_pendingModules.insert(moduleDetails);
 }
 
 void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
 {
+    std::string key =
+        scopedKey(moduleDetails->moduleName(), moduleDetails->scope());
     for (ModuleDetails* module : m_modulesToRegister)
     {
         if (!module->missingDependencies().empty())
         {
-            moduleDetails->clearMissingDependency(moduleDetails->moduleName());
+            module->clearMissingDependency(key);
         }
     }
     auto it = m_pendingModules.find(moduleDetails);
@@ -1060,7 +1180,8 @@ void ScriptingContext::shutdownAsyncForState(lua_State* mainThread)
 
 bool ScriptingVM::registerScript(lua_State* state,
                                  const char* name,
-                                 Span<uint8_t> bytecode)
+                                 Span<uint8_t> bytecode,
+                                 const char* chunkname)
 {
     // Check if already registered - leave module on stack for caller to use
     if (checkRegisteredModules(state, name) == 1)
@@ -1068,12 +1189,12 @@ bool ScriptingVM::registerScript(lua_State* state,
         return true;
     }
 
-    if (!loadModule(state, name, bytecode))
+    if (!loadModule(state, chunkname != nullptr ? chunkname : name, bytecode))
     {
         return false;
     }
 
-    if (!executeModule(state, name, false))
+    if (!executeModule(state, name, false, chunkname))
     {
         return false;
     }
@@ -1083,7 +1204,8 @@ bool ScriptingVM::registerScript(lua_State* state,
 
 bool ScriptingVM::registerModule(lua_State* state,
                                  const char* name,
-                                 Span<uint8_t> bytecode)
+                                 Span<uint8_t> bytecode,
+                                 const char* chunkname)
 {
     // Check if already registered
     if (checkRegisteredModules(state, name) == 1)
@@ -1092,12 +1214,12 @@ bool ScriptingVM::registerModule(lua_State* state,
         return true;
     }
 
-    if (!loadModule(state, name, bytecode))
+    if (!loadModule(state, chunkname != nullptr ? chunkname : name, bytecode))
     {
         return false;
     }
 
-    if (!executeModule(state, name, true))
+    if (!executeModule(state, name, true, chunkname))
     {
         return false;
     }

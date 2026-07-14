@@ -65,6 +65,28 @@
       },
       "description": "Whether to export the asset regardless of it being used.",
       "runtime": false
+    },
+    "scopeLibraryId": {
+      "type": "uint64",
+      "initialValue": "0",
+      "key": {
+        "int": 1037,
+        "string": "scopelibraryid"
+      },
+      "description": "Backend library id of the library version this asset belongs to (its scope). Zero is the reserved root scope: the host file itself. Named distinctly from LibraryAsset.libraryId, which is a library's own identity.",
+      "journal": false,
+      "derived": true
+    },
+    "scopeLibraryVersionId": {
+      "type": "uint64",
+      "initialValue": "0",
+      "key": {
+        "int": 1038,
+        "string": "scopelibraryversionid"
+      },
+      "description": "Backend library version id of the library version this asset belongs to (its scope). Zero is the reserved root scope.",
+      "journal": false,
+      "derived": true
     }
   }
 }

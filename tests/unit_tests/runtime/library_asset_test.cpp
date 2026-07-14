@@ -9,6 +9,11 @@
 #include <rive/shapes/shape.hpp>
 #include <rive/assets/image_asset.hpp>
 #include <rive/assets/font_asset.hpp>
+#include <rive/assets/library_asset.hpp>
+#include <rive/assets/script_asset.hpp>
+#ifdef WITH_RIVE_SCRIPTING
+#include <rive/lua/rive_lua_libs.hpp>
+#endif
 #include <rive/animation/nested_simple_animation.hpp>
 #include <rive/animation/nested_state_machine.hpp>
 #include <rive/relative_local_asset_loader.hpp>
@@ -143,6 +148,96 @@ TEST_CASE("File with library state machine loads", "[libraries]")
 // }
 
 // we are literally just loading files here.
+TEST_CASE("Library import edge deserializes with script scope", "[libraries]")
+{
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/library_scope_edge_test.riv");
+
+    rive::LibraryAsset* library = nullptr;
+    rive::ScriptAsset* script = nullptr;
+    for (auto asset : file->assets())
+    {
+        if (asset->is<rive::LibraryAsset>())
+        {
+            library = asset->as<rive::LibraryAsset>();
+        }
+        else if (asset->is<rive::ScriptAsset>())
+        {
+            script = asset->as<rive::ScriptAsset>();
+        }
+    }
+
+    // The edge: label, target identity, root caller scope.
+    REQUIRE(library != nullptr);
+    REQUIRE(library->name() == "FruitsLib");
+    REQUIRE(library->libraryId() == 9);
+    REQUIRE(library->libraryVersionId() == 4);
+    REQUIRE(library->scopeLibraryId() == 0);
+    REQUIRE(library->scopeLibraryVersionId() == 0);
+
+    // The script carries its scope on the wire.
+    REQUIRE(script != nullptr);
+    REQUIRE(script->scope().libraryId == 9);
+    REQUIRE(script->scope().libraryVersionId == 4);
+
+#ifdef WITH_RIVE_SCRIPTING
+    // A file with scripts made a VM, which seeded the edge as a pin.
+    REQUIRE(file->scriptingVM() != nullptr);
+#endif
+}
+
+TEST_CASE("Nested library edge keeps its outer caller scope", "[libraries]")
+{
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/nested_library_scope_test.riv");
+
+    rive::LibraryAsset* outer = nullptr;
+    rive::LibraryAsset* inner = nullptr;
+    rive::ScriptAsset* mesh = nullptr;
+    for (auto asset : file->assets())
+    {
+        if (asset->is<rive::LibraryAsset>())
+        {
+            auto library = asset->as<rive::LibraryAsset>();
+            (library->libraryId() == 20 ? outer : inner) = library;
+        }
+        else if (asset->is<rive::ScriptAsset>() && asset->name() == "mesh")
+        {
+            mesh = asset->as<rive::ScriptAsset>();
+        }
+    }
+
+    // The host imported the outer library, the outer imported the inner:
+    // the inner edge's caller is the outer library, not the host.
+    REQUIRE(outer != nullptr);
+    REQUIRE(outer->scopeLibraryId() == 0);
+    REQUIRE(inner != nullptr);
+    REQUIRE(inner->libraryId() == 21);
+    REQUIRE(inner->libraryVersionId() == 4);
+    REQUIRE(inner->scopeLibraryId() == 20);
+    REQUIRE(inner->scopeLibraryVersionId() == 6);
+
+    // The inner library's module carries the inner scope.
+    REQUIRE(mesh != nullptr);
+    REQUIRE(mesh->scope().libraryId == 21);
+    REQUIRE(mesh->scope().libraryVersionId == 4);
+
+#ifdef WITH_RIVE_SCRIPTING
+    REQUIRE(file->scriptingVM() != nullptr);
+    auto context = file->scriptingVM()->context();
+    // The inner pin landed in the outer library's import table.
+    context->setChunknameScope("outer_probe", rive::ScopeKey{20, 6});
+    CHECK(context->resolveRequire("outer_probe", "lib:InnerLib/mesh") ==
+          rive::ScriptingContext::scopedKey("mesh", rive::ScopeKey{21, 4}));
+    // The host only pinned the outer library; the inner label must not
+    // leak into its table.
+    CHECK(context->resolveRequire("host_probe", "lib:InnerLib/mesh") !=
+          rive::ScriptingContext::scopedKey("mesh", rive::ScopeKey{21, 4}));
+    CHECK(context->resolveRequire("host_probe", "lib:OuterLib/useb") ==
+          rive::ScriptingContext::scopedKey("useb", rive::ScopeKey{20, 6}));
+#endif
+}
+
 TEST_CASE("File with library including image", "[libraries]")
 {
     // created by library_import_export_test.dart in rive_core.

@@ -1512,6 +1512,21 @@ public:
     // detached-root ancestor's recursion), so they are skipped.
     void advanceDetachedViewModels();
 
+    // Require cache key for a module in a scope, bare name for root.
+    static std::string scopedKey(const std::string& name, ScopeKey scope);
+    // Pin libraryName required from caller to the target library version.
+    void addImport(ScopeKey caller,
+                   const std::string& libraryName,
+                   ScopeKey target);
+    // Require cache key for a require string relative to the caller.
+    std::string resolveRequire(const std::string& requirerChunkname,
+                               const std::string& request);
+    // Chunkname baked into bytecode for traces, bare name for root.
+    static std::string readableChunkname(const std::string& name,
+                                         ScopeKey scope);
+    // Seeds scope for modules with no ModuleDetails, like the editor VM.
+    void setChunknameScope(const std::string& chunkname, ScopeKey scope);
+
     // Ore GPU context for this VM, derived from the render factory. Null when
     // there is no render context, or it is not GPU-backed. Returned as void* so
     // callers that include ore headers cast to ore::Context*.
@@ -1578,6 +1593,14 @@ private:
     // Called when a module successfully registers
     void onModuleRegistered(ModuleDetails* moduleDetails);
 
+    // Scope for a require string relative to the caller, outPath gets the
+    // module path portion.
+    ScopeKey resolveImport(ScopeKey caller,
+                           const std::string& request,
+                           std::string& outPath);
+    // Scope for a chunkname, root if unknown.
+    ScopeKey scopeOf(const std::string& chunkname);
+
 private:
     Factory* m_renderContext = nullptr;
     uint64_t m_ownerId = 0;
@@ -1594,6 +1617,12 @@ private:
     std::vector<ModuleDetails*> m_modulesToRegister;
     std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
     std::unordered_set<ModuleDetails*> m_pendingModules;
+    // Chunkname to details, so require can find the caller's scope.
+    std::unordered_map<std::string, ModuleDetails*> m_moduleByChunkname;
+    std::unordered_map<ScopeKey, std::unordered_map<std::string, ScopeKey>>
+        m_pins;
+    // Seeded via setChunknameScope for modules with no ModuleDetails.
+    std::unordered_map<std::string, ScopeKey> m_chunknameScopes;
 
     // Detached view model instances tracked for end-of-frame advance, keyed by
     // instance pointer. Each entry keeps a strong reference alive and counts

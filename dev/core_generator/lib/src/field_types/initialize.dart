@@ -12,6 +12,7 @@ void initializeFields() {
     StringFieldType(),
     BytesFieldType(),
     UintFieldType(),
+    Uint64FieldType(),
     // Must come after UintFieldType: its registryType resolves `uint`.
     Uint8FieldType(),
     DoubleFieldType(),

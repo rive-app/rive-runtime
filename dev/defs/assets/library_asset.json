@@ -1,0 +1,28 @@
+{
+  "name": "LibraryAsset",
+  "key": {
+    "int": 558,
+    "string": "libraryasset"
+  },
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "libraryId": {
+      "type": "uint64",
+      "initialValue": "0",
+      "key": {
+        "int": 798,
+        "string": "libraryid"
+      },
+      "description": "Backend library id this asset points at: the import target. With Asset.name as the label and the derived scope as the caller, a LibraryAsset is one import edge."
+    },
+    "libraryVersionId": {
+      "type": "uint64",
+      "initialValue": "0",
+      "key": {
+        "int": 799,
+        "string": "libraryversionid"
+      },
+      "description": "Backend library version id this asset points at: the import target version."
+    }
+  }
+}

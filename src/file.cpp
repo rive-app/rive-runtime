@@ -70,6 +70,7 @@
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
+#include "rive/assets/library_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
@@ -340,6 +341,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case BlobAsset::typeKey:
                 case ScriptAsset::typeKey:
                 case ShaderAsset::typeKey:
+                case LibraryAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
                     m_fileAssets.push_back(rcp<FileAsset>(fa));
@@ -676,11 +678,16 @@ void File::registerScripts()
 {
     // Check if we have any script assets in the file
     std::vector<ScriptAsset*> scripts;
+    std::vector<LibraryAsset*> libraries;
     for (auto asset : m_fileAssets)
     {
         if (asset->is<ScriptAsset>())
         {
             scripts.push_back(asset->as<ScriptAsset>());
+        }
+        else if (asset->is<LibraryAsset>())
+        {
+            libraries.push_back(asset->as<LibraryAsset>());
         }
     }
     // Only make the ScriptingVM if we have any script assets
@@ -702,6 +709,16 @@ void File::registerScripts()
             if (!vm->context()->initializesDataGlobalExternally())
             {
                 initializeLuaData(vm->state(), m_ViewModels);
+            }
+            // Import edges are data, registered before any module executes.
+            for (auto library : libraries)
+            {
+                vm->context()->addImport(
+                    ScopeKey{library->scopeLibraryId(),
+                             library->scopeLibraryVersionId()},
+                    library->name(),
+                    ScopeKey{library->libraryId(),
+                             library->libraryVersionId()});
             }
             for (auto scriptAsset : scripts)
             {

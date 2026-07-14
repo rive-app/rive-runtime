@@ -115,6 +115,7 @@
 #include "rive/assets/folder.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/assets/library_asset.hpp"
 #include "rive/assets/manifest_asset.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/assets/shader_asset.hpp"
@@ -894,6 +895,8 @@ public:
                 return new ShaderAsset();
             case FontAssetBase::typeKey:
                 return new FontAsset();
+            case LibraryAssetBase::typeKey:
+                return new LibraryAsset();
             case AudioAssetBase::typeKey:
                 return new AudioAsset();
             case FileAssetContentsBase::typeKey:
@@ -3138,6 +3141,24 @@ public:
                 break;
         }
     }
+    static void setUint64(Core* object, int propertyKey, uint64_t value)
+    {
+        switch (propertyKey)
+        {
+            case FileAssetBase::scopeLibraryIdPropertyKey:
+                object->as<FileAssetBase>()->scopeLibraryId(value);
+                break;
+            case FileAssetBase::scopeLibraryVersionIdPropertyKey:
+                object->as<FileAssetBase>()->scopeLibraryVersionId(value);
+                break;
+            case LibraryAssetBase::libraryIdPropertyKey:
+                object->as<LibraryAssetBase>()->libraryId(value);
+                break;
+            case LibraryAssetBase::libraryVersionIdPropertyKey:
+                object->as<LibraryAssetBase>()->libraryVersionId(value);
+                break;
+        }
+    }
     static uint32_t getUint(Core* object, int propertyKey)
     {
         switch (propertyKey)
@@ -4394,6 +4415,21 @@ public:
         }
         return 0.0f;
     }
+    static uint64_t getUint64(Core* object, int propertyKey)
+    {
+        switch (propertyKey)
+        {
+            case FileAssetBase::scopeLibraryIdPropertyKey:
+                return object->as<FileAssetBase>()->scopeLibraryId();
+            case FileAssetBase::scopeLibraryVersionIdPropertyKey:
+                return object->as<FileAssetBase>()->scopeLibraryVersionId();
+            case LibraryAssetBase::libraryIdPropertyKey:
+                return object->as<LibraryAssetBase>()->libraryId();
+            case LibraryAssetBase::libraryVersionIdPropertyKey:
+                return object->as<LibraryAssetBase>()->libraryVersionId();
+        }
+        return 0;
+    }
     static int propertyFieldId(int propertyKey)
     {
         switch (propertyKey)
@@ -4975,6 +5011,11 @@ public:
             case FileAssetContentsBase::bytesPropertyKey:
             case FileAssetContentsBase::signaturePropertyKey:
                 return CoreBytesType::id;
+            case FileAssetBase::scopeLibraryIdPropertyKey:
+            case FileAssetBase::scopeLibraryVersionIdPropertyKey:
+            case LibraryAssetBase::libraryIdPropertyKey:
+            case LibraryAssetBase::libraryVersionIdPropertyKey:
+                return CoreUint64Type::id;
             default:
                 return -1;
         }
@@ -6165,6 +6206,14 @@ public:
                 return object->is<NestedTriggerBase>();
             case EventBase::triggerPropertyKey:
                 return object->is<EventBase>();
+            case FileAssetBase::scopeLibraryIdPropertyKey:
+                return object->is<FileAssetBase>();
+            case FileAssetBase::scopeLibraryVersionIdPropertyKey:
+                return object->is<FileAssetBase>();
+            case LibraryAssetBase::libraryIdPropertyKey:
+                return object->is<LibraryAssetBase>();
+            case LibraryAssetBase::libraryVersionIdPropertyKey:
+                return object->is<LibraryAssetBase>();
         }
         return false;
     }

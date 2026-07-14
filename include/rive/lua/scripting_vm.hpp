@@ -53,34 +53,35 @@ public:
     // retries
     void performRegistration();
 
+    // name is the require cache key, chunkname the trace label baked into
+    // the bytecode, defaulting to name.
     static bool registerModule(lua_State* state,
                                const char* name,
-                               Span<uint8_t> bytecode);
+                               Span<uint8_t> bytecode,
+                               const char* chunkname = nullptr);
     static void unregisterModule(lua_State* state, const char* name);
     bool registerModule(const char* name, Span<uint8_t> bytecode);
     void unregisterModule(const char* name);
 
     static bool registerScript(lua_State* state,
                                const char* name,
-                               Span<uint8_t> bytecode);
+                               Span<uint8_t> bytecode,
+                               const char* chunkname = nullptr);
 
     bool registerScript(const char* name, Span<uint8_t> bytecode);
 
-    // Loads bytecode into the VM, creating a sandboxed thread and
-    // deserializing the bytecode into an unexecuted closure. Pushes the
-    // module thread onto the stack. Returns true on success.
+    // Loads bytecode into an unexecuted sandboxed thread pushed onto the
+    // stack. name is the chunkname baked into the proto.
     static bool loadModule(lua_State* state,
                            const char* name,
                            Span<uint8_t> bytecode);
 
-    // Executes a previously loaded module thread (on top of stack from
-    // loadModule). Runs lua_resume, validates the result, and for utility
-    // modules registers into the require cache. On success, the module
-    // result (table/function) replaces the thread on the stack.
-    // Returns true on success.
+    // Executes a thread from loadModule and registers utility modules under
+    // name. The result replaces the thread on the stack.
     static bool executeModule(lua_State* state,
                               const char* name,
-                              bool isUtility);
+                              bool isUtility,
+                              const char* chunkname = nullptr);
 
     static void dumpStack(lua_State* state);
 

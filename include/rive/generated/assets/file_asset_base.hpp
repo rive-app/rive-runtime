@@ -4,6 +4,7 @@
 #include "rive/assets/asset.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_uint64_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/span.hpp"
 namespace rive
@@ -35,10 +36,14 @@ public:
     static const uint16_t assetIdPropertyKey = 204;
     static const uint16_t cdnUuidPropertyKey = 359;
     static const uint16_t cdnBaseUrlPropertyKey = 362;
+    static const uint16_t scopeLibraryIdPropertyKey = 1037;
+    static const uint16_t scopeLibraryVersionIdPropertyKey = 1038;
 
 protected:
     uint32_t m_AssetId = 0;
     std::string m_CdnBaseUrl = "https://public.rive.app/cdn/uuid";
+    uint64_t m_ScopeLibraryId = 0;
+    uint64_t m_ScopeLibraryVersionId = 0;
 
 public:
     inline uint32_t assetId() const { return m_AssetId; }
@@ -68,11 +73,40 @@ public:
         notifyPropertyChanged(cdnBaseUrlPropertyKey);
     }
 
+    inline uint64_t scopeLibraryId() const { return m_ScopeLibraryId; }
+    void scopeLibraryId(uint64_t value)
+    {
+        if (m_ScopeLibraryId == value)
+        {
+            return;
+        }
+        m_ScopeLibraryId = value;
+        scopeLibraryIdChanged();
+        notifyPropertyChanged(scopeLibraryIdPropertyKey);
+    }
+
+    inline uint64_t scopeLibraryVersionId() const
+    {
+        return m_ScopeLibraryVersionId;
+    }
+    void scopeLibraryVersionId(uint64_t value)
+    {
+        if (m_ScopeLibraryVersionId == value)
+        {
+            return;
+        }
+        m_ScopeLibraryVersionId = value;
+        scopeLibraryVersionIdChanged();
+        notifyPropertyChanged(scopeLibraryVersionIdPropertyKey);
+    }
+
     void copy(const FileAssetBase& object)
     {
         m_AssetId = object.m_AssetId;
         copyCdnUuid(object);
         m_CdnBaseUrl = object.m_CdnBaseUrl;
+        m_ScopeLibraryId = object.m_ScopeLibraryId;
+        m_ScopeLibraryVersionId = object.m_ScopeLibraryVersionId;
         Asset::copy(object);
     }
 
@@ -89,6 +123,12 @@ public:
             case cdnBaseUrlPropertyKey:
                 m_CdnBaseUrl = CoreStringType::deserialize(reader);
                 return true;
+            case scopeLibraryIdPropertyKey:
+                m_ScopeLibraryId = CoreUint64Type::deserialize(reader);
+                return true;
+            case scopeLibraryVersionIdPropertyKey:
+                m_ScopeLibraryVersionId = CoreUint64Type::deserialize(reader);
+                return true;
         }
         return Asset::deserialize(propertyKey, reader);
     }
@@ -97,6 +137,8 @@ protected:
     virtual void assetIdChanged() {}
     virtual void cdnUuidChanged() {}
     virtual void cdnBaseUrlChanged() {}
+    virtual void scopeLibraryIdChanged() {}
+    virtual void scopeLibraryVersionIdChanged() {}
 };
 } // namespace rive
 
