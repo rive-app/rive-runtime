@@ -66,6 +66,10 @@ public:
                   bool isPressed,
                   bool isRepeat);
     bool textInput(const std::string& text);
+    // Re-arm the advance loop after an input event is dispatched to the
+    // script; the handler may have changed state (e.g. fired a trigger on a
+    // scripted artboard) that only the next scriptAdvance can consume.
+    void wakeAdvance();
 
 private:
     bool m_isAdvanceActive = true;

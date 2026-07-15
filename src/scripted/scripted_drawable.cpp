@@ -137,6 +137,7 @@ bool ScriptedDrawable::gamepadDispatch(const ListenerInvocation& inv)
         rive_lua_pop(L, 1);
     }
     rive_lua_pop(L, 1);
+    wakeAdvance();
     return true;
 }
 
@@ -182,6 +183,7 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
             rive_lua_pop(state, 1);
         }
         hitResult = pointerEvent->m_hitResult;
+        m_drawable->wakeAdvance();
     }
     rive_lua_pop(state, 1);
     return hitResult;
@@ -253,6 +255,7 @@ bool ScriptedDrawable::keyInput(Key key,
     }
     // Stack: [self]
     rive_lua_pop(L, 1);
+    wakeAdvance();
     return shouldStopPropagation;
 }
 
@@ -302,6 +305,7 @@ bool ScriptedDrawable::textInput(const std::string& text)
     }
     // Stack: [self]
     rive_lua_pop(L, 1);
+    wakeAdvance();
     return shouldStopPropagation;
 }
 
@@ -348,6 +352,12 @@ void ScriptedDrawable::update(ComponentDirt value)
         scriptUpdate();
         m_isAdvanceActive = true;
     }
+}
+
+void ScriptedDrawable::wakeAdvance()
+{
+    m_isAdvanceActive = true;
+    addScriptedDirt(ComponentDirt::Paint);
 }
 
 Core* ScriptedDrawable::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
