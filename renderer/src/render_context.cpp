@@ -296,10 +296,7 @@ void RenderContext::LogicalFlush::rewind()
     m_pendingGradSpanCount = 0;
     m_clips.clear();
     m_draws.clear();
-    m_combinedDrawBounds = {std::numeric_limits<int32_t>::max(),
-                            std::numeric_limits<int32_t>::max(),
-                            std::numeric_limits<int32_t>::min(),
-                            std::numeric_limits<int32_t>::min()};
+    m_combinedDrawBounds = IAABB::makeMaximallyNegative();
     m_combinedDrawContents = gpu::DrawContents::none;
 
     m_pathPaddingCount = 0;
@@ -562,8 +559,9 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
     for (size_t i = 0; i < drawCount; ++i)
     {
         m_draws.push_back(std::move(draws[i]));
-        m_combinedDrawBounds =
-            m_combinedDrawBounds.join(m_draws.back()->pixelBounds());
+        // Note: not updating m_combinedDrawBounds here because it will get done
+        // in tightenClipBounds later, after we've determined the minimal write
+        // sizes for any clips.
         m_combinedDrawContents |= m_draws.back()->drawContents();
     }
 
@@ -1245,6 +1243,13 @@ void RenderContext::LogicalFlush::layoutResources(
         m_flushDesc.coverageClearValue = 0;
     }
 
+    // Adjust the clip bounds so that they are as tight on the writes/reads as
+    // possible, to enable minimal scissor rectangle sizes.
+    // Note: This is done here so that m_combinedDrawBounds are updated before
+    // we try to use them, to ensure they're also tightened in on the clipping
+    // (when scissor is supported).
+    tightenClipBounds();
+
     if (doClearDuringAtomicResolve ||
         m_flushDesc.colorLoadAction == gpu::LoadAction::clear)
     {
@@ -1532,10 +1537,6 @@ void RenderContext::LogicalFlush::writeResources()
         // end.
         pushPaddingVertices(1, m_outerCubicTessEndLocation);
     }
-
-    // Adjust the clip bounds so that they are as tight on the writes/reads as
-    // possible, to enable minimal scissor rectangle sizes.
-    tightenClipBounds();
 
     // Write out all the data for our high level draws, and build up a low-level
     // draw list.
@@ -2379,6 +2380,9 @@ void RenderContext::LogicalFlush::writeResources()
 
 void RenderContext::LogicalFlush::tightenClipBounds()
 {
+    assert(m_combinedDrawBounds == IAABB::makeMaximallyNegative() &&
+           "m_combinedDrawBounds should not have been updated yet");
+
     // Iterate through the draws in reverse - this ensures that all paths
     // clipped by a given clip update will update read bounds first, then any
     // nested clips will update, and all bounds state should bubble nicely to
@@ -2386,12 +2390,21 @@ void RenderContext::LogicalFlush::tightenClipBounds()
     for (size_t i = m_draws.size() - 1; i != size_t(-1); i--)
     {
         const auto& draw = m_draws[i];
+
+        // Depending on whether the platform supports clip scissor or not, use
+        // the clipped bounds or the pixel bounds as the default bounds for
+        // calculating the combined bounds.
+        IAABB drawBoundsForCombinedBounds =
+            m_ctx->platformFeatures().supportsClipScissor
+                ? draw->clippedPixelBounds()
+                : draw->pixelBounds();
+
         if (draw->clipID() == 0)
         {
-            continue;
+            // Do nothing here, but we'll update the combined draw bounds after
+            // the `else`s.
         }
-
-        if (draw->isClipUpdate())
+        else if (draw->isClipUpdate())
         {
             auto& clipInfo = getWritableClipInfo(draw->clipID());
 
@@ -2399,6 +2412,16 @@ void RenderContext::LogicalFlush::tightenClipBounds()
             // shape and all reads as possible.
             clipInfo.tightenedBounds =
                 clipInfo.tightenedBounds.intersect(clipInfo.readBounds);
+
+            if (m_ctx->platformFeatures().supportsClipScissor)
+            {
+                // Bring in the draw bounds for combining based on the
+                // newly-tightened bounds.
+                assert(drawBoundsForCombinedBounds.contains(
+                    clipInfo.tightenedBounds));
+                drawBoundsForCombinedBounds =
+                    clipInfo.tightenedBounds.lossless_numeric_cast<int32_t>();
+            }
 
             if (draw->hasActiveClip())
             {
@@ -2424,6 +2447,9 @@ void RenderContext::LogicalFlush::tightenClipBounds()
             clipInfo.readBounds = clipInfo.readBounds.join(
                 draw->clippedPixelBounds().clamp_cast<uint16_t>());
         }
+
+        m_combinedDrawBounds =
+            m_combinedDrawBounds.join(drawBoundsForCombinedBounds);
     }
 }
 
