@@ -272,12 +272,7 @@ public:
             advanceDeltaTime = 1.0f / 120;
         }
 
-        // ORE auto-reopens its CB if a scripted shader re-enters during PLS
-        // draw, so we only mark the primary frame here.
-        TestingWindow::Get()->beginOreFrame();
         m_scene->advanceAndApply(paused ? 0 : advanceDeltaTime);
-        m_artboard->drawCanvases();
-        TestingWindow::Get()->endOreFrame();
 
         copiesLeft = std::max(copiesLeft, 0);
         copiesAbove = std::max(copiesAbove, 0);
@@ -340,13 +335,16 @@ public:
                         m_artboard->bounds());
         float spacingPx = spacing * 5 + 150;
         renderer->translate(-spacingPx * copiesLeft, -spacingPx * copiesAbove);
-        // drawInternal skips drawCanvases (we pre-passed above), matching
-        // the Flutter widget's prepassCanvases + paint pattern.
         for (int y = -copiesAbove; y <= copiesBelow; ++y)
         {
             renderer->save();
             for (int x = -copiesLeft; x <= copiesRight; ++x)
             {
+                // drawInternal skips drawCanvases. In the future we can
+                // pre-pass them, but ORE commandBuffers are currently wired up
+                // in a way that causes severe perf regressions and flickering
+                // on Vulkan. Once deferred rendering is finished we can turn
+                // pre-passes back on.
                 m_artboard->drawInternal(renderer.get());
                 renderer->translate(spacingPx, 0);
             }
