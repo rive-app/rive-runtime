@@ -190,9 +190,15 @@ if _OPTIONS['with_wagyu'] then
         error('\nWagyu does not support webgpu-version < 2\n  ')
     end
     defines({ 'RIVE_WAGYU' })
-    RIVE_WAGYU_PORT = '--use-port='
-        .. RIVE_RUNTIME_DIR
-        .. '/renderer/src/webgpu/wagyu-port/webgpu-port.py:wagyu=true'
+    if _ACTION == 'export-compile-commands' then
+        -- Manually add the Wagyu include path when building a compilation
+        -- database (e.g., for auto-complete tools).
+        includedirs({ 'src/webgpu/wagyu-port/include' })
+    else
+        RIVE_WAGYU_PORT = '--use-port='
+            .. RIVE_RUNTIME_DIR
+            .. '/renderer/src/webgpu/wagyu-port/webgpu-port.py:wagyu=true'
+    end
 end
 
 newoption({

@@ -23,8 +23,10 @@
 #include "generated/shaders/wgsl/color_ramp.vert.hpp"
 #include "generated/shaders/wgsl/color_ramp.frag.hpp"
 #include "generated/shaders/wgsl/tessellate.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/tessellate.webgpu_nossbo_vert.hpp"
 #include "generated/shaders/wgsl/tessellate.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/render_atlas.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/render_atlas.webgpu_nossbo_vert.hpp"
 #include "generated/shaders/wgsl/render_atlas_fill.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/render_atlas_stroke.webgpu_frag.hpp"
 
@@ -55,10 +57,14 @@
 // InterlockMode::msaa shaders.
 #include "generated/shaders/wgsl/draw_msaa_path.webgpu_vert.hpp"
 #include "generated/shaders/wgsl/draw_msaa_path.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_path.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_path.webgpu_nossbo_noclipdistance_vert.hpp"
 #include "generated/shaders/wgsl/draw_msaa_path.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/draw_msaa_path.webgpu_fixedcolor_frag.hpp"
 #include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_vert.hpp"
 #include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_nossbo_noclipdistance_vert.hpp"
 #include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_fixedcolor_frag.hpp"
 #include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_vert.hpp"
@@ -74,8 +80,6 @@
 
 #ifdef RIVE_WEBGPU
 #include <webgpu/webgpu_cpp.h>
-#include <emscripten.h>
-#include <emscripten/html5.h>
 #if RIVE_WEBGPU == 1
 #include "webgpu_compat.h"
 #endif
@@ -249,6 +253,8 @@ static wgpu::ShaderModule compile_shader_module_wgsl(
 }
 
 #ifdef RIVE_WAGYU
+#include "rive/renderer/gl/load_store_actions_ext.hpp"
+
 #include <webgpu/webgpu_wagyu.h>
 
 #include "generated/shaders/glsl.glsl.hpp"
@@ -272,12 +278,6 @@ static wgpu::ShaderModule compile_shader_module_wgsl(
 // for a uniform with this name and update its value when draw commands have a
 // base instance.
 constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "nrdp_BaseInstance";
-
-EM_JS(int, gl_max_vertex_shader_storage_blocks, (), {
-    const version = globalThis.nrdp ?.version || navigator.getNrdpVersion();
-    return version.libraries.opengl.options.limits
-        .GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS;
-});
 
 static wgpu::ShaderModule compile_shader_module_wagyu(
     wgpu::Device device,
@@ -478,7 +478,6 @@ public:
                         .type = wgpu::BufferBindingType::Uniform,
                     },
             },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = PATH_BUFFER_IDX,
@@ -489,7 +488,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = PATH_BUFFER_IDX,
                     .visibility = pathStorageVisibility,
@@ -498,7 +496,6 @@ public:
                             .type = wgpu::BufferBindingType::ReadOnlyStorage,
                         },
                 },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_BUFFER_IDX,
@@ -509,7 +506,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_BUFFER_IDX,
                     .visibility = paintStorageVisibility,
@@ -518,7 +514,6 @@ public:
                             .type = wgpu::BufferBindingType::ReadOnlyStorage,
                         },
                 },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_AUX_BUFFER_IDX,
@@ -530,7 +525,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_AUX_BUFFER_IDX,
                     .visibility = paintStorageVisibility,
@@ -539,7 +533,6 @@ public:
                             .type = wgpu::BufferBindingType::ReadOnlyStorage,
                         },
                 },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = CONTOUR_BUFFER_IDX,
@@ -550,7 +543,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = CONTOUR_BUFFER_IDX,
                     .visibility = wgpu::ShaderStage::Vertex,
@@ -806,7 +798,7 @@ public:
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
             // Rive shaders tend to be long and prone to vendor bugs in the
-            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // compiler. Instead of wgsl, send down the raw Rive GLSL sources,
             // which have various workarounds for known issues and are tested
             // regularly.
             std::ostringstream glsl;
@@ -943,7 +935,7 @@ public:
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
             // Rive shaders tend to be long and prone to vendor bugs in the
-            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // compiler. Instead of wgsl, send down the raw Rive GLSL sources,
             // which have various workarounds for known issues and are tested
             // regularly.
             std::ostringstream glsl;
@@ -981,9 +973,11 @@ public:
         else
 #endif
         {
-            vertexShaderModule =
-                compile_shader_module_wgsl(device,
-                                           wgsl::tessellate_webgpu_vert);
+            vertexShaderModule = compile_shader_module_wgsl(
+                device,
+                impl->m_capabilities.polyfillVertexStorageBuffers
+                    ? wgsl::tessellate_webgpu_nossbo_vert
+                    : wgsl::tessellate_webgpu_vert);
             fragmentShaderModule =
                 compile_shader_module_wgsl(device,
                                            wgsl::tessellate_webgpu_frag);
@@ -1104,7 +1098,7 @@ public:
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
             // Rive shaders tend to be long and prone to vendor bugs in the
-            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // compiler. Instead of wgsl, send down the raw Rive GLSL sources,
             // which have various workarounds for known issues and are tested
             // regularly.
             std::ostringstream glsl;
@@ -1161,9 +1155,11 @@ public:
         else
 #endif
         {
-            vertexShaderModule =
-                compile_shader_module_wgsl(device,
-                                           wgsl::render_atlas_webgpu_vert);
+            vertexShaderModule = compile_shader_module_wgsl(
+                device,
+                impl->m_capabilities.polyfillVertexStorageBuffers
+                    ? wgsl::render_atlas_webgpu_nossbo_vert
+                    : wgsl::render_atlas_webgpu_vert);
             fillFragmentShaderModule =
                 compile_shader_module_wgsl(device,
                                            wgsl::render_atlas_fill_webgpu_frag);
@@ -1596,12 +1592,27 @@ public:
                     case DrawType::msaaMidpointFanStencilReset:
                     case DrawType::msaaMidpointFanPathsStencil:
                     case DrawType::msaaMidpointFanPathsCover:
-                        vertexShader =
-                            enums::is_flag_set(shaderFeatures,
-                                               ShaderFeatures::ENABLE_CLIP_RECT)
-                                ? &wgsl::draw_msaa_path_webgpu_vert
-                                : &wgsl::
-                                      draw_msaa_path_webgpu_noclipdistance_vert;
+                        if (context->m_capabilities
+                                .polyfillVertexStorageBuffers)
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::draw_msaa_path_webgpu_nossbo_vert
+                                    : &wgsl::
+                                          draw_msaa_path_webgpu_nossbo_noclipdistance_vert;
+                        }
+                        else
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::draw_msaa_path_webgpu_vert
+                                    : &wgsl::
+                                          draw_msaa_path_webgpu_noclipdistance_vert;
+                        }
                         fragmentShader =
                             fixedFunctionColorOutput
                                 ? &wgsl::draw_msaa_path_webgpu_fixedcolor_frag
@@ -1620,12 +1631,28 @@ public:
                         break;
 
                     case DrawType::atlasBlit:
-                        vertexShader =
-                            enums::is_flag_set(shaderFeatures,
-                                               ShaderFeatures::ENABLE_CLIP_RECT)
-                                ? &wgsl::draw_msaa_atlas_blit_webgpu_vert
-                                : &wgsl::
-                                      draw_msaa_atlas_blit_webgpu_noclipdistance_vert;
+                        if (context->m_capabilities
+                                .polyfillVertexStorageBuffers)
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::
+                                          draw_msaa_atlas_blit_webgpu_nossbo_vert
+                                    : &wgsl::
+                                          draw_msaa_atlas_blit_webgpu_nossbo_noclipdistance_vert;
+                        }
+                        else
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::draw_msaa_atlas_blit_webgpu_vert
+                                    : &wgsl::
+                                          draw_msaa_atlas_blit_webgpu_noclipdistance_vert;
+                        }
                         fragmentShader =
                             fixedFunctionColorOutput
                                 ? &wgsl::
@@ -1767,6 +1794,15 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_device(device), m_queue(queue), m_contextOptions(contextOptions)
 {
     wgpu::Limits deviceLimits = {};
+    // CompatibilityModeLimits (and compatibility mode itself) don't exist on
+    // legacy WebGPU v1.
+#if RIVE_WEBGPU > 1
+    wgpu::CompatibilityModeLimits compatModeLimits = {};
+    if (contextOptions.compatibilityMode)
+    {
+        deviceLimits.nextInChain = &compatModeLimits;
+    }
+#endif
     const bool deviceLimitsValid = m_device.GetLimits(&deviceLimits);
 
 #ifdef RIVE_WAGYU
@@ -1791,16 +1827,44 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
         m_platformFeatures.supportsClockwiseFixedFunctionMode =
             m_capabilities.GL_EXT_shader_pixel_local_storage2;
     }
+#endif
 
-    // Compatibility workarounds.
-    if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
-        gl_max_vertex_shader_storage_blocks() < 4)
+    uint32_t maxStorageBuffersInVertexStage = wgpu::kLimitU32Undefined;
+    if (deviceLimitsValid)
     {
-        // Rive requires 4 storage buffers in the vertex shader. Polyfill them
-        // if the hardware doesn't support this.
+        maxStorageBuffersInVertexStage =
+#if RIVE_WEBGPU > 1
+            m_contextOptions.compatibilityMode
+                // In compatibility mode, the vertex stage has its own
+                // storage-buffer limit.
+                ? compatModeLimits.maxStorageBuffersInVertexStage
+                :
+#endif
+                // Outside compatibility mode, there's no such split:
+                // maxStorageBuffersPerShaderStage applies to every stage,
+                // vertex included
+                deviceLimits.maxStorageBuffersPerShaderStage;
+    }
+    if (maxStorageBuffersInVertexStage == wgpu::kLimitU32Undefined)
+    {
+        maxStorageBuffersInVertexStage =
+#if RIVE_WEBGPU > 1
+            m_contextOptions.compatibilityMode
+                ? 0 // Compat mode doesn't guarantee any vertex storage buffers.
+                :
+#endif
+                8; // Core WebGPU guarantees at least 8 buffers per stage.
+    }
+    if (maxStorageBuffersInVertexStage < gpu::kMaxStorageBuffers)
+    {
+        // Rive uses storage buffers in the vertex shader. Polyfill them via
+        // textures if the device doesn't support a sufficient number of
+        // vertex-stage storage buffers.
+#if RIVE_WEBGPU > 1
+        assert(m_contextOptions.compatibilityMode);
+#endif
         m_capabilities.polyfillVertexStorageBuffers = true;
     }
-#endif
 
     // InterlockMode::atomics binds the color, clip, and coverage PLS planes as
     // storage buffers in the fragment stage. Only advertise support for atomic
@@ -2770,7 +2834,6 @@ std::unique_ptr<BufferRing> RenderContextWebGPUImpl::makeStorageBufferRing(
     size_t capacityInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-#ifdef RIVE_WAGYU
     if (m_capabilities.polyfillVertexStorageBuffers)
     {
         return std::make_unique<StorageTextureBufferWebGPU>(m_device,
@@ -2779,7 +2842,6 @@ std::unique_ptr<BufferRing> RenderContextWebGPUImpl::makeStorageBufferRing(
                                                             bufferStructure);
     }
     else
-#endif
     {
         return std::make_unique<BufferWebGPU>(m_device,
                                               m_queue,
@@ -3254,7 +3316,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     WGPUWagyuFragmentState wagyuFragmentState = WGPU_WAGYU_FRAGMENT_STATE_INIT;
     if (usingPLSInputAttachments)
     {
-        for (size_t i = 0; i < PLS_PLANE_COUNT; ++i)
+        for (uint32_t i = 0; i < PLS_PLANE_COUNT; ++i)
         {
             inputAttachments[i] = WGPU_WAGYU_INPUT_ATTACHMENT_STATE_INIT;
             inputAttachments[i].format = colorAttachments[i].format;
@@ -3894,7 +3956,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         commandEncoder = wgpu::CommandEncoder::Acquire(wgpuEncoder);
     }
 
-#ifdef RIVE_WAGYU
     // If storage buffers are disabled, copy their contents to textures.
     if (m_capabilities.polyfillVertexStorageBuffers)
     {
@@ -3922,7 +3983,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                                             commandEncoder);
         }
     }
-#endif
 
     wgpu::BindGroupEntry perFlushBindingEntries[DRAW_BINDINGS_COUNT] = {
         {
@@ -3930,49 +3990,41 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             .buffer = webgpu_buffer(flushUniformBufferRing()),
             .offset = desc.flushUniformDataOffsetInBytes,
         },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers
             ? wgpu::BindGroupEntry{.binding = PATH_BUFFER_IDX,
                                    .textureView = webgpu_storage_texture_view(
                                        pathBufferRing())}
             :
-#endif
             wgpu::BindGroupEntry{
                 .binding = PATH_BUFFER_IDX,
                 .buffer = webgpu_buffer(pathBufferRing()),
                 .offset = desc.firstPath * sizeof(gpu::PathData),
             },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = PAINT_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(paintBufferRing()),
             } :
-#endif
             wgpu::BindGroupEntry{
                 .binding = PAINT_BUFFER_IDX,
                 .buffer = webgpu_buffer(paintBufferRing()),
                 .offset = desc.firstPaint * sizeof(gpu::PaintData),
             },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
             } :
-#endif
             wgpu::BindGroupEntry{
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .buffer = webgpu_buffer(paintAuxBufferRing()),
                 .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
             },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = CONTOUR_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(contourBufferRing()),
             } :
-#endif
             wgpu::BindGroupEntry{
                 .binding = CONTOUR_BUFFER_IDX,
                 .buffer = webgpu_buffer(contourBufferRing()),

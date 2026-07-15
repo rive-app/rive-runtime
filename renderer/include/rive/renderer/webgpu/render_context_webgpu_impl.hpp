@@ -11,10 +11,6 @@
 #include <memory>
 #include <webgpu/webgpu_cpp.h>
 
-#ifdef RIVE_WAGYU
-#include "rive/renderer/gl/load_store_actions_ext.hpp"
-#endif
-
 namespace rive::gpu
 {
 class RenderTargetWebGPU;
@@ -28,7 +24,12 @@ class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
 public:
     struct ContextOptions
-    {};
+    {
+        // True when the adapter/device were created in WebGPU compatibility
+        // mode. The embedder knows this (it requests the feature level at
+        // adapter creation); the renderer can't query it back.
+        bool compatibilityMode = false;
+    };
 
     enum class PixelLocalStorageType
     {
@@ -51,6 +52,13 @@ public:
     struct Capabilities
     {
         wgpu::BackendType backendType = wgpu::BackendType::Undefined;
+
+        // Rive uses storage buffers in the vertex shader. We polyfill them via
+        // textures if the device doesn't support a sufficient number of
+        // vertex-stage storage buffers (specifically in WebGPU compatibility
+        // mode).
+        bool polyfillVertexStorageBuffers = false;
+
 #ifdef RIVE_WAGYU
         // Driver extensions.
         bool VK_EXT_rasterization_order_attachment_access = false;
@@ -58,10 +66,6 @@ public:
         bool GL_EXT_shader_pixel_local_storage2 = false;
 
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
-
-        // Rive requires 4 storage buffers in the vertex shader. We polyfill
-        // them if the hardware doesn't support this.
-        bool polyfillVertexStorageBuffers = false;
 #endif
     };
 

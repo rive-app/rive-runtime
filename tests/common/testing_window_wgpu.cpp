@@ -15,6 +15,8 @@ TestingWindow* TestingWindow::MakeWGPU(const BackendParams&) { return nullptr; }
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
+#include <algorithm>
+
 #ifdef RIVE_WAGYU
 #include <webgpu/webgpu_wagyu.h>
 #endif
@@ -88,6 +90,18 @@ public:
                     : wgpu::PowerPreference::HighPerformance,
         };
 
+#ifdef RIVE_WAGYU
+        // Wagyu's OpenGL ES backend requires WebGPU compatibility mode.
+        const bool compatibilityMode =
+            wgpuWagyuInstanceGetBackend(m_instance.Get()) ==
+            WGPUBackendType_OpenGLES;
+        if (compatibilityMode)
+        {
+            requestAdapterOptions.featureLevel =
+                wgpu::FeatureLevel::Compatibility;
+        }
+#endif
+
         m_instance.RequestAdapter(
             &requestAdapterOptions,
             wgpu::CallbackMode::AllowSpontaneous,
@@ -104,8 +118,36 @@ public:
             emscripten_sleep(1);
         }
 
+        wgpu::DeviceDescriptor deviceDesc = {};
+#ifdef RIVE_WAGYU
+        wgpu::Limits requiredLimits = {};
+        wgpu::CompatibilityModeLimits compatLimits = {};
+        if (compatibilityMode)
+        {
+            // Rive uses storage buffers in the vertex shader. In compatibility
+            // mode this isn't allowed by default, so explicitly request it if
+            // supported. Otherwise, the renderer can fall back to polyfilling
+            // vertex storage buffers via textures.
+            wgpu::Limits adapterLimits = {};
+            wgpu::CompatibilityModeLimits adapterCompatLimits = {};
+            adapterLimits.nextInChain = &adapterCompatLimits;
+            m_adapter.GetLimits(&adapterLimits);
+
+            if (adapterCompatLimits.maxStorageBuffersInVertexStage !=
+                wgpu::kLimitU32Undefined)
+            {
+                compatLimits.maxStorageBuffersInVertexStage =
+                    std::min<uint32_t>(
+                        gpu::kMaxStorageBuffers,
+                        adapterCompatLimits.maxStorageBuffersInVertexStage);
+                requiredLimits.nextInChain = &compatLimits;
+                deviceDesc.requiredLimits = &requiredLimits;
+            }
+        }
+#endif
+
         m_adapter.RequestDevice(
-            {},
+            &deviceDesc,
             wgpu::CallbackMode::AllowSpontaneous,
             [](wgpu::RequestDeviceStatus status,
                wgpu::Device device,
@@ -174,6 +216,9 @@ public:
         }
 
         RenderContextWebGPUImpl::ContextOptions contextOptions;
+#ifdef RIVE_WAGYU
+        contextOptions.compatibilityMode = compatibilityMode;
+#endif
         m_renderContext = RenderContextWebGPUImpl::MakeContext(m_adapter,
                                                                m_device,
                                                                m_queue,

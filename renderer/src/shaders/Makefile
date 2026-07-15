@@ -203,6 +203,16 @@ SPIRV_DRAW_MSAA_INPUTS := \
     spirv/draw_msaa_path.main \
     spirv/draw_msaa_stencil.main \
 
+# WebGPU (compatibility mode) doesn't always support storage buffers in the
+# vertex shader. These files specifically need WebGPU "nossbo" build variants
+# that polyfill the buffers via textures.
+WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS := \
+    spirv/draw_msaa_path.main \
+    spirv/draw_msaa_atlas_blit.main
+WEBGPU_NOSSBO_INPUTS := \
+    $(WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS) \
+    spirv/tessellate.main \
+    spirv/render_atlas.vert
 
 ## Helpers for use in SPIRV_LIST_RULE (using lower_snake_case to distinguish things that use inputs like $1, $2, etc)
 spirv_typed_filename = $(basename $1).$2
@@ -378,6 +388,14 @@ $(eval $(call make_spirv_rules, \
     webgpu_noclipdistance_vert, \
     $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
 $(eval $(call make_spirv_rules, \
+    $(WEBGPU_NOSSBO_INPUTS), \
+    webgpu_nossbo_vert, \
+    $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_SHADER_STORAGE_BUFFERS))
+$(eval $(call make_spirv_rules, \
+    $(WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS), \
+    webgpu_nossbo_noclipdistance_vert, \
+    $(SPIRV_COMMON_WEBGPU_PARAMS) -DDISABLE_SHADER_STORAGE_BUFFERS -DDISABLE_CLIP_DISTANCE_FOR_UBERSHADERS))
+$(eval $(call make_spirv_rules, \
     $(SPIRV_WEBGPU_INPUTS) \
     $(SPIRV_DRAW_ATOMIC_INPUTS) \
     $(SPIRV_DRAW_MSAA_INPUTS), \
@@ -404,6 +422,8 @@ WGSL_OUTPUTS := \
     $(patsubst $(OUT)/spirv/%.spv,$(OUT)/wgsl/%.wgsl, \
         $(filter %.webgpu_vert.spv \
                  %.webgpu_noclipdistance_vert.spv \
+                 %.webgpu_nossbo_vert.spv \
+                 %.webgpu_nossbo_noclipdistance_vert.spv \
                  %.webgpu_frag.spv \
                  %.webgpu_fixedcolor_frag.spv, \
                  $(SPIRV_OUTPUTS_BINARY))) \

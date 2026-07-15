@@ -56,6 +56,17 @@ specializationCount = int(countMatch.group(1))
 with open(inPath, "r", encoding="utf-8") as f:
     wgsl = f.read()
 
+# WebGPU compatibility mode rejects @interpolate(flat) and
+# @interpolate(flat, first).
+# Since all of Rive's flat varyings are constant across the primitive, it
+# doesn't matter which vertex is provoking and we can dodge this validation
+# error by post-converting all flat varyings to 'either'.
+wgsl = re.sub(
+    r"@interpolate\(\s*flat\s*(?:,\s*first\s*)?\)",
+    "@interpolate(flat, either)",
+    wgsl,
+)
+
 # Minify the wgsl, unless otherwise specified.
 # NOTE: This could have ideally been done with wgsl-minifier, but it doesn't
 # support "enable clip_distances", so we roll out our own basic minifier.
