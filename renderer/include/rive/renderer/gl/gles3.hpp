@@ -201,6 +201,9 @@ struct GLCapabilities
     // ANGLE_shader_pixel_local_storage is currently broken with
     // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
     bool avoidTexture2DArrayWithWebGLPLS;
+    // Android ANGLE backed by SwiftShader can corrupt memory when resolving
+    // partial framebuffer regions. Resolve the full target as a workaround.
+    bool avoidPartialFramebufferBlits;
 
     // Extensions
     bool ANGLE_base_vertex_base_instance_shader_builtin : 1;

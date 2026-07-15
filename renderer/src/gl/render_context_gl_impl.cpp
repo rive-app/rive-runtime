@@ -2874,14 +2874,28 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 assert(batch.dstReadList != nullptr);
                 renderTarget->bindDstColorFramebuffer(GL_DRAW_FRAMEBUFFER);
                 m_state->disableScissor();
-                for (const Draw* draw = batch.dstReadList; draw != nullptr;
-                     draw = draw->nextDstRead())
+                if (m_capabilities.avoidPartialFramebufferBlits)
                 {
-                    assert(draw->blendMode() != BlendMode::srcOver);
+                    // A single full-target copy contains every destination
+                    // pixel needed by this batch. This intentionally trades
+                    // bandwidth for stability on Android ANGLE/SwiftShader,
+                    // whose partial resolves can corrupt host memory.
                     glutils::BlitFramebuffer(
-                        desc.renderTargetUpdateBounds.intersect(
-                            draw->pixelBounds()),
+                        IAABB::MakeWH(renderTarget->width(),
+                                      renderTarget->height()),
                         renderTarget->height());
+                }
+                else
+                {
+                    for (const Draw* draw = batch.dstReadList; draw != nullptr;
+                         draw = draw->nextDstRead())
+                    {
+                        assert(draw->blendMode() != BlendMode::srcOver);
+                        glutils::BlitFramebuffer(
+                            desc.renderTargetUpdateBounds.intersect(
+                                draw->pixelBounds()),
+                            renderTarget->height());
+                    }
                 }
                 renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
             }
@@ -3301,6 +3315,11 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     capabilities.isAdreno = strstr(rendererString, "Adreno");
     capabilities.isMali = strstr(rendererString, "Mali");
     capabilities.isPowerVR = strstr(rendererString, "PowerVR");
+#ifdef RIVE_ANDROID
+    capabilities.avoidPartialFramebufferBlits =
+        capabilities.isANGLESystemDriver &&
+        strstr(rendererString, "SwiftShader") != nullptr;
+#endif
 
     if (!capabilities.isGLES)
     {
