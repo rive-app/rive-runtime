@@ -22,6 +22,7 @@ private:
         if (m_dataValue && !m_dataValue->is<T>())
         {
             delete m_dataValue;
+            m_dataValue = nullptr;
         }
         if (!m_dataValue)
         {
