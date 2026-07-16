@@ -1,10 +1,17 @@
 #requires pip install python-opencv-headless
 
 import argparse
-import cv2 as cv
-import numpy as np
 import os
 import sys
+
+# We deliberately imread() files that may only exist on one side (missing
+# candidate/golden), which OpenCV otherwise logs as a noisy "can't open/read
+# file" WARN. diff_one() handles the resulting None explicitly and records a
+# missing status, so quiet OpenCV to errors and above before it is imported.
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+
+import cv2 as cv
+import numpy as np
 
 parser = argparse.ArgumentParser(description=
 """
@@ -42,6 +49,25 @@ def remove_suffix(name, oldsuffix):
     if name.endswith(oldsuffix):
         name = name[:-len(oldsuffix)]
     return name
+
+# The landing page (index.html) embeds one small thumbnail per image so that
+# opening it doesn't force the browser to download every full resolution golden,
+# candidate and diff at once, which DOSes phones. The full resolution image is
+# still a click away via the surrounding <a href>. Thumbnails are written next
+# to the diff images in the output directory.
+THUMBNAIL_HEIGHT = 192
+
+def write_thumbnail(image, path):
+    # Downscale to THUMBNAIL_HEIGHT keeping aspect ratio; never upscale a smaller
+    # image. No-op when the source image failed to load.
+    if image is None:
+        return
+    height, width = image.shape[:2]
+    if height > THUMBNAIL_HEIGHT:
+        scale = THUMBNAIL_HEIGHT / height
+        new_size = (max(1, round(width * scale)), THUMBNAIL_HEIGHT)
+        image = cv.resize(image, new_size, interpolation=cv.INTER_AREA)
+    cv.imwrite(path, image)
 
 def verbose_log(name, val):
     if not args.verbose:
@@ -120,6 +146,13 @@ def diff_one(filename, status):
         print(f"Failed to load and process images {E}", file=sys.stderr)
         failed = True
 
+    # Write the golden/candidate thumbnails here, before the early returns below,
+    # so identical and missing entries get them too (they don't reach the diff
+    # writing block at the end).
+    if args.outdir:
+        write_thumbnail(candidate, os.path.join(args.outdir, name + ".candidate.thumb.png"))
+        write_thumbnail(golden, os.path.join(args.outdir, name + ".golden.thumb.png"))
+
     status.write(name + "\t")
     if failed:
         status.write("failed\n")
@@ -165,6 +198,8 @@ def diff_one(filename, status):
         verbose_log(name, f"writing images {c_diff_path} and {c_mask_path}")
         cv.imwrite(c_diff_path, rgb_diff)
         cv.imwrite(c_mask_path, mask)
+        write_thumbnail(rgb_diff, os.path.join(args.outdir, name + ".diff0.thumb.png"))
+        write_thumbnail(mask, os.path.join(args.outdir, name + ".diff1.thumb.png"))
         verbose_log(name, "finished writing output images")
 
 def prepare_dirs():

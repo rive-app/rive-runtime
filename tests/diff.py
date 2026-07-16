@@ -92,6 +92,18 @@ class TestEntry(object):
             self.candidates_path = pathlib.Path(os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)).as_posix()
             self.golden_path = pathlib.Path(os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)).as_posix()
 
+        # image_diff.py writes small thumbnails next to the diff images in the
+        # output directory. The landing page uses these for its <img src> so it
+        # doesn't download every full resolution image at once; the full image is
+        # still linked via the surrounding <a href>. Thumbnails always live in
+        # the output directory regardless of --pack/--recursive, so their layout
+        # mirrors the diff images (device sub-folder when there is one).
+        thumb_dir = device_name if device_name is not None else ""
+        self.golden_thumb = pathlib.Path(os.path.join(thumb_dir, f"{self.name}.golden.thumb.png")).as_posix()
+        self.candidate_thumb = pathlib.Path(os.path.join(thumb_dir, f"{self.name}.candidate.thumb.png")).as_posix()
+        self.diff0_thumb = pathlib.Path(os.path.join(thumb_dir, f"{self.name}.diff0.thumb.png")).as_posix()
+        self.diff1_thumb = pathlib.Path(os.path.join(thumb_dir, f"{self.name}.diff1.thumb.png")).as_posix()
+
         if len(words) == 2:
             self.avg = None
             self.histogram = None
@@ -151,16 +163,20 @@ class TestEntry(object):
         if self.type == 'missing_golden':
             # show candidate, since golden is missing
             vals['image'] = self.candidates_path
+            vals['image_thumb'] = self.candidate_thumb
             return self.missing_file_entry_template.format_map(vals)
-        
+
         elif self.type == 'missing_candidate':
             # show golden, since candidate is missing
             vals['image'] = self.golden_path
+            vals['image_thumb'] = self.golden_thumb
             return self.missing_file_entry_template.format_map(vals)
 
         vals['golden'] = self.golden_path
         vals['candidate'] = self.candidates_path
-        
+        vals['golden_thumb'] = self.golden_thumb
+        vals['candidate_thumb'] = self.candidate_thumb
+
         if self.type == "pass" or self.type == "failed":
             vals['max'] = self.max_diff
             vals['avg'] = self.avg
@@ -169,6 +185,8 @@ class TestEntry(object):
             vals['histogram'] = self.histogram if self.histogram is not None else 'None'
             vals['diff0'] = self.diff0_path
             vals['diff1'] = self.diff1_path
+            vals['diff0_thumb'] = self.diff0_thumb
+            vals['diff1_thumb'] = self.diff1_thumb
 
             if self.type == 'pass':
                 return self.pass_entry_template.format_map(vals)
@@ -351,35 +369,38 @@ def parse_status(candidates_path, golden_path, output_path, device_name, browser
     return (total_lines, test_entries, success)
 
 def diff_directory_shallow(candidates_path, output_path, golden_path, device_name=None, browserstack_details=None):
-    original_filenames = set((file.name for file in os.scandir(candidates_path)
-                              if file.is_file() and file.name.endswith('.png')))
-    candidate_filenames = set(os.listdir(golden_path))
-    intersect_filenames = original_filenames.intersection(candidate_filenames)
+    candidate_filenames = set((file.name for file in os.scandir(candidates_path)
+                               if file.is_file() and file.name.endswith('.png')))
+    golden_filenames = set((file.name for file in os.scandir(golden_path)
+                            if file.is_file() and file.name.endswith('.png')))
+    # Diff every file that appears in either directory. image_diff.py reports a
+    # missing_candidate / missing_golden status for files that only exist on one
+    # side and writes a thumbnail of the single image that does exist, so the
+    # landing page can use thumbnails for missing entries too (rather than
+    # eagerly loading the full resolution image).
+    all_filenames = candidate_filenames | golden_filenames
 
-    missing = []
-    for file in original_filenames.difference(candidate_filenames):
+    # Log which files are missing where; image_diff.py records them as entries.
+    for file in candidate_filenames.difference(golden_filenames):
         print(f'Candidate file {file} missing in goldens.')
-        missing.append(TestEntry([file.split('.')[0], 'missing_golden'], candidates_path, golden_path, output_path, device_name, browserstack_details))
-
-    for file in candidate_filenames.difference(original_filenames):
+    for file in golden_filenames.difference(candidate_filenames):
         print(f'Golden file {file} missing in candidates.')
-        missing.append(TestEntry([file.split('.')[0], 'missing_candidate'], candidates_path, golden_path, output_path, device_name, browserstack_details))
 
     if args.jobs > 1:
-        print("Diffing %i candidates in %i processes..." % (len(intersect_filenames), args.jobs))
+        print("Diffing %i candidates in %i processes..." % (len(all_filenames), args.jobs))
     else:
-        print("Diffing %i candidates..." % len(intersect_filenames))
+        print("Diffing %i candidates..." % len(all_filenames))
     sys.stdout.flush()
 
     # Fill a shared queue with every filename.
     work_queue = queue.Queue()
-    for filename in intersect_filenames:
+    for filename in all_filenames:
         work_queue.put(filename)
 
     # Generate the diffs (if any) and write to the status file(s). Start up to
     # `jobs` long-lived image_diff.py workers that each pull filenames off the
     # queue as fast as they can finish them.
-    njobs = min(args.jobs, len(intersect_filenames))
+    njobs = min(args.jobs, len(all_filenames))
     parent_pid = os.getpid()
     threads = []
     for index in range(njobs):
@@ -392,16 +413,14 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
         t.join()
 
     (total_lines, entries, success) = parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details)
-    
-    entries.extend(missing)
 
     print(f'finished with Succes:{success} and {total_lines} lines')
 
-    if total_lines != len(intersect_filenames):
-        print(f"Internal failure: Got {total_lines} status lines. Expected {len(intersect_filenames)}.")
+    if total_lines != len(all_filenames):
+        print(f"Internal failure: Got {total_lines} status lines. Expected {len(all_filenames)}.")
         success = False
 
-    if original_filenames.symmetric_difference(candidate_filenames):
+    if candidate_filenames.symmetric_difference(golden_filenames):
         print("golden and candidate directories do not have identical files.")
         success = False
 
@@ -409,6 +428,8 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
     for status_filename in glob.iglob(status_filename_pattern):
         os.remove(status_filename)
 
+    missing = [entry for entry in entries
+               if entry.type in ('missing_golden', 'missing_candidate')]
     return (entries, missing, success)
 
 # Sort descending total failure count (missing + failure), then by descending failure count, then by name
