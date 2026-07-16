@@ -12,7 +12,8 @@
       "key": {
         "int": 70,
         "string": "value"
-      }
+      },
+      "bindable": true
     }
   }
 }

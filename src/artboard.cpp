@@ -1057,6 +1057,7 @@ void Artboard::cloneObjectDataBinds(const Core* object,
         }
     }
 }
+
 void Artboard::host(ArtboardHost* artboardHost)
 {
     addedToHost();

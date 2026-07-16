@@ -118,7 +118,7 @@ void KeyedProperty::apply(Core* object,
     if (idx == 0)
     {
         static_cast<InterpolatingKeyFrame*>(m_keyFrames[0].get())
-            ->apply(object, pk, actualMix);
+            ->apply(object, pk, actualMix, context);
     }
     else
     {
@@ -130,13 +130,13 @@ void KeyedProperty::apply(Core* object,
                 static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx].get());
             if (seconds == toFrame->seconds())
             {
-                toFrame->apply(object, pk, actualMix);
+                toFrame->apply(object, pk, actualMix, context);
             }
             else
             {
                 if (fromFrame->interpolationType() == 0)
                 {
-                    fromFrame->apply(object, pk, actualMix);
+                    fromFrame->apply(object, pk, actualMix, context);
                 }
                 else
                 {
@@ -152,7 +152,7 @@ void KeyedProperty::apply(Core* object,
         else
         {
             static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get())
-                ->apply(object, pk, actualMix);
+                ->apply(object, pk, actualMix, context);
         }
     }
 }

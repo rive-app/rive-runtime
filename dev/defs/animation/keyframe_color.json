@@ -12,7 +12,8 @@
       "key": {
         "int": 88,
         "string": "value"
-      }
+      },
+      "bindable": true
     }
   }
 }

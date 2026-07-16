@@ -105,6 +105,15 @@ public:
         }
     }
 
+    void forEachAnimationInstance(
+        const std::function<void(LinearAnimationInstance*)>& callback) override
+    {
+        for (auto& animation : m_AnimationInstances)
+        {
+            callback(&animation.m_AnimationInstance);
+        }
+    }
+
     // Find the animationInstance that corresponds to the blendAnimation.
     const LinearAnimationInstance* animationInstance(
         const BlendAnimation* blendAnimation) const

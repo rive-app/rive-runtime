@@ -5,6 +5,7 @@
 #include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/bindable_property.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_interpolator.hpp"
 
@@ -62,6 +63,41 @@ LinearAnimationInstance::~LinearAnimationInstance()
     m_clonedArtboardDataBinds.clear();
     // m_scriptedInterpolatorInstances destructs here via unique_ptr; safe now
     // that no DataBind still points at the clones' CustomPropertys.
+
+    // Keyframe value holders are owned here. The StateMachineInstance has
+    // already removed+deleted the data binds that target them (on
+    // state-instance removal, or via deleteDataBinds() before the layers in its
+    // destructor), so deleting the holders now is safe. The unique_ptr frees
+    // the map itself.
+    if (m_keyFrameValueHolders != nullptr)
+    {
+        for (auto& pair : *m_keyFrameValueHolders)
+        {
+            delete pair.second;
+        }
+    }
+}
+
+void LinearAnimationInstance::addKeyFrameValueHolder(const KeyFrame* keyframe,
+                                                     BindableProperty* holder)
+{
+    if (m_keyFrameValueHolders == nullptr)
+    {
+        m_keyFrameValueHolders = std::make_unique<
+            std::unordered_map<const KeyFrame*, BindableProperty*>>();
+    }
+    (*m_keyFrameValueHolders)[keyframe] = holder;
+}
+
+BindableProperty* LinearAnimationInstance::keyFrameValueHolder(
+    const KeyFrame* keyframe) const
+{
+    if (m_keyFrameValueHolders == nullptr)
+    {
+        return nullptr;
+    }
+    auto it = m_keyFrameValueHolders->find(keyframe);
+    return it != m_keyFrameValueHolders->end() ? it->second : nullptr;
 }
 
 // Returns a per-(this LAI, keyframe) stateful clone of the given shared

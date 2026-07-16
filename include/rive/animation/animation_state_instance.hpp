@@ -36,6 +36,12 @@ public:
     {
         return &m_AnimationInstance;
     }
+
+    void forEachAnimationInstance(
+        const std::function<void(LinearAnimationInstance*)>& callback) override
+    {
+        callback(&m_AnimationInstance);
+    }
 };
 } // namespace rive
 #endif

@@ -42,6 +42,12 @@ public:
         return nullptr;
     }
 
+    size_t numKeyFrames() const { return m_keyFrames.size(); }
+    KeyFrame* getKeyFrame(size_t index) const
+    {
+        return index < m_keyFrames.size() ? m_keyFrames[index].get() : nullptr;
+    }
+
 private:
     int closestFrameIndex(float seconds, int exactOffset = 0) const;
     std::vector<std::unique_ptr<KeyFrame>> m_keyFrames;

@@ -3,8 +3,12 @@
 
 using namespace rive;
 
-void KeyFrameId::apply(Core* object, int propertyKey, float mix)
+void KeyFrameId::apply(Core* object,
+                       int propertyKey,
+                       float mix,
+                       const LinearAnimationInstance* context)
 {
+    (void)context;
     CoreRegistry::setUint(object, propertyKey, value());
 }
 
