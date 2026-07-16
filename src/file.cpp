@@ -169,7 +169,9 @@ static Core* readRuntimeObject(BinaryReader& reader,
             switch (id)
             {
                 case CoreUintType::id:
-                    CoreUintType::deserialize(reader);
+                    // Uint64 shares the uint type id; skip the full range so
+                    // an unknown 64 bit value never aborts the read.
+                    reader.readVarUint64();
                     break;
                 case CoreStringType::id:
                     CoreStringType::deserialize(reader);
