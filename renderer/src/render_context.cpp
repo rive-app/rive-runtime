@@ -136,6 +136,11 @@ RenderContext::RenderContext(std::unique_ptr<RenderContextImpl> impl) :
     // directly by pathID.
     m_maxPathID(MaxPathID(m_impl->platformFeatures().pathIDGranularity) - 1)
 {
+    // Validate platformFeatures: if supportsBlendAdvancedCoherentKHR is set,
+    // supportsBlendAdvancedKHR must also be.
+    assert(!m_impl->platformFeatures().supportsBlendAdvancedCoherentKHR ||
+           m_impl->platformFeatures().supportsBlendAdvancedKHR);
+
 #ifdef RIVE_GENERATE_FEATHER_LUT
     float table[GAUSSIAN_TABLE_SIZE];
     generate_gausian_integral_table(table);

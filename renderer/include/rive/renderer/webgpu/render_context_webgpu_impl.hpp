@@ -274,6 +274,7 @@ public:
 
 protected:
     RenderTargetWebGPU(wgpu::Device device,
+                       const gpu::PlatformFeatures&,
                        const RenderContextWebGPUImpl::Capabilities&,
                        wgpu::TextureFormat framebufferFormat,
                        uint32_t width,
@@ -299,6 +300,7 @@ private:
     const wgpu::Device m_device;
     const wgpu::TextureFormat m_framebufferFormat;
     wgpu::TextureUsage m_transientPLSUsage;
+    wgpu::TextureUsage m_transientMSAAUsage;
 
     wgpu::Texture m_targetTexture;
     wgpu::Texture m_coverageTexture;
