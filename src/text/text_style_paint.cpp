@@ -86,10 +86,11 @@ void TextStylePaint::draw(Renderer* renderer, const Mat2D& worldTransform)
             }
             RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
             shapePaint->applyTo(renderPaint, itr->first);
-            if (auto feather = shapePaint->feather())
-            {
-                renderPaint->feather(feather->strength());
-            }
+            // Pooled paints are shared across shape paints; always set feather
+            // so one paint's feather doesn't leak into the others.
+            auto feather = shapePaint->feather();
+            renderPaint->feather(feather != nullptr ? feather->strength()
+                                                    : 0.0f);
             ShapePaintPath& path = itr->second;
             shapePaint->draw(renderer,
                              &path,

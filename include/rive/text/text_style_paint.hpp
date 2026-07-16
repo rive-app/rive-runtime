@@ -3,7 +3,7 @@
 #include "rive/generated/text/text_style_paint_base.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
-#include <unordered_map>
+#include <map>
 
 namespace rive
 {
@@ -28,7 +28,7 @@ public:
 
 private:
     Artboard* getArtboard() override { return artboard(); }
-    std::unordered_map<float, ShapePaintPath> m_opacityPaths;
+    std::map<float, ShapePaintPath> m_opacityPaths;
     std::vector<rcp<RenderPaint>> m_paintPool;
     ShapePaintPath m_path;
     bool m_hasContents = false;
