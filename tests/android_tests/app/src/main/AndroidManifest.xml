@@ -14,7 +14,7 @@
         tools:targetApi="31">
         <activity android:name=".gms"
             android:label="android_tests_gms"
-            android:configChanges="orientation|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:screenOrientation="portrait"
             android:exported="true">
             <!-- Tell NativeActivity the name of our .so -->
@@ -27,7 +27,7 @@
         </activity>
         <activity android:name=".goldens"
             android:label="android_tests_goldens"
-            android:configChanges="orientation|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:screenOrientation="portrait"
             android:exported="true">
             <!-- Tell NativeActivity the name of our .so -->
@@ -40,7 +40,7 @@
         </activity>
         <activity android:name=".player"
             android:label="android_tests_player"
-            android:configChanges="orientation|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:screenOrientation="portrait"
             android:exported="true">
             <!-- Tell NativeActivity the name of our .so -->

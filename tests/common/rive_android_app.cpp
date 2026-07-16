@@ -9,6 +9,11 @@
 
 static android_app* _app;
 static bool _windowInitialized = false;
+// Dimensions the window was at when we initialized it (and therefore built the
+// swapchain from). Used to distinguish a genuine live resize from the redundant
+// same-size APP_CMD_WINDOW_RESIZED that Android emits during startup.
+static int32_t _initialWindowWidth = 0;
+static int32_t _initialWindowHeight = 0;
 
 // Parses CLI arguments from the NativeActivity's launch intent and then calls
 // rive_android_main().
@@ -22,6 +27,29 @@ extern "C" JNIEXPORT void JNICALL android_main(android_app* app)
         if (cmd == APP_CMD_INIT_WINDOW)
         {
             _windowInitialized = true;
+            _initialWindowWidth = ANativeWindow_getWidth(_app->window);
+            _initialWindowHeight = ANativeWindow_getHeight(_app->window);
+        }
+        else if (cmd == APP_CMD_WINDOW_RESIZED && _windowInitialized)
+        {
+            // We build the swapchain once from the initial window size and
+            // never recreate it, so a live resize isn't handled: the render
+            // surface would be stale (or the swapchain would go out-of-date).
+            // Android emits a redundant same-size resize during startup, so
+            // only warn when the dimensions actually changed.
+            int32_t width = ANativeWindow_getWidth(_app->window);
+            int32_t height = ANativeWindow_getHeight(_app->window);
+            if (width != _initialWindowWidth || height != _initialWindowHeight)
+            {
+                fprintf(stderr,
+                        "WARNING: window resized from %dx%d to %dx%d after "
+                        "startup; the swapchain is not recreated, so rendering "
+                        "may be wrong-sized or fail.\n",
+                        _initialWindowWidth,
+                        _initialWindowHeight,
+                        width,
+                        height);
+            }
         }
     };
 
