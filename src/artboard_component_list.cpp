@@ -385,21 +385,12 @@ void ArtboardComponentList::ensureListScopeFocusNode(FocusManager* focusManager,
     }
     if (m_listScopeFocusNode == nullptr)
     {
-        m_listScopeFocusNode = rcp<FocusNode>(new FocusNode(nullptr));
-        m_listScopeFocusNode->canFocus(true);
-        m_listScopeFocusNode->canTraverse(true);
+        m_listScopeFocusNode = FocusNode::makeStructuralScope();
         m_listScopeFocusNode->name("ArtboardComponentListScope");
     }
-    if (m_listScopeFocusNode->manager() == focusManager)
-    {
-        if (m_listScopeFocusNode->parent() == hostParent.get() ||
-            (m_listScopeFocusNode->parent() == nullptr &&
-             hostParent == nullptr))
-        {
-            syncListRowNodesWithList(focusManager);
-            return;
-        }
-    }
+    // Only called from the full build pass (buildFocusTreeVisit), which is
+    // the ordering authority: always re-append so the scope sits at the
+    // walk's current position
     focusManager->addChild(std::move(hostParent), m_listScopeFocusNode);
     syncListRowNodesWithList(focusManager);
 }
@@ -433,9 +424,10 @@ void ArtboardComponentList::removeListScopeFocusNode()
 
 rcp<FocusNode> ArtboardComponentList::makeListRowFocusNode() const
 {
-    auto node = rcp<FocusNode>(new FocusNode(nullptr));
-    node->canFocus(true);
-    node->canTraverse(true);
+    // Structural rows: rows with focusable content are descended through;
+    // rows for items with no focusables are skipped entirely instead of
+    // becoming invisible focus stops.
+    auto node = FocusNode::makeStructuralScope();
     node->name("ArtboardComponentListRow");
     return node;
 }
@@ -469,6 +461,57 @@ void ArtboardComponentList::reparentListRowsInScope(FocusManager* fm)
     }
 }
 
+namespace
+{
+// True if the artboard contains any focus content at any depth: authored
+// FocusData, or a data-bound nested artboard host (whose persistent scope
+// counts as focus content even while its current artboard has no focusables —
+// a later swap can materialize focus nodes under it). Recurses through both
+// host kinds — single nested artboards and component lists
+bool artboardHasFocusContent(Artboard* artboard)
+{
+    if (artboard == nullptr)
+    {
+        return false;
+    }
+    if (artboard->rootFocusDataCount() > 0)
+    {
+        return true;
+    }
+    for (auto* host : artboard->nestedArtboards())
+    {
+        if (host == nullptr)
+        {
+            continue;
+        }
+        if (host->isArtboardDataBound())
+        {
+            return true;
+        }
+        if (artboardHasFocusContent(host->artboardInstance(0)))
+        {
+            return true;
+        }
+    }
+    for (auto* list : artboard->artboardComponentLists())
+    {
+        if (list == nullptr)
+        {
+            continue;
+        }
+        // A component list is bound to a VM list property and always owns a
+        // structural scope (ensureListScopeFocusNode); its items — and their
+        // focusables — can populate at runtime, exactly like a data-bound
+        // nested-artboard host swap. Count the list itself as latent focus
+        // content (symmetric with the isArtboardDataBound() host check above)
+        // so the enclosing item is rebuilt under its row while the inner list
+        // is still empty, keeping tab order correct once it fills.
+        return true;
+    }
+    return false;
+}
+} // namespace
+
 bool ArtboardComponentList::listItemNeedsBuildUnderRow(FocusManager* parentFM,
                                                        ArtboardInstance* inst,
                                                        rcp<FocusNode> row) const
@@ -481,9 +524,12 @@ bool ArtboardComponentList::listItemNeedsBuildUnderRow(FocusManager* parentFM,
     {
         return true;
     }
-    // If the artboard has focusables but the row is empty, focus is still
-    // attached under the list scope (legacy) and must be rebuilt on the row.
-    if (row->children().empty() && inst->rootFocusDataCount() > 0)
+    // If the artboard has focus content but the row is empty, that content is
+    // attached outside the row (setExternalFocusManager builds at the manager
+    // root) and must be rebuilt under the row. Focus content includes
+    // data-bound host scopes at any depth, not just authored FocusData, so a
+    // later swap materializes focus nodes at the row's position.
+    if (row->children().empty() && artboardHasFocusContent(inst))
     {
         return true;
     }
@@ -592,6 +638,15 @@ void ArtboardComponentList::syncListRowNodesWithList(
         {
             continue;
         }
+        // Wire the item's state machine to the shared manager first:
+        // setExternalFocusManager rebuilds the item's focus tree at the manager
+        // root, so it must run before building under the row. Same "wire first,
+        // place last" ordering as buildFocusTreeVisit and updateArtboard.
+        auto* smi = stateMachineInstance(i);
+        if (smi != nullptr && smi->focusManager() != fm)
+        {
+            smi->setExternalFocusManager(fm);
+        }
         if (listItemNeedsBuildUnderRow(fm, inst, row))
         {
             if (inst->focusManager() != nullptr)
@@ -599,11 +654,6 @@ void ArtboardComponentList::syncListRowNodesWithList(
                 inst->cleanupFocusTree();
             }
             inst->buildFocusTree(fm, row);
-        }
-        auto* smi = stateMachineInstance(i);
-        if (smi != nullptr && smi->focusManager() != fm)
-        {
-            smi->setExternalFocusManager(fm);
         }
     }
 }

@@ -14,6 +14,8 @@
 #include "rive/advancing_component.hpp"
 #include "rive/resetting_component.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
+#include "rive/input/focus_node.hpp"
+#include "rive/nested_artboard_host_flags.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/file.hpp"
 #include <stdio.h>
@@ -22,6 +24,7 @@ namespace rive
 {
 
 class ArtboardInstance;
+class FocusManager;
 class NestedAnimation;
 class NestedArtboardOrigin;
 class NestedInput;
@@ -52,16 +55,18 @@ protected:
     // construction ref; this list holds an extra ref (see ref_rcp in
     // onAddedClean) so it stays valid regardless of teardown ordering.
     std::vector<rcp<ViewModelInstance>> m_globalViewModelInstances;
+    /// Structural scope for data-bound hosts only
+    rcp<FocusNode> m_focusScope;
 
-protected:
 private:
     void clearNestedAnimations();
     float m_cumulatedSeconds = 0;
     // True if m_activeViewModelInstance is a dynamically-created bound VMI
     // that must be unref'd by this NestedArtboard.
     bool m_ownsActiveVmi = false;
-    bool m_hasPendingStatefulBinding = false;
+    NestedArtboardHostFlags m_hostFlags = NestedArtboardHostFlags::none;
     void nest(Artboard* artboard);
+    void detectArtboardDataBinding();
     bool tryScheduleBindStateful();
     void bindStateful();
     // Walks children() for the first ViewModelInstance child (the stateful
@@ -69,8 +74,42 @@ private:
     ViewModelInstance* findStatefulChildVmi() const;
     // Releases the current active VMI if owned, then assigns the new one.
     void setActiveViewModelInstance(ViewModelInstance* vmi, bool owns);
+    /// Create/attach this host's persistent focus scope (data-bound hosts
+    /// only). With `place` true (full build pass) the scope is re-appended
+    /// under `parentNode` so append order matches the hierarchy walk; with
+    /// `place` false an already-registered scope is never moved.
+    void registerFocusScope(FocusManager* focusManager,
+                            rcp<FocusNode> parentNode,
+                            bool place);
 
 public:
+    /// True when this host can receive runtime artboard swaps and therefore
+    /// owns (or will own) a persistent focus scope.
+    bool isArtboardDataBound() const
+    {
+        return enums::is_flag_set(m_hostFlags,
+                                  NestedArtboardHostFlags::artboardDataBound);
+    }
+
+    /// Register this host's focus scope (if data-bound) and rebuild the nested
+    /// instance focus tree under the parent FocusManager. Called from the
+    /// hierarchical focus-tree build (Artboard::buildFocusTree) and from the
+    /// data-bound artboard swap path.
+    /// @param fallbackParent Parent used when the host has no closest ancestor
+    ///        FocusNode.
+    /// @param placeScope True only from the full build pass, which is the
+    ///        ordering authority: the scope is re-appended at the walk's
+    ///        current position. All other callers leave placement untouched.
+    /// @param forceRebuild When true (the default), always tear down and
+    ///        rebuild the nested instance's focus subtree. When false, skip the
+    ///        rebuild if the subtree already shares this manager, preserving
+    ///        focus resting inside an untouched instance. The full build pass
+    ///        passes false unless it just re-wired the manager (which rebuilds
+    ///        at the root and requires re-homing).
+    void syncNestedFocusTree(rcp<FocusNode> fallbackParent,
+                             bool placeScope = false,
+                             bool forceRebuild = true);
+
     NestedArtboard();
     ~NestedArtboard() override;
     StatusCode onAddedClean(CoreContext* context) override;

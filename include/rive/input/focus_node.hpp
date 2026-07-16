@@ -29,6 +29,21 @@ class FocusNode : public RefCnt<FocusNode>
 {
 public:
     FocusNode(Focusable* focusable = nullptr) : m_focusable(focusable) {}
+    ~FocusNode();
+
+    // Transparent structural scope: unbacked (no Focusable) and never a focus
+    // target itself. Traversal descends through it to reach focusable
+    // descendants (see focusNodeTraversable); empty scopes contribute no
+    // focus stops. Used by data-bound nested-artboard hosts and component
+    // lists.
+    static rcp<FocusNode> makeStructuralScope()
+    {
+        auto node = make_rcp<FocusNode>();
+        node->canFocus(false);
+        node->canTraverse(false);
+        node->canTouch(false);
+        return node;
+    }
 
     // === Focusable ===
 

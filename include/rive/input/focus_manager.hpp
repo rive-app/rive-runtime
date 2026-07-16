@@ -143,10 +143,19 @@ public:
     }
 #endif
 
+    /// True if any node in the tree is backed by focusable data or can take
+    /// focus — even while currently ineligible for traversal. Structural
+    /// scopes (unbacked, canFocus=false) don't count on their own. Gates
+    /// one-time keyboard setup in high-level runtimes via
+    /// StateMachineInstance::hasFocusNodes().
+    bool hasFocusableContent() const;
+
 private:
     rcp<FocusNode> m_primaryFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;
     void removeManager(rcp<FocusNode>);
+    // Erase a node from m_rootNodes if present (no-op otherwise).
+    void eraseRoot(const rcp<FocusNode>& node);
 #ifdef WITH_RIVE_TOOLS
     FocusChangedCallback m_focusChangedCallback = nullptr;
     ScrollIntoViewCallback m_scrollIntoViewCallback = nullptr;

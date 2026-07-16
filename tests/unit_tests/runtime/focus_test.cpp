@@ -5,6 +5,7 @@
 #include "rive/animation/transition_focus_condition.hpp"
 #include "rive/animation/transition_property_component_comparator.hpp"
 #include "rive/animation/listener_invocation.hpp"
+#include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
@@ -16,6 +17,8 @@
 #include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
+#include "rive/nested_artboard.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/animation/listener_invocation.hpp"
@@ -64,6 +67,9 @@ public:
     void focused() override { focusedCount++; }
 
     void blurred() override { blurredCount++; }
+
+    bool eligible = true;
+    bool isEligibleForFocusTraversal() const override { return eligible; }
 };
 
 // =============================================================================
@@ -634,6 +640,74 @@ TEST_CASE("FocusManager removeChild clears manager reference", "[FocusManager]")
     CHECK(node->manager() == nullptr);
 }
 
+TEST_CASE("Freeing a FocusNode clears the parent pointer of a child that "
+          "outlives it",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>(); // persistent host scope, held here
+    {
+        auto row = make_rcp<FocusNode>(); // transient list row
+        manager.addChild(nullptr, row);
+        manager.addChild(row, scope);
+        CHECK(scope->parent() == row.get());
+        // The list re-sync removes the row from the manager, then drops it.
+        manager.removeChild(row);
+    } // row FocusNode destroyed here; scope survives via the outer rcp
+
+    REQUIRE(scope->parent() == nullptr);
+
+    // Re-homing the survivor is now safe — no dereference of the freed row.
+    auto newParent = make_rcp<FocusNode>();
+    manager.addChild(nullptr, newParent);
+    manager.addChild(newParent, scope);
+    CHECK(scope->parent() == newParent.get());
+    CHECK(newParent->children().size() == 1);
+}
+
+TEST_CASE("FocusManager::addChild removes a migrating root from its previous "
+          "manager",
+          "[FocusManager]")
+{
+    FocusManager internalManager;
+    FocusManager parentManager;
+    auto scope = make_rcp<FocusNode>();
+
+    internalManager.addChild(nullptr, scope);
+    CHECK(scope->manager() == &internalManager);
+    CHECK(internalManager.rootNodes().size() == 1);
+
+    // Migrate the scope to the parent manager (no FocusNode parent -> root).
+    parentManager.addChild(nullptr, scope);
+    CHECK(scope->manager() == &parentManager);
+    CHECK(parentManager.rootNodes().size() == 1);
+
+    // The internal manager must no longer reference the migrated scope.
+    CHECK(internalManager.rootNodes().empty());
+}
+
+TEST_CASE("A migrated focus scope survives destruction of its previous manager",
+          "[FocusManager]")
+{
+    FocusManager parentManager;
+    auto scope = make_rcp<FocusNode>();
+    {
+        FocusManager internalManager;
+        internalManager.addChild(nullptr, scope);
+        parentManager.addChild(nullptr, scope); // migrate to parent
+        CHECK(scope->manager() == &parentManager);
+    } // internalManager destroyed here
+
+    // The scope still belongs to parentManager, not the destroyed one.
+    CHECK(scope->manager() == &parentManager);
+
+    if (scope->manager() != nullptr)
+    {
+        scope->manager()->removeChild(scope);
+    }
+    CHECK(parentManager.rootNodes().empty());
+}
+
 TEST_CASE("FocusManager traversal backward from first leaf exits scope",
           "[FocusManager]")
 {
@@ -696,6 +770,182 @@ TEST_CASE("FocusManager stop prevents backward traversal", "[FocusManager]")
 
     // Should stay on node1
     CHECK(manager.primaryFocus() == node1);
+}
+
+TEST_CASE("StateMachineInstance hasFocusNodes ignores non-traversable scopes",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    auto scope = make_rcp<FocusNode>();
+    scope->canFocus(false);
+    scope->canTraverse(false);
+    smi.focusManager()->addChild(nullptr, scope);
+    CHECK(smi.hasFocusNodes() == false);
+}
+
+TEST_CASE("StateMachineInstance hasFocusNodes sees leaves under a "
+          "transparent scope",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    // Transparent structural scope as registered for a data-bound nested
+    // artboard host: unbacked (no focusable), canFocus/canTraverse/canTouch
+    // false. Traversal descends through it because it has no focusable.
+    auto scope = make_rcp<FocusNode>();
+    scope->canFocus(false);
+    scope->canTraverse(false);
+    scope->canTouch(false);
+    smi.focusManager()->addChild(nullptr, scope);
+
+    // Empty scope contributes no focus targets (e.g. a bindable artboard with
+    // no focus nodes).
+    CHECK(smi.hasFocusNodes() == false);
+
+    // Swapping in an artboard that has a focusable leaf must make the state
+    // machine report focus nodes, even though the leaf lives under the scope.
+    auto leaf = make_rcp<FocusNode>();
+    smi.focusManager()->addChild(scope, leaf);
+    CHECK(smi.hasFocusNodes() == true);
+}
+
+TEST_CASE("StateMachineInstance hasFocusNodes counts focus data that is "
+          "currently ineligible for traversal",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    // hasFocusNodes gates one-time setup in high-level runtimes (attaching
+    // tab/shift+tab listeners in JS), so authored focus data must count even
+    // while it can't currently be focused: canFocus/canTraverse are
+    // data-bindable and collapse/visibility can change on any frame.
+    FocusData focusData;
+    // canFocus/canTraverse are now bits in the focusFlags bitmask; clear both
+    // (leave the rest) to make the node ineligible for traversal.
+    focusData.focusFlags(
+        focusData.focusFlags() &
+        ~(FocusData::canFocusBitmask | FocusData::canTraverseBitmask));
+    smi.focusManager()->addChild(nullptr, focusData.focusNode());
+    CHECK(smi.hasFocusNodes() == true);
+}
+
+TEST_CASE("FocusManager traversal descends through a transparent scope "
+          "and keeps sibling order",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto leafA = make_rcp<FocusNode>();
+    auto scope = make_rcp<FocusNode>();
+    auto leafC = make_rcp<FocusNode>();
+
+    // scope mirrors a data-bound nested artboard host slot sitting between two
+    // sibling focus nodes: unbacked (no focusable) and not a focus target
+    // itself, but Tab descends through it to whatever artboard is swapped in.
+    scope->canFocus(false);
+    scope->canTraverse(false);
+    scope->canTouch(false);
+
+    manager.addChild(nullptr, leafA);
+    manager.addChild(nullptr, scope);
+    manager.addChild(nullptr, leafC);
+
+    // Empty scope is skipped: A -> C.
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leafA);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leafC);
+
+    // Populate the scope (artboard swapped in). Its leaf occupies the scope's
+    // sibling slot, so traversal order becomes A -> B -> C.
+    manager.clearFocus();
+    auto leafB = make_rcp<FocusNode>();
+    manager.addChild(scope, leafB);
+
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leafA);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leafB);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leafC);
+}
+
+TEST_CASE("FocusManager drops focus when a leaf under a transparent scope "
+          "becomes hidden",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    // Unbacked scope: the shape of a data-bound nested artboard's scope node.
+    auto scope = make_rcp<FocusNode>();
+    scope->canFocus(false);
+    scope->canTraverse(false);
+    scope->canTouch(false);
+    // A focusable leaf inside it, like a swapped-in nested artboard's element.
+    MockFocusable leafFocusable;
+    auto leaf = make_rcp<FocusNode>(&leafFocusable);
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf);
+
+    // Tab descends through the scope onto the nested leaf.
+    manager.focusNext();
+    REQUIRE(manager.primaryFocus() == leaf);
+
+    // Hide the nested content (its focusable reports ineligible). Focus must be
+    // dropped, not left stranded behind the scope.
+    leafFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusManager rebuilding one scope's subtree preserves focus in a "
+          "sibling scope",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    // Two sibling transparent scopes, like two data-bound nested artboard
+    // hosts.
+    auto scopeA = make_rcp<FocusNode>();
+    scopeA->canFocus(false);
+    scopeA->canTraverse(false);
+    scopeA->canTouch(false);
+    auto scopeB = make_rcp<FocusNode>();
+    scopeB->canFocus(false);
+    scopeB->canTraverse(false);
+    scopeB->canTouch(false);
+
+    MockFocusable leafAFocusable, leafBFocusable;
+    auto leafA = make_rcp<FocusNode>(&leafAFocusable);
+    auto leafB = make_rcp<FocusNode>(&leafBFocusable);
+    manager.addChild(nullptr, scopeA);
+    manager.addChild(scopeA, leafA);
+    manager.addChild(nullptr, scopeB);
+    manager.addChild(scopeB, leafB);
+
+    // Focus the leaf inside scope A.
+    manager.setFocus(leafA);
+    REQUIRE(manager.primaryFocus() == leafA);
+
+    // Simulate swapping the artboard in sibling scope B: tear down B's current
+    // content and rebuild it with a new focusable leaf under the same scope.
+    // Focus held in the unrelated scope A must be untouched.
+    manager.removeChild(leafB);
+    MockFocusable leafB2Focusable;
+    auto leafB2 = make_rcp<FocusNode>(&leafB2Focusable);
+    manager.addChild(scopeB, leafB2);
+
+    CHECK(manager.primaryFocus() == leafA);
 }
 
 TEST_CASE("FocusActionTraversal perform advances focus with traversalKind next",
@@ -1193,6 +1443,115 @@ TEST_CASE("TransitionFocusCondition evaluate returns false when no target "
 
 } // namespace rive
 
+TEST_CASE("Swapping bindable artboard registers nested focus nodes for Tab",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/bindable_focus_tree_swap.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+    REQUIRE(stateMachine->hasFocusNodes() == true);
+
+    focusManager->focusNext();
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(focusManager->primaryFocus() != nullptr);
+
+    CHECK(stateMachine->focusNext() == false);
+    // There's only one focus node in the main artboard, go back to that last
+    // node
+    stateMachine->focusPrevious();
+
+    auto* artboardProp = vmi->propertyValue("bindedArt");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<rive::ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<rive::ViewModelInstanceArtboard>();
+
+    // Has other focus nodes in this artboard
+    auto focusableSource = file->bindableArtboardNamed("Focusable");
+    REQUIRE(focusableSource != nullptr);
+
+    vmiArtboard->asset(focusableSource);
+    stateMachine->advanceAndApply(0.016f);
+
+    rive::NestedArtboard* focusableHost = nullptr;
+    for (auto* nestedHost : artboard->nestedArtboards())
+    {
+        auto* source = nestedHost->sourceArtboard();
+        if (source != nullptr && source->name() == "Focusable")
+        {
+            focusableHost = nestedHost;
+            break;
+        }
+    }
+    REQUIRE(focusableHost != nullptr);
+    auto* focusableInstance = focusableHost->artboardInstance(0);
+    REQUIRE(focusableInstance != nullptr);
+
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusManager->primaryFocus() != nullptr);
+    CHECK(focusManager->primaryFocusImmediateArtboard() == focusableInstance);
+}
+
+TEST_CASE("Swapping a bindable nested artboard preserves focus held elsewhere",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/bindable_focus_tree_swap.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+
+    // Focus the main artboard's own focus node. Before the swap the bindable
+    // host is "Plain" (no focus nodes), so the main node is the only focusable.
+    focusManager->focusNext();
+    auto focused = focusManager->primaryFocus();
+    REQUIRE(focused != nullptr);
+    REQUIRE(focusManager->primaryFocusImmediateArtboard() == artboard.get());
+
+    // Swap the (unrelated) bindable nested artboard to one that HAS focus
+    // nodes.
+    auto* artboardProp = vmi->propertyValue("bindedArt");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<rive::ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<rive::ViewModelInstanceArtboard>();
+    auto focusableSource = file->bindableArtboardNamed("Focusable");
+    REQUIRE(focusableSource != nullptr);
+    vmiArtboard->asset(focusableSource);
+    stateMachine->advanceAndApply(0.016f);
+
+    // Focus held on the main artboard must survive the unrelated nested swap:
+    // the swap only re-syncs the swapped host's subtree, not the whole tree.
+    CHECK(focusManager->primaryFocus() == focused);
+    CHECK(focusManager->primaryFocusImmediateArtboard() == artboard.get());
+}
+
 TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
           "[FocusManager]")
 {
@@ -1219,14 +1578,25 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
     silver.addFrame();
 
     focusManager->focusNext();
-    focusManager->focusNext();
-    // Focus on an element
+    // The first focusable is now inside a data-bound nested artboard
     REQUIRE(focusManager->primaryFocus() != nullptr);
+    REQUIRE(focusManager->primaryFocusImmediateArtboard() != nullptr);
+    REQUIRE(focusManager->primaryFocusImmediateArtboard() != artboard.get());
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
     // ===> Frame 2
     silver.addFrame();
-    // Hide the element, ensure the focus has been dropped
+
+    // Tab next into the main artboard's own element — the one `opacity`
+    // controls.
+    focusManager->focusNext();
+    REQUIRE(focusManager->primaryFocus() != nullptr);
+    REQUIRE(focusManager->primaryFocusImmediateArtboard() == artboard.get());
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Hide that focused element; focus must be dropped.
     opacityProp->propertyValue(0);
     // First advance sets the opacity to 0
     stateMachine->advanceAndApply(0.016f);
@@ -1702,8 +2072,10 @@ TEST_CASE("ArtboardComponentList list scope is registered on shared "
     REQUIRE(scope != nullptr);
     CHECK(scope->manager() == fm);
     CHECK(scope->name() == "ArtboardComponentListScope");
-    CHECK(scope->canFocus() == true);
-    CHECK(scope->canTraverse() == true);
+    // Transparent structural scope: not a focus target itself; traversal
+    // descends through it (focusNodeTraversable) to reach item focusables.
+    CHECK(scope->canFocus() == false);
+    CHECK(scope->canTraverse() == false);
     CHECK(scope->focusable() == nullptr);
 }
 
@@ -1859,4 +2231,426 @@ TEST_CASE("Focus based transitions work", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("focus_test"));
+}
+TEST_CASE("List item focus tree stays under its row when the item's state "
+          "machine is (re)wired during the focus sync",
+          "[FocusManager][list]")
+{
+    // Regression for the syncListRowNodesWithList ordering bug: each list
+    // item's state machine must be wired to the shared FocusManager BEFORE the
+    // item's focus tree is (re)built under its row. setExternalFocusManager
+    // rebuilds the item's focus tree at the manager ROOT as a side effect, so
+    // if it runs after the build-under-row it clobbers the row placement and
+    // the item's focus nodes end up detached from the list scope (at the
+    // manager root).
+    //
+    // The natural build path happens to wire the manager first (via
+    // linkStateMachineToArtboard, whose setExternalFocusManager runs before the
+    // row sync), so the in-loop call is normally skipped by the
+    // `smi->focusManager() != fm` guard. Force the mismatch to exercise the
+    // ordering directly.
+    auto file = ReadRiveFile("assets/list_focus_order.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto* fm = stateMachine->focusManager();
+    REQUIRE(fm != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+
+    REQUIRE(artboard->artboardComponentLists().size() == 1);
+    auto* list = artboard->artboardComponentLists()[0];
+    REQUIRE(list != nullptr);
+    const int itemCount = static_cast<int>(list->artboardCount());
+    REQUIRE(itemCount > 0);
+
+    // A row node with children means the item's focus subtree is parented under
+    // it (inside the list scope) — the invariant the bug breaks.
+    auto rowForItem = [&](int i) -> rive::FocusNode* {
+        auto scope = list->listScopeFocusNode();
+        if (scope == nullptr || i >= static_cast<int>(scope->children().size()))
+        {
+            return nullptr;
+        }
+        return scope->children()[static_cast<size_t>(i)].get();
+    };
+
+    // Pick a list item that (after the normal build) has focus content placed
+    // under its row AND owns a state machine — the only case where the in-loop
+    // setExternalFocusManager fires.
+    int targetIndex = -1;
+    for (int i = 0; i < itemCount; i++)
+    {
+        rive::FocusNode* row = rowForItem(i);
+        if (row != nullptr && !row->children().empty() &&
+            list->stateMachineInstance(i) != nullptr)
+        {
+            targetIndex = i;
+            break;
+        }
+    }
+    REQUIRE(targetIndex != -1);
+
+    // Force the mismatch: drop the item's shared-manager wiring so the next
+    // focus sync must call setExternalFocusManager(fm) again — the exact call
+    // whose manager-root rebuild would clobber the row placement if it ran
+    // after the build-under-row.
+    list->stateMachineInstance(targetIndex)->setExternalFocusManager(nullptr);
+    CHECK(list->stateMachineInstance(targetIndex)->focusManager() != fm);
+
+    // Re-run the parent focus build; this recreates the list scope/rows and
+    // re-syncs each item under its row.
+    artboard->cleanupFocusTree();
+    artboard->buildFocusTree(fm, nullptr);
+
+    // With the fix (wire first, place last) the item's focus subtree is
+    // parented under its row inside the list scope. With the bug it was rebuilt
+    // at the manager root, leaving the row empty.
+    rive::FocusNode* targetRow = rowForItem(targetIndex);
+    REQUIRE(targetRow != nullptr);
+    CHECK(targetRow->manager() == fm);
+    CHECK_FALSE(targetRow->children().empty());
+    CHECK(list->stateMachineInstance(targetIndex)->focusManager() == fm);
+}
+
+TEST_CASE("Swappable artboard slot keeps its place in tab order",
+          "[FocusManager]")
+{
+    // File: https://editor.uat.rive.app/file/untitled/36028
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    // Only the data-bound slot is flagged as swappable; static nested
+    // artboards get no placeholder scope regardless of whether their artboard
+    // contains focusables.
+    rive::NestedArtboard* slotHost = nullptr;
+    for (auto* host : artboard->nestedArtboards())
+    {
+        auto* source = host->sourceArtboard();
+        REQUIRE(source != nullptr);
+        if (source->name() == "Swappable1" || source->name() == "Swappable2")
+        {
+            CHECK(host->isArtboardDataBound() == true);
+            slotHost = host;
+        }
+        else
+        {
+            CHECK(host->isArtboardDataBound() == false);
+        }
+    }
+    REQUIRE(slotHost != nullptr);
+
+    CHECK(stateMachine->hasFocusNodes() == true);
+
+    // The artboard owning the currently focused element.
+    auto focusedArtboardName = [&]() -> std::string {
+        auto* ab = focusManager->primaryFocusImmediateArtboard();
+        return ab != nullptr ? ab->name() : "<none>";
+    };
+
+    // Initial tab order follows the Main hierarchy: Rectangle (Main) -> slot
+    // (Swappable1) -> StaticNestWithFocusable. StaticNestWithoutFocusable
+    // contributes nothing.
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Main");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Swappable1");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    // Edge of the root scope clears focus.
+    CHECK(stateMachine->focusNext() == false);
+    CHECK(focusManager->primaryFocus() == nullptr);
+
+    // Swap the slot to an artboard with no focusables: the slot contributes
+    // no focus stop and the rest of the order is untouched.
+    auto* artboardProp = vmi->propertyValue("artboardProp");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<rive::ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<rive::ViewModelInstanceArtboard>();
+    auto swappable2 = file->bindableArtboardNamed("Swappable2");
+    REQUIRE(swappable2 != nullptr);
+    vmiArtboard->asset(swappable2);
+    stateMachine->advanceAndApply(0.016f);
+
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Main");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    CHECK(stateMachine->focusNext() == false);
+
+    // Focus the Main rectangle, then swap back to the focusable artboard:
+    // focus held elsewhere survives the (unrelated) swap...
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Main");
+    auto heldFocus = focusManager->primaryFocus();
+    auto swappable1 = file->bindableArtboardNamed("Swappable1");
+    REQUIRE(swappable1 != nullptr);
+    vmiArtboard->asset(swappable1);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(focusManager->primaryFocus() == heldFocus);
+    CHECK(focusedArtboardName() == "Main");
+
+    // ...and the swapped-in focusable takes the slot's place in the middle of
+    // the tab order (its hierarchy position), not the end.
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Swappable1");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    CHECK(stateMachine->focusNext() == false);
+}
+
+TEST_CASE("Repeat focus-tree build keeps focus inside an untouched nested "
+          "artboard",
+          "[FocusManager]")
+{
+    // #4 regression: a second full buildFocusTree pass over an already-wired
+    // tree (same manager) must not tear down and rebuild nested artboards that
+    // did not change — doing so blurs focus resting inside them. Only the
+    // non-destructive scope placement should run on the repeat pass.
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto focusedArtboardName = [&]() -> std::string {
+        auto* ab = focusManager->primaryFocusImmediateArtboard();
+        return ab != nullptr ? ab->name() : "<none>";
+    };
+
+    // Tab into the focusable that lives inside the STATIC nested artboard.
+    // Order (established by the sibling test): Main -> Swappable1 ->
+    // StaticNestWithFocusable.
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(stateMachine->focusNext() == true);
+    REQUIRE(focusedArtboardName() == "StaticNestWithFocusable");
+    auto heldFocus = focusManager->primaryFocus();
+    REQUIRE(heldFocus != nullptr);
+
+    // Repeat the full build pass with the SAME manager (mirrors the host's
+    // documented two-phase build, or any later focus-tree re-wire). Nothing
+    // about the static nested artboard changed, so the focus resting inside it
+    // must survive rather than being blurred by a needless rebuild.
+    artboard->buildFocusTree(focusManager, nullptr);
+
+    CHECK(focusManager->primaryFocus() == heldFocus);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+}
+
+TEST_CASE("Cross-file swaps keep slot order and share the focus manager",
+          "[FocusManager]")
+{
+    // The slot's host, bind, and scope all live in the main file; the
+    // swapped-in artboard may come from a different .riv. Loading the asset
+    // twice yields two independent Files, so pulling bindable artboards from
+    // the second File exercises the cross-file path.
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto otherFile = ReadRiveFile("assets/swappable_artboards_focus.riv");
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto focusedArtboard = [&]() -> rive::Artboard* {
+        return focusManager->primaryFocusImmediateArtboard();
+    };
+    auto focusedArtboardName = [&]() -> std::string {
+        auto* ab = focusedArtboard();
+        return ab != nullptr ? ab->name() : "<none>";
+    };
+    // The slot host's bound state machine (created by the latest swap).
+    auto slotBoundStateMachine = [&]() -> rive::StateMachineInstance* {
+        for (auto* host : artboard->nestedArtboards())
+        {
+            if (!host->isArtboardDataBound())
+            {
+                continue;
+            }
+            for (auto* animation : host->nestedAnimations())
+            {
+                if (animation->is<rive::NestedStateMachine>())
+                {
+                    return animation->as<rive::NestedStateMachine>()
+                        ->stateMachineInstance();
+                }
+            }
+        }
+        return nullptr;
+    };
+
+    auto* artboardProp = vmi->propertyValue("artboardProp");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<rive::ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<rive::ViewModelInstanceArtboard>();
+
+    // Swap in a LEAF artboard (one focusable, no nested hosts) from the
+    // other file.
+    auto foreignSwappable = otherFile->bindableArtboardNamed("Swappable1");
+    REQUIRE(foreignSwappable != nullptr);
+    vmiArtboard->asset(foreignSwappable);
+    stateMachine->advanceAndApply(0.016f);
+
+    // The foreign artboard's focus node sits at the slot's hierarchy
+    // position, exactly like a same-file swap.
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Main");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Swappable1");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    CHECK(stateMachine->focusNext() == false);
+
+    // The swapped-in artboard's own state machine must share the parent
+    // FocusManager, so its focus/keyboard listener groups act on the same
+    // focus state that Tab traversal uses.
+    auto* leafSmi = slotBoundStateMachine();
+    REQUIRE(leafSmi != nullptr);
+    CHECK(leafSmi->focusManager() == focusManager);
+}
+
+TEST_CASE("Unresolvable artboard swap leaves focus and tab order untouched",
+          "[FocusManager]")
+{
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto focusedArtboardName = [&]() -> std::string {
+        auto* ab = focusManager->primaryFocusImmediateArtboard();
+        return ab != nullptr ? ab->name() : "<none>";
+    };
+
+    // Default order (per the sibling test): Main -> Swappable1 ->
+    // StaticNestWithFocusable. Rest focus on Main's Rectangle and hold the rcp.
+    CHECK(stateMachine->focusNext() == true);
+    REQUIRE(focusedArtboardName() == "Main");
+    auto heldFocus = focusManager->primaryFocus();
+    REQUIRE(heldFocus != nullptr);
+
+    // Drive the slot's VM artboard property into the UNRESOLVABLE state: no
+    // bindable asset and a bogus (non -1) id that matches no artboard. This is
+    // distinct from an explicit clear (asset null AND propertyValue == -1), so
+    // updateArtboard must return early and leave the on-screen slot alone.
+    auto* artboardProp = vmi->propertyValue("artboardProp");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<rive::ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<rive::ViewModelInstanceArtboard>();
+    vmiArtboard->propertyValue(9999u);
+    REQUIRE(vmiArtboard->asset() == nullptr);
+    REQUIRE(vmiArtboard->propertyValue() != static_cast<uint32_t>(-1));
+    stateMachine->advanceAndApply(0.016f);
+
+    // Focus held on Main survives the failed swap...
+    CHECK(focusManager->primaryFocus() == heldFocus);
+    CHECK(focusedArtboardName() == "Main");
+
+    // ...and the outgoing Swappable1 kept its focus nodes, so the full tab
+    // order is unchanged: Main -> Swappable1 -> StaticNestWithFocusable.
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Swappable1");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    CHECK(stateMachine->focusNext() == false);
+}
+
+TEST_CASE("Initially-empty bindable slot keeps its authored tab position on "
+          "first swap",
+          "[FocusManager]")
+{
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+
+    // Clear the slot to explicit null (asset null, propertyValue -1) BEFORE the
+    // first advance, so the slot is empty when the focus tree is first built.
+    auto* artboardProp = vmi->propertyValue("artboardProp");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<rive::ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<rive::ViewModelInstanceArtboard>();
+    vmiArtboard->asset(nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto focusedArtboardName = [&]() -> std::string {
+        auto* ab = focusManager->primaryFocusImmediateArtboard();
+        return ab != nullptr ? ab->name() : "<none>";
+    };
+
+    // The empty slot's scope holds its place but offers no focus stop, so the
+    // order skips it: Main -> StaticNestWithFocusable.
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Main");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    CHECK(stateMachine->focusNext() == false);
+
+    // Swap Swappable1 in for the first time: it must build under the scope the
+    // empty-slot build pass already placed, entering the MIDDLE of the tab
+    // order (Main -> Swappable1 -> StaticNestWithFocusable), not the end.
+    auto swappable1 = file->bindableArtboardNamed("Swappable1");
+    REQUIRE(swappable1 != nullptr);
+    vmiArtboard->asset(swappable1);
+    stateMachine->advanceAndApply(0.016f);
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Main");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "Swappable1");
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(focusedArtboardName() == "StaticNestWithFocusable");
+    CHECK(stateMachine->focusNext() == false);
 }

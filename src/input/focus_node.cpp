@@ -9,18 +9,20 @@
 namespace rive
 {
 
+FocusNode::~FocusNode()
+{
+    // A child held elsewhere via rcp (a NestedArtboard's persistent focus
+    // scope, an ArtboardComponentList row) can outlive this node, so clear its
+    // back-pointer to keep m_parent from dangling.
+    for (const auto& child : m_children)
+    {
+        child->m_parent = nullptr;
+    }
+}
+
 void FocusNode::addChild(rcp<FocusNode> child)
 {
-    if (!child)
-    {
-        return;
-    }
-
-    // Remove from old parent if exists
-    child->removeFromParent();
-
-    child->m_parent = this;
-    m_children.push_back(std::move(child));
+    insertChild(m_children.size(), std::move(child));
 }
 
 void FocusNode::insertChild(size_t index, rcp<FocusNode> child)

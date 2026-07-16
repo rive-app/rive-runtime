@@ -1926,13 +1926,13 @@ void buildFocusTreeVisit(FocusManager* focusManager,
     if (component->is<NestedArtboard>())
     {
         auto* nestedHost = component->as<NestedArtboard>();
-        auto* nestedArtboard = nestedHost->artboardInstance(0);
-        if (nestedArtboard != nullptr &&
-            nestedArtboard->focusManager() != focusManager)
-        {
-            nestedArtboard->cleanupFocusTree();
-            nestedArtboard->buildFocusTree(focusManager, focusNode);
-        }
+        // Wire the nested state machines to this manager before placing the
+        // scope: setExternalFocusManager rebuilds the nested focus tree at the
+        // manager root, so it must run first. Track whether any was actually
+        // re-wired — a re-wire leaves the tree at the root and requires
+        // re-homing under the scope (forceRebuild); an already-wired tree is
+        // left in place.
+        bool rewired = false;
         for (auto* animation : nestedHost->nestedAnimations())
         {
             if (animation->is<NestedStateMachine>())
@@ -1942,9 +1942,19 @@ void buildFocusTreeVisit(FocusManager* focusManager,
                 if (smi != nullptr && smi->focusManager() != focusManager)
                 {
                     smi->setExternalFocusManager(focusManager);
+                    rewired = true;
                 }
             }
         }
+        // Scope placement must be the final write so it overrides the root
+        // rebuild above. For data-bound hosts this parents the nested focus
+        // tree under the host's persistent structural scope; static hosts
+        // build directly under focusNode. placeScope=true: the build pass is
+        // the ordering authority — the scope is re-appended at the walk's
+        // position.
+        nestedHost->syncNestedFocusTree(focusNode,
+                                        /*placeScope=*/true,
+                                        /*forceRebuild=*/rewired);
     }
     else if (component->is<ArtboardComponentList>())
     {
@@ -2043,11 +2053,18 @@ void Artboard::cleanupFocusTree()
         if (obj != nullptr && obj->is<FocusData>())
         {
             auto* fd = obj->as<FocusData>();
-            // Only remove if the FocusNode was created (lazy initialization)
-            // and is still registered with THIS manager (defensive check for
-            // cases where auto-cleanup via FocusData destructor already ran)
             auto node = fd->focusNode();
-            if (node != nullptr && node->manager() == m_activeFocusManager)
+            if (node == nullptr)
+            {
+                // FocusNode never lazily created — nothing to remove.
+                continue;
+            }
+            // Remove the node when it belongs to this manager, or when its
+            // manager was nulled by an ancestor removal while it is still
+            // attached (removeChild clears m_manager across a removed subtree).
+            // Nodes owned by a DIFFERENT live manager are left untouched.
+            if (node->manager() == m_activeFocusManager ||
+                (node->manager() == nullptr && node->parent() != nullptr))
             {
                 m_activeFocusManager->removeChild(node);
             }

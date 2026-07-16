@@ -3217,7 +3217,7 @@ bool StateMachineInstance::hasFocusNodes()
 {
     auto* fm = focusManager();
     assert(fm != nullptr);
-    return !fm->rootNodes().empty();
+    return fm->hasFocusableContent();
 }
 
 bool StateMachineInstance::focusNext()
