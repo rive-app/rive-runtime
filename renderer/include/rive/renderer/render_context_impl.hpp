@@ -165,7 +165,7 @@ public:
     // Allocate resources that are updated and used during flush().
     virtual void resizeGradientTexture(uint32_t width, uint32_t height) = 0;
     virtual void resizeTessellationTexture(uint32_t width, uint32_t height) = 0;
-    virtual void resizeAtlasTexture(uint32_t width, uint32_t height)
+    virtual void resizeFeatherAtlasTexture(uint32_t width, uint32_t height)
     {
         // Override this method to support atlas feathering.
         assert(width == 0 && height == 0);

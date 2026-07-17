@@ -255,7 +255,8 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     // Since curvature is what breaks 1-dimensional feathering along the normal
     // vector, chop into segments that rotate no more than a certain threshold.
     constexpr static int POLAR_JOIN_PRECISION = 2;
-    float r_ = feather * (FEATHER_TEXTURE_STDDEVS / 2) * matrixMaxScale * .25f;
+    float r_ = feather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2) *
+               matrixMaxScale * .25f;
     float polarSegmentsPerRadian =
         math::calc_polar_segments_per_radian<POLAR_JOIN_PRECISION>(r_);
     float rotationBetweenJoins = 1 / polarSegmentsPerRadian;

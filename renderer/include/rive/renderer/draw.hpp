@@ -241,8 +241,9 @@ public:
         clockwise,         // InterlockMode::clockwise
         clockwiseAtomic,   // InterlockMode::clockwiseAtomic
         msaa,              // InterlockMode::msaa
-        atlas, // Any InterlockMode may opt to use atlas coverage for large
-               // feathers; msaa always has to use an atlas for feathers.
+        featherAtlas, // Any InterlockMode may opt to use atlas coverage for
+                      // large feathers; msaa always has to use an atlas for
+                      // feathers.
     };
 
     PathDraw(IAABB pixelBounds,
@@ -286,12 +287,15 @@ public:
     }
 
     // Only used when rendering coverage via the atlas.
-    const gpu::AtlasTransform& atlasTransform() const
+    const gpu::AtlasTransform& featherAtlasTransform() const
     {
-        return m_atlasTransform;
+        return m_featherAtlasTransform;
     }
-    const AABBu16& atlasScissor() const { return m_atlasScissor; }
-    bool atlasScissorEnabled() const { return m_atlasScissorEnabled; }
+    const AABBu16& featherAtlasScissor() const { return m_featherAtlasScissor; }
+    bool featherAtlasScissorEnabled() const
+    {
+        return m_featherAtlasScissorEnabled;
+    }
 
     // clockwiseAtomic only.
     const gpu::CoverageBufferRange& coverageBufferRange() const
@@ -327,9 +331,9 @@ public:
     // is where we emit the rectangle that reads the atlas (and writes to the
     // main render target). So this method is where we push the tessellation
     // that gets rendered separately to the offscreen atlas.
-    void pushAtlasTessellation(RenderContext::LogicalFlush*,
-                               uint32_t* tessVertexCount,
-                               uint32_t* tessBaseVertex);
+    void pushFeatherAtlasTessellation(RenderContext::LogicalFlush*,
+                                      uint32_t* tessVertexCount,
+                                      uint32_t* tessBaseVertex);
 
     void releaseRefs() override;
 
@@ -424,10 +428,10 @@ protected:
     gpu::ContourDirections m_contourDirections;
     uint32_t m_contourFlags = 0;
 
-    // Only used when rendering coverage via the atlas.
-    gpu::AtlasTransform m_atlasTransform;
-    AABBu16 m_atlasScissor; // Scissor rect when rendering to the atlas.
-    bool m_atlasScissorEnabled;
+    // Only used when rendering coverage via the feather atlas.
+    gpu::AtlasTransform m_featherAtlasTransform;
+    AABBu16 m_featherAtlasScissor; // Scissor rect when rendering to the atlas.
+    bool m_featherAtlasScissorEnabled;
 
     // clockwiseAtomic only.
     gpu::CoverageBufferRange m_coverageBufferRange;

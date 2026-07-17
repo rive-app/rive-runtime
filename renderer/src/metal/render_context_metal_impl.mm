@@ -141,14 +141,14 @@ private:
     id<MTLRenderPipelineState> m_pipelineState;
 };
 
-// Renders feathered fills and strokes to the atlas.
-class RenderContextMetalImpl::AtlasPipeline
+// Renders feathered fills and strokes to the feather atlas.
+class RenderContextMetalImpl::FeatherAtlasPipeline
 {
 public:
-    AtlasPipeline(id<MTLDevice> gpu,
-                  id<MTLLibrary> plsLibrary,
-                  NSString* fragmentMain,
-                  MTLBlendOperation blendOperation)
+    FeatherAtlasPipeline(id<MTLDevice> gpu,
+                         id<MTLLibrary> plsLibrary,
+                         NSString* fragmentMain,
+                         MTLBlendOperation blendOperation)
     {
         MTLRenderPipelineDescriptor* desc =
             [[MTLRenderPipelineDescriptor alloc] init];
@@ -192,7 +192,7 @@ public:
         char namespaceID[] = "0000000000";
         static_assert(sizeof(namespaceID) ==
                       gpu::kShaderFeatureCount + 1 /*DRAW_INTERIOR_TRIANGLES*/ +
-                          1 /*ATLAS_BLIT*/ + 1 /*null terminator*/);
+                          1 /*FEATHER_ATLAS_BLIT*/ + 1 /*null terminator*/);
         for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
         {
             const auto feature = ShaderFeatures(1 << i);
@@ -215,7 +215,7 @@ public:
         {
             namespaceID[gpu::kShaderFeatureCount] = '1';
         }
-        else if (drawType == DrawType::atlasBlit)
+        else if (drawType == DrawType::featherAtlasBlit)
         {
             namespaceID[gpu::kShaderFeatureCount] = '1';
             namespaceID[gpu::kShaderFeatureCount + 1] = '1';
@@ -228,7 +228,7 @@ public:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
                 namespacePrefix =
                     enums::is_flag_set(shaderMiscFlags,
                                        gpu::ShaderMiscFlags::clockwiseFill)
@@ -622,17 +622,17 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     desc.textureType = MTLTextureType1DArray;
     desc.width = gpu::GAUSSIAN_TABLE_SIZE;
     desc.mipmapLevelCount = 1;
-    desc.arrayLength = FEATHER_TEXTURE_1D_ARRAY_LENGTH;
+    desc.arrayLength = GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH;
     desc.usage = MTLTextureUsageShaderRead;
-    m_featherTexture = [m_gpu newTextureWithDescriptor:desc];
-    [m_featherTexture
+    m_gaussianIntegralTexture = [m_gpu newTextureWithDescriptor:desc];
+    [m_gaussianIntegralTexture
         replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
           mipmapLevel:0
                 slice:FEATHER_FUNCTION_ARRAY_INDEX
             withBytes:gpu::g_gaussianIntegralTableF16
           bytesPerRow:sizeof(gpu::g_gaussianIntegralTableF16)
         bytesPerImage:sizeof(gpu::g_gaussianIntegralTableF16)];
-    [m_featherTexture
+    [m_gaussianIntegralTexture
         replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
           mipmapLevel:0
                 slice:FEATHER_INVERSE_FUNCTION_ARRAY_INDEX
@@ -655,13 +655,13 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     {
         for (auto drawType : {DrawType::midpointFanPatches,
                               DrawType::interiorTriangulation,
-                              DrawType::atlasBlit,
+                              DrawType::featherAtlasBlit,
                               DrawType::imageMesh})
         {
             for (auto shaderMiscFlags : {gpu::ShaderMiscFlags::none,
                                          gpu::ShaderMiscFlags::clockwiseFill})
             {
-                if (drawType == gpu::DrawType::atlasBlit &&
+                if (drawType == gpu::DrawType::featherAtlasBlit &&
                     shaderMiscFlags != gpu::ShaderMiscFlags::none)
                 {
                     continue;
@@ -1075,11 +1075,12 @@ void RenderContextMetalImpl::resizeTessellationTexture(uint32_t width,
     m_tessVertexTexture = [m_gpu newTextureWithDescriptor:desc];
 }
 
-void RenderContextMetalImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
+void RenderContextMetalImpl::resizeFeatherAtlasTexture(uint32_t width,
+                                                       uint32_t height)
 {
     if (width == 0 || height == 0)
     {
-        m_atlasTexture = nil;
+        m_featherAtlasTexture = nil;
         return;
     }
 
@@ -1091,23 +1092,24 @@ void RenderContextMetalImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     desc.textureType = MTLTextureType2D;
     desc.mipmapLevelCount = 1;
     desc.storageMode = MTLStorageModePrivate;
-    m_atlasTexture = [m_gpu newTextureWithDescriptor:desc];
+    m_featherAtlasTexture = [m_gpu newTextureWithDescriptor:desc];
 
     // Don't build atlas pipelines until we get an indication that they will be
     // used.
-    assert((m_atlasFillPipeline == nil) == (m_atlasStrokePipeline == nil));
-    if (m_atlasFillPipeline == nil)
+    assert((m_featherAtlasFillPipeline == nil) ==
+           (m_featherAtlasStrokePipeline == nil));
+    if (m_featherAtlasFillPipeline == nil)
     {
-        m_atlasFillPipeline =
-            std::make_unique<AtlasPipeline>(m_gpu,
-                                            m_plsPrecompiledLibrary,
-                                            @GLSL_atlasFillFragmentMain,
-                                            MTLBlendOperationAdd);
-        m_atlasStrokePipeline =
-            std::make_unique<AtlasPipeline>(m_gpu,
-                                            m_plsPrecompiledLibrary,
-                                            @GLSL_atlasStrokeFragmentMain,
-                                            MTLBlendOperationMax);
+        m_featherAtlasFillPipeline =
+            std::make_unique<FeatherAtlasPipeline>(m_gpu,
+                                                   m_plsPrecompiledLibrary,
+                                                   @GLSL_atlasFillFragmentMain,
+                                                   MTLBlendOperationAdd);
+        m_featherAtlasStrokePipeline = std::make_unique<FeatherAtlasPipeline>(
+            m_gpu,
+            m_plsPrecompiledLibrary,
+            @GLSL_atlasStrokeFragmentMain,
+            MTLBlendOperationMax);
     }
 }
 
@@ -1315,10 +1317,13 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                        atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
     [encoder setVertexTexture:m_tessVertexTexture
                       atIndex:TESS_VERTEX_TEXTURE_IDX];
-    [encoder setVertexTexture:m_featherTexture atIndex:FEATHER_TEXTURE_IDX];
+    [encoder setVertexTexture:m_gaussianIntegralTexture
+                      atIndex:GAUSSIAN_INTEGRAL_TEXTURE_IDX];
     [encoder setFragmentTexture:m_gradientTexture atIndex:GRAD_TEXTURE_IDX];
-    [encoder setFragmentTexture:m_featherTexture atIndex:FEATHER_TEXTURE_IDX];
-    [encoder setFragmentTexture:m_atlasTexture atIndex:ATLAS_TEXTURE_IDX];
+    [encoder setFragmentTexture:m_gaussianIntegralTexture
+                        atIndex:GAUSSIAN_INTEGRAL_TEXTURE_IDX];
+    [encoder setFragmentTexture:m_featherAtlasTexture
+                        atIndex:FEATHER_ATLAS_TEXTURE_IDX];
     if (flushDesc.pathCount > 0)
     {
         [encoder setVertexBuffer:mtl_buffer(pathBufferRing())
@@ -1474,8 +1479,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             setViewport:make_viewport(
                             0, 0, kTessTextureWidth, desc.tessDataHeight)];
         [tessEncoder setRenderPipelineState:pipelineState];
-        [tessEncoder setVertexTexture:m_featherTexture
-                              atIndex:FEATHER_TEXTURE_IDX];
+        [tessEncoder setVertexTexture:m_gaussianIntegralTexture
+                              atIndex:GAUSSIAN_INTEGRAL_TEXTURE_IDX];
         [tessEncoder
             setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                      offset:desc.flushUniformDataOffsetInBytes
@@ -1503,45 +1508,49 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [tessEncoder endEncoding];
     }
 
-    // Render the atlas if we have any offscreen feathers.
-    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    // Render the feather atlas if we have any offscreen feathers.
+    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+        0)
     {
         // We failed to load the precompiled library and therefore do not have
         // the abililty to draw anything.
-        if (!m_atlasStrokePipeline || !m_atlasFillPipeline)
+        if (!m_featherAtlasStrokePipeline || !m_featherAtlasFillPipeline)
         {
             return;
         }
         // We are removing the abort in the case this doesn't build. So give up
         // drawing if we still don't have a pipeline here.
-        auto atlasFillpipelineState = m_atlasFillPipeline->pipelineState();
-        if (!atlasFillpipelineState)
+        auto atlasFillPipelineState =
+            m_featherAtlasFillPipeline->pipelineState();
+        if (!atlasFillPipelineState)
         {
             return;
         }
 
-        auto atlasStrokepipelineState = m_atlasStrokePipeline->pipelineState();
-        if (!atlasStrokepipelineState)
+        auto atlasStrokePipelineState =
+            m_featherAtlasStrokePipeline->pipelineState();
+        if (!atlasStrokePipelineState)
         {
             return;
         }
 
         MTLRenderPassDescriptor* atlasPass =
             [MTLRenderPassDescriptor renderPassDescriptor];
-        atlasPass.renderTargetWidth = desc.atlasContentWidth;
-        atlasPass.renderTargetHeight = desc.atlasContentHeight;
+        atlasPass.renderTargetWidth = desc.featherAtlasContentWidth;
+        atlasPass.renderTargetHeight = desc.featherAtlasContentHeight;
         atlasPass.colorAttachments[0].loadAction = MTLLoadActionClear;
         atlasPass.colorAttachments[0].storeAction = MTLStoreActionStore;
-        atlasPass.colorAttachments[0].texture = m_atlasTexture;
+        atlasPass.colorAttachments[0].texture = m_featherAtlasTexture;
         atlasPass.colorAttachments[0].clearColor =
             MTLClearColorMake(0, 0, 0, 0);
 
         id<MTLRenderCommandEncoder> atlasEncoder =
             [commandBuffer renderCommandEncoderWithDescriptor:atlasPass];
-        [atlasEncoder setViewport:make_viewport(0,
-                                                0,
-                                                desc.atlasContentWidth,
-                                                desc.atlasContentHeight)];
+        [atlasEncoder
+            setViewport:make_viewport(0,
+                                      0,
+                                      desc.featherAtlasContentWidth,
+                                      desc.featherAtlasContentHeight)];
         [atlasEncoder
             setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                      offset:desc.flushUniformDataOffsetInBytes
@@ -1552,12 +1561,12 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                       atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
         [atlasEncoder setVertexTexture:m_tessVertexTexture
                                atIndex:TESS_VERTEX_TEXTURE_IDX];
-        [atlasEncoder setVertexTexture:m_featherTexture
-                               atIndex:FEATHER_TEXTURE_IDX];
+        [atlasEncoder setVertexTexture:m_gaussianIntegralTexture
+                               atIndex:GAUSSIAN_INTEGRAL_TEXTURE_IDX];
         [atlasEncoder setFragmentTexture:m_gradientTexture
                                  atIndex:GRAD_TEXTURE_IDX];
-        [atlasEncoder setFragmentTexture:m_featherTexture
-                                 atIndex:FEATHER_TEXTURE_IDX];
+        [atlasEncoder setFragmentTexture:m_gaussianIntegralTexture
+                                 atIndex:GAUSSIAN_INTEGRAL_TEXTURE_IDX];
         if (desc.pathCount > 0)
         {
             [atlasEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
@@ -1583,13 +1592,14 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                offset:0
                               atIndex:0];
 
-        if (desc.atlasFillBatchCount != 0)
+        if (desc.featherAtlasFillBatchCount != 0)
         {
             [atlasEncoder setCullMode:MTLCullModeNone];
-            [atlasEncoder setRenderPipelineState:atlasFillpipelineState];
-            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            [atlasEncoder setRenderPipelineState:atlasFillPipelineState];
+            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
             {
-                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                const gpu::AtlasDrawBatch& fillBatch =
+                    desc.featherAtlasFillBatches[i];
                 [atlasEncoder setScissorRect:make_scissor(fillBatch.scissor)];
                 [atlasEncoder
                     setVertexBytes:&fillBatch.basePatch
@@ -1609,14 +1619,14 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (desc.atlasStrokeBatchCount != 0)
+        if (desc.featherAtlasStrokeBatchCount != 0)
         {
             [atlasEncoder setCullMode:MTLCullModeBack];
-            [atlasEncoder setRenderPipelineState:atlasStrokepipelineState];
-            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            [atlasEncoder setRenderPipelineState:atlasStrokePipelineState];
+            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.atlasStrokeBatches[i];
+                    desc.featherAtlasStrokeBatches[i];
                 [atlasEncoder setScissorRect:make_scissor(strokeBatch.scissor)];
                 [atlasEncoder
                     setVertexBytes:&strokeBatch.basePatch
@@ -1914,7 +1924,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             {
                 [encoder setRenderPipelineState:drawPipelineState];
                 [encoder setVertexBuffer:mtl_buffer(triangleBufferRing())

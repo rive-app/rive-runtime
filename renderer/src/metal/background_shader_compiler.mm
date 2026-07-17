@@ -155,8 +155,8 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::interiorTriangulation:
                 defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
                 break;
-            case DrawType::atlasBlit:
-                defines[@GLSL_ATLAS_BLIT] = @"1";
+            case DrawType::featherAtlasBlit:
+                defines[@GLSL_FEATHER_ATLAS_BLIT] = @"1";
                 break;
             case DrawType::imageRect:
 #ifdef RIVE_IOS
@@ -247,7 +247,7 @@ void BackgroundShaderCompiler::threadMain()
                         appendFormat:@"%s\n",
                                      gpu::glsl::draw_raster_order_path_frag];
                     break;
-                case DrawType::atlasBlit:
+                case DrawType::featherAtlasBlit:
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];

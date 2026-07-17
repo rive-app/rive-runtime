@@ -176,7 +176,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override;
 
     // Lazy allocators for PLS backing buffers in atomic mode.
@@ -193,7 +193,7 @@ private:
 
     constexpr static int COLOR_RAMP_BINDINGS_COUNT = 1;
     constexpr static int TESS_BINDINGS_COUNT = 6;
-    constexpr static int ATLAS_BINDINGS_COUNT = 7;
+    constexpr static int FEATHER_ATLAS_BINDINGS_COUNT = 7;
     constexpr static int DRAW_BINDINGS_COUNT = 10;
     std::array<std::unique_ptr<DrawPipelineLayout>, gpu::INTERLOCK_MODE_COUNT>
         m_drawPipelineLayouts;
@@ -227,10 +227,10 @@ private:
     wgpu::TextureView m_tessVertexTextureView;
 
     // Renders feathers to the atlas.
-    class AtlasPipeline;
-    std::unique_ptr<AtlasPipeline> m_atlasPipeline;
-    wgpu::Texture m_atlasTexture;
-    wgpu::TextureView m_atlasTextureView;
+    class FeatherAtlasPipeline;
+    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasPipeline;
+    wgpu::Texture m_featherAtlasTexture;
+    wgpu::TextureView m_featherAtlasTextureView;
 
     // Draw paths and image meshes using the gradient and tessellation textures.
     class DrawPipeline;
@@ -245,8 +245,8 @@ private:
     wgpu::Buffer m_imageRectIndexBuffer;
 
     // Gaussian integral table for feathering.
-    wgpu::Texture m_featherTexture;
-    wgpu::TextureView m_featherTextureView;
+    wgpu::Texture m_gaussianIntegralTexture;
+    wgpu::TextureView m_gaussianIntegralTextureView;
 
     // PLS backing buffers for atomic mode.
     uint64_t m_atomicPLSBackingBufferSize = 0;

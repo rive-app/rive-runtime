@@ -179,7 +179,7 @@ public:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
 
     void flush(const FlushDescriptor&) override;
 
@@ -230,8 +230,8 @@ private:
 
     rcp<D3D12Texture> m_gradientTexture;
     rcp<D3D12Texture> m_tesselationTexture;
-    rcp<D3D12Texture> m_atlasTexture;
-    rcp<D3D12TextureArray> m_featherTexture;
+    rcp<D3D12Texture> m_featherAtlasTexture;
+    rcp<D3D12TextureArray> m_gaussianIntegralTexture;
 
     D3D12PipelineManager m_pipelineManager;
     rcp<D3D12ResourceManager> m_resourceManager;

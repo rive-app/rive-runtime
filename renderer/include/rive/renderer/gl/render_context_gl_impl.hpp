@@ -147,7 +147,7 @@ public:
     // buffers are only supported via extensions in GL.
     //
     // These are sorted with the most preferred types higher up in the list.
-    enum class AtlasRenderType
+    enum class FeatherAtlasRenderType
     {
         r16f, // Most preferred. Balances performances with precision.
         r32f, // Uses HW blending to count coverage.
@@ -162,20 +162,24 @@ public:
                // up coverage into all 4 components of an RGBA texture.
     };
 
-    AtlasRenderType atlasRenderType() const { return m_atlasRenderType; }
+    FeatherAtlasRenderType featherAtlasRenderType() const
+    {
+        return m_featherAtlasRenderType;
+    }
 
 #ifdef WITH_RIVE_TOOLS
-    // Changes the context's AtlasRenderType for testing purposes. If
+    // Changes the context's FeatherAtlasRenderType for testing purposes. If
     // atlasDesiredRenderType is not supported, the next supported
     // AtlasRenderType down the list is chosen.
     //
-    // Returns the original AtlasRenderType from before this call was made.
+    // Returns the original FeatherAtlasRenderType from before this call was
+    // made.
     //
     // NOTE: this also calls releaseResources() on the owning RenderContext to
     // ensure the atlas texture gets reallocated.
-    AtlasRenderType testingOnly_resetAtlasDesiredRenderType(
+    FeatherAtlasRenderType testingOnly_resetFeatherAtlasDesiredRenderType(
         RenderContext* owningRenderContext,
-        AtlasRenderType atlasDesiredRenderType);
+        FeatherAtlasRenderType desiredRenderType);
 
     bool testingOnly_setBlendAdvancedCoherentKHRSupported(bool supported);
     bool testingOnly_setBlendAdvancedKHRSupported(bool supported);
@@ -275,7 +279,7 @@ private:
                         std::unique_ptr<PixelLocalStorageImpl>,
                         ShaderCompilationMode);
 
-    void buildAtlasRenderPipelines();
+    void buildFeatherAtlasRenderPipelines();
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) override;
@@ -287,7 +291,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeTransientPLSBacking(uint32_t width,
                                    uint32_t height,
                                    uint32_t planeCount) override;
@@ -351,7 +355,7 @@ private:
     GLuint m_gradientTexture = 0;
 
     // Gaussian integral table for feathering.
-    glutils::Texture m_featherTexture;
+    glutils::Texture m_gaussianIntegralTexture;
 
     // Tessellation texture rendering.
     glutils::Program m_tessellateProgram;
@@ -360,8 +364,8 @@ private:
     glutils::Framebuffer m_tessellateFBO;
     GLuint m_tessVertexTexture = 0;
 
-    // Renders feathers to the atlas texture.
-    class AtlasProgram
+    // Renders feathers to the feather atlas texture.
+    class FeatherAtlasProgram
     {
     public:
         void compile(GLuint vertexShaderID,
@@ -385,22 +389,23 @@ private:
     };
 
     // Atlas rendering pipelines.
-    AtlasRenderType m_atlasRenderType;
-    glutils::Shader m_atlasVertexShader;
-    AtlasProgram m_atlasFillProgram;
-    AtlasProgram m_atlasStrokeProgram;
-    gpu::PipelineState m_atlasFillPipelineState;
-    gpu::PipelineState m_atlasStrokePipelineState;
+    FeatherAtlasRenderType m_featherAtlasRenderType;
+    glutils::Shader m_featherAtlasVertexShader;
+    FeatherAtlasProgram m_featherAtlasFillProgram;
+    FeatherAtlasProgram m_featherAtlasStrokeProgram;
+    gpu::PipelineState m_featherAtlasFillPipelineState;
+    gpu::PipelineState m_featherAtlasStrokePipelineState;
     // Pipelines for clearing and resolving atlases into a GL_R8 texture for
     // sampling.
-    glutils::Shader m_atlasResolveVertexShader;
-    glutils::Program m_atlasClearProgram = glutils::Program::Zero();
-    glutils::Program m_atlasResolveProgram = glutils::Program::Zero();
-    glutils::VAO m_atlasResolveVAO;
-    glutils::Texture m_atlasRenderTexture = glutils::Texture::Zero();
-    glutils::Texture m_atlasTexture = glutils::Texture::Zero();
-    glutils::Framebuffer m_atlasRenderFBO = glutils::Framebuffer::Zero();
-    glutils::Framebuffer m_atlasResolveFBO = glutils::Framebuffer::Zero();
+    glutils::Shader m_featherAtlasResolveVertexShader;
+    glutils::Program m_featherAtlasClearProgram = glutils::Program::Zero();
+    glutils::Program m_featherAtlasResolveProgram = glutils::Program::Zero();
+    glutils::VAO m_featherAtlasResolveVAO;
+    glutils::Texture m_featherAtlasRenderTexture = glutils::Texture::Zero();
+    glutils::Texture m_featherAtlasTexture = glutils::Texture::Zero();
+    glutils::Framebuffer m_featherAtlasRenderFBO = glutils::Framebuffer::Zero();
+    glutils::Framebuffer m_featherAtlasResolveFBO =
+        glutils::Framebuffer::Zero();
 
     // Wraps a compiled GL "draw" shader, either vertex or fragment, with a
     // specific set of features enabled via #define. The set of features to

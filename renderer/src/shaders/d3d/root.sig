@@ -14,8 +14,8 @@
 // these are static
 #define TESS_IMAGE_HEAP_OFFSET 4
 #define GRAD_IMAGE_HEAP_OFFSET 5
-#define FEATHER_IMAGE_HEAP_OFFSET 6
-#define ATLAS_IMAGE_HEAP_OFFSET 7
+#define GAUSSIAN_INTEGRAL_IMAGE_HEAP_OFFSET 6
+#define FEATHER_ATLAS_IMAGE_HEAP_OFFSET 7
 // uavs
 #define ATOMIC_COLOR_HEAP_OFFSET 8
 #define ATOMIC_CLIP_HEAP_OFFSET 9
@@ -29,7 +29,7 @@
 
 // this is for copies that happen every logical flush
 #define NUM_DYNAMIC_SRV_HEAP_DESCRIPTORS CONTOUR_BUFFER_HEAP_OFFSET + 1
-#define NUM_SRV_HEAP_DESCRIPTORS ATLAS_IMAGE_HEAP_OFFSET + 1
+#define NUM_SRV_HEAP_DESCRIPTORS FEATHER_ATLAS_IMAGE_HEAP_OFFSET + 1
 // this is for the first flush where we copy everything the things that don't
 // change only once
 #define NUM_STATIC_SRV_UAV_HEAP_DESCRIPTORS                                    \
@@ -40,8 +40,8 @@
 // all samplers are another heap
 #define TESS_SAMPLER_HEAP_OFFSET 0
 #define GRAD_SAMPLER_HEAP_OFFSET 1
-#define FEATHER_SAMPLER_HEAP_OFFSET 2
-#define ATLAS_SAMPLER_HEAP_OFFSET 3
+#define GAUSSIAN_INTEGRAL_SAMPLER_HEAP_OFFSET 2
+#define FEATHER_ATLAS_SAMPLER_HEAP_OFFSET 3
 #define IMAGE_SAMPLER_HEAP_OFFSET 4
 
 #define NUM_SAMPLER_HEAP_DESCRIPTORS IMAGE_SAMPLER_HEAP_OFFSET + 1
@@ -64,7 +64,7 @@
 // rtv offsets
 #define GRAD_RTV_HEAP_OFFSET 0
 #define TESS_RTV_HEAP_OFFSET 1
-#define ATLAS_RTV_HEAP_OFFSET 2
+#define FEATHER_ATLAS_RTV_HEAP_OFFSET 2
 #define TARGET_RTV_HEAP_OFFSET 3
 
 // ROOT_SIG is only consumed by fxc when compiling the root signature. Guard it
@@ -86,8 +86,8 @@
                     "SRV(t" RIVE_STR(CONTOUR_BUFFER_IDX) "), visibility=SHADER_VISIBILITY_ALL), "\
     "DescriptorTable(SRV(t" RIVE_STR(TESS_VERTEX_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE),"\
                     "SRV(t" RIVE_STR(GRAD_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), "\
-                    "SRV(t" RIVE_STR(FEATHER_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), "\
-                    "SRV(t" RIVE_STR(ATLAS_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_ALL), "\
+                    "SRV(t" RIVE_STR(GAUSSIAN_INTEGRAL_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), "\
+                    "SRV(t" RIVE_STR(FEATHER_ATLAS_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_ALL), "\
     "DescriptorTable(SRV(t" RIVE_STR(IMAGE_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL), "\
     "DescriptorTable(UAV(u" RIVE_STR(COLOR_PLANE_IDX) ", flags=DESCRIPTORS_VOLATILE | DATA_VOLATILE),"\
                     "UAV(u" RIVE_STR(CLIP_PLANE_IDX) ", flags=DATA_VOLATILE),"\
@@ -95,8 +95,8 @@
                     "UAV(u" RIVE_STR(COVERAGE_PLANE_IDX) ", flags=DATA_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL),"\
     "DescriptorTable(Sampler(s" RIVE_STR(TESS_VERTEX_TEXTURE_IDX) "),"\
                     "Sampler(s" RIVE_STR(GRAD_TEXTURE_IDX) "),"\
-                    "Sampler(s" RIVE_STR(FEATHER_TEXTURE_IDX) "),"\
-                    "Sampler(s" RIVE_STR(ATLAS_TEXTURE_IDX) "), visibility=SHADER_VISIBILITY_ALL),"\
+                    "Sampler(s" RIVE_STR(GAUSSIAN_INTEGRAL_TEXTURE_IDX) "),"\
+                    "Sampler(s" RIVE_STR(FEATHER_ATLAS_TEXTURE_IDX) "), visibility=SHADER_VISIBILITY_ALL),"\
     "DescriptorTable(Sampler(s" RIVE_STR(IMAGE_TEXTURE_IDX) ", flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL) "
 
 #endif // __cplusplus

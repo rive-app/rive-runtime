@@ -94,27 +94,28 @@ void RiveRenderer::save()
 {
     // Copy the back of the stack before pushing, in case the vector grows and
     // invalidates the reference.
-    RenderState copy = m_stack.back();
-    m_stack.push_back(copy);
+    RenderState copy = m_renderStateStack.back();
+    m_renderStateStack.push_back(copy);
 }
 
 void RiveRenderer::restore()
 {
-    assert(m_stack.size() > 1);
-    assert(m_stack.back().clipStackHeight >=
-           m_stack[m_stack.size() - 2].clipStackHeight);
-    m_stack.pop_back();
+    assert(m_renderStateStack.size() > 1);
+    assert(m_renderStateStack.back().clipStackHeight >=
+           m_renderStateStack[m_renderStateStack.size() - 2].clipStackHeight);
+    m_renderStateStack.pop_back();
 }
 
 void RiveRenderer::transform(const Mat2D& matrix)
 {
-    m_stack.back().matrix = m_stack.back().matrix * matrix;
+    m_renderStateStack.back().matrix =
+        m_renderStateStack.back().matrix * matrix;
 }
 
 void RiveRenderer::modulateOpacity(float opacity)
 {
-    m_stack.back().modulatedOpacity =
-        std::max(0.0f, m_stack.back().modulatedOpacity * opacity);
+    m_renderStateStack.back().modulatedOpacity =
+        std::max(0.0f, m_renderStateStack.back().modulatedOpacity * opacity);
 }
 
 void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
@@ -147,7 +148,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     {
         return;
     }
-    if (m_stack.back().overallClipPixelBounds.empty())
+    if (m_renderStateStack.back().overallClipPixelBounds.empty())
     {
         return;
     }
@@ -160,29 +161,30 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
             // Don't draw feathered fills that aren't clockwise.
             return;
         }
-        float matrixMaxScale = m_stack.back().matrix.findMaxScale();
+        float matrixMaxScale = m_renderStateStack.back().matrix.findMaxScale();
         if (paint->getFeather() * matrixMaxScale > 1)
         {
             clipAndPushDraw(gpu::PathDraw::Make(
                 m_context,
-                m_stack.back().matrix,
+                m_renderStateStack.back().matrix,
                 path->makeSoftenedCopyForFeathering(paint->getFeather(),
                                                     matrixMaxScale),
                 path->getFillRule(),
                 paint,
-                m_stack.back().modulatedOpacity,
+                m_renderStateStack.back().modulatedOpacity,
                 &m_scratchPath));
             return;
         }
     }
 
-    clipAndPushDraw(gpu::PathDraw::Make(m_context,
-                                        m_stack.back().matrix,
-                                        ref_rcp(path),
-                                        path->getFillRule(),
-                                        paint,
-                                        m_stack.back().modulatedOpacity,
-                                        &m_scratchPath));
+    clipAndPushDraw(
+        gpu::PathDraw::Make(m_context,
+                            m_renderStateStack.back().matrix,
+                            ref_rcp(path),
+                            path->getFillRule(),
+                            paint,
+                            m_renderStateStack.back().modulatedOpacity,
+                            &m_scratchPath));
 }
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
@@ -190,14 +192,14 @@ void RiveRenderer::clipPath(RenderPath* renderPath)
     RIVE_PROF_SCOPE_L(2)
     LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
 
-    if (m_stack.back().overallClipPixelBounds.empty())
+    if (m_renderStateStack.back().overallClipPixelBounds.empty())
     {
         return;
     }
 
     if (path->getRawPath().empty())
     {
-        m_stack.back().overallClipPixelBounds = {};
+        m_renderStateStack.back().overallClipPixelBounds = {};
         return;
     }
 
@@ -257,7 +259,7 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 {
     RIVE_PROF_SCOPE_L(3)
 
-    auto& renderState = m_stack.back();
+    auto& renderState = m_renderStateStack.back();
     bool hasClipRect = renderState.clipRectInverseMatrix != nullptr;
     if (rect.isEmptyOrNaN())
     {
@@ -312,7 +314,7 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 {
     RIVE_PROF_SCOPE_L(3)
-    auto& renderState = m_stack.back();
+    auto& renderState = m_renderStateStack.back();
     if (path->getBounds().isEmptyOrNaN())
     {
         renderState.overallClipPixelBounds = {};
@@ -388,7 +390,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
 
     // Apply modulated opacity (clamp to prevent negative values)
     float finalOpacity =
-        std::max(0.0f, opacity * m_stack.back().modulatedOpacity);
+        std::max(0.0f, opacity * m_renderStateStack.back().modulatedOpacity);
 
     // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
     save();
@@ -398,9 +400,9 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
     {
         // Fall back on ImageRectDraw if the current frame doesn't support
         // drawing paths with image paints.
-        if (!m_stack.back().overallClipPixelBounds.empty())
+        if (!m_renderStateStack.back().overallClipPixelBounds.empty())
         {
-            const Mat2D& m = m_stack.back().matrix;
+            const Mat2D& m = m_renderStateStack.back().matrix;
             clipAndPushDraw(
                 gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
                     m_context,
@@ -460,18 +462,18 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
     assert(uvCoords_f32);
     assert(indices_u16);
 
-    if (m_stack.back().overallClipPixelBounds.empty())
+    if (m_renderStateStack.back().overallClipPixelBounds.empty())
     {
         return;
     }
 
     // Apply modulated opacity (clamp to prevent negative values)
     float finalOpacity =
-        std::max(0.0f, opacity * m_stack.back().modulatedOpacity);
+        std::max(0.0f, opacity * m_renderStateStack.back().modulatedOpacity);
 
     clipAndPushDraw(gpu::DrawUniquePtr(
         m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
-                                            m_stack.back().matrix,
+                                            m_renderStateStack.back().matrix,
                                             blendMode,
                                             std::move(imageTexture),
                                             imageSampler,
@@ -485,7 +487,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 {
     RIVE_PROF_SCOPE_L(3)
-    assert(!m_stack.back().overallClipPixelBounds.empty());
+    assert(!m_renderStateStack.back().overallClipPixelBounds.empty());
     if (draw.get() == nullptr)
     {
         return;
@@ -620,7 +622,7 @@ static rcp<RiveRenderPath> invertClockwisePath(const RiveRenderPath* path,
 RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 {
     RIVE_PROF_SCOPE_L(3)
-    auto& renderState = m_stack.back();
+    auto& renderState = m_renderStateStack.back();
 
     draw->setClipRect(renderState.clipRectInverseMatrix,
                       renderState.overallClipPixelBounds);

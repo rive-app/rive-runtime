@@ -192,24 +192,24 @@ D3D11PipelineManager::D3D11PipelineManager(
         2,
         shader::atlas::vert::g_main,
         std::size(shader::atlas::vert::g_main),
-        &m_atlasLayout));
+        &m_featherAtlasLayout));
     VERIFY_OK(this->device()->CreateVertexShader(
         shader::atlas::vert::g_main,
         std::size(shader::atlas::vert::g_main),
         nullptr,
-        &m_atlasVertexShader));
+        &m_featherAtlasVertexShader));
 
     VERIFY_OK(this->device()->CreatePixelShader(
         shader::atlas::fill::g_main,
         std::size(shader::atlas::fill::g_main),
         nullptr,
-        &m_atlasFillPixelShader));
+        &m_featherAtlasFillPixelShader));
 
     VERIFY_OK(this->device()->CreatePixelShader(
         shader::atlas::stroke::g_main,
         std::size(shader::atlas::stroke::g_main),
         nullptr,
-        &m_atlasStrokePixelShader));
+        &m_featherAtlasStrokePixelShader));
 }
 
 bool D3D11PipelineManager::setPipelineState(
@@ -272,7 +272,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
                                   0});
             break;
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             layoutDesc.push_back({GLSL_a_triangleVertex,
                                   0,
                                   DXGI_FORMAT_R32G32B32_FLOAT,
@@ -580,13 +580,13 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     rasterDesc.CullMode = D3D11_CULL_NONE;
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
-        m_atlasFillRasterState.ReleaseAndGetAddressOf()));
+        m_featherAtlasFillRasterState.ReleaseAndGetAddressOf()));
 
     // ...And with culling back on for the atlas stroke.
     rasterDesc.CullMode = D3D11_CULL_BACK;
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
-        m_atlasStrokeRasterState.ReleaseAndGetAddressOf()));
+        m_featherAtlasStrokeRasterState.ReleaseAndGetAddressOf()));
 
     // ...And with wireframe for debugging.
     rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
@@ -607,20 +607,21 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         &rasterDesc,
         m_doubleSidedRasterState[1].ReleaseAndGetAddressOf()));
 
-    // Create the feather texture.
-    D3D11_TEXTURE1D_DESC featherTextureDesc{};
-    featherTextureDesc.Format = DXGI_FORMAT_R16_FLOAT;
-    featherTextureDesc.Width = gpu::GAUSSIAN_TABLE_SIZE;
-    featherTextureDesc.MipLevels = 1;
-    featherTextureDesc.ArraySize = FEATHER_TEXTURE_1D_ARRAY_LENGTH;
-    featherTextureDesc.Usage = D3D11_USAGE_DEFAULT;
-    featherTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    featherTextureDesc.CPUAccessFlags = 0;
-    featherTextureDesc.MiscFlags = 0;
-    VERIFY_OK(
-        m_gpu->CreateTexture1D(&featherTextureDesc,
-                               NULL,
-                               m_featherTexture.ReleaseAndGetAddressOf()));
+    // Create the gaussian integral texture.
+    D3D11_TEXTURE1D_DESC gaussianIntegralTextureDesc{};
+    gaussianIntegralTextureDesc.Format = DXGI_FORMAT_R16_FLOAT;
+    gaussianIntegralTextureDesc.Width = gpu::GAUSSIAN_TABLE_SIZE;
+    gaussianIntegralTextureDesc.MipLevels = 1;
+    gaussianIntegralTextureDesc.ArraySize =
+        GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH;
+    gaussianIntegralTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    gaussianIntegralTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    gaussianIntegralTextureDesc.CPUAccessFlags = 0;
+    gaussianIntegralTextureDesc.MiscFlags = 0;
+    VERIFY_OK(m_gpu->CreateTexture1D(
+        &gaussianIntegralTextureDesc,
+        NULL,
+        m_gaussianIntegralTexture.ReleaseAndGetAddressOf()));
 
     D3D11_BOX box;
     box.left = 0;
@@ -629,22 +630,22 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     box.bottom = 1;
     box.front = 0;
     box.back = 1;
-    m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
+    m_gpuContext->UpdateSubresource(m_gaussianIntegralTexture.Get(),
                                     FEATHER_FUNCTION_ARRAY_INDEX,
                                     &box,
                                     gpu::g_gaussianIntegralTableF16,
                                     sizeof(gpu::g_gaussianIntegralTableF16),
                                     sizeof(gpu::g_gaussianIntegralTableF16));
-    m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
+    m_gpuContext->UpdateSubresource(m_gaussianIntegralTexture.Get(),
                                     FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,
                                     &box,
                                     gpu::g_inverseGaussianIntegralTableF16,
                                     sizeof(gpu::g_gaussianIntegralTableF16),
                                     0);
     VERIFY_OK(m_gpu->CreateShaderResourceView(
-        m_featherTexture.Get(),
+        m_gaussianIntegralTexture.Get(),
         NULL,
-        m_featherTextureSRV.ReleaseAndGetAddressOf()));
+        m_gaussianIntegralTextureSRV.ReleaseAndGetAddressOf()));
 
     // Compile the tessellation shaders.
     {
@@ -696,7 +697,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
                                       m_drawUniforms.ReleaseAndGetAddressOf()));
     }
 
-    // Create a linear sampler for the gradient & feather textures.
+    // Create a linear sampler for the gradient & gaussian integral textures.
     D3D11_SAMPLER_DESC linearSamplerDesc;
     linearSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
     linearSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -736,7 +737,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
             m_samplerStates[samplerKey].ReleaseAndGetAddressOf()));
     }
 
-    m_gpuContext->VSSetSamplers(FEATHER_TEXTURE_IDX,
+    m_gpuContext->VSSetSamplers(GAUSSIAN_INTEGRAL_TEXTURE_IDX,
                                 1,
                                 m_linearSampler.GetAddressOf());
 
@@ -1527,31 +1528,32 @@ void RenderContextD3DImpl::resizeTessellationTexture(uint32_t width,
     }
 }
 
-void RenderContextD3DImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
+void RenderContextD3DImpl::resizeFeatherAtlasTexture(uint32_t width,
+                                                     uint32_t height)
 {
 
     if (width == 0 || height == 0)
     {
-        m_atlasTexture = nullptr;
-        m_atlasTextureSRV = nullptr;
-        m_atlasTextureRTV = nullptr;
+        m_featherAtlasTexture = nullptr;
+        m_featherAtlasTextureSRV = nullptr;
+        m_featherAtlasTextureRTV = nullptr;
     }
     else
     {
-        m_atlasTexture = makeSimple2DTexture(DXGI_FORMAT_R16_FLOAT,
-                                             width,
-                                             height,
-                                             1,
-                                             D3D11_BIND_RENDER_TARGET |
-                                                 D3D11_BIND_SHADER_RESOURCE);
+        m_featherAtlasTexture = makeSimple2DTexture(
+            DXGI_FORMAT_R16_FLOAT,
+            width,
+            height,
+            1,
+            D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
         VERIFY_OK(m_gpu->CreateShaderResourceView(
-            m_atlasTexture.Get(),
+            m_featherAtlasTexture.Get(),
             NULL,
-            m_atlasTextureSRV.ReleaseAndGetAddressOf()));
+            m_featherAtlasTextureSRV.ReleaseAndGetAddressOf()));
         VERIFY_OK(m_gpu->CreateRenderTargetView(
-            m_atlasTexture.Get(),
+            m_featherAtlasTexture.Get(),
             NULL,
-            m_atlasTextureRTV.ReleaseAndGetAddressOf()));
+            m_featherAtlasTextureRTV.ReleaseAndGetAddressOf()));
     }
 }
 
@@ -1689,13 +1691,15 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                            storageBufferBufferSRVs + 1);
     }
 
-    // All programs use the same feather texture.
-    m_gpuContext->VSSetShaderResources(FEATHER_TEXTURE_IDX,
-                                       1,
-                                       m_featherTextureSRV.GetAddressOf());
-    m_gpuContext->PSSetShaderResources(FEATHER_TEXTURE_IDX,
-                                       1,
-                                       m_featherTextureSRV.GetAddressOf());
+    // All programs use the same gaussian integral texture.
+    m_gpuContext->VSSetShaderResources(
+        GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+        1,
+        m_gaussianIntegralTextureSRV.GetAddressOf());
+    m_gpuContext->PSSetShaderResources(
+        GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+        1,
+        m_gaussianIntegralTextureSRV.GetAddressOf());
 
     // All programs use the same samplers.
     ID3D11SamplerState* samplers[4] = {
@@ -1706,9 +1710,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_samplerStates[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY].Get(),
     };
 
-    static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
-    static_assert(ATLAS_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
-    static_assert(IMAGE_TEXTURE_IDX == ATLAS_TEXTURE_IDX + 1);
+    static_assert(GAUSSIAN_INTEGRAL_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+    static_assert(FEATHER_ATLAS_TEXTURE_IDX ==
+                  GAUSSIAN_INTEGRAL_TEXTURE_IDX + 1);
+    static_assert(IMAGE_TEXTURE_IDX == FEATHER_ATLAS_TEXTURE_IDX + 1);
     m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
     m_gpuContext->VSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
 
@@ -1839,43 +1844,49 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                        1,
                                        m_gradTextureSRV.GetAddressOf());
 
-    // Render the atlas if we have any offscreen feathers.
-    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    // Render the feather atlas if we have any offscreen feathers.
+    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+        0)
     {
-        RIVE_PROF_GPUNAME_L(1, "atlasRender");
+        RIVE_PROF_GPUNAME_L(1, "featherAtlasRender");
 
         float clearZero[4]{};
-        m_gpuContext->ClearRenderTargetView(m_atlasTextureRTV.Get(), clearZero);
+        m_gpuContext->ClearRenderTargetView(m_featherAtlasTextureRTV.Get(),
+                                            clearZero);
 
-        m_pipelineManager.setAtlasVertexState();
+        m_pipelineManager.setFeatherAtlasVertexState();
         m_gpuContext->IASetPrimitiveTopology(
             D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
                                        DXGI_FORMAT_R16_UINT,
                                        0);
 
-        D3D11_VIEWPORT viewport = {0,
-                                   0,
-                                   static_cast<float>(desc.atlasContentWidth),
-                                   static_cast<float>(desc.atlasContentHeight),
-                                   0,
-                                   1};
+        D3D11_VIEWPORT viewport = {
+            0,
+            0,
+            static_cast<float>(desc.featherAtlasContentWidth),
+            static_cast<float>(desc.featherAtlasContentHeight),
+            0,
+            1,
+        };
         m_gpuContext->RSSetViewports(1, &viewport);
 
-        m_gpuContext->OMSetRenderTargets(1,
-                                         m_atlasTextureRTV.GetAddressOf(),
-                                         NULL);
+        m_gpuContext->OMSetRenderTargets(
+            1,
+            m_featherAtlasTextureRTV.GetAddressOf(),
+            NULL);
 
-        if (desc.atlasFillBatchCount != 0)
+        if (desc.featherAtlasFillBatchCount != 0)
         {
-            m_gpuContext->RSSetState(m_atlasFillRasterState.Get());
-            m_pipelineManager.setAtlasFillState();
+            m_gpuContext->RSSetState(m_featherAtlasFillRasterState.Get());
+            m_pipelineManager.setFeatherAtlasFillState();
             m_gpuContext->OMSetBlendState(m_plusBlendState.Get(),
                                           NULL,
                                           0xffffffff);
-            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
             {
-                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                const gpu::AtlasDrawBatch& fillBatch =
+                    desc.featherAtlasFillBatches[i];
                 D3D11_RECT scissor = make_scissor(fillBatch.scissor);
                 m_gpuContext->RSSetScissorRects(1, &scissor);
                 DrawUniforms drawUniforms(fillBatch.basePatch);
@@ -1894,17 +1905,17 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (desc.atlasStrokeBatchCount != 0)
+        if (desc.featherAtlasStrokeBatchCount != 0)
         {
-            m_gpuContext->RSSetState(m_atlasStrokeRasterState.Get());
-            m_pipelineManager.setAtlasStrokeState();
+            m_gpuContext->RSSetState(m_featherAtlasStrokeRasterState.Get());
+            m_pipelineManager.setFeatherAtlasStrokeState();
             m_gpuContext->OMSetBlendState(m_maxBlendState.Get(),
                                           NULL,
                                           0xffffffff);
-            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.atlasStrokeBatches[i];
+                    desc.featherAtlasStrokeBatches[i];
                 D3D11_RECT scissor = make_scissor(strokeBatch.scissor);
                 m_gpuContext->RSSetScissorRects(1, &scissor);
                 DrawUniforms drawUniforms(strokeBatch.basePatch);
@@ -2036,9 +2047,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // Set this last, when the atlas texture is no longer bound as a render
     // target.
-    m_gpuContext->PSSetShaderResources(ATLAS_TEXTURE_IDX,
+    m_gpuContext->PSSetShaderResources(FEATHER_ATLAS_TEXTURE_IDX,
                                        1,
-                                       m_atlasTextureSRV.GetAddressOf());
+                                       m_featherAtlasTextureSRV.GetAddressOf());
 
     if (imageDrawInstanceBufferRing() != nullptr)
     {
@@ -2159,15 +2170,15 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             {
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->RSSetState(
                     m_backCulledRasterState[desc.wireframe].Get());
                 RIVE_PROF_GPUNAME_L(2,
-                                    drawType == DrawType::atlasBlit
-                                        ? "atlasBlit"
+                                    drawType == DrawType::featherAtlasBlit
+                                        ? "featherAtlasBlit"
                                         : "interiorTriangulation");
                 m_gpuContext->Draw(batch.elementCount, batch.baseElement);
                 break;

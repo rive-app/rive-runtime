@@ -68,7 +68,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // VERTEX
 #endif // DRAW_PATH
 
-#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, packed_float3, @a_triangleVertex);
@@ -76,7 +76,7 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
 NO_PERSPECTIVE VARYING(0, float2, v_atlasCoord);
 #else
 @OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
@@ -89,7 +89,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_INIT(v_atlasCoord, float2);
 #else
     VARYING_INIT(v_windingWeight, half);
@@ -98,7 +98,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     uint pathID;
     float2 vertexPosition;
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     vertexPosition =
         unpack_atlas_coverage_vertex(@a_triangleVertex,
                                      pathID,
@@ -112,7 +112,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     v_pathID = cast_uint_to_ushort(pathID);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_PACK(v_atlasCoord);
 #else
     VARYING_PACK(v_windingWeight);
@@ -121,7 +121,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     EMIT_VERTEX(pos);
 }
 #endif // @VERTEX
-#endif // @DRAW_INTERIOR_TRIANGLES || @ATLAS_BLIT
+#endif // @DRAW_INTERIOR_TRIANGLES || @FEATHER_ATLAS_BLIT
 
 #ifdef @DRAW_IMAGE_RECT
 #ifdef @VERTEX
@@ -810,10 +810,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 }
 #endif // DRAW_PATH
 
-#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_UNPACK(v_atlasCoord, float2);
 #else
     VARYING_UNPACK(v_windingWeight, half);
@@ -828,7 +828,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     // triangle. This does not need to be atomic since interior triangles don't
     // overlap.
     uint currPathCoverageData;
-#ifndef @ATLAS_BLIT
+#ifndef @FEATHER_ATLAS_BLIT
     if (lastPathID == v_pathID)
     {
         currPathCoverageData = lastCoverageData;
@@ -842,7 +842,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     }
 
     half coverage;
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     coverage = clamp(
         TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
         make_half(.0),
@@ -860,7 +860,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
 #endif
 
-#ifndef @ATLAS_BLIT
+#ifndef @FEATHER_ATLAS_BLIT
     // If this is not the first fragment of the current path to touch this
     // pixel, then we've already resolved the previous path and can move on.
     if (lastPathID != v_pathID)
@@ -895,7 +895,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 
     EMIT_ATOMIC_PLS
 }
-#endif // @DRAW_INTERIOR_TRIANGLES || @ATLAS_BLIT
+#endif // @DRAW_INTERIOR_TRIANGLES || @FEATHER_ATLAS_BLIT
 
 #ifdef @DRAW_IMAGE
 ATOMIC_PLS_MAIN(@drawFragmentMain)

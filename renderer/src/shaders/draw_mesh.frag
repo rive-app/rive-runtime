@@ -32,8 +32,8 @@ PLS_DECL4F(CLIP_PLANE_IDX, clipBuffer);
 #endif
 PLS_BLOCK_END
 
-// ATLAS_BLIT includes draw_path_common.glsl, which declares the textures &
-// samplers, so we only need to declare these for image meshes.
+// FEATHER_ATLAS_BLIT includes draw_path_common.glsl, which declares the
+// textures & samplers, so we only need to declare these for image meshes.
 #ifdef @DRAW_IMAGE_MESH
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
@@ -61,7 +61,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 #endif
 {
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_UNPACK(v_paint, float4);
     VARYING_UNPACK(v_atlasCoord, float2);
 #endif
@@ -71,7 +71,7 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
 #endif
-#if defined(@ATLAS_BLIT) && defined(@ENABLE_ADVANCED_BLEND)
+#if defined(@FEATHER_ATLAS_BLIT) && defined(@ENABLE_ADVANCED_BLEND)
     VARYING_UNPACK(v_blendMode, half);
 #endif
 #ifdef @DRAW_IMAGE_MESH
@@ -82,7 +82,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 #endif
 
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     half4 color = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
     half coverage = clamp(
         TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
@@ -140,7 +140,7 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
         // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case for
         // find_paint_color() because advanced blend needs unmultiplied colors.
         ushort blendMode = cast_half_to_ushort(v_blendMode);

@@ -1,7 +1,7 @@
 #define PLS_IMPL_SUBPASS_LOAD
 #define OPTIONALLY_FLAT flat
 #define DRAW_INTERIOR_TRIANGLES
-#define ATLAS_BLIT
+#define FEATHER_ATLAS_BLIT
 
 #include "/Engine/Public/Platform.ush"
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED

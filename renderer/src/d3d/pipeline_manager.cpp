@@ -84,8 +84,8 @@ static std::string build_shader(DrawType drawType,
         case DrawType::interiorTriangulation:
             s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
             break;
-        case DrawType::atlasBlit:
-            s << "#define " << GLSL_ATLAS_BLIT << " 1\n";
+        case DrawType::featherAtlasBlit:
+            s << "#define " << GLSL_FEATHER_ATLAS_BLIT << " 1\n";
             break;
         case DrawType::imageRect:
             assert(interlockMode == InterlockMode::atomics);
@@ -133,7 +133,7 @@ static std::string build_shader(DrawType drawType,
                 s << glsl::draw_path_vert << '\n';
                 s << glsl::draw_raster_order_path_frag << '\n';
                 break;
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
                 s << glsl::draw_path_common << '\n';
                 s << glsl::draw_path_vert << '\n';
                 s << glsl::draw_mesh_frag << '\n';

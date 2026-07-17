@@ -188,7 +188,7 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
         case gpu::DrawType::interiorTriangulation:
-        case gpu::DrawType::atlasBlit:
+        case gpu::DrawType::featherAtlasBlit:
         case gpu::DrawType::imageRect:
         case gpu::DrawType::imageMesh:
         case gpu::DrawType::msaaStrokes:
@@ -541,7 +541,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 
         case DrawType::clipReset:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             pipelineCreateInfo.pVertexInputState =
                 &layout::INTERIOR_TRI_VERTEX_INPUT_STATE;
             pipelineCreateInfo.pInputAssemblyState =

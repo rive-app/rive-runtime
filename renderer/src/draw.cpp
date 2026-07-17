@@ -316,7 +316,7 @@ inline float find_feather_radius(float paintFeather)
 {
     // Blur magnitudes in design tools are customarily the width of two standard
     // deviations, or, the length of the range -1stddev .. +1stddev.
-    return paintFeather * (FEATHER_TEXTURE_STDDEVS / 2);
+    return paintFeather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2);
 }
 
 inline float find_atlas_feather_scale_factor(float featherRadius,
@@ -399,7 +399,7 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
                 find_feather_radius(paint->getFeather()),
                 matrixMaxScale) <= .5f)
         {
-            return CoverageType::atlas;
+            return CoverageType::featherAtlas;
         }
     }
     switch (interlockMode)
@@ -600,7 +600,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
 
     // For atlased paths, m_drawContents refers to the rectangle being drawn
     // into the main render target, not the step that generates the atlas mask.
-    if (m_coverageType != CoverageType::atlas)
+    if (m_coverageType != CoverageType::featherAtlas)
     {
         if (isStroke())
         {
@@ -651,7 +651,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
         {
             m_contourDirections =
                 (m_coverageType == CoverageType::msaa ||
-                 m_coverageType == CoverageType::atlas)
+                 m_coverageType == CoverageType::featherAtlas)
                     ? gpu::ContourDirections::reverse
                     : gpu::ContourDirections::forwardThenReverse;
             m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG; // ignored by msaa
@@ -660,7 +660,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
         {
             m_contourDirections =
                 (m_coverageType == CoverageType::msaa ||
-                 m_coverageType == CoverageType::atlas)
+                 m_coverageType == CoverageType::featherAtlas)
                     ? gpu::ContourDirections::forward
                     : gpu::ContourDirections::reverseThenForward;
         }
@@ -675,7 +675,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
             // reverse the winding of the path, if it is predominantly
             // counterclockwise.
             m_contourDirections =
-                (m_coverageType == CoverageType::atlas)
+                (m_coverageType == CoverageType::featherAtlas)
                     ? gpu::ContourDirections::reverse
                     : gpu::ContourDirections::forwardThenReverse;
             m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG;
@@ -683,7 +683,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
         else
         {
             m_contourDirections =
-                (m_coverageType == CoverageType::atlas)
+                (m_coverageType == CoverageType::featherAtlas)
                     ? gpu::ContourDirections::forward
                     : gpu::ContourDirections::reverseThenForward;
         }
@@ -732,7 +732,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
         }
     }
 
-    if (m_coverageType == CoverageType::atlas)
+    if (m_coverageType == CoverageType::featherAtlas)
     {
         // Reserve two triangles for our on-screen rectangle that reads coverage
         // from the atlas.
@@ -1420,8 +1420,8 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
         }
     }
 
-    // Allocate a coverage buffer range or atlas region if needed.
-    if (m_coverageType == CoverageType::atlas ||
+    // Allocate a coverage buffer range or feather atlas region if needed.
+    if (m_coverageType == CoverageType::featherAtlas ||
         (m_coverageType == CoverageType::clockwiseAtomic &&
          // Outermost (i.e., non-nested) clockwiseAtomic clips render directly
          // to the clip buffer without using the coverage buffer.
@@ -1439,7 +1439,7 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
         };
         IAABB visibleBounds = renderTargetBounds.intersect(m_pixelBounds);
 
-        if (m_coverageType == CoverageType::atlas)
+        if (m_coverageType == CoverageType::featherAtlas)
         {
             const float scaleFactor =
                 find_atlas_feather_scale_factor(m_featherRadius,
@@ -1449,20 +1449,22 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
             auto h = static_cast<uint16_t>(
                 ceilf(visibleBounds.height() * scaleFactor));
             uint16_t x, y;
-            if (!flush->allocateAtlasDraw(this,
-                                          w,
-                                          h,
-                                          PADDING,
-                                          &x,
-                                          &y,
-                                          &m_atlasScissor))
+            if (!flush->allocateFeatherAtlasDraw(this,
+                                                 w,
+                                                 h,
+                                                 PADDING,
+                                                 &x,
+                                                 &y,
+                                                 &m_featherAtlasScissor))
             {
                 return false; // There wasn't room for our path in the atlas.
             }
-            m_atlasTransform.scaleFactor = scaleFactor;
-            m_atlasTransform.translateX = x - visibleBounds.left * scaleFactor;
-            m_atlasTransform.translateY = y - visibleBounds.top * scaleFactor;
-            m_atlasScissorEnabled = visibleBounds != m_pixelBounds;
+            m_featherAtlasTransform.scaleFactor = scaleFactor;
+            m_featherAtlasTransform.translateX =
+                x - visibleBounds.left * scaleFactor;
+            m_featherAtlasTransform.translateY =
+                y - visibleBounds.top * scaleFactor;
+            m_featherAtlasScissorEnabled = visibleBounds != m_pixelBounds;
         }
         else
         {
@@ -1500,7 +1502,7 @@ void PathDraw::countSubpasses()
 
     switch (m_coverageType)
     {
-        case CoverageType::atlas:
+        case CoverageType::featherAtlas:
             assert(m_triangulator == nullptr);
             m_subpassCount = 1;
             break;
@@ -1744,13 +1746,13 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                                                m_msaaTessLocation);
         }
 
-        case CoverageType::atlas:
+        case CoverageType::featherAtlas:
             // Atlas draws only have one subpass -- the rectangular blit from
             // the atlas to the screen. The step that renders coverage to the
             // offscreen atlas is handled separately, outside the subpass
             // system.
             assert(subpassIndex == 0);
-            return &flush->pushAtlasBlit(this, m_pathID);
+            return &flush->pushFeatherAtlasBlit(this, m_pathID);
     }
 
     RIVE_UNREACHABLE();
@@ -1783,12 +1785,12 @@ gpu::DrawBatch& PathDraw::pushTessellationDraw(
     }
 }
 
-void PathDraw::pushAtlasTessellation(RenderContext::LogicalFlush* flush,
-                                     uint32_t* tessVertexCount,
-                                     uint32_t* tessBaseVertex)
+void PathDraw::pushFeatherAtlasTessellation(RenderContext::LogicalFlush* flush,
+                                            uint32_t* tessVertexCount,
+                                            uint32_t* tessBaseVertex)
 {
     RIVE_PROF_SCOPE_L(2)
-    assert(m_coverageType == CoverageType::atlas);
+    assert(m_coverageType == CoverageType::featherAtlas);
     assert(m_resourceCounts.outerCubicTessVertexCount == 0 ||
            m_resourceCounts.midpointFanTessVertexCount == 0);
 

@@ -143,8 +143,8 @@ struct PlatformFeatures
     // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a) seems
     // to hit some sort of reset condition that corrupts pixel local storage
     // when rendering a complex feather. Provide a workaround that allows the
-    // implementation to opt in to always feathering to the atlas instead of
-    // rendering directly to the screen.
+    // implementation to opt in to always feathering to the feather atlas
+    // instead of rendering directly to the screen.
     bool alwaysFeatherToAtlas = false;
     // clipSpaceBottomUp specifies whether the top of the viewport, in clip
     // coordinates, is at Y=+1 (OpenGL, Metal, D3D, WebGPU) or Y=-1 (Vulkan).
@@ -649,7 +649,7 @@ enum class DrawType : uint8_t
     outerCurvePatches,
 
     interiorTriangulation,
-    atlasBlit,
+    featherAtlasBlit,
     imageRect,
     imageMesh,
 
@@ -697,7 +697,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -882,7 +882,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             if (interlockMode != InterlockMode::atomics)
             {
                 mask = ShaderFeatures::ENABLE_CLIPPING |
@@ -1140,7 +1140,7 @@ struct DrawBatch
     // elementCount/baseElement are the "splice axis": the run that grows when
     // adjacent batches combine. For instanced draws (paths, image draws) that
     // is instances; for non-indexed triangle runs (interiorTriangulation,
-    // atlasBlit, clipReset) it is vertices.
+    // featherAtlasBlit, clipReset) it is vertices.
     uint32_t elementCount; // Instance count, or vertex count for triangle runs.
     uint32_t baseElement;  // Base instance, or base vertex for triangle runs.
     // Geometry parameters for indexed-instanced types (paths and image draws).
@@ -1256,14 +1256,14 @@ struct FlushDescriptor
     // the color buffer, regardless of blend mode.
     bool fixedFunctionColorOutput = false;
 
-    // Physical size of the atlas texture.
-    uint16_t atlasTextureWidth;
-    uint16_t atlasTextureHeight;
+    // Physical size of the feather atlas texture.
+    uint16_t featherAtlasTextureWidth;
+    uint16_t featherAtlasTextureHeight;
 
-    // Boundaries of the content for this specific flush within the atlas
-    // texture.
-    uint16_t atlasContentWidth;
-    uint16_t atlasContentHeight;
+    // Boundaries of the content for this specific flush within the feather
+    // atlas texture.
+    uint16_t featherAtlasContentWidth;
+    uint16_t featherAtlasContentHeight;
 
     // Monotonically increasing prefix that gets appended to the most
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
@@ -1315,13 +1315,13 @@ struct FlushDescriptor
 
     // List of feathered fills (if any) that must be rendered to the atlas
     // before the main render pass.
-    const AtlasDrawBatch* atlasFillBatches = nullptr;
-    size_t atlasFillBatchCount = 0;
+    const AtlasDrawBatch* featherAtlasFillBatches = nullptr;
+    size_t featherAtlasFillBatchCount = 0;
 
     // List of feathered strokes (if any) that must be rendered to the atlas
     // before the main render pass.
-    const AtlasDrawBatch* atlasStrokeBatches = nullptr;
-    size_t atlasStrokeBatchCount = 0;
+    const AtlasDrawBatch* featherAtlasStrokeBatches = nullptr;
+    size_t featherAtlasStrokeBatchCount = 0;
 
     // List of draws in the main render pass. These are rendered directly to the
     // renderTarget.
@@ -1403,8 +1403,9 @@ private:
     // drawBounds, or renderTargetBounds if there is a clear. (Used by the
     // "@RESOLVE_PLS" step in InterlockMode::atomics.)
     WRITEONLY IAABB m_renderTargetUpdateBounds;
-    WRITEONLY Vec2D m_atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
-    WRITEONLY Vec2D m_atlasContentInverseViewport; // 2 / atlasContentBounds
+    WRITEONLY Vec2D m_featherAtlasTextureInverseSize; // 1 / [atlasWidth,Height]
+    WRITEONLY Vec2D
+        m_featherAtlasContentInverseViewport; // 2 / atlasContentBounds
     // Monotonically increasing prefix that gets appended to the most
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
     // values. (clockwiseAtomic mode only.)
@@ -1461,7 +1462,7 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(
     RIVE_UNREACHABLE();
 }
 
-// Defines a transform from screen space into a region of the atlas.
+// Defines a transform from screen space into a region of an atlas.
 // The atlas may have a different scale factor than the screen.
 struct AtlasTransform
 {
@@ -1497,7 +1498,7 @@ public:
              float strokeRadius,
              float featherRadius,
              uint32_t zIndex,
-             const AtlasTransform&,
+             const AtlasTransform& featherAtlasTransform,
              const CoverageBufferRange&);
 
 private:
@@ -1508,7 +1509,7 @@ private:
     // InterlockMode::msaa.
     WRITEONLY uint32_t m_zIndex;
     // Only used when rendering coverage via the atlas.
-    WRITEONLY AtlasTransform m_atlasTransform;
+    WRITEONLY AtlasTransform m_featherAtlasTransform;
     // InterlockMode::clockwiseAtomic.
     WRITEONLY CoverageBufferRange m_coverageBufferRange;
 };
@@ -1971,17 +1972,18 @@ constexpr inline PipelineState make_flat_pipeline_state(CullFace cull,
 constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE =
     make_flat_pipeline_state(CullFace::none, BlendEquation::none);
 
-constexpr static PipelineState ATLAS_FILL_PIPELINE_STATE =
+constexpr static PipelineState FEATHER_ATLAS_FILL_PIPELINE_STATE =
     make_flat_pipeline_state(CullFace::none, BlendEquation::plus);
 
-constexpr static PipelineState ATLAS_STROKE_PIPELINE_STATE =
+constexpr static PipelineState FEATHER_ATLAS_STROKE_PIPELINE_STATE =
     make_flat_pipeline_state(CullFace::counterclockwise, BlendEquation::max);
 
 float4 cast_f16_to_f32(uint16x4 x);
 uint16x4 cast_f32_to_f16(float4);
 
 // These tables integrate the gaussian function, and its inverse, covering a
-// spread of -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS.
+// spread of -GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS to
+// +GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS.
 constexpr static uint32_t GAUSSIAN_TABLE_SIZE = 512;
 extern const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];

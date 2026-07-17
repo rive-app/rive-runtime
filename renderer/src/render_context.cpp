@@ -320,13 +320,13 @@ void RenderContext::LogicalFlush::rewind()
     m_currentPathID = 0;
     m_currentContourID = 0;
 
-    if (m_atlasRectanizer != nullptr)
+    if (m_featherAtlasRectanizer != nullptr)
     {
-        m_atlasRectanizer->reset();
+        m_featherAtlasRectanizer->reset();
     }
-    m_atlasMaxX = 0;
-    m_atlasMaxY = 0;
-    m_pendingAtlasDraws.clear();
+    m_featherAtlasMaxX = 0;
+    m_featherAtlasMaxY = 0;
+    m_pendingFeatherAtlasDraws.clear();
 
     m_coverageBufferLength = 0;
 
@@ -359,10 +359,10 @@ void RenderContext::LogicalFlush::resetContainers()
     m_pendingComplexGradDraws.shrink_to_fit();
     m_pendingComplexGradDraws.reserve(kDefaultComplexGradientCapacity);
 
-    m_pendingAtlasDraws.clear();
-    m_pendingAtlasDraws.shrink_to_fit();
-    // Don't reserve any space in m_pendingAtlasDraws since there are many
-    // usecases where it isn't used at all.
+    m_pendingFeatherAtlasDraws.clear();
+    m_pendingFeatherAtlasDraws.shrink_to_fit();
+    // Don't reserve any space in m_pendingFeatherAtlasDraws since there are
+    // many usecases where it isn't used at all.
 }
 
 static gpu::InterlockMode select_interlock_mode(
@@ -550,7 +550,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
             //
             // FIXME: This works today, but the surrounding code could be
             // modified to inadvertently leave a stale dangling reference to one
-            // of these draws in m_pendingAtlasDraws. This needs to be
+            // of these draws in m_pendingFeatherAtlasDraws. This needs to be
             // revisited.
             return false;
         }
@@ -658,42 +658,44 @@ bool RenderContext::LogicalFlush::allocateGradient(
     return true;
 }
 
-bool RenderContext::LogicalFlush::allocateAtlasDraw(PathDraw* pathDraw,
-                                                    uint16_t drawWidth,
-                                                    uint16_t drawHeight,
-                                                    uint16_t desiredPadding,
-                                                    uint16_t* x,
-                                                    uint16_t* y,
-                                                    AABBu16* paddedRegion)
+bool RenderContext::LogicalFlush::allocateFeatherAtlasDraw(
+    PathDraw* pathDraw,
+    uint16_t drawWidth,
+    uint16_t drawHeight,
+    uint16_t desiredPadding,
+    uint16_t* x,
+    uint16_t* y,
+    AABBu16* paddedRegion)
 {
     RIVE_PROF_SCOPE_L(2)
 
-    if (m_atlasRectanizer == nullptr)
+    if (m_featherAtlasRectanizer == nullptr)
     {
-        uint16_t atlasMaxSize = m_ctx->atlasMaxSize();
-        // Use an atlas larger than atlasMaxSize if it's too small for the
-        // request (meaning the render target is larger than atlasMaxSize).
-        m_atlasRectanizer = std::make_unique<rive::RectanizerSkyline>(
+        uint16_t atlasMaxSize = m_ctx->featherAtlasMaxSize();
+        // Use an atlas larger than featherAtlasMaxSize if it's too small for
+        // the request (meaning the render target is larger than
+        // featherAtlasMaxSize).
+        m_featherAtlasRectanizer = std::make_unique<rive::RectanizerSkyline>(
             std::max(atlasMaxSize, drawWidth),
             std::max(atlasMaxSize, drawHeight));
     }
 
-    const uint16_t atlasMaxWidth = m_atlasRectanizer->width();
-    const uint16_t atlasMaxHeight = m_atlasRectanizer->height();
+    const uint16_t atlasMaxWidth = m_featherAtlasRectanizer->width();
+    const uint16_t atlasMaxHeight = m_featherAtlasRectanizer->height();
     uint16_t paddedWidth =
         std::min<uint16_t>(drawWidth + desiredPadding * 2, atlasMaxWidth);
     uint16_t paddedHeight =
         std::min<uint16_t>(drawHeight + desiredPadding * 2, atlasMaxHeight);
     int16_t ix, iy;
-    if (!m_atlasRectanizer->addRect(paddedWidth, paddedHeight, &ix, &iy))
+    if (!m_featherAtlasRectanizer->addRect(paddedWidth, paddedHeight, &ix, &iy))
     {
         // Delete the rectanizer of it wasn't big enough for this path. It will
         // be reallocated to a large enough size on the next call.
         if (drawWidth > atlasMaxWidth || drawHeight > atlasMaxHeight)
         {
-            m_atlasRectanizer = nullptr;
+            m_featherAtlasRectanizer = nullptr;
         }
-        m_atlasRectanizer = nullptr;
+        m_featherAtlasRectanizer = nullptr;
         return false;
     }
 
@@ -711,12 +713,14 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(PathDraw* pathDraw,
     assert(
         (AABBu16{0, 0, atlasMaxWidth, atlasMaxHeight}).contains(*paddedRegion));
 
-    m_atlasMaxX = std::max<uint32_t>(m_atlasMaxX, paddedRegion->right);
-    m_atlasMaxY = std::max<uint32_t>(m_atlasMaxY, paddedRegion->bottom);
-    assert(m_atlasMaxX <= atlasMaxWidth);
-    assert(m_atlasMaxY <= atlasMaxHeight);
+    m_featherAtlasMaxX =
+        std::max<uint32_t>(m_featherAtlasMaxX, paddedRegion->right);
+    m_featherAtlasMaxY =
+        std::max<uint32_t>(m_featherAtlasMaxY, paddedRegion->bottom);
+    assert(m_featherAtlasMaxX <= atlasMaxWidth);
+    assert(m_featherAtlasMaxY <= atlasMaxHeight);
 
-    m_pendingAtlasDraws.push_back(pathDraw);
+    m_pendingFeatherAtlasDraws.push_back(pathDraw);
     return true;
 }
 
@@ -791,8 +795,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         .imageDrawInstanceBufferCount = totalFrameResourceCounts.imageDrawCount,
         .gradTextureHeight = layoutCounts.maxGradTextureHeight,
         .tessTextureHeight = layoutCounts.maxTessTextureHeight,
-        .atlasTextureWidth = layoutCounts.maxAtlasWidth,
-        .atlasTextureHeight = layoutCounts.maxAtlasHeight,
+        .featherAtlasTextureWidth = layoutCounts.maxFeatherAtlasWidth,
+        .featherAtlasTextureHeight = layoutCounts.maxFeatherAtlasHeight,
         .plsTransientBackingWidth =
             (layoutCounts.maxPLSTransientBackingPlaneCount > 0)
                 ? static_cast<size_t>(m_frameDescriptor.renderTargetWidth)
@@ -817,11 +821,13 @@ void RenderContext::flush(const FlushResources& flushResources)
     // Ensure we're within hardware limits.
     assert(resourceRequirements.gradTextureHeight <= kMaxTextureHeight);
     assert(resourceRequirements.tessTextureHeight <= kMaxTextureHeight);
-    assert(resourceRequirements.atlasTextureWidth <= atlasMaxSize() ||
-           resourceRequirements.atlasTextureWidth <=
+    assert(resourceRequirements.featherAtlasTextureWidth <=
+               featherAtlasMaxSize() ||
+           resourceRequirements.featherAtlasTextureWidth <=
                frameDescriptor().renderTargetWidth);
-    assert(resourceRequirements.atlasTextureHeight <= atlasMaxSize() ||
-           resourceRequirements.atlasTextureHeight <=
+    assert(resourceRequirements.featherAtlasTextureHeight <=
+               featherAtlasMaxSize() ||
+           resourceRequirements.featherAtlasTextureHeight <=
                frameDescriptor().renderTargetHeight);
     assert(resourceRequirements.plsTransientBackingWidth <=
            m_frameDescriptor.renderTargetWidth);
@@ -855,8 +861,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         .imageDrawInstanceBufferCount = 5,   // 125%
         .gradTextureHeight = 5,              // 125%
         .tessTextureHeight = 5,              // 125%
-        .atlasTextureWidth = 5,              // 125%
-        .atlasTextureHeight = 5,             // 125%
+        .featherAtlasTextureWidth = 5,       // 125%
+        .featherAtlasTextureHeight = 5,      // 125%
         .plsTransientBackingWidth = 4,       // 100% (i.e., don't overallocate)
         .plsTransientBackingHeight = 4,      // 100% (i.e., don't overallocate)
         .plsTransientBackingPlaneCount = 4,  // 100% (i.e., don't overallocate)
@@ -876,12 +882,12 @@ void RenderContext::flush(const FlushResources& flushResources)
         std::min<size_t>(allocs.gradTextureHeight, kMaxTextureHeight);
     allocs.tessTextureHeight =
         std::min<size_t>(allocs.tessTextureHeight, kMaxTextureHeight);
-    allocs.atlasTextureWidth = std::min<size_t>(
-        allocs.atlasTextureWidth,
-        std::max(atlasMaxSize(), frameDescriptor().renderTargetWidth));
-    allocs.atlasTextureHeight = std::min<size_t>(
-        allocs.atlasTextureHeight,
-        std::max(atlasMaxSize(), frameDescriptor().renderTargetHeight));
+    allocs.featherAtlasTextureWidth = std::min<size_t>(
+        allocs.featherAtlasTextureWidth,
+        std::max(featherAtlasMaxSize(), frameDescriptor().renderTargetWidth));
+    allocs.featherAtlasTextureHeight = std::min<size_t>(
+        allocs.featherAtlasTextureHeight,
+        std::max(featherAtlasMaxSize(), frameDescriptor().renderTargetHeight));
     allocs.coverageBufferLength =
         std::min(allocs.coverageBufferLength,
                  platformFeatures().maxCoverageBufferLength);
@@ -907,8 +913,8 @@ void RenderContext::flush(const FlushResources& flushResources)
             .imageDrawInstanceBufferCount = 2,   // 66.7%
             .gradTextureHeight = 2,              // 66.7%
             .tessTextureHeight = 2,              // 66.7%
-            .atlasTextureWidth = 2,              // 66.7%
-            .atlasTextureHeight = 2,             // 66.7%
+            .featherAtlasTextureWidth = 2,       // 66.7%
+            .featherAtlasTextureHeight = 2,      // 66.7%
             .plsTransientBackingWidth = 3,       // 100% (i.e., always shrink)
             .plsTransientBackingHeight = 3,      // 100% (i.e., always shrink)
             .plsTransientBackingPlaneCount = 3,  // 100% (i.e., always shrink)
@@ -928,10 +934,11 @@ void RenderContext::flush(const FlushResources& flushResources)
         // Ensure we stayed within limits.
         assert(allocs.gradTextureHeight <= kMaxTextureHeight);
         assert(allocs.tessTextureHeight <= kMaxTextureHeight);
-        assert(allocs.atlasTextureWidth <= atlasMaxSize() ||
-               allocs.atlasTextureWidth <= frameDescriptor().renderTargetWidth);
-        assert(allocs.atlasTextureHeight <= atlasMaxSize() ||
-               allocs.atlasTextureHeight <=
+        assert(allocs.featherAtlasTextureWidth <= featherAtlasMaxSize() ||
+               allocs.featherAtlasTextureWidth <=
+                   frameDescriptor().renderTargetWidth);
+        assert(allocs.featherAtlasTextureHeight <= featherAtlasMaxSize() ||
+               allocs.featherAtlasTextureHeight <=
                    frameDescriptor().renderTargetHeight);
         assert(allocs.coverageBufferLength <=
                platformFeatures().maxCoverageBufferLength);
@@ -1290,8 +1297,8 @@ void RenderContext::LogicalFlush::layoutResources(
         m_baselineShaderMiscFlags |=
             gpu::ShaderMiscFlags::fixedFunctionColorOutput;
     }
-    m_flushDesc.atlasContentWidth = m_atlasMaxX;
-    m_flushDesc.atlasContentHeight = m_atlasMaxY;
+    m_flushDesc.featherAtlasContentWidth = m_featherAtlasMaxX;
+    m_flushDesc.featherAtlasContentHeight = m_featherAtlasMaxY;
 
     m_flushDesc.flushUniformDataOffsetInBytes =
         logicalFlushIdx * sizeof(gpu::FlushUniforms);
@@ -1340,10 +1347,12 @@ void RenderContext::LogicalFlush::layoutResources(
     runningFrameLayoutCounts->maxTessTextureHeight =
         std::max(m_flushDesc.tessDataHeight,
                  runningFrameLayoutCounts->maxTessTextureHeight);
-    runningFrameLayoutCounts->maxAtlasWidth =
-        std::max(m_atlasMaxX, runningFrameLayoutCounts->maxAtlasWidth);
-    runningFrameLayoutCounts->maxAtlasHeight =
-        std::max(m_atlasMaxY, runningFrameLayoutCounts->maxAtlasHeight);
+    runningFrameLayoutCounts->maxFeatherAtlasWidth =
+        std::max(m_featherAtlasMaxX,
+                 runningFrameLayoutCounts->maxFeatherAtlasWidth);
+    runningFrameLayoutCounts->maxFeatherAtlasHeight =
+        std::max(m_featherAtlasMaxY,
+                 runningFrameLayoutCounts->maxFeatherAtlasHeight);
     runningFrameLayoutCounts->maxPLSTransientBackingPlaneCount =
         std::max(pls_transient_backing_plane_count(m_flushDesc.interlockMode,
                                                    m_combinedDrawContents),
@@ -1407,10 +1416,12 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Wait until here before we record these texture sizes; they aren't decided
     // until after all LogicalFlushes have run layoutResources().
-    m_flushDesc.atlasTextureWidth = math::lossless_numeric_cast<uint32_t>(
-        m_ctx->m_currentResourceAllocations.atlasTextureWidth);
-    m_flushDesc.atlasTextureHeight = math::lossless_numeric_cast<uint32_t>(
-        m_ctx->m_currentResourceAllocations.atlasTextureHeight);
+    m_flushDesc.featherAtlasTextureWidth =
+        math::lossless_numeric_cast<uint32_t>(
+            m_ctx->m_currentResourceAllocations.featherAtlasTextureWidth);
+    m_flushDesc.featherAtlasTextureHeight =
+        math::lossless_numeric_cast<uint32_t>(
+            m_ctx->m_currentResourceAllocations.featherAtlasTextureHeight);
     m_gradTextureLayout.inverseHeight =
         1.f / m_ctx->m_currentResourceAllocations.gradTextureHeight;
 
@@ -2226,16 +2237,16 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Write out the draws to the feather atlas. Do this after the main draws
     // (even though the atlas ones execute first) so that our path info and Z
-    // index are decided and available to pushAtlasTessellation().
-    if (!m_pendingAtlasDraws.empty())
+    // index are decided and available to pushFeatherAtlasTessellation().
+    if (!m_pendingFeatherAtlasDraws.empty())
     {
         AABBu16 fullAtlasViewport = {0,
                                      0,
-                                     m_flushDesc.atlasContentWidth,
-                                     m_flushDesc.atlasContentHeight};
+                                     m_flushDesc.featherAtlasContentWidth,
+                                     m_flushDesc.featherAtlasContentHeight};
         gpu::AtlasDrawBatch* currentBatch =
             m_ctx->m_perFrameAllocator.makePODArray<gpu::AtlasDrawBatch>(
-                m_pendingAtlasDraws.size());
+                m_pendingFeatherAtlasDraws.size());
         // Iterate the atlas draws 4 times so we can sort by fill / stroke /
         // scissored / not, and batch together the draws that don't have
         // scissor.
@@ -2243,26 +2254,26 @@ void RenderContext::LogicalFlush::writeResources()
         {
             if (stroked)
             {
-                m_flushDesc.atlasStrokeBatches = currentBatch;
+                m_flushDesc.featherAtlasStrokeBatches = currentBatch;
             }
             else
             {
-                m_flushDesc.atlasFillBatches = currentBatch;
+                m_flushDesc.featherAtlasFillBatches = currentBatch;
             }
             for (bool scissored : {false, true})
             {
                 gpu::AtlasDrawBatch* lastBatch = nullptr;
-                for (PathDraw* draw : m_pendingAtlasDraws)
+                for (PathDraw* draw : m_pendingFeatherAtlasDraws)
                 {
                     if (draw->isStroke() != stroked ||
-                        draw->atlasScissorEnabled() != scissored)
+                        draw->featherAtlasScissorEnabled() != scissored)
                     {
                         continue;
                     }
                     uint32_t tessVertexCount, tessBaseVertex;
-                    draw->pushAtlasTessellation(this,
-                                                &tessVertexCount,
-                                                &tessBaseVertex);
+                    draw->pushFeatherAtlasTessellation(this,
+                                                       &tessVertexCount,
+                                                       &tessBaseVertex);
                     if (tessVertexCount == 0)
                     {
                         continue;
@@ -2279,9 +2290,9 @@ void RenderContext::LogicalFlush::writeResources()
                     {
                         lastBatch = currentBatch++;
                         *lastBatch = {
-                            lastBatch->scissor = scissored
-                                                     ? draw->atlasScissor()
-                                                     : fullAtlasViewport,
+                            lastBatch->scissor =
+                                scissored ? draw->featherAtlasScissor()
+                                          : fullAtlasViewport,
                             lastBatch->patchCount = patchCount,
                             lastBatch->basePatch = basePatch,
                         };
@@ -2296,21 +2307,21 @@ void RenderContext::LogicalFlush::writeResources()
             }
             if (stroked)
             {
-                m_flushDesc.atlasStrokeBatchCount =
-                    currentBatch - m_flushDesc.atlasStrokeBatches;
+                m_flushDesc.featherAtlasStrokeBatchCount =
+                    currentBatch - m_flushDesc.featherAtlasStrokeBatches;
             }
             else
             {
-                m_flushDesc.atlasFillBatchCount =
-                    currentBatch - m_flushDesc.atlasFillBatches;
+                m_flushDesc.featherAtlasFillBatchCount =
+                    currentBatch - m_flushDesc.featherAtlasFillBatches;
             }
         }
-        assert(m_flushDesc.atlasFillBatchCount +
-                   m_flushDesc.atlasStrokeBatchCount ==
-               currentBatch - m_flushDesc.atlasFillBatches);
-        assert(m_flushDesc.atlasFillBatchCount +
-                   m_flushDesc.atlasStrokeBatchCount <=
-               m_pendingAtlasDraws.size());
+        assert(m_flushDesc.featherAtlasFillBatchCount +
+                   m_flushDesc.featherAtlasStrokeBatchCount ==
+               currentBatch - m_flushDesc.featherAtlasFillBatches);
+        assert(m_flushDesc.featherAtlasFillBatchCount +
+                   m_flushDesc.featherAtlasStrokeBatchCount <=
+               m_pendingFeatherAtlasDraws.size());
     }
 
     // Pad our buffers to 256-byte alignment.
@@ -2715,23 +2726,27 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
             math::lossless_numeric_cast<uint32_t>(allocs.tessTextureHeight));
     }
 
-    assert(allocs.atlasTextureWidth <= atlasMaxSize() ||
-           allocs.atlasTextureWidth <= frameDescriptor().renderTargetWidth);
-    assert(allocs.atlasTextureHeight <= atlasMaxSize() ||
-           allocs.atlasTextureHeight <= frameDescriptor().renderTargetHeight);
-    LOG_TEXTURE_2D_SIZE("atlasTexture",
-                        atlasTextureWidth,
-                        atlasTextureHeight,
+    assert(allocs.featherAtlasTextureWidth <= featherAtlasMaxSize() ||
+           allocs.featherAtlasTextureWidth <=
+               frameDescriptor().renderTargetWidth);
+    assert(allocs.featherAtlasTextureHeight <= featherAtlasMaxSize() ||
+           allocs.featherAtlasTextureHeight <=
+               frameDescriptor().renderTargetHeight);
+    LOG_TEXTURE_2D_SIZE("featherAtlasTexture",
+                        featherAtlasTextureWidth,
+                        featherAtlasTextureHeight,
                         sizeof(uint16_t));
-    if (allocs.atlasTextureWidth !=
-            m_currentResourceAllocations.atlasTextureWidth ||
-        allocs.atlasTextureHeight !=
-            m_currentResourceAllocations.atlasTextureHeight ||
+    if (allocs.featherAtlasTextureWidth !=
+            m_currentResourceAllocations.featherAtlasTextureWidth ||
+        allocs.featherAtlasTextureHeight !=
+            m_currentResourceAllocations.featherAtlasTextureHeight ||
         forceRealloc)
     {
-        m_impl->resizeAtlasTexture(
-            math::lossless_numeric_cast<uint32_t>(allocs.atlasTextureWidth),
-            math::lossless_numeric_cast<uint32_t>(allocs.atlasTextureHeight));
+        m_impl->resizeFeatherAtlasTexture(
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.featherAtlasTextureWidth),
+            math::lossless_numeric_cast<uint32_t>(
+                allocs.featherAtlasTextureHeight));
     }
 
     assert(allocs.plsTransientBackingPlaneCount <=
@@ -3013,7 +3028,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
                                draw->strokeRadius(),
                                draw->featherRadius(),
                                m_currentZIndex,
-                               draw->atlasTransform(),
+                               draw->featherAtlasTransform(),
                                draw->coverageBufferRange());
     m_ctx->m_paintData.set_back(draw->drawContents(),
                                 draw->paintType(),
@@ -3444,8 +3459,9 @@ gpu::DrawBatch* RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
     return nullptr;
 }
 
-gpu::DrawBatch& RenderContext::LogicalFlush::pushAtlasBlit(PathDraw* draw,
-                                                           uint32_t pathID)
+gpu::DrawBatch& RenderContext::LogicalFlush::pushFeatherAtlasBlit(
+    PathDraw* draw,
+    uint32_t pathID)
 {
     RIVE_PROF_SCOPE_L(2)
     auto baseVertex = math::lossless_numeric_cast<uint32_t>(
@@ -3458,7 +3474,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushAtlasBlit(PathDraw* draw,
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 1, pathID);
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 1, pathID);
     return pushPathDraw(draw,
-                        DrawType::atlasBlit,
+                        DrawType::featherAtlasBlit,
                         m_baselineShaderMiscFlags,
                         6,
                         baseVertex);
@@ -3579,7 +3595,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     auto pathShaderFeatures = gpu::ShaderFeatures::NONE;
     if (draw->featherRadius() != 0 &&
         drawType != gpu::DrawType::interiorTriangulation &&
-        drawType != gpu::DrawType::atlasBlit)
+        drawType != gpu::DrawType::featherAtlasBlit)
     {
         pathShaderFeatures |= ShaderFeatures::ENABLE_FEATHER;
     }
@@ -3671,7 +3687,7 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
             return kOuterCurvePatchIndexCount -
                    kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::clipReset:
@@ -3703,7 +3719,7 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
         case DrawType::msaaOuterCubics:
             return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::clipReset:
@@ -3737,7 +3753,7 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
             break;
         case DrawType::imageMesh:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -3807,7 +3823,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:

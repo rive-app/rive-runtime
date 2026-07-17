@@ -29,9 +29,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #endif
 #else
     VARYING_UNPACK(v_paint, float4);
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_UNPACK(v_atlasCoord, float2);
-#endif // @ATLAS_BLIT
+#endif // @FEATHER_ATLAS_BLIT
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(v_blendMode, half);
 #endif
@@ -45,7 +45,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
                   v_imageOpacity;
 #else
     half coverage =
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
         clamp(
             TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
             make_half(.0),

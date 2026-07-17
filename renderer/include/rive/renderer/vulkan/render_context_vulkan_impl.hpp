@@ -184,7 +184,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeTransientPLSBacking(uint32_t width,
                                    uint32_t height,
                                    uint32_t planeCount) override;
@@ -438,11 +438,11 @@ private:
     rcp<vkutil::Texture2D> m_tesselationSyncIssueWorkaroundTexture;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
 
-    // Renders feathers to the atlas.
-    class AtlasPipeline;
-    std::unique_ptr<AtlasPipeline> m_atlasPipeline;
-    rcp<vkutil::Texture2D> m_atlasTexture;
-    rcp<vkutil::Framebuffer> m_atlasFramebuffer;
+    // Renders feathers to the feather atlas.
+    class FeatherAtlasPipeline;
+    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasPipeline;
+    rcp<vkutil::Texture2D> m_featherAtlasTexture;
+    rcp<vkutil::Framebuffer> m_featherAtlasFramebuffer;
 
     // Pixel local storage backing resources.
     VkImageUsageFlags m_plsTransientUsageFlags;
@@ -461,7 +461,7 @@ private:
     rcp<vkutil::Buffer> m_coverageBuffer;
 
     // Gaussian integral table for feathering.
-    rcp<vkutil::Texture2D> m_featherTexture;
+    rcp<vkutil::Texture2D> m_gaussianIntegralTexture;
 
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;
     rcp<vkutil::Buffer> m_pathPatchIndexBuffer;

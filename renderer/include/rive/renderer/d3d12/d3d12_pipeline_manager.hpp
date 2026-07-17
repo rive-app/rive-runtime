@@ -49,7 +49,7 @@ public:
 
     void compileTesselationPipeline();
     void compileGradientPipeline();
-    void compileAtlasPipeline();
+    void compileFeatherAtlasPipeline();
 
     void setRootSig(ID3D12GraphicsCommandList* cmdList) const
     {
@@ -63,16 +63,16 @@ public:
         cmdList->SetPipelineState(m_tesselationPipeline.Get());
     }
 
-    void setAtlasFillPipeline(ID3D12GraphicsCommandList* cmdList) const
+    void setFeatherAtlasFillPipeline(ID3D12GraphicsCommandList* cmdList) const
     {
-        assert(m_atlasFillPipeline);
-        cmdList->SetPipelineState(m_atlasFillPipeline.Get());
+        assert(m_featherAtlasFillPipeline);
+        cmdList->SetPipelineState(m_featherAtlasFillPipeline.Get());
     }
 
-    void setAtlasStrokePipeline(ID3D12GraphicsCommandList* cmdList) const
+    void setFeatherAtlasStrokePipeline(ID3D12GraphicsCommandList* cmdList) const
     {
-        assert(m_atlasStrokePipeline);
-        cmdList->SetPipelineState(m_atlasStrokePipeline.Get());
+        assert(m_featherAtlasStrokePipeline);
+        cmdList->SetPipelineState(m_featherAtlasStrokePipeline.Get());
     }
 
     void setGradientPipeline(ID3D12GraphicsCommandList* cmdList) const
@@ -97,8 +97,8 @@ private:
     // maybe these could be moved to D3DPipelineState but to do so
     // required a lot of extra complexity that didnt seem worth it
     ComPtr<ID3D12PipelineState> m_tesselationPipeline;
-    ComPtr<ID3D12PipelineState> m_atlasStrokePipeline;
-    ComPtr<ID3D12PipelineState> m_atlasFillPipeline;
+    ComPtr<ID3D12PipelineState> m_featherAtlasStrokePipeline;
+    ComPtr<ID3D12PipelineState> m_featherAtlasFillPipeline;
     ComPtr<ID3D12PipelineState> m_gradientPipeline;
 
     ComPtr<ID3D12RootSignature> m_rootSignature;

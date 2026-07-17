@@ -3,7 +3,7 @@
 #extension GL_EXT_samplerless_texture_functions : require
 #define ENABLE_INSTANCE_INDEX
 #define OPTIONALLY_FLAT flat
-#define ATLAS_BLIT
+#define FEATHER_ATLAS_BLIT
 #define RENDER_MODE_CLOCKWISE_ATOMIC
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"

@@ -53,7 +53,7 @@ static VkFilter vk_filter(rive::ImageFilter option)
 PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
                                              ShaderCompilationMode mode,
                                              VkImageView nullTextureView) :
-    Super(mode), m_vk(std::move(vk)), m_atlasFormat(VK_FORMAT_R16_SFLOAT)
+    Super(mode), m_vk(std::move(vk)), m_featherAtlasFormat(VK_FORMAT_R16_SFLOAT)
 {
     // Create the immutable samplers.
     VkSamplerCreateInfo linearSamplerCreateInfo = {
@@ -151,7 +151,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
             .pImmutableSamplers = &m_linearSampler,
         },
         {
-            .binding = FEATHER_TEXTURE_IDX,
+            .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags =
@@ -159,7 +159,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
             .pImmutableSamplers = &m_linearSampler,
         },
         {
-            .binding = ATLAS_TEXTURE_IDX,
+            .binding = FEATHER_ATLAS_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,

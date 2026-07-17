@@ -51,16 +51,16 @@
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 #define FEATHER(X)                                                             \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
-                                featherSampler,                                \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@gaussianIntegralTexture,                      \
+                                gaussianIntegralSampler,                       \
                                 X,                                             \
                                 FEATHER_FUNCTION_ARRAY_INDEX,                  \
                                 float(FEATHER_FUNCTION_ARRAY_INDEX),           \
                                 .0)                                            \
         .r
 #define INVERSE_FEATHER(X)                                                     \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
-                                featherSampler,                                \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@gaussianIntegralTexture,                      \
+                                gaussianIntegralSampler,                       \
                                 X,                                             \
                                 FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
                                 float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \

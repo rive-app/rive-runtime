@@ -31,8 +31,8 @@ TEXTURE_TESSDATA4(PER_FLUSH_BINDINGS_SET,
                   @tessVertexTexture);
 #ifdef @ENABLE_FEATHER
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
-                      FEATHER_TEXTURE_IDX,
-                      @featherTexture);
+                      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+                      @gaussianIntegralTexture);
 #endif
 VERTEX_TEXTURE_BLOCK_END
 
@@ -44,20 +44,20 @@ STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
 #endif // @VERTEX
 
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_BLIT)
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#if defined(@ENABLE_FEATHER) || defined(@FEATHER_ATLAS_BLIT)
+SAMPLER_LINEAR(GAUSSIAN_INTEGRAL_TEXTURE_IDX, gaussianIntegralSampler)
 #endif
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_BLIT)
+#if defined(@ENABLE_FEATHER) || defined(@FEATHER_ATLAS_BLIT)
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
-                      FEATHER_TEXTURE_IDX,
-                      @featherTexture);
+                      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+                      @gaussianIntegralTexture);
 #endif
-#ifdef @ATLAS_BLIT
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#ifdef @FEATHER_ATLAS_BLIT
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_ATLAS_TEXTURE_IDX, @atlasTexture);
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 // The Qualcomm compiler can't handle line breaks in #ifs.
@@ -70,9 +70,9 @@ FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
-// definition of featherSampler in this case.
-#ifdef @ATLAS_BLIT
-SAMPLER_LINEAR(ATLAS_TEXTURE_IDX, atlasSampler)
+// definition of gaussianIntegralSampler in this case.
+#ifdef @FEATHER_ATLAS_BLIT
+SAMPLER_LINEAR(FEATHER_ATLAS_TEXTURE_IDX, atlasSampler)
 #endif
 DYNAMIC_SAMPLER_BLOCK_BEGIN
 SAMPLER_DYNAMIC_IMAGE(imageSampler)
@@ -183,7 +183,7 @@ INLINE half eval_feathered_fill(float4 coverages TEXTURE_CONTEXT_DECL)
     // NOTE: The derivative FEATHER'(t) is the normal distribution with:
     //
     //   mu = 1/2
-    //   sigma = 1 / (2 * FEATHER_TEXTURE_STDDEVS)
+    //   sigma = 1 / (2 * GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS)
     //
     // We can evaluate this directly without a lookup table.
     //
@@ -478,9 +478,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Never use a feather harder than 1.5 standard deviations across a
         // radius of 1/2px. This is the point where feathering just looks like
         // antialiasing, and any harder looks aliased.
-        featherRadius =
-            max(featherRadius,
-                (FEATHER_TEXTURE_STDDEVS / 3.) / length(MUL(M, norm)));
+        featherRadius = max(featherRadius,
+                            (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 3.) /
+                                length(MUL(M, norm)));
     }
 
     if (strokeRadius != .0) // Is this a stroke?
@@ -724,7 +724,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                 float inverseFeather =
                     INVERSE_FEATHER(featherAtNStddevOutset);
                 float stddevsAwayFromCenter =
-                    (.5 - inverseFeather) * (FEATHER_TEXTURE_STDDEVS * 2.);
+                    (.5 - inverseFeather) * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS * 2.);
                 float contraction = N / max(stddevsAwayFromCenter, N);
                 outset *= contraction;
 #endif
@@ -807,7 +807,7 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
     outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
 #endif
     float2 vertexPos = triangleVertex.xy;
-    // ATLAS_BLIT draws vertices in screen space.
+    // FEATHER_ATLAS_BLIT draws vertices in screen space.
     float2x2 M = make_float2x2(
         uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
@@ -817,7 +817,7 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
 }
 #endif // @VERTEX && @DRAW_INTERIOR_TRIANGLES
 
-#if defined(@VERTEX) && defined(@ATLAS_BLIT)
+#if defined(@VERTEX) && defined(@FEATHER_ATLAS_BLIT)
 INLINE float2
 unpack_atlas_coverage_vertex(float3 triangleVertex,
                              OUT(uint) outPathID,
@@ -839,7 +839,7 @@ unpack_atlas_coverage_vertex(float3 triangleVertex,
                     uniforms.atlasTextureInverseSize;
     return vertexPos;
 }
-#endif // @VERTEX && @ATLAS_BLIT
+#endif // @VERTEX && @FEATHER_ATLAS_BLIT
 
 // Calculates a coverage value to multiply into the paintColor that will
 // convert the current framebuffer value from "paint blended on top with

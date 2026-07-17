@@ -89,7 +89,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
             });
             break;
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             result->m_layoutDesc.push_back({
                 GLSL_a_triangleVertex,
                 0,
@@ -218,7 +218,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
             break;
         case DrawType::imageRect:
@@ -421,7 +421,7 @@ void D3D12PipelineManager::compileGradientPipeline()
         IID_PPV_ARGS(&m_gradientPipeline)));
 }
 
-void D3D12PipelineManager::compileAtlasPipeline()
+void D3D12PipelineManager::compileFeatherAtlasPipeline()
 {
 
     D3D12_INPUT_ELEMENT_DESC layoutDesc[2];
@@ -481,7 +481,7 @@ void D3D12PipelineManager::compileAtlasPipeline()
 
     VERIFY_OK(device()->CreateGraphicsPipelineState(
         &psoDesc,
-        IID_PPV_ARGS(&m_atlasStrokePipeline)));
+        IID_PPV_ARGS(&m_featherAtlasStrokePipeline)));
 
     psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
     psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
@@ -492,6 +492,6 @@ void D3D12PipelineManager::compileAtlasPipeline()
 
     VERIFY_OK(device()->CreateGraphicsPipelineState(
         &psoDesc,
-        IID_PPV_ARGS(&m_atlasFillPipeline)));
+        IID_PPV_ARGS(&m_featherAtlasFillPipeline)));
 }
 } // namespace rive::gpu

@@ -203,7 +203,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
 
     // Obtains an exclusive lock on the next buffer ring index, potentially
     // blocking until the GPU has finished rendering with it. This ensures it is
@@ -247,7 +247,7 @@ private:
     id<MTLTexture> m_gradientTexture = nullptr;
 
     // Gaussian integral table for feathering.
-    id<MTLTexture> m_featherTexture = nullptr;
+    id<MTLTexture> m_gaussianIntegralTexture = nullptr;
 
     // Renders tessellated vertices to the tessellation texture.
     class TessellatePipeline;
@@ -256,10 +256,10 @@ private:
     id<MTLTexture> m_tessVertexTexture = nullptr;
 
     // Atlas rendering.
-    class AtlasPipeline;
-    std::unique_ptr<AtlasPipeline> m_atlasFillPipeline;
-    std::unique_ptr<AtlasPipeline> m_atlasStrokePipeline;
-    id<MTLTexture> m_atlasTexture = nullptr;
+    class FeatherAtlasPipeline;
+    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasFillPipeline;
+    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasStrokePipeline;
+    id<MTLTexture> m_featherAtlasTexture = nullptr;
 
     id<MTLSamplerState> m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 

@@ -22,7 +22,7 @@ using namespace rive;
 using namespace rivegm;
 
 // Validate all our atlas fallbacks by rendering feathered strokes and fills
-// with every AtlasRenderType.
+// with every FeatherAtlasRenderType.
 DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
 {
     gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
@@ -56,8 +56,8 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
     starStroke->thickness(.05f);
 
 #ifndef RIVE_TOOLS_NO_GL
-    auto originalAtlasRenderType =
-        gpu::RenderContextGLImpl::AtlasRenderType::r16f;
+    auto originalFeatherAtlasRenderType =
+        gpu::RenderContextGLImpl::FeatherAtlasRenderType::r16f;
 #endif
 
     for (int i = 0; i < 6; ++i)
@@ -69,29 +69,29 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
                     TestingWindow::Get()->renderContextGLImpl())
             {
                 TestingWindow::Get()->flushPLSContext();
-                auto atlasDesiredRenderType =
-                    static_cast<gpu::RenderContextGLImpl::AtlasRenderType>(i);
-                if (atlasDesiredRenderType >=
+                auto desiredRenderType = static_cast<
+                    gpu::RenderContextGLImpl::FeatherAtlasRenderType>(i);
+                if (desiredRenderType >=
 #ifndef RIVE_ANDROID
-                    gpu::RenderContextGLImpl::AtlasRenderType::
+                    gpu::RenderContextGLImpl::FeatherAtlasRenderType::
                         r8PixelLocalStorageEXT
 #else
-                    gpu::RenderContextGLImpl::AtlasRenderType::
+                    gpu::RenderContextGLImpl::FeatherAtlasRenderType::
                         r32uiPixelLocalStorageANGLE
 #endif
                 )
                 {
-                    atlasDesiredRenderType =
-                        static_cast<gpu::RenderContextGLImpl::AtlasRenderType>(
-                            i + 1);
+                    desiredRenderType = static_cast<
+                        gpu::RenderContextGLImpl::FeatherAtlasRenderType>(i +
+                                                                          1);
                 }
                 auto lastAtlasRenderType =
-                    glImpl->testingOnly_resetAtlasDesiredRenderType(
+                    glImpl->testingOnly_resetFeatherAtlasDesiredRenderType(
                         renderContext,
-                        atlasDesiredRenderType);
+                        desiredRenderType);
                 if (i == 0)
                 {
-                    originalAtlasRenderType = lastAtlasRenderType;
+                    originalFeatherAtlasRenderType = lastAtlasRenderType;
                 }
                 renderContext->beginFrame(frameDescriptor);
             }
@@ -133,15 +133,15 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
 
     if (renderContext != nullptr)
     {
-        // Restore the most ideal AtlasRenderType for future tests.
+        // Restore the most ideal FeatherAtlasRenderType for future tests.
 #ifndef RIVE_TOOLS_NO_GL
         if (gpu::RenderContextGLImpl* glImpl =
                 TestingWindow::Get()->renderContextGLImpl())
         {
             TestingWindow::Get()->flushPLSContext();
-            glImpl->testingOnly_resetAtlasDesiredRenderType(
+            glImpl->testingOnly_resetFeatherAtlasDesiredRenderType(
                 renderContext,
-                originalAtlasRenderType);
+                originalFeatherAtlasRenderType);
             renderContext->beginFrame(frameDescriptor);
         }
 #endif

@@ -56,16 +56,19 @@ public:
 #ifdef TESTING
     bool hasClipRect() const
     {
-        return m_stack.back().clipRectInverseMatrix != nullptr;
+        return m_renderStateStack.back().clipRectInverseMatrix != nullptr;
     }
-    const AABB& getClipRect() const { return m_stack.back().clipRect; }
+    const AABB& getClipRect() const
+    {
+        return m_renderStateStack.back().clipRect;
+    }
     const Mat2D& getClipRectMatrix() const
     {
-        return m_stack.back().clipRectMatrix;
+        return m_renderStateStack.back().clipRectMatrix;
     }
     float currentModulatedOpacity() const
     {
-        return m_stack.back().modulatedOpacity;
+        return m_renderStateStack.back().modulatedOpacity;
     }
 #endif
 
@@ -104,7 +107,7 @@ private:
         // which defaults to a maximally-large rectangle
         IAABB overallClipPixelBounds = IAABB::makeMaximal();
     };
-    std::vector<RenderState> m_stack{1};
+    std::vector<RenderState> m_renderStateStack{1};
 
     struct ClipElement
     {

@@ -552,7 +552,7 @@ public:
                         },
                 },
             {
-                .binding = FEATHER_TEXTURE_IDX,
+                .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
                 .visibility =
                     wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .texture =
@@ -571,7 +571,7 @@ public:
                     },
             },
             {
-                .binding = ATLAS_TEXTURE_IDX,
+                .binding = FEATHER_ATLAS_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .texture =
                     {
@@ -708,13 +708,13 @@ public:
                 .sampler = {.type = wgpu::SamplerBindingType::Filtering},
             },
             {
-                .binding = FEATHER_TEXTURE_IDX,
+                .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
                 .visibility =
                     wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .sampler = {.type = wgpu::SamplerBindingType::Filtering},
             },
             {
-                .binding = ATLAS_TEXTURE_IDX,
+                .binding = FEATHER_ATLAS_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .sampler = {.type = wgpu::SamplerBindingType::Filtering},
             },
@@ -1060,17 +1060,17 @@ private:
 };
 
 // Renders tessellated vertices to the tessellation texture.
-class RenderContextWebGPUImpl::AtlasPipeline
+class RenderContextWebGPUImpl::FeatherAtlasPipeline
 {
 public:
-    AtlasPipeline(RenderContextWebGPUImpl* impl)
+    FeatherAtlasPipeline(RenderContextWebGPUImpl* impl)
     {
         const wgpu::Device device = impl->device();
         const auto& drawPipelineLayout =
             impl->drawPipelineLayout(gpu::InterlockMode::rasterOrdering);
 
         wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
-            .entryCount = ATLAS_BINDINGS_COUNT,
+            .entryCount = FEATHER_ATLAS_BINDINGS_COUNT,
             .entries = drawPipelineLayout.perFlushBindingLayoutEntries(),
         };
 
@@ -1341,8 +1341,8 @@ public:
                     case DrawType::interiorTriangulation:
                         addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
                         break;
-                    case DrawType::atlasBlit:
-                        addDefine(GLSL_ATLAS_BLIT);
+                    case DrawType::featherAtlasBlit:
+                        addDefine(GLSL_FEATHER_ATLAS_BLIT);
                         break;
                     case DrawType::imageRect:
                         addDefine(GLSL_DRAW_IMAGE);
@@ -1429,7 +1429,7 @@ public:
                                  << '\n';
                         }
                         break;
-                    case DrawType::atlasBlit:
+                    case DrawType::featherAtlasBlit:
                         glsl << gpu::glsl::draw_path_common << '\n';
                         glsl << gpu::glsl::draw_path_vert << '\n';
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
@@ -1502,7 +1502,7 @@ public:
                                       atomic_draw_interior_triangles_webgpu_frag;
                         break;
 
-                    case DrawType::atlasBlit:
+                    case DrawType::featherAtlasBlit:
                         vertexShader =
                             &wgsl::atomic_draw_atlas_blit_webgpu_vert;
                         fragmentShader =
@@ -1630,7 +1630,7 @@ public:
                         RIVE_UNREACHABLE();
                         break;
 
-                    case DrawType::atlasBlit:
+                    case DrawType::featherAtlasBlit:
                         if (context->m_capabilities
                                 .polyfillVertexStorageBuffers)
                         {
@@ -1939,11 +1939,11 @@ void RenderContextWebGPUImpl::initGPUObjects()
             .sampler = m_linearSampler,
         },
         {
-            .binding = FEATHER_TEXTURE_IDX,
+            .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
             .sampler = m_linearSampler,
         },
         {
-            .binding = ATLAS_TEXTURE_IDX,
+            .binding = FEATHER_ATLAS_TEXTURE_IDX,
             .sampler = m_linearSampler,
         },
     };
@@ -2043,16 +2043,18 @@ void RenderContextWebGPUImpl::initGPUObjects()
            sizeof(gpu::kImageRectIndices));
     m_imageRectIndexBuffer.Unmap();
 
-    wgpu::TextureDescriptor featherTextureDesc = {
+    wgpu::TextureDescriptor gaussianIntegralTextureDesc = {
         .usage =
             wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
         .dimension = wgpu::TextureDimension::e2D,
-        .size = {gpu::GAUSSIAN_TABLE_SIZE, FEATHER_TEXTURE_1D_ARRAY_LENGTH},
+        .size = {gpu::GAUSSIAN_TABLE_SIZE,
+                 GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH},
         .format = wgpu::TextureFormat::R16Float,
     };
 
-    m_featherTexture = m_device.CreateTexture(&featherTextureDesc);
-    wgpu::TexelCopyTextureInfo dest = {.texture = m_featherTexture};
+    m_gaussianIntegralTexture =
+        m_device.CreateTexture(&gaussianIntegralTextureDesc);
+    wgpu::TexelCopyTextureInfo dest = {.texture = m_gaussianIntegralTexture};
     wgpu::TexelCopyBufferLayout layout = {
         .bytesPerRow = sizeof(gpu::g_gaussianIntegralTableF16),
     };
@@ -2071,7 +2073,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
                          sizeof(gpu::g_inverseGaussianIntegralTableF16),
                          &layout,
                          &extent);
-    m_featherTextureView = m_featherTexture.CreateView();
+    m_gaussianIntegralTextureView = m_gaussianIntegralTexture.CreateView();
 
     wgpu::TextureDescriptor nullTextureDesc = {
         .usage = wgpu::TextureUsage::TextureBinding,
@@ -2085,7 +2087,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
 
     m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
     m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
-    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
+    m_featherAtlasPipeline = std::make_unique<FeatherAtlasPipeline>(this);
 }
 
 RenderContextWebGPUImpl::~RenderContextWebGPUImpl() {}
@@ -2893,8 +2895,8 @@ void RenderContextWebGPUImpl::resizeTessellationTexture(uint32_t width,
     m_tessVertexTextureView = m_tessVertexTexture.CreateView();
 }
 
-void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
-                                                 uint32_t height)
+void RenderContextWebGPUImpl::resizeFeatherAtlasTexture(uint32_t width,
+                                                        uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
@@ -2906,8 +2908,8 @@ void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
         .format = wgpu::TextureFormat::R16Float,
     };
 
-    m_atlasTexture = m_device.CreateTexture(&desc);
-    m_atlasTextureView = m_atlasTexture.CreateView();
+    m_featherAtlasTexture = m_device.CreateTexture(&desc);
+    m_featherAtlasTextureView = m_featherAtlasTexture.CreateView();
 }
 
 void RenderContextWebGPUImpl::resizeAtomicCoverageBacking(uint32_t width,
@@ -3046,7 +3048,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         }
         case DrawType::clipReset:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         {
             attrs.push_back({
                 .format = WGPUVertexFormat_Float32x3,
@@ -4031,16 +4033,16 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .offset = desc.firstContour * sizeof(gpu::ContourData),
             },
         {
-            .binding = FEATHER_TEXTURE_IDX,
-            .textureView = m_featherTextureView,
+            .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+            .textureView = m_gaussianIntegralTextureView,
         },
         {
             .binding = TESS_VERTEX_TEXTURE_IDX,
             .textureView = m_tessVertexTextureView,
         },
         {
-            .binding = ATLAS_TEXTURE_IDX,
-            .textureView = m_atlasTextureView,
+            .binding = FEATHER_ATLAS_TEXTURE_IDX,
+            .textureView = m_featherAtlasTextureView,
         },
         {
             .binding = GRAD_TEXTURE_IDX,
@@ -4147,16 +4149,17 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
     // Render the atlas if we have any offscreen feathers.
-    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+        0)
     {
         wgpu::BindGroupDescriptor atlasBindGroupDesc = {
-            .layout = m_atlasPipeline->perFlushBindingsLayout(),
-            .entryCount = ATLAS_BINDINGS_COUNT,
+            .layout = m_featherAtlasPipeline->perFlushBindingsLayout(),
+            .entryCount = FEATHER_ATLAS_BINDINGS_COUNT,
             .entries = perFlushBindingEntries,
         };
 
         wgpu::RenderPassColorAttachment attachment{
-            .view = m_atlasTextureView,
+            .view = m_featherAtlasTextureView,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = {0, 0, 0, 0},
@@ -4171,8 +4174,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             commandEncoder.BeginRenderPass(&atlasPassDesc);
         atlasPass.SetViewport(0.f,
                               0.f,
-                              desc.atlasContentWidth,
-                              desc.atlasContentHeight,
+                              desc.featherAtlasContentWidth,
+                              desc.featherAtlasContentHeight,
                               0.0,
                               1.0);
         atlasPass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
@@ -4182,12 +4185,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                m_device.CreateBindGroup(&atlasBindGroupDesc));
         atlasPass.SetBindGroup(WEBGPU_SAMPLER_BINDINGS_SET, m_samplerBindings);
 
-        if (desc.atlasFillBatchCount != 0)
+        if (desc.featherAtlasFillBatchCount != 0)
         {
-            atlasPass.SetPipeline(m_atlasPipeline->fillPipeline());
-            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            atlasPass.SetPipeline(m_featherAtlasPipeline->fillPipeline());
+            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
             {
-                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                const gpu::AtlasDrawBatch& fillBatch =
+                    desc.featherAtlasFillBatches[i];
                 atlasPass.SetScissorRect(fillBatch.scissor.left,
                                          fillBatch.scissor.top,
                                          fillBatch.scissor.width(),
@@ -4200,13 +4204,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (desc.atlasStrokeBatchCount != 0)
+        if (desc.featherAtlasStrokeBatchCount != 0)
         {
-            atlasPass.SetPipeline(m_atlasPipeline->strokePipeline());
-            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            atlasPass.SetPipeline(m_featherAtlasPipeline->strokePipeline());
+            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.atlasStrokeBatches[i];
+                    desc.featherAtlasStrokeBatches[i];
                 atlasPass.SetScissorRect(strokeBatch.scissor.left,
                                          strokeBatch.scissor.top,
                                          strokeBatch.scissor.width(),
@@ -4577,7 +4581,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
             case DrawType::clipReset:
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             {
                 drawEncoder.SetVertexBuffer(
                     0,

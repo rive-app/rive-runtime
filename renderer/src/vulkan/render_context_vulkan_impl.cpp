@@ -803,16 +803,17 @@ private:
 };
 
 // Renders feathers to the atlas.
-class RenderContextVulkanImpl::AtlasPipeline : public ResourceTexturePipeline
+class RenderContextVulkanImpl::FeatherAtlasPipeline
+    : public ResourceTexturePipeline
 {
 public:
-    AtlasPipeline(PipelineManagerVulkan* pipelineManager,
-                  const DriverWorkarounds& workarounds) :
+    FeatherAtlasPipeline(PipelineManagerVulkan* pipelineManager,
+                         const DriverWorkarounds& workarounds) :
         ResourceTexturePipeline(ref_rcp(pipelineManager->vulkanContext()),
-                                pipelineManager->atlasFormat(),
+                                pipelineManager->featherAtlasFormat(),
                                 VK_ATTACHMENT_LOAD_OP_CLEAR,
                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                "Atlas",
+                                "Feather Atlas",
                                 workarounds)
     {
         VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
@@ -922,7 +923,7 @@ public:
                                                &m_fillPipeline));
         m_vk->setDebugNameIfEnabled(uint64_t(m_fillPipeline),
                                     VK_OBJECT_TYPE_PIPELINE,
-                                    "Atlas Fill Pipeline");
+                                    "Feather Atlas Fill Pipeline");
 
         stages[1].module = fragmentStrokeShader;
         blendState.colorBlendOp = VK_BLEND_OP_MAX;
@@ -934,14 +935,14 @@ public:
                                                &m_strokePipeline));
         m_vk->setDebugNameIfEnabled(uint64_t(m_strokePipeline),
                                     VK_OBJECT_TYPE_PIPELINE,
-                                    "Atlas Stroke Pipeline");
+                                    "Feather Atlas Stroke Pipeline");
 
         m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
         m_vk->DestroyShaderModule(m_vk->device, fragmentFillShader, nullptr);
         m_vk->DestroyShaderModule(m_vk->device, fragmentStrokeShader, nullptr);
     }
 
-    ~AtlasPipeline() override
+    ~FeatherAtlasPipeline() override
     {
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_fillPipeline, nullptr);
@@ -1141,8 +1142,9 @@ void RenderContextVulkanImpl::initGPUObjects(
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get(),
                                              m_workarounds);
-    m_atlasPipeline =
-        std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
+    m_featherAtlasPipeline =
+        std::make_unique<FeatherAtlasPipeline>(m_pipelineManager.get(),
+                                               m_workarounds);
 
     // Determine usage flags for transient PLS backing textures.
     m_plsTransientUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
@@ -1161,30 +1163,32 @@ void RenderContextVulkanImpl::initGPUObjects(
         m_plsTransientUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
     }
 
-    // Emulate the feather texture1d array as a 2d texture until we add
-    // texture1d support in Vulkan.
-    uint16_t featherTextureData[gpu::GAUSSIAN_TABLE_SIZE *
-                                FEATHER_TEXTURE_1D_ARRAY_LENGTH];
-    memcpy(featherTextureData,
+    // Emulate the gaussian integral texture1d array as a 2d texture until we
+    // add texture1d support in Vulkan.
+    uint16_t
+        gaussianIntegralTextureData[gpu::GAUSSIAN_TABLE_SIZE *
+                                    GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH];
+    memcpy(gaussianIntegralTextureData,
            gpu::g_gaussianIntegralTableF16,
            sizeof(gpu::g_gaussianIntegralTableF16));
-    memcpy(featherTextureData + gpu::GAUSSIAN_TABLE_SIZE,
+    memcpy(gaussianIntegralTextureData + gpu::GAUSSIAN_TABLE_SIZE,
            gpu::g_inverseGaussianIntegralTableF16,
            sizeof(gpu::g_inverseGaussianIntegralTableF16));
     static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
     static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
-    m_featherTexture = m_vk->makeTexture2D(
+    m_gaussianIntegralTexture = m_vk->makeTexture2D(
         {
             .format = VK_FORMAT_R16_SFLOAT,
             .extent =
                 {
                     .width = gpu::GAUSSIAN_TABLE_SIZE,
-                    .height = FEATHER_TEXTURE_1D_ARRAY_LENGTH,
+                    .height = GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH,
                 },
         },
-        "feather texture");
-    m_featherTexture->scheduleUpload(featherTextureData,
-                                     sizeof(featherTextureData));
+        "gaussian integral texture");
+    m_gaussianIntegralTexture->scheduleUpload(
+        gaussianIntegralTextureData,
+        sizeof(gaussianIntegralTextureData));
 
     m_tessSpanIndexBuffer = m_vk->makeBuffer(
         {
@@ -1320,25 +1324,25 @@ void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
     });
 }
 
-void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
-                                                 uint32_t height)
+void RenderContextVulkanImpl::resizeFeatherAtlasTexture(uint32_t width,
+                                                        uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
 
-    m_atlasTexture = m_vk->makeTexture2D(
+    m_featherAtlasTexture = m_vk->makeTexture2D(
         {
-            .format = m_pipelineManager->atlasFormat(),
+            .format = m_pipelineManager->featherAtlasFormat(),
             .extent = {width, height},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_SAMPLED_BIT,
         },
-        "atlas texture");
+        "feather atlas texture");
 
-    m_atlasFramebuffer = m_vk->makeFramebuffer({
-        .renderPass = m_atlasPipeline->renderPass(),
+    m_featherAtlasFramebuffer = m_vk->makeFramebuffer({
+        .renderPass = m_featherAtlasPipeline->renderPass(),
         .attachmentCount = 1,
-        .pAttachments = m_atlasTexture->vkImageViewAddressOf(),
+        .pAttachments = m_featherAtlasTexture->vkImageViewAddressOf(),
         .width = width,
         .height = height,
         .layers = 1,
@@ -1684,13 +1688,14 @@ void RenderContextVulkanImpl::setCanvasQueue(VkQueue queue,
     // textures eagerly in a one-shot command buffer in order to avoid
     // submission-order hazards.
     if (m_canvasQueue != VK_NULL_HANDLE &&
-        (m_featherTexture->lastAccess().layout == VK_IMAGE_LAYOUT_UNDEFINED ||
+        (m_gaussianIntegralTexture->lastAccess().layout ==
+             VK_IMAGE_LAYOUT_UNDEFINED ||
          m_nullImageTexture->lastAccess().layout == VK_IMAGE_LAYOUT_UNDEFINED))
     {
         if (void* cb = makeCommandBuffer())
         {
             auto commandBuffer = reinterpret_cast<VkCommandBuffer>(cb);
-            m_featherTexture->prepareForVertexOrFragmentShaderRead(
+            m_gaussianIntegralTexture->prepareForVertexOrFragmentShaderRead(
                 commandBuffer);
             m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);
             commitCommandBuffer(cb);
@@ -1799,7 +1804,7 @@ constexpr static uint32_t kMaxUniformUpdates = 3;
 constexpr static uint32_t kMaxDynamicUniformUpdates = 1;
 constexpr static uint32_t kMaxImageTextureUpdates = 256;
 constexpr static uint32_t kMaxCombinedImageSamplerUpdates =
-    3 + kMaxImageTextureUpdates; // grad + feather + atlas + images
+    3 + kMaxImageTextureUpdates; // grad + feather + feather atlas + images
 constexpr static uint32_t kMaxSampledImageUpdates = 1; // tess
 constexpr static uint32_t kMaxStorageImageUpdates =
     4; // color/coverage/clip/scratch in clockwise mode.
@@ -2238,7 +2243,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     assert(commandBuffer != VK_NULL_HANDLE);
 
-    m_featherTexture->prepareForVertexOrFragmentShaderRead(commandBuffer);
+    m_gaussianIntegralTexture->prepareForVertexOrFragmentShaderRead(
+        commandBuffer);
     m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);
 
     uint32_t pendingTessPatchCount = 0;
@@ -2268,7 +2274,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 break;
             case DrawType::clipReset:
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             case DrawType::imageRect:
             case DrawType::imageMesh:
             case DrawType::renderPassInitialize:
@@ -2405,28 +2411,28 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     m_vk->updateImageDescriptorSets(
         descriptorSetAllocator.perFlushDescriptorSet(),
         {
-            .dstBinding = FEATHER_TEXTURE_IDX,
+            .dstBinding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
-            .imageView = m_featherTexture->vkImageView(),
+            .imageView = m_gaussianIntegralTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
     m_vk->updateImageDescriptorSets(
         descriptorSetAllocator.perFlushDescriptorSet(),
         {
-            .dstBinding = ATLAS_TEXTURE_IDX,
+            .dstBinding = FEATHER_ATLAS_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
             // When there are no offscreen feathers in this flush, the atlas is
             // never rendered and may still be in VK_IMAGE_LAYOUT_UNDEFINED.
             // Bind the null texture as a layout satisfier.
-            .imageView =
-                (desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0
-                    ? m_atlasTexture->vkImageView()
-                    : m_nullImageTexture->vkImageView(),
+            .imageView = (desc.featherAtlasFillBatchCount |
+                          desc.featherAtlasStrokeBatchCount) != 0
+                             ? m_featherAtlasTexture->vkImageView()
+                             : m_nullImageTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
@@ -2648,19 +2654,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         });
 
-    // Render the atlas if we have any offscreen feathers.
-    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    // Render the feather atlas if we have any offscreen feathers.
+    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+        0)
     {
         VkRect2D renderArea = {
-            .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
+            .extent = {desc.featherAtlasContentWidth,
+                       desc.featherAtlasContentHeight},
         };
 
         // Begin the render pass before binding buffers or updating descriptor
         // sets. It's valid Vulkan to do these tasks in any order, but Adreno
         // 730, 740, and 840 appreciate it when we begin the render pass first.
-        m_atlasPipeline->beginRenderPass(commandBuffer,
-                                         renderArea,
-                                         *m_atlasFramebuffer);
+        m_featherAtlasPipeline->beginRenderPass(commandBuffer,
+                                                renderArea,
+                                                *m_featherAtlasFramebuffer);
 
         m_vk->CmdSetViewport(commandBuffer,
                              0,
@@ -2679,21 +2687,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_vk->CmdBindDescriptorSets(
             commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            m_atlasPipeline->pipelineLayout(),
+            m_featherAtlasPipeline->pipelineLayout(),
             PER_FLUSH_BINDINGS_SET,
             1,
             &descriptorSetAllocator.perFlushDescriptorSet(),
             0,
             nullptr);
 
-        if (desc.atlasFillBatchCount != 0)
+        if (desc.featherAtlasFillBatchCount != 0)
         {
             m_vk->CmdBindPipeline(commandBuffer,
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  m_atlasPipeline->fillPipeline());
-            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+                                  m_featherAtlasPipeline->fillPipeline());
+            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
             {
-                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                const gpu::AtlasDrawBatch& fillBatch =
+                    desc.featherAtlasFillBatches[i];
                 VkRect2D scissor = {
                     .offset = {fillBatch.scissor.left, fillBatch.scissor.top},
                     .extent = {fillBatch.scissor.width(),
@@ -2706,10 +2715,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                      m_workarounds.maxInstancesPerRenderPass))
 
                 {
-                    m_atlasPipeline->interruptRenderPassIfNeeded(
+                    m_featherAtlasPipeline->interruptRenderPassIfNeeded(
                         commandBuffer,
                         renderArea,
-                        *m_atlasFramebuffer,
+                        *m_featherAtlasFramebuffer,
                         chunkPatchCount,
                         m_workarounds);
                     m_vk->CmdDrawIndexed(
@@ -2723,15 +2732,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (desc.atlasStrokeBatchCount != 0)
+        if (desc.featherAtlasStrokeBatchCount != 0)
         {
             m_vk->CmdBindPipeline(commandBuffer,
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  m_atlasPipeline->strokePipeline());
-            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+                                  m_featherAtlasPipeline->strokePipeline());
+            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.atlasStrokeBatches[i];
+                    desc.featherAtlasStrokeBatches[i];
                 VkRect2D scissor = {
                     .offset = {strokeBatch.scissor.left,
                                strokeBatch.scissor.top},
@@ -2745,10 +2754,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                      m_workarounds.maxInstancesPerRenderPass))
 
                 {
-                    m_atlasPipeline->interruptRenderPassIfNeeded(
+                    m_featherAtlasPipeline->interruptRenderPassIfNeeded(
                         commandBuffer,
                         renderArea,
-                        *m_atlasFramebuffer,
+                        *m_featherAtlasFramebuffer,
                         chunkPatchCount,
                         m_workarounds);
                     m_vk->CmdDrawIndexed(commandBuffer,
@@ -2765,7 +2774,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         // The render pass transitioned the atlas texture to
         // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
-        m_atlasTexture->lastAccess().layout =
+        m_featherAtlasTexture->lastAccess().layout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
@@ -3664,7 +3673,7 @@ void RenderContextVulkanImpl::submitDrawList(
 
             case DrawType::clipReset:
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             {
                 VkBuffer buffer = *m_triangleBuffer;
                 m_vk->CmdBindVertexBuffers(commandBuffer,
@@ -3810,8 +3819,9 @@ void RenderContextVulkanImpl::hotloadShaders(
     m_tessellatePipeline =
         std::make_unique<TessellatePipeline>(m_pipelineManager.get(),
                                              m_workarounds);
-    m_atlasPipeline =
-        std::make_unique<AtlasPipeline>(m_pipelineManager.get(), m_workarounds);
+    m_featherAtlasPipeline =
+        std::make_unique<FeatherAtlasPipeline>(m_pipelineManager.get(),
+                                               m_workarounds);
 }
 
 void RenderContextVulkanImpl::startAsyncPipelineCreation(

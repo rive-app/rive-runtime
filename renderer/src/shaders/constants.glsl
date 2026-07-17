@@ -9,15 +9,16 @@
 #define GRAD_TEXTURE_INVERSE_WIDTH float(0.001953125)
 
 // Number of standard deviations on either side of the middle of the feather
-// texture. The feather texture integrates the normal distribution from
-// -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS in the domain x=0..1.
-#define FEATHER_TEXTURE_STDDEVS float(3)
+// texture. The gaussian integral texture integrates the normal distribution
+// from -GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS to +GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS
+// in the domain x=0..1.
+#define GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS float(3)
 
-// Indices of function tables in the feather texture1d array.
+// Indices of function tables in the gaussian integral texture1d array.
 // NOTE: This will be a texture2d if texture1d isn't supported.
 #define FEATHER_FUNCTION_ARRAY_INDEX 0
 #define FEATHER_INVERSE_FUNCTION_ARRAY_INDEX 1
-#define FEATHER_TEXTURE_1D_ARRAY_LENGTH 2
+#define GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH 2
 
 // Number of additional tessellation "helper" vertices that need to be allocated
 // for a feather join.
@@ -145,8 +146,8 @@
 #define COVERAGE_BUFFER_IDX 6
 #define TESS_VERTEX_TEXTURE_IDX 7
 #define GRAD_TEXTURE_IDX 8
-#define FEATHER_TEXTURE_IDX 9
-#define ATLAS_TEXTURE_IDX 10
+#define GAUSSIAN_INTEGRAL_TEXTURE_IDX 9
+#define FEATHER_ATLAS_TEXTURE_IDX 10
 #define IMAGE_TEXTURE_IDX 11
 #define DST_COLOR_TEXTURE_IDX 12
 #define DEFAULT_BINDINGS_SET_SIZE 13

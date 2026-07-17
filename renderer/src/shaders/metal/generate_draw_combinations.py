@@ -20,7 +20,7 @@ ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 5)
 ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 6)
 ENABLE_DITHER = Feature('ENABLE_DITHER', 7)
 DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 8)
-ATLAS_BLIT = Feature('ATLAS_BLIT', 9)
+FEATHER_ATLAS_BLIT = Feature('FEATHER_ATLAS_BLIT', 9)
 
 whole_program_features = {ENABLE_CLIPPING,
                           ENABLE_CLIP_RECT,
@@ -58,7 +58,7 @@ non_image_mesh_features = {ENABLE_FEATHER,
                            ENABLE_EVEN_ODD,
                            ENABLE_NESTED_CLIPPING,
                            DRAW_INTERIOR_TRIANGLES,
-                           ATLAS_BLIT}
+                           FEATHER_ATLAS_BLIT}
 
 # Returns whether the given feature set is compatible with an image mesh shader.
 def is_image_mesh_feature_set(feature_set):
@@ -91,7 +91,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
                    ''.join(namespace_id)))
         out.write('{\n')
         out.write('#include "draw_path.minified.vert"\n')
-        if ATLAS_BLIT in feature_set:
+        if FEATHER_ATLAS_BLIT in feature_set:
             out.write('#include "draw_mesh.minified.frag"\n')
         else:
             out.write('#include "draw_raster_order_path.minified.frag"\n')
@@ -141,11 +141,11 @@ emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE,
 # Atlas blit shaders.
 emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
             whole_program_features\
-                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_BLIT})\
+                    .union({DRAW_INTERIOR_TRIANGLES, FEATHER_ATLAS_BLIT})\
                     .difference(non_atlas_coverage_features))
 emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY,
             all_features\
-                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_BLIT})\
+                    .union({DRAW_INTERIOR_TRIANGLES, FEATHER_ATLAS_BLIT})\
                     .difference(non_atlas_coverage_features))
 
 # Image mesh shaders.

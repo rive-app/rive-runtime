@@ -245,10 +245,10 @@
 #define TEXTURE_SAMPLE_DYNAMIC_LODBIAS(TEXTURE, SAMPLER_NAME, COORD, LODBIAS)  \
     TEXTURE_SAMPLE_LODBIAS(TEXTURE, SAMPLER_NAME, COORD, LODBIAS)
 
-// Polyfill the feather texture as a sampler2D since ES doesn't support
-// sampler1DArray. This is why the macro needs "ARRAY_INDEX_NORMALIZED": when
-// polyfilled as a 2D texture, the "array index" needs to be a 0..1 normalized
-// y coordinate instead of the literal array index.
+// Polyfill the gaussian integral texture as a sampler2D since ES doesn't
+// support sampler1DArray. This is why the macro needs "ARRAY_INDEX_NORMALIZED":
+// when polyfilled as a 2D texture, the "array index" needs to be a 0..1
+// normalized y coordinate instead of the literal array index.
 #define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) TEXTURE_R16F(SET, IDX, NAME)
 // clang-format off
 // Clang formatting on this line trips up the Qualcomm compiler.

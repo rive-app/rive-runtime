@@ -32,7 +32,7 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
-#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
 ATTR(0, packed_float3, @a_triangleVertex);
 #else
 ATTR(0,
@@ -46,7 +46,7 @@ ATTR_BLOCK_END
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_paint);
 
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
 NO_PERSPECTIVE VARYING(1, float2, v_atlasCoord);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -58,7 +58,7 @@ NO_PERSPECTIVE VARYING(2, COVERAGE_TYPE, v_coverages);
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
 @OPTIONALLY_FLAT VARYING(4, half, v_clipID); // [clipID, outerClipID]
 #else
 @OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
@@ -81,7 +81,7 @@ VARYING_BLOCK_END
 #ifdef @VERTEX
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
-#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
+#if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 #else
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
@@ -90,7 +90,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     VARYING_INIT(v_paint, float4);
 
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_INIT(v_atlasCoord, float2);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -102,7 +102,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_INIT(v_clipID, half);
 #else
     VARYING_INIT(v_clipIDs, half2);
@@ -126,7 +126,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ushort pathZIndex;
 #endif
 
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     vertexPosition =
         unpack_atlas_coverage_vertex(@a_triangleVertex,
                                      pathID,
@@ -172,7 +172,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
 
-#if !defined(@ATLAS_BLIT) && !defined(@RENDER_MODE_MSAA)
+#if !defined(@FEATHER_ATLAS_BLIT) && !defined(@RENDER_MODE_MSAA)
     // Encode the integral pathID as a "half" that we know the hardware will see
     // as a unique value in the fragment shader.
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
@@ -180,7 +180,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Indicate even-odd fill rule by making pathID negative.
     if ((paintData.x & PAINT_FLAG_EVEN_ODD_FILL) != 0u)
         v_pathID = -v_pathID;
-#endif // !@ATLAS_BLIT && !@RENDER_MODE_MSAA
+#endif // !@FEATHER_ATLAS_BLIT && !@RENDER_MODE_MSAA
 
     uint paintType = paintData.x & 0xfu;
 #ifdef @ENABLE_CLIPPING
@@ -194,7 +194,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // buffer.
         if (paintType == CLIP_UPDATE_PAINT_TYPE)
             clipID = -clipID;
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
         v_clipID = clipID;
 #else
         v_clipIDs.x = clipID;
@@ -253,7 +253,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         }
         v_paint = float4(color);
     }
-#if defined(@ENABLE_CLIPPING) && !defined(@ATLAS_BLIT)
+#if defined(@ENABLE_CLIPPING) && !defined(@FEATHER_ATLAS_BLIT)
     else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
     {
         half outerClipID =
@@ -346,7 +346,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_PACK(v_atlasCoord);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -358,7 +358,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-#ifdef @ATLAS_BLIT
+#ifdef @FEATHER_ATLAS_BLIT
     VARYING_PACK(v_clipID);
 #else
     VARYING_PACK(v_clipIDs);
@@ -446,7 +446,7 @@ INLINE half4 find_paint_color(float4 paint,
     return color;
 }
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES) && !defined(@ATLAS_BLIT)
+#if !defined(@DRAW_INTERIOR_TRIANGLES) && !defined(@FEATHER_ATLAS_BLIT)
 
 // Add functions here for fragments to unpack and evaluate coverage since we're
 // the ones who packed the coverage components in the vertex shader.
@@ -495,6 +495,6 @@ INLINE half apply_frag_coverage(half initialCoverage,
     }
 }
 
-#endif // !@DRAW_INTERIOR_TRIANGLES && !@ATLAS_BLIT
+#endif // !@DRAW_INTERIOR_TRIANGLES && !@FEATHER_ATLAS_BLIT
 
 #endif // @FRAGMENT

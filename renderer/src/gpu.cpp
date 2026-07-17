@@ -30,7 +30,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::midpointFanCenterAAPatches,
                 DrawType::outerCurvePatches,
                 DrawType::interiorTriangulation,
-                DrawType::atlasBlit,
+                DrawType::featherAtlasBlit,
                 DrawType::imageMesh,
                 DrawType::renderPassResolve,
             };
@@ -44,7 +44,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::midpointFanCenterAAPatches,
                 DrawType::outerCurvePatches,
                 DrawType::interiorTriangulation,
-                DrawType::atlasBlit,
+                DrawType::featherAtlasBlit,
                 DrawType::imageMesh,
             };
             return make_span(types);
@@ -56,7 +56,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::midpointFanCenterAAPatches,
                 DrawType::outerCurvePatches,
                 DrawType::interiorTriangulation,
-                DrawType::atlasBlit,
+                DrawType::featherAtlasBlit,
                 DrawType::imageRect,
                 DrawType::imageMesh,
                 DrawType::renderPassInitialize,
@@ -71,7 +71,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::midpointFanCenterAAPatches,
                 DrawType::outerCurvePatches,
                 DrawType::interiorTriangulation,
-                DrawType::atlasBlit,
+                DrawType::featherAtlasBlit,
                 DrawType::imageMesh,
                 DrawType::clipReset,
                 DrawType::renderPassInitialize,
@@ -81,7 +81,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
         case InterlockMode::msaa:
         {
             static constexpr DrawType types[] = {
-                DrawType::atlasBlit,
+                DrawType::featherAtlasBlit,
                 DrawType::imageMesh,
                 DrawType::msaaStrokes,
                 DrawType::msaaMidpointFanBorrowedCoverage,
@@ -153,7 +153,7 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
             }
             break;
 
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::msaaStrokes:
@@ -339,7 +339,7 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::interiorTriangulation:
             drawTypeKey = 1;
             break;
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             drawTypeKey = 2;
             break;
         case DrawType::imageRect:
@@ -772,14 +772,15 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_colorClearValue(SwizzleRiveColorToRGBAPremul(flushDesc.colorClearValue)),
     m_coverageClearValue(flushDesc.coverageClearValue),
     m_renderTargetUpdateBounds(flushDesc.renderTargetUpdateBounds),
-    m_atlasTextureInverseSize(1.f / flushDesc.atlasTextureWidth,
-                              1.f / flushDesc.atlasTextureHeight),
-    m_atlasContentInverseViewport(2.f / flushDesc.atlasContentWidth,
-                                  (platformFeatures.clipSpaceBottomUp !=
-                                           platformFeatures.framebufferBottomUp
-                                       ? -2.f
-                                       : 2.f) /
-                                      flushDesc.atlasContentHeight),
+    m_featherAtlasTextureInverseSize(1.f / flushDesc.featherAtlasTextureWidth,
+                                     1.f / flushDesc.featherAtlasTextureHeight),
+    m_featherAtlasContentInverseViewport(
+        2.f / flushDesc.featherAtlasContentWidth,
+        (platformFeatures.clipSpaceBottomUp !=
+                 platformFeatures.framebufferBottomUp
+             ? -2.f
+             : 2.f) /
+            flushDesc.featherAtlasContentHeight),
     m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
     m_epsilonForPseudoMemoryBarrier(1e-9f),
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
@@ -827,16 +828,16 @@ void PathData::set(const Mat2D& m,
                    float strokeRadius,
                    float featherRadius,
                    uint32_t zIndex,
-                   const AtlasTransform& atlasTransform,
+                   const AtlasTransform& featherAtlasTransform,
                    const CoverageBufferRange& coverageBufferRange)
 {
     write_matrix(m_matrix, m);
     m_strokeRadius = strokeRadius; // 0 if the path is filled.
     m_zIndex = zIndex;
     m_featherRadius = featherRadius;
-    m_atlasTransform.scaleFactor = atlasTransform.scaleFactor;
-    m_atlasTransform.translateX = atlasTransform.translateX;
-    m_atlasTransform.translateY = atlasTransform.translateY;
+    m_featherAtlasTransform.scaleFactor = featherAtlasTransform.scaleFactor;
+    m_featherAtlasTransform.translateX = featherAtlasTransform.translateX;
+    m_featherAtlasTransform.translateY = featherAtlasTransform.translateY;
     m_coverageBufferRange.offset = coverageBufferRange.offset;
     m_coverageBufferRange.pitch = coverageBufferRange.pitch;
     m_coverageBufferRange.offsetX = coverageBufferRange.offsetX;
@@ -1145,7 +1146,7 @@ DepthState get_depth_state(InterlockMode interlockMode,
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::outerCurvePatches:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -1205,7 +1206,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
             if (enums::is_flag_set(drawContents, DrawContents::activeClip))
@@ -1504,7 +1505,7 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFans:
         case DrawType::clipReset:
@@ -1643,7 +1644,7 @@ bool get_color_write_enable(DrawType drawType,
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::renderPassInitialize:
@@ -1789,7 +1790,7 @@ PipelineState get_pipeline_state(DrawType drawType,
     // Ensure drawType is compatible with the interlock mode.
     switch (drawType)
     {
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         case DrawType::imageMesh:
             break;
 
@@ -1906,7 +1907,7 @@ static float eval_normal_distribution(float x, float mu, float inverseSigma)
 
 void generate_gausian_integral_table(float (&table)[GAUSSIAN_TABLE_SIZE])
 {
-    float sigma = GAUSSIAN_TABLE_SIZE / (FEATHER_TEXTURE_STDDEVS * 2);
+    float sigma = GAUSSIAN_TABLE_SIZE / (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS * 2);
     float inverseSigma = 1 / sigma;
     float mu = GAUSSIAN_TABLE_SIZE * .5f;
     float integral = 0;
@@ -2044,13 +2045,14 @@ void generate_inverse_gausian_integral_table(
 {
     // Evaluate 32 samples for every table value, for better precision.
     size_t MULTIPLIER = 32;
-    float sigma = GAUSSIAN_TABLE_SIZE / (FEATHER_TEXTURE_STDDEVS * 2);
+    float sigma = GAUSSIAN_TABLE_SIZE / (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS * 2);
     float inverseSigma = 1 / sigma;
     float mu = GAUSSIAN_TABLE_SIZE * .5f;
     size_t samples = GAUSSIAN_TABLE_SIZE * MULTIPLIER;
 
     // Integrate half the curve in order to determine the initial value of our
-    // integral (the table doesn't begin until -FEATHER_TEXTURE_STDDEVS).
+    // integral (the table doesn't begin until
+    // -GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS).
     float integral = 0;
     for (size_t i = 0; i < (samples + 1) / 2; ++i)
     {

@@ -34,7 +34,7 @@ public:
         return m_vk->physicalDeviceProperties().vendorID;
     }
 
-    VkFormat atlasFormat() const { return m_atlasFormat; }
+    VkFormat featherAtlasFormat() const { return m_featherAtlasFormat; }
 
     VulkanContext* vulkanContext() const { return m_vk.get(); }
     VkDescriptorSetLayout perFlushDescriptorSetLayout() const
@@ -124,7 +124,7 @@ private:
         m_renderPasses;
 
     rcp<VulkanContext> m_vk;
-    VkFormat m_atlasFormat;
+    VkFormat m_featherAtlasFormat;
 
     // Samplers.
     VkSampler m_linearSampler;
