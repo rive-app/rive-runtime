@@ -1129,7 +1129,8 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    if ((flags & AdvanceFlags::NewFrame) != AdvanceFlags::NewFrame)
+    if ((flags & AdvanceFlags::NewFrame) != AdvanceFlags::NewFrame ||
+        isCollapsed())
     {
         return false;
     }

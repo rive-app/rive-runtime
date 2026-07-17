@@ -380,7 +380,7 @@ bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
-    if (!m_isAdvanceActive)
+    if (!m_isAdvanceActive || isCollapsed())
     {
         return false;
     }

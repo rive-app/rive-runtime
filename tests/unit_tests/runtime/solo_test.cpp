@@ -7,6 +7,7 @@
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include "rive_file_reader.hpp"
+#include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
@@ -355,4 +356,56 @@ TEST_CASE("Data bound solos with enums work in both directions", "[silver]")
     CHECK(enuToSourceProp->propertyValue() == 5);
 
     CHECK(silver.matches("databind_solo_to_enum"));
+}
+
+TEST_CASE("Do not advance collapsed scripts", "[silver]")
+{
+    auto file = ReadRiveFile("assets/script_advance_test.riv");
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    auto soloIndexProp =
+        vmi->propertyValue("soloIndex")->as<rive::ViewModelInstanceNumber>();
+    auto advanceCountProp =
+        vmi->propertyValue("advanceCount")->as<rive::ViewModelInstanceNumber>();
+
+    REQUIRE(soloIndexProp->propertyValue() == 0);
+    REQUIRE(advanceCountProp->propertyValue() == 0);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 1);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 2);
+
+    // Toggles to another script
+    soloIndexProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 3);
+
+    // Toggles to a nested artboard with a script
+    soloIndexProp->propertyValue(2);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 4);
+
+    // Toggling to an index where no script advances
+    soloIndexProp->propertyValue(3);
+    stateMachine->advanceAndApply(0.016f);
+    // Value updates once more because advance is always off-by-one frame to
+    // the update cycle
+    REQUIRE(advanceCountProp->propertyValue() == 5);
+
+    stateMachine->advanceAndApply(0.016f);
+    // Now script does not advance anymore
+    REQUIRE(advanceCountProp->propertyValue() == 5);
+
+    soloIndexProp->propertyValue(0);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 5);
+
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 6);
 }

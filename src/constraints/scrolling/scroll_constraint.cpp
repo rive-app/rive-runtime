@@ -299,7 +299,8 @@ void ScrollConstraint::runPhysics()
 bool ScrollConstraint::advanceComponent(float elapsedSeconds,
                                         AdvanceFlags flags)
 {
-    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested)
+    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested ||
+        isCollapsed())
     {
         // offsetX(0);
         // offsetY(0);

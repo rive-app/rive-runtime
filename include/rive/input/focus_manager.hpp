@@ -88,6 +88,12 @@ public:
     // Remove child from its current parent (clears focus if needed)
     void removeChild(rcp<FocusNode> child);
 
+    // Detach child from its current parent WITHOUT clearing focus. Use this
+    // when reordering an existing node (e.g. rebuilding the hierarchy) so the
+    // primary focus and its blur/focus notifications are preserved. For genuine
+    // removal use removeChild instead.
+    void detachChild(rcp<FocusNode> child);
+
     const std::vector<rcp<FocusNode>>& rootNodes() const { return m_rootNodes; }
 
     // === Traversal ===

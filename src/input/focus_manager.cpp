@@ -236,11 +236,32 @@ void FocusManager::removeChild(rcp<FocusNode> child)
         clearFocus();
     }
 
+    detachChild(std::move(child));
+}
+
+void FocusManager::detachChild(rcp<FocusNode> child)
+{
+    if (!child)
+    {
+        return;
+    }
+
     // Removing a node takes its whole subtree out of the manager, so clear
     // m_manager on every descendant too: a descendant held elsewhere (e.g. a
     // persistent NestedArtboard scope) must not retain a pointer to a manager
     // it no longer belongs to.
     removeManager(child);
+
+    // NOTE: unlike removeChild, this intentionally does NOT clear focus. The
+    // node stays alive (held by m_primaryFocus and the caller) and its
+    // hasFocus flag survives, so reordering an existing node preserves focus
+    // and fires no blur/focus callbacks. A genuinely re-parented focused node
+    // keeps its hasFocus flag but its new ancestors won't carry it; that only
+    // affects notifyFocusChange's blur-walk on a later focus change, not input
+    // bubbling (which walks parent() directly).
+
+    // Clear the manager reference
+    child->m_manager = nullptr;
 
     if (child->parent())
     {
