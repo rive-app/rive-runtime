@@ -2078,7 +2078,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     if (drawType == gpu::DrawType::featherAtlasBlit)
     {
         glutils::Uniform1iByName(m_id,
-                                 GLSL_atlasTexture,
+                                 GLSL_featherAtlasTexture,
                                  FEATHER_ATLAS_TEXTURE_IDX);
     }
     if (isImageDraw ||

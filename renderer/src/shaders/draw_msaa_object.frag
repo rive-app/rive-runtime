@@ -46,10 +46,13 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
     half coverage =
 #ifdef @FEATHER_ATLAS_BLIT
-        clamp(
-            TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
-            make_half(.0),
-            make_half(1.));
+        clamp(TEXTURE_SAMPLE_LOD(@featherAtlasTexture,
+                                 featherAtlasSampler,
+                                 v_atlasCoord,
+                                 .0)
+                  .r,
+              make_half(.0),
+              make_half(1.));
 #else
         1.;
 #endif

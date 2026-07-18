@@ -57,7 +57,9 @@ TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       @gaussianIntegralTexture);
 #endif
 #ifdef @FEATHER_ATLAS_BLIT
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_ATLAS_TEXTURE_IDX, @atlasTexture);
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET,
+             FEATHER_ATLAS_TEXTURE_IDX,
+             @featherAtlasTexture);
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 // The Qualcomm compiler can't handle line breaks in #ifs.
@@ -72,7 +74,7 @@ SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
 // definition of gaussianIntegralSampler in this case.
 #ifdef @FEATHER_ATLAS_BLIT
-SAMPLER_LINEAR(FEATHER_ATLAS_TEXTURE_IDX, atlasSampler)
+SAMPLER_LINEAR(FEATHER_ATLAS_TEXTURE_IDX, featherAtlasSampler)
 #endif
 DYNAMIC_SAMPLER_BLOCK_BEGIN
 SAMPLER_DYNAMIC_IMAGE(imageSampler)

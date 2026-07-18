@@ -843,10 +843,13 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 
     half coverage;
 #ifdef @FEATHER_ATLAS_BLIT
-    coverage = clamp(
-        TEXTURE_SAMPLE_LOD(@atlasTexture, atlasSampler, v_atlasCoord, .0).r,
-        make_half(.0),
-        make_half(1.));
+    coverage = clamp(TEXTURE_SAMPLE_LOD(@featherAtlasTexture,
+                                        featherAtlasSampler,
+                                        v_atlasCoord,
+                                        .0)
+                         .r,
+                     make_half(.0),
+                     make_half(1.));
 #else
     coverage = v_windingWeight;
 #endif
