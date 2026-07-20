@@ -452,18 +452,9 @@ static int lua_requireinternal(lua_State* L, const char* requirerChunkname)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
 
-    // Scoped so the string is destroyed before luaL_error longjmps.
+    if (checkRegisteredModules(L, path) == 1)
     {
-        std::string cacheKey = path;
-        if (context != nullptr && requirerChunkname != nullptr)
-        {
-            cacheKey = context->resolveRequire(requirerChunkname, path);
-        }
-
-        if (checkRegisteredModules(L, cacheKey.c_str()) == 1)
-        {
-            return 1;
-        }
+        return 1;
     }
 
     // Record missing dependency if we're registering a module
@@ -755,101 +746,10 @@ static void dump_stack(lua_State* state)
 
 void ScriptingVM::dumpStack(lua_State* state) { dump_stack(state); }
 
-std::string ScriptingContext::scopedKey(const std::string& name, ScopeKey scope)
-{
-    if (scope.isRoot())
-    {
-        return name;
-    }
-    // 0x1F cannot occur in a module path, so no escaping needed.
-    return name + '\x1f' + std::to_string(scope.libraryId) + ':' +
-           std::to_string(scope.libraryVersionId);
-}
-
-std::string ScriptingContext::readableChunkname(const std::string& name,
-                                                ScopeKey scope)
-{
-    if (scope.isRoot())
-    {
-        return name;
-    }
-    // Colon free, tooling parses trace locations as chunkname:line.
-    return std::to_string(scope.libraryId) + '-' +
-           std::to_string(scope.libraryVersionId) + '/' + name;
-}
-
-ScopeKey ScriptingContext::scopeOf(const std::string& chunkname)
-{
-    auto it = m_moduleByChunkname.find(chunkname);
-    if (it != m_moduleByChunkname.end())
-    {
-        return it->second->scope();
-    }
-    auto seeded = m_chunknameScopes.find(chunkname);
-    return seeded != m_chunknameScopes.end() ? seeded->second : ScopeKey{};
-}
-
-void ScriptingContext::setChunknameScope(const std::string& chunkname,
-                                         ScopeKey scope)
-{
-    m_chunknameScopes[chunkname] = scope;
-}
-
-ScopeKey ScriptingContext::resolveImport(ScopeKey caller,
-                                         const std::string& request,
-                                         std::string& outPath)
-{
-    static const std::string kLibraryPrefix = "lib:";
-    if (request.compare(0, kLibraryPrefix.size(), kLibraryPrefix) == 0)
-    {
-        std::string rest = request.substr(kLibraryPrefix.size());
-        size_t slash = rest.find('/');
-        std::string libraryName =
-            slash == std::string::npos ? rest : rest.substr(0, slash);
-        outPath =
-            slash == std::string::npos ? std::string() : rest.substr(slash + 1);
-        auto callerIt = m_pins.find(caller);
-        if (callerIt != m_pins.end())
-        {
-            auto pinIt = callerIt->second.find(libraryName);
-            if (pinIt != callerIt->second.end())
-            {
-                return pinIt->second;
-            }
-        }
-        // Sentinel scope so an unpinned library errors instead of rebinding
-        // to a same named module in the caller's scope.
-        return ScopeKey{~uint64_t(0), ~uint64_t(0)};
-    }
-    outPath = request;
-    return caller;
-}
-
-std::string ScriptingContext::resolveRequire(
-    const std::string& requirerChunkname,
-    const std::string& request)
-{
-    ScopeKey caller = scopeOf(requirerChunkname);
-    std::string path;
-    ScopeKey target = resolveImport(caller, request, path);
-    return scopedKey(path, target);
-}
-
-void ScriptingContext::addImport(ScopeKey caller,
-                                 const std::string& libraryName,
-                                 ScopeKey target)
-{
-    m_pins[caller][libraryName] = target;
-}
-
 void ScriptingContext::addModule(ModuleDetails* moduleDetails)
 {
     m_modulesToRegister.push_back(moduleDetails);
-    ScopeKey scope = moduleDetails->scope();
-    m_moduleLookup[scopedKey(moduleDetails->moduleName(), scope)] =
-        moduleDetails;
-    m_moduleByChunkname[readableChunkname(moduleDetails->moduleName(), scope)] =
-        moduleDetails;
+    m_moduleLookup[moduleDetails->moduleName()] = moduleDetails;
 }
 
 bool ScriptingContext::tryRegisterModule(lua_State* state,
@@ -862,18 +762,14 @@ bool ScriptingContext::tryRegisterModule(lua_State* state,
         return false;
     }
 #endif
-    ScopeKey scope = moduleDetails->scope();
-    std::string cacheKey = scopedKey(moduleDetails->moduleName(), scope);
-    std::string chunkname =
-        readableChunkname(moduleDetails->moduleName(), scope);
+    std::string name = moduleDetails->moduleName();
     bool registerSuccess = false;
     int functionRef = 0;
     if (moduleDetails->isProtocolScript())
     {
         if (ScriptingVM::registerScript(state,
-                                        cacheKey.c_str(),
-                                        moduleDetails->moduleBytecode(),
-                                        chunkname.c_str()))
+                                        name.c_str(),
+                                        moduleDetails->moduleBytecode()))
         {
             // registerScript leaves the function on the stack
             if (static_cast<lua_Type>(lua_type(state, -1)) == LUA_TFUNCTION)
@@ -887,9 +783,8 @@ bool ScriptingContext::tryRegisterModule(lua_State* state,
     else
     {
         if (ScriptingVM::registerModule(state,
-                                        cacheKey.c_str(),
-                                        moduleDetails->moduleBytecode(),
-                                        chunkname.c_str()))
+                                        name.c_str(),
+                                        moduleDetails->moduleBytecode()))
         {
             registerSuccess = true;
         }
@@ -915,8 +810,7 @@ void ScriptingContext::performRegistration(lua_State* state)
         {
             continue;
         }
-        std::string cacheKey =
-            scopedKey(moduleDetails->moduleName(), moduleDetails->scope());
+        std::string cacheKey = moduleDetails->moduleName();
 
         // Skip if already registered
         if (checkRegisteredModules(state, cacheKey.c_str()) == 1)
@@ -1009,24 +903,18 @@ void ScriptingContext::recordMissingDependency(
     {
         return;
     }
-    auto it = m_moduleByChunkname.find(requiringModule);
-    if (it == m_moduleByChunkname.end())
+    auto it = m_moduleLookup.find(requiringModule);
+    if (it == m_moduleLookup.end())
     {
         return;
     }
-    ModuleDetails* moduleDetails = it->second;
-    // The topological sort looks up m_moduleLookup by scoped key.
-    std::string path;
-    ScopeKey target =
-        resolveImport(moduleDetails->scope(), missingModule, path);
-    moduleDetails->addMissingDependency(scopedKey(path, target));
-    m_pendingModules.insert(moduleDetails);
+    it->second->addMissingDependency(missingModule);
+    m_pendingModules.insert(it->second);
 }
 
 void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
 {
-    std::string key =
-        scopedKey(moduleDetails->moduleName(), moduleDetails->scope());
+    std::string key = moduleDetails->moduleName();
     for (ModuleDetails* module : m_modulesToRegister)
     {
         if (!module->missingDependencies().empty())
@@ -1041,6 +929,132 @@ void ScriptingContext::onModuleRegistered(ModuleDetails* moduleDetails)
     }
 }
 
+ScriptingContext::ScopedAssetReference::ScopedAssetReference(
+    lua_State* L,
+    const char* reference)
+{
+    std::string request(reference);
+    static const std::string kLibraryPrefix = "lib:";
+    if (request.compare(0, kLibraryPrefix.size(), kLibraryPrefix) == 0)
+    {
+        size_t slash = request.find('/', kLibraryPrefix.size());
+        if (slash != std::string::npos)
+        {
+            m_label = request.substr(kLibraryPrefix.size(),
+                                     slash - kLibraryPrefix.size());
+            m_path = request.substr(slash + 1);
+            return;
+        }
+    }
+    m_bare = std::move(request);
+    if (L == nullptr)
+    {
+        return;
+    }
+    // Mangled chunknames self-describe; the calling chunk's first segment
+    // carries its scope. Skip C frames like lua_require does.
+    lua_Debug ar;
+    int level = 1;
+    do
+    {
+        if (!lua_getinfo(L, level++, "s", &ar))
+        {
+            return;
+        }
+    } while (ar.what[0] == 'C');
+    if (ar.source == nullptr)
+    {
+        return;
+    }
+    std::string chunkname(ar.source);
+    size_t slash = chunkname.find('/');
+    if (slash == std::string::npos)
+    {
+        return;
+    }
+    size_t at = chunkname.find('@');
+    if (at > 0 && at < slash)
+    {
+        m_scopePrefix = chunkname.substr(0, slash);
+    }
+}
+
+bool ScriptingContext::ScopedAssetReference::matchesLibrary(
+    const std::string& registeredName) const
+{
+    // <label>[#<digits>]@<digits>/<path>
+    if (registeredName.size() <= m_label.size() ||
+        registeredName.compare(0, m_label.size(), m_label) != 0)
+    {
+        return false;
+    }
+    size_t i = m_label.size();
+    if (registeredName[i] == '#')
+    {
+        size_t start = ++i;
+        while (i < registeredName.size() && registeredName[i] >= '0' &&
+               registeredName[i] <= '9')
+        {
+            i++;
+        }
+        if (i == start)
+        {
+            return false;
+        }
+    }
+    if (i >= registeredName.size() || registeredName[i] != '@')
+    {
+        return false;
+    }
+    size_t start = ++i;
+    while (i < registeredName.size() && registeredName[i] >= '0' &&
+           registeredName[i] <= '9')
+    {
+        i++;
+    }
+    if (i == start || i >= registeredName.size() || registeredName[i] != '/')
+    {
+        return false;
+    }
+    return registeredName.compare(i + 1, std::string::npos, m_path) == 0;
+}
+
+int ScriptingContext::ScopedAssetReference::match(
+    const std::string& registeredName,
+    const std::string& shortName) const
+{
+    if (!m_label.empty())
+    {
+        return matchesLibrary(registeredName) ? 1 : 0;
+    }
+    if (!m_scopePrefix.empty() &&
+        registeredName.size() > m_scopePrefix.size() &&
+        registeredName[m_scopePrefix.size()] == '/' &&
+        registeredName.compare(0, m_scopePrefix.size(), m_scopePrefix) == 0)
+    {
+        // Inside the caller's library both the scope relative path and the
+        // short name address it.
+        if (registeredName.compare(m_scopePrefix.size() + 1,
+                                   std::string::npos,
+                                   m_bare) == 0 ||
+            shortName == m_bare)
+        {
+            return 2;
+        }
+        return 0;
+    }
+    // Host assets only; other libraries need lib: or their own scope.
+    size_t slash = registeredName.find('/');
+    size_t firstSegment =
+        slash == std::string::npos ? registeredName.size() : slash;
+    size_t at = registeredName.find('@');
+    if (at > 0 && at < firstSegment)
+    {
+        return 0;
+    }
+    return registeredName == m_bare || shortName == m_bare ? 1 : 0;
+}
+
 #ifdef WITH_RIVE_TOOLS
 void ScriptingContext::registerShaderRstb(std::string name,
                                           std::vector<uint8_t> bytes)
@@ -1053,6 +1067,27 @@ const std::vector<uint8_t>* ScriptingContext::findShaderRstb(
 {
     auto it = m_shaderRstbs.find(name);
     return it != m_shaderRstbs.end() ? &it->second : nullptr;
+}
+
+const std::vector<uint8_t>* ScriptingContext::findShaderRstb(
+    const ScopedAssetReference& reference) const
+{
+    const std::vector<uint8_t>* found = nullptr;
+    int bestRank = 0;
+    for (const auto& entry : m_shaderRstbs)
+    {
+        size_t slash = entry.first.rfind('/');
+        std::string shortName = slash == std::string::npos
+                                    ? entry.first
+                                    : entry.first.substr(slash + 1);
+        int rank = reference.match(entry.first, shortName);
+        if (rank > bestRank)
+        {
+            bestRank = rank;
+            found = &entry.second;
+        }
+    }
+    return found;
 }
 
 void ScriptingContext::setGeneratorRef(uint32_t assetId, int ref)

@@ -182,26 +182,11 @@ public:
     }
 };
 
-// Library version a module belongs to, (0,0) is the host file.
-struct ScopeKey
-{
-    uint64_t libraryId = 0;
-    uint64_t libraryVersionId = 0;
-    bool isRoot() const { return libraryId == 0 && libraryVersionId == 0; }
-    bool operator==(const ScopeKey& o) const
-    {
-        return libraryId == o.libraryId &&
-               libraryVersionId == o.libraryVersionId;
-    }
-    bool operator!=(const ScopeKey& o) const { return !(*this == o); }
-};
-
 class ModuleDetails
 {
 public:
     virtual ~ModuleDetails() = default;
     virtual std::string moduleName() = 0;
-    virtual ScopeKey scope() { return ScopeKey{}; }
     virtual void registrationComplete(int ref) {}
     virtual Span<uint8_t> moduleBytecode() { return Span<uint8_t>(); }
     virtual bool isProtocolScript() = 0;
@@ -260,10 +245,6 @@ public:
     {
         return folderPath() == "" ? name() : folderPath() + "/" + name();
     }
-    ScopeKey scope() override
-    {
-        return ScopeKey{scopeLibraryId(), scopeLibraryVersionId()};
-    }
     bool isProtocolScript() override { return !isModule(); }
 
 private:
@@ -277,17 +258,5 @@ private:
     bool initScriptedObjectWith(ScriptedObject* object);
 };
 } // namespace rive
-
-namespace std
-{
-template <> struct hash<rive::ScopeKey>
-{
-    size_t operator()(const rive::ScopeKey& k) const
-    {
-        return hash<uint64_t>()(k.libraryId) ^
-               (hash<uint64_t>()(k.libraryVersionId) << 1);
-    }
-};
-} // namespace std
 
 #endif

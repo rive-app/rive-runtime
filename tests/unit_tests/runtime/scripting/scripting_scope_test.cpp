@@ -22,22 +22,16 @@ std::vector<uint8_t> compileLuau(const char* src)
     return out;
 }
 
-// Inline source with an explicit scope so tests can register one name under
-// different library versions.
+// Inline source registered under a flat (possibly mangled) module name.
 class ScopeTestModule : public ModuleDetails
 {
 public:
-    ScopeTestModule(std::string name,
-                    ScopeKey scope,
-                    const char* src,
-                    bool isModule = true) :
+    ScopeTestModule(std::string name, const char* src, bool isModule = true) :
         m_name(std::move(name)),
-        m_scope(scope),
         m_bytecode(compileLuau(src)),
         m_isModule(isModule)
     {}
     std::string moduleName() override { return m_name; }
-    ScopeKey scope() override { return m_scope; }
     Span<uint8_t> moduleBytecode() override
     {
         return Span<uint8_t>(m_bytecode.data(), m_bytecode.size());
@@ -47,7 +41,6 @@ public:
 
 private:
     std::string m_name;
-    ScopeKey m_scope;
     std::vector<uint8_t> m_bytecode;
     bool m_isModule;
 };
@@ -95,157 +88,59 @@ int cachedIntField(lua_State* L, const std::string& key, const char* field)
 }
 } // namespace
 
-TEST_CASE("two versions of one module coexist", "[scripting][scope]")
+TEST_CASE("statically linked flat names round trip", "[scripting][scope]")
 {
+    // The S contract: the editor rewrites requires to mangled flat names and
+    // registers modules under them at root scope. No pins, no scope props;
+    // diamonds coexist because every version has a distinct name.
     SerializingFactory factory;
     auto ctxOwned = std::make_unique<ScopeTestContext>(&factory);
     ScopeTestContext* ctx = ctxOwned.get();
     auto vm = make_rcp<ScriptingVM>(std::move(ctxOwned));
     lua_State* L = vm->state();
 
-    ScopeKey v1{1, 1};
-    ScopeKey v2{1, 2};
-    // Same module name, two library versions, different bodies.
-    ScopeTestModule fooV1("utils/math", v1, "return { v = 1 }");
-    ScopeTestModule fooV2("utils/math", v2, "return { v = 2 }");
-    // Same caller name in each version; each bare-requires "utils/math".
-    ScopeTestModule callerA("caller", v1, "return require('utils/math')");
-    ScopeTestModule callerB("caller", v2, "return require('utils/math')");
-
-    ctx->addModule(&fooV1);
-    ctx->addModule(&fooV2);
-    ctx->addModule(&callerA);
-    ctx->addModule(&callerB);
-    ctx->performRegistration(L);
-
-    // Both versions coexist under distinct scoped keys.
-    CHECK(cachedIntField(L,
-                         ScriptingContext::scopedKey("utils/math", v1),
-                         "v") == 1);
-    CHECK(cachedIntField(L,
-                         ScriptingContext::scopedKey("utils/math", v2),
-                         "v") == 2);
-    // Each caller's bare require bound its own version (relative scope).
-    CHECK(cachedIntField(L, ScriptingContext::scopedKey("caller", v1), "v") ==
-          1);
-    CHECK(cachedIntField(L, ScriptingContext::scopedKey("caller", v2), "v") ==
-          2);
-    CHECK(ctx->errors.empty());
-}
-
-TEST_CASE("qualified library require resolves via pins", "[scripting][scope]")
-{
-    SerializingFactory factory;
-    auto ctxOwned = std::make_unique<ScopeTestContext>(&factory);
-    ScopeTestContext* ctx = ctxOwned.get();
-    auto vm = make_rcp<ScriptingVM>(std::move(ctxOwned));
-    lua_State* L = vm->state();
-
-    ScopeKey geo{7, 3};
-    ScopeTestModule libMesh("mesh", geo, "return { v = 42 }");
-    // Host has its own 'mesh' at root scope; must not collide with the
-    // library's.
-    ScopeTestModule hostMesh("mesh", ScopeKey{}, "return { v = 7 }");
+    ScopeTestModule meshV1("draco@1/mesh", "return { v = 1 }");
+    ScopeTestModule meshV2("draco@2/mesh", "return { v = 2 }");
+    ScopeTestModule uses("B@1/uses",
+                         "return { v = require('draco@1/mesh').v }");
     ScopeTestModule app("app",
-                        ScopeKey{},
-                        "local d = require('lib:geo/mesh')\n"
-                        "local h = require('mesh')\n"
-                        "return { v = d.v, host = h.v }");
+                        "return { v = require('draco@2/mesh').v + "
+                        "require('B@1/uses').v }");
 
-    ctx->addImport(ScopeKey{}, "geo", geo); // host pins geo -> (7,3)
-    ctx->addModule(&libMesh);
-    ctx->addModule(&hostMesh);
-    ctx->addModule(&app);
-    ctx->performRegistration(L);
-
-    // Qualified require reached the library's mesh; bare require stayed at host
-    // root.
-    CHECK(cachedIntField(L, "app", "v") == 42);
-    CHECK(cachedIntField(L, "app", "host") == 7);
-    CHECK(ctx->errors.empty());
-}
-
-TEST_CASE("per caller pins diverge on the same label", "[scripting][scope]")
-{
-    // The diamond: host pins A to v2, library B pins A to v1. The label is
-    // per caller, both resolve to their own version.
-    SerializingFactory factory;
-    auto ctxOwned = std::make_unique<ScopeTestContext>(&factory);
-    ScopeTestContext* ctx = ctxOwned.get();
-    auto vm = make_rcp<ScriptingVM>(std::move(ctxOwned));
-    lua_State* L = vm->state();
-
-    ScopeKey aV1{7, 1};
-    ScopeKey aV2{7, 2};
-    ScopeKey b{8, 1};
-    ScopeTestModule meshV1("mesh", aV1, "return { v = 1 }");
-    ScopeTestModule meshV2("mesh", aV2, "return { v = 2 }");
-    ScopeTestModule bUses("uses", b, "return require('lib:A/mesh')");
-    ScopeTestModule app("app",
-                        ScopeKey{},
-                        "return { v = require('lib:A/mesh').v }");
-
-    ctx->addImport(ScopeKey{}, "A", aV2);
-    ctx->addImport(b, "A", aV1);
     ctx->addModule(&meshV1);
     ctx->addModule(&meshV2);
-    ctx->addModule(&bUses);
+    ctx->addModule(&uses);
     ctx->addModule(&app);
     ctx->performRegistration(L);
 
-    CHECK(cachedIntField(L, "app", "v") == 2);
-    CHECK(cachedIntField(L, ScriptingContext::scopedKey("uses", b), "v") == 1);
+    CHECK(cachedIntField(L, "draco@1/mesh", "v") == 1);
+    CHECK(cachedIntField(L, "draco@2/mesh", "v") == 2);
+    CHECK(cachedIntField(L, "B@1/uses", "v") == 1);
+    CHECK(cachedIntField(L, "app", "v") == 3);
     CHECK(ctx->errors.empty());
 }
 
-TEST_CASE("unresolved library require errors, never rebinds to caller scope",
+TEST_CASE("bare require never reaches a mangled library module",
           "[scripting][scope]")
 {
-    // An unpinned library require must fail, not rebind to a same named
-    // module in the caller's scope.
     SerializingFactory factory;
     auto ctxOwned = std::make_unique<ScopeTestContext>(&factory);
     ScopeTestContext* ctx = ctxOwned.get();
     auto vm = make_rcp<ScriptingVM>(std::move(ctxOwned));
     lua_State* L = vm->state();
 
-    // Host has its own 'mesh'; no geo pin is ever registered.
-    ScopeTestModule hostMesh("mesh", ScopeKey{}, "return { v = 7 }");
-    ScopeTestModule app("app",
-                        ScopeKey{},
-                        "return { v = require('lib:geo/mesh').v }");
-    ctx->addModule(&hostMesh);
+    ScopeTestModule mesh("draco@1/mesh", "return { v = 1 }");
+    ScopeTestModule app("app", "return require('mesh')");
+    ctx->addModule(&mesh);
     ctx->addModule(&app);
     ctx->performRegistration(L);
 
-    // app must NOT have resolved (would be cached if it had); it errored.
     CHECK(cachedIntField(L, "app", "v") == INT_MIN);
     REQUIRE(!ctx->errors.empty());
-    bool reportedMissing = false;
-    for (const auto& error : ctx->errors)
-    {
-        if (error.find("lib:geo/mesh") != std::string::npos)
-        {
-            reportedMissing = true;
-        }
-    }
-    CHECK(reportedMissing);
 }
 
-TEST_CASE("ScriptAsset scope reads serialized FileAsset scope props",
+TEST_CASE("mangled module errors attribute to the library in traces",
           "[scripting][scope]")
-{
-    ScriptAsset asset;
-    CHECK(asset.scope().isRoot()); // default (0,0) = host/root
-
-    asset.scopeLibraryId(7);
-    asset.scopeLibraryVersionId(3);
-    CHECK(asset.scope().libraryId == 7);
-    CHECK(asset.scope().libraryVersionId == 3);
-    CHECK(!asset.scope().isRoot());
-}
-
-TEST_CASE("scoped module errors use readable names", "[scripting][scope]")
 {
     SerializingFactory factory;
     auto ctxOwned = std::make_unique<ScopeTestContext>(&factory);
@@ -253,33 +148,49 @@ TEST_CASE("scoped module errors use readable names", "[scripting][scope]")
     auto vm = make_rcp<ScriptingVM>(std::move(ctxOwned));
     lua_State* L = vm->state();
 
-    ScopeKey v1{1, 1};
-    ScopeTestModule bad("thing", v1, "error('boom')");
+    ScopeTestModule bad("draco@1/boom", "error('boom')");
     ctx->addModule(&bad);
     ctx->performRegistration(L);
 
     REQUIRE(!ctx->errors.empty());
-    bool sawReadable = false;
+    bool sawMangled = false;
     for (const auto& error : ctx->errors)
     {
-        if (error.find("1-1/thing") != std::string::npos)
+        if (error.find("draco@1/boom:") != std::string::npos)
         {
-            sawReadable = true;
+            sawMangled = true;
         }
-        // The internal scoped-key delimiter must never leak into traces.
-        CHECK(error.find('\x1f') == std::string::npos);
     }
-    CHECK(sawReadable);
+    CHECK(sawMangled);
 }
 
-TEST_CASE("exported file resolves lib: requires through import edges",
+TEST_CASE("scoped asset reference matching", "[scripting][scope]")
+{
+    // Host caller (no Lua frame): bare names match host assets only.
+    ScriptingContext::ScopedAssetReference bare(nullptr, "lit");
+    CHECK(bare.match("lit", "lit") == 1);
+    CHECK(bare.match("shaders/lit", "lit") == 1);
+    CHECK(bare.match("draco@1531/lit", "lit") == 0);
+    CHECK(bare.match("draco@1531/other", "other") == 0);
+
+    // lib: references match any version of the label's library.
+    ScriptingContext::ScopedAssetReference lib(nullptr, "lib:draco/lit");
+    CHECK(lib.match("draco@1531/lit", "lit") == 1);
+    CHECK(lib.match("draco#9@2/lit", "lit") == 1);
+    CHECK(lib.match("draco@1531/other", "other") == 0);
+    CHECK(lib.match("other@3/lit", "lit") == 0);
+    CHECK(lib.match("lit", "lit") == 0);
+    CHECK(lib.match("dracoish@3/lit", "lit") == 0);
+}
+
+TEST_CASE("exported file resolves statically linked library requires",
           "[scripting][scope][libraries]")
 {
     // Exported by the editor: draco imported as a library, a host module
     // scope_probe that lib:-requires it, bare-requires it under pcall, and
-    // records the outcomes. The whole scope pipeline in one file: edge and
-    // scope props deserialize, registerScripts seeds the pins, scoped cache
-    // keys isolate the library, the edge resolves the qualified require.
+    // records the outcomes. The require was rewritten to draco@<ver>/draco
+    // at export; the file carries no edges and no scope props, everything
+    // resolves through the flat module cache.
     auto file = ReadRiveFile("assets/scope_probe.riv");
     REQUIRE(file->scriptingVM() != nullptr);
     lua_State* L = file->scriptingVM()->state();

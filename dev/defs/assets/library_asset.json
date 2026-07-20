@@ -5,6 +5,7 @@
     "string": "libraryasset"
   },
   "extends": "assets/file_asset.json",
+  "runtime": false,
   "properties": {
     "libraryId": {
       "type": "uint64",

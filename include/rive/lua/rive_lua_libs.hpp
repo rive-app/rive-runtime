@@ -1512,20 +1512,27 @@ public:
     // detached-root ancestor's recursion), so they are skipped.
     void advanceDetachedViewModels();
 
-    // Require cache key for a module in a scope, bare name for root.
-    static std::string scopedKey(const std::string& name, ScopeKey scope);
-    // Pin libraryName required from caller to the target library version.
-    void addImport(ScopeKey caller,
-                   const std::string& libraryName,
-                   ScopeKey target);
-    // Require cache key for a require string relative to the caller.
-    std::string resolveRequire(const std::string& requirerChunkname,
-                               const std::string& request);
-    // Chunkname baked into bytecode for traces, bare name for root.
-    static std::string readableChunkname(const std::string& name,
-                                         ScopeKey scope);
-    // Seeds scope for modules with no ModuleDetails, like the editor VM.
-    void setChunknameScope(const std::string& chunkname, ScopeKey scope);
+    // Scoped :shader / :blob reference resolution. Bare names resolve in the
+    // calling chunk's scope first, then among host assets;
+    // lib:<label>/<path> matches any version of the label's library, whose
+    // mangled names self-describe as <label>[#id]@<version>/<path>.
+    class ScopedAssetReference
+    {
+    public:
+        ScopedAssetReference(lua_State* L, const char* reference);
+        // Rank a registered asset (full path) with its short name: 0 no
+        // match, 2 the caller's own library, 1 host or lib: match.
+        int match(const std::string& registeredName,
+                  const std::string& shortName) const;
+
+    private:
+        bool matchesLibrary(const std::string& registeredName) const;
+
+        std::string m_label;
+        std::string m_path;
+        std::string m_scopePrefix;
+        std::string m_bare;
+    };
 
     // Ore GPU context for this VM, derived from the render factory. Null when
     // there is no render context, or it is not GPU-backed. Returned as void* so
@@ -1593,14 +1600,6 @@ private:
     // Called when a module successfully registers
     void onModuleRegistered(ModuleDetails* moduleDetails);
 
-    // Scope for a require string relative to the caller, outPath gets the
-    // module path portion.
-    ScopeKey resolveImport(ScopeKey caller,
-                           const std::string& request,
-                           std::string& outPath);
-    // Scope for a chunkname, root if unknown.
-    ScopeKey scopeOf(const std::string& chunkname);
-
 private:
     Factory* m_renderContext = nullptr;
     uint64_t m_ownerId = 0;
@@ -1617,12 +1616,6 @@ private:
     std::vector<ModuleDetails*> m_modulesToRegister;
     std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
     std::unordered_set<ModuleDetails*> m_pendingModules;
-    // Chunkname to details, so require can find the caller's scope.
-    std::unordered_map<std::string, ModuleDetails*> m_moduleByChunkname;
-    std::unordered_map<ScopeKey, std::unordered_map<std::string, ScopeKey>>
-        m_pins;
-    // Seeded via setChunknameScope for modules with no ModuleDetails.
-    std::unordered_map<std::string, ScopeKey> m_chunknameScopes;
 
     // Detached view model instances tracked for end-of-frame advance, keyed by
     // instance pointer. Each entry keeps a strong reference alive and counts
@@ -1660,6 +1653,8 @@ public:
     void disposeOrphanScriptedProperties();
     void registerShaderRstb(std::string name, std::vector<uint8_t> bytes);
     const std::vector<uint8_t>* findShaderRstb(const std::string& name) const;
+    const std::vector<uint8_t>* findShaderRstb(
+        const ScopedAssetReference& reference) const;
     // Transfers all RSTB blobs out of this context (used during VM adoption
     // to preserve blobs across context replacement).
     std::unordered_map<std::string, std::vector<uint8_t>> takeShaderRstbs()
@@ -2261,16 +2256,23 @@ static void interruptCPP(lua_State* L, int gc)
 namespace rive
 {
 class ShaderAsset;
-}
-// Load a shader by name into a ScriptedShader (populates both vertex and
-// fragment modules for GLSL targets with split entry points).
+class File;
+} // namespace rive
+// Load a shader by scoped reference into a ScriptedShader (populates both
+// vertex and fragment modules for GLSL targets with split entry points).
 // Checks ScriptingContext::m_shaderRstbs first (editor path, compiled
 // during requestVM), then |fileAsset| if non-null (runtime .riv path).
 // Returns false on failure.
-bool lua_gpu_load_shader_by_name(rive::ScriptedShader* out,
-                                 rive::ScriptingContext* context,
-                                 const char* name,
-                                 rive::ShaderAsset* fileAsset);
+bool lua_gpu_load_shader_by_name(
+    rive::ScriptedShader* out,
+    rive::ScriptingContext* context,
+    const rive::ScriptingContext::ScopedAssetReference& reference,
+    rive::ShaderAsset* fileAsset);
+
+// The file's ShaderAsset best matching a scoped reference, null when none.
+rive::ShaderAsset* lua_gpu_find_shader_asset(
+    rive::File* file,
+    const rive::ScriptingContext::ScopedAssetReference& reference);
 
 // Compile a shader by name and push the resulting ScriptedShader onto the
 // Lua stack. Returns 1 on success, 0 on failure. Declared here (implemented

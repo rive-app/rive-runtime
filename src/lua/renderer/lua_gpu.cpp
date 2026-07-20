@@ -686,10 +686,11 @@ static bool makeShaderFromRstb(Context* oreCtx,
 /// ShaderAsset from file->assets() (runtime .riv path).
 /// Populates both vertex and fragment modules on the ScriptedShader.
 /// Returns true on success.
-bool lua_gpu_load_shader_by_name(ScriptedShader* out,
-                                 ScriptingContext* context,
-                                 const char* name,
-                                 ShaderAsset* fileAsset)
+bool lua_gpu_load_shader_by_name(
+    ScriptedShader* out,
+    ScriptingContext* context,
+    const ScriptingContext::ScopedAssetReference& reference,
+    ShaderAsset* fileAsset)
 {
     Context* oreCtx = static_cast<Context*>(
         context != nullptr ? context->oreContext() : nullptr);
@@ -699,7 +700,7 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
     // per-VM on the ScriptingContext.
     if (context != nullptr)
     {
-        const auto* rstb = context->findShaderRstb(name);
+        const auto* rstb = context->findShaderRstb(reference);
         if (rstb != nullptr)
         {
             return makeShaderFromRstb(oreCtx,
@@ -720,12 +721,44 @@ bool lua_gpu_load_shader_by_name(ScriptedShader* out,
     return false;
 }
 
+ShaderAsset* lua_gpu_find_shader_asset(
+    File* file,
+    const ScriptingContext::ScopedAssetReference& reference)
+{
+    if (file == nullptr)
+    {
+        return nullptr;
+    }
+    ShaderAsset* found = nullptr;
+    int bestRank = 0;
+    for (const auto& asset : file->assets())
+    {
+        if (!asset->is<ShaderAsset>())
+        {
+            continue;
+        }
+        auto* shaderAsset = asset->as<ShaderAsset>();
+        const std::string& folderPath = shaderAsset->folderPath();
+        std::string registered = folderPath.empty()
+                                     ? shaderAsset->name()
+                                     : folderPath + "/" + shaderAsset->name();
+        int rank = reference.match(registered, shaderAsset->name());
+        if (rank > bestRank)
+        {
+            bestRank = rank;
+            found = shaderAsset;
+        }
+    }
+    return found;
+}
+
 int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    ScriptingContext::ScopedAssetReference reference(L, name);
 
-    // Resolve the file-side ShaderAsset by name. Without this, the lookup
-    // falls back to the editor-only RSTB cache which is empty at runtime.
+    // Resolve the file-side ShaderAsset. Without this, the lookup falls
+    // back to the editor-only RSTB cache which is empty at runtime.
     ShaderAsset* fileAsset = nullptr;
     if (context != nullptr)
     {
@@ -733,30 +766,14 @@ int lua_gpu_push_shader_by_name(lua_State* L, const char* name)
         {
             if (auto* scriptAsset = scriptedObject->scriptAsset())
             {
-                if (File* file = scriptAsset->file())
-                {
-                    for (const auto& asset : file->assets())
-                    {
-                        if (asset->is<ShaderAsset>())
-                        {
-                            auto* sa = asset->as<ShaderAsset>();
-                            // match folderPath/name or bare name
-                            const std::string& fp = sa->folderPath();
-                            if (sa->name() == name ||
-                                (!fp.empty() && fp + "/" + sa->name() == name))
-                            {
-                                fileAsset = sa;
-                                break;
-                            }
-                        }
-                    }
-                }
+                fileAsset =
+                    lua_gpu_find_shader_asset(scriptAsset->file(), reference);
             }
         }
     }
 
     auto* scripted = lua_newrive<ScriptedShader>(L);
-    if (!lua_gpu_load_shader_by_name(scripted, context, name, fileAsset))
+    if (!lua_gpu_load_shader_by_name(scripted, context, reference, fileAsset))
     {
         lua_pop(L, 1);
         return 0;

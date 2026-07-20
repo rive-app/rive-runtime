@@ -263,6 +263,7 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::blob:
             {
                 const char* blobName = luaL_checkstring(L, 2);
+                ScriptingContext::ScopedAssetReference reference(L, blobName);
 
                 auto scriptedObject = scriptedContext->scriptedObject();
                 auto scriptAsset = scriptedObject->scriptAsset();
@@ -271,25 +272,29 @@ static int context_namecall(lua_State* L)
                     File* file = scriptAsset->file();
                     if (file != nullptr)
                     {
-                        auto assets = file->assets();
-                        for (const auto& asset : assets)
+                        BlobAsset* found = nullptr;
+                        int bestRank = 0;
+                        for (const auto& asset : file->assets())
                         {
-                            if (asset->is<BlobAsset>())
+                            if (!asset->is<BlobAsset>())
                             {
-                                BlobAsset* blobAsset = asset->as<BlobAsset>();
-                                if (blobAsset->name() == blobName)
-                                {
-                                    auto bytes = blobAsset->bytes();
-                                    if (!bytes.empty())
-                                    {
-                                        auto scriptedBlob =
-                                            lua_newrive<ScriptedBlob>(L);
-                                        scriptedBlob->asset = ref_rcp(
-                                            static_cast<FileAsset*>(blobAsset));
-                                        return 1;
-                                    }
-                                }
+                                continue;
                             }
+                            BlobAsset* blobAsset = asset->as<BlobAsset>();
+                            int rank = reference.match(blobAsset->name(),
+                                                       blobAsset->name());
+                            if (rank > bestRank && !blobAsset->bytes().empty())
+                            {
+                                bestRank = rank;
+                                found = blobAsset;
+                            }
+                        }
+                        if (found != nullptr)
+                        {
+                            auto scriptedBlob = lua_newrive<ScriptedBlob>(L);
+                            scriptedBlob->asset =
+                                ref_rcp(static_cast<FileAsset*>(found));
+                            return 1;
                         }
                     }
                 }
@@ -512,34 +517,17 @@ static int context_namecall(lua_State* L)
             {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
                 const char* shaderName = luaL_checkstring(L, 2);
+                ScriptingContext::ScopedAssetReference reference(L, shaderName);
 
-                // Runtime path: search file->assets() for a ShaderAsset
-                // with the matching name.
+                // Runtime path: the file's ShaderAsset best matching the
+                // scoped reference.
                 ShaderAsset* fileAsset = nullptr;
                 auto scriptedObject = scriptedContext->scriptedObject();
                 auto scriptAsset = scriptedObject->scriptAsset();
                 if (scriptAsset != nullptr)
                 {
-                    File* file = scriptAsset->file();
-                    if (file != nullptr)
-                    {
-                        for (const auto& asset : file->assets())
-                        {
-                            if (asset->is<ShaderAsset>())
-                            {
-                                auto* sa = asset->as<ShaderAsset>();
-                                // match folderPath/name or bare name
-                                const std::string& fp = sa->folderPath();
-                                if (sa->name() == shaderName ||
-                                    (!fp.empty() &&
-                                     fp + "/" + sa->name() == shaderName))
-                                {
-                                    fileAsset = sa;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    fileAsset = lua_gpu_find_shader_asset(scriptAsset->file(),
+                                                          reference);
                 }
 
                 auto* scriptingCtx =
@@ -547,7 +535,7 @@ static int context_namecall(lua_State* L)
                 auto* scripted = lua_newrive<ScriptedShader>(L);
                 if (lua_gpu_load_shader_by_name(scripted,
                                                 scriptingCtx,
-                                                shaderName,
+                                                reference,
                                                 fileAsset))
                 {
                     return 1;
