@@ -720,4 +720,19 @@ TEST_CASE("text input journal works", "[text_input]")
     CHECK(textInput.text() == "one Two");
     CHECK_CURSOR(textInput.cursor(), 4, 7);
 }
+
+TEST_CASE("clearSelection collapses to the selection end", "[text_input]")
+{
+    RawTextInput textInput;
+    textInput.insert("hello world");
+
+    textInput.cursor(Cursor(CursorPosition(2), CursorPosition(7)));
+    textInput.clearSelection();
+    CHECK(textInput.cursor().isCollapsed());
+    CHECK_CURSOR(textInput.cursor(), 7, 7);
+
+    // No-op when already collapsed.
+    textInput.clearSelection();
+    CHECK_CURSOR(textInput.cursor(), 7, 7);
+}
 #endif

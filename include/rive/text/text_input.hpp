@@ -86,6 +86,9 @@ public:
     /// Whether currently dragging (for hit test to avoid interference).
     bool isDragging() const { return m_isDragging; }
 
+    /// Whether this text input currently has focus.
+    bool isFocused() const { return m_focused; }
+
 protected:
     void textChanged() override;
     void selectionRadiusChanged() override;
@@ -114,6 +117,9 @@ private:
 
     /// Whether the user is currently dragging to select text.
     bool m_isDragging = false;
+
+    /// Whether this text input currently has focus.
+    bool m_focused = false;
     Vec2D m_lastDragWorldPosition = Vec2D(NAN, NAN);
 
     /// Scroll velocity for edge scrolling during drag in X.

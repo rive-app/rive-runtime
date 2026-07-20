@@ -486,12 +486,17 @@ bool TextInput::gamepadDispatch(const ListenerInvocation&, ScriptedDrawable**)
 
 void TextInput::focused()
 {
-    // TODO: Implement focus visual feedback
+    m_focused = true;
+    markPaintDirty();
 }
 
 void TextInput::blurred()
 {
-    // TODO: Implement blur visual feedback
+    m_focused = false;
+#ifdef WITH_RIVE_TEXT
+    m_rawTextInput.clearSelection();
+#endif
+    markPaintDirty();
 }
 
 bool TextInput::worldPosition(Vec2D& outPosition)

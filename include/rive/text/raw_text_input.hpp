@@ -117,6 +117,9 @@ public:
     // Selects the visual line at the cursor.
     void selectLine();
 
+    // Collapses the selection to the cursor's end position.
+    void clearSelection();
+
     std::string text() const;
     void text(std::string value);
     void textPreserveCursor(std::string value);

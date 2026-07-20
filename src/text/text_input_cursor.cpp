@@ -9,6 +9,10 @@ Core* TextInputCursor::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 ShapePaintPath* TextInputCursor::localClockwisePath()
 {
 #ifdef WITH_RIVE_TEXT
+    if (!textInput()->isFocused())
+    {
+        return nullptr;
+    }
     return textInput()->rawTextInput()->cursorPath();
 #else
     return nullptr;

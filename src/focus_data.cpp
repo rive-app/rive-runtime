@@ -352,6 +352,12 @@ void FocusData::focused()
     {
         sibling->setFocusedState(true);
     }
+
+    auto* parentComponent = parent();
+    if (parentComponent != nullptr && parentComponent->is<TextInput>())
+    {
+        parentComponent->as<TextInput>()->focused();
+    }
 }
 
 void FocusData::blurred()
@@ -366,6 +372,12 @@ void FocusData::blurred()
     if (sibling != nullptr)
     {
         sibling->setFocusedState(false);
+    }
+
+    auto* parentComponent = parent();
+    if (parentComponent != nullptr && parentComponent->is<TextInput>())
+    {
+        parentComponent->as<TextInput>()->blurred();
     }
 }
 

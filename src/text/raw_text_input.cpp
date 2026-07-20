@@ -500,6 +500,11 @@ void RawTextInput::selectLine()
     flag(Flags::selectionDirty);
 }
 
+void RawTextInput::clearSelection()
+{
+    cursor(Cursor::collapsed(m_cursor.end()));
+}
+
 const OrderedLine* RawTextInput::orderedLine(CursorPosition position) const
 {
     const std::vector<OrderedLine>& orderedLines = m_shape.orderedLines();

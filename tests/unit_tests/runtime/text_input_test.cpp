@@ -608,4 +608,44 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed tex");
 }
+
+TEST_CASE("losing focus clears the text input selection", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachine(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto abi = artboard->instance();
+    StateMachineInstance smi(stateMachine, abi.get());
+    smi.advanceAndApply(0.0f);
+
+    auto textInput = abi->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    auto cursor = abi->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+
+    // Unfocused: no cursor is drawn.
+    CHECK(textInput->isFocused() == false);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    auto focusData = abi->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    smi.setFocus(focusData);
+    CHECK(textInput->isFocused() == true);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    textInput->rawTextInput()->text("hello world");
+    textInput->rawTextInput()->selectAll();
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+
+    smi.clearFocus();
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
+    CHECK(textInput->isFocused() == false);
+    CHECK(cursor->localClockwisePath() == nullptr);
+}
 #endif
