@@ -29,7 +29,11 @@ while :; do
         -u)
             TARGET="unreal"
             DEFAULT_BACKEND=rhi
-            ARGS="$ARGS --no-rebuild --no-install"
+            if [ -z "$RIVE_UNREAL_ENGINE" ]; then
+                ARGS="$ARGS --no-rebuild --no-install"   # expect a prebuilt package
+            else
+                ARGS="$ARGS --no-rebuild"                # build & package on demand
+            fi
             shift
         ;;
         -ua)
@@ -143,23 +147,51 @@ do
         ID="$TARGET/$BACKEND"
     fi
     
+    # deploy_tests expands unreal's "rhi" meta-backend into the RHIs the target
+    # supports, writing one sibling directory per RHI (e.g. .gold/unreal/d3d11,
+    # .gold/unreal/vulkan) rather than the single .gold/$ID.
+    RHI_FANOUT=false
+    if [[ "$TARGET" == unreal* ]] && [[ "$BACKEND" == "rhi" ]]; then
+        RHI_FANOUT=true
+    fi
+
     if [ "$REBASELINE" == true ]; then
         echo
         echo "Rebaselining $ID..."
-        rm -fr .gold/$ID
+        if [ "$RHI_FANOUT" == true ]; then
+            rm -fr .gold/$TARGET
+        else
+            rm -fr .gold/$ID
+        fi
         python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
     else
         echo
         echo "Deploying $ID..."
-        rm -fr .gold/candidates/$ID
+        if [ "$RHI_FANOUT" == true ]; then
+            rm -fr .gold/candidates/$TARGET
+        else
+            rm -fr .gold/candidates/$ID
+        fi
         python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
-        
-        echo
-        echo "Diffing $ID..."
-        rm -fr .gold/diffs/$ID && mkdir -p .gold/diffs/$ID
-        python3 diff.py $DIFF_ARGS -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
-            || open_file .gold/diffs/$ID/index.html
+
+        # Diff each directory deploy_tests produced (one per RHI when fanning out).
+        if [ "$RHI_FANOUT" == true ]; then
+            DIFF_IDS=()
+            for RHI_DIR in .gold/candidates/$TARGET/*/; do
+                DIFF_IDS+=("$TARGET/$(basename $RHI_DIR)")
+            done
+        else
+            DIFF_IDS=("$ID")
+        fi
+
+        for DIFF_ID in "${DIFF_IDS[@]}"; do
+            echo
+            echo "Diffing $DIFF_ID..."
+            rm -fr .gold/diffs/$DIFF_ID && mkdir -p .gold/diffs/$DIFF_ID
+            python3 diff.py $DIFF_ARGS -g .gold/$DIFF_ID -c .gold/candidates/$DIFF_ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$DIFF_ID \
+                || open_file .gold/diffs/$DIFF_ID/index.html
+        done
     fi
-    
+
     NO_REBUILD="--no-rebuild --no-install"
 done
