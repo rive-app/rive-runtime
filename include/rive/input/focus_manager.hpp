@@ -154,11 +154,23 @@ public:
     /// scopes (unbacked, canFocus=false) don't count on their own. Gates
     /// one-time keyboard setup in high-level runtimes via
     /// StateMachineInstance::hasFocusNodes().
+    ///
+    /// Cached: high-level runtimes poll this every frame, so the tree walk
+    /// only reruns after markFocusableContentDirty(); otherwise O(1).
     bool hasFocusableContent() const;
+
+    /// Invalidate the cached hasFocusableContent() answer. Called whenever
+    /// an input to its predicate changes: tree structure (add/remove/erase)
+    /// or a node's focusable backing / canFocus flag.
+    void markFocusableContentDirty() { m_focusableContentDirty = true; }
 
 private:
     rcp<FocusNode> m_primaryFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;
+    // Backing for hasFocusableContent(); mutable so the const getter can
+    // recompute lazily. Starts dirty so the first call computes.
+    mutable bool m_hasFocusableContent = false;
+    mutable bool m_focusableContentDirty = true;
     void removeManager(rcp<FocusNode>);
     // Erase a node from m_rootNodes if present (no-op otherwise).
     void eraseRoot(const rcp<FocusNode>& node);

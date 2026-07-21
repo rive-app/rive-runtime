@@ -3,6 +3,7 @@
  */
 
 #include "rive/input/focus_node.hpp"
+#include "rive/input/focus_manager.hpp"
 #include <algorithm>
 #include <cstddef>
 
@@ -39,6 +40,7 @@ void FocusNode::insertChild(size_t index, rcp<FocusNode> child)
     }
     m_children.insert(m_children.begin() + static_cast<ptrdiff_t>(index),
                       std::move(child));
+    invalidateFocusableContent();
 }
 
 void FocusNode::removeChild(rcp<FocusNode> child)
@@ -53,6 +55,15 @@ void FocusNode::removeChild(rcp<FocusNode> child)
     if (it != m_children.end())
     {
         m_children.erase(it);
+    }
+    invalidateFocusableContent();
+}
+
+void FocusNode::invalidateFocusableContent()
+{
+    if (m_manager != nullptr)
+    {
+        m_manager->markFocusableContentDirty();
     }
 }
 

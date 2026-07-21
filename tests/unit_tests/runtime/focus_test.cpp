@@ -332,6 +332,90 @@ TEST_CASE(
     CHECK(fLeaf.blurredCount == 0);
 }
 
+TEST_CASE("hasFocusableContent invalidates when canFocus toggles after caching",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    // Both structural: no focusable backing, canFocus=false.
+    auto scope = FocusNode::makeStructuralScope();
+    auto child = FocusNode::makeStructuralScope();
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, child);
+
+    // Compute + cache the "no focusable content" answer.
+    CHECK(manager.hasFocusableContent() == false);
+
+    // A canFocus flip on a cached tree must be reflected.
+    child->canFocus(true);
+    CHECK(manager.hasFocusableContent() == true);
+
+    child->canFocus(false);
+    CHECK(manager.hasFocusableContent() == false);
+}
+
+TEST_CASE(
+    "hasFocusableContent invalidates when focusable backing toggles after "
+    "caching",
+    "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable focusable;
+    auto scope = FocusNode::makeStructuralScope();
+    auto child = FocusNode::makeStructuralScope();
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, child);
+
+    CHECK(manager.hasFocusableContent() == false);
+
+    // Gaining a focusable backing counts even while canFocus stays false.
+    child->setFocusable(&focusable);
+    CHECK(manager.hasFocusableContent() == true);
+
+    child->clearFocusable();
+    CHECK(manager.hasFocusableContent() == false);
+}
+
+TEST_CASE("hasFocusableContent invalidates when a backed node is added then "
+          "removed",
+          "[FocusManager]")
+{
+    // Mirrors a data-bound nested-artboard swap: a structural scope gains a
+    // focusable node on swap-in, then loses it on swap-out.
+    FocusManager manager;
+    MockFocusable focusable;
+    auto scope = FocusNode::makeStructuralScope();
+    manager.addChild(nullptr, scope);
+
+    CHECK(manager.hasFocusableContent() == false);
+
+    auto backed = make_rcp<FocusNode>(&focusable);
+    manager.addChild(scope, backed);
+    CHECK(manager.hasFocusableContent() == true);
+
+    manager.removeChild(backed);
+    CHECK(manager.hasFocusableContent() == false);
+}
+
+TEST_CASE("hasFocusableContent invalidates when the last root is erased",
+          "[FocusManager]")
+{
+    // eraseRoot is the only invalidation for a root removed while migrating to
+    // another manager; exercise it directly via a re-parent to a second
+    // manager, which erases the node from the first manager's root list.
+    FocusManager first;
+    FocusManager second;
+    auto node = make_rcp<FocusNode>();
+    node->canFocus(true);
+    first.addChild(nullptr, node);
+
+    CHECK(first.hasFocusableContent() == true);
+
+    // Migrating the root out of `first` empties its tree.
+    second.addChild(nullptr, node);
+    CHECK(first.hasFocusableContent() == false);
+    CHECK(second.hasFocusableContent() == true);
+}
+
 TEST_CASE("FocusManager input routing", "[FocusManager]")
 {
     FocusManager manager;

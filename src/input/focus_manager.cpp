@@ -191,6 +191,9 @@ void FocusManager::addChild(rcp<FocusNode> parent,
     {
         return;
     }
+    // The child (and its subtree) joins this manager; root insertions below
+    // don't pass through FocusNode::insertChild, so invalidate here.
+    markFocusableContentDirty();
     if (child->parent())
     {
         child->removeFromParent();
@@ -245,6 +248,11 @@ void FocusManager::detachChild(rcp<FocusNode> child)
     {
         return;
     }
+    // Usually redundant with the parent-side notification in
+    // removeFromParent() / eraseRoot(), but load-bearing when the detached
+    // node's parent isn't manager-attached (m_manager == nullptr), where
+    // neither downstream mark can fire.
+    markFocusableContentDirty();
 
     // Removing a node takes its whole subtree out of the manager, so clear
     // m_manager on every descendant too: a descendant held elsewhere (e.g. a
@@ -279,6 +287,9 @@ void FocusManager::eraseRoot(const rcp<FocusNode>& node)
     if (it != m_rootNodes.end())
     {
         m_rootNodes.erase(it);
+        // Covers root removal on THIS manager even when reached from another
+        // manager's addChild (scope migration between managers).
+        markFocusableContentDirty();
     }
 }
 
@@ -399,7 +410,12 @@ static bool subtreeHasFocusableContent(const std::vector<rcp<FocusNode>>& nodes)
 
 bool FocusManager::hasFocusableContent() const
 {
-    return subtreeHasFocusableContent(m_rootNodes);
+    if (m_focusableContentDirty)
+    {
+        m_hasFocusableContent = subtreeHasFocusableContent(m_rootNodes);
+        m_focusableContentDirty = false;
+    }
+    return m_hasFocusableContent;
 }
 
 // Calculate overlap on the orthogonal axis (perpendicular to navigation)
