@@ -2736,10 +2736,7 @@ bool StateMachineInstance::setGlobalViewModelInstance(
     const std::string& name,
     rcp<ViewModelInstance> viewModelInstance)
 {
-    if (viewModelInstance == nullptr)
-    {
-        return false;
-    }
+    // A null instance is allowed: it empties the named slot below.
     auto file = m_artboardInstance->file();
     if (file == nullptr)
     {
@@ -2764,11 +2761,18 @@ bool StateMachineInstance::setGlobalViewModelInstance(
     }
     if (m_DataContext == nullptr)
     {
+        // Nothing to clear when there is no context yet; only create one when
+        // actually placing an instance.
+        if (viewModelInstance == nullptr)
+        {
+            return true;
+        }
         m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
         m_DataContext->addDependentContainer(this);
     }
     // The data context re-points every attached container off any previous
-    // instance occupying this slot and onto the new one.
+    // instance occupying this slot and onto the new one (or empties the slot
+    // when the instance is null).
     m_DataContext->setViewModelInstanceForSlot(slotKey, viewModelInstance);
     return true;
 }
@@ -2777,7 +2781,10 @@ void StateMachineInstance::bind()
 {
     if (m_DataContext == nullptr)
     {
-        return;
+        // No data context yet: create an empty one so the view model
+        // instances it needs can be completed on the fly below.
+        m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+        m_DataContext->addDependentContainer(this);
     }
     // Make sure every view model instance the data context needs exists before
     // it is applied: the main instance plus one for each global view model.

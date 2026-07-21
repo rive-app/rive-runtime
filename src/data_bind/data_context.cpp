@@ -168,6 +168,20 @@ void DataContext::setViewModelInstanceForSlot(uint32_t slotKey,
 {
     if (value == nullptr)
     {
+        // A null instance empties the slot: drop any occupant so the slot reads
+        // as unset. With no global slots tracked there is nothing to clear.
+        if (m_globalSlots == nullptr)
+        {
+            return;
+        }
+        for (size_t i = 0; i < m_ViewModelInstances.size(); i++)
+        {
+            if (slotKeyAt(i) == slotKey)
+            {
+                removeInstanceAt(i);
+                return;
+            }
+        }
         return;
     }
     // Holding a slot-addressed instance makes this a global-bearing context.

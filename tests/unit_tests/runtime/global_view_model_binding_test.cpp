@@ -297,3 +297,185 @@ TEST_CASE("setGlobalViewModelInstance rejects a non-global name", "[viewmodel]")
         stateMachine->setGlobalViewModelInstance(nonGlobal, instance));
     REQUIRE(stateMachine->globalViewModelInstance(nonGlobal) == nullptr);
 }
+
+// bind() with no context set no longer no-ops: it creates a data context and
+// completes the main plus every global slot on the fly.
+TEST_CASE("bind creates a data context when none is set", "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_variables_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    REQUIRE_FALSE(globalNames.empty());
+
+    // Nothing has been set: the state machine has no data context.
+    REQUIRE(stateMachine->dataContext() == nullptr);
+
+    stateMachine->bind();
+
+    // A context now exists, holding a main plus one instance per global slot.
+    auto dc = stateMachine->dataContext();
+    REQUIRE(dc != nullptr);
+    REQUIRE(boundNames(dc.get()).size() == globalNames.size() + 1);
+    for (auto& name : globalNames)
+    {
+        REQUIRE(stateMachine->globalViewModelInstance(name) != nullptr);
+    }
+}
+
+// A null instance empties a previously-set global slot, leaving the others
+// untouched.
+TEST_CASE("setGlobalViewModelInstance with null empties the slot",
+          "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_variables_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    // Need at least two globals to prove the others are untouched.
+    REQUIRE(globalNames.size() >= 2);
+
+    for (auto& name : globalNames)
+    {
+        auto g = file->createDefaultViewModelInstance(file->viewModel(name));
+        REQUIRE(stateMachine->setGlobalViewModelInstance(name, g));
+    }
+    REQUIRE(stateMachine->globalViewModelInstance(globalNames[0]) != nullptr);
+    REQUIRE(boundNames(stateMachine->dataContext().get()).size() ==
+            globalNames.size());
+
+    // Empty the first slot with a null instance.
+    REQUIRE(stateMachine->setGlobalViewModelInstance(globalNames[0], nullptr));
+
+    // That slot now reads as unset; every other slot is untouched.
+    REQUIRE(stateMachine->globalViewModelInstance(globalNames[0]) == nullptr);
+    for (size_t i = 1; i < globalNames.size(); i++)
+    {
+        REQUIRE(stateMachine->globalViewModelInstance(globalNames[i]) !=
+                nullptr);
+    }
+    REQUIRE(boundNames(stateMachine->dataContext().get()).size() ==
+            globalNames.size() - 1);
+}
+
+// bind() self-completes the main too: setting only a global (no main) fills a
+// main view model instance on the fly when bind() runs.
+TEST_CASE("bind adds a main when only a global is set", "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_variables_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    REQUIRE_FALSE(globalNames.empty());
+
+    // Set a single global, no main.
+    auto g =
+        file->createDefaultViewModelInstance(file->viewModel(globalNames[0]));
+    REQUIRE(g != nullptr);
+    REQUIRE(stateMachine->setGlobalViewModelInstance(globalNames[0], g));
+
+    // Pre-bind: a context exists but has no main instance.
+    auto dc = stateMachine->dataContext();
+    REQUIRE(dc != nullptr);
+    REQUIRE(dc->mainViewModelInstance() == nullptr);
+
+    stateMachine->bind();
+
+    // bind() completed the main; it leads the [main, globals...] order.
+    REQUIRE(dc->mainViewModelInstance() != nullptr);
+    auto names = boundNames(dc.get());
+    REQUIRE(names.size() == globalNames.size() + 1);
+    REQUIRE(names[0] == dc->mainViewModelInstance()->viewModel()->name());
+}
+
+// Clearing on a fresh state machine is a no-op: with no context there is
+// nothing to empty, so none is allocated — but name validation still applies.
+TEST_CASE("setGlobalViewModelInstance null on empty context is a no-op",
+          "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_variables_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    REQUIRE_FALSE(globalNames.empty());
+
+    REQUIRE(stateMachine->dataContext() == nullptr);
+
+    // Clearing an already-empty slot succeeds without allocating a context.
+    REQUIRE(stateMachine->setGlobalViewModelInstance(globalNames[0], nullptr));
+    REQUIRE(stateMachine->dataContext() == nullptr);
+
+    // A non-global name is still rejected, even with a null instance.
+    REQUIRE_FALSE(
+        stateMachine->setGlobalViewModelInstance("not-a-global", nullptr));
+}
+
+// The artboard path empties a previously-set global slot on a null instance,
+// leaving the others untouched — mirroring the state machine behavior.
+TEST_CASE("artboard setGlobalViewModelInstance with null empties the slot",
+          "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_variables_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    // Need at least two globals to prove the others are untouched.
+    REQUIRE(globalNames.size() >= 2);
+
+    for (auto& name : globalNames)
+    {
+        auto g = file->createDefaultViewModelInstance(file->viewModel(name));
+        REQUIRE(artboard->setGlobalViewModelInstance(name, g));
+    }
+    REQUIRE(artboard->globalViewModelInstance(globalNames[0]) != nullptr);
+    REQUIRE(boundNames(artboard->dataContext().get()).size() ==
+            globalNames.size());
+
+    // Empty the first slot with a null instance.
+    REQUIRE(artboard->setGlobalViewModelInstance(globalNames[0], nullptr));
+
+    // That slot now reads as unset; every other slot is untouched.
+    REQUIRE(artboard->globalViewModelInstance(globalNames[0]) == nullptr);
+    for (size_t i = 1; i < globalNames.size(); i++)
+    {
+        REQUIRE(artboard->globalViewModelInstance(globalNames[i]) != nullptr);
+    }
+    REQUIRE(boundNames(artboard->dataContext().get()).size() ==
+            globalNames.size() - 1);
+}
+
+// The artboard path also no-ops when clearing with no context: none is
+// allocated, but name validation still applies.
+TEST_CASE("artboard setGlobalViewModelInstance null on empty context no-ops",
+          "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_variables_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    REQUIRE_FALSE(globalNames.empty());
+
+    REQUIRE(artboard->dataContext() == nullptr);
+
+    // Clearing an already-empty slot succeeds without allocating a context.
+    REQUIRE(artboard->setGlobalViewModelInstance(globalNames[0], nullptr));
+    REQUIRE(artboard->dataContext() == nullptr);
+
+    // A non-global name is still rejected, even with a null instance.
+    REQUIRE_FALSE(
+        artboard->setGlobalViewModelInstance("not-a-global", nullptr));
+}
