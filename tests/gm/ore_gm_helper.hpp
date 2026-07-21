@@ -319,6 +319,9 @@ inline std::vector<uint8_t> compileHLSL(const char* source,
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
     defined(ORE_BACKEND_RHI)
 
+// Keeps GM shader asset ids clear of riv asset ids and 0 (unset).
+constexpr uint32_t kOreGMShaderAssetIdBase = 0x80000000u;
+
 enum OreGMShader : uint32_t
 {
     kTriangle = 0,
@@ -534,6 +537,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
                 continue;
             ShaderModuleDesc desc{};
             desc.stage = isVtx ? ShaderStage::vertex : ShaderStage::fragment;
+            desc.shaderAssetId = kOreGMShaderAssetIdBase + shaderId;
             desc.bindingMapBytes = bindingMapBytes;
             desc.bindingMapSize = bindingMapSize;
             if (target == 3)
@@ -572,6 +576,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     if (!parseWholeModuleContainer(blobData, blobSize, views, &src, &srcLen))
         return result;
     ShaderModuleDesc desc{};
+    desc.shaderAssetId = kOreGMShaderAssetIdBase + shaderId;
     desc.code = src;
     desc.codeSize = srcLen;
     if (target == 0)
