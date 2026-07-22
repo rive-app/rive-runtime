@@ -14,7 +14,8 @@
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 #include "rive/renderer/render_canvas.hpp"
 
 #include "rive/renderer/ore/ore_bind_group.hpp"
@@ -31,7 +32,8 @@ using namespace rive;
 using namespace rive::gpu;
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 using namespace rive::ore;
 #endif
 
@@ -40,7 +42,8 @@ using namespace rive::ore;
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 static const float kFaceColors[6][4] = {
     {1, 0, 0, 1}, // +X: red
     {0, 1, 1, 1}, // -X: cyan
@@ -67,7 +70,8 @@ public:
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
         auto& ctx = *renderContext->getOreContext();
         constexpr uint32_t kFaceSize = 64;
 

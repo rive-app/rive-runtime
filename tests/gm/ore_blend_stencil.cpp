@@ -52,7 +52,8 @@
 #include "ore_gm_helper.hpp"
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
@@ -66,13 +67,15 @@ using namespace rive;
 using namespace rive::gpu;
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 using namespace rive::ore;
 #endif
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 #define ORE_BLEND_STENCIL_ACTIVE
 
 struct BSVertex

@@ -192,7 +192,8 @@ extern "C" void gms_build_registry()
     MAKE_GM(render_canvas_prepass_multi)
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
     MAKE_GM(ore_triangle)
     MAKE_GM(ore_mrt)
     MAKE_GM(ore_depth)
