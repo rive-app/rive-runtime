@@ -371,6 +371,7 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 {
     Features& f = m_features;
     f.colorBufferFloat = true;
+    f.colorBufferHalfFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
     f.textureViewSampling = true;
