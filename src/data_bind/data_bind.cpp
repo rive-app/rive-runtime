@@ -451,6 +451,9 @@ void DataBind::update(ComponentDirt value)
                                       (flagsValue & DataBindFlags::Direction) ==
                                           DataBindFlags::ToTarget,
                                       this);
+                // We just wrote the target; sync the cached target value so it
+                // reflects what we wrote instead of what was there before.
+                m_ContextValue->refreshTargetValue(this);
                 suppressDirt(false);
             }
         }

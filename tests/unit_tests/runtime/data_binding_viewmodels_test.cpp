@@ -74,3 +74,62 @@ TEST_CASE("Stateful component is bound before binding the view model instance",
 
     CHECK(silver.matches("unbound_stateful_component"));
 }
+
+TEST_CASE("Bidirectional stateful property binding", "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/bidirectional_stateful_property.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(175, 175));
+    stateMachine->pointerUp(rive::Vec2D(175, 175));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(450, 450));
+    stateMachine->pointerUp(rive::Vec2D(450, 450));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(175, 175));
+    stateMachine->pointerUp(rive::Vec2D(175, 175));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(450, 450));
+    stateMachine->pointerUp(rive::Vec2D(450, 450));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(450, 50));
+    stateMachine->pointerUp(rive::Vec2D(450, 50));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    int frames = (int)(1.0f / 0.2f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.2f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("bidirectional_stateful_property"));
+}
