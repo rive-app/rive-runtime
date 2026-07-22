@@ -72,7 +72,7 @@ public:
     }
 #endif
 
-private:
+protected:
     void clipRectImpl(AABB, const RiveRenderPath* originalPath);
     void clipPathImpl(const RiveRenderPath*);
 
