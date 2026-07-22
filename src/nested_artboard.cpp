@@ -265,11 +265,14 @@ void NestedArtboard::updateArtboard(
 
     if (explicitNull)
     {
-        if (m_referencedArtboard)
+        // Only detach a non-owned reference; an owned instance must be
+        // destroyed with m_host intact so ~LayoutComponent can clean the
+        // hosting artboard's dirty layout set.
+        if (m_referencedArtboard != nullptr && m_Instance == nullptr)
         {
             m_referencedArtboard->host(nullptr);
-            m_referencedArtboard = nullptr;
         }
+        m_referencedArtboard = nullptr;
         m_Instance = nullptr;
         setActiveViewModelInstance(nullptr, false);
         return;

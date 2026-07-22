@@ -21,6 +21,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/nested_artboard_layout.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
@@ -549,4 +550,31 @@ TEST_CASE(
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("bidirectional_binding_source"));
+}
+
+TEST_CASE("Null-bound artboard swap survives pending layout sync",
+          "[data binding]")
+{
+    // The swap host has a static artboard AND an artboardId bind whose
+    // view-model artboard property is never set. The first advance applies
+    // the bind as an explicit null, tearing down the statically nested
+    // instance while it is still registered in the hosting artboard's dirty
+    // layout set. Regression test for a use-after-free in syncStyleChanges
+    // (run under ASAN for the strongest signal).
+    auto file = ReadRiveFile("assets/databind_null_artboard_swap.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto vmi = file->createViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto host = artboard->find<NestedArtboardLayout>("swap host");
+    REQUIRE(host != nullptr);
+    REQUIRE(host->artboardInstance() != nullptr);
+
+    artboard->advance(0.0f);
+    artboard->advance(0.0f);
+
+    // The null bind cleared the nested instance without crashing.
+    REQUIRE(host->artboardInstance() == nullptr);
 }
