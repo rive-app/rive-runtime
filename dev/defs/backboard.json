@@ -5,6 +5,17 @@
     "string": "backboard"
   },
   "properties": {
+    "scriptEdgesVerifiedVersion": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1042,
+        "string": "scriptedgesverifiedversion"
+      },
+      "description": "Version of the require-edge contract the last successful editor compile verified dependencyIds against. Export falls back to keeping all scripts when this is below the current contract, so files with absent or stale edges never under-keep.",
+      "runtime": false,
+      "journal": false
+    },
     "coreVersion": {
       "type": "uint",
       "initialValue": "0",

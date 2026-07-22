@@ -60,6 +60,17 @@
       "coop": false,
       "exportsToRuntimeConditionally": true,
       "journal": false
+    },
+    "scriptProtocolValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1035,
+        "string": "scriptprotocolvalue"
+      },
+      "description": "ScriptProtocol index, persisted so export paths that never run analysis (headless) can identify protocols like tests. Files predating this property read 0 (utility), so consumers must only trust non-utility values.",
+      "runtime": false,
+      "journal": false
     }
   }
 }
