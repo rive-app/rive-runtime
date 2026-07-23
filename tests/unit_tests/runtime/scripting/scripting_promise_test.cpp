@@ -170,6 +170,25 @@ TEST_CASE("async/await with already-resolved promise", "[scripting][promise]")
     CHECK(lua_tonumber(test.state(), -1) == 99.0);
 }
 
+TEST_CASE("async coroutine inherits thread data (print works)",
+          "[scripting][promise]")
+{
+    // The async coroutine must carry the parent thread's ScriptingContext
+    // (lua_setthreaddata in lua_async); print dereferences it and crashed
+    // when the new thread's data was left null.
+    ScriptingTest test(R"(
+        async(function()
+            print("first resume")
+            await(Promise.resolve(1))
+            print("post-await resume")
+        end)
+        return true
+    )");
+    REQUIRE(test.console.size() == 2);
+    CHECK(test.console[0] == "first resume");
+    CHECK(test.console[1] == "post-await resume");
+}
+
 TEST_CASE("async/await chains multiple awaits", "[scripting][promise]")
 {
     ScriptingTest test(R"(

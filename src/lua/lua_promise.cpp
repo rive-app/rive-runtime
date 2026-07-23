@@ -1099,6 +1099,7 @@ static int lua_async(lua_State* L)
     // Create a coroutine. Both stay on L's stack — closures capture
     // them as direct upvalues, GC keeps them alive.
     lua_State* co = lua_newthread(L);
+    lua_setthreaddata(co, lua_getthreaddata(L));
     int coIdx = lua_gettop(L);
 
     // Copy function to coroutine stack.
