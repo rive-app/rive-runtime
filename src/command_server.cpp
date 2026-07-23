@@ -1758,9 +1758,17 @@ bool CommandServer::processCommands()
                 if (rive::ArtboardInstance* artboard =
                         getArtboardInstance(artboardHandle))
                 {
-                    if (auto stateMachine =
-                            name.empty() ? artboard->defaultStateMachine()
-                                         : artboard->stateMachineNamed(name))
+                    auto stateMachine =
+                        name.empty() ? artboard->defaultStateMachine()
+                                     : artboard->stateMachineNamed(name);
+                    if (stateMachine == nullptr && name.empty())
+                    {
+                        // Match ArtboardInstance::defaultScene(): fall back
+                        // to the first state machine when the artboard has
+                        // no default set (older editor exports).
+                        stateMachine = artboard->stateMachineAt(0);
+                    }
+                    if (stateMachine)
                     {
                         std::unique_lock<std::mutex> accesLock(
                             m_stateMachineAccessMutex);
