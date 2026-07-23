@@ -12,7 +12,6 @@ TestingWindow* TestingWindow::MakeWGPU(const BackendParams&) { return nullptr; }
 
 #include "common/offscreen_render_target.hpp"
 #include "rive/renderer/rive_renderer.hpp"
-#include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
 #include <algorithm>
@@ -146,6 +145,22 @@ public:
         }
 #endif
 
+        std::vector<wgpu::FeatureName> requiredFeatures;
+#ifdef RIVE_WAGYU
+        // Request coherent advanced blend when the adapter advertises it. This
+        // enables Rive to take the "supportsBlendAdvancedCoherentKHR" path on
+        // MSAA, and skip the framebuffer copies and renderPass interruptions
+        // for advanced blend.
+        if (m_adapter.HasFeature(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent)))
+        {
+            requiredFeatures.push_back(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
+        }
+#endif
+        deviceDesc.requiredFeatureCount = requiredFeatures.size();
+        deviceDesc.requiredFeatures = requiredFeatures.data();
+
         m_adapter.RequestDevice(
             &deviceDesc,
             wgpu::CallbackMode::AllowSpontaneous,
@@ -226,12 +241,32 @@ public:
 
         wgpu::AdapterInfo adapterInfo;
         m_adapter.GetInfo(&adapterInfo);
-        printf("==== WGPU device: %s %s %s (%s, %s) ====\n",
+        printf("==== WGPU device: %s %s %s (%s",
                adapterInfo.vendor.data,
                adapterInfo.device.data,
                adapterInfo.description.data,
-               wgpu_backend_name(impl()->capabilities().backendType),
-               pls_impl_name(impl()->capabilities()));
+               wgpu_backend_name(impl()->capabilities().backendType));
+#ifdef RIVE_WAGYU
+        switch (impl()->capabilities().plsType)
+        {
+            case RenderContextWebGPUImpl::PixelLocalStorageType::
+                GL_EXT_shader_pixel_local_storage:
+                printf(", GL_EXT_shader_pixel_local_storage");
+                break;
+            case RenderContextWebGPUImpl::PixelLocalStorageType::
+                VK_EXT_rasterization_order_attachment_access:
+                printf(", VK_EXT_rasterization_order_attachment_access");
+                break;
+            case RenderContextWebGPUImpl::PixelLocalStorageType::none:
+                break;
+        }
+#endif
+        if (m_renderContext->platformFeatures()
+                .supportsBlendAdvancedCoherentKHR)
+        {
+            printf(", WagyuBlendEquationAdvancedCoherent");
+        }
+        printf(") ====\n");
     }
 
     rive::Factory* factory() override { return m_renderContext.get(); }

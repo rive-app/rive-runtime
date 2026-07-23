@@ -22,21 +22,22 @@ typedef struct WGPUWagyuExternalTextureImpl *WGPUWagyuExternalTexture WGPU_OBJEC
 // These values extend the WGPUSType enum set from webgpu.h
 typedef enum WGPUSType_Wagyu
 {
-    WGPUSType_WagyuAdapterInfo                  = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0001,
-    WGPUSType_WagyuColorTargetState             = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0002,
-    WGPUSType_WagyuCommandEncoderDescriptor     = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0003,
-    WGPUSType_WagyuComputePipelineDescriptor    = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0004,
-    WGPUSType_WagyuDeviceDescriptor             = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0005,
-    WGPUSType_WagyuExternalTextureBindingEntry  = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0006,
-    WGPUSType_WagyuExternalTextureBindingLayout = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0007,
-    WGPUSType_WagyuFragmentState                = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0008,
-    WGPUSType_WagyuInputTextureBindingLayout    = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0009,
-    WGPUSType_WagyuRenderPassDescriptor         = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000A,
-    WGPUSType_WagyuRenderPipelineDescriptor     = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000B,
-    WGPUSType_WagyuShaderModuleDescriptor       = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000C,
-    WGPUSType_WagyuSurfaceConfiguration         = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000D,
-    WGPUSType_WagyuTextureDescriptor            = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000E,
-    WGPUSType_WagyuForce32                      = 0x7FFFFFFF
+    WGPUSType_WagyuAdapterInfo                     = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0001,
+    WGPUSType_WagyuColorTargetState                = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0002,
+    WGPUSType_WagyuCommandEncoderDescriptor        = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0003,
+    WGPUSType_WagyuComputePipelineDescriptor       = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0004,
+    WGPUSType_WagyuDeviceDescriptor                = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0005,
+    WGPUSType_WagyuExternalTextureBindingEntry     = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0006,
+    WGPUSType_WagyuExternalTextureBindingLayout    = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0007,
+    WGPUSType_WagyuFragmentState                   = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0008,
+    WGPUSType_WagyuInputTextureBindingLayout       = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0009,
+    WGPUSType_WagyuRenderPassDescriptor            = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000A,
+    WGPUSType_WagyuRenderPipelineDescriptor        = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000B,
+    WGPUSType_WagyuShaderModuleDescriptor          = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000C,
+    WGPUSType_WagyuSurfaceConfiguration            = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000D,
+    WGPUSType_WagyuTextureDescriptor               = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000E,
+    WGPUSType_WagyuDeviceWantsValidationDescriptor = WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000F,
+    WGPUSType_WagyuForce32                         = 0x7FFFFFFF
 } WGPUSType_Wagyu WGPU_ENUM_ATTRIBUTE;
 
 typedef enum WGPUWagyuDeviceFlushStatus
@@ -65,6 +66,28 @@ typedef enum WGPUWagyuShaderLanguage
     WGPUWagyuShaderLanguage_Force32 = 0x7FFFFFFF
 } WGPUWagyuShaderLanguage WGPU_ENUM_ATTRIBUTE;
 
+// Wagyu-namespaced values extending upstream enums. Allocated from the reserved
+// range so they do not collide with future upstream additions.
+static const WGPUFeatureName WGPUFeatureName_WagyuBlendEquationAdvancedCoherent = (WGPUFeatureName)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0001);
+
+// Advanced blend equations (set as the WGPUBlendComponent.operation; the factors
+// are ignored). Requires the WagyuBlendEquationAdvancedCoherent feature.
+static const WGPUBlendOperation WGPUBlendOperation_WagyuMultiply   = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0001);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuScreen     = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0002);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuOverlay    = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0003);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuDarken     = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0004);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuLighten    = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0005);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuColorDodge = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0006);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuColorBurn  = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0007);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuHardLight  = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0008);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuSoftLight  = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x0009);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuDifference = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000A);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuExclusion  = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000B);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuHue        = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000C);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuSaturation = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000D);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuColor      = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000E);
+static const WGPUBlendOperation WGPUBlendOperation_WagyuLuminosity = (WGPUBlendOperation)(WGPU_WAGYU_RESERVED_RANGE_BASE + 0x000F);
+
 typedef enum WGPUWagyuWGSLFeatureType
 {
     WGPUWagyuWGSLFeatureType_Testing            = 0x00000001,
@@ -81,6 +104,7 @@ static const WGPUWagyuFragmentStateFeaturesFlags WGPUWagyuFragmentStateFeaturesF
 // These values extend the WGPUTextureUsage enum set from webgpu.h
 static const WGPUTextureUsage WGPUTextureUsage_WagyuInputAttachment     = (WGPUTextureUsage)(0x0000000040000000);
 static const WGPUTextureUsage WGPUTextureUsage_WagyuTransientAttachment = (WGPUTextureUsage)(0x0000000020000000);
+static const WGPUTextureUsage WGPUTextureUsage_WagyuMSAAResolveSource   = (WGPUTextureUsage)(0x0000000080000000);
 
 // Forward declarations for callbacks
 struct WGPUWagyuDevicePipelineBinaryCacheStatistics;
@@ -186,6 +210,15 @@ typedef struct WGPUWagyuDeviceDescriptor
 
 #define WGPU_WAGYU_DEVICE_DESCRIPTOR_INIT \
     WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDeviceDescriptor, { /*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuDeviceDescriptor) _wgpu_COMMA /*.dataBufferNeedsDetach*/ WGPUOptionalBool_Undefined _wgpu_COMMA /*.wantsIndirectRendering*/ WGPUOptionalBool_Undefined _wgpu_COMMA /*.wantsBufferClear*/ WGPUOptionalBool_Undefined _wgpu_COMMA /*.wantsTextureClear*/ WGPUOptionalBool_Undefined _wgpu_COMMA })
+
+typedef struct WGPUWagyuDeviceWantsValidationDescriptor
+{
+    WGPUChainedStruct chain;
+    WGPUOptionalBool wantsValidation;
+} WGPUWagyuDeviceWantsValidationDescriptor WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_DEVICE_VALIDATION_INIT \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(WGPUWagyuDeviceWantsValidationDescriptor, { /*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuDeviceWantsValidationDescriptor) _wgpu_COMMA /*.wantsValidation*/ WGPUOptionalBool_Undefined _wgpu_COMMA })
 
 typedef struct WGPUWagyuDeviceFlushCallbackInfo
 {
