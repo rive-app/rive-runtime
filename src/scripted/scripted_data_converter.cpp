@@ -90,7 +90,7 @@ DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
                                                   const std::string& method)
 {
     lua_State* L = state();
-    if (L == nullptr)
+    if (L == nullptr || m_self == 0)
     {
         return value;
     }
