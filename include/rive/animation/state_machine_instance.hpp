@@ -383,6 +383,9 @@ public:
 private:
     std::vector<EventReport> m_reportedEvents;
     std::vector<EventReport> m_reportingEvents;
+    // Events first reported inside the applyEvents loop; kept host visible
+    // until the next applyEvents so hosts see them exactly once.
+    std::vector<EventReport> m_eventsAppliedDuringLoop;
     const StateMachine* m_machine;
     bool m_needsAdvance = false;
     std::vector<SMIInput*> m_inputInstances; // we own each pointer

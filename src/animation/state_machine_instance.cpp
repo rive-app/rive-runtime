@@ -1285,6 +1285,7 @@ public:
     virtual ~ListenerViewModelPropertyBinding();
     void addDirt(ComponentDirt value, bool recurse) override;
     void relinkDataBind() override;
+    ViewModelInstanceValue* value() { return m_viewModelInstanceValue.get(); }
 
 protected:
     ListenerViewModel* m_parent = nullptr;
@@ -1368,6 +1369,17 @@ public:
                     }
                 }
                 index++;
+            }
+        }
+        // A trigger fired before this bind (e.g. during script init) stays
+        // pending until the frame resets it; report it so it isn't lost.
+        for (auto& binding : m_propertyBindings)
+        {
+            auto value = binding->value();
+            if (value != nullptr && value->is<ViewModelInstanceTrigger>() &&
+                value->as<ViewModelInstanceTrigger>()->propertyValue() != 0)
+            {
+                reportToStateMachine(value);
             }
         }
     }
@@ -2319,6 +2331,7 @@ bool StateMachineInstance::tryChangeState()
 
 void StateMachineInstance::applyEvents()
 {
+    m_eventsAppliedDuringLoop.clear();
     int maxIterations = 100;
     int currentIteration = 0;
     while ((m_reportedEvents.size() > 0 ||
@@ -2330,6 +2343,14 @@ void StateMachineInstance::applyEvents()
         m_reportingListenerViewModels = m_reportedListenerViewModels;
         m_reportedEvents.clear();
         m_reportedListenerViewModels.clear();
+        if (currentIteration > 1)
+        {
+            // These were reported during the loop, so no host has seen them
+            // yet; keep them visible until the next applyEvents.
+            m_eventsAppliedDuringLoop.insert(m_eventsAppliedDuringLoop.end(),
+                                             m_reportingEvents.begin(),
+                                             m_reportingEvents.end());
+        }
         this->notifyEventListeners(m_reportingEvents, nullptr);
         this->notifyListenerViewModels(m_reportingListenerViewModels);
     }
@@ -3033,11 +3054,16 @@ void StateMachineInstance::reportListenerViewModel(
 
 std::size_t StateMachineInstance::reportedEventCount() const
 {
-    return m_reportedEvents.size();
+    return m_eventsAppliedDuringLoop.size() + m_reportedEvents.size();
 }
 
 const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
 {
+    if (index < m_eventsAppliedDuringLoop.size())
+    {
+        return m_eventsAppliedDuringLoop[index];
+    }
+    index -= m_eventsAppliedDuringLoop.size();
     if (index >= m_reportedEvents.size())
     {
         return EventReport(nullptr, 0.0f);

@@ -19,6 +19,7 @@
 #include "rive/animation/nested_state_machine.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/node.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
@@ -374,4 +375,36 @@ TEST_CASE("event targetting an event object triggers correctly", "[events]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("target_event"));
+}
+TEST_CASE("event fired by a view model listener is visible to the host",
+          "[events]")
+{
+    // Fixture exported from packages/rml/tests/rmls/vm_listener_fire_event.rml
+    // via the rml riv exporter.
+    auto file = ReadRiveFile("assets/vm_listener_fire_event.riv");
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto listener = artboard->stateMachine(0)->listener(0);
+    REQUIRE(listener->listenerInputTypeCount() == 1);
+    REQUIRE(listener->hasListener(ListenerType::viewModel));
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(artboard->viewModelId(), 0);
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    REQUIRE(stateMachine->reportedEventCount() == 0);
+
+    // The event fires during the applyEvents loop itself; it must still be
+    // reported to the host after the advance, exactly once.
+    vmi->propertyValue("go")->as<ViewModelInstanceTrigger>()->trigger();
+    stateMachine->advanceAndApply(0.016f);
+
+    REQUIRE(stateMachine->reportedEventCount() == 1);
+    REQUIRE(stateMachine->reportedEventAt(0).event()->name() == "ding");
+
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(stateMachine->reportedEventCount() == 0);
 }

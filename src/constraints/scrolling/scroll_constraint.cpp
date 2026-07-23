@@ -36,7 +36,14 @@ float ScrollConstraint::contentWidth()
             contentSize += child->layoutBounds().width();
         }
         auto lenOffset = infinite() ? 0 : 1;
-        return contentSize + gap().x * (scrollChildren().size() - lenOffset);
+        contentSize += gap().x * (scrollChildren().size() - lenOffset);
+        if (!infinite())
+        {
+            // Match the non-virtualized layout width; an infinite carousel's
+            // cycle length stays padding free.
+            contentSize += content()->paddingLeft() + content()->paddingRight();
+        }
+        return contentSize;
     }
     return content()->layoutWidth();
 }
@@ -55,7 +62,12 @@ float ScrollConstraint::contentHeight()
             contentSize += child->layoutBounds().height();
         }
         auto lenOffset = infinite() ? 0 : 1;
-        return contentSize + gap().y * (scrollChildren().size() - lenOffset);
+        contentSize += gap().y * (scrollChildren().size() - lenOffset);
+        if (!infinite())
+        {
+            contentSize += content()->paddingTop() + content()->paddingBottom();
+        }
+        return contentSize;
     }
     return content()->layoutHeight();
 }
@@ -248,9 +260,21 @@ void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
     if (m_physics != nullptr)
     {
         m_physics->accumulate(scaledDelta, timeStamp);
+        scrollOffsetX(offsetX() + scaledDelta.x);
+        scrollOffsetY(offsetY() + scaledDelta.y);
+        return;
     }
-    scrollOffsetX(offsetX() + scaledDelta.x);
-    scrollOffsetY(offsetY() + scaledDelta.y);
+    // Without physics nothing ever pulls the stored offset back into range,
+    // so overscroll would accumulate out of view and eat the next drag.
+    float x = offsetX() + scaledDelta.x;
+    float y = offsetY() + scaledDelta.y;
+    if (!infinite())
+    {
+        x = maxOffsetX() > 0 ? 0 : math::clamp(x, maxOffsetX(), 0);
+        y = maxOffsetY() > 0 ? 0 : math::clamp(y, maxOffsetY(), 0);
+    }
+    scrollOffsetX(x);
+    scrollOffsetY(y);
 }
 
 std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
