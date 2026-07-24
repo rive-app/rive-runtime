@@ -34,7 +34,6 @@ static ScriptingContext* scriptingContext(lua_State* L)
 }
 
 static void pushViewModelInstanceValue(lua_State* L,
-                                       rcp<ViewModel> viewModel,
                                        ViewModelInstanceValue* propValue)
 {
     switch (propValue->coreType())
@@ -82,12 +81,19 @@ static void pushViewModelInstanceValue(lua_State* L,
                 ref_rcp(propValue->as<ViewModelInstanceEnum>()));
             break;
         case ViewModelInstanceViewModelBase::typeKey:
+        {
+            // The wrapper needs the referenced view model, not the owner's, so
+            // instance() mints the nested type.
+            auto vmValue = propValue->as<ViewModelInstanceViewModel>();
+            auto reference = vmValue->referenceViewModelInstance();
             lua_newrive<ScriptedPropertyViewModel>(
                 L,
                 L,
-                viewModel,
-                ref_rcp(propValue->as<ViewModelInstanceViewModel>()));
+                reference != nullptr ? ref_rcp(reference->viewModel())
+                                     : nullptr,
+                ref_rcp(vmValue));
             break;
+        }
         case ViewModelInstanceSymbolListIndexBase::typeKey:
         {
 
@@ -510,7 +516,7 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
         }
         else
         {
-            pushViewModelInstanceValue(m_state, m_viewModel, propValue);
+            pushViewModelInstanceValue(m_state, propValue);
         }
     }
     m_propertyRefs[name] = lua_ref(m_state, -1);
@@ -543,12 +549,16 @@ int ScriptedPropertyViewModel::pushValue()
     if (m_instanceValue)
     {
         m_instanceValue->addDependent(this);
-        lua_newrive<ScriptedViewModel>(
-            m_state,
-            m_state,
-            m_viewModel,
-            m_instanceValue->as<ViewModelInstanceViewModel>()
-                ->referenceViewModelInstance());
+        // Derive the view model from the current reference; the creation-time
+        // one goes stale when the reference binds or swaps after a relink.
+        auto reference = m_instanceValue->as<ViewModelInstanceViewModel>()
+                             ->referenceViewModelInstance();
+        lua_newrive<ScriptedViewModel>(m_state,
+                                       m_state,
+                                       reference != nullptr
+                                           ? ref_rcp(reference->viewModel())
+                                           : m_viewModel,
+                                       reference);
     }
     else
     {

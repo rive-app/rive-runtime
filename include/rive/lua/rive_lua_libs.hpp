@@ -1219,6 +1219,7 @@ public:
     {
         return m_viewModelInstance;
     }
+    rcp<ViewModel> viewModel() const { return m_viewModel; }
 
 private:
     lua_State* m_state;
