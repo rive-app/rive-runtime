@@ -53,9 +53,40 @@
 #   build_rive.sh rebuild out/debug  # use "rebuild" on a specific OUT directory to relaunch the
 #                                    # build with whatever args it got configured with initially
 #   build_rive.sh rebuild out/debug gms goldens  # args after OUT get forwarded to the buildsystem
+#
+# Incredibuild (windows, opt-in):
+#
+#   export RIVE_USE_INCREDIBUILD=1          # distribute ninja and vs2022 builds via Incredibuild
+#   export RIVE_INCREDIBUILD_AVOID_LOCAL=1  # also pass -AvoidLocal=ON (build on helpers only)
+#
+#   The ninja build gets dispatched through IBConsole.exe with build/incredibuild_profile.xml, and
+#   vs2022 through BuildConsole.exe. rive_build_config.lua also keys off this variable for
+#   Incredibuild-friendly MSVC settings. Both require Incredibuild to be installed and on $PATH.
 
 set -e
 set -o pipefail
+
+# Echo a command (properly quoted, on stderr) and then run it.
+echo_and_run() {
+    (set -x; "$@")
+}
+
+# Run a build command, dispatching it through IncrediBuild (IBConsole.exe) when
+# $RIVE_USE_INCREDIBUILD is set, otherwise running it directly. Relies on the
+# globals $SCRIPT_DIR and $IB_ARGS.
+ib_run() {
+    if [[ -z "$RIVE_USE_INCREDIBUILD" ]]; then
+        echo_and_run "$@"
+        return
+    fi
+    # IBConsole takes the whole build as one flat -command="..." string, so join
+    # the args with spaces. Per-arg quoting confuses IBConsole's parsing, so no
+    # individual arg may contain a space -- true for our ninja/make targets and
+    # out directory.
+    local IFS=' '
+    echo_and_run IBConsole.exe -command="$*" \
+        -profile="$SCRIPT_DIR/incredibuild_profile.xml" "${IB_ARGS[@]}"
+}
 
 # Detect where build_rive.sh is located on disk.
 # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
@@ -303,8 +334,13 @@ else
     echo "$RIVE_PREMAKE_ARGS" > "$RIVE_OUT/.rive_premake_args"
 fi
 
-echo premake5 $RIVE_PREMAKE_ARGS
-premake5 $RIVE_PREMAKE_ARGS | grep -v '^Done ([1-9]*ms).$'
+# Extra args shared by IBConsole.exe and BuildConsole.exe.
+IB_ARGS=()
+if [[ -n "$RIVE_INCREDIBUILD_AVOID_LOCAL" ]]; then
+    IB_ARGS+=(-AvoidLocal=ON)
+fi
+
+echo_and_run premake5 $RIVE_PREMAKE_ARGS | grep -v '^Done ([1-9]*ms).$'
 
 if [[ "$RIVE_NO_BUILD" = true ]]; then
     echo "Not building as nobuild was specified"
@@ -318,12 +354,10 @@ case "$RIVE_BUILD_SYSTEM" in
         wc ./compile_commands.json
         ;;
     gmake2)
-        echo make -C $RIVE_OUT -j$NUM_CORES $@
-        make -C $RIVE_OUT -j$NUM_CORES $@
+        ib_run make -C "$RIVE_OUT" -j$NUM_CORES "$@"
         ;;
     ninja)
-        echo ninja -C $RIVE_OUT $@
-        ninja -C $RIVE_OUT $@
+        ib_run ninja -C "$RIVE_OUT" "$@"
         ;;
     xcode4)
         if [[ $# = 0 ]]; then
@@ -334,16 +368,19 @@ case "$RIVE_BUILD_SYSTEM" in
             XCODE_SCHEMES="$@"
         fi
         for SCHEME in $XCODE_SCHEMES; do
-            echo xcodebuild -workspace $RIVE_OUT/rive.xcworkspace -scheme $SCHEME
-            xcodebuild -workspace $RIVE_OUT/rive.xcworkspace -scheme $SCHEME
+            echo_and_run xcodebuild -workspace $RIVE_OUT/rive.xcworkspace -scheme $SCHEME
         done
         ;;
     vs2022)
         for TARGET in $@; do
             MSVC_TARGETS="$MSVC_TARGETS -t:$TARGET"
         done
-        echo msbuild.exe "./$RIVE_OUT/rive.sln" $MSVC_TARGETS
-        msbuild.exe "./$RIVE_OUT/rive.sln" $MSVC_TARGETS
+        if [[ -n "$RIVE_USE_INCREDIBUILD" ]]; then
+            echo_and_run BuildConsole.exe -UseMSBuild -cfg="default|${RIVE_ARCH:-x64}" \
+                "./$RIVE_OUT/rive.sln" -msbuildargs="$MSVC_TARGETS" "${IB_ARGS[@]}"
+        else
+            echo_and_run msbuild.exe "./$RIVE_OUT/rive.sln" $MSVC_TARGETS
+        fi
         ;;
     *)
         echo "Unsupported buildsystem $RIVE_BUILD_SYSTEM"

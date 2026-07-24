@@ -323,6 +323,27 @@ do
     runtime('Release')
 end
 
+-- Opt in to Incredibuild-friendly MSVC settings by setting
+-- $RIVE_USE_INCREDIBUILD. (See also the Incredibuild handling in
+-- build_rive.sh.)
+if os.getenv('RIVE_USE_INCREDIBUILD') then
+    -- Debug only: release enables LTO (/LTCG) above, which is incompatible with
+    -- /INCREMENTAL -- the linker warns (LNK4075) and drops one of them.
+    -- Incremental linking is a debug-iteration feature anyway, so scope it (and
+    -- the rest of these tweaks) to debug, where LTO is already disabled.
+    filter({ 'system:windows', 'options:not for_unreal', 'options:config=debug' })
+    do
+        if type(incrementallink) == 'function' then
+            incrementallink('On')
+        else
+            -- Older Premake automatically passes /INCREMENTAL to Visual Studio Debug configs.
+        end
+        linktimeoptimization('Off') -- Disables /LTCG.
+        symbols('On') -- Turns on MSVC debug symbol generation.
+        editandcontinue('Off') -- Disables /ZI (Edit & Continue) and forces /Zi (Program Database).
+    end
+end
+
 -- Unreal requires c++20 under most circumstances. However, some platforms require 17. So make it a seperate flag
 newoption({ trigger = 'cpp20', description = 'use c++ 20 standard' })
 filter({'options:cpp20'})
@@ -519,18 +540,18 @@ if _OPTIONS['for_android'] then
         premake.tools.android_ndk[k] = v
     end
 
-    -- Windows requires extentions for .cmd files.
-    local ndk_ext = ''
-    if os.host() == 'windows' then
-        ndk_ext = '.cmd'
-    end
-
     -- update the android_ndk toolset to use the appropriate binaries.
-    local android_ndk_tools = {
-        cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang' .. ndk_ext,
-        cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++' .. ndk_ext,
-        ar = ndk_toolchain .. '/bin/llvm-ar',
-    }
+    local android_ndk_tools = { ar = ndk_toolchain .. '/bin/llvm-ar' }
+    if os.host() == 'windows' then
+        -- Invoke clang directly instead of going through the .cmd wrappers,
+        -- which only add '--target=' and add a process layer between the build
+        -- system and the compiler.
+        android_ndk_tools.cc = ndk_toolchain .. '/bin/clang.exe --target=' .. android_target
+        android_ndk_tools.cxx = ndk_toolchain .. '/bin/clang++.exe --target=' .. android_target
+    else
+        android_ndk_tools.cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang'
+        android_ndk_tools.cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++'
+    end
     function premake.tools.android_ndk.gettoolname(cfg, tool)
         return android_ndk_tools[tool]
     end

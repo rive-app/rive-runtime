@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<Profile FormatVersion="1">
+  <Tools>
+    <!-- Intercept the build orchestrators on the host machine only; they dispatch the work but
+         shouldn't themselves run remotely (ninja for a ninja build, make for a gmake2 build). -->
+    <Tool Filename="ninja" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="ninja.exe" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="make" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="make.exe" AllowIntercept="true" AllowRemote="false" />
+
+    <!-- Copy local path/environment mirror to helpers -->
+    <Tool Filename="clang" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="clang++" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="clang.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="clang++.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+
+    <!-- Shader compilers, spawned by the shader Makefile (intercepted by IBConsole.exe if premake5 is launched through it) -->
+    <Tool Filename="naga" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="naga.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="glslangValidator" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="glslangValidator.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="spirv-opt" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="spirv-opt.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+
+    <!-- Emscripten compiles via "python3 emcc.py", which spawns the real clang as a child process.
+         Intercept the driver (locally) so those clang tasks become visible and distributable. -->
+    <Tool Filename="python" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="python3" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="python.exe" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="python3.exe" AllowIntercept="true" AllowRemote="false" />
+
+    <!-- Explicitly pin linker tasks locally to prevent sandbox failures -->
+    <Tool Filename="llvm-ar" AllowRemote="false" />
+    <Tool Filename="llvm-ar.exe" AllowRemote="false" />
+    <Tool Filename="ld" AllowRemote="false" />
+    <Tool Filename="ld.exe" AllowRemote="false" />
+  </Tools>
+</Profile>
