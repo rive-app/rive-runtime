@@ -72,6 +72,8 @@ public:
     // layout fit scale. Equals the user scale when not in a layout.
     float renderScaleX() const { return scaleX() * m_layoutScaleX; }
     float renderScaleY() const { return scaleY() * m_layoutScaleY; }
+    float computedWidth() override { return width() * renderScaleX(); }
+    float computedHeight() override { return height() * renderScaleY(); }
     void assetUpdated() override;
     AABB localBounds() const override;
     void updateTransform() override;
