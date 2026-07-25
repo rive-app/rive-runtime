@@ -228,6 +228,12 @@ public:
     {
         return std::isnan(m_layoutHeight) ? height() : m_layoutHeight;
     }
+    // Overflow treats the box as fixed once a layout controls our size.
+    bool overflowAsFixed() const
+    {
+        return effectiveSizing() == TextSizing::fixed ||
+               !std::isnan(m_layoutWidth);
+    }
     float computedWidth() override { return localBounds().width(); };
     float computedHeight() override { return localBounds().height(); };
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;

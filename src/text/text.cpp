@@ -299,8 +299,8 @@ TextBoundsInfo Text::computeBoundsInfo()
     bool isEllipsisLineLast = false;
     // Find the line to put the ellipsis on (line before the one that
     // overflows).
-    bool wantEllipsis = overflow() == TextOverflow::ellipsis &&
-                        effectiveSizing() == TextSizing::fixed;
+    bool wantEllipsis =
+        overflow() == TextOverflow::ellipsis && overflowAsFixed();
 
     int lastLineIndex = -1;
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
@@ -382,7 +382,8 @@ float Text::fitFontScale()
     const TextSizing sizing = effectiveSizing();
     // Without a fixed dimension to fit into there is nothing to search:
     // autoWidth grows in both directions, so we keep the authored size.
-    if (maxSize <= 1.0f || sizing == TextSizing::autoWidth)
+    if (maxSize <= 1.0f ||
+        (sizing == TextSizing::autoWidth && !overflowAsFixed()))
     {
         return 1.0f;
     }
@@ -429,7 +430,7 @@ float Text::fitFontScale()
         }
 
         bool widthFits = maxWidth <= boxWidth;
-        bool heightFits = sizing == TextSizing::fixed ? (y <= boxHeight) : true;
+        bool heightFits = !overflowAsFixed() || y <= boxHeight;
         return widthFits && heightFits;
     };
 
@@ -461,7 +462,7 @@ LineIter Text::shouldDrawLine(float curY,
     switch (overflow())
     {
         case TextOverflow::hidden:
-            if (effectiveSizing() == TextSizing::fixed)
+            if (overflowAsFixed())
             {
                 switch (verticalAlign())
                 {
@@ -493,7 +494,7 @@ LineIter Text::shouldDrawLine(float curY,
             }
             break;
         case TextOverflow::clipped:
-            if (effectiveSizing() == TextSizing::fixed)
+            if (overflowAsFixed())
             {
                 switch (verticalAlign())
                 {
@@ -564,25 +565,25 @@ void Text::buildRenderStyles()
         }
     }
 
-    // Step 4: update bounds
+    // Step 4: update bounds. A layout-controlled axis uses the layout's size
+    // so the text box always matches the layout.
     const float paragraphSpace = paragraphSpacing();
+    const float autoSizeMaxY =
+        std::isnan(m_layoutHeight)
+            ? std::max(minY,
+                       totalHeight - paragraphSpace - topTrim - bottomTrim)
+            : minY + m_layoutHeight;
     switch (effectiveSizing())
     {
         case TextSizing::autoWidth:
-            m_bounds = AABB(
-                0.0f,
-                minY,
-                maxWidth,
-                std::max(minY,
-                         totalHeight - paragraphSpace - topTrim - bottomTrim));
+            m_bounds =
+                AABB(0.0f,
+                     minY,
+                     std::isnan(m_layoutWidth) ? maxWidth : m_layoutWidth,
+                     autoSizeMaxY);
             break;
         case TextSizing::autoHeight:
-            m_bounds = AABB(
-                0.0f,
-                minY,
-                effectiveWidth(),
-                std::max(minY,
-                         totalHeight - paragraphSpace - topTrim - bottomTrim));
+            m_bounds = AABB(0.0f, minY, effectiveWidth(), autoSizeMaxY);
             break;
         case TextSizing::fixed:
             m_bounds =
@@ -776,14 +777,14 @@ skipLines:
     auto yOffset = -m_bounds.height() * originY();
     if (overflow() == TextOverflow::fit)
     {
-        auto xScale = (effectiveSizing() != TextSizing::autoWidth &&
+        auto xScale = ((effectiveSizing() != TextSizing::autoWidth ||
+                        overflowAsFixed()) &&
                        maxWidth > m_bounds.width())
                           ? m_bounds.width() / maxWidth
                           : 1;
         auto baseline = fitFromBaseline() ? m_lines[0][0].baseline : 0;
         auto yScale =
-            (effectiveSizing() == TextSizing::fixed &&
-             totalHeight > m_bounds.height())
+            (overflowAsFixed() && totalHeight > m_bounds.height())
                 ? (m_bounds.height() - baseline) / (totalHeight - baseline)
                 : 1;
         if (xScale != 1 || yScale != 1)
@@ -807,7 +808,7 @@ skipLines:
     }
     if (verticalAlign() != VerticalTextAlign::top)
     {
-        if (effectiveSizing() == TextSizing::fixed)
+        if (overflowAsFixed())
         {
             yOffset = -m_bounds.height() * originY();
             if (verticalAlign() == VerticalTextAlign::middle)

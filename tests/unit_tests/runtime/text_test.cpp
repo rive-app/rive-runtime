@@ -770,3 +770,51 @@ TEST_CASE("Vertical Trim", "[text]")
 
     CHECK(silver.matches("text_vertical_trim_test"));
 }
+
+TEST_CASE("Text box matches layout-controlled size", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout_text_match.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->defaultStateMachine();
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    if (vmi != nullptr)
+    {
+        if (stateMachine != nullptr)
+        {
+            stateMachine->bindViewModelInstance(vmi);
+        }
+        else
+        {
+            artboard->bindViewModelInstance(vmi);
+        }
+    }
+
+    auto advance = [&](float dt) {
+        if (stateMachine != nullptr)
+        {
+            stateMachine->advanceAndApply(dt);
+        }
+        else
+        {
+            artboard->advance(dt);
+        }
+    };
+
+    advance(0.0f);
+    artboard->draw(renderer.get());
+    for (int i = 0; i < 4; i++)
+    {
+        silver.addFrame();
+        advance(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("layout_text_match"));
+}
