@@ -22,8 +22,16 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
     rcp<DataContext> parentDataContext,
-    ScriptingContext* scriptingContext) :
+    ScriptingContext* scriptingContext
+#ifdef WITH_RIVE_TOOLS
+    ,
+    rcp<File> filePin
+#endif
+    ) :
     m_file(file),
+#ifdef WITH_RIVE_TOOLS
+    m_filePin(std::move(filePin)),
+#endif
     m_artboard(std::move(artboardInstance)),
     m_stateMachine(m_artboard->defaultStateMachine()),
     m_scriptingContext(scriptingContext)
@@ -336,12 +344,18 @@ int ScriptedArtboard::instance(lua_State* L,
 {
     auto artboardInstance = artboard()->instance();
     artboardInstance->frameOrigin(false);
+    // Clones share the source's dependency on a cross-lifetime host file.
     lua_newrive<ScriptedArtboard>(L,
                                   L,
                                   m_scriptReffedArtboard->file(),
                                   std::move(artboardInstance),
                                   viewModelInstance,
-                                  m_dataContext);
+                                  m_dataContext
+#ifdef WITH_RIVE_TOOLS
+                                  ,
+                                  m_scriptReffedArtboard->filePin()
+#endif
+    );
     return 1;
 }
 
@@ -484,14 +498,24 @@ ScriptedArtboard::ScriptedArtboard(
     File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
-    rcp<DataContext> dataContext) :
+    rcp<DataContext> dataContext
+#ifdef WITH_RIVE_TOOLS
+    ,
+    rcp<File> filePin
+#endif
+    ) :
     m_state(L),
     m_scriptReffedArtboard(make_rcp<ScriptReffedArtboard>(
         file,
         std::move(artboardInstance),
         viewModelInstance,
         dataContext,
-        static_cast<ScriptingContext*>(lua_getthreaddata(L)))),
+        static_cast<ScriptingContext*>(lua_getthreaddata(L))
+#ifdef WITH_RIVE_TOOLS
+            ,
+        std::move(filePin)
+#endif
+            )),
     m_dataContext(dataContext)
 {}
 

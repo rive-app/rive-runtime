@@ -1077,16 +1077,29 @@ public:
                          std::unique_ptr<ArtboardInstance>&& artboardInstance,
                          rcp<ViewModelInstance> viewModelInstance,
                          rcp<DataContext> parentDataContext,
-                         ScriptingContext* scriptingContext);
+                         ScriptingContext* scriptingContext
+#ifdef WITH_RIVE_TOOLS
+                         ,
+                         rcp<File> filePin = nullptr
+#endif
+    );
 
     ~ScriptReffedArtboard();
     rive::File* file();
     Artboard* artboard();
     StateMachineInstance* stateMachine();
     rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
+#ifdef WITH_RIVE_TOOLS
+    rcp<File> filePin() { return m_filePin; }
+#endif
 
 private:
     File* m_file;
+#ifdef WITH_RIVE_TOOLS
+    // Pins a host file the script does not own. Never set for the script's
+    // own file: that would cycle File -> VM -> userdata -> File and leak.
+    rcp<File> m_filePin;
+#endif
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
@@ -1100,7 +1113,12 @@ public:
                      File* file,
                      std::unique_ptr<ArtboardInstance>&& artboardInstance,
                      rcp<ViewModelInstance> viewModelInstance,
-                     rcp<DataContext> dataContext);
+                     rcp<DataContext> dataContext
+#ifdef WITH_RIVE_TOOLS
+                     ,
+                     rcp<File> filePin = nullptr
+#endif
+    );
     ~ScriptedArtboard();
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
