@@ -1521,6 +1521,13 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
         mx *= Mat2D::fromTranslate(layoutWidth() * originX(),
                                    layoutHeight() * originY());
     }
+    // Mirror drawInternal's own rotation/scale so hit-testing matches what is
+    // drawn. This single spot also covers nested instances, since
+    // NestedArtboard::hitTest re-enters Artboard::hitTest.
+    if (hasSelfTransform())
+    {
+        mx *= selfTransform();
+    }
 
     Drawable* last = m_FirstDrawable;
     if (last)
@@ -1550,19 +1557,26 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
 
 Vec2D Artboard::rootTransform(const Vec2D& point)
 {
+    // When this artboard is nested, its own rotation/scale (applied about the
+    // origin at draw time) is part of how its contents land in the parent, so
+    // fold it in before mapping through the host. Top-level artboards are the
+    // root coordinate space, so their own transform is not applied here.
     if (host())
     {
-        return host()->hostTransformPoint(point, this->as<ArtboardInstance>());
+        auto local = hasSelfTransform() ? selfTransform() * point : point;
+        return host()->hostTransformPoint(local, this->as<ArtboardInstance>());
     }
 #ifdef WITH_RIVE_TOOLS
     // Editor artboards don't have a host, so we expose a function that calls
-    // the host in dart.
+    // the host in dart. The callback is only wired up for mounted (nested)
+    // instances, so applying the self transform here matches the host() path.
     if (m_rootTransformCallback != nullptr)
     {
+        auto local = hasSelfTransform() ? selfTransform() * point : point;
         auto x =
-            m_rootTransformCallback(callbackUserData, point.x, point.y, true);
+            m_rootTransformCallback(callbackUserData, local.x, local.y, true);
         auto y =
-            m_rootTransformCallback(callbackUserData, point.x, point.y, false);
+            m_rootTransformCallback(callbackUserData, local.x, local.y, false);
         return Vec2D(x, y);
     }
 #endif
@@ -1614,18 +1628,15 @@ void Artboard::drawInternal(Renderer* renderer)
 {
     RIVE_PROF_SCOPE_L(1)
     m_didChange = false;
-    if (renderOpacity() == 0)
+    if (childOpacity() == 0)
     {
         return;
     }
-    bool save = clip() || m_FrameOrigin;
+    bool hasSelf = hasSelfTransform();
+    bool save = clip() || m_FrameOrigin || hasSelf;
     if (save)
     {
         renderer->save();
-    }
-    if (clip())
-    {
-        renderer->clipPath(m_worldPath.renderPath(this));
     }
 
     if (m_FrameOrigin)
@@ -1634,6 +1645,25 @@ void Artboard::drawInternal(Renderer* renderer)
         artboardTransform[4] = layoutWidth() * originX();
         artboardTransform[5] = layoutHeight() * originY();
         renderer->transform(artboardTransform);
+    }
+
+    // Apply the artboard's own rotation/scale, pivoted around its origin.
+    // Content-local (0,0) is the origin anchor, so this is simply rotation *
+    // scale with no extra pivot translation. Applied after the frame-origin
+    // translation so the anchor stays put, and it covers both top-level and
+    // nested (mounted) rendering since both funnel through drawInternal.
+    // Hit-testing mirrors this via selfTransform() so interaction matches.
+    if (hasSelf)
+    {
+        renderer->transform(selfTransform());
+    }
+
+    // Clip after the frame-origin and self transforms so the clip region tracks
+    // the (possibly rotated/scaled) artboard. m_localPath is the content-local
+    // bounds, so it is transformed along with the content.
+    if (clip())
+    {
+        renderer->clipPath(m_localPath.renderPath(this));
     }
 
     for (auto shapePaint : m_ShapePaints)
@@ -2643,6 +2673,18 @@ void Artboard::volume(float value)
             }
         }
     }
+}
+
+void Artboard::hostOpacity(float value)
+{
+    if (m_hostOpacity == value)
+    {
+        return;
+    }
+    m_hostOpacity = value;
+    // Re-propagate opacity to our contents. The property itself is untouched,
+    // so we dirty render opacity directly rather than through opacity(...).
+    addDirt(ComponentDirt::RenderOpacity, true);
 }
 
 void Artboard::dataContext(rcp<DataContext> value)

@@ -638,6 +638,34 @@ public:
     float volume() const;
     void volume(float value);
 
+    // Opacity imposed by a host (e.g. a NestedArtboard) that renders this
+    // artboard as an instance. Kept separate from the `opacity` property so the
+    // artboard's own opacity remains free to animate / data-bind; the two are
+    // multiplied together when propagating opacity to this artboard's contents.
+    float hostOpacity() const { return m_hostOpacity; }
+    void hostOpacity(float value);
+
+    // Opacity propagated to this artboard's contents: the artboard's own
+    // (possibly animated) opacity folded with any host-imposed opacity.
+    float childOpacity() override { return renderOpacity() * m_hostOpacity; }
+
+    // True when the artboard has a non-identity rotation/scale of its own.
+    bool hasSelfTransform() const
+    {
+        return rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f;
+    }
+
+    // The artboard's own rotation/scale, pivoted at the content-local origin
+    // (0,0). Applied on top of the frame-origin translation by both draw and
+    // hit-test so they stay consistent. Identity when hasSelfTransform() is
+    // false.
+    Mat2D selfTransform() const
+    {
+        Mat2D m = Mat2D::fromRotation(rotation());
+        m.scaleByValues(scaleX(), scaleY());
+        return m;
+    }
+
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     rcp<AudioEngine> audioEngine() const;
     void audioEngine(rcp<AudioEngine> audioEngine);
@@ -648,6 +676,7 @@ public:
 #endif
 private:
     float m_volume = 1.0f;
+    float m_hostOpacity = 1.0f;
 #ifdef WITH_RIVE_TOOLS
     ArtboardCallback m_layoutChangedCallback = nullptr;
     ArtboardCallback m_layoutDirtyCallback = nullptr;

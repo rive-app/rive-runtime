@@ -118,7 +118,7 @@ void NestedArtboard::nest(Artboard* artboard)
         return;
     }
     m_referencedArtboard->frameOrigin(false);
-    m_referencedArtboard->opacity(renderOpacity());
+    m_referencedArtboard->hostOpacity(renderOpacity());
     m_referencedArtboard->volume(artboard->volume());
     m_Instance = nullptr;
     if (artboard->isInstance())
@@ -644,7 +644,7 @@ void NestedArtboard::update(ComponentDirt value)
     }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
-        m_referencedArtboard->opacity(renderOpacity());
+        m_referencedArtboard->hostOpacity(renderOpacity());
     }
     // Also flush when the referenced artboard itself is dirty (not just the
     // host). The RenderOpacity branch above writes the host opacity onto the

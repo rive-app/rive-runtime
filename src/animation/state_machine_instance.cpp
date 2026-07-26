@@ -1514,6 +1514,17 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
             m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
             m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
     }
+    // Invert the artboard's own rotation/scale (applied in drawInternal after
+    // the frame-origin translation) so listener hit-testing maps into content
+    // space. Mirrors the adjustment in hitTest(Vec2D).
+    if (m_artboardInstance->hasSelfTransform())
+    {
+        Mat2D inverse;
+        if (m_artboardInstance->selfTransform().invert(&inverse))
+        {
+            position = inverse * position;
+        }
+    }
     // First reset all listener groups before processing the events
     for (const auto& listenerGroup : m_listenerGroups)
     {
@@ -1563,6 +1574,17 @@ bool StateMachineInstance::hitTest(Vec2D position) const
         position -= Vec2D(
             m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
             m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
+    }
+    // Invert the artboard's own rotation/scale (applied in drawInternal after
+    // the frame-origin translation) so the pointer maps into content space.
+    // Covers nested state machines too, which funnel through here.
+    if (m_artboardInstance->hasSelfTransform())
+    {
+        Mat2D inverse;
+        if (m_artboardInstance->selfTransform().invert(&inverse))
+        {
+            position = inverse * position;
+        }
     }
 
     for (const auto& hitShape : m_hitComponents)

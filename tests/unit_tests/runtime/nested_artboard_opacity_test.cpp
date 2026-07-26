@@ -57,3 +57,33 @@ TEST_CASE("Paused nested artboard still propagates host opacity", "[file]")
 
     REQUIRE(paint->renderOpacity() == Approx(baseline * 0.5f));
 }
+
+// The host (NestedArtboard) imposes its opacity through hostOpacity() rather
+// than overwriting the instance's own `opacity` property, so an artboard's own
+// (authored / animated / data-bound) opacity is honored and multiplied with the
+// host opacity instead of being discarded.
+TEST_CASE("Nested artboard's own opacity combines with host opacity", "[file]")
+{
+    auto file = ReadRiveFile("assets/nested_artboard_opacity.riv");
+
+    auto mainArtboard = file->artboard()->instance();
+    auto artboard = mainArtboard->find<rive::Artboard>("Parent Artboard");
+    artboard->updateComponents();
+    auto nestedArtboardContainer =
+        artboard->find<rive::NestedArtboard>("Nested artboard container");
+    auto nestedArtboard = nestedArtboardContainer->artboardInstance();
+
+    // Give the mounted instance its own opacity, as animation / data binding
+    // would, and impose a separate host opacity as the container does.
+    nestedArtboard->opacity(0.4f);
+    nestedArtboard->hostOpacity(0.5f);
+    nestedArtboard->updateComponents();
+
+    // The own opacity property survives (not clobbered by the host)...
+    REQUIRE(nestedArtboard->opacity() == 0.4f);
+    // ...and contents receive the product of own and host opacity.
+    REQUIRE(nestedArtboard->childOpacity() == Approx(0.2f));
+    auto paint = nestedArtboard->shapePaints()[0];
+    // The background paint (own opacity 1.0) receives the combined opacity.
+    REQUIRE(paint->renderOpacity() == Approx(0.2f));
+}
