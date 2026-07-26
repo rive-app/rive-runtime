@@ -11,6 +11,8 @@
 #include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_font.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
@@ -108,6 +110,14 @@ static void pushViewModelInstanceValue(lua_State* L,
                 L,
                 L,
                 ref_rcp(propValue->as<ViewModelInstanceAssetImage>()));
+            break;
+        }
+        case ViewModelInstanceAssetFontBase::typeKey:
+        {
+            lua_newrive<ScriptedPropertyFont>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceAssetFont>()));
             break;
         }
         default:
@@ -500,6 +510,11 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                                                        m_state,
                                                        nullptr);
                     break;
+                case ViewModelPropertyAssetFontBase::typeKey:
+                    lua_newrive<ScriptedPropertyFont>(m_state,
+                                                      m_state,
+                                                      nullptr);
+                    break;
                 case ViewModelPropertySymbolListIndexBase::typeKey:
                     lua_pushinteger(m_state, 1);
                     break;
@@ -888,6 +903,14 @@ static int vm_namecall(lua_State* L)
                 return vm->pushValue(name,
                                      ViewModelInstanceAssetImageBase::typeKey);
             }
+            case (int)LuaAtoms::getFont:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name,
+                                     ViewModelInstanceAssetFontBase::typeKey);
+            }
             case (int)LuaAtoms::instance:
             case (int)LuaAtoms::newAtom:
             {
@@ -962,6 +985,9 @@ static int property_namecall(lua_State* L)
                 break;
             case ScriptedPropertyImage::luaTag:
                 name = ScriptedPropertyImage::luaName;
+                break;
+            case ScriptedPropertyFont::luaTag:
+                name = ScriptedPropertyFont::luaName;
                 break;
             default:
                 luaL_typeerror(L, 1, name);
@@ -1311,6 +1337,80 @@ int ScriptedPropertyImage::pushValue()
             // ore headers are visible.
             auto scriptedImage = ScriptedImage::luaNew(m_state);
             scriptedImage->image = ref_rcp(renderImage);
+            return 1;
+        }
+    }
+    lua_pushnil(m_state);
+    return 1;
+}
+
+ScriptedPropertyFont::ScriptedPropertyFont(
+    lua_State* L,
+    rcp<ViewModelInstanceAssetFont> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+void ScriptedPropertyFont::setValue(ScriptedFont* scriptedFont)
+{
+    if (!m_instanceValue)
+    {
+        return;
+    }
+    m_instanceValue->as<ViewModelInstanceAssetFont>()->value(
+        scriptedFont != nullptr ? scriptedFont->font.get() : nullptr);
+}
+
+int ScriptedPropertyFont::pushValue()
+{
+    if (m_instanceValue)
+    {
+        auto vmi = m_instanceValue->as<ViewModelInstanceAssetFont>();
+        Font* font = nullptr;
+        if (auto asset = vmi->asset())
+        {
+            font = asset->font().get();
+        }
+        // Fall back to the file's asset registry when no font is embedded
+        // on the instance — mirrors the image property.
+        if (font == nullptr && owner() != nullptr)
+        {
+            if (auto scriptAsset = owner()->scriptAsset())
+            {
+                if (auto file = scriptAsset->file())
+                {
+                    auto fileAsset = file->asset(vmi->propertyValue());
+                    if (fileAsset != nullptr && fileAsset->is<FontAsset>())
+                    {
+                        font = fileAsset->as<FontAsset>()->font().get();
+                    }
+                }
+            }
+        }
+#ifdef WITH_RIVE_TOOLS
+        // Editor/Dart path: when the property is constructed without a
+        // ScriptedObject owner, reach the File through the ViewModel.
+        if (font == nullptr && owner() == nullptr)
+        {
+            if (auto vmInstance = vmi->viewModelInstance())
+            {
+                if (auto viewModel = vmInstance->viewModel())
+                {
+                    if (auto file = viewModel->file())
+                    {
+                        auto fileAsset = file->asset(vmi->propertyValue());
+                        if (fileAsset != nullptr && fileAsset->is<FontAsset>())
+                        {
+                            font = fileAsset->as<FontAsset>()->font().get();
+                        }
+                    }
+                }
+            }
+        }
+#endif
+        if (font != nullptr)
+        {
+            auto scriptedFont = lua_newrive<ScriptedFont>(m_state);
+            scriptedFont->font = ref_rcp(font);
             return 1;
         }
     }
@@ -1695,6 +1795,53 @@ static int property_image_newindex(lua_State* L)
     return 0;
 }
 
+static int property_font_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyFont = lua_torive<ScriptedPropertyFont>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            assert(propertyFont->state() == L);
+            return propertyFont->pushValue();
+        default:
+            return 0;
+    }
+}
+
+static int property_font_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyFont = lua_torive<ScriptedPropertyFont>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+        {
+            auto font = lua_torive<ScriptedFont>(L, 3);
+            propertyFont->setValue(font);
+            break;
+        }
+        default:
+            return 0;
+    }
+
+    return 0;
+}
+
 static int vm_eq(lua_State* L)
 {
     auto lhs = lua_torive<ScriptedViewModel>(L, 1);
@@ -1870,6 +2017,28 @@ int luaopen_rive_properties(lua_State* L)
         lua_setfield(L, -2, "__index");
 
         lua_pushcfunction(L, property_image_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    {
+        // No metatable, but the rcp<Font> member needs its destructor run
+        // when the userdata is collected.
+        lua_register_rive<ScriptedFont>(L);
+    }
+
+    {
+        lua_register_rive<ScriptedPropertyFont>(L);
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_pushcfunction(L, property_font_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, property_font_newindex, nullptr);
         lua_setfield(L, -2, "__newindex");
 
         lua_setreadonly(L, -1, true);

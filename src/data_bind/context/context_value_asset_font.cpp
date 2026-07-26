@@ -45,8 +45,14 @@ void DataBindContextValueAssetFont::apply(Core* target,
         else
         {
             auto source = dataBind->source();
-            target->as<TextStyle>()->setAsset(
-                source->as<ViewModelInstanceAssetFont>()->asset());
+            auto sourceAsset =
+                source->as<ViewModelInstanceAssetFont>()->asset();
+            // A property that was never given a font keeps the style's
+            // authored font instead of blanking the text.
+            if (sourceAsset != nullptr && sourceAsset->font() != nullptr)
+            {
+                target->as<TextStyle>()->setAsset(sourceAsset);
+            }
         }
     }
     else if (target->is<BindablePropertyAsset>())

@@ -109,6 +109,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"getEnum", (int16_t)LuaAtoms::getEnum},
     {"getIndex", (int16_t)LuaAtoms::getIndex},
     {"getImage", (int16_t)LuaAtoms::getImage},
+    {"getFont", (int16_t)LuaAtoms::getFont},
     {"values", (int16_t)LuaAtoms::values},
     {"addListener", (int16_t)LuaAtoms::addListener},
     {"removeListener", (int16_t)LuaAtoms::removeListener},

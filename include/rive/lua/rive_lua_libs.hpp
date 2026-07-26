@@ -2,6 +2,7 @@
 #ifndef _RIVE_LUA_LIBS_HPP_
 #define _RIVE_LUA_LIBS_HPP_
 #include "lua.h"
+#include "rive/text_engine.hpp"
 #include "lualib.h"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/assets/file_asset.hpp"
@@ -171,6 +172,7 @@ enum class LuaAtoms : int16_t
     getEnum,
     getIndex,
     getImage,
+    getFont,
     values,
     addListener,
     removeListener,
@@ -1388,6 +1390,28 @@ public:
 
     int pushValue();
     void setValue(ScriptedImage* scriptedImage);
+};
+
+class ScriptedFont
+{
+public:
+    rcp<Font> font;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 65;
+    static constexpr const char* luaName = "Font";
+    static constexpr bool hasMetatable = false;
+};
+
+class ViewModelInstanceAssetFont;
+class ScriptedPropertyFont : public ScriptedProperty
+{
+public:
+    ScriptedPropertyFont(lua_State* L, rcp<ViewModelInstanceAssetFont> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 66;
+    static constexpr const char* luaName = "Property<Font>";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(ScriptedFont* scriptedFont);
 };
 
 // Make
