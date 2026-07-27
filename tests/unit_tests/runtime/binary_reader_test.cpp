@@ -81,3 +81,43 @@ TEST_CASE("all data types can be written & read", "[binary_reader]")
     REQUIRE(reader.readUint16() == 22);
     REQUIRE(reader.readFloat32() == 3.14f);
 }
+
+// The byte-length prefix for a readBytes() blob is decoded straight from the
+// file, so a corrupt or truncated file can ask for more bytes than the buffer
+// holds. readBytes() must never hand back a Span that points past the end of
+// the backing buffer: callers build a sub-reader over that Span (e.g. data
+// bind source paths, mesh index/vertex buffers, blob assets) and would
+// otherwise read out of bounds.
+TEST_CASE("readBytes overflows on a length past the end of the buffer",
+          "[binary_reader]")
+{
+    const uint8_t storage[] = {1, 2, 3, 4};
+    rive::BinaryReader reader(rive::make_span(storage, sizeof(storage)));
+
+    auto bytes = reader.readBytes(1000);
+
+    REQUIRE(reader.didOverflow());
+    REQUIRE(bytes.size() == 0);
+    // The span must stay within the source buffer.
+    REQUIRE(bytes.begin() >= storage);
+    REQUIRE(bytes.end() <= storage + sizeof(storage));
+}
+
+TEST_CASE("readBytes returns exactly the in-range bytes requested",
+          "[binary_reader]")
+{
+    const uint8_t storage[] = {1, 2, 3, 4};
+    rive::BinaryReader reader(rive::make_span(storage, sizeof(storage)));
+
+    auto bytes = reader.readBytes(3);
+    REQUIRE(!reader.didOverflow());
+    REQUIRE(bytes.size() == 3);
+    REQUIRE(bytes[0] == 1);
+    REQUIRE(bytes[2] == 3);
+
+    // Only one byte remains; asking for more must overflow, not overrun.
+    auto rest = reader.readBytes(100);
+    REQUIRE(reader.didOverflow());
+    REQUIRE(rest.size() == 0);
+    REQUIRE(rest.end() <= storage + sizeof(storage));
+}

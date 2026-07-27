@@ -86,6 +86,13 @@ Span<const uint8_t> BinaryReader::readBytes()
 
 Span<const uint8_t> BinaryReader::readBytes(size_t length)
 {
+    // Guard against a length (which is decoded straight from the file and may
+    // be corrupt or truncated) that would run past the end of the buffer.
+    if (length > static_cast<size_t>(m_Bytes.end() - m_Position))
+    {
+        overflow();
+        return Span<const uint8_t>(m_Bytes.end(), 0);
+    }
     const uint8_t* start = m_Position;
     m_Position += length;
     return {start, (size_t)length};

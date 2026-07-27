@@ -274,8 +274,10 @@ private:
     std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
 
     /// The file's backboard. All Rive files have a single backboard
-    /// where the artboards live.
-    Backboard* m_backboard;
+    /// where the artboards live. Initialized to null so that a File which
+    /// is destroyed after a failed/partial import (before a Backboard object
+    /// has been read) does not `delete` an uninitialized pointer.
+    Backboard* m_backboard = nullptr;
 
     /// We just keep these alive for the life of this File
     std::vector<rcp<FileAsset>> m_fileAssets;
