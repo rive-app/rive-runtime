@@ -98,7 +98,8 @@ public:
         }
     }
 };
-static_assert(std::is_pod<Vec2D>::value, "Vec2D must be plain-old-data");
+static_assert(std::is_trivial<Vec2D>() && std::is_standard_layout<Vec2D>(),
+              "Vec2D must be plain-old-data");
 
 inline Vec2D operator*(const Vec2D& v, float s) { return {v.x * s, v.y * s}; }
 inline Vec2D operator*(float s, const Vec2D& v) { return {v.x * s, v.y * s}; }

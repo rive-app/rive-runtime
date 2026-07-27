@@ -8,12 +8,14 @@
 #endif
 #include "lualib.h"
 #include <stdio.h>
-#include <unordered_map>
 #include <unordered_set>
 #include <string>
+#include <string_view>
 #include <queue>
 #include <vector>
 #include <algorithm>
+#include <array>
+#include <iterator>
 
 using namespace rive;
 
@@ -29,7 +31,15 @@ int luaopen_rive_contex(lua_State* L);
 int luaopen_rive_audio(lua_State* L);
 extern "C" int luaopen_rive_buffer_ext(lua_State* L);
 
-std::unordered_map<std::string, int16_t> atoms = {
+namespace
+{
+struct LuaAtomName
+{
+    std::string_view name;
+    int16_t atom;
+};
+
+constexpr LuaAtomName atoms[] = {
     {"length", (int16_t)LuaAtoms::length},
     {"lengthSquared", (int16_t)LuaAtoms::lengthSquared},
     {"normalized", (int16_t)LuaAtoms::normalized},
@@ -302,6 +312,76 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"writeVec4", (int16_t)LuaAtoms::writeVec4},
 };
 
+constexpr size_t atomCount = std::size(atoms);
+// Power of two so the modulo is a mask, and roomy enough to keep probes short.
+constexpr size_t atomSlotCount = 1024;
+static_assert(atomCount < atomSlotCount,
+              "atomSlotCount must exceed the number of atoms");
+
+constexpr uint32_t hashAtomName(std::string_view name)
+{
+    uint32_t hash = 2166136261u;
+    for (char c : name)
+    {
+        hash = (hash ^ (uint8_t)c) * 16777619u;
+    }
+    return hash;
+}
+
+constexpr size_t longestAtomName()
+{
+    size_t longest = 0;
+    for (const LuaAtomName& entry : atoms)
+    {
+        if (entry.name.size() > longest)
+        {
+            longest = entry.name.size();
+        }
+    }
+    return longest;
+}
+constexpr size_t maxAtomNameLength = longestAtomName();
+
+// Slots hold an index into atoms biased by one so zero reads as empty.
+constexpr std::array<uint16_t, atomSlotCount> buildAtomSlots()
+{
+    std::array<uint16_t, atomSlotCount> slots{};
+    for (size_t i = 0; i < atomCount; i++)
+    {
+        size_t slot = hashAtomName(atoms[i].name) & (atomSlotCount - 1);
+        while (slots[slot] != 0 && atoms[slots[slot] - 1].name != atoms[i].name)
+        {
+            slot = (slot + 1) & (atomSlotCount - 1);
+        }
+        if (slots[slot] == 0)
+        {
+            slots[slot] = (uint16_t)(i + 1);
+        }
+    }
+    return slots;
+}
+constexpr std::array<uint16_t, atomSlotCount> atomSlots = buildAtomSlots();
+
+int16_t findAtom(const char* chars, size_t length)
+{
+    if (length > maxAtomNameLength)
+    {
+        return -1;
+    }
+    std::string_view name(chars, length);
+    size_t slot = hashAtomName(name) & (atomSlotCount - 1);
+    for (uint16_t index = atomSlots[slot]; index != 0;
+         index = atomSlots[slot = (slot + 1) & (atomSlotCount - 1)])
+    {
+        if (atoms[index - 1].name == name)
+        {
+            return atoms[index - 1].atom;
+        }
+    }
+    return -1;
+}
+} // namespace
+
 static const luaL_Reg lualibs[] = {
     {"", luaopen_base},
     {LUA_TABLIBNAME, luaopen_table},
@@ -331,13 +411,7 @@ int luaopen_rive(lua_State* L)
 {
     lua_callbacks(L)->useratom =
         [](lua_State*, const char* s, size_t l) -> int16_t {
-        auto itr = atoms.find(s);
-        if (itr != atoms.end())
-        {
-            return itr->second;
-        }
-
-        return -1;
+        return findAtom(s, l);
     };
 
     const luaL_Reg* lib = lualibs;

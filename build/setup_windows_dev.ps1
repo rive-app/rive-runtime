@@ -24,12 +24,17 @@ else
                 # Constrain to VS2022+ (-version "[17.0,)"): VS2022 is v17,
                 # VS2026 is v18; this excludes VS2019 (v16) and older, which
                 # can't build Rive.
-                $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+                if(Get-Command 'vswhere.exe' -ErrorAction SilentlyContinue) {
+                    $vswhere = (Get-Command 'vswhere.exe').Source
+                    Write-Host "VSWhere " + $vswhere
+                }
+                else {
+                    $vswhere = "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+                }
                 $vsDevShell = $null
                 if (Test-Path $vswhere) {
                     $vsPath = & $vswhere -latest -prerelease -products * `
                         -version "[17.0,)" `
-                        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
                         -property installationPath
                     if ($vsPath -and (Test-Path "$vsPath\Common7\Tools\Launch-VsDevShell.ps1")) {
                         $vsDevShell = "$vsPath\Common7\Tools\Launch-VsDevShell.ps1"

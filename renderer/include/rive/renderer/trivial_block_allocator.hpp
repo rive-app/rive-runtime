@@ -85,7 +85,8 @@ public:
 
     template <typename T> T* makePODArray(size_t count)
     {
-        static_assert(std::is_pod<T>::value);
+        static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
+                      "makePODArray only accepts plain-old-data types");
         return reinterpret_cast<T*>(alloc<alignof(T)>(count * sizeof(T)));
     }
 
@@ -105,7 +106,8 @@ private:
 template <typename T, size_t AlignmentInBytes = alignof(T)>
 class TrivialArrayAllocator : private TrivialBlockAllocator
 {
-    static_assert(std::is_pod<T>::value);
+    static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
+                  "TrivialArrayAllocator only accepts plain-old-data types");
 
 public:
     TrivialArrayAllocator(size_t initialCount) :

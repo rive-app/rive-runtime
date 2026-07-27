@@ -23,6 +23,18 @@ do
     })
     defines({ 'LUA_USE_LONGJMP', 'RIVE_LUAU' })
     optimize('Size')
+
+    filter({ 'system:linux', 'options:for_unreal' })
+    do
+        -- Unreal loads each plugin module .so with RTLD_GLOBAL (flat namespace). Luau's
+        -- fast-flag registry (Luau::FValue<T>::list) is a process-global intrusive linked
+        -- list built by static initializers. When luau_vm is statically linked into more
+        -- than one Rive module, these weak symbols get interposed across modules and the
+        -- list is cross-linked into a cycle, so FValueVersionSetter's strcmp walk spins
+        -- forever during dlopen
+        buildoptions({ '-fvisibility=hidden', '-fvisibility-inlines-hidden' })
+    end
+    filter({})
     if TESTING == true then
         filter({ 'system:windows' })
         do

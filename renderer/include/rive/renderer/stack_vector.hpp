@@ -109,6 +109,7 @@ private:
     }
 
     // Currently only supports POD types.
-    static_assert(std::is_pod<T>::value == true);
+    static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
+                  "StackVector only supports trivial types.");
 };
 } // namespace rive

@@ -500,12 +500,7 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
     # The RHI comes from an engine switch; the "--backend" still in cmd[1:] is
     # ignored by the app, which hardcodes TestingWindow::Backend::rhi.
     if args.target == "unreal":
-        if platform.system() == "Darwin":
-            # UAT archives the Mac build as a .app bundle; launch its inner binary.
-            unreal_exe_path = os.path.join(dirname, "Mac", "rive_unreal.app",
-                                           "Contents", "MacOS", "rive_unreal")
-        else:
-            unreal_exe_path = os.path.join(dirname, "Windows", "rive_unreal.exe")
+        unreal_exe_path = os.path.join(dirname, *UNREAL_HOST_PACKAGE)
         return [unreal_exe_path, "/Game/maps/" + toolname,
                 UNREAL_RHI_SWITCHES[args.backend],
                 "-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
@@ -655,9 +650,19 @@ def launch_player(test_harness_server):
 def force_stop_android_tests_apk():
     subprocess.check_call(["adb", "shell", "am force-stop app.rive.android_tests"])
 
-# "unreal" is the host desktop target: Mac on macOS, Windows elsewhere.
+if platform.system() == "Darwin":
+    UNREAL_HOST_PLATFORM = "Mac"
+    # UAT archives the Mac build as a .app bundle; launch its inner binary.
+    UNREAL_HOST_PACKAGE = ("Mac", "rive_unreal.app", "Contents", "MacOS", "rive_unreal")
+elif platform.system() == "Linux":
+    UNREAL_HOST_PLATFORM = "Linux"
+    UNREAL_HOST_PACKAGE = ("Linux", "rive_unreal.sh")
+else:
+    UNREAL_HOST_PLATFORM = "Windows"
+    UNREAL_HOST_PACKAGE = ("Windows", "rive_unreal.exe")
+
 UNREAL_TARGET_PLATFORMS = {
-    "unreal": "Mac" if platform.system() == "Darwin" else "Windows",
+    "unreal": UNREAL_HOST_PLATFORM,
     "unreal_android": "Android",
 }
 
@@ -675,8 +680,11 @@ UNREAL_RHI_SWITCHES = {
 def supported_rhi_backends(target):
     """The real backends the "rhi" meta-backend expands into, in run order."""
     if target == "unreal":
-        return ["metal"] if platform.system() == "Darwin" \
-               else ["d3d11", "d3d12", "vulkan"]
+        if platform.system() == "Darwin":
+            return ["metal"]
+        if platform.system() == "Linux":
+            return ["vulkan"] # the only RHI Unreal supports on Linux
+        return ["d3d11", "d3d12", "vulkan"]
     if target == "unreal_android":
         return ["vulkan"]
     return [] # consoles get their entries here later
