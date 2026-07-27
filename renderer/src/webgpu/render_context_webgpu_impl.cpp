@@ -187,9 +187,9 @@ static WGPUStencilFaceState wgpu_stencil_face_state(
 {
     return {
         .compare = wgpu_compare_function(face.compareOp),
-        .failOp = wgpu_stencil_operation(face.failOp),
+        .failOp = wgpu_stencil_operation(face.stencilFailOp),
         .depthFailOp = wgpu_stencil_operation(face.depthFailOp),
-        .passOp = wgpu_stencil_operation(face.passOp),
+        .passOp = wgpu_stencil_operation(face.depthStencilPassOp),
     };
 }
 
@@ -1355,6 +1355,7 @@ public:
                         break;
                     case DrawType::msaaStrokes:
                     case DrawType::msaaMidpointFanBorrowedCoverage:
+                    case DrawType::msaaDynamicMidpointFans:
                     case DrawType::msaaMidpointFans:
                     case DrawType::msaaMidpointFanStencilReset:
                     case DrawType::msaaMidpointFanPathsStencil:
@@ -1441,6 +1442,7 @@ public:
                     case DrawType::imageRect:
                     case DrawType::msaaStrokes:
                     case DrawType::msaaMidpointFanBorrowedCoverage:
+                    case DrawType::msaaDynamicMidpointFans:
                     case DrawType::msaaMidpointFans:
                     case DrawType::msaaMidpointFanStencilReset:
                     case DrawType::msaaMidpointFanPathsStencil:
@@ -1565,6 +1567,7 @@ public:
 
                     case DrawType::msaaStrokes:
                     case DrawType::msaaMidpointFanBorrowedCoverage:
+                    case DrawType::msaaDynamicMidpointFans:
                     case DrawType::msaaMidpointFans:
                     case DrawType::msaaMidpointFanStencilReset:
                     case DrawType::msaaMidpointFanPathsStencil:
@@ -1588,6 +1591,7 @@ public:
                     case DrawType::msaaOuterCubics:
                     case DrawType::msaaStrokes:
                     case DrawType::msaaMidpointFanBorrowedCoverage:
+                    case DrawType::msaaDynamicMidpointFans:
                     case DrawType::msaaMidpointFans:
                     case DrawType::msaaMidpointFanStencilReset:
                     case DrawType::msaaMidpointFanPathsStencil:
@@ -3021,6 +3025,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -4562,6 +4567,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaDynamicMidpointFans:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:

@@ -2033,6 +2033,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaDynamicMidpointFans:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:

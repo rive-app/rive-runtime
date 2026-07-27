@@ -310,6 +310,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
             break;
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -2284,6 +2285,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             break;
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaDynamicMidpointFans:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:

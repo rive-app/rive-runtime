@@ -1494,7 +1494,7 @@ bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
     return true;
 }
 
-void PathDraw::countSubpasses()
+void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
 {
     RIVE_PROF_SCOPE_L(2)
     m_subpassCount = 1;
@@ -1535,8 +1535,8 @@ void PathDraw::countSubpasses()
             {
                 m_subpassCount = 1; // Strokes can be rendered in a single pass.
             }
-            else if ((m_drawContents & gpu::kNestedClipUpdateMask) ==
-                     gpu::kNestedClipUpdateMask)
+            else if (enums::all_flags_set(m_drawContents,
+                                          gpu::kNestedClipUpdateMask))
             {
                 // Nested clip updates only have a stencil pass. (The reset is
                 // handled by a separate ClipReset draw.)
@@ -1546,6 +1546,15 @@ void PathDraw::countSubpasses()
                                         gpu::DrawContents::evenOddFill))
             {
                 m_subpassCount = 2; // MSAA "slow" path: stencil-then-cover.
+            }
+            else if (platformFeatures.supportsPipelineDynamicState)
+            {
+                // MSAA "fast" path, combined: the three subpasses (borrowed
+                // coverage, fans, stencil reset) collapse onto a single
+                // msaaDynamicMidpointFans draw that switches between them with
+                // dynamic color/depth/stencil/cull state. One batch keeps the
+                // reorderer able to instance non-overlapping paths together.
+                m_subpassCount = 1;
             }
             else
             {
@@ -1715,31 +1724,46 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                                      tessVertexCount,
                                      m_msaaTessLocation);
             }
-            constexpr static gpu::DrawType MSAA_FILL_TYPES[][3] = {
-                // Nested clip update (passCount == 1; the reset is handled by a
-                // separate ClipReset draw.)
-                {
-                    gpu::DrawType::msaaMidpointFanPathsStencil,
-                },
-
-                // Slow path (passCount == 2): stencil-then-cover
-                {
-                    gpu::DrawType::msaaMidpointFanPathsStencil,
-                    gpu::DrawType::msaaMidpointFanPathsCover,
-                },
-
-                // Fast path (passCount == 3): (mostly) single pass rendering.
-                {
-                    gpu::DrawType::msaaMidpointFanBorrowedCoverage,
-                    gpu::DrawType::msaaMidpointFans,
-                    gpu::DrawType::msaaMidpointFanStencilReset,
-                },
-            };
-            assert(passCount <= 3);
+            assert(1 <= passCount && passCount <= 3);
             assert(passIdx < passCount);
-            gpu::DrawType msaaDrawType =
-                isStroke() ? gpu::DrawType::msaaStrokes
-                           : MSAA_FILL_TYPES[passCount - 1][passIdx];
+            gpu::DrawType msaaDrawType;
+            if (passCount == 1)
+            {
+                if (isStroke())
+                {
+                    msaaDrawType = gpu::DrawType::msaaStrokes;
+                }
+                else if (enums::all_flags_set(m_drawContents,
+                                              gpu::kNestedClipUpdateMask))
+                {
+                    msaaDrawType = gpu::DrawType::msaaMidpointFanPathsStencil;
+                }
+                else
+                {
+                    assert(
+                        flush->platformFeatures().supportsPipelineDynamicState);
+                    msaaDrawType = gpu::DrawType::msaaDynamicMidpointFans;
+                }
+            }
+            else
+            {
+                constexpr static gpu::DrawType MSAAFillTypes[][3] = {
+                    // Slow path (passCount == 2): stencil-then-cover
+                    {
+                        gpu::DrawType::msaaMidpointFanPathsStencil,
+                        gpu::DrawType::msaaMidpointFanPathsCover,
+                    },
+
+                    // Fast path (passCount == 3): (mostly) single pass
+                    // rendering.
+                    {
+                        gpu::DrawType::msaaMidpointFanBorrowedCoverage,
+                        gpu::DrawType::msaaMidpointFans,
+                        gpu::DrawType::msaaMidpointFanStencilReset,
+                    },
+                };
+                msaaDrawType = MSAAFillTypes[passCount - 2][passIdx];
+            }
             return &flush->pushMidpointFanDraw(this,
                                                msaaDrawType,
                                                tessVertexCount,

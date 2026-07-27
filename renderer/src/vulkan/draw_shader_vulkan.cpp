@@ -72,6 +72,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaDynamicMidpointFans:
                 case DrawType::msaaMidpointFans:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:
@@ -149,6 +150,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
 
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaDynamicMidpointFans:
                 case DrawType::msaaMidpointFans:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:
@@ -217,6 +219,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaDynamicMidpointFans:
                 case DrawType::msaaMidpointFans:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:
@@ -360,6 +363,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaDynamicMidpointFans:
                 case DrawType::msaaMidpointFans:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:
@@ -383,6 +387,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaDynamicMidpointFans:
                 case DrawType::msaaMidpointFans:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:

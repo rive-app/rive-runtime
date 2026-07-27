@@ -135,6 +135,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
             break;
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -228,6 +229,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
             break;
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:

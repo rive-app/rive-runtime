@@ -1034,6 +1034,16 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         // is 8, but we might as well make this >= 4 check to be more clear
         // about how we're using it.
         physicalDeviceProps.limits.maxClipDistances >= 4;
+    m_platformFeatures.supportsPipelineDynamicState =
+        m_vk->features.apiVersion >= VK_API_VERSION_1_3 &&
+        m_vk->features.colorWriteEnable &&
+        // Chunking would split a combined pass's draws across render passes and
+        // corrupt the stencil.
+        !m_workarounds.needsInterruptibleRenderPasses() &&
+        // PowerVR draws the combined passes incorrectly; looks like a driver
+        // bug with no obvious workaround. Seen on Pixel 10 (D-Series
+        // DXT-48-1536).
+        physicalDeviceProps.vendorID != vkutil::vendors::Imagination;
     m_platformFeatures.clipSpaceBottomUp = false;
     m_platformFeatures.framebufferBottomUp = false;
     // Vulkan can't load color from a different texture into the transient MSAA
@@ -2266,6 +2276,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaDynamicMidpointFans:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:
@@ -3426,6 +3437,86 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 }
 
+// Binds pipelines and pushes dynamic state for one draw-list submission. Caches
+// the currently-bound pipeline and scissor and skips redundant sets -- both are
+// safe to cache: the same VkPipeline handle is identical baked state, and the
+// scissor is dynamic in every layout so no bind ever clobbers it. Dynamic
+// depth/stencil/cull/color state is pushed UNCONDITIONALLY: binding a static
+// pipeline leaves those states undefined, so a cache would need
+// invalidate-on-bind bookkeeping that isn't worth its complexity for a handful
+// of cheap vkCmdSet* calls. Must be a fresh instance per command buffer.
+class PipelineBinder
+{
+public:
+    explicit PipelineBinder(VulkanContext* vk) : m_vk(vk) {}
+
+    void bind(VkCommandBuffer commandBuffer,
+              VkPipeline pipeline,
+              const IAABB& scissorRect)
+    {
+        if (pipeline != m_pipeline)
+        {
+            m_vk->CmdBindPipeline(commandBuffer,
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  pipeline);
+            m_pipeline = pipeline;
+        }
+        if (!m_haveScissor || scissorRect != m_scissorRect)
+        {
+            VkRect2D vkScissorRect = vkutil::rect2d(scissorRect);
+            m_vk->CmdSetScissor(commandBuffer, 0, 1, &vkScissorRect);
+            m_scissorRect = scissorRect;
+            m_haveScissor = true;
+        }
+    }
+
+    // Applies one constituent pass's depth/stencil/cull/color to the
+    // currently-bound dynamic-state pipeline.
+    void setDynamicState(VkCommandBuffer commandBuffer,
+                         const gpu::PipelineState& ps)
+    {
+        // Depth.
+        m_vk->CmdSetDepthWriteEnable(commandBuffer, ps.depthWriteEnabled);
+
+        // Stencil.
+        m_vk->CmdSetStencilCompareMask(commandBuffer,
+                                       VK_STENCIL_FACE_FRONT_AND_BACK,
+                                       ps.stencilCompareMask);
+        m_vk->CmdSetStencilWriteMask(commandBuffer,
+                                     VK_STENCIL_FACE_FRONT_AND_BACK,
+                                     ps.stencilWriteMask);
+        const auto setStencilOps = [&](VkStencilFaceFlags faces,
+                                       const gpu::StencilFaceOps& ops) {
+            m_vk->CmdSetStencilOp(commandBuffer,
+                                  faces,
+                                  vkutil::vkStencilOp(ops.stencilFailOp),
+                                  vkutil::vkStencilOp(ops.depthStencilPassOp),
+                                  vkutil::vkStencilOp(ops.depthFailOp),
+                                  vkutil::vkCompareOp(ops.compareOp));
+        };
+        setStencilOps(ps.stencilDoubleSided ? VK_STENCIL_FACE_FRONT_BIT
+                                            : VK_STENCIL_FACE_FRONT_AND_BACK,
+                      ps.stencilFrontOps);
+        if (ps.stencilDoubleSided)
+        {
+            setStencilOps(VK_STENCIL_FACE_BACK_BIT, ps.stencilBackOps);
+        }
+
+        // Cull.
+        m_vk->CmdSetCullMode(commandBuffer, vkutil::vkCullMode(ps.cullFace));
+
+        // Color.
+        VkBool32 colorWrite = ps.colorWriteEnabled ? VK_TRUE : VK_FALSE;
+        m_vk->CmdSetColorWriteEnableEXT(commandBuffer, 1, &colorWrite);
+    }
+
+private:
+    VulkanContext* const m_vk;
+    VkPipeline m_pipeline = VK_NULL_HANDLE;
+    IAABB m_scissorRect;
+    bool m_haveScissor = false;
+};
+
 void RenderContextVulkanImpl::submitDrawList(
     const FlushDescriptor& desc,
     DescriptorSetAllocator* descriptorSetAllocator,
@@ -3439,7 +3530,7 @@ void RenderContextVulkanImpl::submitDrawList(
 
     const auto renderPassScissorRect = drawRenderPass->scissor();
 
-    auto currentScissorRect = IAABB{};
+    PipelineBinder pipelineBinder(m_vk.get());
 
     // Submit the DrawList.
     for (const DrawBatch& batch : *desc.drawList)
@@ -3580,10 +3671,6 @@ void RenderContextVulkanImpl::submitDrawList(
 
         if (drawPipeline != nullptr)
         {
-            m_vk->CmdBindPipeline(commandBuffer,
-                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  *drawPipeline);
-
             IAABB desiredScissorRect;
             switch (drawType)
             {
@@ -3617,13 +3704,9 @@ void RenderContextVulkanImpl::submitDrawList(
                             : renderPassScissorRect;
             }
 
-            if (desiredScissorRect != currentScissorRect)
-            {
-                currentScissorRect = desiredScissorRect;
-
-                VkRect2D vkScissorRect = vkutil::rect2d(currentScissorRect);
-                m_vk->CmdSetScissor(commandBuffer, 0, 1, &vkScissorRect);
-            }
+            pipelineBinder.bind(commandBuffer,
+                                *drawPipeline,
+                                desiredScissorRect);
         }
 
         switch (drawType)
@@ -3667,6 +3750,62 @@ void RenderContextVulkanImpl::submitDrawList(
                                              0,
                                              chunkFirstPatch);
                     }
+                }
+                break;
+            }
+
+            case DrawType::msaaDynamicMidpointFans:
+            {
+                pendingTessPatchCount -= batch.elementCount;
+                if (drawPipeline == nullptr)
+                {
+                    break;
+                }
+
+                // Combined fast-path fill: borrowed coverage, fans, and stencil
+                // reset share this one dynamic-state pipeline. Draw the whole
+                // batch (instanced across non-overlapping paths) three times,
+                // updating dynamic state between passes. depthCompareOp stays
+                // baked at LESS so Hi-Z keeps culling; color is suppressed via
+                // color-write-enable, never the depth test. The combine is
+                // gated to GPUs that don't need the "renderpass interrupt"
+                // workaround, so a single draw covers the whole batch -- no
+                // InstanceChunker needed (its per-chunk interruptIfNeeded would
+                // split the three passes across render passes, which the
+                // stencil algorithm can't survive).
+                assert(!m_workarounds.needsInterruptibleRenderPasses());
+                m_vk->CmdBindVertexBuffers(
+                    commandBuffer,
+                    0,
+                    1,
+                    m_pathPatchVertexBuffer->vkBufferAddressOf(),
+                    ZERO_OFFSET);
+                m_vk->CmdBindIndexBuffer(commandBuffer,
+                                         *m_pathPatchIndexBuffer,
+                                         0,
+                                         VK_INDEX_TYPE_UINT16);
+                static constexpr DrawType Passes[] = {
+                    DrawType::msaaMidpointFanBorrowedCoverage,
+                    DrawType::msaaMidpointFans,
+                    DrawType::msaaMidpointFanStencilReset,
+                };
+                for (DrawType pass : Passes)
+                {
+                    gpu::PipelineState ps =
+                        gpu::get_pipeline_state(pass,
+                                                desc.interlockMode,
+                                                batch.shaderMiscFlags,
+                                                batch.drawContents,
+                                                desc.fixedFunctionColorOutput,
+                                                batch.firstBlendMode,
+                                                m_platformFeatures);
+                    pipelineBinder.setDynamicState(commandBuffer, ps);
+                    m_vk->CmdDrawIndexed(commandBuffer,
+                                         batch.indexCountPerInstance,
+                                         batch.elementCount,
+                                         batch.baseIndex,
+                                         0,
+                                         batch.baseElement);
                 }
                 break;
             }

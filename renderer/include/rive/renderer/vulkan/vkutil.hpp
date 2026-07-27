@@ -57,6 +57,68 @@ constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
     VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
+// gpu::PipelineState -> Vulkan conversions.
+inline VkStencilOp vkStencilOp(StencilOp op)
+{
+    switch (op)
+    {
+        case StencilOp::keep:
+            return VK_STENCIL_OP_KEEP;
+        case StencilOp::replace:
+            return VK_STENCIL_OP_REPLACE;
+        case StencilOp::zero:
+            return VK_STENCIL_OP_ZERO;
+        case StencilOp::decrClamp:
+            return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+        case StencilOp::incrWrap:
+            return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+        case StencilOp::decrWrap:
+            return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+    }
+    RIVE_UNREACHABLE();
+}
+
+inline VkCompareOp vkCompareOp(StencilCompareOp op)
+{
+    switch (op)
+    {
+        case StencilCompareOp::less:
+            return VK_COMPARE_OP_LESS;
+        case StencilCompareOp::equal:
+            return VK_COMPARE_OP_EQUAL;
+        case StencilCompareOp::lessOrEqual:
+            return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case StencilCompareOp::notEqual:
+            return VK_COMPARE_OP_NOT_EQUAL;
+        case StencilCompareOp::always:
+            return VK_COMPARE_OP_ALWAYS;
+    }
+    RIVE_UNREACHABLE();
+}
+
+inline VkCullModeFlags vkCullMode(CullFace cullFace)
+{
+    switch (cullFace)
+    {
+        case CullFace::none:
+            return VK_CULL_MODE_NONE;
+        case CullFace::clockwise:
+            return VK_CULL_MODE_FRONT_BIT;
+        case CullFace::counterclockwise:
+            return VK_CULL_MODE_BACK_BIT;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// True for draw types that switch color/depth/stencil/cull with dynamic state
+// on a single pipeline (the DYNAMIC_PIPELINE_STATE layout) rather than baking
+// them. Pipeline-layout selection and the per-pass dynamic-state updates must
+// agree on this, so both derive it here.
+inline bool hasPipelineDynamicState(DrawType drawType)
+{
+    return drawType == DrawType::msaaDynamicMidpointFans;
+}
+
 enum class Mappability
 {
     none,

@@ -216,6 +216,7 @@ void BackgroundShaderCompiler::threadMain()
                 break;
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaDynamicMidpointFans:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:
@@ -260,6 +261,7 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::imageRect:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaDynamicMidpointFans:
                 case DrawType::msaaMidpointFans:
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:

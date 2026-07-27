@@ -65,6 +65,7 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::outerCurvePatches:
         case gpu::DrawType::msaaStrokes:
         case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+        case gpu::DrawType::msaaDynamicMidpointFans:
         case gpu::DrawType::msaaMidpointFans:
         case gpu::DrawType::msaaMidpointFanStencilReset:
         case gpu::DrawType::msaaMidpointFanPathsStencil:
@@ -1731,6 +1732,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::outerCurvePatches:
         case gpu::DrawType::msaaStrokes:
         case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+        case gpu::DrawType::msaaDynamicMidpointFans:
         case gpu::DrawType::msaaMidpointFans:
         case gpu::DrawType::msaaMidpointFanStencilReset:
         case gpu::DrawType::msaaMidpointFanPathsStencil:
@@ -1826,6 +1828,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::imageRect:
                 case gpu::DrawType::msaaStrokes:
                 case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+                case gpu::DrawType::msaaDynamicMidpointFans:
                 case gpu::DrawType::msaaMidpointFans:
                 case gpu::DrawType::msaaMidpointFanStencilReset:
                 case gpu::DrawType::msaaMidpointFanPathsStencil:
@@ -1848,6 +1851,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
             {
                 case gpu::DrawType::msaaStrokes:
                 case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+                case gpu::DrawType::msaaDynamicMidpointFans:
                 case gpu::DrawType::msaaMidpointFans:
                 case gpu::DrawType::msaaMidpointFanStencilReset:
                 case gpu::DrawType::msaaMidpointFanPathsStencil:
@@ -2947,6 +2951,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::outerCurvePatches:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaDynamicMidpointFans:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:

@@ -193,6 +193,8 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         rasterOrderFeatures;
     std::optional<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT>
         interlockFeatures;
+    std::optional<VkPhysicalDeviceColorWriteEnableFeaturesEXT>
+        colorWriteEnableFeatures;
 
     if (!opts.coreFeaturesOnly)
     {
@@ -202,6 +204,10 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         interlockFeatures = tryEnableInterlockFeatures(instance,
                                                        supportedExtensions,
                                                        addedExtensions);
+        colorWriteEnableFeatures =
+            tryEnableColorWriteEnableFeatures(instance,
+                                              supportedExtensions,
+                                              addedExtensions);
     }
 
     // Get our list of queue family properties.
@@ -267,6 +273,12 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         interlockFeatures.value().pNext =
             const_cast<void*>(deviceCreateInfo.pNext);
         deviceCreateInfo.pNext = &interlockFeatures.value();
+    }
+    if (colorWriteEnableFeatures.has_value())
+    {
+        colorWriteEnableFeatures.value().pNext =
+            const_cast<void*>(deviceCreateInfo.pNext);
+        deviceCreateInfo.pNext = &colorWriteEnableFeatures.value();
     }
 
     DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateDevice, instance);
@@ -349,6 +361,8 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
                    *commaSeparator);
         if (m_riveVulkanFeatures.fragmentShaderPixelInterlock)
             printf("%sfragmentShaderPixelInterlock", *commaSeparator);
+        if (m_riveVulkanFeatures.colorWriteEnable)
+            printf("%scolorWriteEnable", *commaSeparator);
         if (m_riveVulkanFeatures.VK_KHR_portability_subset)
             printf("%sVK_KHR_portability_subset", *commaSeparator);
         printf(" ] ====\n");
@@ -699,6 +713,45 @@ std::optional<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT> VulkanDevice::
             // feature set we want, it's supported!
             m_riveVulkanFeatures.fragmentShaderPixelInterlock = true;
             return requestedInterlockFeatures;
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<VkPhysicalDeviceColorWriteEnableFeaturesEXT> VulkanDevice::
+    tryEnableColorWriteEnableFeatures(
+        VulkanInstance& instance,
+        const std::vector<VkExtensionProperties>& supportedExtensions,
+        std::vector<const char*>& extensions)
+{
+    if (addExtensionIfSupported(VK_EXT_COLOR_WRITE_ENABLE_EXTENSION_NAME,
+                                supportedExtensions,
+                                extensions))
+    {
+        constexpr static VkPhysicalDeviceColorWriteEnableFeaturesEXT
+            requestedColorWriteEnableFeatures = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COLOR_WRITE_ENABLE_FEATURES_EXT,
+                .colorWriteEnable = VK_TRUE,
+            };
+
+        auto testedColorWriteEnableFeatures = requestedColorWriteEnableFeatures;
+
+        // Test to see if this is supported
+        VkPhysicalDeviceFeatures2 features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            .pNext = &testedColorWriteEnableFeatures,
+        };
+
+        if (instance.tryGetPhysicalDeviceFeatures2(m_physicalDevice,
+                                                   &features) &&
+            testedColorWriteEnableFeatures.colorWriteEnable)
+        {
+            // The query came back with the requested flag set so return the
+            // feature set we want, it's supported!
+            m_riveVulkanFeatures.colorWriteEnable = true;
+            return requestedColorWriteEnableFeatures;
         }
     }
 

@@ -139,6 +139,16 @@ struct PlatformFeatures
     bool supportsBlendAdvancedCoherentKHR = false;
     // Required for @ENABLE_CLIP_RECT in msaa mode.
     bool supportsClipPlanes = false;
+    // The backend supports dynamic state that allows Rive to collapse multiple
+    // subpasses onto a single pipeline, namely:
+    //  * Depth (Vulkan 1.3)
+    //  * Stencil (Vulkan 1.3)
+    //  * Cull (Vulkan 1.3)
+    //  * Color-write (VK_EXT_color_write_enable)
+    // With this state being dynamic, we can combine multiple subpasses (e.g.,
+    // borrowed coverage, fans, stencil reset) onto a single dynamic pipeline
+    // with multiple draws and state updates in between.
+    bool supportsPipelineDynamicState = false;
     bool avoidFlatVaryings = false;
     // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a) seems
     // to hit some sort of reset condition that corrupts pixel local storage
@@ -662,6 +672,13 @@ enum class DrawType : uint8_t
     msaaMidpointFans,
     msaaMidpointFanStencilReset,
 
+    // Equivalent to msaaMidpointFanBorrowedCoverage + msaaMidpointFans +
+    // msaaMidpointFanStencilReset on a single pipeline, switching between them
+    // with dynamic color/depth/stencil/cull state. Keeps the three passes on
+    // one batch so the reorderer can still instance non-overlapping paths
+    // together, while collapsing three pipeline binds into one.
+    msaaDynamicMidpointFans,
+
     // MSAA "slow" path: stencil-then-cover.
     msaaMidpointFanPathsStencil,
     msaaMidpointFanPathsCover,
@@ -700,6 +717,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -901,6 +919,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::interiorTriangulation:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -1842,9 +1861,9 @@ enum class StencilCompareOp : uint8_t
 
 struct StencilFaceOps
 {
-    StencilOp failOp = StencilOp::keep;
-    StencilOp passOp = StencilOp::keep;
+    StencilOp stencilFailOp = StencilOp::keep;
     StencilOp depthFailOp = StencilOp::keep;
+    StencilOp depthStencilPassOp = StencilOp::keep;
     StencilCompareOp compareOp = StencilCompareOp::always;
 };
 

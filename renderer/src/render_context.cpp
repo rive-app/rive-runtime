@@ -524,7 +524,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
     int passCountInBatch = 0;
     for (size_t i = 0; i < drawCount; ++i)
     {
-        draws[i]->countSubpasses();
+        draws[i]->countSubpasses(platformFeatures());
         assert(draws[i]->prepassCount() >= 0);
         assert(draws[i]->subpassCount() >= 0);
         assert(draws[i]->prepassCount() + draws[i]->subpassCount() >= 1);
@@ -3677,6 +3677,7 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
         case DrawType::msaaStrokes:
             return kMidpointFanPatchBorderIndexCount;
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -3710,6 +3711,7 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBaseIndex;
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -3739,6 +3741,7 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
         case DrawType::outerCurvePatches:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -3826,6 +3829,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:

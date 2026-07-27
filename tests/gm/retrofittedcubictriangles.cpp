@@ -64,7 +64,7 @@ public:
             &context->perFrameAllocator());
     }
 
-    void countSubpasses() override
+    void countSubpasses(const gpu::PlatformFeatures&) override
     {
         assert(m_prepassCount == 0);
         assert(m_subpassCount == 1);

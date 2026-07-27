@@ -158,6 +158,7 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::imageMesh:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -329,6 +330,7 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::outerCurvePatches:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
@@ -1159,6 +1161,7 @@ DepthState get_depth_state(InterlockMode interlockMode,
             return {.depthTestEnabled = true, .depthWriteEnabled = true};
             break;
 
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
             return {
@@ -1233,6 +1236,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
                 areDrawContentsValid,
             };
 
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
             return {
                 StencilType::forwardClippedByBackward,
@@ -1341,9 +1345,9 @@ static void get_stencil_settings(InterlockMode interlockMode,
             pipelineState->stencilWriteMask = 0xff;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::keep,
-                .passOp = StencilOp::keep,
+                .stencilFailOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::equal,
             };
 
@@ -1356,63 +1360,63 @@ static void get_stencil_settings(InterlockMode interlockMode,
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask = 0x7f;
             pipelineState->stencilReference = 0x80;
+
+            // Pass: 1 render borrowed coverage, early-rejected by depth.
+            // NOTE: Only back faces survive this draw. We set "stencilFrontOps"
+            // because "stencilDoubleSided=false" applies these settings to the
+            // back face as well.
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::keep,
-                .passOp = StencilOp::incrWrap,
+                .stencilFailOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp = StencilOp::incrWrap,
                 .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
                                            : StencilCompareOp::always,
             };
             pipelineState->stencilDoubleSided = false;
             break;
 
+        // forwardClippedByBackward and backwardTriangleCleanup share stencil
+        // settings (one takes front face and the other takes back).
         case StencilType::forwardClippedByBackward:
-            // Draw forward triangles, clipped by the backward triangle counts.
-            // (The depth test prevents double hits.)
-            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
-            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x7f;
-            pipelineState->stencilReference = 0x80;
-            pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
-                                                // outside the clip.
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
-                .depthFailOp = StencilOp::keep,
-                .compareOp = StencilCompareOp::equal,
-            };
-            pipelineState->stencilBackOps = {
-                .failOp = StencilOp::keep,
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
-                .depthFailOp = StencilOp::keep,
-                .compareOp = StencilCompareOp::less,
-            };
-            pipelineState->stencilDoubleSided = true;
-            break;
-
         case StencilType::backwardTriangleCleanup:
-            // Clean up backward triangles in the stencil buffer, (also filling
-            // negative winding numbers for nonZero fill).
             pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
-            pipelineState->stencilWriteMask =
-                isClockwiseFill
-                    // For clockwise fill, disable clip-bit writes when cleaning
-                    // up backward triangles. Clockwise only fills in forward
-                    // triangles.
-                    ? 0x7f
-                    : (isClipUpdate ? 0xff : 0x7f);
+            if (stencilInfo.stencilType ==
+                    StencilType::backwardTriangleCleanup &&
+                isClockwiseFill)
+            {
+                // For clockwise fill, always disable clip-bit writes when
+                // cleaning up backward triangles. Clockwise only fills in
+                // forward triangles.
+                pipelineState->stencilWriteMask = 0x7f;
+            }
+            else
+            {
+                pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x7f;
+            }
             pipelineState->stencilReference = 0x80;
+
+            // Pass: 2 render forward triangles. Unfortunately, we have to
+            // decrement borrowed coverage on a stencil fail, so this may
+            // interfere with Hi-Z optimizations.
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
-                                                // outside the clip.
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
+                .stencilFailOp =
+                    StencilOp::decrClamp, // Don't wrap; 0 must stay 0
+                                          // outside the clip.
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp =
+                    isClipUpdate ? StencilOp::replace : StencilOp::keep,
                 .compareOp = StencilCompareOp::equal,
             };
+
+            // Pass 3: clean up borrowed coverage from the stencil.
             pipelineState->stencilBackOps = {
-                .failOp = StencilOp::keep,
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .stencilFailOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp =
+                    isClipUpdate ? StencilOp::replace : StencilOp::zero,
                 .compareOp = StencilCompareOp::less,
             };
+
             pipelineState->stencilDoubleSided = true;
             break;
 
@@ -1425,16 +1429,16 @@ static void get_stencil_settings(InterlockMode interlockMode,
             // Decrement front-facing triangles so the MSB is set when
             // clockwise.
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::keep,
-                .passOp = StencilOp::decrWrap,
+                .stencilFailOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp = StencilOp::decrWrap,
                 .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
                                            : StencilCompareOp::always,
             };
             pipelineState->stencilBackOps = {
-                .failOp = pipelineState->stencilFrontOps.failOp,
-                .passOp = StencilOp::incrWrap,
+                .stencilFailOp = pipelineState->stencilFrontOps.stencilFailOp,
                 .depthFailOp = pipelineState->stencilFrontOps.depthFailOp,
+                .depthStencilPassOp = StencilOp::incrWrap,
                 .compareOp = pipelineState->stencilFrontOps.compareOp,
             };
             pipelineState->stencilDoubleSided = true;
@@ -1447,9 +1451,10 @@ static void get_stencil_settings(InterlockMode interlockMode,
             pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x1;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::keep,
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .stencilFailOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp =
+                    isClipUpdate ? StencilOp::replace : StencilOp::zero,
                 .compareOp = StencilCompareOp::notEqual,
             };
             pipelineState->stencilDoubleSided = false;
@@ -1473,9 +1478,9 @@ static void get_stencil_settings(InterlockMode interlockMode,
             pipelineState->stencilWriteMask = 0xff;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::zero,
-                .passOp = StencilOp::replace,
+                .stencilFailOp = StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp = StencilOp::replace,
                 .compareOp = StencilCompareOp::less,
             };
             pipelineState->stencilDoubleSided = false;
@@ -1487,9 +1492,9 @@ static void get_stencil_settings(InterlockMode interlockMode,
             pipelineState->stencilWriteMask = 0xff;
             pipelineState->stencilReference = 0x00;
             pipelineState->stencilFrontOps = {
-                .failOp = StencilOp::keep,
-                .passOp = StencilOp::zero,
+                .stencilFailOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp = StencilOp::zero,
                 .compareOp = StencilCompareOp::notEqual,
             };
             pipelineState->stencilDoubleSided = false;
@@ -1507,6 +1512,7 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::clipReset:
             return CullFace::counterclockwise;
@@ -1668,6 +1674,7 @@ bool get_color_write_enable(DrawType drawType,
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::clipReset:
             return false;
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
             return !enums::is_flag_set(drawContents, DrawContents::clipUpdate);
@@ -1815,6 +1822,7 @@ PipelineState get_pipeline_state(DrawType drawType,
             break;
 
         case DrawType::msaaStrokes:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanStencilReset:

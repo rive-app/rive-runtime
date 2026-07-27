@@ -509,6 +509,10 @@ private:
         {
             return m_ctx->frameInterlockMode();
         }
+        const gpu::PlatformFeatures& platformFeatures() const
+        {
+            return m_ctx->platformFeatures();
+        }
 
         // Access this flush's gpu::FlushDescriptor (which is not valid until
         // layoutResources()). NOTE: Some fields in the FlushDescriptor

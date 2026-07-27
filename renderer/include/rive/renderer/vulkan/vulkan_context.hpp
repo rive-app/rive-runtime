@@ -30,6 +30,9 @@ struct VulkanFeatures
     // VK_EXT_fragment_shader_interlock.
     bool fragmentShaderPixelInterlock = false;
 
+    // VK_EXT_color_write_enable.
+    bool colorWriteEnable = false;
+
     // Indicates a nonconformant driver, like MoltenVK.
     bool VK_KHR_portability_subset = false;
 
@@ -81,8 +84,6 @@ public:
     F(CmdBindVertexBuffers)                                                    \
     F(CmdBlitImage)                                                            \
     F(CmdClearColorImage)                                                      \
-    F(CmdSetStencilReference)                                                  \
-    F(CmdSetBlendConstants)                                                    \
     F(CmdCopyBufferToImage)                                                    \
     F(CmdDraw)                                                                 \
     F(CmdDrawIndexed)                                                          \
@@ -90,7 +91,15 @@ public:
     F(CmdFillBuffer)                                                           \
     F(CmdNextSubpass)                                                          \
     F(CmdPipelineBarrier)                                                      \
+    F(CmdSetBlendConstants)                                                    \
+    F(CmdSetColorWriteEnableEXT)                                               \
+    F(CmdSetCullMode)                                                          \
+    F(CmdSetDepthWriteEnable)                                                  \
     F(CmdSetScissor)                                                           \
+    F(CmdSetStencilCompareMask)                                                \
+    F(CmdSetStencilOp)                                                         \
+    F(CmdSetStencilReference)                                                  \
+    F(CmdSetStencilWriteMask)                                                  \
     F(CmdSetViewport)                                                          \
     F(CreateCommandPool)                                                       \
     F(CreateDescriptorPool)                                                    \

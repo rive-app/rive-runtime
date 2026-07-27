@@ -134,7 +134,7 @@ public:
     const Draw* nextDstRead() const { return m_nextDstRead; }
 
     // Finalizes m_prepassCount and m_subpassCount.
-    virtual void countSubpasses()
+    virtual void countSubpasses(const gpu::PlatformFeatures&)
     {
         // The subclass must set m_prepassCount and m_subpassCount in this call
         // if they are not 0 & 1.
@@ -321,7 +321,7 @@ public:
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
     bool allocateResources(RenderContext::LogicalFlush*) override;
-    void countSubpasses() override;
+    void countSubpasses(const gpu::PlatformFeatures&) override;
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
                                         int subpassIndex) override;

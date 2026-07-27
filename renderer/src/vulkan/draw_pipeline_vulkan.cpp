@@ -14,58 +14,6 @@
 
 namespace rive::gpu
 {
-static VkStencilOp vk_stencil_op(StencilOp op)
-{
-    switch (op)
-    {
-        case StencilOp::keep:
-            return VK_STENCIL_OP_KEEP;
-        case StencilOp::replace:
-            return VK_STENCIL_OP_REPLACE;
-        case StencilOp::zero:
-            return VK_STENCIL_OP_ZERO;
-        case StencilOp::decrClamp:
-            return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-        case StencilOp::incrWrap:
-            return VK_STENCIL_OP_INCREMENT_AND_WRAP;
-        case StencilOp::decrWrap:
-            return VK_STENCIL_OP_DECREMENT_AND_WRAP;
-    }
-    RIVE_UNREACHABLE();
-}
-
-static VkCompareOp vk_compare_op(gpu::StencilCompareOp op)
-{
-    switch (op)
-    {
-        case gpu::StencilCompareOp::less:
-            return VK_COMPARE_OP_LESS;
-        case gpu::StencilCompareOp::equal:
-            return VK_COMPARE_OP_EQUAL;
-        case gpu::StencilCompareOp::lessOrEqual:
-            return VK_COMPARE_OP_LESS_OR_EQUAL;
-        case gpu::StencilCompareOp::notEqual:
-            return VK_COMPARE_OP_NOT_EQUAL;
-        case gpu::StencilCompareOp::always:
-            return VK_COMPARE_OP_ALWAYS;
-    }
-    RIVE_UNREACHABLE();
-}
-
-static VkCullModeFlags vk_cull_mode(CullFace cullFace)
-{
-    switch (cullFace)
-    {
-        case CullFace::none:
-            return VK_CULL_MODE_NONE;
-        case CullFace::clockwise:
-            return VK_CULL_MODE_FRONT_BIT;
-        case CullFace::counterclockwise:
-            return VK_CULL_MODE_BACK_BIT;
-    }
-    RIVE_UNREACHABLE();
-}
-
 constexpr static VkBlendOp vk_blend_op(gpu::BlendEquation equation)
 {
     switch (equation)
@@ -156,6 +104,16 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
     key =
         math::add_bits_to_key(key, uint64_t(drawPipelineOptions), OPTION_COUNT);
 
+    // pipeline_unique_key() keys on baked depth/stencil/cull/color state, so a
+    // dynamic-state pipeline collides with the static pipelines that share its
+    // state (e.g. msaaDynamicMidpointFans vs. msaaMidpointFans). They need
+    // distinct pipelines -- one uses the dynamic-state layout, the other bakes
+    // -- so fold the layout choice into the key.
+    key = math::add_bits_to_key(
+        key,
+        uint64_t(vkutil::hasPipelineDynamicState(drawType)),
+        1);
+
     return key;
 }
 
@@ -193,6 +151,7 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::imageMesh:
         case gpu::DrawType::msaaStrokes:
         case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+        case gpu::DrawType::msaaDynamicMidpointFans:
         case gpu::DrawType::msaaMidpointFans:
         case gpu::DrawType::msaaMidpointFanStencilReset:
         case gpu::DrawType::msaaMidpointFanPathsStencil:
@@ -353,7 +312,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                                               Options::wireframe)
                                ? VK_POLYGON_MODE_LINE
                                : VK_POLYGON_MODE_FILL,
-            .cullMode = vk_cull_mode(pipelineState.cullFace),
+            .cullMode = vkutil::vkCullMode(pipelineState.cullFace),
             .frontFace = VK_FRONT_FACE_CLOCKWISE,
             .lineWidth = 1.0,
         };
@@ -468,11 +427,14 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     if (pipelineState.stencilTestEnabled)
     {
         depthStencilState.front = {
-            .failOp = vk_stencil_op(pipelineState.stencilFrontOps.failOp),
-            .passOp = vk_stencil_op(pipelineState.stencilFrontOps.passOp),
+            .failOp = vkutil::vkStencilOp(
+                pipelineState.stencilFrontOps.stencilFailOp),
+            .passOp = vkutil::vkStencilOp(
+                pipelineState.stencilFrontOps.depthStencilPassOp),
             .depthFailOp =
-                vk_stencil_op(pipelineState.stencilFrontOps.depthFailOp),
-            .compareOp = vk_compare_op(pipelineState.stencilFrontOps.compareOp),
+                vkutil::vkStencilOp(pipelineState.stencilFrontOps.depthFailOp),
+            .compareOp =
+                vkutil::vkCompareOp(pipelineState.stencilFrontOps.compareOp),
             .compareMask = pipelineState.stencilCompareMask,
             .writeMask = pipelineState.stencilWriteMask,
             .reference = pipelineState.stencilReference,
@@ -481,14 +443,14 @@ DrawPipelineVulkan::DrawPipelineVulkan(
             !pipelineState.stencilDoubleSided
                 ? depthStencilState.front
                 : VkStencilOpState{
-                      .failOp =
-                          vk_stencil_op(pipelineState.stencilBackOps.failOp),
-                      .passOp =
-                          vk_stencil_op(pipelineState.stencilBackOps.passOp),
-                      .depthFailOp = vk_stencil_op(
+                      .failOp = vkutil::vkStencilOp(
+                          pipelineState.stencilBackOps.stencilFailOp),
+                      .passOp = vkutil::vkStencilOp(
+                          pipelineState.stencilBackOps.depthStencilPassOp),
+                      .depthFailOp = vkutil::vkStencilOp(
                           pipelineState.stencilBackOps.depthFailOp),
-                      .compareOp =
-                          vk_compare_op(pipelineState.stencilBackOps.compareOp),
+                      .compareOp = vkutil::vkCompareOp(
+                          pipelineState.stencilBackOps.compareOp),
                       .compareMask = pipelineState.stencilCompareMask,
                       .writeMask = pipelineState.stencilWriteMask,
                       .reference = pipelineState.stencilReference,
@@ -515,7 +477,9 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                                   ? &depthStencilState
                                   : nullptr,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
-        .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
+        .pDynamicState = vkutil::hasPipelineDynamicState(props.drawType)
+                             ? &layout::DYNAMIC_PIPELINE_STATE
+                             : &layout::DYNAMIC_VIEWPORT_SCISSOR,
         .layout = *pipelineLayout,
         .renderPass = vkRenderPass,
         .subpass = subpassIndex,
@@ -529,6 +493,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaDynamicMidpointFans:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
