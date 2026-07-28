@@ -424,7 +424,6 @@ bool ViewModelInstanceRuntime::replaceViewModelByName(
 
 std::vector<PropertyData> ViewModelInstanceRuntime::properties() const
 {
-    std::vector<PropertyData> props;
-    auto properties = m_viewModelInstance->viewModel()->properties();
-    return ViewModelRuntime::buildPropertiesData(properties);
+    return ViewModelRuntime::buildPropertiesData(
+        m_viewModelInstance->viewModel());
 }

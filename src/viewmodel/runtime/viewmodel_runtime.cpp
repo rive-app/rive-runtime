@@ -41,13 +41,15 @@ const std::string& ViewModelRuntime::name() const
 }
 
 std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
-    std::vector<rive::ViewModelProperty*>& properties)
+    ViewModel* viewModel)
 {
+    auto* file = viewModel->file();
     std::vector<PropertyData> props;
-    for (auto property : properties)
+    for (auto property : viewModel->properties())
     {
         DataType type = DataType::none;
         std::string enumName;
+        std::string viewModelName;
         switch (property->coreType())
         {
             case ViewModelPropertyString::typeKey:
@@ -82,8 +84,20 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
                 type = DataType::trigger;
                 break;
             case ViewModelPropertyViewModelBase::typeKey:
+            {
                 type = DataType::viewModel;
+                if (file != nullptr)
+                {
+                    auto* referencedViewModel = file->viewModel(
+                        static_cast<ViewModelPropertyViewModel*>(property)
+                            ->viewModelReferenceId());
+                    if (referencedViewModel != nullptr)
+                    {
+                        viewModelName = referencedViewModel->name();
+                    }
+                }
                 break;
+            }
             case ViewModelPropertySymbolListIndex::typeKey:
                 type = DataType::symbolListIndex;
                 break;
@@ -99,15 +113,14 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
             default:
                 break;
         }
-        props.push_back({type, property->name(), enumName});
+        props.push_back({type, property->name(), enumName, viewModelName});
     }
     return props;
 }
 
 std::vector<PropertyData> ViewModelRuntime::properties()
 {
-    auto props = m_viewModel->properties();
-    return buildPropertiesData(props);
+    return buildPropertiesData(m_viewModel);
 }
 
 std::vector<std::string> ViewModelRuntime::instanceNames() const
