@@ -1,6 +1,10 @@
 #include <rive/solo.hpp>
 #include <rive/shapes/shape.hpp>
 #include <rive/shapes/path.hpp>
+#include <rive/shapes/clipping_shape.hpp>
+#include <rive/constraints/translation_constraint.hpp>
+#include <rive/focus_data.hpp>
+#include <rive/semantic/semantic_data.hpp>
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_input_instance.hpp>
 #include <rive/nested_artboard.hpp>
@@ -9,8 +13,10 @@
 #include "rive_file_reader.hpp"
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
+#include <cstdint>
 #include <cstdio>
 
 TEST_CASE("file with skins in solos loads correctly", "[solo]")
@@ -319,6 +325,92 @@ TEST_CASE("hit test on nested artboards in solos", "[solo]")
     REQUIRE(inactiveRectFillSolidColor->colorValue() == green_color);
 }
 
+TEST_CASE("solo index/name selection skips property-like children", "[solo]")
+{
+    // Build an artboard with a solo whose children interleave real solo options
+    // (shapes) with property-like children (constraint, clipping shape, focus
+    // data, semantic data). Those property-like children must be skipped by
+    // index/name based selection so data binding targets only real options.
+    rive::NoOpFactory factory;
+    rive::Artboard artboard(&factory);
+
+    auto* solo = new rive::Solo();
+    auto* clip = new rive::ClippingShape();
+    auto* constraint = new rive::TranslationConstraint();
+    auto* blue = new rive::Shape();
+    auto* focus = new rive::FocusData();
+    auto* green = new rive::Shape();
+    auto* semantic = new rive::SemanticData();
+    auto* red = new rive::Shape();
+
+    blue->name("Blue");
+    green->name("Green");
+    red->name("Red");
+
+    artboard.addObject(&artboard);  // id 0
+    artboard.addObject(solo);       // id 1
+    artboard.addObject(clip);       // id 2
+    artboard.addObject(constraint); // id 3
+    artboard.addObject(blue);       // id 4
+    artboard.addObject(focus);      // id 5
+    artboard.addObject(green);      // id 6
+    artboard.addObject(semantic);   // id 7
+    artboard.addObject(red);        // id 8
+
+    solo->parentId(0);
+    clip->parentId(1);
+    constraint->parentId(1);
+    blue->parentId(1);
+    focus->parentId(1);
+    green->parentId(1);
+    semantic->parentId(1);
+    red->parentId(1);
+
+    // The clipping shape needs a valid source node to initialize.
+    clip->sourceId(artboard.idOf(blue));
+
+    REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+
+    // Index 0 must resolve to the first real option (Blue), NOT the clipping
+    // shape that physically precedes it in the child list.
+    solo->updateByIndex(0);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == blue);
+    REQUIRE(solo->getActiveChildIndex() == 0);
+
+    solo->updateByIndex(1);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == green);
+    REQUIRE(solo->getActiveChildIndex() == 1);
+
+    solo->updateByIndex(2);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == red);
+    REQUIRE(solo->getActiveChildIndex() == 2);
+    REQUIRE(solo->getActiveChildName() == "Red");
+
+    // Out of range for the solo set (there are only 3 options) is a no-op.
+    solo->updateByIndex(3);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == red);
+
+    // An index past the whole child list (e.g. a negative float cast to size_t
+    // by the data-binding path) is also a no-op.
+    solo->updateByIndex(SIZE_MAX);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == red);
+
+    // Name based selection skips the property-like children too.
+    solo->updateByName("Green");
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == green);
+    REQUIRE(solo->getActiveChildIndex() == 1);
+
+    // With Green active, only the non-active solo options collapse. The
+    // property-like children follow the solo's own (uncollapsed) state.
+    REQUIRE(blue->isCollapsed() == true);
+    REQUIRE(green->isCollapsed() == false);
+    REQUIRE(red->isCollapsed() == true);
+    REQUIRE(clip->isCollapsed() == false);
+    REQUIRE(constraint->isCollapsed() == false);
+    REQUIRE(focus->isCollapsed() == false);
+    REQUIRE(semantic->isCollapsed() == false);
+}
+
 TEST_CASE("Data bound solos with enums work in both directions", "[silver]")
 {
     rive::SerializingFactory silver;
@@ -408,4 +500,42 @@ TEST_CASE("Do not advance collapsed scripts", "[silver]")
 
     stateMachine->advanceAndApply(0.016f);
     REQUIRE(advanceCountProp->propertyValue() == 6);
+}
+
+TEST_CASE("Data bind by index skipping non hierarchical children", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/solo_index_test.riv", &silver);
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto indexProp =
+        vmi->propertyValue("index")->as<rive::ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    indexProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    indexProp->propertyValue(2);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    indexProp->propertyValue(3);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("solo_index_test"));
 }

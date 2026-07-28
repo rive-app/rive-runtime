@@ -1,9 +1,23 @@
 #include "rive/solo.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/shapes/clipping_shape.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/semantic/semantic_data.hpp"
 #include "rive/artboard.hpp"
 
 using namespace rive;
+
+// Some child components shouldn't be considered as part of the solo set as they
+// are more akin to properties/metadata of the solo itself (constraints,
+// clipping shapes, focus and semantic data) rather than selectable solo
+// options. These are excluded both from collapse propagation and from
+// index/name based selection so that data binding targets only the real solo
+// options.
+static bool isSoloSetMember(Component* child)
+{
+    return !(child->is<Constraint>() || child->is<ClippingShape>() ||
+             child->is<FocusData>() || child->is<SemanticData>());
+}
 
 void Solo::propagateCollapse(bool collapse)
 {
@@ -11,10 +25,9 @@ void Solo::propagateCollapse(bool collapse)
         collapse ? nullptr : artboard()->resolve(activeComponentId());
     for (Component* child : children())
     {
-        // Some child components shouldn't be considered as part of the solo set
-        // as they are more aking to properties of the solo itself. For those
-        // components, simply pass on the collapse value of the solo itself.
-        if (child->is<Constraint>() || child->is<ClippingShape>())
+        // For components that aren't part of the solo set, simply pass on the
+        // collapse value of the solo itself.
+        if (!isSoloSetMember(child))
         {
             child->collapse(collapse);
             continue;
@@ -55,23 +68,48 @@ StatusCode Solo::onAddedClean(CoreContext* context)
 
 void Solo::updateByIndex(size_t index)
 {
-    if (index >= 0 && index < children().size() && artboard())
+    // The number of solo options is always <= children().size(), so any index
+    // that big can never match. Bail early to avoid an O(n) walk every frame
+    // for out-of-range indices (the data-binding path casts rounded floats to
+    // size_t without clamping, so negative values arrive as huge indices).
+    if (!artboard() || index >= children().size())
     {
-        auto child = children()[index];
-        int globalIndex = artboard()->idOf(child);
-        activeComponentId(globalIndex);
+        return;
+    }
+    // The index refers to the Nth solo option, skipping property-like children
+    // (constraints, clipping shapes, focus/semantic data) so it matches the
+    // ordering exposed by getActiveChildIndex.
+    size_t soloIndex = 0;
+    for (auto& child : children())
+    {
+        if (!isSoloSetMember(child))
+        {
+            continue;
+        }
+        if (soloIndex == index)
+        {
+            activeComponentId(artboard()->idOf(child));
+            return;
+        }
+        soloIndex++;
     }
 }
 
 void Solo::updateByName(const std::string& name)
 {
+    if (!artboard())
+    {
+        return;
+    }
     for (auto& child : children())
     {
+        if (!isSoloSetMember(child))
+        {
+            continue;
+        }
         if (child->name() == name)
         {
-
-            int globalIndex = artboard()->idOf(child);
-            activeComponentId(globalIndex);
+            activeComponentId(artboard()->idOf(child));
             break;
         }
     }
@@ -79,12 +117,20 @@ void Solo::updateByName(const std::string& name)
 
 int Solo::getActiveChildIndex()
 {
+    if (!artboard())
+    {
+        return -1;
+    }
     Core* active = artboard()->resolve(activeComponentId());
     if (active)
     {
         int index = 0;
         for (auto& child : children())
         {
+            if (!isSoloSetMember(child))
+            {
+                continue;
+            }
             if (child == active)
             {
                 return index;
@@ -97,6 +143,10 @@ int Solo::getActiveChildIndex()
 
 std::string Solo::getActiveChildName()
 {
+    if (!artboard())
+    {
+        return "";
+    }
     Core* active = artboard()->resolve(activeComponentId());
     if (active && active->is<Component>())
     {
