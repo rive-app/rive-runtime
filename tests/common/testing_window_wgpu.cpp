@@ -146,6 +146,14 @@ public:
         }
 #endif
 
+        std::vector<wgpu::FeatureName> requiredFeatures;
+        if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
+        {
+            requiredFeatures.push_back(wgpu::FeatureName::ClipDistances);
+        }
+        deviceDesc.requiredFeatureCount = requiredFeatures.size();
+        deviceDesc.requiredFeatures = requiredFeatures.data();
+
         m_adapter.RequestDevice(
             &deviceDesc,
             wgpu::CallbackMode::AllowSpontaneous,
@@ -226,12 +234,34 @@ public:
 
         wgpu::AdapterInfo adapterInfo;
         m_adapter.GetInfo(&adapterInfo);
-        printf("==== WGPU device: %s %s %s (%s, %s) ====\n",
+        printf("==== WGPU device: %.*s %.*s %.*s (%s",
+               static_cast<int>(adapterInfo.vendor.length),
                adapterInfo.vendor.data,
+               static_cast<int>(adapterInfo.device.length),
                adapterInfo.device.data,
+               static_cast<int>(adapterInfo.description.length),
                adapterInfo.description.data,
-               wgpu_backend_name(impl()->capabilities().backendType),
-               pls_impl_name(impl()->capabilities()));
+               wgpu_backend_name(impl()->capabilities().backendType));
+#ifdef RIVE_WAGYU
+        switch (impl()->capabilities().plsType)
+        {
+            case RenderContextWebGPUImpl::PixelLocalStorageType::
+                GL_EXT_shader_pixel_local_storage:
+                printf(", GL_EXT_shader_pixel_local_storage");
+                break;
+            case RenderContextWebGPUImpl::PixelLocalStorageType::
+                VK_EXT_rasterization_order_attachment_access:
+                printf(", VK_EXT_rasterization_order_attachment_access");
+                break;
+            case RenderContextWebGPUImpl::PixelLocalStorageType::none:
+                break;
+        }
+#endif
+        if (m_renderContext->platformFeatures().supportsClipPlanes)
+        {
+            printf(", WGPUFeatureName_ClipDistances");
+        }
+        printf(") ====\n");
     }
 
     rive::Factory* factory() override { return m_renderContext.get(); }

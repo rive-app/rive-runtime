@@ -3,6 +3,7 @@
  */
 
 #include "common/test_harness.hpp"
+#include "common/report_fatal_error.hpp"
 #include "common/stacktrace.hpp"
 #include "rive/rive_types.hpp"
 #include "rive/math/math_types.hpp"
@@ -459,6 +460,23 @@ void TestHarness::shutdownInputPumpThread()
     {
         m_primaryTCPClient->send4(REQUEST_TYPE_CANCEL_INPUT);
         m_inputPumpThread.join();
+    }
+}
+
+void rive_tests::report_fatal_error(const char* serverAddress,
+                                    const char* message)
+{
+    fprintf(stderr, "%s\n", message);
+    fflush(stderr);
+    if (serverAddress == nullptr || serverAddress[0] == '\0')
+    {
+        return;
+    }
+    if (std::unique_ptr<TCPClient> tcpClient =
+            TCPClient::Connect(serverAddress))
+    {
+        tcpClient->send4(REQUEST_TYPE_APPLICATION_CRASH);
+        tcpClient->sendString(message);
     }
 }
 

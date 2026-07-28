@@ -59,11 +59,26 @@ public:
         angle,
         dawn,
         wgpu,
-        rhi,
         external,
         coregraphics,
         skia,
         null,
+        invalid,
+    };
+
+    enum class Target
+    {
+        host,
+        android,
+        ios,
+        iossim,
+        unreal,
+        unreal_android,
+        webbrowser,
+        webserver,
+        webbrowserandroid,
+        webserverandroid,
+        console,
     };
 
     enum class ANGLERenderer
@@ -156,6 +171,7 @@ public:
 
     static const char* BackendName(Backend);
 
+    static Backend TryParseBackend(const char* name, BackendParams*);
     static Backend ParseBackend(const char* name, BackendParams*);
     static TestingWindow* Init(Backend,
                                const BackendParams&,
@@ -165,6 +181,12 @@ public:
     static void Set(TestingWindow* inWindow);
     static void Destroy();
     static Backend backend() { return s_Backend; }
+    static Target target() { return s_Target; }
+    static void SetTarget(Target target) { s_Target = target; }
+    static bool isUnreal()
+    {
+        return s_Target == Target::unreal || s_Target == Target::unreal_android;
+    }
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
@@ -289,6 +311,7 @@ protected:
     uint32_t m_height = 0;
 
     static Backend s_Backend;
+    static Target s_Target;
 };
 
 #endif

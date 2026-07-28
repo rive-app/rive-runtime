@@ -32,6 +32,18 @@ extern "C"
 // Call TestingWindow::Destroy if you want to delete the window singleton
 TestingWindow* s_TestingWindow = nullptr;
 TestingWindow::Backend TestingWindow::s_Backend = TestingWindow::Backend::null;
+TestingWindow::Target TestingWindow::s_Target =
+#if defined(__EMSCRIPTEN__)
+    TestingWindow::Target::webbrowser;
+#elif defined(RIVE_ANDROID)
+    TestingWindow::Target::android;
+#elif defined(RIVE_IOS_SIMULATOR)
+    TestingWindow::Target::iossim;
+#elif defined(RIVE_IOS)
+    TestingWindow::Target::ios;
+#else
+    TestingWindow::Target::host;
+#endif
 
 const char* TestingWindow::BackendName(Backend backend)
 {
@@ -57,8 +69,6 @@ const char* TestingWindow::BackendName(Backend backend)
             return "dawn";
         case TestingWindow::Backend::wgpu:
             return "wgpu";
-        case Backend::rhi:
-            return "rhi";
         case Backend::external:
             return "external";
         case TestingWindow::Backend::coregraphics:
@@ -67,6 +77,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "skia";
         case TestingWindow::Backend::null:
             return "null";
+        case TestingWindow::Backend::invalid:
+            return "invalid";
     }
     RIVE_UNREACHABLE();
 }
@@ -83,8 +95,8 @@ static std::vector<std::string> split(const char* str, char delimiter)
     return tokens;
 }
 
-TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
-                                                   BackendParams* params)
+TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
+                                                      BackendParams* params)
 {
     *params = {};
     // Backends can come in the form <backendName>, or
@@ -146,6 +158,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         params->atomic = true;
         return Backend::d3d;
     }
+    if (nameStr == "d3dmsaa")
+    {
+        params->msaa = true;
+        return Backend::d3d;
+    }
     if (nameStr == "d3d12")
     {
         return Backend::d3d12;
@@ -153,6 +170,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     if (nameStr == "d3d12atomic")
     {
         params->atomic = true;
+        return Backend::d3d12;
+    }
+    if (nameStr == "d3d12msaa")
+    {
+        params->msaa = true;
         return Backend::d3d12;
     }
     if (nameStr == "metal")
@@ -167,6 +189,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     if (nameStr == "metalatomic")
     {
         params->atomic = true;
+        return Backend::metal;
+    }
+    if (nameStr == "metalmsaa")
+    {
+        params->msaa = true;
         return Backend::metal;
     }
     if (nameStr == "vulkan" || nameStr == "vk")
@@ -251,10 +278,6 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         params->msaa = true;
         return Backend::wgpu;
     }
-    if (nameStr == "rhi")
-    {
-        return Backend::rhi;
-    }
     if (nameStr == "coregraphics")
     {
         return Backend::coregraphics;
@@ -271,8 +294,19 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::null;
     }
-    fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
-    abort();
+    return Backend::invalid;
+}
+
+TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
+                                                   BackendParams* params)
+{
+    Backend backend = TryParseBackend(name, params);
+    if (backend == Backend::invalid)
+    {
+        fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
+        abort();
+    }
+    return backend;
 }
 
 static void set_environment_variable(const char* name, const char* value)
@@ -299,8 +333,11 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                    Visibility visibility,
                                    void* platformWindow)
 {
-    assert((backend == Backend::rhi || backend == Backend::external) ==
-           (s_TestingWindow != nullptr));
+    if (s_TestingWindow != nullptr)
+    {
+        s_Backend = backend;
+        return s_TestingWindow;
+    }
 
 #if defined(_WIN32) && !defined(RIVE_UNREAL)
     // Set our backdoor GPU selection variables in case the API doesn't
@@ -424,7 +461,6 @@ TestingWindow* TestingWindow::Init(Backend backend,
         case Backend::wgpu:
             s_TestingWindow = TestingWindow::MakeWGPU(backendParams);
             break;
-        case Backend::rhi:
         case Backend::external:
             break;
         case Backend::coregraphics:
@@ -435,6 +471,8 @@ TestingWindow* TestingWindow::Init(Backend backend,
             break;
         case Backend::null:
             s_TestingWindow = MakeNULL();
+            break;
+        case Backend::invalid:
             break;
     }
     if (!s_TestingWindow)

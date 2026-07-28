@@ -497,17 +497,15 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
     dirname = os.path.dirname(cmd[0])
     toolname = os.path.basename(cmd[0])
 
-    # The RHI comes from an engine switch; the "--backend" still in cmd[1:] is
-    # ignored by the app, which hardcodes TestingWindow::Backend::rhi.
     if args.target == "unreal":
         unreal_exe_path = os.path.join(dirname, *UNREAL_HOST_PACKAGE)
-        return [unreal_exe_path, "/Game/maps/" + toolname,
-                UNREAL_RHI_SWITCHES[args.backend],
-                "-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
+        return [unreal_exe_path, "/Game/maps/" + toolname] + \
+               unreal_engine_args(args.target, args.backend) + \
+               ["-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
 
     if args.target == "unreal_android":
-        tool_args = ' '.join(["/Game/maps/" + toolname,
-                              UNREAL_RHI_SWITCHES[args.backend]] + cmd[1:])
+        tool_args = ' '.join(["/Game/maps/" + toolname] +
+                             unreal_engine_args(args.target, args.backend) + cmd[1:])
         return ["adb", "shell",
                     "am force-stop app.rive.rive_unreal && "
                     f"am start -n app.rive.rive_unreal/com.epicgames.unreal.GameActivity -e args '{tool_args}'"]
@@ -666,67 +664,48 @@ UNREAL_TARGET_PLATFORMS = {
     "unreal_android": "Android",
 }
 
-# Unreal selects its RHI with an engine command-line switch. The tools themselves
-# always run TestingWindow::Backend::rhi -- the Unreal plugin pre-sets the testing
-# window and GMTestingManager discards our --backend. So these names only pick the
-# RHI switch and the output directory.
 UNREAL_RHI_SWITCHES = {
-    "d3d11": "-dx11",
+    "d3d": "-dx11",
     "d3d12": "-dx12",
-    "vulkan": "-vulkan",
+    "vk": "-vulkan",
     "metal": "-metal",
 }
 
-def supported_rhi_backends(target):
-    """The real backends the "rhi" meta-backend expands into, in run order."""
-    if target == "unreal":
-        if platform.system() == "Darwin":
-            return ["metal"]
-        if platform.system() == "Linux":
-            return ["vulkan"] # the only RHI Unreal supports on Linux
-        return ["d3d11", "d3d12", "vulkan"]
-    if target == "unreal_android":
-        return ["vulkan"]
-    return [] # consoles get their entries here later
+UNREAL_INTERLOCK_OVERRIDES = {
+    "": "raster",
+    "atomic": "atomics",
+    "msaa": "msaa",
+}
 
-def rhi_outdir(outdir, rhi):
-    # .gold/candidates/unreal/rhi -> .gold/candidates/unreal/d3d11
-    head, tail = os.path.split(os.path.normpath(outdir))
-    return os.path.join(head, rhi) if tail == "rhi" else os.path.join(outdir, rhi)
+SUPPORTED_UNREAL_BACKENDS = {
+    "unreal": ["metal"] if platform.system() == "Darwin" else
+              ["vk"] if platform.system() == "Linux" else
+              ["d3d", "d3d12", "vk"],
+    "unreal_android": ["vk"],
+}
 
-def strip_opts(argv, *opts):
-    """Drop the given options (and their values) from argv, in every spelling."""
-    names = [name for spellings in opts for name in spellings]
-    stripped = []
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg in names: # "-b vulkan" / "--backend vulkan"
-            i += 2
-            continue
-        if any(arg.startswith(name + "=") for name in names) or \
-           any(arg.startswith(name) and len(name) == 2 for name in names): # "-bvulkan"
-            i += 1
-            continue
-        stripped.append(arg)
-        i += 1
-    return stripped
+DEFAULT_UNREAL_BACKENDS = {
+    "unreal": "metal" if platform.system() == "Darwin" else
+              "vk" if platform.system() == "Linux" else "d3d12",
+    "unreal_android": "vk",
+}
 
-def run_rhi_fanout():
-    """Run once per RHI supported by the target, each into its own output dir."""
-    backends = supported_rhi_backends(args.target)
-    argv = strip_opts(sys.argv[1:], ["-b", "--backend"], ["-o", "--outdir"])
-    for i, rhi in enumerate(backends):
-        outdir = rhi_outdir(args.outdir, rhi)
-        print("\n=== Unreal RHI %s (%u/%u) -> %s ===\n"
-              % (rhi, i + 1, len(backends), outdir), flush=True)
-        cmd = [sys.executable, os.path.realpath(__file__)] + argv + \
-              ["--backend", rhi, "--outdir", outdir]
-        if i > 0:
-            # Build & package once; every RHI reuses the same package.
-            cmd += ["--no-rebuild", "--no-install"]
-        subprocess.check_call(cmd)
-    return 0
+def split_unreal_backend(name):
+    for rhi in sorted(UNREAL_RHI_SWITCHES, key=len, reverse=True):
+        if name.startswith(rhi):
+            return rhi, name[len(rhi):]
+    return None, name
+
+def unreal_engine_args(target, name):
+    rhi, suffix = split_unreal_backend(name)
+    supported = SUPPORTED_UNREAL_BACKENDS.get(target, [])
+    if rhi is None or rhi not in supported:
+        sys.exit("backend '%s' is not supported on --target=%s (supported RHIs: %s)"
+                 % (name, target, ", ".join(supported)))
+    engine_args = [UNREAL_RHI_SWITCHES[rhi]]
+    if suffix in UNREAL_INTERLOCK_OVERRIDES:
+        engine_args.append("-riveRenderOverride=%s" % UNREAL_INTERLOCK_OVERRIDES[suffix])
+    return engine_args
 
 def package_unreal_project():
     # No engine path -> assume the project is already packaged (legacy behavior).
@@ -741,11 +720,6 @@ def package_unreal_project():
                            "--platform", UNREAL_TARGET_PLATFORMS[args.target]])
 
 def main():
-    # The "rhi" meta-backend expands into one run per real RHI. Handled here, up
-    # front, by re-invoking ourselves -- so every non-unreal path below is untouched.
-    if "unreal" in args.target and args.backend in (None, "rhi"):
-        return run_rhi_fanout()
-
     # Parse skipped tests.
     rive_skipped_golden_tests = os.getenv("RIVE_SKIPPED_GOLDEN_TESTS")
     if rive_skipped_golden_tests:
@@ -800,11 +774,9 @@ def main():
         args.jobs_per_tool = 1
         if args.builddir == None:
             args.builddir = os.path.join("out", buildconfig)
-        # main() already expanded the "rhi" meta-backend, so this is a real RHI.
-        if args.backend not in supported_rhi_backends(args.target):
-            sys.exit("backend '%s' is not supported on --target=%s (supported: rhi, %s)"
-                     % (args.backend, args.target,
-                        ", ".join(supported_rhi_backends(args.target))))
+        if args.backend == None:
+            args.backend = DEFAULT_UNREAL_BACKENDS[args.target]
+        unreal_engine_args(args.target, args.backend)
     elif args.target.startswith("web"):
         args.jobs_per_tool = 1
         if args.builddir == None:

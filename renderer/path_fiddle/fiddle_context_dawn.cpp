@@ -229,16 +229,22 @@ public:
             // color supported.limits.maxVertexBufferArrayStride =
             // kVertexStride; supported.limits.maxColorAttachments = 1;
 
-            WGPUDeviceDescriptor deviceDesc = {
-                // notify on errors
-                .uncapturedErrorCallbackInfo = {.callback = &on_device_error},
+            std::vector<WGPUFeatureName> requiredFeatures;
+            if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
+            {
+                requiredFeatures.push_back(WGPUFeatureName_ClipDistances);
+            }
 
+            WGPUDeviceDescriptor deviceDesc = {
                 // extra features:
                 // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Features.cpp
-                //.requiredFeaturesCount = n
-                //.requiredFeatures = (WGPUFeatureName[]) { ... }
+                .requiredFeatureCount = requiredFeatures.size(),
+                .requiredFeatures = requiredFeatures.data(),
                 //.requiredLimits = &(WGPURequiredLimits) { .limits =
                 // supported.limits },
+
+                // notify on errors
+                .uncapturedErrorCallbackInfo = {.callback = &on_device_error},
             };
 
             m_device = wgpu::Device::Acquire(

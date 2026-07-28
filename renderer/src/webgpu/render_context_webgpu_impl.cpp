@@ -1882,6 +1882,9 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     }
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
+    m_platformFeatures.supportsClipPlanes =
+        m_device.HasFeature(wgpu::FeatureName::ClipDistances);
+
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;

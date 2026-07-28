@@ -84,7 +84,13 @@ namespace ore_gm
 // Ore backend.
 inline bool isOreBackendActive()
 {
-    auto b = TestingWindow::backend();
+#if defined(ORE_BACKEND_RHI)
+    if (TestingWindow::isUnreal())
+    {
+        return true;
+    }
+#endif
+    [[maybe_unused]] auto b = TestingWindow::backend();
 #if defined(ORE_BACKEND_METAL)
     if (b == TestingWindow::Backend::metal)
     {
@@ -123,12 +129,6 @@ inline bool isOreBackendActive()
         return true;
     }
 #endif
-#if defined(ORE_BACKEND_RHI)
-    if (b == TestingWindow::Backend::rhi)
-    {
-        return true;
-    }
-#endif
     return false;
 }
 
@@ -148,7 +148,13 @@ struct OreGMContext
         if (!renderContext || !isOreBackendActive())
             return false;
 
-        auto b = TestingWindow::backend();
+#if defined(ORE_BACKEND_RHI)
+        if (TestingWindow::isUnreal())
+        {
+            return true;
+        }
+#endif
+        [[maybe_unused]] auto b = TestingWindow::backend();
 
 #if defined(ORE_BACKEND_METAL)
         if (b == TestingWindow::Backend::metal)
@@ -178,12 +184,6 @@ struct OreGMContext
 #endif
 #if defined(ORE_BACKEND_D3D12)
         if (b == TestingWindow::Backend::d3d12)
-        {
-            return true;
-        }
-#endif
-#if defined(ORE_BACKEND_RHI)
-        if (b == TestingWindow::Backend::rhi)
         {
             return true;
         }
@@ -375,7 +375,11 @@ inline rive::ShaderAsset& getRstbAssetForShader(uint32_t shaderId)
 /// Map TestingWindow backend to RSTB ShaderTarget.
 inline uint8_t shaderTargetForBackend()
 {
-    auto b = TestingWindow::backend();
+#if defined(ORE_BACKEND_RHI)
+    if (TestingWindow::isUnreal())
+        return 3; // HLSL SM5
+#endif
+    [[maybe_unused]] auto b = TestingWindow::backend();
 #if defined(ORE_BACKEND_METAL)
     if (b == TestingWindow::Backend::metal)
         return 2; // MSL
@@ -390,10 +394,6 @@ inline uint8_t shaderTargetForBackend()
 #endif
 #if defined(ORE_BACKEND_D3D12)
     if (b == TestingWindow::Backend::d3d12)
-        return 3; // HLSL SM5
-#endif
-#if defined(ORE_BACKEND_RHI)
-    if (b == TestingWindow::Backend::rhi)
         return 3; // HLSL SM5
 #endif
 #if defined(ORE_BACKEND_WGPU)

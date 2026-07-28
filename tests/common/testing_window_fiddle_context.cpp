@@ -295,11 +295,11 @@ public:
         switch (backend)
         {
             case Backend::wgpu:
-            case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
             case Backend::external:
             case Backend::null:
+            case Backend::invalid:
                 break;
             case Backend::gl:
             case Backend::angle:
