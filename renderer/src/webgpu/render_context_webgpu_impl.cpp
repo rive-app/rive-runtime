@@ -112,17 +112,6 @@ constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
 
 constexpr static uint32_t MSAA_SAMPLE_COUNT = 4u;
 
-constexpr static WGPUBlendComponent BLEND_COMPONENT_SRC_OVER = {
-    .operation = WGPUBlendOperation_Add,
-    .srcFactor = WGPUBlendFactor_One,
-    .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
-};
-
-constexpr static WGPUBlendState BLEND_STATE_SRC_OVER = {
-    .color = BLEND_COMPONENT_SRC_OVER,
-    .alpha = BLEND_COMPONENT_SRC_OVER,
-};
-
 constexpr static WGPUStencilFaceState STENCIL_FACE_STATE_DISABLED = {
     .compare = WGPUCompareFunction_Always,
     .failOp = WGPUStencilOperation_Keep,
@@ -1882,6 +1871,15 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     }
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
+#ifdef RIVE_WAGYU
+    // We can only use advanced blend if the client enabled it when setting up
+    // the device.
+    m_platformFeatures.supportsBlendAdvancedKHR =
+        m_platformFeatures.supportsBlendAdvancedCoherentKHR =
+            m_device.HasFeature(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
+#endif
+
     m_platformFeatures.supportsClipPlanes =
         m_device.HasFeature(wgpu::FeatureName::ClipDistances);
 
@@ -2101,6 +2099,7 @@ RenderContextWebGPUImpl::~RenderContextWebGPUImpl() {}
 
 RenderTargetWebGPU::RenderTargetWebGPU(
     wgpu::Device device,
+    const gpu::PlatformFeatures& platformFeatures,
     const RenderContextWebGPUImpl::Capabilities& capabilities,
     wgpu::TextureFormat framebufferFormat,
     uint32_t width,
@@ -2109,6 +2108,8 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     m_device(std::move(device)),
     m_framebufferFormat(framebufferFormat),
     m_transientPLSUsage(wgpu::TextureUsage::RenderAttachment),
+    m_transientMSAAColorUsage(wgpu::TextureUsage::RenderAttachment),
+    m_transientMSAADepthStencilUsage(wgpu::TextureUsage::RenderAttachment),
     m_targetTextureView{} // Will be configured later by setTargetTexture().
 {
 #ifdef RIVE_WAGYU
@@ -2118,6 +2119,24 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     {
         m_transientPLSUsage |= static_cast<wgpu::TextureUsage>(
             WGPUTextureUsage_WagyuInputAttachment |
+            WGPUTextureUsage_WagyuTransientAttachment);
+    }
+    if (platformFeatures.supportsBlendAdvancedKHR)
+    {
+        // Since we support advanced blend, we don't need to interrupt MSAA
+        // render passes to read the framebuffer, so the MSAA buffers can be
+        // transient. Marking the buffers as transient also enables
+        // EXT_multisampled_render_to_texture in GL backends.
+        m_transientMSAAColorUsage |= static_cast<wgpu::TextureUsage>(
+            WGPUTextureUsage_WagyuTransientAttachment |
+            // In GL when using EXT_multisampled_render_to_texture,
+            // WGPUTextureUsage_WagyuMSAAResolveSource lets the driver know it
+            // doesn't actually have to allocate the memory for this color
+            // texture, and in turn, we promise not to use it in an MRT
+            // situation. (MRT is forbidden by
+            // EXT_multisampled_render_to_texture.)
+            WGPUTextureUsage_WagyuMSAAResolveSource);
+        m_transientMSAADepthStencilUsage |= static_cast<wgpu::TextureUsage>(
             WGPUTextureUsage_WagyuTransientAttachment);
     }
 #endif
@@ -2183,7 +2202,7 @@ wgpu::TextureView RenderTargetWebGPU::msaaColorTextureView()
     if (m_msaaColorTexture == nullptr)
     {
         wgpu::TextureDescriptor desc = {
-            .usage = wgpu::TextureUsage::RenderAttachment,
+            .usage = m_transientMSAAColorUsage,
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
             .format = m_framebufferFormat,
@@ -2200,7 +2219,7 @@ wgpu::TextureView RenderTargetWebGPU::msaaDepthStencilTextureView()
     if (m_msaaDepthStencilTexture == nullptr)
     {
         wgpu::TextureDescriptor desc = {
-            .usage = wgpu::TextureUsage::RenderAttachment,
+            .usage = m_transientMSAADepthStencilUsage,
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
             .format = wgpu::TextureFormat::Depth24PlusStencil8,
@@ -2268,6 +2287,7 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
     uint32_t height)
 {
     return rcp(new RenderTargetWebGPU(m_device,
+                                      m_platformFeatures,
                                       m_capabilities,
                                       framebufferFormat,
                                       width,
@@ -3001,6 +3021,101 @@ static void appendImageDrawInstanceAttribs(
     });
 }
 
+static WGPUBlendOperation wgpuBlendOp(gpu::BlendEquation blendEquation)
+{
+    switch (blendEquation)
+    {
+        case gpu::BlendEquation::none:
+        case gpu::BlendEquation::srcOver:
+        case gpu::BlendEquation::plus:
+            return WGPUBlendOperation_Add;
+        case gpu::BlendEquation::min:
+            return WGPUBlendOperation_Min;
+        case gpu::BlendEquation::max:
+            return WGPUBlendOperation_Max;
+#ifdef RIVE_WAGYU
+        case gpu::BlendEquation::multiply:
+            return WGPUBlendOperation_WagyuMultiply;
+        case gpu::BlendEquation::screen:
+            return WGPUBlendOperation_WagyuScreen;
+        case gpu::BlendEquation::overlay:
+            return WGPUBlendOperation_WagyuOverlay;
+        case gpu::BlendEquation::darken:
+            return WGPUBlendOperation_WagyuDarken;
+        case gpu::BlendEquation::lighten:
+            return WGPUBlendOperation_WagyuLighten;
+        case gpu::BlendEquation::colorDodge:
+            return WGPUBlendOperation_WagyuColorDodge;
+        case gpu::BlendEquation::colorBurn:
+            return WGPUBlendOperation_WagyuColorBurn;
+        case gpu::BlendEquation::hardLight:
+            return WGPUBlendOperation_WagyuHardLight;
+        case gpu::BlendEquation::softLight:
+            return WGPUBlendOperation_WagyuSoftLight;
+        case gpu::BlendEquation::difference:
+            return WGPUBlendOperation_WagyuDifference;
+        case gpu::BlendEquation::exclusion:
+            return WGPUBlendOperation_WagyuExclusion;
+        case gpu::BlendEquation::hue:
+            return WGPUBlendOperation_WagyuHue;
+        case gpu::BlendEquation::saturation:
+            return WGPUBlendOperation_WagyuSaturation;
+        case gpu::BlendEquation::color:
+            return WGPUBlendOperation_WagyuColor;
+        case gpu::BlendEquation::luminosity:
+            return WGPUBlendOperation_WagyuLuminosity;
+#else
+        case gpu::BlendEquation::multiply:
+        case gpu::BlendEquation::screen:
+        case gpu::BlendEquation::overlay:
+        case gpu::BlendEquation::darken:
+        case gpu::BlendEquation::lighten:
+        case gpu::BlendEquation::colorDodge:
+        case gpu::BlendEquation::colorBurn:
+        case gpu::BlendEquation::hardLight:
+        case gpu::BlendEquation::softLight:
+        case gpu::BlendEquation::difference:
+        case gpu::BlendEquation::exclusion:
+        case gpu::BlendEquation::hue:
+        case gpu::BlendEquation::saturation:
+        case gpu::BlendEquation::color:
+        case gpu::BlendEquation::luminosity:
+            RIVE_UNREACHABLE();
+#endif
+    }
+    RIVE_UNREACHABLE();
+}
+
+static WGPUBlendFactor wgpuDstBlendFactor(gpu::BlendEquation blendEquation)
+{
+    switch (blendEquation)
+    {
+        case gpu::BlendEquation::none:
+        case gpu::BlendEquation::srcOver:
+        case gpu::BlendEquation::multiply:
+        case gpu::BlendEquation::screen:
+        case gpu::BlendEquation::overlay:
+        case gpu::BlendEquation::darken:
+        case gpu::BlendEquation::lighten:
+        case gpu::BlendEquation::colorDodge:
+        case gpu::BlendEquation::colorBurn:
+        case gpu::BlendEquation::hardLight:
+        case gpu::BlendEquation::softLight:
+        case gpu::BlendEquation::difference:
+        case gpu::BlendEquation::exclusion:
+        case gpu::BlendEquation::hue:
+        case gpu::BlendEquation::saturation:
+        case gpu::BlendEquation::color:
+        case gpu::BlendEquation::luminosity:
+            return WGPUBlendFactor_OneMinusSrcAlpha;
+        case gpu::BlendEquation::plus:
+        case gpu::BlendEquation::min:
+        case gpu::BlendEquation::max:
+            return WGPUBlendFactor_One;
+    }
+    RIVE_UNREACHABLE();
+}
+
 wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     gpu::DrawType drawType,
     gpu::ShaderFeatures shaderFeatures,
@@ -3158,17 +3273,26 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     }
 #endif
 
+    const WGPUBlendComponent blendComponent = {
+        .operation = wgpuBlendOp(pipelineState.blendEquation),
+        .srcFactor = WGPUBlendFactor_One,
+        .dstFactor = wgpuDstBlendFactor(pipelineState.blendEquation),
+    };
+
+    const WGPUBlendState blendState = {
+        .color = blendComponent,
+        .alpha = blendComponent,
+    };
+
     StackVector<WGPUColorTargetState, PLS_PLANE_COUNT> colorAttachments;
 
     assert(colorAttachments.size() == COLOR_PLANE_IDX);
-    assert(pipelineState.blendEquation == gpu::BlendEquation::none ||
-           pipelineState.blendEquation == gpu::BlendEquation::srcOver);
     colorAttachments.push_back({
         .nextInChain = extraColorTargetState,
         .format = static_cast<WGPUTextureFormat>(framebufferFormat),
-        .blend = (pipelineState.blendEquation == gpu::BlendEquation::srcOver)
-                     ? &BLEND_STATE_SRC_OVER
-                     : nullptr,
+        .blend = (pipelineState.blendEquation == gpu::BlendEquation::none)
+                     ? nullptr
+                     : &blendState,
         .writeMask = pipelineState.colorWriteEnabled ? WGPUColorWriteMask_All
                                                      : WGPUColorWriteMask_None,
     });

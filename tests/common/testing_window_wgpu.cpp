@@ -12,7 +12,6 @@ TestingWindow* TestingWindow::MakeWGPU(const BackendParams&) { return nullptr; }
 
 #include "common/offscreen_render_target.hpp"
 #include "rive/renderer/rive_renderer.hpp"
-#include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
 #include <algorithm>
@@ -147,6 +146,18 @@ public:
 #endif
 
         std::vector<wgpu::FeatureName> requiredFeatures;
+#ifdef RIVE_WAGYU
+        // Request coherent advanced blend when the adapter advertises it. This
+        // enables Rive to take the "supportsBlendAdvancedCoherentKHR" path on
+        // MSAA, and skip the framebuffer copies and renderPass interruptions
+        // for advanced blend.
+        if (m_adapter.HasFeature(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent)))
+        {
+            requiredFeatures.push_back(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
+        }
+#endif
         if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
         {
             requiredFeatures.push_back(wgpu::FeatureName::ClipDistances);
@@ -257,6 +268,11 @@ public:
                 break;
         }
 #endif
+        if (m_renderContext->platformFeatures()
+                .supportsBlendAdvancedCoherentKHR)
+        {
+            printf(", WagyuBlendEquationAdvancedCoherent");
+        }
         if (m_renderContext->platformFeatures().supportsClipPlanes)
         {
             printf(", WGPUFeatureName_ClipDistances");
