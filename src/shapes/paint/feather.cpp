@@ -28,6 +28,11 @@ StatusCode Feather::onAddedDirty(CoreContext* context)
     return code;
 }
 
+bool Feather::isInner() const
+{
+    return inner() && parent() != nullptr && parent()->is<Fill>();
+}
+
 void Feather::update(ComponentDirt value)
 {
     auto shapePaint = parent()->as<ShapePaint>();
@@ -40,7 +45,7 @@ void Feather::update(ComponentDirt value)
     if (hasDirt(value, ComponentDirt::WorldTransform | ComponentDirt::Path))
     {
         bool offsetInArtboard = space() == TransformSpace::world;
-        if (inner())
+        if (isInner())
         {
             auto shape = ShapePaintContainer::from(shapePaint->parent());
 

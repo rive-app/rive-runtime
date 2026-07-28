@@ -89,7 +89,7 @@ void ShapePaint::draw(Renderer* renderer,
     if (m_feather != nullptr)
     {
         bool offsetInArtboard = m_feather->space() == TransformSpace::world;
-        if (offsetInArtboard && !m_feather->inner())
+        if (offsetInArtboard && !m_feather->isInner())
         {
             if (m_feather->offsetX() != 0 || m_feather->offsetY() != 0)
             {
@@ -120,7 +120,7 @@ void ShapePaint::draw(Renderer* renderer,
 
     if (m_feather != nullptr)
     {
-        if (m_feather->inner())
+        if (m_feather->isInner())
         {
             if (m_feather->innerPath() == nullptr)
             {
@@ -158,7 +158,7 @@ void ShapePaint::draw(Renderer* renderer,
 
         // If we're offseting in world space, apply the offset last.
         if (m_feather->space() != TransformSpace::world &&
-            !m_feather->inner() &&
+            !m_feather->isInner() &&
             (m_feather->offsetX() != 0 || m_feather->offsetY() != 0))
         {
             if (!saved)
