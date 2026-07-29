@@ -12,7 +12,7 @@ esac
 CONFIG=debug
 MATCH=
 COVERAGE=
-EXTRA_CONFIG=
+EXTRA_CONFIG=()
 UTILITY=
 TOOLSET_ARG=
 while [[ $# -gt 0 ]]; do
@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   asan)
     echo Will perform address sanitization...
-    EXTRA_CONFIG=$EXTRA_CONFIG'--with-asan '
+    EXTRA_CONFIG+=(--with-asan)
     shift # past argument
     ;;
   release)
@@ -79,12 +79,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   --with_vulkan)
     echo "Vulkan is added"
-    EXTRA_CONFIG=$EXTRA_CONFIG'--with_vulkan '
+    EXTRA_CONFIG+=(--with_vulkan)
     shift
     ;;
   *)
-    # We could pass any unrecognized arguments through instead of just eating them
-    echo "Warning: unrecognized argument '$1'"
+    # Pass any unrecognized arguments.
+    EXTRA_CONFIG+=("$1")
     shift # past argument
     ;;
   esac
@@ -99,8 +99,15 @@ pushd ../../
 RUNTIME=$PWD
 popd
 
-BUILD_RIVE_COMMANDS="$CONFIG --with_rive_tools --with_rive_audio=external --with_rive_scripting --no_ffp_contract $TOOLSET_ARG $EXTRA_CONFIG"
-$RUNTIME/build/build_rive.sh $BUILD_RIVE_COMMANDS
+# Keep this an array: forwarded arguments reach build_rive.sh as-is, instead of being
+# word-split and glob-expanded against the current directory on the way out.
+BUILD_RIVE_COMMANDS=("$CONFIG" --with_rive_tools --with_rive_audio=external
+                     --with_rive_scripting --no_ffp_contract)
+if [[ -n $TOOLSET_ARG ]]; then
+  BUILD_RIVE_COMMANDS+=("$TOOLSET_ARG")
+fi
+BUILD_RIVE_COMMANDS+=("${EXTRA_CONFIG[@]}")
+"$RUNTIME/build/build_rive.sh" "${BUILD_RIVE_COMMANDS[@]}"
 
 rm -fR silvers/tarnished
 mkdir -p silvers/tarnished

@@ -59,8 +59,8 @@
 #   export RIVE_USE_INCREDIBUILD=1          # distribute ninja and vs2022 builds via Incredibuild
 #   export RIVE_INCREDIBUILD_AVOID_LOCAL=1  # also pass -AvoidLocal=ON (build on helpers only)
 #
-#   The ninja build gets dispatched through IBConsole.exe with build/incredibuild_profile.xml, and
-#   vs2022 through BuildConsole.exe. rive_build_config.lua also keys off this variable for
+#   The ninja build gets dispatched through IBConsole.exe and vs2022 through BuildConsole.exe; both
+#   are handed build/incredibuild_profile.xml. rive_build_config.lua also keys off this variable for
 #   Incredibuild-friendly MSVC settings. Both require Incredibuild to be installed and on $PATH.
 
 set -e
@@ -289,16 +289,59 @@ export PREMAKE_PATH="$SCRIPT_DIR"
 
 # Setup premake-ninja.
 if [[ $RIVE_BUILD_SYSTEM = "ninja" ]]; then
-    if [ ! -d premake-ninja ]; then
-        git clone --branch rive_modifications https://github.com/rive-app/premake-ninja.git
+    if [ ! -d "$SCRIPT_DIR/dependencies/premake-ninja" ]; then
+        git clone --branch rive_modifications https://github.com/rive-app/premake-ninja.git \
+            "$SCRIPT_DIR/dependencies/premake-ninja"
     fi
     export PREMAKE_PATH="$SCRIPT_DIR/dependencies/premake-ninja:$PREMAKE_PATH"
+
+    if [[ $HOST_MACHINE = "windows" ]]; then
+        # A Visual Studio developer prompt exports LIB/LIBPATH for whichever
+        # architecture it was launched for, and the plain "Developer Command
+        # Prompt for VS" is x86. clang searches those ahead of the directories
+        # it derives from the target triple, so an x86 prompt links 32-bit CRT
+        # objects into our x64 build no matter what --target says. Unset LIB &
+        # LIBPATH to avoid this.
+        unset LIB LIBPATH
+    fi
+
+    if [[ $HOST_MACHINE = "windows" && -z "$VCToolsInstallDir" ]]; then
+        # VCToolsInstallDir us unset, and unlike builds with msbuild.exe,
+        # nothing is going to set up a Visual Studio environment for us here.
+        # clang++ would fall back to autodetecting an MSVC toolset -- and pick
+        # whichever it found first -- which could be older than the one Visual
+        # Studio itself defaults to. Prebuilt dependencies are compiled against
+        # the default toolset, so set up the same toolset that vcvars would have
+        # given us. vswhere.exe sits at a fixed location under "Program Files
+        # (x86)" by design, but that root isn't necessarily on C:. Read it from
+        # the environment -- the parentheses in the variable name make it
+        # invalid to expand directly, hence the detour through env.
+        PROGRAM_FILES_X86=$(env | sed -n 's/^ProgramFiles(x86)=//p')
+        VSWHERE="$(cygpath -u "${PROGRAM_FILES_X86:-C:\\Program Files (x86)}")/Microsoft Visual Studio/Installer/vswhere.exe"
+        if [ -x "$VSWHERE" ]; then
+            # Don't let a vswhere failure abort the build (set -e + pipefail); the warning below
+            # covers it.
+            VS_PATH=$("$VSWHERE" -latest -property installationPath 2>/dev/null | tr -d '\r' || true)
+            if [ -n "$VS_PATH" ]; then
+                VC_VERSION_FILE="$(cygpath -u "$VS_PATH")/VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt"
+                if [ -f "$VC_VERSION_FILE" ]; then
+                    export VCToolsInstallDir="$VS_PATH\\VC\\Tools\\MSVC\\$(tr -d '\r\n' < "$VC_VERSION_FILE")\\"
+                fi
+            fi
+        fi
+        if [[ -z "$VCToolsInstallDir" ]]; then
+            echo "warning: couldn't find Visual Studio's default MSVC toolset. clang will pick one" >&2
+            echo "         itself, which may not be the one our prebuilt dependencies were compiled" >&2
+            echo "         against -- expect undefined symbols at link time." >&2
+        fi
+    fi
 fi
 
 # Setup premake-export-compile-commands.
 if [[ $RIVE_BUILD_SYSTEM = "export-compile-commands" ]]; then
-    if [ ! -d premake-export-compile-commands ]; then
-        git clone --branch more_cpp_support https://github.com/rive-app/premake-export-compile-commands.git
+    if [ ! -d "$SCRIPT_DIR/dependencies/premake-export-compile-commands" ]; then
+        git clone --branch more_cpp_support https://github.com/rive-app/premake-export-compile-commands.git \
+            "$SCRIPT_DIR/dependencies/premake-export-compile-commands"
     fi
     export PREMAKE_PATH="$SCRIPT_DIR/dependencies/premake-export-compile-commands:$PREMAKE_PATH"
 fi
@@ -377,7 +420,8 @@ case "$RIVE_BUILD_SYSTEM" in
         done
         if [[ -n "$RIVE_USE_INCREDIBUILD" ]]; then
             echo_and_run BuildConsole.exe -UseMSBuild -cfg="default|${RIVE_ARCH:-x64}" \
-                "./$RIVE_OUT/rive.sln" -msbuildargs="$MSVC_TARGETS" "${IB_ARGS[@]}"
+                "./$RIVE_OUT/rive.sln" -msbuildargs="$MSVC_TARGETS" \
+                -profile="$SCRIPT_DIR/incredibuild_profile.xml" "${IB_ARGS[@]}"
         else
             echo_and_run msbuild.exe "./$RIVE_OUT/rive.sln" $MSVC_TARGETS
         fi

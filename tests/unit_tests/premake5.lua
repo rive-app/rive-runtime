@@ -4,7 +4,9 @@ do
 end
 filter({ 'system:windows' })
 do
-    buildoptions({ '/fp:strict' })
+    -- Visual Studio compiles through clang-cl and takes MSVC flag syntax; ninja drives clang++
+    -- directly, which only understands the GNU spelling.
+    buildoptions({ _ACTION == 'ninja' and '-ffp-model=strict' or '/fp:strict' })
 end
 filter({ 'system:windows', 'options:toolset=clang' })
 do

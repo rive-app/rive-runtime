@@ -338,9 +338,18 @@ if os.getenv('RIVE_USE_INCREDIBUILD') then
         else
             -- Older Premake automatically passes /INCREMENTAL to Visual Studio Debug configs.
         end
-        linktimeoptimization('Off') -- Disables /LTCG.
+        if linktimeoptimization then
+            linktimeoptimization('Off') -- Disables /LTCG.
+        else
+            removeflags({ 'LinkTimeOptimization' })
+        end
         symbols('On') -- Turns on MSVC debug symbol generation.
         editandcontinue('Off') -- Disables /ZI (Edit & Continue) and forces /Zi (Program Database).
+        -- Embeds the debug symbols directly into each individual .obj file
+        -- instead of a single shared PDB (/Z7), which can create contention on
+        -- a massively parallel build. (The final monolithic PDB is then
+        -- generated normally during the link step).
+        debugformat "c7"
     end
 end
 
@@ -459,6 +468,55 @@ filter({})
 -- Additionally, premake deprecated `--os=android` which is why the custom system() call is 
 -- needed in the first place (otherwise the build script would just be passing it in)
 rive_target_os = os.target()
+
+-- Native Windows targets only. Android and wasm happen to build through ninja
+-- on a Windows host too, but they retarget to the android_ndk/emsdk toolsets
+-- below and would choke on these flags.
+if os.host() == 'windows'
+    and _ACTION == 'ninja'
+    and not _OPTIONS['for_android']
+    and _OPTIONS['arch'] ~= 'wasm'
+    and _OPTIONS['arch'] ~= 'js'
+then
+    if _OPTIONS['toolset'] ~= 'clang' then
+        error('Unsupported toolset ' .. _OPTIONS['toolset'] .. '. Only clang is supported on windows/ninja')
+    end
+    -- The vstudio actions compile through clang-cl, but ninja invokes the clang
+    -- toolset's binaries directly, and premake's clang toolset names the GNU
+    -- archiver 'ar', which doesn't exist on Windows. Rename just that binary to
+    -- the llvm-ar that ships with Visual Studio.
+    --
+    -- Patch gettoolname in place rather than cloning into a new toolset the way
+    -- android_ndk and emsdk do below: those target a different system, but this
+    -- is still the clang toolset, and renaming it would stop every
+    -- 'toolset:clang' filter in the tree from matching (libwebp's -msse4.1
+    -- flags, for two).
+    local win_clang_tools = { ar = 'llvm-ar' }
+    local base_gettoolname = premake.tools.clang.gettoolname
+    function premake.tools.clang.gettoolname(cfg, tool)
+        return win_clang_tools[tool] or base_gettoolname(cfg, tool)
+    end
+
+    local WINDOWS_TARGET_ARCHS = {
+        host = 'x86_64', -- the system:windows filter above pins architecture('x64') regardless
+        x64 = 'x86_64',
+        x86 = 'i686',
+        arm64 = 'aarch64',
+        arm = 'armv7',
+    }
+    local target_arch = WINDOWS_TARGET_ARCHS[_OPTIONS['arch']]
+    if not target_arch then
+        error('Unsupported arch ' .. _OPTIONS['arch'] .. ' for windows/ninja')
+    end
+    local target = '--target=' .. target_arch .. '-pc-windows-msvc'
+    buildoptions({ target })
+
+    -- clang++ links through MSVC's link.exe by default, which can't read the
+    -- GNU thin archives some of our prebuilt dependencies ship (Dawn's
+    -- webgpu_dawn.lib -> LNK1107). lld-link reads them, and is already what the
+    -- vstudio ClangCL builds link with.
+    linkoptions({ target, '-fuse-ld=lld' })
+end
 
 -- Don't use filter() here because we don't want to generate the "android_ndk" toolset if not
 -- building for android.

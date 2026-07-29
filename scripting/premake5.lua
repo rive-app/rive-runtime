@@ -38,7 +38,9 @@ do
     if TESTING == true then
         filter({ 'system:windows' })
         do
-            buildoptions({ '/fp:precise' })
+            -- Visual Studio compiles through clang-cl and takes MSVC flag syntax; ninja drives
+            -- clang++ directly, which only understands the GNU spelling.
+            buildoptions({ _ACTION == 'ninja' and '-ffp-model=precise' or '/fp:precise' })
         end
     end
 
