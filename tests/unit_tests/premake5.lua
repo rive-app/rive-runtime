@@ -57,6 +57,7 @@ do
         '../../decoders/include',
         '../../renderer/include',
         '../../renderer/src',
+        '../../../rive_native/native/include',
         '../../../texture_compressor/src',
         harfbuzz .. '/src',
         miniaudio,
