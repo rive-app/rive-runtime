@@ -57,6 +57,20 @@ void DataBindContextValueAssetImage::apply(Core* target,
             propertyKey,
             source->as<ViewModelInstanceAssetImage>()->propertyValue());
     }
+    else if (target->is<ViewModelInstanceAssetImage>())
+    {
+        auto source = dataBind->source()->as<ViewModelInstanceAssetImage>();
+        auto sourceValue = source->propertyValue();
+        if (sourceValue == static_cast<uint32_t>(-1))
+        {
+            target->as<ViewModelInstanceAssetImage>()->value(
+                source->asset()->renderImage());
+        }
+        else
+        {
+            CoreRegistry::setUint(target, propertyKey, sourceValue);
+        }
+    }
     else
     {
         auto source = dataBind->source();

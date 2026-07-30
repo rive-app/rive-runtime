@@ -577,3 +577,41 @@ TEST_CASE("Layout image composes user scale on top of fit for 7.2 files",
     REQUIRE(legacyScale > 0.0f);
     CHECK(modernScale == Approx(legacyScale * userScaleX));
 }
+
+TEST_CASE("Stateful component image bind", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/stateful_component_image_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    auto imageFile = ReadFile("assets/open_source.jpg");
+    REQUIRE(imageFile.size() == 8880);
+
+    auto decodedImage = silver.decodeImage(imageFile);
+    auto imgProp =
+        vmi->propertyValue("img")->as<rive::ViewModelInstanceAssetImage>();
+    imgProp->value(decodedImage.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("stateful_component_image_test"));
+}

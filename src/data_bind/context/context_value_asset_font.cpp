@@ -65,6 +65,20 @@ void DataBindContextValueAssetFont::apply(Core* target,
             propertyKey,
             source->as<ViewModelInstanceAssetFont>()->propertyValue());
     }
+    else if (target->is<ViewModelInstanceAssetFont>())
+    {
+        auto source = dataBind->source()->as<ViewModelInstanceAssetFont>();
+        auto sourceValue = source->propertyValue();
+        if (sourceValue == static_cast<uint32_t>(-1))
+        {
+            target->as<ViewModelInstanceAssetFont>()->value(
+                source->asset()->font().get());
+        }
+        else
+        {
+            CoreRegistry::setUint(target, propertyKey, sourceValue);
+        }
+    }
     else
     {
         auto source = dataBind->source();
