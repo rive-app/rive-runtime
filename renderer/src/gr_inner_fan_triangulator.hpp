@@ -24,13 +24,9 @@ public:
     using GroutTriangleList = GrTriangulator::BreadcrumbTriangleList;
 
     GrInnerFanTriangulator(const RawPath& path,
-                           const Mat2D& viewMatrix,
                            Comparator::Direction direction,
-                           FillRule fillRule,
                            TrivialBlockAllocator* alloc) :
-        GrTriangulator(direction, fillRule, alloc),
-        m_shouldReverseTriangles(
-            viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1] < 0)
+        GrTriangulator(direction, alloc)
     {
         fPreserveCollinearVertices = true;
         fCollectBreadcrumbTriangles = true;
@@ -40,31 +36,36 @@ public:
         if (success)
         {
             m_polys = polys;
-            m_maxVertexCount = countMaxTriangleVertices(m_polys);
         }
     }
 
-    void negateWinding() { m_shouldNegateWinding = !m_shouldNegateWinding; }
-
-    FillRule fillRule() const { return fFillRule; }
-
-    size_t maxVertexCount() const { return m_maxVertexCount; }
+    // The mesh is fill-rule-independent; the fill rule only filters it at
+    // output, so it's supplied per call rather than baked in. This lets one
+    // triangulator be cached and reused regardless of fill rule.
+    size_t maxVertexCount(FillRule fillRule) const
+    {
+        return m_polys != nullptr ? countMaxTriangleVertices(m_polys, fillRule)
+                                  : 0;
+    }
 
     size_t polysToTriangles(
         uint16_t pathID,
+        FillRule fillRule,
+        bool reverseTriangles,
+        bool negateWinding,
         gpu::WindingFaces windingFaces,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
-
     {
-        if (m_polys == nullptr || m_maxVertexCount == 0)
+        if (m_polys == nullptr)
         {
             return 0;
         }
         return GrTriangulator::polysToTriangles(m_polys,
-                                                m_maxVertexCount,
+                                                maxVertexCount(fillRule),
+                                                fillRule,
                                                 pathID,
-                                                m_shouldReverseTriangles,
-                                                m_shouldNegateWinding,
+                                                reverseTriangles,
+                                                negateWinding,
                                                 windingFaces,
                                                 mappedMemory);
     }
@@ -72,12 +73,7 @@ public:
     const GroutTriangleList& groutList() const { return fBreadcrumbList; }
 
 private:
-    // We reverse triangles whe using a left-handed view matrix, in order to
-    // ensure we always emit clockwise triangles.
-    bool m_shouldReverseTriangles;
-    bool m_shouldNegateWinding = false;
     Poly* m_polys = nullptr;
-    size_t m_maxVertexCount = 0;
 };
 } // namespace rive
 

@@ -831,10 +831,16 @@ void GrTriangulator::pathToContours(const RawPath& path,
                     break;
                 }
                 this->appendQuadraticToContour(pts, toleranceSqd, contour);
-                break;
 #else
-                RIVE_UNREACHABLE();
+                // RIVE edit: We only triangulate the interior polygon, so just
+                // draw a flat line from the beginning to the end of the
+                // quadratic.
+                if (is_finite(pts[2]))
+                {
+                    this->appendPointToContour(pts[2], contour);
+                }
 #endif
+                break;
             }
             case PathVerb::cubic:
             {
@@ -853,10 +859,15 @@ void GrTriangulator::pathToContours(const RawPath& path,
                                           toleranceSqd,
                                           contour,
                                           pointsLeft);
-                break;
 #else
-                RIVE_UNREACHABLE();
+                // RIVE edit: We only triangulate the interior polygon, so just
+                // draw a flat line from the beginning to the end of the cubic.
+                if (is_finite(pts[3]))
+                {
+                    this->appendPointToContour(pts[3], contour);
+                }
 #endif
+                break;
             }
             case PathVerb::close:
                 break;
@@ -875,11 +886,6 @@ static inline bool apply_fill_type(FillRule fillRule, int winding)
         default:
             RIVE_UNREACHABLE();
     }
-}
-
-bool GrTriangulator::applyFillType(int winding) const
-{
-    return apply_fill_type(fFillRule, winding);
 }
 
 static inline bool apply_fill_type(FillRule fillType, const Poly* poly)
@@ -2552,14 +2558,16 @@ int64_t GrTriangulator::CountPoints(Poly* polys, FillRule overrideFillType)
 
 // Stage 6: Triangulate the monotone polygons into a vertex buffer.
 
-size_t GrTriangulator::countMaxTriangleVertices(Poly* polys) const
+size_t GrTriangulator::countMaxTriangleVertices(Poly* polys,
+                                                FillRule fillRule) const
 {
-    return math::lossless_numeric_cast<size_t>(CountPoints(polys, fFillRule));
+    return math::lossless_numeric_cast<size_t>(CountPoints(polys, fillRule));
 }
 
 size_t GrTriangulator::polysToTriangles(
     Poly* polys,
     uint64_t maxVertexCount,
+    FillRule fillRule,
     uint16_t pathID,
     bool reverseTriangles,
     bool negateWinding,
@@ -2573,7 +2581,7 @@ size_t GrTriangulator::polysToTriangles(
     }
 
     size_t actualCount = polysToTriangles(polys,
-                                          fFillRule,
+                                          fillRule,
                                           pathID,
                                           reverseTriangles,
                                           negateWinding,

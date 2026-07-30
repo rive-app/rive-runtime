@@ -1031,15 +1031,16 @@ static void verify_simple_inner_polygons(const char* shapeName,
             TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
             GrInnerFanTriangulator triangulator(
                 path,
-                Mat2D(),
                 path.bounds().width() > path.bounds().height()
                     ? GrTriangulator::Comparator::Direction::kHorizontal
                     : GrTriangulator::Comparator::Direction::kVertical,
-                fillType,
                 &alloc);
+            // Identity transform, no negate flag -> no reversal or negation.
+            const bool reverseTriangles = false;
+            const bool negateWinding = false;
             int pathID = rand() & 0xffff;
             std::vector<gpu::TriangleVertex> vertexData(
-                triangulator.maxVertexCount());
+                triangulator.maxVertexCount(fillType));
             size_t vertexCount;
             switch (faceOrdering)
             {
@@ -1047,9 +1048,12 @@ static void verify_simple_inner_polygons(const char* shapeName,
                 {
                     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
                         mappedMemory(vertexData.data(),
-                                     triangulator.maxVertexCount());
+                                     triangulator.maxVertexCount(fillType));
                     vertexCount =
                         triangulator.polysToTriangles(pathID,
+                                                      fillType,
+                                                      reverseTriangles,
+                                                      negateWinding,
                                                       gpu::WindingFaces::all,
                                                       &mappedMemory);
                     CHECK(mappedMemory.elementsWritten() == vertexCount);
@@ -1058,15 +1062,22 @@ static void verify_simple_inner_polygons(const char* shapeName,
                 }
                 case 1:
                 {
-                    assert(lastVertexCount <= triangulator.maxVertexCount());
+                    assert(lastVertexCount <=
+                           triangulator.maxVertexCount(fillType));
                     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
                         mappedMemory(vertexData.data(), lastVertexCount);
                     vertexCount = triangulator.polysToTriangles(
                         pathID,
+                        fillType,
+                        reverseTriangles,
+                        negateWinding,
                         gpu::WindingFaces::negative,
                         &mappedMemory);
                     vertexCount += triangulator.polysToTriangles(
                         pathID,
+                        fillType,
+                        reverseTriangles,
+                        negateWinding,
                         gpu::WindingFaces::positive,
                         &mappedMemory);
                     CHECK(vertexCount == lastVertexCount);
@@ -1075,15 +1086,22 @@ static void verify_simple_inner_polygons(const char* shapeName,
                 }
                 case 2:
                 {
-                    assert(lastVertexCount <= triangulator.maxVertexCount());
+                    assert(lastVertexCount <=
+                           triangulator.maxVertexCount(fillType));
                     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
                         mappedMemory(vertexData.data(), lastVertexCount);
                     vertexCount = triangulator.polysToTriangles(
                         pathID,
+                        fillType,
+                        reverseTriangles,
+                        negateWinding,
                         gpu::WindingFaces::positive,
                         &mappedMemory);
                     vertexCount += triangulator.polysToTriangles(
                         pathID,
+                        fillType,
+                        reverseTriangles,
+                        negateWinding,
                         gpu::WindingFaces::negative,
                         &mappedMemory);
                     CHECK(vertexCount == lastVertexCount);
@@ -1092,15 +1110,22 @@ static void verify_simple_inner_polygons(const char* shapeName,
                 }
                 case 3:
                 {
-                    assert(lastVertexCount <= triangulator.maxVertexCount());
+                    assert(lastVertexCount <=
+                           triangulator.maxVertexCount(fillType));
                     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
                         mappedMemory(vertexData.data(), lastVertexCount);
                     vertexCount = triangulator.polysToTriangles(
                         pathID,
+                        fillType,
+                        reverseTriangles,
+                        negateWinding,
                         gpu::WindingFaces::positive,
                         &mappedMemory);
                     vertexCount += triangulator.polysToTriangles(
                         pathID,
+                        fillType,
+                        reverseTriangles,
+                        negateWinding,
                         gpu::WindingFaces::negative,
                         &mappedMemory);
                     CHECK(vertexCount == lastVertexCount);

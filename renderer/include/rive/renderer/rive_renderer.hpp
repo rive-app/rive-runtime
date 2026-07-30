@@ -141,9 +141,5 @@ private:
 
     // Path of the rectangle [0, 0, 1, 1]. Used to draw images.
     rcp<RiveRenderPath> m_unitRectPath;
-
-    // Used to build coarse path interiors for the "interior triangulation"
-    // algorithm.
-    RawPath m_scratchPath;
 };
 } // namespace rive

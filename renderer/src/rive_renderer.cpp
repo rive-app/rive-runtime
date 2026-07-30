@@ -171,8 +171,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                                     matrixMaxScale),
                 path->getFillRule(),
                 paint,
-                m_renderStateStack.back().modulatedOpacity,
-                &m_scratchPath));
+                m_renderStateStack.back().modulatedOpacity));
             return;
         }
     }
@@ -183,8 +182,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                             ref_rcp(path),
                             path->getFillRule(),
                             paint,
-                            m_renderStateStack.back().modulatedOpacity,
-                            &m_scratchPath));
+                            m_renderStateStack.back().modulatedOpacity));
 }
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
@@ -726,7 +724,6 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                                 clipFillRule,
                                 &clipUpdatePaint,
                                 1.0f, // no opacity modulation for clips
-                                &m_scratchPath,
                                 pixelBounds);
 
         // We have already validated that the clip path is within the screen

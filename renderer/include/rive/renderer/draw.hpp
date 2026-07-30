@@ -228,7 +228,6 @@ public:
                               FillRule,
                               const RiveRenderPaint*,
                               float modulatedOpacity,
-                              RawPath* scratchPath,
                               std::optional<IAABB> pixelBounds = {});
 
     // Determines how coverage is calculated for antialiasing and feathers.
@@ -319,6 +318,20 @@ public:
     }
 
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
+    // True if we should output the triangulator's triangles in the opposite
+    // winding direction because the view matrix is left-handed.
+    bool triangulatorReverseTriangles() const
+    {
+        return m_triangulatorReverseTriangles;
+    }
+    // True if the triangulator should negate the Rive winding number when
+    // outputting triangle vertices (because of a left-handed view matrix or
+    // NEGATE_PATH_FILL_COVERAGE_FLAG).
+    bool triangulatorNegateWinding() const
+    {
+        return m_triangulatorNegateWinding;
+    }
+    FillRule triangulatorFillRule() const { return m_triangulatorFillRule; }
 
     bool allocateResources(RenderContext::LogicalFlush*) override;
     void countSubpasses(const gpu::PlatformFeatures&) override;
@@ -355,9 +368,7 @@ protected:
 
     // Prepares to draw the path by triangulating the interior into
     // non-overlapping triangles and tessellating the outer cubics.
-    void initForInteriorTriangulation(RenderContext*,
-                                      RawPath*,
-                                      TriangulatorAxis);
+    void initForInteriorTriangulation(RenderContext*, TriangulatorAxis);
 
     uint32_t allocateTessellationVertices(RenderContext::LogicalFlush* flush,
                                           uint32_t tessVertexCount)
@@ -414,7 +425,6 @@ protected:
     // about ~5% of the total CPU time. (And large paths are GPU-bound anyway.)
     void iterateInteriorTriangulation(InteriorTriangulationOp op,
                                       TrivialBlockAllocator*,
-                                      RawPath* scratchPath,
                                       TriangulatorAxis,
                                       RenderContext::TessellationWriter*);
 
@@ -437,6 +447,9 @@ protected:
     gpu::CoverageBufferRange m_coverageBufferRange;
 
     GrInnerFanTriangulator* m_triangulator = nullptr;
+    FillRule m_triangulatorFillRule = FillRule::nonZero;
+    bool m_triangulatorReverseTriangles = false;
+    bool m_triangulatorNegateWinding = false;
 
     StrokeJoin m_strokeJoin;
     StrokeCap m_strokeCap;

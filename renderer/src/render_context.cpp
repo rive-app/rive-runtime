@@ -3445,10 +3445,13 @@ gpu::DrawBatch* RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
 
     uint32_t baseVertex = math::lossless_numeric_cast<uint32_t>(
         m_ctx->m_triangleVertexData.elementsWritten());
-    size_t actualVertexCount =
-        draw->triangulator()->polysToTriangles(pathID,
-                                               windingFaces,
-                                               &m_ctx->m_triangleVertexData);
+    size_t actualVertexCount = draw->triangulator()->polysToTriangles(
+        pathID,
+        draw->triangulatorFillRule(),
+        draw->triangulatorReverseTriangles(),
+        draw->triangulatorNegateWinding(),
+        windingFaces,
+        &m_ctx->m_triangleVertexData);
     assert(baseVertex + actualVertexCount ==
            m_ctx->m_triangleVertexData.elementsWritten());
     RIVE_DEBUG_CODE(*vertexCounter += actualVertexCount;)

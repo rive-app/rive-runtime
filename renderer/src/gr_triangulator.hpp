@@ -71,9 +71,8 @@ public:
 
 protected:
     GrTriangulator(Comparator::Direction direction,
-                   FillRule fillRule,
                    TrivialBlockAllocator* alloc) :
-        fDirection(direction), fFillRule(fillRule), fAlloc(alloc)
+        fDirection(direction), fAlloc(alloc)
     {}
 
     // There are six stages to the basic algorithm:
@@ -216,7 +215,6 @@ protected:
                              float tolSqd,
                              VertexList* contour,
                              int pointsLeft) const;
-    bool applyFillType(int winding) const;
     MonotonePoly* allocateMonotonePoly(Edge* edge, Side side, int winding);
     Edge* allocateEdge(Vertex* top, Vertex* bottom, int winding, EdgeType type);
     Edge* makeEdge(Vertex* prev,
@@ -295,11 +293,12 @@ protected:
                                         const AABB& clipBounds,
                                         bool* isLinear);
     static int64_t CountPoints(Poly* polys, FillRule overrideFillRule);
-    size_t countMaxTriangleVertices(Poly*) const;
+    size_t countMaxTriangleVertices(Poly*, FillRule) const;
 
     size_t polysToTriangles(
         Poly*,
         uint64_t maxVertexCount,
+        FillRule,
         uint16_t pathID,
         bool reverseTriangles,
         bool negateWinding,
@@ -307,7 +306,6 @@ protected:
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     Comparator::Direction fDirection;
-    FillRule fFillRule;
     TrivialBlockAllocator* const fAlloc;
     int fNumMonotonePolys = 0;
     int fNumEdges = 0;

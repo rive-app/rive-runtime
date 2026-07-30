@@ -58,9 +58,7 @@ public:
                 : gpu::kOuterCurvePatchSegmentSpan * kNumTriangles;
         m_triangulator = context->make<GrInnerFanTriangulator>(
             RawPath(),
-            Mat2D(),
             GrTriangulator::Comparator::Direction::kHorizontal,
-            FillRule::nonZero,
             &context->perFrameAllocator());
     }
 
