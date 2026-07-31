@@ -6,6 +6,9 @@
 #include "rive/factory.hpp"
 #include "rive/intrinsically_sizeable.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/component_origin.hpp"
+#include "rive/layout/grid_track.hpp"
+#include "rive/layout/layout_style_applier.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/node.hpp"
 #include "rive/math/aabb.hpp"
@@ -13,6 +16,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/rectangle.hpp"
+#include "rive/solo.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #ifdef WITH_RIVE_LAYOUT
@@ -24,9 +28,119 @@
 
 using namespace rive;
 
+#ifdef WITH_RIVE_LAYOUT
+void LayoutComponent::addLayoutStyleApplier(LayoutStyleApplier* applier)
+{
+    if (m_layoutData != nullptr)
+    {
+        m_layoutData->addApplier(applier);
+    }
+}
+#endif
+
+namespace
+{
+// Containers transparent to layout provide no layout node and no
+// sizing of their own, so the layout above descends through them. A plain group
+// exposes all its children; a Solo exposes only its active one. Anything else
+// (n-slicers, nested artboards, shapes) is opaque — a participant inside one
+// would never be collected.
+bool isTransparentLayoutContainer(Component* component)
+{
+    return component->coreType() == NodeBase::typeKey || component->is<Solo>();
+}
+
+// An ArtboardComponentList provides a layout node unconditionally — it never
+// opted in the way a participant does. Wrapping one in a group is how a file
+// says "render these items but don't lay them out", freeing them to be placed
+// by x/y or a follow-path constraint, so a transparent container stays opaque
+// to it unless the list opts in. Everything else is seen through.
+bool joinsLayoutThroughContainer(Component* component)
+{
+    if (!component->is<ArtboardComponentList>())
+    {
+        return true;
+    }
+    auto flags =
+        static_cast<DrawableFlag>(component->as<Drawable>()->drawableFlags());
+    return (flags & DrawableFlag::ParticipatesInLayout) ==
+           DrawableFlag::ParticipatesInLayout;
+}
+
+// Visit every provider that belongs to a layout — its direct children, plus any
+// nested inside transparent containers; depth-first, so layout order follows
+// hierarchy order. Nested LayoutComponents and providers are leaves here (they
+// own their subtree). Every child-walking layout pass goes through this, so a
+// nested participant is collected, sized, cascaded and re-synced like a direct
+// child.
+template <typename F>
+void forEachLayoutProvider(Component* from, F&& visit, bool nested = false)
+{
+    // A Solo only lets its active child through.
+    if (from->is<Solo>())
+    {
+        if (auto* active = from->as<Solo>()->activeComponent())
+        {
+            if (auto* provider = LayoutNodeProvider::from(active))
+            {
+                if (!nested || joinsLayoutThroughContainer(active))
+                {
+                    visit(active, provider);
+                }
+            }
+            else if (isTransparentLayoutContainer(active))
+            {
+                forEachLayoutProvider(active, visit, true);
+            }
+        }
+        return;
+    }
+    for (auto* child : from->as<ContainerComponent>()->children())
+    {
+        if (auto* provider = LayoutNodeProvider::from(child))
+        {
+            if (!nested || joinsLayoutThroughContainer(child))
+            {
+                visit(child, provider);
+            }
+        }
+        else if (isTransparentLayoutContainer(child))
+        {
+            forEachLayoutProvider(child, visit, true);
+        }
+    }
+}
+
+// The optional origin child, or nullptr. Walked rather than cached, matching
+// how NestedArtboard resolves the same child in this runtime.
+ComponentOrigin* originChild(const ContainerComponent* owner)
+{
+    for (auto* child : owner->children())
+    {
+        if (child->is<ComponentOrigin>())
+        {
+            return child->as<ComponentOrigin>();
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
 #if defined(WITH_RIVE_LAYOUT) && defined(WITH_RIVE_TOOLS) && defined(DEBUG)
 uint32_t LayoutData::count = 0;
 #endif
+
+float LayoutComponent::pivotOriginX() const
+{
+    auto* origin = originChild(this);
+    return origin != nullptr ? origin->originX() : 0.0f;
+}
+
+float LayoutComponent::pivotOriginY() const
+{
+    auto* origin = originChild(this);
+    return origin != nullptr ? origin->originY() : 0.0f;
+}
 
 void LayoutComponent::buildDependencies()
 {
@@ -106,8 +220,29 @@ void LayoutComponent::update(ComponentDirt value)
             location -= Vec2D(art->layoutWidth() * art->originX(),
                               art->layoutHeight() * art->originY());
         }
-        auto transform = Mat2D::fromTranslation(location);
-        m_WorldTransform = Mat2D::multiply(parentWorld, transform);
+        auto slot = Mat2D::fromTranslation(location);
+
+        // Apply the node's own rotation/scale on top of the layout slot,
+        // pivoting at the origin (default 0,0 = top-left). x/y offset:
+        // follow-up.
+        if (rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f)
+        {
+            Mat2D local =
+                rotation() != 0.0f ? Mat2D::fromRotation(rotation()) : Mat2D();
+            local.scaleByValues(scaleX(), scaleY());
+            float ox = pivotOriginX();
+            float oy = pivotOriginY();
+            if (ox != 0.0f || oy != 0.0f)
+            {
+                float px = ox * layoutWidth();
+                float py = oy * layoutHeight();
+                local = Mat2D::multiply(
+                    Mat2D::fromTranslate(px, py),
+                    Mat2D::multiply(local, Mat2D::fromTranslate(-px, -py)));
+            }
+            slot = Mat2D::multiply(slot, local);
+        }
+        m_WorldTransform = Mat2D::multiply(parentWorld, slot);
         updateConstraints();
     }
     if (hasDirt(value,
@@ -185,9 +320,9 @@ void LayoutComponent::forcedHeight(float height)
 
 void LayoutComponent::updateConstraints()
 {
-    if (m_layoutConstraints.size() > 0)
+    if (layoutConstraints().size() > 0)
     {
-        for (auto parentConstraint : m_layoutConstraints)
+        for (auto parentConstraint : layoutConstraints())
         {
             parentConstraint->constrainChild(this);
         }
@@ -295,6 +430,11 @@ StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
     }
     m_style = static_cast<LayoutComponentStyle*>(coreStyle);
     addChild(m_style);
+#ifdef WITH_RIVE_LAYOUT
+    // We contribute sizing the style cannot see; it contributes the rest.
+    addLayoutStyleApplier(this);
+    addLayoutStyleApplier(m_style);
+#endif
 
     return StatusCode::Ok;
 }
@@ -433,6 +573,15 @@ Vec2D LayoutComponent::measureLayout(float width,
     return size;
 }
 
+bool LayoutComponent::effectiveParentIsRow()
+{
+    if (canHaveOverrides())
+    {
+        return m_parentIsRow;
+    }
+    return layoutParent() != nullptr ? layoutParent()->mainAxisIsRow() : true;
+}
+
 bool LayoutComponent::mainAxisIsRow()
 {
     if (style() == nullptr)
@@ -455,15 +604,11 @@ bool LayoutComponent::mainAxisIsColumn()
 
 bool LayoutComponent::isLeaf()
 {
-    for (auto child : children())
-    {
-        auto layout = LayoutNodeProvider::from(child);
-        if (layout != nullptr)
-        {
-            return false;
-        }
-    }
-    return true;
+    bool leaf = true;
+    forEachLayoutProvider(this, [&leaf](Component*, LayoutNodeProvider*) {
+        leaf = false;
+    });
+    return leaf;
 }
 
 void* LayoutComponent::layoutNode(int index)
@@ -475,23 +620,37 @@ void* LayoutComponent::layoutNode(int index)
     return nullptr;
 }
 
-void LayoutComponent::syncStyle()
+#ifdef WITH_RIVE_LAYOUT
+// Tracks come from GridTrack children, which the style cannot walk. A stack has
+// no authored tracks — the style sets up its implicit cell instead.
+void LayoutComponent::applyContainerStyle(YGStyle& ygStyle,
+                                          const LayoutSyncContext& context)
 {
-    if (m_style == nullptr || m_layoutData == nullptr)
+    if (m_style == nullptr || m_style->isStack())
     {
         return;
     }
-    YGNode& ygNode = m_layoutData->node;
-    YGStyle& ygStyle = m_layoutData->style;
-    if (m_style->intrinsicallySized() && isLeaf())
+    GridTrack::syncContainerStyle(ygStyle, this, m_style->justifyItemsValue());
+}
+#endif
+
+#ifdef WITH_RIVE_LAYOUT
+// This layout's own size and how it sits in its parent's flow. On the
+// component, not the style, because it reads width()/height(), the
+// NestedArtboardLayout overrides and the forced dimensions.
+//
+// Not shared with LayoutParticipant::applyBaseStyle: the participant has no
+// flexBasis, no overrides and its own fractionalWidth, so merging would change
+// behaviour.
+void LayoutComponent::applyBaseStyle(YGStyle& ygStyle,
+                                     const LayoutSyncContext& context)
+{
+    if (m_style == nullptr)
     {
-        ygNode.setContext(this);
-        ygNode.setMeasureFunc(measureFunc);
+        return;
     }
-    else
-    {
-        ygNode.setMeasureFunc(nullptr);
-    }
+    const bool parentIsRow = context.parentIsRow;
+    const bool parentIsGridLike = context.parentIsGrid;
 
     // Derive the unit the layout engine needs from the persisted unit + scale
     // type.
@@ -532,8 +691,6 @@ void LayoutComponent::syncStyle()
     auto realHeightScaleType = m_style->heightScaleType();
     auto realHeightUnits =
         effectiveUnits(realHeightScaleType, m_style->heightUnits());
-    auto parentIsRow =
-        layoutParent() != nullptr ? layoutParent()->mainAxisIsRow() : true;
 
     // If we have override width/height values, use those.
     // Currently we only use these for Artboards that are part of a
@@ -549,8 +706,6 @@ void LayoutComponent::syncStyle()
         {
             realHeight = m_heightOverride;
         }
-        parentIsRow = m_parentIsRow;
-
         if (m_widthUnitValueOverride != -1)
         {
             realWidthUnits = YGUnit(m_widthUnitValueOverride);
@@ -619,261 +774,175 @@ void LayoutComponent::syncStyle()
             YGValue{std::max(0.0f, realHeight), realHeightUnits};
     }
 
-    switch (realWidthScaleType)
+    if (parentIsGridLike)
     {
-        case LayoutScaleType::fixed:
-            if (parentIsRow)
-            {
-                ygStyle.flexGrow() = YGFloatOptional(0);
-                ygStyle.flexShrink() = YGFloatOptional(0);
-                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
-            }
-            else
-            {
-                ygStyle.alignSelf() = YGAlignAuto;
-            }
-            break;
-        case LayoutScaleType::fill:
-            if (parentIsRow)
-            {
-                ygStyle.flexGrow() = YGFloatOptional(fractionalWidth());
-                ygStyle.flexShrink() = YGFloatOptional(fractionalWidth());
-                ygStyle.flexBasis() =
-                    YGValue{m_style->flexBasis(), m_style->flexBasisUnits()};
-            }
-            else
-            {
-                ygStyle.alignSelf() = YGAlignStretch;
-            }
-            break;
-        case LayoutScaleType::hug:
-            if (parentIsRow)
-            {
-                ygStyle.flexGrow() = YGFloatOptional(0);
-                ygStyle.flexShrink() = YGFloatOptional(0);
-                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
-            }
-            else
-            {
-                ygStyle.alignSelf() = YGAlignAuto;
-            }
-            break;
-        default:
-            break;
+        // Grid/stack: size per-axis. fill stretches that axis (width ->
+        // justifySelf after grid placement below, height -> alignSelf);
+        // non-fill stays auto so the container alignment positions us. flexGrow
+        // ignored.
+        ygStyle.flexGrow() = YGFloatOptional(0);
+        ygStyle.flexShrink() = YGFloatOptional(0);
+        ygStyle.alignSelf() = realHeightScaleType == LayoutScaleType::fill
+                                  ? YGAlignStretch
+                                  : YGAlignAuto;
+    }
+    else
+    {
+        switch (realWidthScaleType)
+        {
+            case LayoutScaleType::fixed:
+                if (parentIsRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                    ygStyle.flexShrink() = YGFloatOptional(0);
+                    ygStyle.flexBasis() =
+                        YGValue{m_style->flexBasis(), YGUnitAuto};
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignAuto;
+                }
+                break;
+            case LayoutScaleType::fill:
+                if (parentIsRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(fractionalWidth());
+                    ygStyle.flexShrink() = YGFloatOptional(fractionalWidth());
+                    ygStyle.flexBasis() = YGValue{m_style->flexBasis(),
+                                                  m_style->flexBasisUnits()};
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignStretch;
+                }
+                break;
+            case LayoutScaleType::hug:
+                if (parentIsRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                    ygStyle.flexShrink() = YGFloatOptional(0);
+                    ygStyle.flexBasis() =
+                        YGValue{m_style->flexBasis(), YGUnitAuto};
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignAuto;
+                }
+                break;
+            default:
+                break;
+        }
+
+        switch (realHeightScaleType)
+        {
+            case LayoutScaleType::fixed:
+                if (!parentIsRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                    ygStyle.flexShrink() = YGFloatOptional(0);
+                    ygStyle.flexBasis() =
+                        YGValue{m_style->flexBasis(), YGUnitAuto};
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignAuto;
+                }
+                break;
+            case LayoutScaleType::fill:
+                if (!parentIsRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(fractionalHeight());
+                    ygStyle.flexShrink() = YGFloatOptional(fractionalHeight());
+                    ygStyle.flexBasis() = YGValue{m_style->flexBasis(),
+                                                  m_style->flexBasisUnits()};
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignStretch;
+                }
+                break;
+            case LayoutScaleType::hug:
+                if (!parentIsRow)
+                {
+                    ygStyle.flexGrow() = YGFloatOptional(0);
+                    ygStyle.flexShrink() = YGFloatOptional(0);
+                    ygStyle.flexBasis() =
+                        YGValue{m_style->flexBasis(), YGUnitAuto};
+                }
+                else
+                {
+                    ygStyle.alignSelf() = YGAlignAuto;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+#endif
+
+void LayoutComponent::syncStyle()
+{
+    if (m_style == nullptr || m_layoutData == nullptr)
+    {
+        return;
+    }
+    YGNode& ygNode = m_layoutData->node;
+    YGStyle& ygStyle = m_layoutData->style;
+    if (m_style->intrinsicallySized() && isLeaf())
+    {
+        ygNode.setContext(this);
+        ygNode.setMeasureFunc(measureFunc);
+    }
+    else
+    {
+        ygNode.setMeasureFunc(nullptr);
     }
 
-    switch (realHeightScaleType)
-    {
-        case LayoutScaleType::fixed:
-            if (!parentIsRow)
-            {
-                ygStyle.flexGrow() = YGFloatOptional(0);
-                ygStyle.flexShrink() = YGFloatOptional(0);
-                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
-            }
-            else
-            {
-                ygStyle.alignSelf() = YGAlignAuto;
-            }
-            break;
-        case LayoutScaleType::fill:
-            if (!parentIsRow)
-            {
-                ygStyle.flexGrow() = YGFloatOptional(fractionalHeight());
-                ygStyle.flexShrink() = YGFloatOptional(fractionalHeight());
-                ygStyle.flexBasis() =
-                    YGValue{m_style->flexBasis(), m_style->flexBasisUnits()};
-            }
-            else
-            {
-                ygStyle.alignSelf() = YGAlignStretch;
-            }
-            break;
-        case LayoutScaleType::hug:
-            if (!parentIsRow)
-            {
-                ygStyle.flexGrow() = YGFloatOptional(0);
-                ygStyle.flexShrink() = YGFloatOptional(0);
-                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
-            }
-            else
-            {
-                ygStyle.alignSelf() = YGAlignAuto;
-            }
-            break;
-        default:
-            break;
-    }
-
-    bool isRowForAlignment = mainAxisIsRow();
-    switch (m_style->alignmentType())
-    {
-        case LayoutAlignmentType::topLeft:
-        case LayoutAlignmentType::topCenter:
-        case LayoutAlignmentType::topRight:
-            if (isRowForAlignment)
-            {
-                ygStyle.alignItems() = YGAlignFlexStart;
-                ygStyle.alignContent() = YGAlignFlexStart;
-            }
-            else
-            {
-                ygStyle.justifyContent() = YGJustifyFlexStart;
-            }
-            break;
-        case LayoutAlignmentType::centerLeft:
-        case LayoutAlignmentType::center:
-        case LayoutAlignmentType::centerRight:
-            if (isRowForAlignment)
-            {
-                ygStyle.alignItems() = YGAlignCenter;
-                ygStyle.alignContent() = YGAlignCenter;
-            }
-            else
-            {
-                ygStyle.justifyContent() = YGJustifyCenter;
-            }
-            break;
-        case LayoutAlignmentType::bottomLeft:
-        case LayoutAlignmentType::bottomCenter:
-        case LayoutAlignmentType::bottomRight:
-            if (isRowForAlignment)
-            {
-                ygStyle.alignItems() = YGAlignFlexEnd;
-                ygStyle.alignContent() = YGAlignFlexEnd;
-            }
-            else
-            {
-                ygStyle.justifyContent() = YGJustifyFlexEnd;
-            }
-            break;
-        default:
-            break;
-    }
-    switch (m_style->alignmentType())
-    {
-        case LayoutAlignmentType::topLeft:
-        case LayoutAlignmentType::centerLeft:
-        case LayoutAlignmentType::bottomLeft:
-            if (isRowForAlignment)
-            {
-                ygStyle.justifyContent() = YGJustifyFlexStart;
-            }
-            else
-            {
-                ygStyle.alignItems() = YGAlignFlexStart;
-                ygStyle.alignContent() = YGAlignFlexStart;
-            }
-            break;
-        case LayoutAlignmentType::topCenter:
-        case LayoutAlignmentType::center:
-        case LayoutAlignmentType::bottomCenter:
-            if (isRowForAlignment)
-            {
-                ygStyle.justifyContent() = YGJustifyCenter;
-            }
-            else
-            {
-                ygStyle.alignItems() = YGAlignCenter;
-                ygStyle.alignContent() = YGAlignCenter;
-            }
-            break;
-        case LayoutAlignmentType::topRight:
-        case LayoutAlignmentType::centerRight:
-        case LayoutAlignmentType::bottomRight:
-            if (isRowForAlignment)
-            {
-                ygStyle.justifyContent() = YGJustifyFlexEnd;
-            }
-            else
-            {
-                ygStyle.alignItems() = YGAlignFlexEnd;
-                ygStyle.alignContent() = YGAlignFlexEnd;
-            }
-            break;
-        case LayoutAlignmentType::spaceBetweenStart:
-            ygStyle.alignItems() = YGAlignFlexStart;
-            ygStyle.alignContent() = YGAlignFlexStart;
-            ygStyle.justifyContent() = YGJustifySpaceBetween;
-            break;
-        case LayoutAlignmentType::spaceBetweenCenter:
-            ygStyle.alignItems() = YGAlignCenter;
-            ygStyle.alignContent() = YGAlignCenter;
-            ygStyle.justifyContent() = YGJustifySpaceBetween;
-            break;
-        case LayoutAlignmentType::spaceBetweenEnd:
-            ygStyle.alignItems() = YGAlignFlexEnd;
-            ygStyle.alignContent() = YGAlignFlexEnd;
-            ygStyle.justifyContent() = YGJustifySpaceBetween;
-            break;
-    }
-
-    ygStyle.minDimensions()[YGDimensionWidth] =
-        YGValue{m_style->minWidth(), m_style->minWidthUnits()};
-    ygStyle.minDimensions()[YGDimensionHeight] =
-        YGValue{m_style->minHeight(), m_style->minHeightUnits()};
-    ygStyle.maxDimensions()[YGDimensionWidth] =
-        YGValue{m_style->maxWidth(), m_style->maxWidthUnits()};
-    ygStyle.maxDimensions()[YGDimensionHeight] =
-        YGValue{m_style->maxHeight(), m_style->maxHeightUnits()};
-    ygStyle.gap()[YGGutterColumn] =
-        YGValue{m_style->gapHorizontal(), m_style->gapHorizontalUnits()};
-    ygStyle.gap()[YGGutterRow] =
-        YGValue{m_style->gapVertical(), m_style->gapVerticalUnits()};
-
-    bool isLTR = actualDirection() != LayoutDirection::rtl;
-    auto startEdge = isLTR ? YGEdgeLeft : YGEdgeRight;
-    auto endEdge = isLTR ? YGEdgeRight : YGEdgeLeft;
-    ygStyle.border()[startEdge] =
-        YGValue{m_style->borderLeft(), m_style->borderLeftUnits()};
-    ygStyle.border()[endEdge] =
-        YGValue{m_style->borderRight(), m_style->borderRightUnits()};
-    ygStyle.border()[YGEdgeTop] =
-        YGValue{m_style->borderTop(), m_style->borderTopUnits()};
-    ygStyle.border()[YGEdgeBottom] =
-        YGValue{m_style->borderBottom(), m_style->borderBottomUnits()};
-
-    bool hasLayoutParent = layoutParent() != nullptr;
-    ygStyle.margin()[startEdge] =
-        YGValue{m_style->marginLeft(),
-                hasLayoutParent ? m_style->marginLeftUnits() : YGUnitPoint};
-    ygStyle.margin()[endEdge] =
-        YGValue{m_style->marginRight(),
-                hasLayoutParent ? m_style->marginRightUnits() : YGUnitPoint};
-    ygStyle.margin()[YGEdgeTop] =
-        YGValue{m_style->marginTop(),
-                hasLayoutParent ? m_style->marginTopUnits() : YGUnitPoint};
-    ygStyle.margin()[YGEdgeBottom] =
-        YGValue{m_style->marginBottom(),
-                hasLayoutParent ? m_style->marginBottomUnits() : YGUnitPoint};
-
-    ygStyle.padding()[startEdge] =
-        YGValue{m_style->paddingLeft(), m_style->paddingLeftUnits()};
-    ygStyle.padding()[endEdge] =
-        YGValue{m_style->paddingRight(), m_style->paddingRightUnits()};
-    ygStyle.padding()[YGEdgeTop] =
-        YGValue{m_style->paddingTop(), m_style->paddingTopUnits()};
-    ygStyle.padding()[YGEdgeBottom] =
-        YGValue{m_style->paddingBottom(), m_style->paddingBottomUnits()};
-    ygStyle.position()[startEdge] =
-        YGValue{m_style->positionLeft(), m_style->positionLeftUnits()};
-    ygStyle.position()[endEdge] =
-        YGValue{m_style->positionRight(), m_style->positionRightUnits()};
-    ygStyle.position()[YGEdgeTop] =
-        YGValue{m_style->positionTop(), m_style->positionTopUnits()};
-    ygStyle.position()[YGEdgeBottom] =
-        YGValue{m_style->positionBottom(), m_style->positionBottomUnits()};
-
-    ygStyle.display() = m_style->display();
-    ygStyle.positionType() = m_style->positionType();
-    ygStyle.flex() = YGFloatOptional(m_style->flex());
-    ygStyle.flexDirection() = m_style->flexDirection();
-    ygStyle.flexWrap() = m_style->flexWrap();
-    ygStyle.direction() = m_style->direction();
-    ygStyle.aspectRatio() = YGFloatOptional(
-        m_style->aspectRatio() > 0 ? m_style->aspectRatio() : NAN);
+    // Our owning layout may sit above a transparent container (group/Solo), so
+    // walk up for it rather than reading the immediate parent — a grouped item
+    // is still laid out by the container and needs its context. Cached because
+    // layoutParent() walks the chain on each call.
+    auto* parentLayout = layoutParent();
+    auto* parentLayoutStyle =
+        parentLayout != nullptr ? parentLayout->style() : nullptr;
+    bool parentIsGridLike =
+        parentLayoutStyle != nullptr && parentLayoutStyle->isGrid();
+    bool parentIsStack =
+        parentLayoutStyle != nullptr && parentLayoutStyle->isStack();
+    uint32_t containerJustifyItems =
+        parentLayoutStyle != nullptr ? parentLayoutStyle->justifyItemsValue()
+                                     : (uint32_t)YGJustifyStretch;
+    // Every style write is an applier now; resolve the context and run them.
+    LayoutSyncContext syncContext;
+    syncContext.parentIsGrid = parentIsGridLike;
+    syncContext.parentIsStack = parentIsStack;
+    syncContext.containerJustifyItems = containerJustifyItems;
+    syncContext.inlineHugs = m_style->widthScaleType() == LayoutScaleType::hug;
+    syncContext.parentIsRow = effectiveParentIsRow();
+    syncContext.isLTR = actualDirection() != LayoutDirection::rtl;
+    syncContext.hasLayoutParent = layoutParent() != nullptr;
+    m_layoutData->applyLayoutStyles(ygStyle, syncContext);
 
     ygNode.setStyle(ygStyle);
+
+    // Sync the styles of participant children that provide their
+    // own layout node (including any nested inside transparent groups).
+    // LayoutComponent children sync their own styles through the dirty-layout
+    // set; these have no such entry.
+    forEachLayoutProvider(this,
+                          [](Component* child, LayoutNodeProvider* provider) {
+                              switch (child->coreType())
+                              {
+                                  case LayoutComponentBase::typeKey:
+                                  case NestedArtboardLayoutBase::typeKey:
+                                  case ArtboardComponentListBase::typeKey:
+                                      break;
+                                  default:
+                                      provider->syncStyleChanges();
+                                      break;
+                              }
+                          });
 }
 
 void LayoutComponent::clearLayoutChildren()
@@ -887,45 +956,20 @@ void LayoutComponent::syncLayoutChildren()
     YGNode& ourNode = m_layoutData->node;
     YGNodeRemoveAllChildren(&ourNode);
     int index = 0;
-    for (auto child : children())
-    {
-        YGNode* node = nullptr;
-        switch (child->coreType())
-        {
-            case LayoutComponentBase::typeKey:
-                node = &child->as<LayoutComponent>()->m_layoutData->node;
+    forEachLayoutProvider(
+        this,
+        [&ourNode, &index](Component*, LayoutNodeProvider* provider) {
+            for (size_t i = 0; i < provider->numLayoutNodes(); i++)
+            {
+                auto* node = static_cast<YGNode*>(provider->layoutNode((int)i));
                 if (node != nullptr)
                 {
                     ourNode.insertChild(node, index++);
                     node->setOwner(&ourNode);
                     ourNode.markDirtyAndPropagate();
                 }
-                break;
-            case NestedArtboardLayoutBase::typeKey:
-                node = static_cast<YGNode*>(
-                    child->as<NestedArtboardLayout>()->layoutNode(0));
-                if (node != nullptr)
-                {
-                    ourNode.insertChild(node, index++);
-                    node->setOwner(&ourNode);
-                    ourNode.markDirtyAndPropagate();
-                }
-                break;
-            case ArtboardComponentListBase::typeKey:
-                auto list = child->as<ArtboardComponentList>();
-                for (int i = 0; i < list->artboardCount(); i++)
-                {
-                    node = static_cast<YGNode*>(list->layoutNode(i));
-                    if (node != nullptr)
-                    {
-                        ourNode.insertChild(node, index++);
-                        node->setOwner(&ourNode);
-                        ourNode.markDirtyAndPropagate();
-                    }
-                }
-                break;
-        }
-    }
+            }
+        });
     markLayoutNodeDirty();
 }
 
@@ -939,8 +983,16 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
     }
     for (auto child : component->children())
     {
-        if (child->is<LayoutComponent>() ||
-            child->coreType() == NodeBase::typeKey)
+        // Don't content-size nested layouts, or containers transparent to
+        // layout (groups/Solos) — their contents are free content or
+        // participants, never content-sized from here.
+        if (child->is<LayoutComponent>() || isTransparentLayoutContainer(child))
+        {
+            continue;
+        }
+        // A participating child owns its own layout node and is sized by the
+        // layout engine, not by controlSize — skip it.
+        if (LayoutNodeProvider::from(child) != nullptr)
         {
             continue;
         }
@@ -1048,16 +1100,12 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     }
     node.setHasNewLayout(false);
 
-    for (auto child : children())
-    {
-        auto layout = LayoutNodeProvider::from(child);
-        if (layout != nullptr)
-        {
-            layout->updateLayoutBounds(animate);
-        }
-    }
+    forEachLayoutProvider(this,
+                          [animate](Component*, LayoutNodeProvider* provider) {
+                              provider->updateLayoutBounds(animate);
+                          });
 
-    auto yogaLayout = node.getLayout();
+    const auto& yogaLayout = node.getLayout();
     Layout newLayout = layoutFromYoga(yogaLayout);
     m_layoutPadding = layoutPaddingFromYoga(yogaLayout);
 
@@ -1249,24 +1297,13 @@ bool LayoutComponent::cascadeLayoutStyle(
         addDirt(ComponentDirt::Path);
         updated = true;
     }
-    for (auto child : children())
-    {
-        if (child->is<LayoutComponent>())
-        {
-            child->as<LayoutComponent>()->cascadeLayoutStyle(
-                interpolation(),
-                interpolator(),
-                interpolationTime(),
-                actualDirection());
-        }
-        else if (auto provider = LayoutNodeProvider::from(child))
-        {
-            provider->cascadeLayoutStyle(interpolation(),
-                                         interpolator(),
-                                         interpolationTime(),
-                                         actualDirection());
-        }
-    }
+    forEachLayoutProvider(this,
+                          [this](Component*, LayoutNodeProvider* provider) {
+                              provider->cascadeLayoutStyle(interpolation(),
+                                                           interpolator(),
+                                                           interpolationTime(),
+                                                           actualDirection());
+                          });
     return updated;
 }
 
@@ -1491,17 +1528,25 @@ void LayoutComponent::displayChanged()
     markLayoutNodeDirty();
 }
 
+void LayoutComponent::syncChildProviderStyles()
+{
+    forEachLayoutProvider(this, [](Component*, LayoutNodeProvider* provider) {
+        provider->syncStyleChanges();
+        provider->markLayoutNodeDirty();
+    });
+}
+
 void LayoutComponent::flexDirectionChanged()
 {
     markLayoutNodeDirty();
-    for (Component* child : children())
-    {
-        auto layout = LayoutNodeProvider::from(child);
-        if (layout != nullptr)
-        {
-            layout->markLayoutNodeDirty();
-        }
-    }
+    syncChildProviderStyles();
+}
+
+// Switching grid/flex/stack changes how each child's style maps to yoga.
+void LayoutComponent::layoutTypeChanged()
+{
+    markLayoutNodeDirty();
+    syncChildProviderStyles();
 }
 
 void LayoutComponent::directionChanged()

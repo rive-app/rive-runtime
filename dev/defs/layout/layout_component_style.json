@@ -4,7 +4,7 @@
     "int": 420,
     "string": "layoutcomponentstyle"
   },
-  "extends": "component.json",
+  "extends": "layout/layout_sizing_style.json",
   "properties": {
     "gapHorizontal": {
       "type": "double",
@@ -28,54 +28,6 @@
         "string": "gapvertical"
       },
       "description": "Vertical gap between children in layout component",
-      "bindable": true
-    },
-    "maxWidth": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "group": "layoutmax",
-      "key": {
-        "int": 500,
-        "string": "maxwidth"
-      },
-      "description": "Max width of the item.",
-      "bindable": true
-    },
-    "maxHeight": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "group": "layoutmax",
-      "key": {
-        "int": 501,
-        "string": "maxheight"
-      },
-      "description": "Max height of the item.",
-      "bindable": true
-    },
-    "minWidth": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "group": "layoutmin",
-      "key": {
-        "int": 502,
-        "string": "minwidth"
-      },
-      "description": "Min width of the item.",
-      "bindable": true
-    },
-    "minHeight": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "group": "layoutmin",
-      "key": {
-        "int": 503,
-        "string": "minheight"
-      },
-      "description": "Min height of the item.",
       "bindable": true
     },
     "borderLeft": {
@@ -270,39 +222,6 @@
       "description": "Bottom position value.",
       "bindable": true
     },
-    "flex": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 520,
-        "string": "flex"
-      },
-      "description": "Flex value.",
-      "bindable": true
-    },
-    "flexGrow": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 521,
-        "string": "flexgrow"
-      },
-      "description": "Flex grow value.",
-      "bindable": true
-    },
-    "flexShrink": {
-      "type": "double",
-      "initialValue": "1",
-      "animates": true,
-      "key": {
-        "int": 522,
-        "string": "flexshrink"
-      },
-      "description": "Flex shrink value.",
-      "bindable": true
-    },
     "flexBasis": {
       "type": "double",
       "initialValue": "0",
@@ -334,6 +253,7 @@
         "int": 591,
         "string": "interpolatorid"
       },
+      "parentable": -1,
       "description": "The id of the custom interpolator used when interpolation is Cubic."
     },
     "interpolationTime": {
@@ -366,26 +286,6 @@
       },
       "runtime": false
     },
-    "layoutWidthScaleType": {
-      "type": "uint8",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 655,
-        "string": "layoutwidthscaletype"
-      },
-      "bindable": true
-    },
-    "layoutHeightScaleType": {
-      "type": "uint8",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 656,
-        "string": "layoutheightscaletype"
-      },
-      "bindable": true
-    },
     "layoutAlignmentType": {
       "type": "uint8",
       "initialValue": "0",
@@ -413,17 +313,6 @@
         "string": "interpolationtype"
       },
       "description": "The type of interpolation index in KeyframeInterpolation applied to this layout."
-    },
-    "displayValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 596,
-        "string": "displayvalue"
-      },
-      "description": "",
-      "bindable": true
     },
     "positionTypeValue": {
       "type": "uint8",
@@ -466,7 +355,8 @@
         "int": 600,
         "string": "aligncontentvalue"
       },
-      "description": ""
+      "description": "Unused: the layout engines never read this. Alignment is derived from alignmentType and fill weight from scaleType + fractionalWidth/Height. Kept editor-side (runtime: false) rather than deleted so existing files round-trip; delete once nothing references the key.",
+      "runtime": false
     },
     "alignItemsValue": {
       "type": "uint8",
@@ -476,17 +366,8 @@
         "int": 601,
         "string": "alignitemsvalue"
       },
-      "description": ""
-    },
-    "alignSelfValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "animates": true,
-      "key": {
-        "int": 602,
-        "string": "alignselfvalue"
-      },
-      "description": ""
+      "description": "Unused: the layout engines never read this. Alignment is derived from alignmentType and fill weight from scaleType + fractionalWidth/Height. Kept editor-side (runtime: false) rather than deleted so existing files round-trip; delete once nothing references the key.",
+      "runtime": false
     },
     "justifyContentValue": {
       "type": "uint8",
@@ -496,7 +377,8 @@
         "int": 603,
         "string": "justifycontentvalue"
       },
-      "description": ""
+      "description": "Unused: the layout engines never read this. Alignment is derived from alignmentType and fill weight from scaleType + fractionalWidth/Height. Kept editor-side (runtime: false) rather than deleted so existing files round-trip; delete once nothing references the key.",
+      "runtime": false
     },
     "flexWrapValue": {
       "type": "uint8",
@@ -529,24 +411,6 @@
       },
       "description": "",
       "bindable": true
-    },
-    "widthUnitsValue": {
-      "type": "uint8",
-      "initialValue": "1",
-      "key": {
-        "int": 607,
-        "string": "widthunitsvalue"
-      },
-      "description": ""
-    },
-    "heightUnitsValue": {
-      "type": "uint8",
-      "initialValue": "1",
-      "key": {
-        "int": 608,
-        "string": "heightunitsvalue"
-      },
-      "description": ""
     },
     "borderLeftUnitsValue": {
       "type": "uint8",
@@ -732,46 +596,6 @@
       },
       "description": ""
     },
-    "minWidthUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmin",
-      "key": {
-        "int": 627,
-        "string": "minwidthunitsvalue"
-      },
-      "description": ""
-    },
-    "minHeightUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmin",
-      "key": {
-        "int": 628,
-        "string": "minheightunitsvalue"
-      },
-      "description": ""
-    },
-    "maxWidthUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmax",
-      "key": {
-        "int": 629,
-        "string": "maxwidthunitsvalue"
-      },
-      "description": ""
-    },
-    "maxHeightUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmax",
-      "key": {
-        "int": 630,
-        "string": "maxheightunitsvalue"
-      },
-      "description": ""
-    },
     "linkCornerRadius": {
       "type": "bool",
       "initialValue": "true",
@@ -780,6 +604,26 @@
         "string": "linkcornerradius"
       },
       "description": "Whether the TL corner radius defines all the radiuses"
+    },
+    "justifyItemsValue": {
+      "type": "uint8",
+      "initialValue": "7",
+      "animates": true,
+      "key": {
+        "int": 1045,
+        "string": "justifyitems"
+      },
+      "description": "Default inline-axis alignment of grid items: flex start (0), center (1), flex end (2), space between (3), space around (4), space evenly (5), auto (6), stretch (7), start (8), end (9).",
+      "bindable": true
+    },
+    "layoutTypeValue": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 1059,
+        "string": "layouttypevalue"
+      },
+      "description": "Layout algorithm for children: flex (0), grid (1), stack (2). Separate from displayValue, which only controls visibility."
     },
     "cornerRadiusTL": {
       "type": "double",

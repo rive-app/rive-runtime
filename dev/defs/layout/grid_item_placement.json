@@ -1,0 +1,55 @@
+{
+  "name": "GridItemPlacement",
+  "key": {
+    "int": 1068,
+    "string": "griditemplacement"
+  },
+  "extends": "component.json",
+  "description": "Explicit grid placement for one item, held as an optional child so an auto-placed item carries none of this state. A sibling of the item's layout style: parented to the item's LayoutComponent, or for a participant to the Node that owns its LayoutParticipant. Registers as a LayoutStyleApplier. justifySelf deliberately stays on the style \u2014 it resolves against parent context that syncStyle already has.",
+  "properties": {
+    "gridColumn": {
+      "type": "int16",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1047,
+        "string": "gridcolumn"
+      },
+      "description": "Grid cell to place this item's column at; 0 is auto, -1 is the last cell.",
+      "bindable": true
+    },
+    "gridRow": {
+      "type": "int16",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1048,
+        "string": "gridrow"
+      },
+      "description": "Grid cell to place this item's row at; 0 is auto, -1 is the last cell.",
+      "bindable": true
+    },
+    "gridColumnSpan": {
+      "type": "uint16",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 1049,
+        "string": "gridcolumnspan"
+      },
+      "description": "Number of columns this item spans.",
+      "bindable": true
+    },
+    "gridRowSpan": {
+      "type": "uint16",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 1050,
+        "string": "gridrowspan"
+      },
+      "description": "Number of rows this item spans.",
+      "bindable": true
+    }
+  }
+}

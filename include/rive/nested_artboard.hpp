@@ -26,7 +26,7 @@ namespace rive
 class ArtboardInstance;
 class FocusManager;
 class NestedAnimation;
-class NestedArtboardOrigin;
+class ComponentOrigin;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
@@ -129,7 +129,7 @@ public:
     }
     Artboard* sourceArtboard() { return m_referencedArtboard; }
 
-    // Pushes the optional NestedArtboardOrigin child's origin (if any) onto the
+    // Pushes the optional ComponentOrigin child's origin (if any) onto the
     // mounted artboard instance. No-op when there is no override child, so
     // nested artboards without an override carry no per-instance origin state.
     void applyOriginOverride();

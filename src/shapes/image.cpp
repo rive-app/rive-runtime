@@ -1,5 +1,8 @@
 #include "rive/math/hit_test.hpp"
 #include "rive/shapes/image.hpp"
+#include "rive/node.hpp"
+#include "rive/layout/layout_node_style.hpp"
+#include "rive/layout/layout_participant.hpp"
 #include "rive/backboard.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/assets/file_asset.hpp"
@@ -191,31 +194,13 @@ Vec2D Image::measureLayout(float width,
                            float height,
                            LayoutMeasureMode heightMode)
 {
-    float measuredWidth, measuredHeight;
-    switch (widthMode)
-    {
-        case LayoutMeasureMode::atMost:
-            measuredWidth = std::max(Image::width(), width);
-            break;
-        case LayoutMeasureMode::exactly:
-            measuredWidth = width;
-            break;
-        case LayoutMeasureMode::undefined:
-            measuredWidth = Image::width();
-            break;
-    }
-    switch (heightMode)
-    {
-        case LayoutMeasureMode::atMost:
-            measuredHeight = std::max(Image::height(), height);
-            break;
-        case LayoutMeasureMode::exactly:
-            measuredHeight = height;
-            break;
-        case LayoutMeasureMode::undefined:
-            measuredHeight = Image::height();
-            break;
-    }
+    // Hug to the intrinsic image size. Only an `exactly` constraint overrides
+    // the natural size — `atMost` is the available space and must NOT grow a
+    // hugging image to fill it.
+    float measuredWidth =
+        widthMode == LayoutMeasureMode::exactly ? width : Image::width();
+    float measuredHeight =
+        heightMode == LayoutMeasureMode::exactly ? height : Image::height();
     return Vec2D(measuredWidth, measuredHeight);
 }
 
@@ -233,6 +218,41 @@ void Image::controlSize(Vec2D size,
 
         updateImageScale();
     }
+}
+
+void Image::composeWorldTransform()
+{
+#ifdef WITH_RIVE_LAYOUT
+    auto* participant = layoutParticipant();
+    if (participant != nullptr && m_ParentTransformComponent != nullptr)
+    {
+        // Origin 0: the slot base is just the slot top-left (the image composes
+        // its origin + fit separately in updateTransform).
+        Mat2D base = Mat2D::fromTranslation(
+            Vec2D(participant->resolvedLeft(), participant->resolvedTop()));
+        m_WorldTransform =
+            m_ParentTransformComponent->worldTransform() * base * m_Transform;
+        return;
+    }
+#endif
+    Super::composeWorldTransform();
+}
+
+LayoutParticipant* Image::layoutParticipant() const
+{
+    for (auto* child : children())
+    {
+        if (child->is<LayoutParticipant>())
+        {
+            return child->as<LayoutParticipant>();
+        }
+    }
+    return nullptr;
+}
+
+bool Image::isParticipatingInLayout() const
+{
+    return layoutParticipant() != nullptr;
 }
 
 void Image::updateTransform()
@@ -310,9 +330,11 @@ void Image::updateImageScale()
                 break;
         }
 
-        // Compatibility: legacy files assume resize does not apply
-        // fit/alignment translation offsets, only scale.
-        if (imageFit != ImageFit::resize)
+        // Compatibility: for a legacy (controlSized) parent, resize does not
+        // apply fit/alignment translation offsets (only scale). A participant
+        // composes the origin-based offset for resize too, so the image fills
+        // its slot positionally as well as in size.
+        if (imageFit != ImageFit::resize || isParticipatingInLayout())
         {
             float boundsW = imgW;
             float boundsH = imgH;

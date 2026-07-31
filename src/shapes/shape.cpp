@@ -3,7 +3,9 @@
 #include "rive/shapes/deformer.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/points_path.hpp"
+#include "rive/shapes/parametric_path.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/layout/layout_participant.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
@@ -24,6 +26,7 @@ void Shape::addPath(Path* path)
     // Make sure the path is not already in the shape.
     assert(std::find(m_Paths.begin(), m_Paths.end(), path) == m_Paths.end());
     m_Paths.push_back(path);
+    invalidateIntrinsicBounds();
 }
 
 void Shape::addFlags(PathFlags flags) { m_pathFlags |= flags; }
@@ -68,6 +71,8 @@ bool Shape::collapse(bool value)
         return false;
     }
     m_PathComposer.collapse(value);
+    // Collapsed paths are skipped when measuring, so the bounds change.
+    invalidateIntrinsicBounds();
     return true;
 }
 
@@ -100,6 +105,7 @@ void Shape::pathChanged()
 {
     m_PathComposer.addDirt(ComponentDirt::Path, true);
     m_WorldLength = -1;
+    invalidateIntrinsicBounds();
     for (auto constraint : constraints())
     {
         constraint->addDirt(ComponentDirt::Path);
@@ -340,6 +346,14 @@ public:
         return m_rawPath.bounds();
     }
 
+    // Tight curve bounds (solves cubic extrema) rather than the control-point
+    // box, so a participant sizing to its geometry scales to fill exactly.
+    AABB preciseBounds(const Mat2D& xform)
+    {
+        m_rawPath.transformInPlace(xform);
+        return m_rawPath.preciseBounds();
+    }
+
     void rewind() override { m_rawPath.rewind(); }
     void fillRule(FillRule value) override {}
     void addPath(CommandPath* path, const Mat2D& transform) override
@@ -412,11 +426,127 @@ AABB Shape::computeLocalBounds() const
     return computeWorldBounds(&inverseWorld);
 }
 
+AABB Shape::computeIntrinsicBounds() const
+{
+    // Only a participant caches (and only a participant calls this); without
+    // one we just compute, so a plain Shape stores nothing.
+    auto* participant = layoutParticipant();
+    if (participant != nullptr && participant->hostBoundsValid())
+    {
+        return participant->hostBounds();
+    }
+    // Like computeWorldBounds but in this shape's local space, using each
+    // path's local transform directly instead of round-tripping through our
+    // (non-invertible when the layout fold is 0) world transform.
+    bool first = true;
+    AABB computedBounds = AABB::forExpansion();
+
+    ComputeBoundsCommandPath boundsCalculator;
+    RawPath pendingPath;
+    bool usedPendingBuild = false;
+    for (auto path : m_Paths)
+    {
+        if (path->isCollapsed())
+        {
+            continue;
+        }
+        AABB aabb;
+        AABB propertyBounds;
+        if (!path->needsPathBuild())
+        {
+            path->rawPath().addTo(&boundsCalculator);
+            aabb = boundsCalculator.preciseBounds(path->transform());
+            boundsCalculator.rewind();
+        }
+        else if (path->tryPropertyBounds(propertyBounds))
+        {
+            // Layout (and a participant's fit scale) runs before Path::update
+            // in the update pass. A parametric path only positions its vertices
+            // there, so building it here would measure an unpositioned path —
+            // take its declared box instead, which is what it will occupy.
+            usedPendingBuild = true;
+            aabb = path->transform().mapBoundingBox(propertyBounds);
+        }
+        else
+        {
+            // Vertex-driven: the vertices are authored, so building a throwaway
+            // copy measures real geometry. Without this a fill participant
+            // computes a scale of 1 and renders at its hugged size on frame 1.
+            usedPendingBuild = true;
+            pendingPath.rewind();
+            path->buildPath(pendingPath);
+            pendingPath.addTo(&boundsCalculator);
+            aabb = boundsCalculator.preciseBounds(path->transform());
+            boundsCalculator.rewind();
+        }
+        // An empty (vertex-less) path leaves preciseBounds at its expansion
+        // sentinel, which is inverted (+/-FLT_MAX). Folding that in would
+        // poison the bounds, and a participant's anchor derives from them —
+        // pushing its world translation to -FLT_MAX. Written as !(>= 0) so a
+        // NaN is rejected too; a real but degenerate path (zero width or
+        // height) still counts.
+        if (!(aabb.width() >= 0.0f && aabb.height() >= 0.0f))
+        {
+            continue;
+        }
+        if (first)
+        {
+            first = false;
+            computedBounds = aabb;
+        }
+        else
+        {
+            computedBounds.expand(aabb);
+        }
+    }
+
+    AABB bounds = first ? AABB() : computedBounds;
+    if (participant != nullptr)
+    {
+        // Anything measured before its build is provisional: a declared box can
+        // be wider than the precise geometry (a polygon is inscribed in it).
+        // Return it, but don't cache it, so the precise bounds win once the
+        // paths build — nothing invalidates on the build itself, only when dirt
+        // is added.
+        participant->hostBounds(bounds, /*cache*/ !usedPendingBuild);
+    }
+    return bounds;
+}
+
+void Shape::invalidateIntrinsicBounds()
+{
+    if (auto* participant = layoutParticipant())
+    {
+        participant->invalidateHostBounds();
+    }
+}
+
+static ParametricPath* firstParametricPath(std::vector<Path*>& paths)
+{
+    for (auto path : paths)
+    {
+        if (path->is<ParametricPath>())
+        {
+            return path->as<ParametricPath>();
+        }
+    }
+    return nullptr;
+}
+
 Vec2D Shape::measureLayout(float width,
                            LayoutMeasureMode widthMode,
                            float height,
                            LayoutMeasureMode heightMode)
 {
+#ifdef WITH_RIVE_LAYOUT
+    // A participant sizes to its combined bounds (all paths); controlSize then
+    // scales those bounds to fill the slot.
+    if (isParticipatingInLayout())
+    {
+        AABB bounds = computeIntrinsicBounds();
+        return Vec2D(bounds.width(), bounds.height());
+    }
+#endif
     Vec2D size = Vec2D();
     for (auto path : m_Paths)
     {
@@ -426,6 +556,95 @@ Vec2D Shape::measureLayout(float width,
             Vec2D(std::max(size.x, measured.x), std::max(size.y, measured.y));
     }
     return size;
+}
+
+void Shape::controlSize(Vec2D size,
+                        LayoutScaleType widthScaleType,
+                        LayoutScaleType heightScaleType,
+                        LayoutDirection direction)
+{
+#ifdef WITH_RIVE_LAYOUT
+    // A participant scales its combined bounds to fill the slot.
+    if (isParticipatingInLayout())
+    {
+        updateLayoutScale(size);
+        return;
+    }
+#endif
+    // Content: a parametric shape's size lives on its ParametricPath child.
+    if (auto* path = firstParametricPath(m_Paths))
+    {
+        path->controlSize(size, widthScaleType, heightScaleType, direction);
+    }
+}
+
+void Shape::updateLayoutScale(Vec2D size)
+{
+    // Only reached from the participant branch of controlSize.
+    auto* participant = layoutParticipant();
+    if (participant == nullptr)
+    {
+        return;
+    }
+    AABB bounds = computeIntrinsicBounds();
+    float w = bounds.width();
+    float h = bounds.height();
+    // intrinsicBounds is from local geometry (not the world round-trip) so it
+    // stays valid even at scale 0.
+    float newScaleX = w > 0.0f ? size.x / w : 1.0f;
+    float newScaleY = h > 0.0f ? size.y / h : 1.0f;
+    if (newScaleX != participant->hostScaleX() ||
+        newScaleY != participant->hostScaleY())
+    {
+        participant->hostScale(newScaleX, newScaleY);
+        markWorldTransformDirty();
+    }
+}
+
+// The whole shape scales to fit, so place the scaled combined-bounds top-left
+// at the slot (the origin is irrelevant once we scale).
+LayoutParticipant* Shape::layoutParticipant() const
+{
+    for (auto* child : children())
+    {
+        if (child->is<LayoutParticipant>())
+        {
+            return child->as<LayoutParticipant>();
+        }
+    }
+    return nullptr;
+}
+
+bool Shape::isParticipatingInLayout() const
+{
+    return layoutParticipant() != nullptr;
+}
+
+void Shape::composeWorldTransform()
+{
+#ifdef WITH_RIVE_LAYOUT
+    auto* participant = layoutParticipant();
+    if (participant != nullptr && m_ParentTransformComponent != nullptr)
+    {
+        // Insert the resolved slot base between parent-world and our local
+        // transform; the scale is innermost so it fits the geometry to the
+        // slot, with the node's own transform composing on top. Anchor our
+        // vertex-bounds top-left at the slot (bounds computed once for both
+        // axes, as computeIntrinsicBounds walks every path).
+        AABB intrinsic = computeIntrinsicBounds();
+        float scaleX = participant->hostScaleX();
+        float scaleY = participant->hostScaleY();
+        float anchorX = -intrinsic.left() * scaleX;
+        float anchorY = -intrinsic.top() * scaleY;
+        Mat2D base =
+            Mat2D::fromTranslation(Vec2D(participant->resolvedLeft() + anchorX,
+                                         participant->resolvedTop() + anchorY));
+        m_WorldTransform = m_ParentTransformComponent->worldTransform() * base *
+                           m_Transform * Mat2D::fromScale(scaleX, scaleY);
+        return;
+    }
+#endif
+    Super::composeWorldTransform();
 }
 
 ShapePaintPath* Shape::worldPath() { return m_PathComposer.worldPath(); }

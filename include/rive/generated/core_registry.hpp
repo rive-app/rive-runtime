@@ -33,6 +33,7 @@
 #include "rive/animation/keyframe_color.hpp"
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/animation/keyframe_id.hpp"
+#include "rive/animation/keyframe_int.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/keyframe_string.hpp"
 #include "rive/animation/keyframe_uint.hpp"
@@ -129,6 +130,7 @@
 #include "rive/bones/tendon.hpp"
 #include "rive/bones/weight.hpp"
 #include "rive/component.hpp"
+#include "rive/component_origin.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/constraints/distance_constraint.hpp"
 #include "rive/constraints/draggable_constraint.hpp"
@@ -218,7 +220,12 @@
 #include "rive/layout/axis.hpp"
 #include "rive/layout/axis_x.hpp"
 #include "rive/layout/axis_y.hpp"
+#include "rive/layout/grid_item_placement.hpp"
+#include "rive/layout/grid_track.hpp"
 #include "rive/layout/layout_component_style.hpp"
+#include "rive/layout/layout_node_style.hpp"
+#include "rive/layout/layout_participant.hpp"
+#include "rive/layout/layout_sizing_style.hpp"
 #include "rive/layout/n_sliced_node.hpp"
 #include "rive/layout/n_slicer.hpp"
 #include "rive/layout/n_slicer_tile_mode.hpp"
@@ -227,7 +234,6 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
-#include "rive/nested_artboard_origin.hpp"
 #include "rive/node.hpp"
 #include "rive/open_url_event.hpp"
 #include "rive/script_input_artboard.hpp"
@@ -488,6 +494,14 @@ public:
                 return new NestedArtboardLayout();
             case NSlicerTileModeBase::typeKey:
                 return new NSlicerTileMode();
+            case GridTrackBase::typeKey:
+                return new GridTrack();
+            case GridItemPlacementBase::typeKey:
+                return new GridItemPlacement();
+            case LayoutNodeStyleBase::typeKey:
+                return new LayoutNodeStyle();
+            case LayoutParticipantBase::typeKey:
+                return new LayoutParticipant();
             case AxisYBase::typeKey:
                 return new AxisY();
             case LayoutComponentStyleBase::typeKey:
@@ -500,6 +514,8 @@ public:
                 return new NSlicedNode();
             case ArtboardComponentListOverrideBase::typeKey:
                 return new ArtboardComponentListOverride();
+            case ComponentOriginBase::typeKey:
+                return new ComponentOrigin();
             case ListenerFireEventBase::typeKey:
                 return new ListenerFireEvent();
             case TransitionSelfComparatorBase::typeKey:
@@ -524,6 +540,8 @@ public:
                 return new KeyedObject();
             case AnimationBase::typeKey:
                 return new Animation();
+            case KeyFrameIntBase::typeKey:
+                return new KeyFrameInt();
             case BlendAnimationDirectBase::typeKey:
                 return new BlendAnimationDirect();
             case StateMachineNumberBase::typeKey:
@@ -832,8 +850,6 @@ public:
                 return new BindablePropertyViewModel();
             case NestedArtboardLeafBase::typeKey:
                 return new NestedArtboardLeaf();
-            case NestedArtboardOriginBase::typeKey:
-                return new NestedArtboardOrigin();
             case WeightBase::typeKey:
                 return new Weight();
             case BoneBase::typeKey:
@@ -1080,19 +1096,58 @@ public:
             case NSlicerTileModeBase::stylePropertyKey:
                 object->as<NSlicerTileModeBase>()->style(value);
                 break;
+            case GridTrackBase::collectionPropertyKey:
+                object->as<GridTrackBase>()->collection(value);
+                break;
+            case GridTrackBase::trackTypePropertyKey:
+                object->as<GridTrackBase>()->trackType(value);
+                break;
+            case GridTrackBase::trackMaxTypePropertyKey:
+                object->as<GridTrackBase>()->trackMaxType(value);
+                break;
+            case GridItemPlacementBase::gridColumnSpanPropertyKey:
+                object->as<GridItemPlacementBase>()->gridColumnSpan(value);
+                break;
+            case GridItemPlacementBase::gridRowSpanPropertyKey:
+                object->as<GridItemPlacementBase>()->gridRowSpan(value);
+                break;
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+                object->as<LayoutSizingStyleBase>()->layoutWidthScaleType(
+                    value);
+                break;
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+                object->as<LayoutSizingStyleBase>()->layoutHeightScaleType(
+                    value);
+                break;
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->widthUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->heightUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->minWidthUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->maxWidthUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->minHeightUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->maxHeightUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::justifySelfValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->justifySelfValue(value);
+                break;
+            case LayoutSizingStyleBase::displayValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->displayValue(value);
+                break;
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 object->as<LayoutComponentStyleBase>()->interpolatorId(value);
                 break;
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->flexBasisUnitsValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
-                object->as<LayoutComponentStyleBase>()->layoutWidthScaleType(
-                    value);
-                break;
-            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
-                object->as<LayoutComponentStyleBase>()->layoutHeightScaleType(
                     value);
                 break;
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
@@ -1107,9 +1162,6 @@ public:
                 object->as<LayoutComponentStyleBase>()->interpolationType(
                     value);
                 break;
-            case LayoutComponentStyleBase::displayValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->displayValue(value);
-                break;
             case LayoutComponentStyleBase::positionTypeValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->positionTypeValue(
                     value);
@@ -1121,31 +1173,11 @@ public:
             case LayoutComponentStyleBase::directionValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->directionValue(value);
                 break;
-            case LayoutComponentStyleBase::alignContentValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->alignContentValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::alignItemsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->alignItemsValue(value);
-                break;
-            case LayoutComponentStyleBase::alignSelfValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->alignSelfValue(value);
-                break;
-            case LayoutComponentStyleBase::justifyContentValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->justifyContentValue(
-                    value);
-                break;
             case LayoutComponentStyleBase::flexWrapValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->flexWrapValue(value);
                 break;
             case LayoutComponentStyleBase::overflowValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->overflowValue(value);
-                break;
-            case LayoutComponentStyleBase::widthUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->widthUnitsValue(value);
-                break;
-            case LayoutComponentStyleBase::heightUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->heightUnitsValue(value);
                 break;
             case LayoutComponentStyleBase::borderLeftUnitsValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->borderLeftUnitsValue(
@@ -1219,21 +1251,12 @@ public:
                 object->as<LayoutComponentStyleBase>()->gapVerticalUnitsValue(
                     value);
                 break;
-            case LayoutComponentStyleBase::minWidthUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->minWidthUnitsValue(
+            case LayoutComponentStyleBase::justifyItemsValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()->justifyItemsValue(
                     value);
                 break;
-            case LayoutComponentStyleBase::minHeightUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->minHeightUnitsValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::maxWidthUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->maxWidthUnitsValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::maxHeightUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->maxHeightUnitsValue(
-                    value);
+            case LayoutComponentStyleBase::layoutTypeValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()->layoutTypeValue(value);
                 break;
             case ArtboardComponentListOverrideBase::artboardIdPropertyKey:
                 object->as<ArtboardComponentListOverrideBase>()->artboardId(
@@ -2577,6 +2600,36 @@ public:
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
                 object->as<NestedArtboardLayoutBase>()->instanceHeight(value);
                 break;
+            case GridTrackBase::trackValuePropertyKey:
+                object->as<GridTrackBase>()->trackValue(value);
+                break;
+            case GridTrackBase::trackMaxValuePropertyKey:
+                object->as<GridTrackBase>()->trackMaxValue(value);
+                break;
+            case LayoutSizingStyleBase::minWidthPropertyKey:
+                object->as<LayoutSizingStyleBase>()->minWidth(value);
+                break;
+            case LayoutSizingStyleBase::maxWidthPropertyKey:
+                object->as<LayoutSizingStyleBase>()->maxWidth(value);
+                break;
+            case LayoutSizingStyleBase::minHeightPropertyKey:
+                object->as<LayoutSizingStyleBase>()->minHeight(value);
+                break;
+            case LayoutSizingStyleBase::maxHeightPropertyKey:
+                object->as<LayoutSizingStyleBase>()->maxHeight(value);
+                break;
+            case LayoutNodeStyleBase::widthPropertyKey:
+                object->as<LayoutNodeStyleBase>()->width(value);
+                break;
+            case LayoutNodeStyleBase::heightPropertyKey:
+                object->as<LayoutNodeStyleBase>()->height(value);
+                break;
+            case LayoutNodeStyleBase::fractionalWidthPropertyKey:
+                object->as<LayoutNodeStyleBase>()->fractionalWidth(value);
+                break;
+            case LayoutNodeStyleBase::fractionalHeightPropertyKey:
+                object->as<LayoutNodeStyleBase>()->fractionalHeight(value);
+                break;
             case AxisBase::offsetPropertyKey:
                 object->as<AxisBase>()->offset(value);
                 break;
@@ -2585,18 +2638,6 @@ public:
                 break;
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
                 object->as<LayoutComponentStyleBase>()->gapVertical(value);
-                break;
-            case LayoutComponentStyleBase::maxWidthPropertyKey:
-                object->as<LayoutComponentStyleBase>()->maxWidth(value);
-                break;
-            case LayoutComponentStyleBase::maxHeightPropertyKey:
-                object->as<LayoutComponentStyleBase>()->maxHeight(value);
-                break;
-            case LayoutComponentStyleBase::minWidthPropertyKey:
-                object->as<LayoutComponentStyleBase>()->minWidth(value);
-                break;
-            case LayoutComponentStyleBase::minHeightPropertyKey:
-                object->as<LayoutComponentStyleBase>()->minHeight(value);
                 break;
             case LayoutComponentStyleBase::borderLeftPropertyKey:
                 object->as<LayoutComponentStyleBase>()->borderLeft(value);
@@ -2646,15 +2687,6 @@ public:
             case LayoutComponentStyleBase::positionBottomPropertyKey:
                 object->as<LayoutComponentStyleBase>()->positionBottom(value);
                 break;
-            case LayoutComponentStyleBase::flexPropertyKey:
-                object->as<LayoutComponentStyleBase>()->flex(value);
-                break;
-            case LayoutComponentStyleBase::flexGrowPropertyKey:
-                object->as<LayoutComponentStyleBase>()->flexGrow(value);
-                break;
-            case LayoutComponentStyleBase::flexShrinkPropertyKey:
-                object->as<LayoutComponentStyleBase>()->flexShrink(value);
-                break;
             case LayoutComponentStyleBase::flexBasisPropertyKey:
                 object->as<LayoutComponentStyleBase>()->flexBasis(value);
                 break;
@@ -2696,6 +2728,12 @@ public:
             case ArtboardComponentListOverrideBase::instanceHeightPropertyKey:
                 object->as<ArtboardComponentListOverrideBase>()->instanceHeight(
                     value);
+                break;
+            case ComponentOriginBase::originXPropertyKey:
+                object->as<ComponentOriginBase>()->originX(value);
+                break;
+            case ComponentOriginBase::originYPropertyKey:
+                object->as<ComponentOriginBase>()->originY(value);
                 break;
             case NestedLinearAnimationBase::mixPropertyKey:
                 object->as<NestedLinearAnimationBase>()->mix(value);
@@ -2971,12 +3009,6 @@ public:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
                 object->as<NestedArtboardLeafBase>()->alignmentY(value);
                 break;
-            case NestedArtboardOriginBase::originXPropertyKey:
-                object->as<NestedArtboardOriginBase>()->originX(value);
-                break;
-            case NestedArtboardOriginBase::originYPropertyKey:
-                object->as<NestedArtboardOriginBase>()->originY(value);
-                break;
             case BoneBase::lengthPropertyKey:
                 object->as<BoneBase>()->length(value);
                 break;
@@ -3138,6 +3170,21 @@ public:
                 break;
         }
     }
+    static void setInt(Core* object, int propertyKey, int32_t value)
+    {
+        switch (propertyKey)
+        {
+            case GridItemPlacementBase::gridColumnPropertyKey:
+                object->as<GridItemPlacementBase>()->gridColumn(value);
+                break;
+            case GridItemPlacementBase::gridRowPropertyKey:
+                object->as<GridItemPlacementBase>()->gridRow(value);
+                break;
+            case KeyFrameIntBase::valuePropertyKey:
+                object->as<KeyFrameIntBase>()->value(value);
+                break;
+        }
+    }
     static uint32_t getUint(Core* object, int propertyKey)
     {
         switch (propertyKey)
@@ -3259,17 +3306,47 @@ public:
                 return object->as<NSlicerTileModeBase>()->patchIndex();
             case NSlicerTileModeBase::stylePropertyKey:
                 return object->as<NSlicerTileModeBase>()->style();
+            case GridTrackBase::collectionPropertyKey:
+                return object->as<GridTrackBase>()->collection();
+            case GridTrackBase::trackTypePropertyKey:
+                return object->as<GridTrackBase>()->trackType();
+            case GridTrackBase::trackMaxTypePropertyKey:
+                return object->as<GridTrackBase>()->trackMaxType();
+            case GridItemPlacementBase::gridColumnSpanPropertyKey:
+                return object->as<GridItemPlacementBase>()->gridColumnSpan();
+            case GridItemPlacementBase::gridRowSpanPropertyKey:
+                return object->as<GridItemPlacementBase>()->gridRowSpan();
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->layoutWidthScaleType();
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->layoutHeightScaleType();
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()->widthUnitsValue();
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()->heightUnitsValue();
+            case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->minWidthUnitsValue();
+            case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->maxWidthUnitsValue();
+            case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->minHeightUnitsValue();
+            case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->maxHeightUnitsValue();
+            case LayoutSizingStyleBase::justifySelfValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()->justifySelfValue();
+            case LayoutSizingStyleBase::displayValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()->displayValue();
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->interpolatorId();
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->flexBasisUnitsValue();
-            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->layoutWidthScaleType();
-            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->layoutHeightScaleType();
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->layoutAlignmentType();
@@ -3279,8 +3356,6 @@ public:
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->interpolationType();
-            case LayoutComponentStyleBase::displayValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()->displayValue();
             case LayoutComponentStyleBase::positionTypeValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->positionTypeValue();
@@ -3289,27 +3364,10 @@ public:
                     ->flexDirectionValue();
             case LayoutComponentStyleBase::directionValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->directionValue();
-            case LayoutComponentStyleBase::alignContentValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->alignContentValue();
-            case LayoutComponentStyleBase::alignItemsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->alignItemsValue();
-            case LayoutComponentStyleBase::alignSelfValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()->alignSelfValue();
-            case LayoutComponentStyleBase::justifyContentValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->justifyContentValue();
             case LayoutComponentStyleBase::flexWrapValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->flexWrapValue();
             case LayoutComponentStyleBase::overflowValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->overflowValue();
-            case LayoutComponentStyleBase::widthUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->widthUnitsValue();
-            case LayoutComponentStyleBase::heightUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->heightUnitsValue();
             case LayoutComponentStyleBase::borderLeftUnitsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->borderLeftUnitsValue();
@@ -3364,18 +3422,12 @@ public:
             case LayoutComponentStyleBase::gapVerticalUnitsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->gapVerticalUnitsValue();
-            case LayoutComponentStyleBase::minWidthUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::justifyItemsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
-                    ->minWidthUnitsValue();
-            case LayoutComponentStyleBase::minHeightUnitsValuePropertyKey:
+                    ->justifyItemsValue();
+            case LayoutComponentStyleBase::layoutTypeValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
-                    ->minHeightUnitsValue();
-            case LayoutComponentStyleBase::maxWidthUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->maxWidthUnitsValue();
-            case LayoutComponentStyleBase::maxHeightUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->maxHeightUnitsValue();
+                    ->layoutTypeValue();
             case ArtboardComponentListOverrideBase::artboardIdPropertyKey:
                 return object->as<ArtboardComponentListOverrideBase>()
                     ->artboardId();
@@ -4027,20 +4079,32 @@ public:
                 return object->as<NestedArtboardLayoutBase>()->instanceWidth();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
                 return object->as<NestedArtboardLayoutBase>()->instanceHeight();
+            case GridTrackBase::trackValuePropertyKey:
+                return object->as<GridTrackBase>()->trackValue();
+            case GridTrackBase::trackMaxValuePropertyKey:
+                return object->as<GridTrackBase>()->trackMaxValue();
+            case LayoutSizingStyleBase::minWidthPropertyKey:
+                return object->as<LayoutSizingStyleBase>()->minWidth();
+            case LayoutSizingStyleBase::maxWidthPropertyKey:
+                return object->as<LayoutSizingStyleBase>()->maxWidth();
+            case LayoutSizingStyleBase::minHeightPropertyKey:
+                return object->as<LayoutSizingStyleBase>()->minHeight();
+            case LayoutSizingStyleBase::maxHeightPropertyKey:
+                return object->as<LayoutSizingStyleBase>()->maxHeight();
+            case LayoutNodeStyleBase::widthPropertyKey:
+                return object->as<LayoutNodeStyleBase>()->width();
+            case LayoutNodeStyleBase::heightPropertyKey:
+                return object->as<LayoutNodeStyleBase>()->height();
+            case LayoutNodeStyleBase::fractionalWidthPropertyKey:
+                return object->as<LayoutNodeStyleBase>()->fractionalWidth();
+            case LayoutNodeStyleBase::fractionalHeightPropertyKey:
+                return object->as<LayoutNodeStyleBase>()->fractionalHeight();
             case AxisBase::offsetPropertyKey:
                 return object->as<AxisBase>()->offset();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->gapHorizontal();
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->gapVertical();
-            case LayoutComponentStyleBase::maxWidthPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->maxWidth();
-            case LayoutComponentStyleBase::maxHeightPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->maxHeight();
-            case LayoutComponentStyleBase::minWidthPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->minWidth();
-            case LayoutComponentStyleBase::minHeightPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->minHeight();
             case LayoutComponentStyleBase::borderLeftPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->borderLeft();
             case LayoutComponentStyleBase::borderRightPropertyKey:
@@ -4073,12 +4137,6 @@ public:
                 return object->as<LayoutComponentStyleBase>()->positionTop();
             case LayoutComponentStyleBase::positionBottomPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->positionBottom();
-            case LayoutComponentStyleBase::flexPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->flex();
-            case LayoutComponentStyleBase::flexGrowPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->flexGrow();
-            case LayoutComponentStyleBase::flexShrinkPropertyKey:
-                return object->as<LayoutComponentStyleBase>()->flexShrink();
             case LayoutComponentStyleBase::flexBasisPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->flexBasis();
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
@@ -4108,6 +4166,10 @@ public:
             case ArtboardComponentListOverrideBase::instanceHeightPropertyKey:
                 return object->as<ArtboardComponentListOverrideBase>()
                     ->instanceHeight();
+            case ComponentOriginBase::originXPropertyKey:
+                return object->as<ComponentOriginBase>()->originX();
+            case ComponentOriginBase::originYPropertyKey:
+                return object->as<ComponentOriginBase>()->originY();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->as<NestedLinearAnimationBase>()->mix();
             case NestedSimpleAnimationBase::speedPropertyKey:
@@ -4293,10 +4355,6 @@ public:
                 return object->as<NestedArtboardLeafBase>()->alignmentX();
             case NestedArtboardLeafBase::alignmentYPropertyKey:
                 return object->as<NestedArtboardLeafBase>()->alignmentY();
-            case NestedArtboardOriginBase::originXPropertyKey:
-                return object->as<NestedArtboardOriginBase>()->originX();
-            case NestedArtboardOriginBase::originYPropertyKey:
-                return object->as<NestedArtboardOriginBase>()->originY();
             case BoneBase::lengthPropertyKey:
                 return object->as<BoneBase>()->length();
             case RootBoneBase::xPropertyKey:
@@ -4394,6 +4452,19 @@ public:
         }
         return 0.0f;
     }
+    static int32_t getInt(Core* object, int propertyKey)
+    {
+        switch (propertyKey)
+        {
+            case GridItemPlacementBase::gridColumnPropertyKey:
+                return object->as<GridItemPlacementBase>()->gridColumn();
+            case GridItemPlacementBase::gridRowPropertyKey:
+                return object->as<GridItemPlacementBase>()->gridRow();
+            case KeyFrameIntBase::valuePropertyKey:
+                return object->as<KeyFrameIntBase>()->value();
+        }
+        return 0;
+    }
     static int propertyFieldId(int propertyKey)
     {
         switch (propertyKey)
@@ -4448,25 +4519,31 @@ public:
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
             case NSlicerTileModeBase::patchIndexPropertyKey:
             case NSlicerTileModeBase::stylePropertyKey:
+            case GridTrackBase::collectionPropertyKey:
+            case GridTrackBase::trackTypePropertyKey:
+            case GridTrackBase::trackMaxTypePropertyKey:
+            case GridItemPlacementBase::gridColumnSpanPropertyKey:
+            case GridItemPlacementBase::gridRowSpanPropertyKey:
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::justifySelfValuePropertyKey:
+            case LayoutSizingStyleBase::displayValuePropertyKey:
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
-            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
             case LayoutComponentStyleBase::animationStyleTypePropertyKey:
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
-            case LayoutComponentStyleBase::displayValuePropertyKey:
             case LayoutComponentStyleBase::positionTypeValuePropertyKey:
             case LayoutComponentStyleBase::flexDirectionValuePropertyKey:
             case LayoutComponentStyleBase::directionValuePropertyKey:
-            case LayoutComponentStyleBase::alignContentValuePropertyKey:
-            case LayoutComponentStyleBase::alignItemsValuePropertyKey:
-            case LayoutComponentStyleBase::alignSelfValuePropertyKey:
-            case LayoutComponentStyleBase::justifyContentValuePropertyKey:
             case LayoutComponentStyleBase::flexWrapValuePropertyKey:
             case LayoutComponentStyleBase::overflowValuePropertyKey:
-            case LayoutComponentStyleBase::widthUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::heightUnitsValuePropertyKey:
             case LayoutComponentStyleBase::borderLeftUnitsValuePropertyKey:
             case LayoutComponentStyleBase::borderRightUnitsValuePropertyKey:
             case LayoutComponentStyleBase::borderTopUnitsValuePropertyKey:
@@ -4485,10 +4562,8 @@ public:
             case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
             case LayoutComponentStyleBase::gapHorizontalUnitsValuePropertyKey:
             case LayoutComponentStyleBase::gapVerticalUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::minWidthUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::minHeightUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::maxWidthUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::maxHeightUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::justifyItemsValuePropertyKey:
+            case LayoutComponentStyleBase::layoutTypeValuePropertyKey:
             case ArtboardComponentListOverrideBase::artboardIdPropertyKey:
             case ArtboardComponentListOverrideBase::
                 instanceWidthUnitsValuePropertyKey:
@@ -4782,13 +4857,19 @@ public:
             case NestedArtboardBase::quantizePropertyKey:
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
+            case GridTrackBase::trackValuePropertyKey:
+            case GridTrackBase::trackMaxValuePropertyKey:
+            case LayoutSizingStyleBase::minWidthPropertyKey:
+            case LayoutSizingStyleBase::maxWidthPropertyKey:
+            case LayoutSizingStyleBase::minHeightPropertyKey:
+            case LayoutSizingStyleBase::maxHeightPropertyKey:
+            case LayoutNodeStyleBase::widthPropertyKey:
+            case LayoutNodeStyleBase::heightPropertyKey:
+            case LayoutNodeStyleBase::fractionalWidthPropertyKey:
+            case LayoutNodeStyleBase::fractionalHeightPropertyKey:
             case AxisBase::offsetPropertyKey:
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
-            case LayoutComponentStyleBase::maxWidthPropertyKey:
-            case LayoutComponentStyleBase::maxHeightPropertyKey:
-            case LayoutComponentStyleBase::minWidthPropertyKey:
-            case LayoutComponentStyleBase::minHeightPropertyKey:
             case LayoutComponentStyleBase::borderLeftPropertyKey:
             case LayoutComponentStyleBase::borderRightPropertyKey:
             case LayoutComponentStyleBase::borderTopPropertyKey:
@@ -4805,9 +4886,6 @@ public:
             case LayoutComponentStyleBase::positionRightPropertyKey:
             case LayoutComponentStyleBase::positionTopPropertyKey:
             case LayoutComponentStyleBase::positionBottomPropertyKey:
-            case LayoutComponentStyleBase::flexPropertyKey:
-            case LayoutComponentStyleBase::flexGrowPropertyKey:
-            case LayoutComponentStyleBase::flexShrinkPropertyKey:
             case LayoutComponentStyleBase::flexBasisPropertyKey:
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
             case LayoutComponentStyleBase::interpolationTimePropertyKey:
@@ -4821,6 +4899,8 @@ public:
             case NSlicedNodeBase::heightPropertyKey:
             case ArtboardComponentListOverrideBase::instanceWidthPropertyKey:
             case ArtboardComponentListOverrideBase::instanceHeightPropertyKey:
+            case ComponentOriginBase::originXPropertyKey:
+            case ComponentOriginBase::originYPropertyKey:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
             case AdvanceableStateBase::speedPropertyKey:
@@ -4912,8 +4992,6 @@ public:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
-            case NestedArtboardOriginBase::originXPropertyKey:
-            case NestedArtboardOriginBase::originYPropertyKey:
             case BoneBase::lengthPropertyKey:
             case RootBoneBase::xPropertyKey:
             case RootBoneBase::yPropertyKey:
@@ -4975,6 +5053,10 @@ public:
             case FileAssetContentsBase::bytesPropertyKey:
             case FileAssetContentsBase::signaturePropertyKey:
                 return CoreBytesType::id;
+            case GridItemPlacementBase::gridColumnPropertyKey:
+            case GridItemPlacementBase::gridRowPropertyKey:
+            case KeyFrameIntBase::valuePropertyKey:
+                return CoreIntType::id;
             default:
                 return -1;
         }
@@ -5095,13 +5177,39 @@ public:
                 return object->is<NSlicerTileModeBase>();
             case NSlicerTileModeBase::stylePropertyKey:
                 return object->is<NSlicerTileModeBase>();
+            case GridTrackBase::collectionPropertyKey:
+                return object->is<GridTrackBase>();
+            case GridTrackBase::trackTypePropertyKey:
+                return object->is<GridTrackBase>();
+            case GridTrackBase::trackMaxTypePropertyKey:
+                return object->is<GridTrackBase>();
+            case GridItemPlacementBase::gridColumnSpanPropertyKey:
+                return object->is<GridItemPlacementBase>();
+            case GridItemPlacementBase::gridRowSpanPropertyKey:
+                return object->is<GridItemPlacementBase>();
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::justifySelfValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::displayValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
@@ -5109,29 +5217,15 @@ public:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::interpolationTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::displayValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::positionTypeValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::flexDirectionValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::directionValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::alignContentValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::alignItemsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::alignSelfValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::justifyContentValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::flexWrapValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::overflowValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::widthUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::heightUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::borderLeftUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
@@ -5169,13 +5263,9 @@ public:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::gapVerticalUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::minWidthUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::justifyItemsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::minHeightUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::maxWidthUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::maxHeightUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::layoutTypeValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case ArtboardComponentListOverrideBase::artboardIdPropertyKey:
                 return object->is<ArtboardComponentListOverrideBase>();
@@ -5799,19 +5889,31 @@ public:
                 return object->is<NestedArtboardLayoutBase>();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
                 return object->is<NestedArtboardLayoutBase>();
+            case GridTrackBase::trackValuePropertyKey:
+                return object->is<GridTrackBase>();
+            case GridTrackBase::trackMaxValuePropertyKey:
+                return object->is<GridTrackBase>();
+            case LayoutSizingStyleBase::minWidthPropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::maxWidthPropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::minHeightPropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::maxHeightPropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutNodeStyleBase::widthPropertyKey:
+                return object->is<LayoutNodeStyleBase>();
+            case LayoutNodeStyleBase::heightPropertyKey:
+                return object->is<LayoutNodeStyleBase>();
+            case LayoutNodeStyleBase::fractionalWidthPropertyKey:
+                return object->is<LayoutNodeStyleBase>();
+            case LayoutNodeStyleBase::fractionalHeightPropertyKey:
+                return object->is<LayoutNodeStyleBase>();
             case AxisBase::offsetPropertyKey:
                 return object->is<AxisBase>();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::maxWidthPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::maxHeightPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::minWidthPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::minHeightPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::borderLeftPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
@@ -5845,12 +5947,6 @@ public:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::positionBottomPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::flexPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::flexGrowPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::flexShrinkPropertyKey:
-                return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::flexBasisPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::aspectRatioPropertyKey:
@@ -5877,6 +5973,10 @@ public:
                 return object->is<ArtboardComponentListOverrideBase>();
             case ArtboardComponentListOverrideBase::instanceHeightPropertyKey:
                 return object->is<ArtboardComponentListOverrideBase>();
+            case ComponentOriginBase::originXPropertyKey:
+                return object->is<ComponentOriginBase>();
+            case ComponentOriginBase::originYPropertyKey:
+                return object->is<ComponentOriginBase>();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->is<NestedLinearAnimationBase>();
             case NestedSimpleAnimationBase::speedPropertyKey:
@@ -6059,10 +6159,6 @@ public:
                 return object->is<NestedArtboardLeafBase>();
             case NestedArtboardLeafBase::alignmentYPropertyKey:
                 return object->is<NestedArtboardLeafBase>();
-            case NestedArtboardOriginBase::originXPropertyKey:
-                return object->is<NestedArtboardOriginBase>();
-            case NestedArtboardOriginBase::originYPropertyKey:
-                return object->is<NestedArtboardOriginBase>();
             case BoneBase::lengthPropertyKey:
                 return object->is<BoneBase>();
             case RootBoneBase::xPropertyKey:
@@ -6165,6 +6261,12 @@ public:
                 return object->is<NestedTriggerBase>();
             case EventBase::triggerPropertyKey:
                 return object->is<EventBase>();
+            case GridItemPlacementBase::gridColumnPropertyKey:
+                return object->is<GridItemPlacementBase>();
+            case GridItemPlacementBase::gridRowPropertyKey:
+                return object->is<GridItemPlacementBase>();
+            case KeyFrameIntBase::valuePropertyKey:
+                return object->is<KeyFrameIntBase>();
         }
         return false;
     }

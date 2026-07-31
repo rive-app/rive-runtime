@@ -1,0 +1,34 @@
+{
+  "name": "ComponentOrigin",
+  "key": {
+    "int": 1039,
+    "string": "componentorigin"
+  },
+  "extends": "component.json",
+  "properties": {
+    "originX": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "origin",
+      "key": {
+        "int": 1040,
+        "string": "originx"
+      },
+      "description": "Origin x in normalized coordinates, applied to the owning component (0.5 = center, 0 = left, 1 = right).",
+      "bindable": true
+    },
+    "originY": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "origin",
+      "key": {
+        "int": 1041,
+        "string": "originy"
+      },
+      "description": "Origin y in normalized coordinates, applied to the owning component (0.5 = center, 0 = top, 1 = bottom).",
+      "bindable": true
+    }
+  }
+}

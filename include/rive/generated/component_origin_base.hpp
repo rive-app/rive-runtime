@@ -1,10 +1,10 @@
-#ifndef _RIVE_NESTED_ARTBOARD_ORIGIN_BASE_HPP_
-#define _RIVE_NESTED_ARTBOARD_ORIGIN_BASE_HPP_
+#ifndef _RIVE_COMPONENT_ORIGIN_BASE_HPP_
+#define _RIVE_COMPONENT_ORIGIN_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 namespace rive
 {
-class NestedArtboardOriginBase : public Component
+class ComponentOriginBase : public Component
 {
 protected:
     typedef Component Super;
@@ -18,7 +18,7 @@ public:
     {
         switch (typeKey)
         {
-            case NestedArtboardOriginBase::typeKey:
+            case ComponentOriginBase::typeKey:
             case ComponentBase::typeKey:
                 return true;
             default:
@@ -61,7 +61,7 @@ public:
     }
 
     Core* clone() const override;
-    void copy(const NestedArtboardOriginBase& object)
+    void copy(const ComponentOriginBase& object)
     {
         m_OriginX = object.m_OriginX;
         m_OriginY = object.m_OriginY;

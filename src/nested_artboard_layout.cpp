@@ -86,9 +86,9 @@ void NestedArtboardLayout::update(ComponentDirt value)
 
 void NestedArtboardLayout::updateConstraints()
 {
-    if (m_layoutConstraints.size() > 0)
+    if (layoutConstraints().size() > 0)
     {
-        for (auto parentConstraint : m_layoutConstraints)
+        for (auto parentConstraint : layoutConstraints())
         {
             parentConstraint->constrainChild(this);
         }

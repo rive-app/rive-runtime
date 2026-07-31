@@ -1,5 +1,5 @@
 #include "rive/nested_artboard.hpp"
-#include "rive/nested_artboard_origin.hpp"
+#include "rive/component_origin.hpp"
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
 #include "rive/file.hpp"
@@ -143,9 +143,9 @@ void NestedArtboard::applyOriginOverride()
     }
     for (auto child : children())
     {
-        if (child->is<NestedArtboardOrigin>())
+        if (child->is<ComponentOrigin>())
         {
-            auto origin = child->as<NestedArtboardOrigin>();
+            auto origin = child->as<ComponentOrigin>();
             m_referencedArtboard->originX(origin->originX());
             m_referencedArtboard->originY(origin->originY());
             return;

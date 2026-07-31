@@ -3,6 +3,7 @@
 #include "rive/artboard.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/layout/layout_participant.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
@@ -24,6 +25,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<NestedArtboard>();
         case LayoutComponent::typeKey:
             return component->as<LayoutComponent>();
+        case LayoutParticipantBase::typeKey:
+            return component->as<LayoutParticipant>();
         case Artboard::typeKey:
             return component->as<Artboard>();
         case ArtboardComponentListBase::typeKey:

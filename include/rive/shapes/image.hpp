@@ -7,6 +7,8 @@
 
 namespace rive
 {
+class LayoutNodeStyle;
+class LayoutParticipant;
 
 enum class ImageFit : unsigned char
 {
@@ -66,6 +68,14 @@ public:
                      LayoutScaleType widthScaleType,
                      LayoutScaleType heightScaleType,
                      LayoutDirection direction) override;
+
+    // Participation via an optional LayoutParticipant child. Origin
+    // is 0 (unlike Text): the image composes its origin + fit into the render
+    // separately, so the slot base is just the slot top-left.
+    void composeWorldTransform() override;
+    LayoutParticipant* layoutParticipant() const;
+    bool isParticipatingInLayout() const;
+
     float width() const;
     float height() const;
     // Effective render scale: the user-facing scaleX/scaleY composed with the

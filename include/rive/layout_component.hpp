@@ -6,6 +6,7 @@
 #include "rive/generated/layout_component_base.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
 #include "rive/layout/layout_node_provider.hpp"
+#include "rive/layout/layout_style_applier.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
@@ -97,7 +98,8 @@ class LayoutComponent : public LayoutComponentBase,
                         public ShapePaintContainer,
                         public AdvancingComponent,
                         public InterpolatorHost,
-                        public LayoutNodeProvider
+                        public LayoutNodeProvider,
+                        public LayoutStyleApplier
 {
 protected:
     LayoutComponentStyle* m_style = nullptr;
@@ -213,6 +215,11 @@ public:
     float y() const override { return layoutY(); }
     float layoutX() const { return m_layout.left(); }
     float layoutY() const { return m_layout.top(); }
+    /// The pivot that rotation and scale compose about, from the optional
+    /// ComponentOrigin child; 0 when absent, which is the common case. Named
+    /// apart from Artboard's inline originX/originY so the two never shadow.
+    float pivotOriginX() const;
+    float pivotOriginY() const;
     float layoutWidth() { return m_layout.width(); }
     float layoutHeight() { return m_layout.height(); }
     float innerWidth()
@@ -241,6 +248,14 @@ public:
     void widthIntrinsicallySizeOverride(bool intrinsic);
     void heightIntrinsicallySizeOverride(bool intrinsic);
     virtual bool canHaveOverrides() { return false; }
+    // Honours the NestedArtboardLayout override; shared via LayoutSyncContext.
+    bool effectiveParentIsRow();
+#ifdef WITH_RIVE_LAYOUT
+    void applyBaseStyle(YGStyle& style,
+                        const LayoutSyncContext& context) override;
+    void applyContainerStyle(YGStyle& style,
+                             const LayoutSyncContext& context) override;
+#endif
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
@@ -294,14 +309,23 @@ public:
     void scaleTypeChanged();
     void displayChanged();
     void flexDirectionChanged();
+    void layoutTypeChanged();
     void directionChanged();
     LayoutDirection actualDirection();
+    // Re-run each child provider's style sync: a participant's yoga style
+    // (flexGrow vs alignSelf/justifySelf/grid placement) is computed against
+    // our grid/flex type + main axis, so switching those must re-sync, not just
+    // mark nodes dirty.
+    void syncChildProviderStyles();
 #endif
 
     void markPositionLeftChanged() { m_positionLeftChanged = true; }
     void markPositionTopChanged() { m_positionTopChanged = true; }
     void buildDependencies() override;
 
+#ifdef WITH_RIVE_LAYOUT
+    void addLayoutStyleApplier(LayoutStyleApplier* applier) override;
+#endif
     void markLayoutNodeDirty(
         bool shouldForceUpdateLayoutBounds = false) override;
     void markLayoutStyleDirty();

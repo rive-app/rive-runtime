@@ -1,4 +1,5 @@
 #include "rive/text/text.hpp"
+#include "rive/layout/layout_participant.hpp"
 using namespace rive;
 #ifdef WITH_RIVE_TEXT
 #include "rive/text_engine.hpp"
@@ -176,6 +177,27 @@ void Text::controlSize(Vec2D size,
 
 TextSizing Text::effectiveSizing() const
 {
+#ifdef WITH_RIVE_LAYOUT
+    // Layout-controlled text (a participant, or the active child of a
+    // participating Solo) carries independent per-axis scale types; the single
+    // TextSizing enum can't express e.g. hug-width + fixed-height, so map each
+    // combination to the closest box behavior. m_layoutWidth/Height already
+    // hold the resolved slot sizes, so a hug axis reads as its content size
+    // under `fixed`.
+    if (isParticipatingInLayout())
+    {
+        bool wBox = m_layoutWidthScaleType == (uint8_t)LayoutScaleType::fixed ||
+                    m_layoutWidthScaleType == (uint8_t)LayoutScaleType::fill;
+        bool hBox =
+            m_layoutHeightScaleType == (uint8_t)LayoutScaleType::fixed ||
+            m_layoutHeightScaleType == (uint8_t)LayoutScaleType::fill;
+        if (!wBox && !hBox)
+        {
+            return sizing();
+        }
+        return wBox && !hBox ? TextSizing::autoHeight : TextSizing::fixed;
+    }
+#endif
     if (m_layoutWidthScaleType == std::numeric_limits<uint8_t>::max() ||
         m_layoutWidthScaleType == (uint8_t)LayoutScaleType::hug ||
         m_layoutHeightScaleType == (uint8_t)LayoutScaleType::hug)
@@ -1426,6 +1448,45 @@ void Text::controlSize(Vec2D size,
                        LayoutDirection direction)
 {}
 #endif
+
+void Text::composeWorldTransform()
+{
+    // The base composes m_WorldTransform = parentWorld * m_Transform; insert
+    // the origin-based slot base instead when participating (text sizes via its
+    // own layout, not a geometric scale).
+#ifdef WITH_RIVE_LAYOUT
+    auto* participant = layoutParticipant();
+    if (participant != nullptr && m_ParentTransformComponent != nullptr)
+    {
+        Mat2D base = Mat2D::fromTranslation(
+            Vec2D(participant->resolvedLeft() +
+                      originX() * participant->resolvedWidth(),
+                  participant->resolvedTop() +
+                      originY() * participant->resolvedHeight()));
+        m_WorldTransform =
+            m_ParentTransformComponent->worldTransform() * base * m_Transform;
+        return;
+    }
+#endif
+    Super::composeWorldTransform();
+}
+
+LayoutParticipant* Text::layoutParticipant() const
+{
+    for (auto* child : children())
+    {
+        if (child->is<LayoutParticipant>())
+        {
+            return child->as<LayoutParticipant>();
+        }
+    }
+    return nullptr;
+}
+
+bool Text::isParticipatingInLayout() const
+{
+    return layoutParticipant() != nullptr;
+}
 
 TextAlign Text::align() const
 {

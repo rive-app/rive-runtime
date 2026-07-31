@@ -1,0 +1,9 @@
+{
+  "name": "LayoutParticipant",
+  "key": {
+    "int": 1066,
+    "string": "layoutparticipant"
+  },
+  "extends": "layout/layout_node_style.json",
+  "properties": {}
+}

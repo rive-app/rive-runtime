@@ -57,6 +57,19 @@ public:
     virtual const Mat2D& pathTransform() const;
     bool collapse(bool value) override;
     const RawPath& rawPath() const { return m_rawPath; }
+    // True while m_rawPath has yet to be rebuilt for pending changes: the Path
+    // dirt is still queued, or the build was deferred. Layout runs before
+    // Path::update in the update pass, so a measure can land here first and
+    // must build its own copy rather than read a stale/empty rawPath.
+    bool needsPathBuild() const
+    {
+        return hasDirt(ComponentDirt::Path) || m_deferredPathDirt;
+    }
+    // Bounds in this path's own space derived from its properties rather than
+    // its built geometry, for callers that run before update() has positioned
+    // vertices. A ParametricPath knows its box up front; anything vertex-driven
+    // returns false and must be measured from geometry.
+    virtual bool tryPropertyBounds(AABB& result) const { return false; }
     void update(ComponentDirt value) override;
 
     void addFlags(PathFlags flags);

@@ -1332,9 +1332,9 @@ void ArtboardComponentList::updateArtboardsWorldTransform()
 
 void ArtboardComponentList::updateConstraints()
 {
-    if (m_layoutConstraints.size() > 0)
+    if (layoutConstraints().size() > 0)
     {
-        for (auto parentConstraint : m_layoutConstraints)
+        for (auto parentConstraint : layoutConstraints())
         {
             parentConstraint->constrainChild(this);
         }
@@ -1745,7 +1745,7 @@ bool ArtboardComponentList::virtualizationEnabled()
 
 ScrollConstraint* ArtboardComponentList::scrollConstraint()
 {
-    for (auto parentConstraint : m_layoutConstraints)
+    for (auto parentConstraint : layoutConstraints())
     {
         if (parentConstraint->constraint()->is<ScrollConstraint>())
         {

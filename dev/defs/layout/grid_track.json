@@ -1,0 +1,61 @@
+{
+  "name": "GridTrack",
+  "key": {
+    "int": 1058,
+    "string": "gridtrack"
+  },
+  "extends": "component.json",
+  "properties": {
+    "trackValue": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1063,
+        "string": "trackvalue"
+      },
+      "description": "Size of the track in trackType units.",
+      "bindable": true
+    },
+    "trackMaxValue": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1065,
+        "string": "trackmaxvalue"
+      },
+      "description": "Max size of the track in trackMaxType units.",
+      "bindable": true
+    },
+    "collection": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 1061,
+        "string": "collection"
+      },
+      "description": "Track list this entry belongs to: template columns (0), template rows (1), auto columns (2), auto rows (3)."
+    },
+    "trackType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 1062,
+        "string": "tracktype"
+      },
+      "description": "Sizing function: auto (0), points (1), percent (2), fr (3).",
+      "bindable": true
+    },
+    "trackMaxType": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 1064,
+        "string": "trackmaxtype"
+      },
+      "description": "Optional max sizing function; none (0), auto (1), points (2), percent (3), fr (4). When set, the track is minmax(track, max)."
+    }
+  }
+}

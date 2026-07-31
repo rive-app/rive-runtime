@@ -70,7 +70,7 @@ void TransformComponent::updateTransform()
 
 AABB TransformComponent::localBounds() const { return AABB(); }
 
-void TransformComponent::updateWorldTransform()
+void TransformComponent::composeWorldTransform()
 {
     if (m_ParentTransformComponent != nullptr)
     {
@@ -81,6 +81,11 @@ void TransformComponent::updateWorldTransform()
     {
         m_WorldTransform = m_Transform;
     }
+}
+
+void TransformComponent::updateWorldTransform()
+{
+    composeWorldTransform();
     updateConstraints();
 }
 

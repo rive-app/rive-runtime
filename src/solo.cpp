@@ -4,6 +4,11 @@
 #include "rive/focus_data.hpp"
 #include "rive/semantic/semantic_data.hpp"
 #include "rive/artboard.hpp"
+#include "rive/node.hpp"
+#include "rive/container_component.hpp"
+#include "rive/transform_component.hpp"
+#include "rive/layout_component.hpp"
+#include "rive/layout/layout_node_provider.hpp"
 
 using namespace rive;
 
@@ -18,6 +23,38 @@ static bool isSoloSetMember(Component* child)
     return !(child->is<Constraint>() || child->is<ClippingShape>() ||
              child->is<FocusData>() || child->is<SemanticData>());
 }
+
+Component* Solo::activeComponent()
+{
+    auto* ab = artboard();
+    Core* active = ab != nullptr ? ab->resolve(activeComponentId()) : nullptr;
+    // The active id refers to one of our children; match by pointer so we get
+    // it typed as a Component.
+    for (Component* child : children())
+    {
+        if (child == active)
+        {
+            return child;
+        }
+    }
+    return nullptr;
+}
+
+#ifdef WITH_RIVE_LAYOUT
+void Solo::recollectOwningLayout()
+{
+    // We are not a LayoutComponent, so walk up for the layout that owns the
+    // slot our active child occupies.
+    for (Component* p = parent(); p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            p->as<LayoutComponent>()->syncLayoutChildren();
+            return;
+        }
+    }
+}
+#endif
 
 void Solo::propagateCollapse(bool collapse)
 {
@@ -52,7 +89,15 @@ bool Solo::collapse(bool value)
     return true;
 }
 
-void Solo::activeComponentIdChanged() { propagateCollapse(isCollapsed()); }
+void Solo::activeComponentIdChanged()
+{
+    propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_LAYOUT
+    // Only the active child is exposed to layout, so a swap changes the owning
+    // layout's child set.
+    recollectOwningLayout();
+#endif
+}
 
 StatusCode Solo::onAddedClean(CoreContext* context)
 {
@@ -61,8 +106,12 @@ StatusCode Solo::onAddedClean(CoreContext* context)
     {
         return code;
     }
-
     propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_LAYOUT
+    // Parent chain + active child are resolved now; make sure the owning layout
+    // has collected the active child.
+    recollectOwningLayout();
+#endif
     return StatusCode::Ok;
 }
 
@@ -109,7 +158,9 @@ void Solo::updateByName(const std::string& name)
         }
         if (child->name() == name)
         {
-            activeComponentId(artboard()->idOf(child));
+
+            int globalIndex = artboard()->idOf(child);
+            activeComponentId(globalIndex);
             break;
         }
     }

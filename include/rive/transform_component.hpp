@@ -34,6 +34,12 @@ public:
     void buildDependencies() override;
     void update(ComponentDirt value) override;
     virtual void updateTransform();
+    /// Builds m_WorldTransform from the parent world and our local transform.
+    /// Split out of updateWorldTransform so a subclass can substitute its own
+    /// composition (a layout participant inserts its slot) without the base
+    /// first composing and constraining a value that is then thrown away.
+    /// Constraints are applied by updateWorldTransform, once, afterwards.
+    virtual void composeWorldTransform();
     virtual void updateWorldTransform();
     void markTransformDirty();
 

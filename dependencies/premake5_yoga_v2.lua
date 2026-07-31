@@ -1,7 +1,7 @@
 dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
-yoga = dependency.github('rive-app/yoga', 'rive_changes_v2_0_1_2')
+yoga = dependency.github('rive-app/yoga', 'rive_changes_v2_0_1_2_grid')
 
 newoption({
     trigger = 'no-yoga-renames',
@@ -37,6 +37,8 @@ do
         yoga .. '/yoga/Yoga.cpp',
         yoga .. '/yoga/event/event.cpp',
         yoga .. '/yoga/log.cpp',
+        yoga .. '/yoga/YGGridTrackList.cpp',
+        yoga .. '/yoga/grid/GridLayout.cpp',
     })
 
     filter({ 'options:not no-yoga-renames' })
