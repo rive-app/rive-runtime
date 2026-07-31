@@ -705,6 +705,9 @@ def unreal_engine_args(target, name):
     engine_args = [UNREAL_RHI_SWITCHES[rhi]]
     if suffix in UNREAL_INTERLOCK_OVERRIDES:
         engine_args.append("-riveRenderOverride=%s" % UNREAL_INTERLOCK_OVERRIDES[suffix])
+    extra_args = os.getenv("RIVE_EXTRA_UNREAL_ARGS")
+    if extra_args:
+        engine_args.extend(extra_args.split())
     return engine_args
 
 def package_unreal_project():
