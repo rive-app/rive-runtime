@@ -163,6 +163,15 @@ ScriptedProperty::~ScriptedProperty() { dispose(); }
 
 ScriptedPropertyViewModel::~ScriptedPropertyViewModel() { dispose(); }
 
+void ScriptedProperty::clearCachedValueRef()
+{
+    if (m_cachedValueRef != 0)
+    {
+        lua_unref(m_state, m_cachedValueRef);
+        m_cachedValueRef = 0;
+    }
+}
+
 void ScriptedProperty::clearListeners()
 {
     for (auto itr = m_listeners.begin(); itr != m_listeners.end(); ++itr)
@@ -232,11 +241,13 @@ void ScriptedProperty::dispose()
         m_instanceValue = nullptr;
     }
 
+    clearCachedValueRef();
     clearListeners();
 }
 
 void ScriptedProperty::valueChanged()
 {
+    clearCachedValueRef();
     if (m_listeners.empty())
     {
         return;
@@ -1304,6 +1315,11 @@ void ScriptedPropertyImage::setValue(ScriptedImage* scriptedImage)
 
 int ScriptedPropertyImage::pushValue()
 {
+    if (m_cachedValueRef != 0)
+    {
+        lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_cachedValueRef);
+        return 1;
+    }
     if (m_instanceValue)
     {
         auto vmi = m_instanceValue->as<ViewModelInstanceAssetImage>();
@@ -1363,6 +1379,7 @@ int ScriptedPropertyImage::pushValue()
             // ore headers are visible.
             auto scriptedImage = ScriptedImage::luaNew(m_state);
             scriptedImage->image = ref_rcp(renderImage);
+            m_cachedValueRef = lua_ref(m_state, -1);
             return 1;
         }
     }
@@ -1388,6 +1405,11 @@ void ScriptedPropertyFont::setValue(ScriptedFont* scriptedFont)
 
 int ScriptedPropertyFont::pushValue()
 {
+    if (m_cachedValueRef != 0)
+    {
+        lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_cachedValueRef);
+        return 1;
+    }
     if (m_instanceValue)
     {
         auto vmi = m_instanceValue->as<ViewModelInstanceAssetFont>();
@@ -1437,6 +1459,7 @@ int ScriptedPropertyFont::pushValue()
         {
             auto scriptedFont = lua_newrive<ScriptedFont>(m_state);
             scriptedFont->font = ref_rcp(font);
+            m_cachedValueRef = lua_ref(m_state, -1);
             return 1;
         }
     }
@@ -1461,6 +1484,11 @@ void ScriptedPropertyBlob::setValue(BlobAsset* blob)
 
 int ScriptedPropertyBlob::pushValue()
 {
+    if (m_cachedValueRef != 0)
+    {
+        lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_cachedValueRef);
+        return 1;
+    }
     if (m_instanceValue)
     {
         auto vmi = m_instanceValue->as<ViewModelInstanceAssetBlob>();
@@ -1512,6 +1540,7 @@ int ScriptedPropertyBlob::pushValue()
         {
             auto scriptedBlob = lua_newrive<ScriptedBlob>(m_state);
             scriptedBlob->asset = fileAsset;
+            m_cachedValueRef = lua_ref(m_state, -1);
             return 1;
         }
     }

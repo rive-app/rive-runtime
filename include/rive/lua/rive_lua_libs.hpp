@@ -1215,6 +1215,8 @@ private:
 protected:
     lua_State* m_state;
     rcp<ViewModelInstanceValue> m_instanceValue;
+    int m_cachedValueRef = 0;
+    void clearCachedValueRef();
 };
 
 class ScriptedViewModel

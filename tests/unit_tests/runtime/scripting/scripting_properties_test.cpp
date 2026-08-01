@@ -21,7 +21,11 @@
 #include <rive/viewmodel/viewmodel_instance_list.hpp>
 #include <rive/viewmodel/viewmodel_instance_list_item.hpp>
 #include <rive/viewmodel/viewmodel_instance_asset_blob.hpp>
+#include <rive/viewmodel/viewmodel_instance_asset_image.hpp>
+#include <rive/viewmodel/viewmodel_instance_asset_font.hpp>
 #include <rive/assets/blob_asset.hpp>
+#include <rive/renderer.hpp>
+#include <rive/text/font_hb.hpp>
 #include <rive/simple_array.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/nested_artboard.hpp"
@@ -967,6 +971,153 @@ end
     lua_pushinteger(L, 0);
     CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
     CHECK(luaL_checknumber(L, -1) == Approx('a'));
+    lua_pop(L, 1);
+}
+
+// Reading `prop.value` twice with no change in between returns the SAME Blob
+// object (stable identity), so scripts can detect changes with the natural
+// `newVal ~= oldVal`. After the underlying value changes, the next read returns
+// a different object.
+TEST_CASE("Scripted blob property value has stable identity across reads",
+          "[scripting_properties]")
+{
+    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+    auto initial = make_rcp<BlobAsset>();
+    {
+        std::vector<uint8_t> data = {1, 2, 3};
+        SimpleArray<uint8_t> bytes(data.data(), data.size());
+        initial->decode(bytes, nullptr);
+    }
+    vmiBlob->value(initial.get());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function sameAcrossReads(): boolean
+    local a = blobProp.value
+    local b = blobProp.value
+    return a == b
+end
+function changesAfterWrite(): boolean
+    local a = blobProp.value
+    blobProp.value = "zzzz"
+    local b = blobProp.value
+    return a ~= b
+end
+)TEST_SRC");
+    auto L = vm.state();
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    lua_setglobal(L, "blobProp");
+
+    // Two reads with no change in between yield the same object.
+    lua_getglobal(L, "sameAcrossReads");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // A write invalidates the cache, so the next read is a fresh object.
+    lua_getglobal(L, "changesAfterWrite");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+}
+
+// Same stable-identity guarantee for image properties: two `.value` reads with
+// no change in between return the same userdata, and after the underlying value
+// changes the next read returns a different object.
+TEST_CASE("Scripted image property value has stable identity across reads",
+          "[scripting_properties]")
+{
+    auto vmiImage = make_rcp<ViewModelInstanceAssetImage>();
+    auto imageA = make_rcp<RenderImage>();
+    vmiImage->value(imageA.get());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+local saved
+function sameAcrossReads(): boolean
+    local a = imageProp.value
+    local b = imageProp.value
+    return a == b
+end
+function capture()
+    saved = imageProp.value
+end
+function differsFromSaved(): boolean
+    return imageProp.value ~= saved
+end
+)TEST_SRC");
+    auto L = vm.state();
+    lua_newrive<ScriptedPropertyImage>(L, L, vmiImage);
+    lua_setglobal(L, "imageProp");
+
+    // Two reads with no change in between yield the same object.
+    lua_getglobal(L, "sameAcrossReads");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // Capture the current wrapper, then change the underlying value.
+    lua_getglobal(L, "capture");
+    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+
+    auto imageB = make_rcp<RenderImage>();
+    vmiImage->value(imageB.get()); // fires valueChanged -> cache invalidated
+
+    // The next read is a fresh object, so identity differs from the saved one.
+    lua_getglobal(L, "differsFromSaved");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+}
+
+// And for font properties.
+TEST_CASE("Scripted font property value has stable identity across reads",
+          "[scripting_properties]")
+{
+    auto fontBytes = ReadFile("assets/kablammo.ttf");
+    auto fontA = HBFont::Decode(fontBytes);
+    REQUIRE(fontA != nullptr);
+
+    auto vmiFont = make_rcp<ViewModelInstanceAssetFont>();
+    vmiFont->value(fontA.get());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+local saved
+function sameAcrossReads(): boolean
+    local a = fontProp.value
+    local b = fontProp.value
+    return a == b
+end
+function capture()
+    saved = fontProp.value
+end
+function differsFromSaved(): boolean
+    return fontProp.value ~= saved
+end
+)TEST_SRC");
+    auto L = vm.state();
+    lua_newrive<ScriptedPropertyFont>(L, L, vmiFont);
+    lua_setglobal(L, "fontProp");
+
+    // Two reads with no change in between yield the same object.
+    lua_getglobal(L, "sameAcrossReads");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // Capture the current wrapper, then change the underlying value.
+    lua_getglobal(L, "capture");
+    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+
+    auto fontB = HBFont::Decode(fontBytes); // a distinct Font instance
+    REQUIRE(fontB != nullptr);
+    vmiFont->value(fontB.get()); // fires valueChanged -> cache invalidated
+
+    // The next read is a fresh object, so identity differs from the saved one.
+    lua_getglobal(L, "differsFromSaved");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1));
     lua_pop(L, 1);
 }
 
