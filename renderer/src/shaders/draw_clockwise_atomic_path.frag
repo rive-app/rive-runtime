@@ -364,10 +364,8 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     paintColor.rgb *= paintColor.a;
 
 #ifdef @ENABLE_DITHER
-    if (@ENABLE_DITHER)
-    {
-        paintColor.rgb += dither;
-    }
+    paintColor.rgb =
+        add_dither_if_alpha_nonzero(paintColor.rgb, paintColor.a, dither);
 #endif
 
     // Since blend is enabled, storing 0 to the clip will ensure it remains

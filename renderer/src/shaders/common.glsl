@@ -308,18 +308,48 @@ INLINE half get_dither(float2 fragCoord, half scale, half bias)
                           : .0;
 }
 
-INLINE half3 add_dither(half3 color, float2 fragCoord, half scale, half bias)
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         float2 fragCoord,
+                                         half scale,
+                                         half bias)
 {
-    return @ENABLE_DITHER
+    // Skip dither at alpha == 0, where src-over is an identity on an already
+    // quantized destination -- there is no rounding to randomize, and the noise
+    // would land in the framebuffer undiluted. It only varies with fragCoord,
+    // so that error accumulates with overdraw rather than averaging out.
+    return (@ENABLE_DITHER && alpha != .0)
                ? (interleaved_gradient_noise(fragCoord, scale, bias) + color)
                : color;
 }
 
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         half precomputedDither)
+{
+    // Skip dither at alpha == 0, where src-over is an identity on an already
+    // quantized destination -- there is no rounding to randomize, and the noise
+    // would land in the framebuffer undiluted. It only varies with fragCoord,
+    // so that error accumulates with overdraw rather than averaging out.
+    return (@ENABLE_DITHER && alpha != .0) ? (precomputedDither + color)
+                                           : color;
+}
 #else
 
 INLINE half get_dither(float2 fragCoord, float scale, float bias) { return 0.; }
 
-INLINE half3 add_dither(half3 color, float2 fragCoord, half scale, half bias)
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         float2 fragCoord,
+                                         half scale,
+                                         half bias)
+{
+    return color;
+}
+
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         half precomputedDither)
 {
     return color;
 }

@@ -210,12 +210,14 @@ PLS_MAIN(@drawFragmentMain)
         }
 #endif
 
-        color += dstColorPremul * (1. - color.a);
-
-        color.rgb = add_dither(color.rgb,
-                               _fragCoord.xy,
-                               uniforms.ditherScale,
-                               uniforms.ditherBias);
+        // Save paint alpha before destructively updating it with the dstColor.
+        half paintAlpha = color.a;
+        color += dstColorPremul * (1. - paintAlpha);
+        color.rgb = add_dither_if_alpha_nonzero(color.rgb,
+                                                paintAlpha,
+                                                _fragCoord.xy,
+                                                uniforms.ditherScale,
+                                                uniforms.ditherBias);
 
         PLS_STORE4F(colorBuffer, color);
         PLS_PRESERVE_UI(clipBuffer);

@@ -793,10 +793,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                           FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
     }
 
-    fragColorOut.rgb = add_dither(fragColorOut.rgb,
-                                  _fragCoord.xy,
-                                  uniforms.ditherScale,
-                                  uniforms.ditherBias);
+    fragColorOut.rgb = add_dither_if_alpha_nonzero(fragColorOut.rgb,
+                                                   fragColorOut.a,
+                                                   _fragCoord.xy,
+                                                   uniforms.ditherScale,
+                                                   uniforms.ditherBias);
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
@@ -883,10 +884,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                           FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
     }
 
-    fragColorOut.rgb = add_dither(fragColorOut.rgb,
-                                  _fragCoord.xy,
-                                  uniforms.ditherScale,
-                                  uniforms.ditherBias);
+    fragColorOut.rgb = add_dither_if_alpha_nonzero(fragColorOut.rgb,
+                                                   fragColorOut.a,
+                                                   _fragCoord.xy,
+                                                   uniforms.ditherScale,
+                                                   uniforms.ditherBias);
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
@@ -1000,10 +1002,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     // blending pipeline.
     fragColorOut = fragColorOut * (1. - imageColor.a) + imageColor;
 
-    fragColorOut.rgb = add_dither(fragColorOut.rgb,
-                                  _fragCoord.xy,
-                                  uniforms.ditherScale,
-                                  uniforms.ditherBias);
+    fragColorOut.rgb = add_dither_if_alpha_nonzero(fragColorOut.rgb,
+                                                   fragColorOut.a,
+                                                   _fragCoord.xy,
+                                                   uniforms.ditherScale,
+                                                   uniforms.ditherBias);
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else
@@ -1083,10 +1086,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     EMIT_PLS_AND_FRAG_COLOR
 #else
 
-    fragColorOut.rgb = add_dither(fragColorOut.rgb,
-                                  _fragCoord.xy,
-                                  uniforms.ditherScale,
-                                  uniforms.ditherBias);
+    fragColorOut.rgb = add_dither_if_alpha_nonzero(fragColorOut.rgb,
+                                                   fragColorOut.a,
+                                                   _fragCoord.xy,
+                                                   uniforms.ditherScale,
+                                                   uniforms.ditherBias);
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
 #else

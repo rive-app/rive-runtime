@@ -78,7 +78,6 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     // Src-over blending is enabled, so just premultiply and let the HW
     // finish the the the alpha portion of the blend mode.
     color.rgb *= color.a;
-    // clang-format off
 #endif
 
     // Certain platforms give us less control of the format of what we are
@@ -92,10 +91,12 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
 #endif
 
-    color.rgb = add_dither(color.rgb,
-                           _fragCoord.xy,
-                           uniforms.ditherScale,
-                           uniforms.ditherBias);
+    color.rgb = add_dither_if_alpha_nonzero(color.rgb,
+                                            color.a,
+                                            _fragCoord.xy,
+                                            uniforms.ditherScale,
+                                            uniforms.ditherBias);
+
     EMIT_FRAG_DATA(color);
 }
 

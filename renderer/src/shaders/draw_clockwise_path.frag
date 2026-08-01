@@ -200,10 +200,8 @@ PLS_MAIN(@drawFragmentMain)
         // equivalent to applying the c0 -> c1 coverage delta.
         paintColor *= incremental_clockwise_coverage(c0, c1, paintColor.a);
 #ifdef @ENABLE_DITHER
-        if (@ENABLE_DITHER)
-        {
-            paintColor.rgb += dither;
-        }
+        paintColor.rgb =
+            add_dither_if_alpha_nonzero(paintColor.rgb, paintColor.a, dither);
 #endif
 #ifndef @DRAW_INTERIOR_TRIANGLES
         // Update the coverage buffer with our final value if we aren't an
