@@ -1189,6 +1189,9 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                 case ViewModelPropertyAssetFontBase::typeKey:
                     viewModelInstanceValue = new ViewModelInstanceAssetFont();
                     break;
+                case ViewModelPropertyAssetBlobBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceAssetBlob();
+                    break;
                 case ViewModelPropertySymbolListIndexBase::typeKey:
                     viewModelInstanceValue =
                         new ViewModelInstanceSymbolListIndex();
@@ -1382,7 +1385,6 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
 {
     if (artboard == nullptr)
     {
-        fprintf(stderr, "Invalid Artboard\n");
         return nullptr;
     }
     if ((size_t)artboard->viewModelId() < m_ViewModels.size())

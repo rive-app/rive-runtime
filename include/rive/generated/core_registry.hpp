@@ -315,6 +315,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_blob.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
@@ -332,6 +333,7 @@
 #include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/viewmodel/viewmodel_property_artboard.hpp"
 #include "rive/viewmodel/viewmodel_property_asset.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_blob.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -382,6 +384,10 @@ public:
                 return new ViewModelInstanceEnum();
             case ViewModelPropertySymbolListIndexBase::typeKey:
                 return new ViewModelPropertySymbolListIndex();
+            case ViewModelInstanceAssetBase::typeKey:
+                return new ViewModelInstanceAsset();
+            case ViewModelInstanceAssetBlobBase::typeKey:
+                return new ViewModelInstanceAssetBlob();
             case ViewModelInstanceArtboardBase::typeKey:
                 return new ViewModelInstanceArtboard();
             case ViewModelInstanceStringBase::typeKey:
@@ -402,6 +408,8 @@ public:
                 return new ViewModelPropertyViewModel();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
+            case ViewModelPropertyAssetBlobBase::typeKey:
+                return new ViewModelPropertyAssetBlob();
             case ViewModelPropertyBooleanBase::typeKey:
                 return new ViewModelPropertyBoolean();
             case ViewModelPropertyColorBase::typeKey:
@@ -418,8 +426,6 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
-            case ViewModelInstanceAssetBase::typeKey:
-                return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetFontBase::typeKey:
                 return new ViewModelInstanceAssetFont();
             case ViewModelPropertyStringBase::typeKey:
@@ -959,6 +965,9 @@ public:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceEnumBase>()->propertyValue(value);
                 break;
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
+                break;
             case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceArtboardBase>()->propertyValue(
                     value);
@@ -990,9 +999,6 @@ public:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceSymbolListIndexBase>()
                     ->propertyValue(value);
-                break;
-            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
-                object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
                 break;
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceViewModelBase>()->propertyValue(
@@ -3208,6 +3214,9 @@ public:
                 return object->as<ViewModelPropertyEnumCustomBase>()->enumId();
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceEnumBase>()->propertyValue();
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceAssetBase>()
+                    ->propertyValue();
             case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceArtboardBase>()
                     ->propertyValue();
@@ -3231,9 +3240,6 @@ public:
                     ->propertyValue();
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceSymbolListIndexBase>()
-                    ->propertyValue();
-            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
-                return object->as<ViewModelInstanceAssetBase>()
                     ->propertyValue();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceViewModelBase>()
@@ -4477,6 +4483,7 @@ public:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
             case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
             case ViewModelBase::viewModelTypePropertyKey:
@@ -4487,7 +4494,6 @@ public:
             case ViewModelInstanceListBase::listSourcePropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
-            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
@@ -5094,6 +5100,8 @@ public:
                 return object->is<ViewModelPropertyEnumCustomBase>();
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceEnumBase>();
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceAssetBase>();
             case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceArtboardBase>();
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
@@ -5113,8 +5121,6 @@ public:
                 return object->is<ViewModelInstanceTriggerBase>();
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceSymbolListIndexBase>();
-            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
-                return object->is<ViewModelInstanceAssetBase>();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceViewModelBase>();
             case CustomPropertyTriggerBase::propertyValuePropertyKey:

@@ -47,6 +47,9 @@ enum class DataType : unsigned int
     /// Asset Font.
     assetFont = 13,
 
+    /// Asset Blob.
+    assetBlob = 14,
+
     /// Special case, this type is used to indicate it uses the input type.
     input = 99,
 

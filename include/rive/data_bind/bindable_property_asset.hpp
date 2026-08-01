@@ -3,14 +3,15 @@
 #include "rive/generated/data_bind/bindable_property_asset_base.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/font_asset.hpp"
+#include "rive/assets/blob_asset.hpp"
 #include "rive/text_engine.hpp"
 #include <stdio.h>
 namespace rive
 {
-// A single bindable asset property that can carry either a live image or a live
-// font. Only one is populated for a given bind (determined by the bound asset
-// kind); the other stays empty. The asset id is carried by the
-// BindablePropertyId base regardless of kind.
+// A single bindable asset property that can carry a live image, font, or blob.
+// Only one is populated for a given bind (determined by the bound asset kind);
+// the others stay empty. The asset id is carried by the BindablePropertyId base
+// regardless of kind.
 class BindablePropertyAsset : public BindablePropertyAssetBase
 {
 public:
@@ -28,10 +29,17 @@ public:
     rcp<FontAsset> fontFileAsset() { return m_fontAsset; }
     void fontValue(Font* font) { m_fontAsset->font(ref_rcp(font)); }
     Font* fontValue() { return m_fontAsset->font().get(); }
+    rcp<BlobAsset> blobFileAsset() { return m_blobAsset; }
+    void blobValue(BlobAsset* blob)
+    {
+        m_blobAsset = blob == nullptr ? nullptr : ref_rcp(blob);
+    }
+    BlobAsset* blobValue() { return m_blobAsset.get(); }
 
 private:
     rcp<ImageAsset> m_fileAsset = nullptr;
     rcp<FontAsset> m_fontAsset = nullptr;
+    rcp<BlobAsset> m_blobAsset = nullptr;
 };
 } // namespace rive
 

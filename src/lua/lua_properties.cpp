@@ -13,6 +13,8 @@
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_font.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_font.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_blob.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_blob.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
@@ -118,6 +120,14 @@ static void pushViewModelInstanceValue(lua_State* L,
                 L,
                 L,
                 ref_rcp(propValue->as<ViewModelInstanceAssetFont>()));
+            break;
+        }
+        case ViewModelInstanceAssetBlobBase::typeKey:
+        {
+            lua_newrive<ScriptedPropertyBlob>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceAssetBlob>()));
             break;
         }
         default:
@@ -512,6 +522,11 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                     break;
                 case ViewModelPropertyAssetFontBase::typeKey:
                     lua_newrive<ScriptedPropertyFont>(m_state,
+                                                      m_state,
+                                                      nullptr);
+                    break;
+                case ViewModelPropertyAssetBlobBase::typeKey:
+                    lua_newrive<ScriptedPropertyBlob>(m_state,
                                                       m_state,
                                                       nullptr);
                     break;
@@ -911,6 +926,14 @@ static int vm_namecall(lua_State* L)
                 return vm->pushValue(name,
                                      ViewModelInstanceAssetFontBase::typeKey);
             }
+            case (int)LuaAtoms::getBlob:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name,
+                                     ViewModelInstanceAssetBlobBase::typeKey);
+            }
             case (int)LuaAtoms::instance:
             case (int)LuaAtoms::newAtom:
             {
@@ -988,6 +1011,9 @@ static int property_namecall(lua_State* L)
                 break;
             case ScriptedPropertyFont::luaTag:
                 name = ScriptedPropertyFont::luaName;
+                break;
+            case ScriptedPropertyBlob::luaTag:
+                name = ScriptedPropertyBlob::luaName;
                 break;
             default:
                 luaL_typeerror(L, 1, name);
@@ -1411,6 +1437,81 @@ int ScriptedPropertyFont::pushValue()
         {
             auto scriptedFont = lua_newrive<ScriptedFont>(m_state);
             scriptedFont->font = ref_rcp(font);
+            return 1;
+        }
+    }
+    lua_pushnil(m_state);
+    return 1;
+}
+
+ScriptedPropertyBlob::ScriptedPropertyBlob(
+    lua_State* L,
+    rcp<ViewModelInstanceAssetBlob> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+void ScriptedPropertyBlob::setValue(BlobAsset* blob)
+{
+    if (!m_instanceValue)
+    {
+        return;
+    }
+    m_instanceValue->as<ViewModelInstanceAssetBlob>()->value(blob);
+}
+
+int ScriptedPropertyBlob::pushValue()
+{
+    if (m_instanceValue)
+    {
+        auto vmi = m_instanceValue->as<ViewModelInstanceAssetBlob>();
+        rcp<FileAsset> fileAsset = nullptr;
+        // A non-null asset means the blob was set directly on the instance
+        // (e.g. `prop.value = ...` from a script), including a legitimately
+        // empty blob. A null asset means the value is id-bound (or unset) —
+        // resolve it through the file registry.
+        if (auto asset = vmi->asset())
+        {
+            fileAsset = asset;
+        }
+        if (fileAsset == nullptr && owner() != nullptr)
+        {
+            if (auto scriptAsset = owner()->scriptAsset())
+            {
+                if (auto file = scriptAsset->file())
+                {
+                    auto candidate = file->asset(vmi->propertyValue());
+                    if (candidate != nullptr && candidate->is<BlobAsset>())
+                    {
+                        fileAsset = candidate;
+                    }
+                }
+            }
+        }
+#ifdef WITH_RIVE_TOOLS
+        // Editor/Dart path: when the property is constructed without a
+        // ScriptedObject owner, reach the File through the ViewModel.
+        if (fileAsset == nullptr && owner() == nullptr)
+        {
+            if (auto vmInstance = vmi->viewModelInstance())
+            {
+                if (auto viewModel = vmInstance->viewModel())
+                {
+                    if (auto file = viewModel->file())
+                    {
+                        auto candidate = file->asset(vmi->propertyValue());
+                        if (candidate != nullptr && candidate->is<BlobAsset>())
+                        {
+                            fileAsset = candidate;
+                        }
+                    }
+                }
+            }
+        }
+#endif
+        if (fileAsset != nullptr)
+        {
+            auto scriptedBlob = lua_newrive<ScriptedBlob>(m_state);
+            scriptedBlob->asset = fileAsset;
             return 1;
         }
     }
@@ -1842,6 +1943,81 @@ static int property_font_newindex(lua_State* L)
     return 0;
 }
 
+static int property_blob_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyBlob = lua_torive<ScriptedPropertyBlob>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            assert(propertyBlob->state() == L);
+            return propertyBlob->pushValue();
+        default:
+            return 0;
+    }
+}
+
+static int property_blob_newindex(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto propertyBlob = lua_torive<ScriptedPropertyBlob>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+        {
+            if (lua_isnil(L, 3))
+            {
+                propertyBlob->setValue(nullptr);
+                break;
+            }
+            // Accept raw bytes (a Luau buffer or a string) and build a blob, or
+            // an existing Blob userdata.
+            if (lua_isbuffer(L, 3))
+            {
+                size_t len = 0;
+                void* data = lua_tobuffer(L, 3, &len);
+                auto blobAsset = make_rcp<BlobAsset>();
+                SimpleArray<uint8_t> bytes((const uint8_t*)data, len);
+                blobAsset->decode(bytes, nullptr);
+                propertyBlob->setValue(blobAsset.get());
+                break;
+            }
+            if (lua_type(L, 3) == LUA_TSTRING)
+            {
+                size_t len = 0;
+                const char* data = lua_tolstring(L, 3, &len);
+                auto blobAsset = make_rcp<BlobAsset>();
+                SimpleArray<uint8_t> bytes((const uint8_t*)data, len);
+                blobAsset->decode(bytes, nullptr);
+                propertyBlob->setValue(blobAsset.get());
+                break;
+            }
+            auto blob = lua_torive<ScriptedBlob>(L, 3);
+            propertyBlob->setValue(blob->asset ? blob->asset->as<BlobAsset>()
+                                               : nullptr);
+            break;
+        }
+        default:
+            return 0;
+    }
+
+    return 0;
+}
+
 static int vm_eq(lua_State* L)
 {
     auto lhs = lua_torive<ScriptedViewModel>(L, 1);
@@ -2039,6 +2215,22 @@ int luaopen_rive_properties(lua_State* L)
         lua_setfield(L, -2, "__index");
 
         lua_pushcfunction(L, property_font_newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    {
+        lua_register_rive<ScriptedPropertyBlob>(L);
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_pushcfunction(L, property_blob_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, property_blob_newindex, nullptr);
         lua_setfield(L, -2, "__newindex");
 
         lua_setreadonly(L, -1, true);

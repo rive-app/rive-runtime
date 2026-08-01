@@ -20,6 +20,9 @@
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
 #include <rive/viewmodel/viewmodel_instance_list.hpp>
 #include <rive/viewmodel/viewmodel_instance_list_item.hpp>
+#include <rive/viewmodel/viewmodel_instance_asset_blob.hpp>
+#include <rive/assets/blob_asset.hpp>
+#include <rive/simple_array.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/nested_artboard.hpp"
 #include "utils/serializing_factory.hpp"
@@ -891,4 +894,168 @@ TEST_CASE("Reset detached view model instances at end of frame", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("reset_shared_viewmodel_instance_test"));
+}
+
+// Fixture-free coverage of ScriptedPropertyBlob: a script can read the byte
+// count and bytes out of a bound blob property and write new bytes back into
+// it.
+TEST_CASE("Scripted blob property reads and writes bytes",
+          "[scripting_properties]")
+{
+    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+    auto initial = make_rcp<BlobAsset>();
+    {
+        std::vector<uint8_t> data = {10, 20, 30};
+        SimpleArray<uint8_t> bytes(data.data(), data.size());
+        initial->decode(bytes, nullptr);
+    }
+    vmiBlob->value(initial.get());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function readSize(prop)
+    local v = prop.value
+    if v then return v.size end
+    return -1
+end
+function readByte(prop, i)
+    local v = prop.value
+    if v and v.data then
+        return buffer.readu8(v.data, i)
+    end
+    return -1
+end
+function writeBytes(prop, s)
+    prop.value = s
+end
+)TEST_SRC");
+    auto L = vm.state();
+
+    // Initial size is 3.
+    lua_getglobal(L, "readSize");
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(luaL_checknumber(L, -1) == Approx(3));
+    lua_pop(L, 1);
+
+    // First byte is 10.
+    lua_getglobal(L, "readByte");
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    lua_pushinteger(L, 0);
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    CHECK(luaL_checknumber(L, -1) == Approx(10));
+    lua_pop(L, 1);
+
+    // Write four bytes from a string.
+    lua_getglobal(L, "writeBytes");
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    lua_pushstring(L, "abcd");
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+
+    REQUIRE(vmiBlob->asset() != nullptr);
+    CHECK(vmiBlob->asset()->bytes().size() == 4);
+
+    // The script now sees the updated bytes.
+    lua_getglobal(L, "readSize");
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(luaL_checknumber(L, -1) == Approx(4));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "readByte");
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    lua_pushinteger(L, 0);
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    CHECK(luaL_checknumber(L, -1) == Approx('a'));
+    lua_pop(L, 1);
+}
+
+// A script can addListener on a blob property and the callback fires when the
+// blob changes (regression: blob's luaTag was missing from property_namecall,
+// so :addListener threw a type error).
+TEST_CASE("Scripted blob property fires listeners on change",
+          "[scripting_properties]")
+{
+    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+    auto initial = make_rcp<BlobAsset>();
+    {
+        std::vector<uint8_t> data = {1};
+        SimpleArray<uint8_t> bytes(data.data(), data.size());
+        initial->decode(bytes, nullptr);
+    }
+    vmiBlob->value(initial.get());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+local count = 0
+function attach()
+    blobProp:addListener(changed)
+end
+function changed(prop)
+    count += 1
+end
+function getCount(): number
+    return count
+end
+function writeBytes(s)
+    blobProp.value = s
+end
+)TEST_SRC");
+    auto L = vm.state();
+
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    lua_setglobal(L, "blobProp");
+
+    // addListener must not throw for a blob property.
+    lua_getglobal(L, "attach");
+    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+
+    // Changing the value fires the listener.
+    lua_getglobal(L, "writeBytes");
+    lua_pushstring(L, "abcd");
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    lua_getglobal(L, "getCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(luaL_checknumber(L, -1) == Approx(1));
+    lua_pop(L, 1);
+}
+
+// A runtime-set empty blob (`prop.value = ""`) is a real value: reading it back
+// yields a Blob with size 0, not nil (regression: an empty asset used to be
+// treated as id-bound and resolved away to nil).
+TEST_CASE("Scripted blob property preserves a runtime-set empty blob",
+          "[scripting_properties]")
+{
+    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function writeEmpty()
+    blobProp.value = ""
+end
+function readSize(): number
+    local v = blobProp.value
+    if v then
+        return v.size
+    end
+    return -1
+end
+)TEST_SRC");
+    auto L = vm.state();
+    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+    lua_setglobal(L, "blobProp");
+
+    lua_getglobal(L, "writeEmpty");
+    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+
+    // The instance holds a non-null, zero-byte blob (a runtime value).
+    REQUIRE(vmiBlob->asset() != nullptr);
+    CHECK(vmiBlob->asset()->bytes().empty());
+
+    // The script sees a Blob with size 0, not nil.
+    lua_getglobal(L, "readSize");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(luaL_checknumber(L, -1) == Approx(0));
+    lua_pop(L, 1);
 }

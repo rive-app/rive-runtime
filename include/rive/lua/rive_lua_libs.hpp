@@ -173,6 +173,7 @@ enum class LuaAtoms : int16_t
     getIndex,
     getImage,
     getFont,
+    getBlob,
     values,
     addListener,
     removeListener,
@@ -1412,6 +1413,20 @@ public:
 
     int pushValue();
     void setValue(ScriptedFont* scriptedFont);
+};
+
+class ViewModelInstanceAssetBlob;
+class BlobAsset;
+class ScriptedPropertyBlob : public ScriptedProperty
+{
+public:
+    ScriptedPropertyBlob(lua_State* L, rcp<ViewModelInstanceAssetBlob> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 67;
+    static constexpr const char* luaName = "Property<Blob>";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(BlobAsset* blob);
 };
 
 // Make

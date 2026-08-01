@@ -16,6 +16,7 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_asset_image_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_asset_font_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_asset_blob_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_artboard_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_list_index_runtime.hpp"
 #include "rive/refcnt.hpp"
@@ -53,6 +54,8 @@ public:
     ViewModelInstanceAssetImageRuntime* propertyImage(
         const std::string& path) const;
     ViewModelInstanceAssetFontRuntime* propertyFont(
+        const std::string& path) const;
+    ViewModelInstanceAssetBlobRuntime* propertyBlob(
         const std::string& path) const;
     ViewModelInstanceArtboardRuntime* propertyArtboard(
         const std::string& path) const;

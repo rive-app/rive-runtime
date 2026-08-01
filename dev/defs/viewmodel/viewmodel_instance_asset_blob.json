@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelInstanceAssetBlob",
+  "key": {
+    "int": 1044,
+    "string": "viewmodelinstanceassetblob"
+  },
+  "extends": "viewmodel/viewmodel_instance_asset.json"
+}

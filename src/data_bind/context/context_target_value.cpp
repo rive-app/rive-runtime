@@ -3,6 +3,7 @@
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/data_bind/data_values/data_value_asset_font.hpp"
+#include "rive/data_bind/data_values/data_value_asset_blob.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
@@ -67,6 +68,12 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
                          ViewModelInstanceAssetFontBase::typeKey)
             {
                 m_targetValue = new DataValueAssetFont();
+            }
+            else if (dataBind->source() != nullptr &&
+                     dataBind->source()->coreType() ==
+                         ViewModelInstanceAssetBlobBase::typeKey)
+            {
+                m_targetValue = new DataValueAssetBlob();
             }
             else if (dataBind->source() != nullptr &&
                      dataBind->source()->coreType() ==
@@ -194,6 +201,17 @@ bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
                     {
                         m_targetValue->as<DataValueAssetFont>()->fontValue(
                             font);
+                        didChange = true;
+                    }
+                }
+                else if (m_targetValue->is<DataValueAssetBlob>())
+                {
+                    auto blob = bindableAsset->blobValue();
+                    if (blob !=
+                        m_targetValue->as<DataValueAssetBlob>()->blobValue())
+                    {
+                        m_targetValue->as<DataValueAssetBlob>()->blobValue(
+                            blob);
                         didChange = true;
                     }
                 }

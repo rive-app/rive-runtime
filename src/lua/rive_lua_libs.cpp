@@ -120,6 +120,7 @@ constexpr LuaAtomName atoms[] = {
     {"getIndex", (int16_t)LuaAtoms::getIndex},
     {"getImage", (int16_t)LuaAtoms::getImage},
     {"getFont", (int16_t)LuaAtoms::getFont},
+    {"getBlob", (int16_t)LuaAtoms::getBlob},
     {"values", (int16_t)LuaAtoms::values},
     {"addListener", (int16_t)LuaAtoms::addListener},
     {"removeListener", (int16_t)LuaAtoms::removeListener},

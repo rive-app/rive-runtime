@@ -120,6 +120,9 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
                     case DataType::assetFont:
                         return viewModelInstanceRuntime->propertyFont(
                             propertyName);
+                    case DataType::assetBlob:
+                        return viewModelInstanceRuntime->propertyBlob(
+                            propertyName);
                     case DataType::artboard:
                         return viewModelInstanceRuntime->propertyArtboard(
                             propertyName);
@@ -364,6 +367,22 @@ ViewModelInstanceAssetFontRuntime* ViewModelInstanceRuntime::propertyFont(
         return viewModelInstance
             ->getPropertyInstance<ViewModelInstanceAssetFont,
                                   ViewModelInstanceAssetFontRuntime>(
+                propertyName);
+    }
+    return nullptr;
+}
+
+ViewModelInstanceAssetBlobRuntime* ViewModelInstanceRuntime::propertyBlob(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceAssetBlob,
+                                  ViewModelInstanceAssetBlobRuntime>(
                 propertyName);
     }
     return nullptr;

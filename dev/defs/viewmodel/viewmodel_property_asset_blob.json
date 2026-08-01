@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelPropertyAssetBlob",
+  "key": {
+    "int": 1043,
+    "string": "viewmodelpropertyassetblob"
+  },
+  "extends": "viewmodel/viewmodel_property_asset.json"
+}
