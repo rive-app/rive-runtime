@@ -15,6 +15,7 @@ void ForegroundLayoutDrawable::buildDependencies()
     auto parentLayout = (parent()->as<LayoutComponent>());
     if (parentLayout != nullptr)
     {
+        parentLayout->registerForegroundDrawable();
         for (auto paint : m_ShapePaints)
         {
             paint->blendMode(parentLayout->blendMode());

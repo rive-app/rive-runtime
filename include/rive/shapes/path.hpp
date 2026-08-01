@@ -51,6 +51,13 @@ public:
                                                   const Vec2D& toNext,
                                                   float radius);
 
+    static void addRoundedRect(RawPath& rawPath,
+                               const AABB& bounds,
+                               float topLeft,
+                               float topRight,
+                               float bottomRight,
+                               float bottomLeft);
+
     Shape* shape() const { return m_Shape; }
     StatusCode onAddedClean(CoreContext* context) override;
     void buildDependencies() override;

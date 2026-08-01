@@ -12,10 +12,10 @@
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/node.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/shapes/path.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/stroke.hpp"
-#include "rive/shapes/rectangle.hpp"
 #include "rive/solo.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/layout/layout_component_style.hpp"
@@ -447,8 +447,6 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
         return code;
     }
     markLayoutStyleDirty();
-    m_backgroundRect.originX(0);
-    m_backgroundRect.originY(0);
     syncLayoutChildren();
     propagateCollapse(isCollapsed());
     return StatusCode::Ok;
@@ -491,33 +489,40 @@ void LayoutComponent::updateRenderPath()
     {
         return;
     }
-    m_backgroundRect.width(m_layout.width());
-    m_backgroundRect.height(m_layout.height());
+    if (m_ShapePaints.empty() && !clip() && !m_hasForegroundDrawable)
+    {
+        return;
+    }
+    float tl = 0.0f, tr = 0.0f, br = 0.0f, bl = 0.0f;
     if (style() != nullptr)
     {
-        bool isLTR = actualDirection() != LayoutDirection::rtl;
-        auto linkedValue = style()->cornerRadiusTL();
-        auto tl = isLTR ? style()->cornerRadiusTL() : style()->cornerRadiusTR();
-        auto tr = isLTR ? style()->cornerRadiusTR() : style()->cornerRadiusTL();
-        auto bl = isLTR ? style()->cornerRadiusBL() : style()->cornerRadiusBR();
-        auto br = isLTR ? style()->cornerRadiusBR() : style()->cornerRadiusBL();
-        m_backgroundRect.linkCornerRadius(style()->linkCornerRadius());
-        m_backgroundRect.cornerRadiusTL(
-            style()->linkCornerRadius() ? linkedValue : tl);
-        m_backgroundRect.cornerRadiusTR(
-            style()->linkCornerRadius() ? linkedValue : tr);
-        m_backgroundRect.cornerRadiusBL(
-            style()->linkCornerRadius() ? linkedValue : bl);
-        m_backgroundRect.cornerRadiusBR(
-            style()->linkCornerRadius() ? linkedValue : br);
+        const bool isLTR = actualDirection() != LayoutDirection::rtl;
+        if (style()->linkCornerRadius())
+        {
+            tl = tr = br = bl = style()->cornerRadiusTL();
+        }
+        else
+        {
+            tl = isLTR ? style()->cornerRadiusTL() : style()->cornerRadiusTR();
+            tr = isLTR ? style()->cornerRadiusTR() : style()->cornerRadiusTL();
+            bl = isLTR ? style()->cornerRadiusBL() : style()->cornerRadiusBR();
+            br = isLTR ? style()->cornerRadiusBR() : style()->cornerRadiusBL();
+        }
     }
-    m_backgroundRect.update(ComponentDirt::Path);
+
+    m_backgroundRawPath.rewind();
+    Path::addRoundedRect(m_backgroundRawPath,
+                         AABB{0.0f, 0.0f, m_layout.width(), m_layout.height()},
+                         tl,
+                         tr,
+                         br,
+                         bl);
 
     m_localPath.rewind();
-    m_localPath.addPath(m_backgroundRect.rawPath());
+    m_localPath.addPath(m_backgroundRawPath);
 
     m_worldPath.rewind(false, FillRule::clockwise);
-    m_worldPath.addPath(m_backgroundRect.rawPath(), &m_WorldTransform);
+    m_worldPath.addPath(m_backgroundRawPath, &m_WorldTransform);
 
     for (auto shapePaint : m_ShapePaints)
     {
@@ -1605,7 +1610,11 @@ LayoutComponent::~LayoutComponent()
 #endif
 }
 
-void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }
+void LayoutComponent::clipChanged()
+{
+    markLayoutNodeDirty();
+    addDirt(ComponentDirt::Path);
+}
 void LayoutComponent::widthChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::heightChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::styleIdChanged() { markLayoutNodeDirty(); }

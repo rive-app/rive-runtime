@@ -11,6 +11,7 @@
 #include "rive/bones/root_bone.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/math/transform_components.hpp"
+#include "rive/shapes/path.hpp"
 
 #include <math.h>
 #include <stdio.h>

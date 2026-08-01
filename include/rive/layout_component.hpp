@@ -8,7 +8,6 @@
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/layout/layout_style_applier.hpp"
 #include "rive/math/raw_path.hpp"
-#include "rive/shapes/rectangle.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/layout/layout_enums.hpp"
@@ -116,7 +115,7 @@ protected:
         LayoutStyleInterpolation::hold;
     float m_inheritedInterpolationTime = 0;
     LayoutDirection m_inheritedDirection = LayoutDirection::inherit;
-    Rectangle m_backgroundRect;
+    RawPath m_backgroundRawPath;
     ShapePaintPath m_localPath;
     ShapePaintPath m_worldPath;
     DrawableProxy m_proxy;
@@ -160,6 +159,7 @@ private:
     bool m_forceUpdateLayoutBounds = false;
     bool m_positionLeftChanged = true;
     bool m_positionTopChanged = true;
+    bool m_hasForegroundDrawable = false;
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
@@ -260,7 +260,6 @@ public:
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
     bool hasShapePaints() const { return m_ShapePaints.size() > 0; }
-    const Rectangle* backgroundRect() const { return &m_backgroundRect; }
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
@@ -330,6 +329,7 @@ public:
         bool shouldForceUpdateLayoutBounds = false) override;
     void markLayoutStyleDirty();
     void clipChanged() override;
+    void registerForegroundDrawable() { m_hasForegroundDrawable = true; }
     void widthChanged() override;
     void heightChanged() override;
     void styleIdChanged() override;
