@@ -84,6 +84,7 @@ void TextValueRunListener::markDirty() { m_text->markShapeDirty(); }
 
 void TextValueRunListener::createProperties()
 {
+    CoreObjectListener::createProperties();
     createPropertyListener(SymbolType::textStyle);
     createPropertyListener(SymbolType::textContent);
 }
