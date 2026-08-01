@@ -11,6 +11,7 @@
 #include "rive/semantic/semantic_state.hpp"
 #include "rive/semantic/semantic_trait.hpp"
 #include "common/render_context_null.hpp"
+#include <algorithm>
 #include <fstream>
 
 namespace rive
@@ -94,6 +95,7 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 
 #include "catch.hpp"
 #include <rive/assets/audio_asset.hpp>
+#include <rive/assets/blob_asset.hpp>
 #include <rive/assets/file_asset.hpp>
 #include <rive/assets/font_asset.hpp>
 #include <rive/assets/image_asset.hpp>
@@ -1416,39 +1418,54 @@ TEST_CASE("External Resources", "[CommandQueue]")
     CHECK(externalAudio);
     CHECK(externalFont);
 
+    rcp<BlobAsset> externalBlob = make_rcp<BlobAsset>();
+    std::vector<uint8_t> blobData = {1, 2, 3, 4, 5};
+    SimpleArray<uint8_t> blobBytes(blobData.data(), blobData.size());
+    externalBlob->decode(blobBytes, nullptr);
+
     RenderImageHandle externalImageHandle =
         commandQueue->addExternalImage(externalImage);
     AudioSourceHandle externalAudioHandle =
         commandQueue->addExternalAudio(externalAudio);
     FontHandle externalFontHandle = commandQueue->addExternalFont(externalFont);
+    BlobAssetHandle externalBlobHandle =
+        commandQueue->addExternalBlob(externalBlob);
 
     commandQueue->runOnce([externalImageHandle,
                            externalImage,
                            externalAudioHandle,
                            externalAudio,
                            externalFontHandle,
-                           externalFont](CommandServer* server) {
+                           externalFont,
+                           externalBlobHandle,
+                           externalBlob](CommandServer* server) {
         auto image = server->getImage(externalImageHandle);
         CHECK(image == externalImage.get());
         auto audio = server->getAudioSource(externalAudioHandle);
         CHECK(audio == externalAudio.get());
         auto font = server->getFont(externalFontHandle);
         CHECK(font == externalFont.get());
+        auto blob = server->getBlob(externalBlobHandle);
+        CHECK(blob == externalBlob.get());
     });
 
     commandQueue->deleteImage(externalImageHandle);
     commandQueue->deleteAudio(externalAudioHandle);
     commandQueue->deleteFont(externalFontHandle);
+    commandQueue->deleteBlob(externalBlobHandle);
 
     commandQueue->runOnce([externalImageHandle,
                            externalAudioHandle,
-                           externalFontHandle](CommandServer* server) {
+                           externalFontHandle,
+                           externalBlobHandle](CommandServer* server) {
         auto image = server->getImage(externalImageHandle);
         CHECK(image == nullptr);
         auto audio = server->getAudioSource(externalAudioHandle);
         CHECK(audio == nullptr);
         auto font = server->getFont(externalFontHandle);
         CHECK(font == nullptr);
+        auto blob = server->getBlob(externalBlobHandle);
+        CHECK(blob == nullptr);
     });
 
     commandQueue->disconnect();
@@ -1482,6 +1499,132 @@ TEST_CASE("RenderImage", "[CommandQueue]")
         auto badImage = server->getImage(badImageHandle);
         CHECK(badImage == nullptr);
     });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("BlobAsset", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::vector<uint8_t> blobData = {0x10, 0x20, 0x30, 0x40};
+    BlobAssetHandle blobHandle = commandQueue->decodeBlob(blobData);
+    // Blobs are raw bytes, so unlike images an empty payload is still valid.
+    BlobAssetHandle emptyBlobHandle =
+        commandQueue->decodeBlob(std::vector<uint8_t>());
+
+    commandQueue->runOnce(
+        [blobHandle, emptyBlobHandle, blobData](CommandServer* server) {
+            auto blob = server->getBlob(blobHandle);
+            CHECK(blob != nullptr);
+            CHECK(blob->bytes().size() == blobData.size());
+            CHECK(std::equal(blobData.begin(),
+                             blobData.end(),
+                             blob->bytes().begin()));
+            auto emptyBlob = server->getBlob(emptyBlobHandle);
+            CHECK(emptyBlob != nullptr);
+            CHECK(emptyBlob->bytes().empty());
+        });
+
+    commandQueue->deleteBlob(blobHandle);
+    commandQueue->deleteBlob(emptyBlobHandle);
+
+    commandQueue->runOnce([blobHandle, emptyBlobHandle](CommandServer* server) {
+        auto blob = server->getBlob(blobHandle);
+        CHECK(blob == nullptr);
+        auto emptyBlob = server->getBlob(emptyBlobHandle);
+        CHECK(emptyBlob == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestBlobAssetListener : public CommandQueue::BlobAssetListener
+{
+public:
+    virtual void onBlobAssetDecoded(const BlobAssetHandle handle,
+                                    uint64_t requestId) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(!m_hasDecodedCallback);
+        m_hasDecodedCallback = true;
+    }
+
+    virtual void onBlobAssetError(const BlobAssetHandle handle,
+                                  uint64_t requestId,
+                                  std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(error.size());
+        CHECK(!m_hasErrorCallback);
+        m_hasErrorCallback = true;
+    }
+
+    virtual void onBlobAssetDeleted(const BlobAssetHandle handle,
+                                    uint64_t requestId) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(requestId == m_deleteRequestId);
+        CHECK(!m_hasDeletedCallback);
+        m_hasDeletedCallback = true;
+    }
+
+    BlobAssetHandle m_handle = RIVE_NULL_HANDLE;
+    uint64_t m_requestId = 0x10;
+    uint64_t m_deleteRequestId = 0x11;
+    bool m_hasDecodedCallback = false;
+    bool m_hasErrorCallback = false;
+    bool m_hasDeletedCallback = false;
+};
+
+TEST_CASE("blob asset listener callbacks", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestBlobAssetListener decodeListener;
+    decodeListener.m_handle =
+        commandQueue->decodeBlob(std::vector<uint8_t>{1, 2, 3},
+                                 &decodeListener,
+                                 decodeListener.m_requestId);
+
+    rcp<BlobAsset> externalBlob = make_rcp<BlobAsset>();
+    TestBlobAssetListener externalListener;
+    externalListener.m_handle =
+        commandQueue->addExternalBlob(externalBlob,
+                                      &externalListener,
+                                      externalListener.m_requestId);
+
+    // A null external blob should report an error.
+    TestBlobAssetListener errorListener;
+    errorListener.m_handle =
+        commandQueue->addExternalBlob(nullptr,
+                                      &errorListener,
+                                      errorListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(decodeListener.m_hasDecodedCallback);
+    CHECK(externalListener.m_hasDecodedCallback);
+    CHECK(!errorListener.m_hasDecodedCallback);
+    CHECK(errorListener.m_hasErrorCallback);
+
+    commandQueue->deleteBlob(decodeListener.m_handle,
+                             decodeListener.m_deleteRequestId);
+    commandQueue->deleteBlob(externalListener.m_handle,
+                             externalListener.m_deleteRequestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(decodeListener.m_hasDeletedCallback);
+    CHECK(externalListener.m_hasDeletedCallback);
 
     commandQueue->disconnect();
     serverThread.join();
@@ -2653,6 +2796,182 @@ TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
     commandQueue->processMessages();
 
     CHECK(tester.m_receivedErrors == tester.m_expectedErrors);
+
+    commandQueue->disconnect();
+}
+
+class ViewModelBlobPropertyListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          uint64_t requestId,
+                                          std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
+    virtual void onViewModelDataReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(data.metaData.type == DataType::assetBlob);
+        CHECK(data.metaData.name == "xml");
+        ++m_receivedCallbacks;
+    }
+
+    ViewModelInstanceHandle m_handle;
+    size_t m_expectedErrors = 0;
+    size_t m_receivedErrors = 0;
+    int m_receivedCallbacks = 0;
+};
+
+TEST_CASE("View Model Blob Property Set", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_blob_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ViewModelBlobPropertyListener tester;
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    tester.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &tester);
+
+    // Blobs don't have a "get" equivalent so we test them with a run once
+    // directly.
+    std::vector<uint8_t> blobData = {0xA, 0xB, 0xC};
+    auto blobHandle = commandQueue->decodeBlob(blobData);
+    commandQueue->setViewModelInstanceBlob(tester.m_handle, "xml", blobHandle);
+
+    commandQueue->runOnce([blobHandle, blobData, handle = tester.m_handle](
+                              CommandServer* server) {
+        auto blob = server->getBlob(blobHandle);
+        CHECK(blob != nullptr);
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto blobProperty = viewModel->propertyBlob("xml");
+        CHECK(blobProperty != nullptr);
+        CHECK(blobProperty->testing_value() == blob);
+        CHECK(blob->bytes().size() == blobData.size());
+    });
+
+    // A deleted (unknown) blob handle should report an error and leave the
+    // property untouched.
+    auto deletedBlobHandle = commandQueue->decodeBlob(blobData);
+    commandQueue->deleteBlob(deletedBlobHandle);
+    commandQueue->setViewModelInstanceBlob(tester.m_handle,
+                                           "xml",
+                                           deletedBlobHandle);
+    ++tester.m_expectedErrors;
+
+    commandQueue->runOnce(
+        [blobHandle, handle = tester.m_handle](CommandServer* server) {
+            auto blob = server->getBlob(blobHandle);
+            CHECK(blob != nullptr);
+            auto viewModel = server->getViewModelInstance(handle);
+            CHECK(viewModel != nullptr);
+            auto blobProperty = viewModel->propertyBlob("xml");
+            CHECK(blobProperty != nullptr);
+            CHECK(blobProperty->testing_value() == blob);
+        });
+
+    // Bad property path.
+    commandQueue->setViewModelInstanceBlob(tester.m_handle, "Blah", blobHandle);
+    ++tester.m_expectedErrors;
+
+    // Setting a null blob handle should clear the property.
+    commandQueue->setViewModelInstanceBlob(tester.m_handle,
+                                           "xml",
+                                           RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([handle = tester.m_handle](CommandServer* server) {
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto blobProperty = viewModel->propertyBlob("xml");
+        CHECK(blobProperty != nullptr);
+        CHECK(blobProperty->testing_value() == nullptr);
+    });
+
+    // Setting on a deleted view model instance should report an error.
+    commandQueue->deleteViewModelInstance(tester.m_handle);
+    commandQueue->setViewModelInstanceBlob(tester.m_handle, "xml", blobHandle);
+    ++tester.m_expectedErrors;
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(tester.m_expectedErrors == tester.m_receivedErrors);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("View Model Blob Property Subscription", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    // Same-thread server so the subscription pass at the end of
+    // processCommands is deterministic.
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_blob_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ViewModelBlobPropertyListener tester;
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    tester.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &tester);
+
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "xml",
+                                               DataType::assetBlob);
+
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Bad property",
+                                               DataType::assetBlob);
+    ++tester.m_expectedErrors;
+
+    commandQueue->runOnce([](CommandServer* server) {
+        auto subs = server->testing_getSubsciptions();
+        CHECK(subs.size() == 1);
+    });
+
+    auto blobHandle = commandQueue->decodeBlob(std::vector<uint8_t>{1, 2, 3});
+    commandQueue->setViewModelInstanceBlob(tester.m_handle, "xml", blobHandle);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(tester.m_receivedCallbacks == 1);
+
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "xml",
+                                                 DataType::assetBlob);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        auto subs = server->testing_getSubsciptions();
+        CHECK(subs.empty());
+    });
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(tester.m_expectedErrors == tester.m_receivedErrors);
 
     commandQueue->disconnect();
 }
@@ -5050,6 +5369,19 @@ public:
     FontHandle m_handle;
 };
 
+class GlobalBlobAssetListener : public CommandQueue::BlobAssetListener
+{
+public:
+    virtual void onBlobAssetError(const BlobAssetHandle,
+                                  uint64_t requestId,
+                                  std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onBlobAssetDeleted, BlobAssetHandle, 21);
+
+    BlobAssetHandle m_handle;
+};
+
 class GlobalArtboardListener : public CommandQueue::ArtboardListener
 {
 public:
@@ -5153,6 +5485,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     GlobalFontListener globalFontListener;
     GlobalAudioSourceListener globalAudioSourceListener;
     GlobalRenderImageListener globalRenderImageListener;
+    GlobalBlobAssetListener globalBlobAssetListener;
     GlobalFileListener globalFileListener;
 
     auto commandQueue = make_rcp<CommandQueue>();
@@ -5166,6 +5499,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     commandQueue->setGlobalViewModelInstanceListener(
         &globalViewModelInstanceListener);
     commandQueue->setGlobalFontListener(&globalFontListener);
+    commandQueue->setGlobalBlobAssetListener(&globalBlobAssetListener);
 
     std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
     FileHandle fileHandle = commandQueue->loadFile(
@@ -5192,6 +5526,8 @@ TEST_CASE("global Listener", "[CommandQueue]")
     auto font = commandQueue->decodeFont(
         std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
 
+    auto blobAsset = commandQueue->decodeBlob(std::vector<uint8_t>{1, 2, 3});
+
     globalFileListener.m_handle = fileHandle;
     globalFileListener.m_artboardHandle = artboardHandle;
     globalFileListener.m_viewModelInstanceHandle = viewModel;
@@ -5202,6 +5538,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     globalRenderImageListener.m_handle = renderImage;
     globalAudioSourceListener.m_handle = audioSource;
     globalFontListener.m_handle = font;
+    globalBlobAssetListener.m_handle = blobAsset;
 
     // 1 is create file or fileLoaded callback
     commandQueue->requestArtboardNames(fileHandle, 2);
@@ -5228,6 +5565,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     commandQueue->deleteImage(renderImage, 8);
     commandQueue->deleteFile(fileHandle, 7);
     commandQueue->deleteAudio(audioSource, 9);
+    commandQueue->deleteBlob(blobAsset, 21);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
@@ -5261,6 +5599,7 @@ TEST_CASE("global Listener", "[CommandQueue]")
     CHECK_CALLBACK(globalFontListener, onFontDeleted);
     CHECK_CALLBACK(globalAudioSourceListener, onAudioSourceDeleted);
     CHECK_CALLBACK(globalRenderImageListener, onRenderImageDeleted);
+    CHECK_CALLBACK(globalBlobAssetListener, onBlobAssetDeleted);
 
     commandQueue->disconnect();
     serverThread.join();

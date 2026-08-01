@@ -6,6 +6,7 @@
 
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/assets/audio_asset.hpp"
+#include "rive/assets/blob_asset.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/script_asset.hpp"
@@ -227,6 +228,9 @@ std::ostream& operator<<(std::ostream& os, DataType t)
         case DataType::assetImage:
             os << "Asset Image";
             break;
+        case DataType::assetBlob:
+            os << "Asset Blob";
+            break;
         default:
             os << "Unknown DataType";
             break;
@@ -391,6 +395,13 @@ Font* CommandServer::getFont(FontHandle handle) const
     return it != m_fonts.end() ? it->second.get() : nullptr;
 }
 
+BlobAsset* CommandServer::getBlob(BlobAssetHandle handle) const
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    auto it = m_blobs.find(handle);
+    return it != m_blobs.end() ? it->second.get() : nullptr;
+}
+
 ArtboardInstance* CommandServer::getArtboardInstance(
     ArtboardHandle handle) const
 {
@@ -522,6 +533,7 @@ void CommandServer::checkPropertySubscriptions()
                         // These don't have values but are still valid
                         // subscriptions.
                         case DataType::assetImage:
+                        case DataType::assetBlob:
                         case DataType::trigger:
                         case DataType::list:
                             break;
@@ -589,6 +601,7 @@ void CommandServer::checkPropertySubscriptions()
                     switch (data.metaData.type)
                     {
                         case DataType::assetImage:
+                        case DataType::assetBlob:
                         case DataType::trigger:
                         case DataType::list:
                             break;
@@ -836,6 +849,88 @@ bool CommandServer::processCommands()
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
                 messageStream << CommandQueue::Message::imageDeleted;
+                messageStream << handle;
+                messageStream << requestId;
+                break;
+            }
+
+            case CommandQueue::Command::decodeBlob:
+            {
+                BlobAssetHandle handle;
+                uint64_t requestId;
+                std::vector<uint8_t> bytes;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_byteVectors >> bytes;
+                lock.unlock();
+
+                auto blob = make_rcp<BlobAsset>();
+                SimpleArray<uint8_t> blobBytes(bytes.data(), bytes.size());
+                if (blob->decode(blobBytes, m_factory))
+                {
+                    m_blobs[handle] = std::move(blob);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::blobDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
+                }
+                else
+                {
+                    ErrorReporter<BlobAssetHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::blobError)
+                        << "Command Server failed to decode blob";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::externalBlob:
+            {
+                BlobAssetHandle handle;
+                uint64_t requestId;
+                rcp<BlobAsset> blob;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_externalBlobs >> blob;
+                lock.unlock();
+
+                if (blob)
+                {
+                    m_blobs[handle] = std::move(blob);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::blobDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
+                }
+                else
+                {
+                    ErrorReporter<BlobAssetHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::blobError)
+                        << "External blob was empty";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::deleteBlob:
+            {
+                BlobAssetHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                m_blobs.erase(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                messageStream << CommandQueue::Message::blobDeleted;
                 messageStream << handle;
                 messageStream << requestId;
                 break;
@@ -2935,6 +3030,7 @@ bool CommandServer::processCommands()
                 ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
                 ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
                 RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
+                BlobAssetHandle blobHandle = RIVE_NULL_HANDLE;
                 ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
                 uint64_t requestId;
                 CommandQueue::ViewModelInstanceData value;
@@ -2967,6 +3063,9 @@ bool CommandServer::processCommands()
                         break;
                     case DataType::assetImage:
                         commandStream >> imageHandle;
+                        break;
+                    case DataType::assetBlob:
+                        commandStream >> blobHandle;
                         break;
                     case DataType::artboard:
                         commandStream >> artboardHandle;
@@ -3214,6 +3313,46 @@ bool CommandServer::processCommands()
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find "
                                        "image property at path "
+                                    << value.metaData.name;
+                            }
+                            break;
+                        }
+                        case DataType::assetBlob:
+                        {
+                            if (auto blobProperty =
+                                    viewModelInstance->propertyBlob(
+                                        value.metaData.name))
+                            {
+                                if (blobHandle == RIVE_NULL_HANDLE)
+                                {
+                                    blobProperty->value(nullptr);
+                                }
+                                else if (auto blob = getBlob(blobHandle))
+                                {
+                                    blobProperty->value(blob);
+                                }
+                                else
+                                {
+                                    ErrorReporter<ViewModelInstanceHandle>(
+                                        this,
+                                        handle,
+                                        requestId,
+                                        CommandQueue::Message::viewModelError)
+                                        << "Could not find blob " << blobHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
+                                        << value.metaData.name;
+                                }
+                            }
+                            else
+                            {
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    requestId,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find "
+                                       "blob property at path "
                                     << value.metaData.name;
                             }
                             break;

@@ -463,6 +463,20 @@ void CommandQueue::setViewModelInstanceImage(ViewModelInstanceHandle handle,
     m_names << path;
 }
 
+void CommandQueue::setViewModelInstanceBlob(ViewModelInstanceHandle handle,
+                                            std::string path,
+                                            BlobAssetHandle value,
+                                            uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::assetBlob;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
 void CommandQueue::setViewModelInstanceArtboard(ViewModelInstanceHandle handle,
                                                 std::string path,
                                                 ArtboardHandle value,
@@ -953,6 +967,60 @@ void CommandQueue::deleteFont(FontHandle handle, uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteFont;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
+BlobAssetHandle CommandQueue::decodeBlob(std::vector<uint8_t> blobBytes,
+                                         BlobAssetListener* listener,
+                                         uint64_t requestId)
+{
+    auto handle =
+        reinterpret_cast<BlobAssetHandle>(++m_currentBlobAssetHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::decodeBlob;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_byteVectors << std::move(blobBytes);
+    return handle;
+}
+
+BlobAssetHandle CommandQueue::addExternalBlob(rcp<BlobAsset> externalBlob,
+                                              BlobAssetListener* listener,
+                                              uint64_t requestId)
+{
+    auto handle =
+        reinterpret_cast<BlobAssetHandle>(++m_currentBlobAssetHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::externalBlob;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_externalBlobs << std::move(externalBlob);
+    return handle;
+}
+
+void CommandQueue::deleteBlob(BlobAssetHandle handle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::deleteBlob;
     m_commandStream << handle;
     m_commandStream << requestId;
 }
@@ -1673,6 +1741,7 @@ void CommandQueue::processMessages()
                 switch (value.metaData.type)
                 {
                     case DataType::assetImage:
+                    case DataType::assetBlob:
                     case DataType::list:
                     case DataType::trigger:
                         break;
@@ -1996,6 +2065,42 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+            case Message::blobDecoded:
+            {
+                BlobAssetHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalBlobListener)
+                {
+                    m_globalBlobListener->onBlobAssetDecoded(handle, requestId);
+                }
+                auto itr = m_blobListeners.find(handle);
+                if (itr != m_blobListeners.end())
+                {
+                    itr->second->onBlobAssetDecoded(handle, requestId);
+                }
+                break;
+            }
+            case Message::blobDeleted:
+            {
+                BlobAssetHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalBlobListener)
+                {
+                    m_globalBlobListener->onBlobAssetDeleted(handle, requestId);
+                }
+                auto itr = m_blobListeners.find(handle);
+                if (itr != m_blobListeners.end())
+                {
+                    itr->second->onBlobAssetDeleted(handle, requestId);
+                }
+                break;
+            }
             case Message::artboardDeleted:
             {
                 ArtboardHandle handle;
@@ -2259,6 +2364,31 @@ void CommandQueue::processMessages()
                     itr->second->onFontError(handle,
                                              requestId,
                                              std::move(error));
+                }
+                break;
+            }
+
+            case Message::blobError:
+            {
+                BlobAssetHandle handle;
+                uint64_t requestId;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageNames >> error;
+                lock.unlock();
+                if (m_globalBlobListener)
+                {
+                    m_globalBlobListener->onBlobAssetError(handle,
+                                                           requestId,
+                                                           error);
+                }
+                auto itr = m_blobListeners.find(handle);
+                if (itr != m_blobListeners.end())
+                {
+                    itr->second->onBlobAssetError(handle,
+                                                  requestId,
+                                                  std::move(error));
                 }
                 break;
             }

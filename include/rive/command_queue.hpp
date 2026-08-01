@@ -49,6 +49,7 @@ RIVE_DEFINE_HANDLE(FileHandle);
 RIVE_DEFINE_HANDLE(ArtboardHandle);
 RIVE_DEFINE_HANDLE(AudioSourceHandle);
 RIVE_DEFINE_HANDLE(RenderImageHandle);
+RIVE_DEFINE_HANDLE(BlobAssetHandle);
 RIVE_DEFINE_HANDLE(StateMachineHandle);
 RIVE_DEFINE_HANDLE(ViewModelInstanceHandle);
 RIVE_DEFINE_HANDLE(DrawKey);
@@ -243,6 +244,24 @@ public:
         {}
 
         virtual void onFontDeleted(const FontHandle, uint64_t requestId) {}
+    };
+
+    class BlobAssetListener
+        : public CommandQueue::ListenerBase<BlobAssetListener, BlobAssetHandle>
+    {
+    public:
+        virtual void onBlobAssetDecoded(const BlobAssetHandle,
+                                        uint64_t requestId)
+        {}
+
+        virtual void onBlobAssetError(const BlobAssetHandle,
+                                      uint64_t requestId,
+                                      std::string error)
+        {}
+
+        virtual void onBlobAssetDeleted(const BlobAssetHandle,
+                                        uint64_t requestId)
+        {}
     };
 
     class ArtboardListener
@@ -522,6 +541,10 @@ public:
                                    std::string path,
                                    RenderImageHandle value,
                                    uint64_t requestId = 0);
+    void setViewModelInstanceBlob(ViewModelInstanceHandle,
+                                  std::string path,
+                                  BlobAssetHandle value,
+                                  uint64_t requestId = 0);
     void setViewModelInstanceArtboard(ViewModelInstanceHandle,
                                       std::string path,
                                       ArtboardHandle value,
@@ -724,6 +747,16 @@ public:
 
     void deleteFont(FontHandle, uint64_t requestId = 0);
 
+    BlobAssetHandle decodeBlob(std::vector<uint8_t> blobBytes,
+                               BlobAssetListener* listener = nullptr,
+                               uint64_t requestId = 0);
+
+    BlobAssetHandle addExternalBlob(rcp<BlobAsset> externalBlob,
+                                    BlobAssetListener* listener = nullptr,
+                                    uint64_t requestId = 0);
+
+    void deleteBlob(BlobAssetHandle, uint64_t requestId = 0);
+
     // Create unique draw key for draw.
     DrawKey createDrawKey();
 
@@ -850,6 +883,10 @@ public:
     {
         m_globalFontListener = listener;
     }
+    void setGlobalBlobAssetListener(BlobAssetListener* listener)
+    {
+        m_globalBlobListener = listener;
+    }
 
 private:
     void registerListener(FileHandle handle, FileListener* listener)
@@ -880,6 +917,13 @@ private:
         assert(listener);
         assert(m_fontListeners.find(handle) == m_fontListeners.end());
         m_fontListeners.insert({handle, listener});
+    }
+
+    void registerListener(BlobAssetHandle handle, BlobAssetListener* listener)
+    {
+        assert(listener);
+        assert(m_blobListeners.find(handle) == m_blobListeners.end());
+        m_blobListeners.insert({handle, listener});
     }
 
     void registerListener(ArtboardHandle handle, ArtboardListener* listener)
@@ -932,6 +976,11 @@ private:
         m_fontListeners.erase(handle);
     }
 
+    void unregisterListener(BlobAssetHandle handle, BlobAssetListener* listener)
+    {
+        m_blobListeners.erase(handle);
+    }
+
     void unregisterListener(ArtboardHandle handle, ArtboardListener* listener)
     {
         m_artboardListeners.erase(handle);
@@ -959,9 +1008,12 @@ private:
         externalAudio,
         decodeFont,
         externalFont,
+        decodeBlob,
+        externalBlob,
         deleteImage,
         deleteAudio,
         deleteFont,
+        deleteBlob,
         addImageFileAsset,
         addAudioFileAsset,
         addFontFileAsset,
@@ -1058,6 +1110,8 @@ private:
         audioDeleted,
         fontDecoded,
         fontDeleted,
+        blobDecoded,
+        blobDeleted,
         artboardDeleted,
         viewModelDeleted,
         stateMachineDeleted,
@@ -1071,6 +1125,7 @@ private:
         imageError,
         audioError,
         fontError,
+        blobError,
         stateMachineError,
         artboardVolumeReceived
     };
@@ -1083,6 +1138,7 @@ private:
     uint64_t m_currentArtboardHandleIdx = 0;
     uint64_t m_currentViewModelHandleIdx = 0;
     uint64_t m_currentRenderImageHandleIdx = 0;
+    uint64_t m_currentBlobAssetHandleIdx = 0;
     uint64_t m_currentAudioSourceHandleIdx = 0;
     uint64_t m_currentStateMachineHandleIdx = 0;
     uint64_t m_currentDrawKeyIdx = 0;
@@ -1093,6 +1149,7 @@ private:
     ObjectStream<rcp<RenderImage>> m_externalImages;
     ObjectStream<rcp<AudioSource>> m_externalAudioSources;
     ObjectStream<rcp<Font>> m_externalFonts;
+    ObjectStream<rcp<BlobAsset>> m_externalBlobs;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
 #ifdef WITH_RIVE_SCRIPTING
     ObjectStream<ScriptingContextFactory> m_scriptingContextFactories;
@@ -1113,6 +1170,7 @@ private:
     RenderImageListener* m_globalImageListener = nullptr;
     AudioSourceListener* m_globalAudioListener = nullptr;
     FontListener* m_globalFontListener = nullptr;
+    BlobAssetListener* m_globalBlobListener = nullptr;
     ArtboardListener* m_globalArtboardListener = nullptr;
     ViewModelInstanceListener* m_globalViewModelListener = nullptr;
     StateMachineListener* m_globalStateMachineListener = nullptr;
@@ -1123,6 +1181,7 @@ private:
     std::unordered_map<AudioSourceHandle, AudioSourceListener*>
         m_audioListeners;
     std::unordered_map<FontHandle, FontListener*> m_fontListeners;
+    std::unordered_map<BlobAssetHandle, BlobAssetListener*> m_blobListeners;
     std::unordered_map<ArtboardHandle, ArtboardListener*> m_artboardListeners;
     std::unordered_map<ViewModelInstanceHandle, ViewModelInstanceListener*>
         m_viewModelListeners;

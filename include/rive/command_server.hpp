@@ -38,6 +38,7 @@ public:
     RenderImage* getImage(RenderImageHandle) const;
     AudioSource* getAudioSource(AudioSourceHandle) const;
     Font* getFont(FontHandle) const;
+    BlobAsset* getBlob(BlobAssetHandle) const;
     ArtboardInstance* getArtboardInstance(ArtboardHandle) const;
     rcp<BindableArtboard> getBindableArtboard(ArtboardHandle) const;
     StateMachineInstance* getStateMachineInstance(StateMachineHandle) const;
@@ -237,6 +238,7 @@ private:
     std::unordered_map<FileHandle, rcp<File>> m_files;
     std::unordered_map<FontHandle, rcp<Font>> m_fonts;
     std::unordered_map<RenderImageHandle, rcp<RenderImage>> m_images;
+    std::unordered_map<BlobAssetHandle, rcp<BlobAsset>> m_blobs;
     std::unordered_map<AudioSourceHandle, rcp<AudioSource>> m_audioSources;
     std::unordered_map<ArtboardHandle, rcp<BindableArtboard>> m_artboards;
     std::unordered_map<ViewModelInstanceHandle, rcp<ViewModelInstanceRuntime>>
