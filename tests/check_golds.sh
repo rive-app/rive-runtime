@@ -1,5 +1,9 @@
 set -e
 
+# Self-hosted boxes run several runner slots with separate workspaces; a
+# shared RIVE_GOLD_DIR keeps one baseline per machine.
+GOLD="${RIVE_GOLD_DIR:-.gold}"
+
 TESTS="gms goldens"
 
 TARGET="host"
@@ -124,6 +128,11 @@ while :; do
 done
 
 open_file() {
+    # Headless CI has no browser; opening the diff report there hangs the runner.
+    if [ -n "$CI" ]; then
+        echo "CI: skipping report open ($1)"
+        return 0
+    fi
     if which start >/dev/null; then # windows
         start $1
     elif which open >/dev/null; then # mac
@@ -158,22 +167,24 @@ do
     if [ "$REBASELINE" == true ]; then
         echo
         echo "Rebaselining $ID..."
-        rm -fr .gold/$ID
-        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD \
+        rm -fr $GOLD/$ID
+        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=$GOLD/$ID --backend=$BACKEND $NO_REBUILD \
             || DEPLOYED=false
     else
         echo
         echo "Deploying $ID..."
-        rm -fr .gold/candidates/$ID
-        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD \
+        rm -fr $GOLD/candidates/$ID
+        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=$GOLD/candidates/$ID --backend=$BACKEND $NO_REBUILD \
             || DEPLOYED=false
 
         if [ "$DEPLOYED" == true ]; then
             echo
             echo "Diffing $ID..."
-            rm -fr .gold/diffs/$ID && mkdir -p .gold/diffs/$ID
-            python3 diff.py $DIFF_ARGS -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
-                || open_file .gold/diffs/$ID/index.html
+            rm -fr $GOLD/diffs/$ID && mkdir -p $GOLD/diffs/$ID
+            if ! python3 diff.py $DIFF_ARGS -g $GOLD/$ID -c $GOLD/candidates/$ID -j$NUMBER_OF_PROCESSORS -o $GOLD/diffs/$ID; then
+                open_file $GOLD/diffs/$ID/index.html
+                FAILED+=("$ID (diff)")
+            fi
         fi
     fi
 
@@ -182,13 +193,13 @@ do
     if [ "$DEPLOYED" != true ]; then
         echo
         echo "FAILED to deploy $ID."
-        FAILED+=("$ID")
+        FAILED+=("$ID (deploy)")
     fi
 done
 
 if [ ${#FAILED[@]} -gt 0 ]; then
     echo
-    echo "${#FAILED[@]} backend(s) failed to deploy:"
+    echo "${#FAILED[@]} backend(s) failed:"
     for ID in "${FAILED[@]}"; do
         echo "    $ID"
     done

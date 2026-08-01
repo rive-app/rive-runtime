@@ -501,7 +501,7 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         unreal_exe_path = os.path.join(dirname, *UNREAL_HOST_PACKAGE)
         return [unreal_exe_path, "/Game/maps/" + toolname] + \
                unreal_engine_args(args.target, args.backend) + \
-               ["-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
+               ["-ResX=1280", "-ResY=720", "-RenderOffScreen"] + cmd[1:]
 
     if args.target == "unreal_android":
         tool_args = ' '.join(["/Game/maps/" + toolname] +
