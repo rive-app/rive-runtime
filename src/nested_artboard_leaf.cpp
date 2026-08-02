@@ -31,8 +31,33 @@ void NestedArtboardLeaf::update(ComponentDirt value)
                           ? p->as<LayoutComponent>()->localBounds()
                           : artboard->bounds();
 
+        auto artboardFit = (Fit)fit();
+        if (artboardFit == Fit::layout)
+        {
+            // Layout fit owns the artboard's size: match the leaf's bounds
+            // and let the artboard's own layout reflow.
+            bool resized = false;
+            if (artboard->width() != bounds.width())
+            {
+                artboard->width(bounds.width());
+                resized = true;
+            }
+            if (artboard->height() != bounds.height())
+            {
+                artboard->height(bounds.height());
+                resized = true;
+            }
+            if (resized)
+            {
+                // The instance advanced before this update ran, so reflow
+                // now or this frame draws the old layout at the new bounds.
+                artboard->syncStyleChangesWithUpdate(true);
+                artboard->updatePass(true);
+            }
+        }
+
         auto viewTransform =
-            computeAlignment((Fit)fit(),
+            computeAlignment(artboardFit,
                              Alignment(alignmentX(), alignmentY()),
                              bounds,
                              artboard->bounds());

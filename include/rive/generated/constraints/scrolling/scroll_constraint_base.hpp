@@ -48,6 +48,8 @@ public:
     static const uint16_t velocityYPropertyKey = 1024;
     static const uint16_t scrollActivePropertyKey = 1025;
     static const uint16_t dragMultiplierPropertyKey = 1029;
+    static const uint16_t computedContentWidthPropertyKey = 1069;
+    static const uint16_t computedContentHeightPropertyKey = 1070;
 
 protected:
     float m_ScrollOffsetX = 0.0f;
@@ -260,6 +262,32 @@ public:
         notifyPropertyChanged(dragMultiplierPropertyKey);
     }
 
+    virtual void setComputedContentWidth(float value) = 0;
+    virtual float computedContentWidth() = 0;
+    void computedContentWidth(float value)
+    {
+        if (computedContentWidth() == value)
+        {
+            return;
+        }
+        setComputedContentWidth(value);
+        computedContentWidthChanged();
+        notifyPropertyChanged(computedContentWidthPropertyKey);
+    }
+
+    virtual void setComputedContentHeight(float value) = 0;
+    virtual float computedContentHeight() = 0;
+    void computedContentHeight(float value)
+    {
+        if (computedContentHeight() == value)
+        {
+            return;
+        }
+        setComputedContentHeight(value);
+        computedContentHeightChanged();
+        notifyPropertyChanged(computedContentHeightPropertyKey);
+    }
+
     Core* clone() const override;
     void copy(const ScrollConstraintBase& object)
     {
@@ -331,6 +359,8 @@ protected:
     virtual void velocityYChanged() {}
     virtual void scrollActiveChanged() {}
     virtual void dragMultiplierChanged() {}
+    virtual void computedContentWidthChanged() {}
+    virtual void computedContentHeightChanged() {}
 };
 } // namespace rive
 

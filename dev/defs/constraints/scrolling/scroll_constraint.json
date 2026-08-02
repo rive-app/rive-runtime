@@ -175,6 +175,28 @@
       },
       "description": "The ratio of pointer movement to scroll movement. Default is 1:1",
       "bindable": true
+    },
+    "computedContentWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 1069,
+        "string": "computedcontentwidth"
+      },
+      "description": "Full content extent along x, including virtualized items.",
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedContentHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 1070,
+        "string": "computedcontentheight"
+      },
+      "description": "Full content extent along y, including virtualized items.",
+      "bindable": true,
+      "passthrough": true
     }
   }
 }

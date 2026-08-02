@@ -1203,12 +1203,16 @@ public:
 
     ViewModelInstanceValue* instanceValue() { return m_instanceValue.get(); }
     ScriptedObject* owner() const { return m_owner; }
+#ifdef WITH_RIVE_TOOLS
+    uint32_t orphanOwnerTag() const { return m_orphanOwnerTag; }
+#endif
 
 private:
     std::vector<ScriptedListener> m_listeners;
     ScriptedObject* m_owner = nullptr;
 #ifdef WITH_RIVE_TOOLS
     ScriptingContext* m_orphanContext = nullptr;
+    uint32_t m_orphanOwnerTag = 0;
 #endif
     bool m_disposed = false;
 
@@ -1696,6 +1700,7 @@ private:
     std::unordered_map<uint32_t, int> m_assetGeneratorRefs;
     bool m_isPlaying = false;
     std::vector<ScriptedProperty*> m_orphanScriptedProperties;
+    uint32_t m_orphanOwnerTag = 0;
 
     // Per-VM RSTB blobs for WGSL shaders compiled during requestVM. Populated
     // by the scripting workspace response phase; looked up by loadShader().
@@ -1711,6 +1716,12 @@ public:
     void trackOrphanScriptedProperty(ScriptedProperty* property);
     void untrackOrphanScriptedProperty(ScriptedProperty* property);
     void disposeOrphanScriptedProperties();
+    // Hosts tag properties created while invoking script callbacks (a
+    // FileFormat view), then dispose that owner's orphans deterministically
+    // when the owner goes away instead of waiting on GC or a VM swap.
+    void orphanOwnerTag(uint32_t tag) { m_orphanOwnerTag = tag; }
+    uint32_t orphanOwnerTag() const { return m_orphanOwnerTag; }
+    void disposeOrphanScriptedProperties(uint32_t tag);
     void registerShaderRstb(std::string name, std::vector<uint8_t> bytes);
     const std::vector<uint8_t>* findShaderRstb(const std::string& name) const;
     const std::vector<uint8_t>* findShaderRstb(

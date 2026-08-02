@@ -2535,6 +2535,13 @@ public:
             case ScrollConstraintBase::dragMultiplierPropertyKey:
                 object->as<ScrollConstraintBase>()->dragMultiplier(value);
                 break;
+            case ScrollConstraintBase::computedContentWidthPropertyKey:
+                object->as<ScrollConstraintBase>()->computedContentWidth(value);
+                break;
+            case ScrollConstraintBase::computedContentHeightPropertyKey:
+                object->as<ScrollConstraintBase>()->computedContentHeight(
+                    value);
+                break;
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 object->as<ElasticScrollPhysicsBase>()->friction(value);
                 break;
@@ -4036,6 +4043,12 @@ public:
                 return object->as<ScrollConstraintBase>()->velocityY();
             case ScrollConstraintBase::dragMultiplierPropertyKey:
                 return object->as<ScrollConstraintBase>()->dragMultiplier();
+            case ScrollConstraintBase::computedContentWidthPropertyKey:
+                return object->as<ScrollConstraintBase>()
+                    ->computedContentWidth();
+            case ScrollConstraintBase::computedContentHeightPropertyKey:
+                return object->as<ScrollConstraintBase>()
+                    ->computedContentHeight();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->as<ElasticScrollPhysicsBase>()->friction();
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
@@ -4838,6 +4851,8 @@ public:
             case ScrollConstraintBase::velocityXPropertyKey:
             case ScrollConstraintBase::velocityYPropertyKey:
             case ScrollConstraintBase::dragMultiplierPropertyKey:
+            case ScrollConstraintBase::computedContentWidthPropertyKey:
+            case ScrollConstraintBase::computedContentHeightPropertyKey:
             case ElasticScrollPhysicsBase::frictionPropertyKey:
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
             case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
@@ -5846,6 +5861,10 @@ public:
             case ScrollConstraintBase::velocityYPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::dragMultiplierPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::computedContentWidthPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::computedContentHeightPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->is<ElasticScrollPhysicsBase>();

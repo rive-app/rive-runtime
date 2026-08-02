@@ -1212,6 +1212,23 @@ void ScriptingContext::disposeOrphanScriptedProperties()
     }
     m_orphanScriptedProperties.clear();
 }
+
+void ScriptingContext::disposeOrphanScriptedProperties(uint32_t tag)
+{
+    if (tag == 0)
+    {
+        return;
+    }
+    // dispose() untracks each property, so iterate a copy.
+    auto orphans = m_orphanScriptedProperties;
+    for (ScriptedProperty* property : orphans)
+    {
+        if (property != nullptr && property->orphanOwnerTag() == tag)
+        {
+            property->dispose();
+        }
+    }
+}
 #endif
 
 void ScriptingContext::trackViewModelInstance(rcp<ViewModelInstance> instance)

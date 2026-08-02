@@ -1,8 +1,20 @@
 {
-    "name": "BlobAsset",
-    "key": {
-        "int": 649,
-        "string": "blobasset"
-    },
-    "extends": "assets/file_asset.json"
+  "name": "BlobAsset",
+  "key": {
+    "int": 649,
+    "string": "blobasset"
+  },
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "formatExtension": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 1044,
+        "string": "blobformatextension"
+      },
+      "description": "File extension without the dot when a FileFormat script claims this blob, e.g. 'glb'. Empty for plain blobs.",
+      "runtime": false
+    }
+  }
 }

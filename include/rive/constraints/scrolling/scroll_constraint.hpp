@@ -108,6 +108,10 @@ public:
         return ScrollPhysicsType(physicsTypeValue());
     }
 
+    bool hasLayoutParent()
+    {
+        return parent() != nullptr && parent()->is<LayoutComponent>();
+    }
     LayoutComponent* content() { return parent()->as<LayoutComponent>(); }
     LayoutComponent* viewport()
     {
@@ -115,6 +119,17 @@ public:
     }
     float contentWidth();
     float contentHeight();
+    // Passthrough properties: binds read the live extents directly.
+    float computedContentWidth() override
+    {
+        return hasLayoutParent() ? contentWidth() : 0.0f;
+    }
+    float computedContentHeight() override
+    {
+        return hasLayoutParent() ? contentHeight() : 0.0f;
+    }
+    void setComputedContentWidth(float value) override {}
+    void setComputedContentHeight(float value) override {}
     float viewportWidth();
     float viewportHeight();
     float visibleWidthRatio();

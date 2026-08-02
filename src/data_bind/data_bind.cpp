@@ -411,7 +411,9 @@ bool DataBind::targetSupportsPush() const
         key == ScrollConstraintBase::scrollPercentYPropertyKey ||
         key == ScrollConstraintBase::velocityXPropertyKey ||
         key == ScrollConstraintBase::velocityYPropertyKey ||
-        key == ScrollConstraintBase::scrollActivePropertyKey)
+        key == ScrollConstraintBase::scrollActivePropertyKey ||
+        key == ScrollConstraintBase::computedContentWidthPropertyKey ||
+        key == ScrollConstraintBase::computedContentHeightPropertyKey)
     {
         return false;
     }

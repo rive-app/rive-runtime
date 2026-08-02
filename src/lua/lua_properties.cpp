@@ -209,6 +209,7 @@ ScriptedProperty::ScriptedProperty(lua_State* L,
         {
             context->trackOrphanScriptedProperty(this);
             m_orphanContext = context;
+            m_orphanOwnerTag = context->orphanOwnerTag();
         }
 #endif
     }
