@@ -2,6 +2,8 @@
  * Copyright 2023 Rive
  */
 
+#if !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
+
 #include "rive/renderer/gl/gles3.hpp"
 
 #include <EGL/egl.h>
@@ -135,3 +137,4 @@ void LoadAndValidateGLESExtensions(GLCapabilities* extensions)
         }
     }
 }
+#endif

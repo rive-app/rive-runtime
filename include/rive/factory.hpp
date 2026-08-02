@@ -69,9 +69,9 @@ public:
     // shifting existing vtable slots.
     virtual ore::Context* ore() { return nullptr; }
 
-    rcp<Font> decodeFont(Span<const uint8_t>);
+    virtual rcp<Font> decodeFont(Span<const uint8_t>);
 
-    rcp<AudioSource> decodeAudio(Span<const uint8_t>);
+    virtual rcp<AudioSource> decodeAudio(Span<const uint8_t>);
 
     // Non-virtual helpers
 
