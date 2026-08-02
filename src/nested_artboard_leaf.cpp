@@ -49,10 +49,9 @@ void NestedArtboardLeaf::update(ComponentDirt value)
             }
             if (resized)
             {
-                // The instance advanced before this update ran, so reflow
-                // now or this frame draws the old layout at the new bounds.
-                artboard->syncStyleChangesWithUpdate(true);
-                artboard->updatePass(true);
+                // The instance already advanced; reflow now or this frame
+                // draws the old layout.
+                artboard->updatePass(false);
             }
         }
 
