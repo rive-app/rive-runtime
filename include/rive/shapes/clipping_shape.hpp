@@ -131,6 +131,9 @@ public:
     ClippingShapeEnd clipEnd;
 
 private:
+    // Folds a shape's fills into m_path, preferring post-effect paths. False
+    // when it contributed nothing.
+    bool addFillPaths(Shape* shape);
     ShapePaintPath m_path;
     ShapePaintPath* m_clipPath = nullptr;
 };

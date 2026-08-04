@@ -20,6 +20,7 @@ public:
     virtual void invalidateEffects(StrokeEffect* invalidatingEffect);
     virtual void invalidateEffects();
     ShapePaintPath* lastEffectPath(PathProvider*);
+    bool hasEffects() const { return !m_effects.empty(); }
 #ifdef TESTING
     StrokeEffect* effect()
     {

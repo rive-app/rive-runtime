@@ -44,12 +44,10 @@ public:
 
     virtual const Mat2D& shapeWorldTransform() const = 0;
 
-#ifdef TESTING
     const std::vector<ShapePaint*>& shapePaints() const
     {
         return m_ShapePaints;
     }
-#endif
 
     virtual ShapePaintPath* worldPath() { return nullptr; }
     virtual ShapePaintPath* localPath() { return nullptr; }

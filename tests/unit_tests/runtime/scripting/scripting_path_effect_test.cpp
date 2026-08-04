@@ -29,3 +29,31 @@ TEST_CASE("Reusing a path in multiple passes works correctly", "[silver]")
 
     CHECK(silver.matches("reuse_path_in_effect"));
 }
+
+TEST_CASE("A clip follows the path effect on its source's fill", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/scripted_path_effect_clip.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Multiple frames: a single one passes even if the clip resolves the
+    // effect once and then freezes, which is how this broke in the editor.
+    for (int i = 0; i < 60; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(1.0f / 60.0f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("scripted_path_effect_clip"));
+}

@@ -4,6 +4,7 @@
 #include "rive/factory.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer.hpp"
+#include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape.hpp"
 
@@ -142,12 +143,61 @@ void ClippingShape::buildDependencies()
     for (auto shape : m_Shapes)
     {
         shape->pathComposer()->addDependent(this);
+        // We read what a fill resolves in its own update, so we sort after it.
+        for (auto paint : shape->shapePaints())
+        {
+            if (paint->is<Fill>() && paint->hasEffects())
+            {
+                paint->addDependent(this);
+            }
+        }
     }
     clipStart.clippingShape(this);
     clipEnd.clippingShape(this);
 }
 
 static Mat2D identity;
+
+// Strokes are skipped: their effect output is a centerline, meaningless filled.
+bool ClippingShape::addFillPaths(Shape* shape)
+{
+    bool addedEffected = false;
+    bool needsRawPath = false;
+    for (auto paint : shape->shapePaints())
+    {
+        if (!paint->is<Fill>())
+        {
+            continue;
+        }
+        auto effected =
+            paint->hasEffects() ? paint->lastEffectPath(paint) : nullptr;
+        if (effected == nullptr)
+        {
+            // No effect: this fill draws the whole shape.
+            needsRawPath = true;
+            continue;
+        }
+        if (!effected->empty())
+        {
+            const Mat2D& world = shape->worldTransform();
+            m_path.addPath(effected, effected->isLocal() ? &world : &identity);
+        }
+        addedEffected = true;
+    }
+
+    if (addedEffected && !needsRawPath)
+    {
+        return true;
+    }
+    auto path = shape->pathComposer()->worldPath();
+    if (path == nullptr)
+    {
+        return addedEffected;
+    }
+    m_path.addPath(path, &identity);
+    return true;
+}
+
 void ClippingShape::update(ComponentDirt value)
 {
     if (hasDirt(value,
@@ -158,14 +208,8 @@ void ClippingShape::update(ComponentDirt value)
         m_clipPath = nullptr;
         for (auto shape : m_Shapes)
         {
-            if (!shape->isEmpty())
+            if (!shape->isEmpty() && addFillPaths(shape))
             {
-                auto path = shape->pathComposer()->worldPath();
-                if (path == nullptr)
-                {
-                    continue;
-                }
-                m_path.addPath(path, &identity);
                 m_clipPath = &m_path;
             }
         }

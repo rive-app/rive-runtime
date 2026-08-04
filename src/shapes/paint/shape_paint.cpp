@@ -202,7 +202,7 @@ void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
 
 void ShapePaint::invalidateEffects() { invalidateEffects(nullptr); }
 
-void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path); }
+void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path, true); }
 
 void ShapePaint::addStrokeEffect(StrokeEffect* effect)
 {
