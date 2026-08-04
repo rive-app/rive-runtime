@@ -31,7 +31,7 @@ public:
 
     uint32_t vendorID() const
     {
-        return m_vk->physicalDeviceProperties().vendorID;
+        return m_vk->physicalDeviceProperties.vendorID;
     }
 
     VkFormat featherAtlasFormat() const { return m_featherAtlasFormat; }

@@ -248,6 +248,9 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                            gpu::ShaderMiscFlags::nestedClipUpdateOnly),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::borrowedCoveragePass),
+        enums::is_flag_set(
+            props.shaderMiscFlags,
+            gpu::ShaderMiscFlags::emulateDynamicColorWriteDisable),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::storeColorClear),
         enums::is_flag_set(props.shaderMiscFlags,
@@ -264,12 +267,13 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(DITHER_SPECIALIZATION_IDX == 7);
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
-    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 9);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 9);
     static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 10);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 11);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 12);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 13);
-    static_assert(SPECIALIZATION_COUNT == 14);
+    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 11);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
+    static_assert(SPECIALIZATION_COUNT == 15);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
     for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
@@ -466,6 +470,35 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                 : VK_SAMPLE_COUNT_1_BIT,
     };
 
+    // Everything bakes except viewport and scissor, unless this pipeline
+    // switches its constituent passes with dynamic state.
+    StackVector<VkDynamicState, 8> dynamicStates;
+    dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+    dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
+    if (vkutil::hasPipelineDynamicState(props.drawType))
+    {
+        // Dynamic state is currently only used for multi-pass path draws, which
+        // toggle depth-write, stencil, cull, and color-write per pass.
+        // NOTE: depthCompareOp stays baked at LESS and stencilReference is a
+        // constant 0x80, so neither is listed here.
+        dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_WRITE_MASK);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_OP);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_CULL_MODE);
+        // NOTE: if VK_EXT_color_write_enable is NOT supported, the shader will
+        // emulate it. See ShaderMiscFlags::emulateDynamicColorWriteDisable.
+        if (m_vk->features.colorWriteEnable)
+        {
+            dynamicStates.push_back(VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT);
+        }
+    }
+    const VkPipelineDynamicStateCreateInfo dynamicState = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = dynamicStates.size(),
+        .pDynamicStates = dynamicStates.data(),
+    };
+
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .stageCount = 2,
@@ -477,9 +510,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                                   ? &depthStencilState
                                   : nullptr,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
-        .pDynamicState = vkutil::hasPipelineDynamicState(props.drawType)
-                             ? &layout::DYNAMIC_PIPELINE_STATE
-                             : &layout::DYNAMIC_VIEWPORT_SCISSOR,
+        .pDynamicState = &dynamicState,
         .layout = *pipelineLayout,
         .renderPass = vkRenderPass,
         .subpass = subpassIndex,

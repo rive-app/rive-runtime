@@ -42,7 +42,6 @@ VulkanContext::VulkanContext(
     instance(instance),
     physicalDevice(physicalDevice_),
     device(device_),
-    features(features_),
 #define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                      \
     CMD(reinterpret_cast<PFN_vk##CMD>(                                         \
         pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
@@ -52,12 +51,25 @@ VulkanContext::VulkanContext(
     CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
         RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
-            m_vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
+            physicalDeviceProperties([this]() {
+                VkPhysicalDeviceProperties props;
+                GetPhysicalDeviceProperties(physicalDevice, &props);
+                return props;
+            }()),
+    features([this, mutableFeatures = features_]() mutable {
+        if (physicalDeviceProperties.vendorID == vkutil::vendors::Qualcomm ||
+            physicalDeviceProperties.vendorID == vkutil::vendors::Imagination)
+        {
+            // We have observed rendering issues on both Adreno and PowerVR when
+            // using VK_EXT_color_write_enable.
+            mutableFeatures.colorWriteEnable = false;
+        }
+        return mutableFeatures;
+    }()),
+    m_vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
 {
-    GetPhysicalDeviceProperties(physicalDevice, &m_physicalDeviceProperties);
-
     // Check that we weren't told the device was more capable than it is
-    assert(m_physicalDeviceProperties.apiVersion >= features.apiVersion &&
+    assert(physicalDeviceProperties.apiVersion >= features.apiVersion &&
            "Supplied API version should not be newer than the physical device");
 
     // VK spec says between D24_S8 and D32_S8, one of them must be supported

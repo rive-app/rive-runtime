@@ -119,6 +119,15 @@ inline bool hasPipelineDynamicState(DrawType drawType)
     return drawType == DrawType::msaaDynamicMidpointFans;
 }
 
+// Feeds the push-constant for ShaderMiscFlags::emulateDynamicColorWriteDisable:
+// One float by which the vertex shader multiplies its paint (1 writes, 0
+// suppresses).
+constexpr static VkPushConstantRange ColorWriteEnablePushConstant = {
+    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+    .offset = 0,
+    .size = sizeof(float),
+};
+
 enum class Mappability
 {
     none,

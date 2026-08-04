@@ -248,27 +248,6 @@ constexpr VkPipelineDynamicStateCreateInfo DYNAMIC_VIEWPORT_SCISSOR = {
     .pDynamicStates = DYNAMIC_VIEWPORT_SCISSOR_VALUES,
 };
 
-// Used by the combined MSAA fast-path fill (msaaDynamicMidpointFans), which
-// switches its three constituent passes with dynamic state on one pipeline.
-// depthCompareOp stays baked at LESS so the depth test keeps culling (Hi-Z);
-// color is suppressed per pass via VK_EXT_color_write_enable, never the depth
-// test. stencilReference is constant (0x80) so it's baked, not listed here.
-constexpr VkDynamicState DYNAMIC_PIPELINE_STATE_VALUES[] = {
-    VK_DYNAMIC_STATE_VIEWPORT,
-    VK_DYNAMIC_STATE_SCISSOR,
-    VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE,
-    VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
-    VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
-    VK_DYNAMIC_STATE_STENCIL_OP,
-    VK_DYNAMIC_STATE_CULL_MODE,
-    VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT,
-};
-constexpr VkPipelineDynamicStateCreateInfo DYNAMIC_PIPELINE_STATE = {
-    .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-    .dynamicStateCount = std::size(DYNAMIC_PIPELINE_STATE_VALUES),
-    .pDynamicStates = DYNAMIC_PIPELINE_STATE_VALUES,
-};
-
 constexpr VkAttachmentReference SINGLE_ATTACHMENT_SUBPASS_REFERENCE = {
     .attachment = 0,
     .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,

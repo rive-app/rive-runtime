@@ -2,6 +2,7 @@
  * Copyright 2025 Rive
  */
 
+#include <algorithm>
 #include <string>
 #include <sstream>
 #include "rive/renderer/vulkan/vkutil.hpp"
@@ -136,7 +137,14 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
     };
 
     m_riveVulkanFeatures = {
-        .apiVersion = findResult->deviceAPIVersion,
+        // The version actually in effect, not the device's ceiling: core
+        // features are only usable when the instance asked for them too, and
+        // the effective version is the lesser of the two.
+        // NOTE: instance.apiVersion() is "opts.idealAPIVersion" verbatim --
+        // clamped only if the loader itself is pre-1.1, never against the
+        // physical device.
+        .apiVersion =
+            std::min(instance.apiVersion(), findResult->deviceAPIVersion),
         .independentBlend = bool(requestedFeatures.independentBlend),
         .fillModeNonSolid = bool(requestedFeatures.fillModeNonSolid),
         .fragmentStoresAndAtomics =

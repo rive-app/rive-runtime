@@ -965,10 +965,9 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_vk(std::move(vk)),
     m_workarounds({
         .maxInstancesPerRenderPass =
-            (m_vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3 &&
-             (m_vk->physicalDeviceProperties().vendorID ==
-                  vkutil::vendors::ARM ||
-              m_vk->physicalDeviceProperties().vendorID ==
+            (m_vk->physicalDeviceProperties.apiVersion < VK_API_VERSION_1_3 &&
+             (m_vk->physicalDeviceProperties.vendorID == vkutil::vendors::ARM ||
+              m_vk->physicalDeviceProperties.vendorID ==
                   vkutil::vendors::Imagination))
                 // Early Mali and PowerVR devices are known to crash when a
                 // single render pass is too complex.
@@ -976,14 +975,14 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
                 : UINT32_MAX,
         // Early Xclipse drivers struggle with our manual msaa resolve, so we
         // always do automatic fullscreen resolves on that GPU family.
-        .avoidManualMSAAResolves = m_vk->physicalDeviceProperties().vendorID ==
-                                   vkutil::vendors::Samsung,
+        .avoidManualMSAAResolves =
+            m_vk->physicalDeviceProperties.vendorID == vkutil::vendors::Samsung,
         // Some Android drivers (some Android 12 and earlier Adreno drivers)
         // have issues with having both a self-dependency for dst reads and
         // resolve attachments. For now we just always manually resolve these
         // render passes that use advanced blend on Qualcomm.
         .needsManualMSAAResolveAfterDstRead =
-            m_vk->physicalDeviceProperties().vendorID ==
+            m_vk->physicalDeviceProperties.vendorID ==
             vkutil::vendors::Qualcomm,
     }),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
@@ -997,7 +996,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_imageDrawInstanceBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_descriptorSetPoolPool(make_rcp<DescriptorSetPoolPool>(m_vk))
 {
-    const auto& physicalDeviceProps = m_vk->physicalDeviceProperties();
+    const auto& physicalDeviceProps = m_vk->physicalDeviceProperties;
 
     m_platformFeatures.supportsRasterOrderingMode =
         !contextOptions.forceAtomicMode &&
@@ -1035,15 +1034,14 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         // about how we're using it.
         physicalDeviceProps.limits.maxClipDistances >= 4;
     m_platformFeatures.supportsPipelineDynamicState =
+        // Dynamic depth/stencil/cull are all core in 1.3. Color-write is not,
+        // but a device without VK_EXT_color_write_enable emulates it in the
+        // shader instead (ShaderMiscFlags::emulateDynamicColorWriteDisable), so
+        // the extension isn't required here.
         m_vk->features.apiVersion >= VK_API_VERSION_1_3 &&
-        m_vk->features.colorWriteEnable &&
         // Chunking would split a combined pass's draws across render passes and
         // corrupt the stencil.
-        !m_workarounds.needsInterruptibleRenderPasses() &&
-        // PowerVR draws the combined passes incorrectly; looks like a driver
-        // bug with no obvious workaround. Seen on Pixel 10 (D-Series
-        // DXT-48-1536).
-        physicalDeviceProps.vendorID != vkutil::vendors::Imagination;
+        !m_workarounds.needsInterruptibleRenderPasses();
     m_platformFeatures.clipSpaceBottomUp = false;
     m_platformFeatures.framebufferBottomUp = false;
     // Vulkan can't load color from a different texture into the transient MSAA
@@ -1121,7 +1119,7 @@ void RenderContextVulkanImpl::initGPUObjects(
         "null image texture");
     m_nullImageTexture->scheduleUpload(black, sizeof(black));
 
-    if (strstr(m_vk->physicalDeviceProperties().deviceName, "Adreno (TM) 8") !=
+    if (strstr(m_vk->physicalDeviceProperties.deviceName, "Adreno (TM) 8") !=
         nullptr)
     {
         // The Adreno 8s (at least on the Galaxy S25) have a strange
@@ -3452,7 +3450,8 @@ public:
 
     void bind(VkCommandBuffer commandBuffer,
               VkPipeline pipeline,
-              const IAABB& scissorRect)
+              const IAABB& scissorRect,
+              const DrawPipelineLayoutVulkan& pipelineLayout)
     {
         if (pipeline != m_pipeline)
         {
@@ -3460,6 +3459,17 @@ public:
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   pipeline);
             m_pipeline = pipeline;
+
+            if (pipelineLayout.hasColorWriteDisablePushConstant())
+            {
+                // Every push constant is required to have a defined value; seed
+                // the color-write disable with "enabled", even if this pipeline
+                // will never actually use it. It's only 4 bytes anyway, which
+                // is far cheaper than the pipeline bind we just did.
+                setEmulatedColorWriteEnable(commandBuffer,
+                                            pipelineLayout,
+                                            true);
+            }
         }
         if (!m_haveScissor || scissorRect != m_scissorRect)
         {
@@ -3470,10 +3480,11 @@ public:
         }
     }
 
-    // Applies one constituent pass's depth/stencil/cull/color to the
+    // Applies one constituent pass's dynamic depth/stencil/cull/color to the
     // currently-bound dynamic-state pipeline.
     void setDynamicState(VkCommandBuffer commandBuffer,
-                         const gpu::PipelineState& ps)
+                         const gpu::PipelineState& ps,
+                         const DrawPipelineLayoutVulkan& pipelineLayout)
     {
         // Depth.
         m_vk->CmdSetDepthWriteEnable(commandBuffer, ps.depthWriteEnabled);
@@ -3506,11 +3517,37 @@ public:
         m_vk->CmdSetCullMode(commandBuffer, vkutil::vkCullMode(ps.cullFace));
 
         // Color.
-        VkBool32 colorWrite = ps.colorWriteEnabled ? VK_TRUE : VK_FALSE;
-        m_vk->CmdSetColorWriteEnableEXT(commandBuffer, 1, &colorWrite);
+        if (m_vk->features.colorWriteEnable)
+        {
+            VkBool32 colorWrite = ps.colorWriteEnabled ? VK_TRUE : VK_FALSE;
+            m_vk->CmdSetColorWriteEnableEXT(commandBuffer, 1, &colorWrite);
+        }
+        else
+        {
+            // No VK_EXT_color_write_enable: the shader outputs color == 0
+            // instead, which gets discarded at the blend step.
+            setEmulatedColorWriteEnable(commandBuffer,
+                                        pipelineLayout,
+                                        ps.colorWriteEnabled);
+        }
     }
 
 private:
+    void setEmulatedColorWriteEnable(
+        VkCommandBuffer commandBuffer,
+        const DrawPipelineLayoutVulkan& pipelineLayout,
+        bool enabled)
+    {
+        assert(pipelineLayout.hasColorWriteDisablePushConstant());
+        const float colorWriteEnable = enabled ? 1.f : .0f;
+        m_vk->CmdPushConstants(commandBuffer,
+                               *pipelineLayout,
+                               vkutil::ColorWriteEnablePushConstant.stageFlags,
+                               vkutil::ColorWriteEnablePushConstant.offset,
+                               vkutil::ColorWriteEnablePushConstant.size,
+                               &colorWriteEnable);
+    }
+
     VulkanContext* const m_vk;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
     IAABB m_scissorRect;
@@ -3591,6 +3628,12 @@ void RenderContextVulkanImpl::submitDrawList(
                 : batch.shaderFeatures;
 
         auto shaderMiscFlags = batch.shaderMiscFlags;
+        if (vkutil::hasPipelineDynamicState(drawType) &&
+            !m_vk->features.colorWriteEnable)
+        {
+            shaderMiscFlags |=
+                gpu::ShaderMiscFlags::emulateDynamicColorWriteDisable;
+        }
         if (enums::is_flag_set(
                 drawRenderPass->renderPassOptions(),
                 RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer) &&
@@ -3630,7 +3673,7 @@ void RenderContextVulkanImpl::submitDrawList(
                      // The MSAA init also reads the framebuffer.
                      batch.drawType == gpu::DrawType::renderPassInitialize)));
             assert(!enums::is_flag_set(
-                batch.shaderMiscFlags,
+                shaderMiscFlags,
                 gpu::ShaderMiscFlags::borrowedCoveragePass));
             assert(drawType != gpu::DrawType::renderPassResolve);
             // Wait for color attachment writes to complete before we read the
@@ -3706,7 +3749,8 @@ void RenderContextVulkanImpl::submitDrawList(
 
             pipelineBinder.bind(commandBuffer,
                                 *drawPipeline,
-                                desiredScissorRect);
+                                desiredScissorRect,
+                                drawRenderPass->pipelineLayout());
         }
 
         switch (drawType)
@@ -3767,12 +3811,14 @@ void RenderContextVulkanImpl::submitDrawList(
                 // batch (instanced across non-overlapping paths) three times,
                 // updating dynamic state between passes. depthCompareOp stays
                 // baked at LESS so Hi-Z keeps culling; color is suppressed via
-                // color-write-enable, never the depth test. The combine is
-                // gated to GPUs that don't need the "renderpass interrupt"
-                // workaround, so a single draw covers the whole batch -- no
-                // InstanceChunker needed (its per-chunk interruptIfNeeded would
-                // split the three passes across render passes, which the
-                // stencil algorithm can't survive).
+                // VK_EXT_color_write_enable (or, without the extension, a push
+                // constant that outputs color == 0).
+                //
+                // The combine is gated to GPUs that don't need the "renderpass
+                // interrupt" workaround, so a single draw covers the whole
+                // batch -- no InstanceChunker needed (its per-chunk
+                // interruptIfNeeded would split the three passes across render
+                // passes, which the transient stencil buffer can't survive).
                 assert(!m_workarounds.needsInterruptibleRenderPasses());
                 m_vk->CmdBindVertexBuffers(
                     commandBuffer,
@@ -3791,15 +3837,19 @@ void RenderContextVulkanImpl::submitDrawList(
                 };
                 for (DrawType pass : Passes)
                 {
-                    gpu::PipelineState ps =
+                    gpu::PipelineState pipelineState =
                         gpu::get_pipeline_state(pass,
                                                 desc.interlockMode,
-                                                batch.shaderMiscFlags,
+                                                shaderMiscFlags,
                                                 batch.drawContents,
                                                 desc.fixedFunctionColorOutput,
                                                 batch.firstBlendMode,
                                                 m_platformFeatures);
-                    pipelineBinder.setDynamicState(commandBuffer, ps);
+                    assert(vkutil::hasPipelineDynamicState(drawType));
+                    pipelineBinder.setDynamicState(
+                        commandBuffer,
+                        pipelineState,
+                        drawRenderPass->pipelineLayout());
                     m_vk->CmdDrawIndexed(commandBuffer,
                                          batch.indexCountPerInstance,
                                          batch.elementCount,
@@ -4036,16 +4086,15 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
                                                     features,
                                                     pfnvkGetInstanceProcAddr);
 
-    if (vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_1)
+    if (vk->physicalDeviceProperties.apiVersion < VK_API_VERSION_1_1)
     {
         PRINT_ERROR_LINE(
             "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.1.");
         return nullptr;
     }
 
-    if (vk->physicalDeviceProperties().vendorID ==
-            vkutil::vendors::Imagination &&
-        vk->physicalDeviceProperties().apiVersion < VK_API_VERSION_1_3)
+    if (vk->physicalDeviceProperties.vendorID == vkutil::vendors::Imagination &&
+        vk->physicalDeviceProperties.apiVersion < VK_API_VERSION_1_3)
     {
         PRINT_ERROR_LINE(
             "ERROR: Rive Vulkan renderer requires a driver that supports at least Vulkan 1.3 on PowerVR chipsets.");

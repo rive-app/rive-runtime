@@ -64,7 +64,6 @@ public:
     const VkInstance instance;
     const VkPhysicalDevice physicalDevice;
     const VkDevice device;
-    const VulkanFeatures features;
 
 #define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
     F(GetDeviceProcAddr)                                                       \
@@ -91,6 +90,7 @@ public:
     F(CmdFillBuffer)                                                           \
     F(CmdNextSubpass)                                                          \
     F(CmdPipelineBarrier)                                                      \
+    F(CmdPushConstants)                                                        \
     F(CmdSetBlendConstants)                                                    \
     F(CmdSetColorWriteEnableEXT)                                               \
     F(CmdSetCullMode)                                                          \
@@ -139,12 +139,10 @@ public:
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
 
-    VmaAllocator allocator() const { return m_vmaAllocator; }
+    const VkPhysicalDeviceProperties physicalDeviceProperties;
+    const VulkanFeatures features;
 
-    const VkPhysicalDeviceProperties& physicalDeviceProperties() const
-    {
-        return m_physicalDeviceProperties;
-    }
+    VmaAllocator allocator() const { return m_vmaAllocator; }
 
     bool isFormatSupportedWithFeatureFlags(VkFormat, VkFormatFeatureFlagBits);
     bool supportsD24S8() const { return m_supportsD24S8; }
@@ -236,8 +234,6 @@ public:
 
 private:
     const VmaAllocator m_vmaAllocator;
-
-    VkPhysicalDeviceProperties m_physicalDeviceProperties;
 
     // Vulkan spec: must support one of D24S8 and D32S8.
     bool m_supportsD24S8 = false;

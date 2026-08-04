@@ -3360,6 +3360,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::borrowedCoveragePass)),
+        0.0, // EMULATE_DYNAMIC_COLOR_WRITE_DISABLE — ignored for now.
         static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::storeColorClear)),
@@ -3380,12 +3381,13 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(DITHER_SPECIALIZATION_IDX == 7);
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
-    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 9);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 9);
     static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 10);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 11);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 12);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 13);
-    static_assert(SPECIALIZATION_COUNT == 14);
+    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 11);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
+    static_assert(SPECIALIZATION_COUNT == 15);
 
     // Build a per-stage WGPUConstantEntry[] from the shader's own override
     // list.
@@ -3411,6 +3413,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             "11",
             "12",
             "13",
+            "14",
         };
         static_assert(std::size(SpecializationIdxIDs) == SPECIALIZATION_COUNT);
 

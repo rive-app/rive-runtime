@@ -34,6 +34,18 @@ public:
         return m_renderPassOptions;
     }
 
+    // Returns whether this layout's shaders declare the emulated
+    // color-write-disable push constant.
+    // NOTE: Even if we have VK_EXT_color_write_enable, the push constant still
+    // gets declared (though never used) because specialization constants can't
+    // remove a declaration.
+    bool hasColorWriteDisablePushConstant() const
+    {
+        // For now, only MSAA gets it -- specialization.glsl leaves
+        // @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE undefined elsewhere.
+        return m_interlockMode == gpu::InterlockMode::msaa;
+    }
+
     uint32_t colorAttachmentCount(uint32_t subpassIndex,
                                   RenderPassOptionsVulkan) const;
 

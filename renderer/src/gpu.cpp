@@ -1609,7 +1609,20 @@ static BlendEquation get_blend_equation(
         case InterlockMode::msaa:
             if (enums::is_flag_set(drawContents, DrawContents::opaquePaint))
             {
-                return BlendEquation::none;
+                // ShaderMiscFlags::emulateDynamicColorWriteDisable suppresses
+                // color writes by outputting color == 0, which only works if
+                // blending is ENABLED (if you output "color == 0" with blending
+                // enabled, it's a no-op like we want; if you output "color ==
+                // 0" with blending DISABLED, the pixel turns blank and erases
+                // whatever used to be there).
+                // NOTE: Other than disabling color write, the output is
+                // equivalent with or without blend, since opaquePaint emits
+                // alpha == 1.
+                return enums::is_flag_set(
+                           shaderMiscFlags,
+                           ShaderMiscFlags::emulateDynamicColorWriteDisable)
+                           ? BlendEquation::srcOver
+                           : BlendEquation::none;
             }
             else if (!platformFeatures.supportsBlendAdvancedKHR ||
                      blendMode == BlendMode::srcOver)
