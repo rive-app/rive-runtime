@@ -300,6 +300,7 @@
 #include "rive/text/text_shape_modifier.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
+#include "rive/text/text_style_background.hpp"
 #include "rive/text/text_style_feature.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_target_modifier.hpp"
@@ -878,6 +879,8 @@ public:
                 return new TextInputText();
             case TextStyleFeatureBase::typeKey:
                 return new TextStyleFeature();
+            case TextStyleBackgroundBase::typeKey:
+                return new TextStyleBackground();
             case TextVariationModifierBase::typeKey:
                 return new TextVariationModifier();
             case TextModifierGroupBase::typeKey:
@@ -3097,6 +3100,9 @@ public:
             case TextFollowPathModifierBase::offsetPropertyKey:
                 object->as<TextFollowPathModifierBase>()->offset(value);
                 break;
+            case TextStyleBackgroundBase::cornerRadiusPropertyKey:
+                object->as<TextStyleBackgroundBase>()->cornerRadius(value);
+                break;
             case TextVariationModifierBase::axisValuePropertyKey:
                 object->as<TextVariationModifierBase>()->axisValue(value);
                 break;
@@ -4424,6 +4430,8 @@ public:
                 return object->as<TextFollowPathModifierBase>()->strength();
             case TextFollowPathModifierBase::offsetPropertyKey:
                 return object->as<TextFollowPathModifierBase>()->offset();
+            case TextStyleBackgroundBase::cornerRadiusPropertyKey:
+                return object->as<TextStyleBackgroundBase>()->cornerRadius();
             case TextVariationModifierBase::axisValuePropertyKey:
                 return object->as<TextVariationModifierBase>()->axisValue();
             case TextModifierGroupBase::originXPropertyKey:
@@ -5038,6 +5046,7 @@ public:
             case TextFollowPathModifierBase::endPropertyKey:
             case TextFollowPathModifierBase::strengthPropertyKey:
             case TextFollowPathModifierBase::offsetPropertyKey:
+            case TextStyleBackgroundBase::cornerRadiusPropertyKey:
             case TextVariationModifierBase::axisValuePropertyKey:
             case TextModifierGroupBase::originXPropertyKey:
             case TextModifierGroupBase::originYPropertyKey:
@@ -6234,6 +6243,8 @@ public:
                 return object->is<TextFollowPathModifierBase>();
             case TextFollowPathModifierBase::offsetPropertyKey:
                 return object->is<TextFollowPathModifierBase>();
+            case TextStyleBackgroundBase::cornerRadiusPropertyKey:
+                return object->is<TextStyleBackgroundBase>();
             case TextVariationModifierBase::axisValuePropertyKey:
                 return object->is<TextVariationModifierBase>();
             case TextModifierGroupBase::originXPropertyKey:

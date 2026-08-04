@@ -6,6 +6,7 @@ using namespace rive;
 #include "rive/component_dirt.hpp"
 #include "rive/math/rectangles_to_contour.hpp"
 #include "rive/math/transform_components.hpp"
+#include "rive/text/text_style_background.hpp"
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
@@ -216,6 +217,17 @@ void Text::clearRenderStyles()
     }
     m_renderStyles.clear();
     m_drawCommands.clear();
+
+    // Backgrounds reset off the child list; a style whose glyphs are all
+    // emoji never enters m_renderStyles.
+    buildTextStylePaints();
+    for (TextStylePaint* style : m_textStylePaints)
+    {
+        if (style->background() != nullptr)
+        {
+            style->background()->resetPath();
+        }
+    }
 
     for (TextValueRun* textValueRun : m_allRuns)
     {
@@ -768,15 +780,21 @@ void Text::buildRenderStyles()
                 }
 
                 // Bounds of the glyph
-                if (textValueRun->isHitTarget())
+                if (textValueRun->isHitTarget() ||
+                    style->background() != nullptr)
                 {
-                    Vec2D topLeft = Vec2D(curX, curY + line.top);
-                    Vec2D bottomRight =
-                        Vec2D(curX + advance, curY + line.bottom);
-                    textValueRun->addHitRect(AABB(topLeft.x,
-                                                  topLeft.y,
-                                                  bottomRight.x,
-                                                  bottomRight.y));
+                    AABB glyphBounds(curX,
+                                     curY + line.top,
+                                     curX + advance,
+                                     curY + line.bottom);
+                    if (textValueRun->isHitTarget())
+                    {
+                        textValueRun->addHitRect(glyphBounds);
+                    }
+                    if (style->background() != nullptr)
+                    {
+                        style->background()->addRect(glyphBounds);
+                    }
                 }
                 curX += advance;
             }
@@ -858,6 +876,15 @@ skipLines:
             textValueRun->computeHitContours();
         }
     }
+    for (TextStylePaint* style : m_textStylePaints)
+    {
+        TextStyleBackground* background = style->background();
+        if (background != nullptr)
+        {
+            background->updatePath();
+            background->propagateOpacity(renderOpacity());
+        }
+    }
 }
 
 const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
@@ -881,6 +908,15 @@ void Text::draw(Renderer* renderer)
         renderer->clipPath(m_clipPath.renderPath(this));
     }
     auto worldTransform = shapeWorldTransform();
+    // Backgrounds first so they sit behind every glyph, in style child order.
+    for (TextStylePaint* style : m_textStylePaints)
+    {
+        TextStyleBackground* background = style->background();
+        if (background != nullptr)
+        {
+            background->draw(renderer, worldTransform);
+        }
+    }
     for (auto& cmd : m_drawCommands)
     {
         if (cmd.type == TextDrawCommand::kStylePath)
@@ -1243,6 +1279,13 @@ void Text::update(ComponentDirt value)
         for (TextStylePaint* style : m_renderStyles)
         {
             style->propagateOpacity(renderOpacity());
+        }
+        for (TextStylePaint* style : m_textStylePaints)
+        {
+            if (style->background() != nullptr)
+            {
+                style->background()->propagateOpacity(renderOpacity());
+            }
         }
     }
 

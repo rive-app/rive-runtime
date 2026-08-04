@@ -7,6 +7,8 @@
 
 namespace rive
 {
+class TextStyleBackground;
+
 class TextStylePaint : public TextStylePaintBase, public ShapePaintContainer
 {
 public:
@@ -14,6 +16,9 @@ public:
     bool addPath(const RawPath& rawPath, float opacity);
     void rewindPath();
     void draw(Renderer* renderer, const Mat2D& worldTransform);
+
+    void background(TextStyleBackground* value) { m_background = value; }
+    TextStyleBackground* background() const { return m_background; }
 
     /// Returns the foreground color from the first solid fill, or black if
     /// none.
@@ -32,6 +37,7 @@ private:
     std::vector<rcp<RenderPaint>> m_paintPool;
     ShapePaintPath m_path;
     bool m_hasContents = false;
+    TextStyleBackground* m_background = nullptr;
 };
 } // namespace rive
 

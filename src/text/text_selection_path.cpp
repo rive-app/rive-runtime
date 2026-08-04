@@ -1,6 +1,4 @@
-#ifdef WITH_RIVE_TEXT
 #include "rive/text/text_selection_path.hpp"
-#include "rive/text/text.hpp"
 #include "rive/shapes/path.hpp"
 
 using namespace rive;
@@ -138,4 +136,3 @@ void TextSelectionPath::addRoundedPath(const Contour& contour,
     }
     rawPath.close();
 }
-#endif
