@@ -781,6 +781,16 @@ if os.host() == 'macosx' then
         buildoptions({
             '-mmacosx-version-min=11.0',
         })
+        -- Pass the deployment target at LINK time too. Without this, the linker
+        -- stamps LC_BUILD_VERSION.minos from the build host's SDK, so a dylib
+        -- built against a newer SDK can advertise a higher min OS version and
+        -- fail to load on older macOS versions.
+        --
+        -- Note: buildoptions affects compilation only (e.g., availability macros)
+        -- and does not influence the link step that stamps the final dylib.
+        linkoptions({
+            '-mmacosx-version-min=11.0',
+        })
     end
 
     filter({ 'system:macosx', 'options:arch=host', 'action:xcode4' })
