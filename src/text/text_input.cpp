@@ -114,9 +114,11 @@ void TextInput::update(ComponentDirt value)
 {
     Super::update(value);
 #ifdef WITH_RIVE_TEXT
-    if (hasDirt(value, ComponentDirt::Paint | ComponentDirt::TextShape))
+    if (m_textStyle != nullptr &&
+        hasDirt(value, ComponentDirt::Paint | ComponentDirt::TextShape))
     {
         Factory* factory = artboard()->factory();
+        m_rawTextInput.font(m_textStyle->font());
         m_rawTextInput.fontSize(m_textStyle->fontSize());
         RawTextInput::Flags changed = m_rawTextInput.update(factory);
         if (enums::is_flag_set(changed, RawTextInput::Flags::shapeDirty))

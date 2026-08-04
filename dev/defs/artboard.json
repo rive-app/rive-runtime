@@ -58,7 +58,8 @@
       },
       "description": "List of expanded components",
       "runtime": false,
-      "coop": false
+      "coop": false,
+      "journal": false
     },
     "expandedFolders": {
       "type": "List<Id>",
@@ -69,7 +70,8 @@
       },
       "description": "List of expanded folders",
       "runtime": false,
-      "coop": false
+      "coop": false,
+      "journal": false
     },
     "selectedAnimations": {
       "type": "List<Id>",
@@ -134,6 +136,28 @@
       "runtime": false,
       "coop": false,
       "journal": false
+    },
+    "previewAnimationId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 1039,
+        "string": "previewanimationid"
+      },
+      "description": "The open animation (timeline or state machine) that is a preview tab, if any.",
+      "runtime": false,
+      "coop": false,
+      "journal": false
+    },
+    "artboardKind": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1072,
+        "string": "artboardkind"
+      },
+      "description": "The kind of artboard that is being rendered. 0 is regular, 1 is textInput.",
+      "runtime": false
     }
   }
 }
