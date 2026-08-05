@@ -9,7 +9,10 @@
 #include "rive/renderer/gl/gl_utils.hpp"
 #include "rive/renderer/render_context_helper_impl.hpp"
 
+#include <atomic>
+#include <mutex>
 #include <unordered_map>
+#include <vector>
 
 namespace rive
 {
@@ -69,6 +72,15 @@ public:
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
                                        uint32_t height) override;
 
+    // Creates a shell canvas with no texture; the deferred replay worker
+    // backs it on its own context via ensureDeferredCanvasBacking.
+    rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width,
+                                               uint32_t height) override;
+
+    // Back a deferred canvas with a texture on this context so it reads
+    // coherently here. No-op for an already backed canvas.
+    void ensureDeferredCanvasBacking(gpu::RenderCanvas* canvas);
+
     std::unique_ptr<rive::ore::Context> makeOreContext() override;
 
     // GL-only: returns a Y-flipped companion of a Rive 2D RenderCanvas
@@ -104,6 +116,10 @@ public:
 
     void registerCanvasTarget(GLuint sourceTex);
     void unregisterCanvasTarget(GLuint sourceTex);
+
+    // A deferred canvas is dropped by the thread that recorded it, so its entry
+    // and the FBOs in it come down on this context's own thread instead.
+    void releaseCanvasTarget(GLuint sourceTex);
 
     // Looks up an existing mirror for `sourceTex` and allocates one if
     // none exists yet. Returns nullptr if `sourceTex` was never registered
@@ -186,6 +202,13 @@ public:
 #endif
 
 private:
+#ifdef RIVE_CANVAS
+    // Shared canvas wiring; `tex` of 0 makes an unbacked shell canvas.
+    rcp<RenderCanvas> wrapCanvasBacking(uint32_t width,
+                                        uint32_t height,
+                                        GLuint tex);
+#endif
+
     class DrawProgram;
 
     // Manages how we implement pixel local storage in shaders.
@@ -575,6 +598,14 @@ private:
     };
     std::unordered_map<GLuint, CanvasMirrorEntry> m_canvasMirrors;
     friend class CanvasMirrorTextureGLImpl;
+
+    // Canvas targets released off this context's thread, drained by flush.
+    std::mutex m_releasedCanvasTargetMutex;
+    std::vector<GLuint> m_releasedCanvasTargets;
+    std::atomic<bool> m_hasReleasedCanvasTargets{false};
+    const glutils::GLContextID m_glContext = glutils::CurrentContextID();
+
+    void drainReleasedCanvasTargets();
 #endif
 };
 } // namespace rive::gpu

@@ -1015,7 +1015,12 @@ rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
 
 std::unique_ptr<rive::ore::Context> RenderContextMetalImpl::makeOreContext()
 {
-    assert(m_commandQueue);
+    // A deferred session can request the ore context before the first render
+    // texture lazily sets the command queue, so mint one here.
+    if (m_commandQueue == nil)
+    {
+        m_commandQueue = [m_gpu newCommandQueue];
+    }
     return rive::ore::ContextMetal::Make(m_gpu, m_commandQueue);
 }
 #endif

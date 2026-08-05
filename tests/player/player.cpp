@@ -340,11 +340,6 @@ public:
             renderer->save();
             for (int x = -copiesLeft; x <= copiesRight; ++x)
             {
-                // drawInternal skips drawCanvases. In the future we can
-                // pre-pass them, but ORE commandBuffers are currently wired up
-                // in a way that causes severe perf regressions and flickering
-                // on Vulkan. Once deferred rendering is finished we can turn
-                // pre-passes back on.
                 m_artboard->drawInternal(renderer.get());
                 renderer->translate(spacingPx, 0);
             }

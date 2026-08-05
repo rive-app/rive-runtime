@@ -12,6 +12,7 @@
 #include "ore_texture_metal.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/metal/render_context_metal_impl.h"
+#include "rive/renderer/ore/cmd/ore_replay.hpp"
 #include "rive/rive_types.hpp"
 
 #include <string>
@@ -1153,6 +1154,7 @@ void ContextMetal::beginFrame(const FrameDescriptor&)
     m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
     // Serial of the command buffer about to be recorded.
     ++m_currentSerial;
+    m_pendingFrame.reset();
 }
 
 void ContextMetal::waitForGPU()
@@ -1167,6 +1169,14 @@ void ContextMetal::endFrame()
 {
     if (m_mtlCommandBuffer)
     {
+        // Drain the recorded frame before commit. Keyed on a non empty
+        // recording rather than the flag so a mid frame toggle still drains.
+        if (!m_pendingFrame.empty())
+        {
+            cmd::replayCommandBuffer(*this, m_pendingFrame);
+            m_pendingFrame.reset();
+        }
+
         // Capture deferred BindGroups in a `__block` vector that the
         // completion handler clears once the GPU is done with the
         // command buffer. Pre-fix the next `beginFrame()` cleared

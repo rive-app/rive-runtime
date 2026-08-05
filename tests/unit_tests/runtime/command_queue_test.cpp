@@ -5607,7 +5607,11 @@ TEST_CASE("global Listener", "[CommandQueue]")
 
 static void local_server_thread(CommandServer* server)
 {
+#ifndef NDEBUG
+    // Only exists to satisfy the server's debug-only thread asserts, and the
+    // override itself is compiled out with them.
     server->testing_overrideThreadID(std::this_thread::get_id());
+#endif
     server->serveUntilDisconnect();
 }
 

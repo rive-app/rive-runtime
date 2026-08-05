@@ -86,13 +86,11 @@ void Mesh::markSkinDirty() { addDirt(ComponentDirt::Vertices); }
 
 Core* Mesh::clone() const
 {
-    auto factory = artboard()->factory();
     auto clone = static_cast<Mesh*>(MeshBase::clone());
     clone->m_VertexRenderBufferDirty = true;
-    clone->m_VertexRenderBuffer =
-        factory->makeRenderBuffer(RenderBufferType::vertex,
-                                  RenderBufferFlags::none,
-                                  m_Vertices.size() * sizeof(Vec2D));
+    // The vertex buffer is created lazily at first draw so it lands on the
+    // instance's factory, not the source artboard's. UV and index buffers
+    // are immutable and shared across instances.
     clone->m_UVRenderBuffer = m_UVRenderBuffer;
     clone->m_IndexRenderBuffer = m_IndexRenderBuffer;
     return clone;
@@ -178,6 +176,14 @@ void Mesh::draw(Renderer* renderer,
                 BlendMode blendMode,
                 float opacity)
 {
+    if (m_VertexRenderBufferDirty && m_VertexRenderBuffer == nullptr &&
+        !m_Vertices.empty())
+    {
+        m_VertexRenderBuffer = artboard()->factory()->makeRenderBuffer(
+            RenderBufferType::vertex,
+            RenderBufferFlags::none,
+            m_Vertices.size() * sizeof(Vec2D));
+    }
     if (m_VertexRenderBufferDirty && m_VertexRenderBuffer != nullptr)
     {
         Vec2D* mappedVertices =

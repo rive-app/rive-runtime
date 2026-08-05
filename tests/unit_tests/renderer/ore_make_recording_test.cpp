@@ -1,0 +1,379 @@
+/*
+ * Copyright 2026 Rive
+ */
+
+// Confirms every make descriptor field, label string, and data blob round
+// trips through the ordered ore stream with the caller's id and generation.
+// GPU free, no real resources.
+
+#include "rive/renderer/ore/cmd/ore_command_buffer.hpp"
+#include "rive/renderer/ore/cmd/ore_make_recording.hpp"
+
+#include <catch.hpp>
+#include <cstring>
+
+using namespace rive::ore;
+using namespace rive::ore::cmd;
+using rive::Span;
+
+namespace
+{
+Span<const uint8_t> blobOf(const OreCommandReader& r, BlobRef ref)
+{
+    return ref.absent() ? Span<const uint8_t>(nullptr, 0)
+                        : r.blobAt(ref.offset, ref.size);
+}
+const char* cstrOf(const OreCommandReader& r, BlobRef ref)
+{
+    return reinterpret_cast<const char*>(blobOf(r, ref).data());
+}
+} // namespace
+
+TEST_CASE("make stream records make* with the caller's ids", "[ore][cmd]")
+{
+    OreCommandBuffer cb;
+
+    const uint32_t verts[4] = {1, 2, 3, 4};
+    BufferDesc bd{};
+    bd.usage = BufferUsage::vertex;
+    bd.size = sizeof(verts);
+    bd.data = verts;
+    bd.immutable = true;
+    bd.label = "vb";
+    recordMakeBuffer(cb, 0, 1, bd);
+
+    TextureDesc td{};
+    td.width = 256;
+    td.height = 128;
+    td.depthOrArrayLayers = 1;
+    td.format = TextureFormat::rgba8unorm;
+    td.type = TextureType::texture2D;
+    td.renderTarget = true;
+    td.numMipmaps = 1;
+    td.sampleCount = 4;
+    td.label = "rt";
+    recordMakeTexture(cb, 1, 1, td);
+
+    SamplerDesc sd{};
+    sd.minFilter = Filter::linear;
+    sd.magFilter = Filter::nearest;
+    sd.mipmapFilter = Filter::linear;
+    sd.wrapU = WrapMode::repeat;
+    sd.wrapV = WrapMode::clampToEdge;
+    sd.wrapW = WrapMode::mirrorRepeat;
+    sd.compare = CompareFunction::less;
+    sd.minLod = 0.5f;
+    sd.maxLod = 7.0f;
+    sd.maxAnisotropy = 8;
+    sd.label = nullptr; // null label must round trip as absent
+    recordMakeSampler(cb, 2, 3, sd);
+
+    OreCommandReader r(cb.commandBytes(), cb.blobBytes());
+    CommandType t;
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeBuffer);
+    auto bh = r.read<MakeResourcePOD>();
+    CHECK(bh.id == 0u);
+    CHECK(bh.generation == 1u);
+    auto b = r.read<BufferDescPOD>();
+    CHECK(b.usage == BufferUsage::vertex);
+    CHECK(b.size == sizeof(verts));
+    CHECK(b.immutable);
+    auto bData = blobOf(r, b.data);
+    REQUIRE(bData.size() == sizeof(verts));
+    CHECK(std::memcmp(bData.data(), verts, sizeof(verts)) == 0);
+    auto bLabel = blobOf(r, b.label);
+    REQUIRE(bLabel.size() == 3u); // "vb\0"
+    CHECK(std::strcmp(cstrOf(r, b.label), "vb") == 0);
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeTexture);
+    auto th = r.read<MakeResourcePOD>();
+    CHECK(th.id == 1u);
+    auto tx = r.read<TextureDescPOD>();
+    CHECK(tx.width == 256u);
+    CHECK(tx.height == 128u);
+    CHECK(tx.format == TextureFormat::rgba8unorm);
+    CHECK(tx.type == TextureType::texture2D);
+    CHECK(tx.renderTarget);
+    CHECK(tx.sampleCount == 4u);
+    CHECK(std::strcmp(cstrOf(r, tx.label), "rt") == 0);
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeSampler);
+    auto sh = r.read<MakeResourcePOD>();
+    CHECK(sh.id == 2u);
+    CHECK(sh.generation == 3u);
+    auto s = r.read<SamplerDescPOD>();
+    CHECK(s.minFilter == Filter::linear);
+    CHECK(s.magFilter == Filter::nearest);
+    CHECK(s.wrapU == WrapMode::repeat);
+    CHECK(s.wrapW == WrapMode::mirrorRepeat);
+    CHECK(s.compare == CompareFunction::less);
+    CHECK(s.minLod == 0.5f);
+    CHECK(s.maxLod == 7.0f);
+    CHECK(s.maxAnisotropy == 8u);
+    CHECK(s.label.absent());
+
+    REQUIRE_FALSE(r.next(t));
+}
+
+TEST_CASE("make stream: a buffer with no initial data is absent, not empty",
+          "[ore][cmd]")
+{
+    OreCommandBuffer cb;
+    BufferDesc bd{};
+    bd.usage = BufferUsage::uniform;
+    bd.size = 64;
+    bd.data = nullptr;
+    recordMakeBuffer(cb, 0, 0, bd);
+
+    OreCommandReader r(cb.commandBytes(), cb.blobBytes());
+    CommandType t;
+    REQUIRE(r.next(t));
+    r.read<MakeResourcePOD>();
+    auto b = r.read<BufferDescPOD>();
+    CHECK(b.size == 64u);
+    CHECK(b.data.absent());
+    CHECK(blobOf(r, b.data).size() == 0u);
+}
+
+TEST_CASE("make stream records shader module, layout, view", "[ore][cmd]")
+{
+    OreCommandBuffer cb;
+
+    const uint8_t code[8] = {0xDE, 0xAD, 0xBE, 0xEF, 1, 2, 3, 4};
+    const uint8_t bmap[3] = {9, 8, 7};
+    ShaderModuleDesc sm{};
+    sm.code = code;
+    sm.codeSize = sizeof(code);
+    sm.language = ShaderLanguage::wgsl;
+    sm.stage = ShaderStage::vertex;
+    sm.bindingMapBytes = bmap;
+    sm.bindingMapSize = sizeof(bmap);
+    sm.shaderAssetId = 42;
+    recordMakeShaderModule(cb, 0, 0, sm);
+
+    BindGroupLayoutEntry entries[2]{};
+    entries[0].binding = 0;
+    entries[0].kind = BindingKind::uniformBuffer;
+    entries[0].hasDynamicOffset = true;
+    entries[1].binding = 1;
+    entries[1].kind = BindingKind::sampledTexture;
+    entries[1].nativeSlotFS = 5;
+    BindGroupLayoutDesc bgl{};
+    bgl.groupIndex = 2;
+    bgl.entries = entries;
+    bgl.entryCount = 2;
+    recordMakeBindGroupLayout(cb, 1, 0, bgl);
+
+    // The view references the texture by handle.
+    TextureDesc td{};
+    td.width = td.height = 64;
+    recordMakeTexture(cb, 2, 0, td);
+    TextureViewDesc tv{};
+    tv.dimension = TextureViewDimension::texture2D;
+    tv.baseMipLevel = 1;
+    tv.mipCount = 2;
+    recordMakeTextureView(cb, 3, 0, tv, 2);
+
+    OreCommandReader r(cb.commandBytes(), cb.blobBytes());
+    CommandType t;
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeShaderModule);
+    r.read<MakeResourcePOD>();
+    auto s = r.read<ShaderModuleDescPOD>();
+    CHECK(s.language == ShaderLanguage::wgsl);
+    CHECK(s.stage == ShaderStage::vertex);
+    CHECK(s.shaderAssetId == 42u);
+    auto codeBlob = blobOf(r, s.code);
+    REQUIRE(codeBlob.size() == sizeof(code));
+    CHECK(std::memcmp(codeBlob.data(), code, sizeof(code)) == 0);
+    CHECK(blobOf(r, s.bindingMapBytes).size() == sizeof(bmap));
+    CHECK(s.hlslSource.absent());
+    CHECK(s.label.absent());
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeBindGroupLayout);
+    r.read<MakeResourcePOD>();
+    auto l = r.read<BindGroupLayoutDescPOD>();
+    CHECK(l.groupIndex == 2u);
+    CHECK(l.entryCount == 2u);
+    auto entriesBlob = blobOf(r, l.entries);
+    REQUIRE(entriesBlob.size() == 2 * sizeof(BindGroupLayoutEntry));
+    const auto* outEntries =
+        reinterpret_cast<const BindGroupLayoutEntry*>(entriesBlob.data());
+    CHECK(outEntries[0].binding == 0u);
+    CHECK(outEntries[0].hasDynamicOffset);
+    CHECK(outEntries[1].binding == 1u);
+    CHECK(outEntries[1].kind == BindingKind::sampledTexture);
+    CHECK(outEntries[1].nativeSlotFS == 5u);
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeTexture);
+    r.read<MakeResourcePOD>();
+    r.read<TextureDescPOD>();
+
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeTextureView);
+    auto vh = r.read<MakeResourcePOD>();
+    CHECK(vh.id == 3u);
+    auto v = r.read<TextureViewDescPOD>();
+    CHECK(v.texture == 2u);
+    CHECK(v.baseMipLevel == 1u);
+    CHECK(v.mipCount == 2u);
+}
+
+TEST_CASE("make stream records a pipeline with vertex layouts + refs",
+          "[ore][cmd]")
+{
+    OreCommandBuffer cb;
+
+    // Stand ins for handles recorded earlier.
+    const ResourceHandle vsModule = 10, fsModule = 11, layout0 = 12,
+                         layout1 = 13;
+
+    VertexAttribute attrs[2]{};
+    attrs[0] = {VertexFormat::float2, 0, 0};
+    attrs[1] = {VertexFormat::float4, 8, 1};
+    VertexBufferLayout vbl{};
+    vbl.stride = 24;
+    vbl.stepMode = VertexStepMode::vertex;
+    vbl.attributes = attrs;
+    vbl.attributeCount = 2;
+
+    PipelineDesc pd{};
+    pd.vertexEntryPoint = "vs_main";
+    pd.fragmentEntryPoint = "fs_main";
+    pd.vertexBuffers = &vbl;
+    pd.vertexBufferCount = 1;
+    pd.topology = PrimitiveTopology::triangleList;
+    pd.colorTargets[0].format = TextureFormat::rgba8unorm;
+    pd.colorTargets[0].blendEnabled = true;
+    pd.colorCount = 1;
+    pd.sampleCount = 4;
+    pd.label = "pipe";
+    ResourceHandle bglHandles[2] = {layout0, layout1};
+    recordMakePipeline(cb,
+                       0,
+                       0,
+                       pd,
+                       vsModule,
+                       fsModule,
+                       Span<const ResourceHandle>(bglHandles, 2));
+
+    OreCommandReader r(cb.commandBytes(), cb.blobBytes());
+    CommandType t;
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makePipeline);
+    r.read<MakeResourcePOD>();
+    auto p = r.read<PipelineDescPOD>();
+    CHECK(p.vertexModule == vsModule);
+    CHECK(p.fragmentModule == fsModule);
+    CHECK(p.colorCount == 1u);
+    CHECK(p.colorTargets[0].format == TextureFormat::rgba8unorm);
+    CHECK(p.colorTargets[0].blendEnabled);
+    CHECK(p.sampleCount == 4u);
+    CHECK(std::strcmp(cstrOf(r, p.vertexEntryPoint), "vs_main") == 0);
+
+    auto bglBlob = blobOf(r, p.bindGroupLayouts);
+    REQUIRE(p.bindGroupLayoutCount == 2u);
+    REQUIRE(bglBlob.size() == 2 * sizeof(ResourceHandle));
+    const auto* bgl = reinterpret_cast<const ResourceHandle*>(bglBlob.data());
+    CHECK(bgl[0] == layout0);
+    CHECK(bgl[1] == layout1);
+
+    REQUIRE(p.vertexBufferCount == 1u);
+    auto vbBlob = blobOf(r, p.vertexBuffers);
+    REQUIRE(vbBlob.size() == sizeof(VertexBufferLayoutPOD));
+    const auto* vb =
+        reinterpret_cast<const VertexBufferLayoutPOD*>(vbBlob.data());
+    CHECK(vb[0].stride == 24u);
+    CHECK(vb[0].attributeCount == 2u);
+    auto attrBlob = blobOf(r, vb[0].attributes);
+    REQUIRE(attrBlob.size() == 2 * sizeof(VertexAttribute));
+    const auto* outAttrs =
+        reinterpret_cast<const VertexAttribute*>(attrBlob.data());
+    CHECK(outAttrs[0].format == VertexFormat::float2);
+    CHECK(outAttrs[1].format == VertexFormat::float4);
+    CHECK(outAttrs[1].offset == 8u);
+    CHECK(outAttrs[1].shaderSlot == 1u);
+}
+
+TEST_CASE("make stream records a bind group with entry refs", "[ore][cmd]")
+{
+    OreCommandBuffer cb;
+    const ResourceHandle layout = 5, buf0 = 6, view0 = 7, samp0 = 8;
+
+    BindGroupDesc::UBOEntry ubo{};
+    ubo.slot = 0;
+    ubo.offset = 16;
+    ubo.size = 256;
+    BindGroupDesc::TexEntry tex{};
+    tex.slot = 1;
+    BindGroupDesc::SampEntry samp{};
+    samp.slot = 2;
+
+    BindGroupDesc bg{};
+    bg.layout = nullptr; // unused, the ref is passed explicitly
+    bg.ubos = &ubo;
+    bg.uboCount = 1;
+    bg.textures = &tex;
+    bg.textureCount = 1;
+    bg.samplers = &samp;
+    bg.samplerCount = 1;
+    bg.label = "bg";
+
+    ResourceHandle uboH[1] = {buf0}, texH[1] = {view0}, sampH[1] = {samp0};
+    recordMakeBindGroup(cb,
+                        0,
+                        0,
+                        bg,
+                        layout,
+                        Span<const ResourceHandle>(uboH, 1),
+                        Span<const ResourceHandle>(texH, 1),
+                        Span<const ResourceHandle>(sampH, 1));
+
+    OreCommandReader r(cb.commandBytes(), cb.blobBytes());
+    CommandType t;
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeBindGroup);
+    r.read<MakeResourcePOD>();
+    auto b = r.read<BindGroupDescPOD>();
+    CHECK(b.layout == layout);
+    REQUIRE(b.uboCount == 1u);
+    REQUIRE(b.textureCount == 1u);
+    REQUIRE(b.samplerCount == 1u);
+
+    const auto* ubos =
+        reinterpret_cast<const UBOEntryPOD*>(blobOf(r, b.ubos).data());
+    CHECK(ubos[0].slot == 0u);
+    CHECK(ubos[0].buffer == buf0);
+    CHECK(ubos[0].offset == 16u);
+    CHECK(ubos[0].size == 256u);
+    const auto* texs =
+        reinterpret_cast<const TexEntryPOD*>(blobOf(r, b.textures).data());
+    CHECK(texs[0].slot == 1u);
+    CHECK(texs[0].view == view0);
+    const auto* samps =
+        reinterpret_cast<const SampEntryPOD*>(blobOf(r, b.samplers).data());
+    CHECK(samps[0].slot == 2u);
+    CHECK(samps[0].sampler == samp0);
+}
+
+TEST_CASE("make stream reset reuses the buffer", "[ore][cmd]")
+{
+    OreCommandBuffer cb;
+    TextureDesc td{};
+    td.width = td.height = 16;
+    recordMakeTexture(cb, 0, 0, td);
+    recordMakeTexture(cb, 1, 0, td);
+    CHECK_FALSE(cb.empty());
+
+    cb.reset();
+    CHECK(cb.empty());
+    recordMakeTexture(cb, 0, 1, td);
+    CHECK_FALSE(cb.empty());
+}

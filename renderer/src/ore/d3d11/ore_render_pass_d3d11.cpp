@@ -128,6 +128,13 @@ void RenderPassD3D11::setPipeline(Pipeline* inPipeline)
 {
     validate();
     auto* pipeline = static_cast<PipelineD3D11*>(inPipeline);
+    // A recompile or play stop can destroy the pipeline under a straddling
+    // deferred frame; drop the bind so draw skips instead of dereferencing.
+    if (pipeline == nullptr)
+    {
+        m_currentPipeline = nullptr;
+        return;
+    }
     if (!checkPipelineCompat(pipeline))
         return;
     m_currentPipeline = ref_rcp(pipeline);
@@ -155,6 +162,8 @@ void RenderPassD3D11::setVertexBuffer(uint32_t slot,
 {
     validate();
     auto buffer = static_cast<BufferD3D11*>(inBuffer);
+    if (buffer == nullptr) // destroyed under a straddling deferred frame
+        return;
     UINT stride = (m_currentPipeline &&
                    slot < m_currentPipeline->desc().vertexBufferCount)
                       ? m_currentPipeline->desc().vertexBuffers[slot].stride
@@ -170,6 +179,8 @@ void RenderPassD3D11::setIndexBuffer(Buffer* inBuffer,
 {
     validate();
     auto buffer = static_cast<BufferD3D11*>(inBuffer);
+    if (buffer == nullptr) // destroyed under a straddling deferred frame
+        return;
     m_d3d11IndexFormat = oreIndexFormatToDXGI(format);
     m_d3d11IndexOffset = offset;
     m_d3d11Context->IASetIndexBuffer(buffer->m_d3d11Buffer.Get(),
@@ -184,7 +195,8 @@ void RenderPassD3D11::setBindGroup(uint32_t groupIndex,
 {
     validate();
     auto bg = static_cast<BindGroupD3D11*>(inBg);
-    assert(bg != nullptr);
+    if (bg == nullptr) // destroyed under a straddling deferred frame
+        return;
 
     // Hold a strong reference so the BindGroup stays alive until finish().
     m_boundGroups[groupIndex] = ref_rcp(bg);
@@ -363,6 +375,8 @@ void RenderPassD3D11::draw(uint32_t vertexCount,
                            uint32_t firstInstance)
 {
     validate();
+    if (m_currentPipeline == nullptr) // dropped under a straddling frame
+        return;
     if (instanceCount > 1 || firstInstance != 0)
     {
         m_d3d11Context->DrawInstanced(vertexCount,
@@ -383,6 +397,8 @@ void RenderPassD3D11::drawIndexed(uint32_t indexCount,
                                   uint32_t firstInstance)
 {
     validate();
+    if (m_currentPipeline == nullptr) // dropped under a straddling frame
+        return;
     if (instanceCount > 1 || firstInstance != 0 || baseVertex != 0)
     {
         m_d3d11Context->DrawIndexedInstanced(indexCount,

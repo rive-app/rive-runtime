@@ -263,6 +263,10 @@ void RenderPassMetal::draw(uint32_t vertexCount,
                            uint32_t firstInstance)
 {
     validate();
+    if (m_currentPipeline == nullptr)
+    {
+        return; // setPipeline was rejected (see lastError), drawing would crash
+    }
     [m_mtlEncoder drawPrimitives:m_mtlPrimitiveType
                      vertexStart:firstVertex
                      vertexCount:vertexCount
@@ -277,6 +281,10 @@ void RenderPassMetal::drawIndexed(uint32_t indexCount,
                                   uint32_t firstInstance)
 {
     validate();
+    if (m_currentPipeline == nullptr || m_mtlIndexBuffer == nil)
+    {
+        return; // rejected pipeline or missing index buffer, see lastError
+    }
     assert(m_mtlIndexBuffer != nil &&
            "Must call setIndexBuffer before drawIndexed");
 

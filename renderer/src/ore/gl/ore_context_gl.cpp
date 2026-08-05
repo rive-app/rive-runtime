@@ -13,6 +13,7 @@
 #include "ore_shader_module_gl.hpp"
 #include "ore_texture_gl.hpp"
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/rive_types.hpp"
 
 #include <algorithm>
@@ -185,9 +186,9 @@ static GLenum oreCompareFunctionToGL(CompareFunction fn)
 
 ContextGL::~ContextGL() {}
 
-std::unique_ptr<ContextGL> ContextGL::Make()
+std::unique_ptr<ContextGL> ContextGL::Make(void* renderContextImpl)
 {
-    auto ctx = std::unique_ptr<ContextGL>(new ContextGL());
+    auto ctx = std::unique_ptr<ContextGL>(new ContextGL(renderContextImpl));
 
     Features& f = ctx->m_features;
 
@@ -296,6 +297,8 @@ void ContextGL::waitForGPU() {} // GL is synchronous after glFinish/flush.
 
 void ContextGL::endFrame()
 {
+    // GL uses per pass inline replay, so no whole frame buffer to drain here.
+
     // Restore saved state. Each `RenderPass::finish()` already restores
     // its own captured VAO in-place, so by the time we get here only the
     // program / array-buffer / framebuffer bindings need restoring —
@@ -1147,9 +1150,17 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
 // wrapCanvasTexture
 // ============================================================================
 
+// During deferred replay the canvas texture from the main context is invalid
+// here, so back the canvas with a worker owned texture first.
 rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
+
+    if (m_renderContextImpl != nullptr)
+    {
+        static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl)
+            ->ensureDeferredCanvasBacking(canvas);
+    }
 
     auto* glTarget =
         static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget());
@@ -1216,6 +1227,49 @@ rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.layerCount = 1;
 
     return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
+}
+
+// GL renders the canvas bottom up while WGSL samples top down, so import
+// through a Y flip mirror the view retains to keep the borrowed id valid.
+rcp<TextureView> ContextGL::wrapCanvasSampleView(gpu::RenderCanvas* canvas)
+{
+    assert(canvas != nullptr);
+
+    if (m_renderContextImpl != nullptr)
+    {
+        static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl)
+            ->ensureDeferredCanvasBacking(canvas);
+    }
+
+    auto* image = canvas->renderImage();
+    gpu::Texture* sourceTex = image->getTexture();
+
+    gpu::Texture* texToWrap = sourceTex;
+    rcp<RenderImage> mirror;
+    if (m_renderContextImpl != nullptr)
+    {
+        auto* glImpl =
+            static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl);
+        mirror = glImpl->getCanvasImportMirror(sourceTex,
+                                               canvas->width(),
+                                               canvas->height());
+        if (mirror != nullptr)
+        {
+            auto* mirrorRive = lite_rtti_cast<RiveRenderImage*>(mirror.get());
+            if (mirrorRive != nullptr && mirrorRive->getTexture() != nullptr)
+            {
+                texToWrap = mirrorRive->getTexture();
+            }
+        }
+    }
+
+    auto view = wrapRiveTexture(texToWrap, canvas->width(), canvas->height());
+    if (mirror != nullptr && view != nullptr)
+    {
+        static_cast<TextureViewGL*>(view.get())
+            ->retainCanvasMirror(std::move(mirror));
+    }
+    return view;
 }
 
 } // namespace rive::ore

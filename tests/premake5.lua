@@ -6,7 +6,12 @@ newoption({
 })
 
 if not _OPTIONS['for_unreal'] then
-    rive_tools_project('bench', _OPTIONS['os'] == 'ios' and 'StaticLib' or _OPTIONS['all_tools_as_static'] and 'StaticLib' or 'ConsoleApp' )
+    rive_tools_project(
+        'bench',
+        _OPTIONS['os'] == 'ios' and 'StaticLib'
+            or _OPTIONS['all_tools_as_static'] and 'StaticLib'
+            or 'ConsoleApp'
+    )
     do
         files({ 'bench/*.cpp' })
     end
@@ -14,7 +19,15 @@ end
 
 rive_tools_project('gms', 'RiveTool')
 do
-    files({ 'gm/*.cpp'})
+    files({ 'gm/*.cpp' })
+    -- Deferred-rendering 2D record/replay (SerializingFactory + the replay that
+    -- drives a real Factory/Renderer) so GMs can verify 2D replay against PLS.
+    files({
+        '../utils/serializing_factory.cpp',
+        '../utils/serialized_replay.cpp',
+    })
+    -- serializing_factory.cpp decodes images (decoders header).
+    includedirs({ '../decoders/include' })
     -- Ore GM tests need Obj-C++ on Apple (ore headers include <Metal/Metal.h>).
     -- .mm wrappers #include the .cpp files so every Apple generator compiles
     -- them as Obj-C++ without needing compileas or buildoptions hacks.
@@ -50,7 +63,7 @@ do
     filter({})
     filter({ 'options:not no_tools_shader_hotloading' })
     do
-        files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
+        files({ RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
     end
     filter({ 'options:for_unreal' })
     do
@@ -65,10 +78,15 @@ end
 rive_tools_project('goldens', 'RiveTool')
 do
     exceptionhandling('On')
-    files({ 'goldens/goldens.cpp'})
+    files({ 'goldens/goldens.cpp', 'goldens/goldens_bench.cpp' })
+    -- The deferred recording factory (deferred_render_factory.hpp) decodes image
+    -- dimensions at record time so the artboard's layout sees real sizes; needs
+    -- the decoder header + RIVE_DECODERS (the lib is already linked).
+    includedirs({ '../decoders/include' })
+    defines({ 'RIVE_DECODERS' })
     filter({ 'options:not no_tools_shader_hotloading' })
     do
-        files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
+        files({ RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
     end
     filter({ 'options:for_unreal' })
     do
@@ -82,7 +100,7 @@ end
 
 rive_tools_project('player', 'RiveTool')
 do
-    files({ 'player/player.cpp'})
+    files({ 'player/player.cpp' })
     filter('system:emscripten')
     do
         files({ 'player/player.html' })
@@ -90,6 +108,6 @@ do
 
     filter({ 'options:not no_tools_shader_hotloading' })
     do
-        files({RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
+        files({ RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
     end
 end

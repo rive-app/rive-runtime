@@ -87,7 +87,8 @@ private:
     static const int m_resizesBit = 1 << 12;
     static const int m_listenerPerforms = 1 << 13;
     static const int m_listenerPerformsAction = 1 << 14;
-    static const int m_drawsCanvasBit = 1 << 15;
+    // Bit 15 was drawCanvas; the callback is gone but the wire bit stays
+    // reserved so older exports keep their layout.
     static const int m_wantsKeyboardInputBit = 1 << 16;
     static const int m_wantsTextInputBit = 1 << 17;
     static const int m_wantsGamepadConnect = 1 << 18;
@@ -167,10 +168,6 @@ public:
     bool dataReverseConverts()
     {
         return (m_implementedMethods & m_dataReverseConvertsBit) != 0;
-    }
-    bool drawsCanvas()
-    {
-        return (m_implementedMethods & m_drawsCanvasBit) != 0;
     }
     bool wantsKeyboardInput()
     {

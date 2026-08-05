@@ -280,7 +280,11 @@ void NestedArtboard::updateArtboard(
 
     if (artboard != nullptr)
     {
-        auto artboardInstance = artboard->instance();
+        // The host's factory so a databound swap, possibly from another
+        // file, keeps the nested content on the hosting instance's session.
+        auto artboardInstance = artboard->instance<ArtboardInstance>(
+            this->artboard() != nullptr ? this->artboard()->factory()
+                                        : nullptr);
         if (artboard->stateMachineCount() > 0)
         {
 

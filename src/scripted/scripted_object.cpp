@@ -203,29 +203,6 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds)
     return result;
 }
 
-void ScriptedObject::scriptDrawCanvas()
-{
-    lua_State* L = state();
-    if (!drawsCanvas() || L == nullptr)
-    {
-        return;
-    }
-    rive_lua_pushRef(L, m_self);
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "drawCanvas")) !=
-        LUA_TFUNCTION)
-    {
-        rive_lua_pop(L, 2); // non-function field + self
-        return;
-    }
-    lua_pushvalue(L, -2);
-    if (static_cast<lua_Status>(rive_lua_pcall(L, 1, 0)) != LUA_OK)
-    {
-        rive_lua_pop(L, 1);
-        return;
-    }
-    rive_lua_pop(L, 1);
-}
-
 void ScriptedObject::scriptUpdate()
 {
     lua_State* L = state();
@@ -520,8 +497,6 @@ void ScriptedObject::trigger(std::string name) {}
 
 bool ScriptedObject::scriptAdvance(float elapsedSeconds) { return false; }
 
-void ScriptedObject::scriptDrawCanvas() {}
-
 void ScriptedObject::scriptUpdate() {}
 
 void ScriptedObject::scriptDispose() {}
@@ -536,6 +511,7 @@ void ScriptedObject::reinit()
         scriptAsset()->initScriptedObject(this);
 #ifdef WITH_RIVE_SCRIPTING
         hydrateScriptInputs();
+        didReinit();
 #endif
     }
 }

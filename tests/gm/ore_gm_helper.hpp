@@ -13,16 +13,23 @@
 #include "rive/renderer/render_context.hpp"
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <unordered_map>
 
-// Include Ore headers when any backend is compiled.
-// Multiple backends may be active simultaneously (e.g. Metal + GL on macOS).
+// True when any Ore backend is compiled. Multiple backends may be active
+// simultaneously (e.g. Metal + GL on macOS). Source of truth for every GM.
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
     defined(ORE_BACKEND_RHI)
+#define ORE_GM_HAS_BACKEND 1
+#else
+#define ORE_GM_HAS_BACKEND 0
+#endif
+
+#if ORE_GM_HAS_BACKEND
 #include "rive/renderer/ore/ore_context.hpp"
 #include <memory>
 #endif
@@ -67,10 +74,7 @@
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #endif
 
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
-    defined(ORE_BACKEND_RHI)
+#if ORE_GM_HAS_BACKEND
 #include "ore_gm_shaders.rstb.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/assets/shader_asset.hpp"
@@ -141,10 +145,7 @@ struct OreGMContext
     bool ensureContext(rive::gpu::RenderContext* renderContext)
     {
 
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
-    defined(ORE_BACKEND_RHI)
+#if ORE_GM_HAS_BACKEND
         if (!renderContext || !isOreBackendActive())
             return false;
 
@@ -314,10 +315,7 @@ inline std::vector<uint8_t> compileHLSL(const char* source,
 // ShaderTarget constants (must match RSTB format):
 //   0=WGSL, 1=GLSL_ES3, 2=MSL, 3=HLSL_SM5, 5=SPIR-V
 
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
-    defined(ORE_BACKEND_RHI)
+#if ORE_GM_HAS_BACKEND
 
 // Keeps GM shader asset ids clear of riv asset ids and 0 (unset).
 constexpr uint32_t kOreGMShaderAssetIdBase = 0x80000000u;
@@ -730,6 +728,53 @@ inline rive::rcp<rive::ore::BindGroupLayout> makeLayoutFromShader(
     desc.entryCount = n;
     return ctx.makeBindGroupLayout(desc);
 }
+
+// Shared triangle pass used by the deferred GMs.
+struct TriVertex
+{
+    float x, y;
+    float r, g, b, a;
+};
+
+inline constexpr TriVertex kTriVertices[] = {
+    {0.0f, 0.6f, 1.0f, 0.2f, 0.2f, 1.0f},
+    {-0.6f, -0.6f, 0.2f, 1.0f, 0.2f, 1.0f},
+    {0.6f, -0.6f, 0.2f, 0.2f, 1.0f, 1.0f},
+};
+
+// desc points into attrs and layout, so this object must stay alive through
+// makePipeline and cannot be copied.
+struct TrianglePipeline
+{
+    TrianglePipeline(const OreGMShaderResult& shader,
+                     rive::ore::TextureFormat targetFormat,
+                     const char* label)
+    {
+        layout.stride = sizeof(TriVertex);
+        layout.stepMode = rive::ore::VertexStepMode::vertex;
+        layout.attributes = attrs;
+        layout.attributeCount = 2;
+        desc.vertexModule = shader.vsModule.get();
+        desc.fragmentModule = shader.psModule.get();
+        desc.vertexEntryPoint = shader.vsEntryPoint;
+        desc.fragmentEntryPoint = shader.fsEntryPoint;
+        desc.vertexBuffers = &layout;
+        desc.vertexBufferCount = 1;
+        desc.topology = rive::ore::PrimitiveTopology::triangleList;
+        desc.colorTargets[0].format = targetFormat;
+        desc.colorCount = 1;
+        desc.label = label;
+    }
+    TrianglePipeline(const TrianglePipeline&) = delete;
+    TrianglePipeline& operator=(const TrianglePipeline&) = delete;
+
+    rive::ore::VertexAttribute attrs[2] = {
+        {rive::ore::VertexFormat::float2, offsetof(TriVertex, x), 0},
+        {rive::ore::VertexFormat::float4, offsetof(TriVertex, r), 1},
+    };
+    rive::ore::VertexBufferLayout layout{};
+    rive::ore::PipelineDesc desc{};
+};
 
 #endif // ORE_BACKEND_*
 

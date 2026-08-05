@@ -23,6 +23,10 @@ namespace ore
 {
 class Context;
 }
+namespace cmd
+{
+class DeferredCanvasHost;
+}
 
 class Factory
 {
@@ -68,6 +72,19 @@ public:
     // Null for non-GPU factories. Kept last in the virtual section to avoid
     // shifting existing vtable slots.
     virtual ore::Context* ore() { return nullptr; }
+
+    // The GPU render context an import through this factory should give its
+    // scripts, as a Factory so this header stays free of gpu types. A render
+    // context answers with itself; a recording session answers with the one it
+    // records for, which on web is null until a render texture attaches, so
+    // callers that deferred an allocation ask again rather than caching the
+    // null they saw at import. Null means the importer cannot route GPU
+    // scripting.
+    virtual Factory* renderContext() { return nullptr; }
+
+    // Set when script canvas work must record rather than issue. Null means
+    // scripts draw straight to the driver.
+    virtual cmd::DeferredCanvasHost* deferredCanvasHost() { return nullptr; }
 
     rcp<Font> decodeFont(Span<const uint8_t>);
 

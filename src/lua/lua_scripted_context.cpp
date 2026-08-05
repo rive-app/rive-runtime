@@ -27,11 +27,27 @@ using namespace rive;
 
 // Pushes a GPU features table onto the Lua stack. Queries the ORE context
 // when available, otherwise returns conservative defaults. Always returns 1.
+//
+// Errors instead of answering when the context is recording and does not yet
+// know its replay device. Conservative defaults would be the wrong answer to
+// give: they are indistinguishable from a real low end device, so a script
+// cannot tell it is being guessed at, and the branch it picks is written into
+// a stream that replays flawlessly on hardware that contradicts it. Failing at
+// the read is the only signal that fits through this API.
 int lua_push_gpu_features(lua_State* L)
 {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     auto* oreCtx = static_cast<ore::Context*>(
         static_cast<ScriptingContext*>(lua_getthreaddata(L))->oreContext());
+    if (oreCtx != nullptr && !oreCtx->featuresKnown())
+    {
+        luaL_error(L,
+                   "context.features is not available yet: this script is "
+                   "recording for a GPU device that has not been attached, so "
+                   "no capability can be reported without guessing at it. "
+                   "Read features from a method that runs after the first "
+                   "frame instead of at module scope");
+    }
     if (oreCtx != nullptr)
     {
         const auto& f = oreCtx->features();
@@ -376,24 +392,39 @@ static int context_namecall(lua_State* L)
                     static_cast<ScriptingContext*>(lua_getthreaddata(L));
                 auto* renderCtx = static_cast<gpu::RenderContext*>(
                     scriptingCtx->renderContext());
+                auto* handle = lua_newrive<ScriptedCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = renderCtx;
+
+                // A size-less canvas allocates nothing, so it needs no device.
+                // Checked before the context, or a layout script that does not
+                // know its size at init is refused for a device it will only
+                // need at resize().
+                if (cw == 0 || ch == 0)
+                {
+                    return 1;
+                }
                 if (renderCtx == nullptr)
                 {
+                    // A recording session binds its device after import, and
+                    // generators size their canvas at construction, before any
+                    // texture exists. Record the request; satisfyPending
+                    // materializes it on first use once the device arrives.
+                    if (scriptingCtx->deferredCanvasHost() != nullptr)
+                    {
+                        handle->pendingWidth = cw;
+                        handle->pendingHeight = ch;
+                        return 1;
+                    }
                     luaL_error(
                         L,
                         "context:canvas() requires a RenderContext — call "
                         "setRenderContext() first");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedCanvas>(L);
-                handle->m_L = L;
-                handle->renderCtx = renderCtx;
 
-                if (cw == 0 || ch == 0)
-                {
-                    return 1;
-                }
-
-                auto canvas = renderCtx->makeRenderCanvas(cw, ch);
+                auto canvas =
+                    allocScriptRenderCanvas(renderCtx, scriptingCtx, cw, ch);
                 if (!canvas)
                 {
                     luaL_error(
@@ -456,8 +487,27 @@ static int context_namecall(lua_State* L)
                 }
                 auto* gpuRenderCtx = static_cast<gpu::RenderContext*>(
                     gpuScriptingCtx->renderContext());
+                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = gpuRenderCtx;
+
+                // The documented size-less contract: no descriptor means no
+                // backing texture, so nothing here touches a device. Checked
+                // ahead of the contexts, or a layout script that learns its
+                // size at resize() is refused for a device it does not use.
+                if (gw == 0 || gh == 0)
+                {
+                    return 1;
+                }
                 if (gpuRenderCtx == nullptr)
                 {
+                    // Same late-device contract as canvas() above.
+                    if (gpuScriptingCtx->deferredCanvasHost() != nullptr)
+                    {
+                        handle->pendingWidth = gw;
+                        handle->pendingHeight = gh;
+                        return 1;
+                    }
                     luaL_error(
                         L,
                         "context:gpuCanvas() requires a RenderContext — call "
@@ -474,16 +524,11 @@ static int context_namecall(lua_State* L)
                         "scriptingWorkspaceSetOreContext() before requestVM()");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
-                handle->m_L = L;
-                handle->renderCtx = gpuRenderCtx;
 
-                if (gw == 0 || gh == 0)
-                {
-                    return 1;
-                }
-
-                auto canvas = gpuRenderCtx->makeRenderCanvas(gw, gh);
+                auto canvas = allocScriptRenderCanvas(gpuRenderCtx,
+                                                      gpuScriptingCtx,
+                                                      gw,
+                                                      gh);
                 if (!canvas)
                 {
                     luaL_error(

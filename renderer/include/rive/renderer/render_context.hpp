@@ -305,9 +305,17 @@ public:
     // Creates a RenderCanvas: a GPU texture usable as both a render target
     // (for rendering into) and a render image (for compositing into draws).
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height);
+
+    // Like makeRenderCanvas, but on GL the deferred replay worker lazily
+    // allocates the texture on its own context instead of this one.
+    rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width, uint32_t height);
+
     rive::ore::Context* ore() override;
     rive::ore::Context* getOreContext() { return ore(); }
 #endif
+
+    // Importing straight through a render context routes scripts to it.
+    Factory* renderContext() override { return this; }
 
 private:
     friend class Draw;

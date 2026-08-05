@@ -25,6 +25,27 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 using namespace rive;
 using namespace rive::gpu;
 
+// Set once a callback prints each debug-layer message as it posts, so a
+// mid-frame break surfaces its reason before the process dies.
+static bool s_d3d12MessageCallbackActive = false;
+
+#ifdef DEBUG
+static void __stdcall D3D12MessageCallback(D3D12_MESSAGE_CATEGORY category,
+                                           D3D12_MESSAGE_SEVERITY severity,
+                                           D3D12_MESSAGE_ID id,
+                                           LPCSTR description,
+                                           void*)
+{
+    fprintf(stderr,
+            "[D3D12 debug @ live] sev=%d id=%d cat=%d: %s\n",
+            static_cast<int>(severity),
+            static_cast<int>(id),
+            static_cast<int>(category),
+            description);
+    fflush(stderr);
+}
+#endif
+
 // Drain the D3D12 debug-layer info queue and print any stored messages to
 // stderr. Modeled on Dawn's AppendDebugLayerMessagesToError
 // (dawn/src/dawn/native/d3d12/DeviceD3D12.cpp). VERIFY_OK aborts on the bare
@@ -39,6 +60,12 @@ static void DrainD3D12DebugMessages(ID3D12Device* device, const char* context)
     ComPtr<ID3D12InfoQueue> infoQueue;
     if (FAILED(device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
     {
+        return;
+    }
+    // The live callback already printed each message as it posted.
+    if (s_d3d12MessageCallbackActive)
+    {
+        infoQueue->ClearStoredMessages();
         return;
     }
     UINT64 numMessages = infoQueue->GetNumStoredMessages();
@@ -779,6 +806,26 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
     {
         return nullptr;
     }
+
+#ifdef DEBUG
+    // Print debug-layer messages as they post; the frame-boundary drain misses
+    // a mid-frame break that kills the process first.
+    {
+        ComPtr<ID3D12InfoQueue1> infoQueue1;
+        if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue1))))
+        {
+            DWORD cookie = 0;
+            if (SUCCEEDED(infoQueue1->RegisterMessageCallback(
+                    &D3D12MessageCallback,
+                    D3D12_MESSAGE_CALLBACK_FLAG_NONE,
+                    nullptr,
+                    &cookie)))
+            {
+                s_d3d12MessageCallbackActive = true;
+            }
+        }
+    }
+#endif
 
     if (fiddleOptions.disableRasterOrdering)
     {

@@ -75,4 +75,26 @@ TEST_CASE("getCoarseArea", "[RiveRenderPath]")
               (math::PI * 1000 * 1000 - math::PI * 900 * 900) ==
           Approx(1).margin(1e-2f));
 }
+
+TEST_CASE("addRawPath invalidates derived state", "[RiveRenderPath]")
+{
+    RiveRenderPath path;
+
+    RawPath first;
+    first.addRect({0, 0, 10, 10}, PathDirection::clockwise);
+    path.addRawPath(first);
+
+    // Warm the caches so a missing invalidation shows up below.
+    CHECK(path.getBounds().right() == 10);
+    CHECK(path.getCoarseArea() == 100);
+    uint64_t firstMutationID = path.getRawPathMutationID();
+
+    RawPath second;
+    second.addRect({20, 20, 40, 40}, PathDirection::clockwise);
+    path.addRawPath(second);
+
+    CHECK(path.getBounds().right() == 40);
+    CHECK(path.getCoarseArea() == 100 + 400);
+    CHECK(path.getRawPathMutationID() != firstMutationID);
+}
 } // namespace rive::gpu

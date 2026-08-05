@@ -81,6 +81,15 @@ public:
         return nullptr;
     }
 
+    // Deferred allocation is only distinct on GL, where the replay worker
+    // must own the texture on its own context. Everywhere else the device
+    // is shared and eager allocation is correct.
+    virtual rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width,
+                                                       uint32_t height)
+    {
+        return makeRenderCanvas(width, height);
+    }
+
     // If canvas is enabled then the backend Impl MUST implement this.
     virtual std::unique_ptr<rive::ore::Context> makeOreContext() = 0;
 #endif

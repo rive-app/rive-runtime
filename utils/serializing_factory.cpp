@@ -1,4 +1,5 @@
 #include "utils/serializing_factory.hpp"
+#include "utils/serialize_ops.hpp"
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/core/binary_reader.hpp"
 #include "rive/artboard.hpp"
@@ -12,47 +13,6 @@ using namespace rive;
 
 // Threshold for floating point tests.
 static const float epsilon = 0.001f;
-
-enum class SerializeOp : unsigned char
-{
-    makeRenderBuffer = 0,
-    makeLinearGradient = 1,
-    makeRadialGradient = 2,
-    makeRenderPath = 3,
-    makeRenderPaint = 5,
-    decodeImage = 6,
-    save = 7,
-    restore = 8,
-    transform = 9,
-    drawPath = 10,
-    clipPath = 11,
-    drawImage = 12,
-    drawImageMesh = 13,
-
-    // RenderBuffer
-    setVertexBufferData = 14,
-    setIndexBufferData = 15,
-
-    // RenderPath
-    addRawPath = 16,
-    rewind = 17,
-    fillRule = 18,
-
-    // RenderPaint
-    style = 20,
-    color = 21,
-    thickness = 22,
-    join = 23,
-    cap = 24,
-    feather = 25,
-    blendMode = 26,
-    shader = 27,
-
-    frame = 28,
-    frameSize = 29,
-    modulateOpacity = 30,
-
-};
 
 static const char* opToName(SerializeOp op)
 {
@@ -142,23 +102,6 @@ public:
 private:
     uint64_t m_id;
 };
-
-static void serializeRawPath(BinaryWriter* writer, const RawPath& path)
-{
-    auto verbs = path.verbs();
-    auto points = path.points();
-    writer->writeVarUint((uint64_t)verbs.size());
-    for (auto verb : verbs)
-    {
-        writer->writeVarUint((uint64_t)verb);
-    }
-    writer->writeVarUint((uint64_t)points.size());
-    for (auto point : points)
-    {
-        writer->writeFloat(point.x);
-        writer->writeFloat(point.y);
-    }
-}
 
 class SerializingRenderShader : public RenderShader
 {
@@ -1357,12 +1300,14 @@ bool SerializingFactory::matches(const char* filename)
 {
     auto fullFileName =
         std::string("silvers/") + std::string(filename) + std::string(".sriv");
+#ifndef NO_GETENV
     const char* rebaseline = getenv("REBASELINE_SILVERS");
     if (rebaseline != nullptr)
     {
         save(fullFileName.c_str());
         return true;
     }
+#endif
 
     FILE* fp = fopen(fullFileName.c_str(), "rb");
     if (fp == nullptr)

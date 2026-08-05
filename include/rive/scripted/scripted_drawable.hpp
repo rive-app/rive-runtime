@@ -23,6 +23,7 @@ class ScriptedDrawable : public ScriptedDrawableBase,
 public:
 #ifdef WITH_RIVE_SCRIPTING
     void didHydrateScriptInputs() override;
+    void didReinit() override;
 #endif
     void draw(Renderer* renderer) override;
     void update(ComponentDirt value) override;
@@ -73,6 +74,9 @@ public:
 
 private:
     bool m_isAdvanceActive = true;
+    // One zero step after a reinit so advance driven content, like gpu
+    // canvas fills, re-records while paused.
+    bool m_forceAdvance = false;
 };
 
 class HitScriptedDrawable : public HitComponent

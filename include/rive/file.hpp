@@ -40,6 +40,7 @@ class ScrollPhysics;
 class ViewModelRuntime;
 class BindableArtboard;
 class ScriptingVM;
+class ScriptingContext;
 class ScriptedInterpolator;
 
 ///
@@ -129,7 +130,6 @@ public:
 
     Span<const rcp<FileAsset>> assets() const;
 
-    // Instances
     std::unique_ptr<ArtboardInstance> artboardDefault() const;
     std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
     std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
@@ -315,6 +315,7 @@ private:
     void makeScriptingVM();
     void cleanupScriptingVM();
     void registerScripts();
+    void routeScriptingToImportFactory(ScriptingContext* context);
 #endif
 
     rcp<ViewModelInstance> copyViewModelInstance(

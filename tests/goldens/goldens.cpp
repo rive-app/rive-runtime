@@ -5,18 +5,10 @@
 // Don't compile this file as part of the "tests" project.
 #ifndef TESTING
 
-#include "goldens_arguments.hpp"
-#include "common/test_harness.hpp"
+#include "goldens_shared.hpp"
 #include "common/tcp_client.hpp"
 #include "common/rive_mgr.hpp"
-#include "common/testing_window.hpp"
 #include "common/write_png_file.hpp"
-#include "rive/artboard.hpp"
-#include "rive/renderer.hpp"
-#include "rive/file.hpp"
-#include "rive/refcnt.hpp"
-#include "rive/animation/state_machine_instance.hpp"
-#include "rive/static_scene.hpp"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -34,74 +26,60 @@ constexpr static int kWindowTargetSize = 1600;
 
 GoldensArguments s_args;
 
-class RIVLoader
+// RIVE_GOLDENS_ADVANCE=N advances N frames at sixty fps before rendering.
+static void advanceScene(rive::Scene* scene)
 {
-public:
-    RIVLoader(const std::vector<uint8_t>& rivBytes,
-              const char* artboardName,
-              const char* stateMachineName)
+    const char* a = goldens_getenv("RIVE_GOLDENS_ADVANCE");
+    int frames = a ? atoi(a) : 0;
+    if (frames <= 0)
     {
-        m_file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
-        if (m_file == nullptr)
-        {
-            throw "Bad riv file";
-        }
-        if (artboardName != nullptr && artboardName[0] != '\0')
-        {
-            m_artboard = m_file->artboardNamed(artboardName);
-        }
-        else
-        {
-            m_artboard = m_file->artboardDefault();
-        }
-        if (m_artboard == nullptr)
-        {
-            throw "Can't load artboard";
-        }
-
-        // Bind the default view model instance
-        m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
-        m_artboard->bindViewModelInstance(m_viewModelInstance);
-
-        if (stateMachineName != nullptr && stateMachineName[0] != '\0')
-        {
-            m_scene = m_artboard->stateMachineNamed(stateMachineName);
-        }
-        else
-        {
-            m_scene = m_artboard->defaultStateMachine();
-        }
-
-        if (m_scene == nullptr)
-        {
-            // This is a riv without any state machines. Just draw the artboard.
-            m_scene = std::make_unique<rive::StaticScene>(m_artboard.get());
-        }
-
-        if (m_scene != nullptr && m_viewModelInstance != nullptr)
-        {
-            m_scene->bindViewModelInstance(m_viewModelInstance);
-        }
+        scene->advanceAndApply(0);
+        return;
     }
+    for (int i = 0; i < frames; ++i)
+        scene->advanceAndApply(1.0f / 60.0f);
+}
 
-    rive::Scene* stateMachine() const { return m_scene.get(); }
-
-private:
-    rive::rcp<rive::File> m_file;
-    std::unique_ptr<rive::ArtboardInstance> m_artboard;
-    std::unique_ptr<rive::Scene> m_scene;
-    rive::rcp<rive::ViewModelInstance> m_viewModelInstance;
-};
-
-static bool render_and_dump_png(int cellSize,
-                                const char* rivName,
-                                const std::vector<uint8_t>& rivBytes,
-                                const char* artboardName,
-                                const char* stateMachineName)
+void dumpPixelsAsPng(const char* rivName,
+                     int windowWidth,
+                     int windowHeight,
+                     std::vector<uint8_t> pixels)
 {
-    int windowWidth = cellSize * s_args.cols();
-    int windowHeight = cellSize * s_args.rows();
-    TestingWindow::Get()->resize(windowWidth, windowHeight);
+    assert(pixels.size() ==
+           static_cast<size_t>(windowHeight) * windowWidth * 4);
+    std::ostringstream imageName;
+    imageName
+        << std::filesystem::path(rivName).filename().stem().generic_string();
+    if (s_args.rows() != 1 || s_args.cols() != 1)
+    {
+        imageName << '.' << s_args.cols() << 'x' << s_args.rows() << '.';
+    }
+    TestHarness::Instance().savePNG({
+        .name = imageName.str(),
+        .width = static_cast<uint32_t>(windowWidth),
+        .height = static_cast<uint32_t>(windowHeight),
+        .pixels = std::move(pixels),
+    });
+    if (s_args.verbose())
+    {
+        printf("[goldens] Sent %s\n",
+               std::filesystem::path(imageName.str())
+                   .replace_extension("png")
+                   .generic_string()
+                   .c_str());
+    }
+}
+
+static bool render_and_dump_png(
+    int cellSize,
+    const char* rivName,
+    rive::Scene* scene,
+    rive::Artboard* artboard = nullptr,
+    rive::cmd::DeferredSession* deferredSession = nullptr)
+{
+    // onceAfterGM can tear down the window between rivs, size every run.
+    TestingWindow::Get()->resize(cellSize * s_args.cols(),
+                                 cellSize * s_args.rows());
 
     if (s_args.verbose())
     {
@@ -109,19 +87,74 @@ static bool render_and_dump_png(int cellSize,
     }
     try
     {
-        RIVLoader riv(rivBytes, artboardName, stateMachineName);
-        rive::Scene* stateMachine = riv.stateMachine();
-
         const int frames = s_args.cols() * s_args.rows();
-        const double duration = stateMachine->durationSeconds();
+        const double duration = scene->durationSeconds();
         const double frameDuration = duration / frames;
         const rive::AABB cellBounds = rive::AABB(0, 0, cellSize, cellSize);
 
-        // Render the stateMachine in a grid.
+#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+        // Deferred mode records the screen and Ore through the session, then
+        // replays synchronously per grid cell. The cadence mirrors the
+        // immediate path below so the output must be byte identical.
+        if (deferredSession != nullptr && artboard != nullptr)
+        {
+            advanceScene(scene);
+            rive::cmd::DeferredReplayer replayer;
+            for (int y = 0; y < s_args.rows(); ++y)
+            {
+                for (int x = 0; x < s_args.cols(); ++x)
+                {
+                    bool first = (x | y) == 0;
+                    if (!first)
+                    {
+                        scene->advanceAndApply(frameDuration);
+                    }
+                    deferredSession->recordOreReplayMarker();
+
+                    auto screenRec = deferredSession->makeScreenRenderer();
+                    screenRec->save();
+                    screenRec->translate(x * cellSize, y * cellSize);
+                    screenRec->align(rive::Fit::cover,
+                                     rive::Alignment::center,
+                                     cellBounds,
+                                     scene->bounds());
+                    artboard->drawInternal(screenRec.get());
+                    screenRec->restore();
+
+                    // Snapshot replay is the same path a threaded consumer
+                    // takes.
+                    rive::cmd::DeferredFrame frame =
+                        rive::cmd::snapshotFrame(*deferredSession);
+                    deferredSession->resetFrame();
+                    GoldensFrameSink sink(first);
+                    replayer.replayFrame(frame, sink);
+
+                    bool last =
+                        y == s_args.rows() - 1 && x == s_args.cols() - 1;
+                    if (!last)
+                    {
+                        TestingWindow::Get()->endFrame();
+                    }
+                }
+            }
+
+            int windowWidth = s_args.cols() * cellSize;
+            int windowHeight = s_args.rows() * cellSize;
+            std::vector<uint8_t> pixels;
+            TestingWindow::Get()->endFrame(&pixels);
+            dumpPixelsAsPng(rivName,
+                            windowWidth,
+                            windowHeight,
+                            std::move(pixels));
+            return true;
+        }
+#endif
+
+        // Render the scene in a grid.
+        advanceScene(scene);
         auto renderer =
             TestingWindow::Get()->beginFrame({.clearColor = 0xffffffff});
         renderer->save();
-        stateMachine->advanceAndApply(0);
         for (int y = 0; y < s_args.rows(); ++y)
         {
             for (int x = 0; x < s_args.cols(); ++x)
@@ -129,8 +162,8 @@ static bool render_and_dump_png(int cellSize,
                 if ((x | y) != 0)
                 {
                     TestingWindow::Get()->endFrame();
+                    scene->advanceAndApply(frameDuration);
                     TestingWindow::Get()->beginFrame({.doClear = false});
-                    stateMachine->advanceAndApply(frameDuration);
                 }
 
                 renderer->save();
@@ -139,8 +172,16 @@ static bool render_and_dump_png(int cellSize,
                 renderer->align(rive::Fit::cover,
                                 rive::Alignment::center,
                                 cellBounds,
-                                stateMachine->bounds());
-                stateMachine->draw(renderer.get());
+                                scene->bounds());
+
+                if (artboard != nullptr)
+                {
+                    artboard->drawInternal(renderer.get());
+                }
+                else
+                {
+                    scene->draw(renderer.get());
+                }
 
                 renderer->restore();
             }
@@ -148,35 +189,11 @@ static bool render_and_dump_png(int cellSize,
         renderer->restore();
 
         // Save the png.
+        int windowWidth = s_args.cols() * cellSize;
+        int windowHeight = s_args.rows() * cellSize;
         std::vector<uint8_t> pixels;
         TestingWindow::Get()->endFrame(&pixels);
-        assert(pixels.size() == windowHeight * windowWidth * 4);
-
-        std::ostringstream imageName;
-        imageName << std::filesystem::path(rivName)
-                         .filename()
-                         .stem()
-                         .generic_string();
-        if (s_args.rows() != 1 || s_args.cols() != 1)
-        {
-            imageName << '.' << s_args.cols() << 'x' << s_args.rows() << '.';
-        }
-
-        TestHarness::Instance().savePNG({
-            .name = imageName.str(),
-            .width = static_cast<uint32_t>(windowWidth),
-            .height = static_cast<uint32_t>(windowHeight),
-            .pixels = std::move(pixels),
-        });
-
-        if (s_args.verbose())
-        {
-            printf("[goldens] Sent %s\n",
-                   std::filesystem::path(imageName.str())
-                       .replace_extension("png")
-                       .generic_string()
-                       .c_str());
-        }
+        dumpPixelsAsPng(rivName, windowWidth, windowHeight, std::move(pixels));
 
         if (s_args.interactive())
         {
@@ -216,11 +233,6 @@ static bool render_and_dump_png(int cellSize,
         fprintf(stderr, "error rendering %s\n", rivName);
         abort();
     }
-
-    // Allow the testing window to do any cleanup it might want to do between
-    // GMs
-    TestingWindow::Get()->onceAfterGM();
-
     return true;
 }
 
@@ -232,12 +244,36 @@ static bool process_single_golden_file(const std::string file, int cellSize)
         throw "Bad file";
     }
 
-    return render_and_dump_png(
-        cellSize,
-        file.c_str(),
-        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
-        s_args.artboard().c_str(),
-        s_args.stateMachine().c_str());
+    std::vector<uint8_t> bytes(std::istreambuf_iterator<char>(stream), {});
+#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+    if (const char* n = goldens_getenv("RIVE_GOLDENS_BENCH"))
+    {
+        int iters = atoi(n);
+        if (iters <= 0)
+            iters = 200;
+        run_benchmark(bytes,
+                      s_args.artboard().c_str(),
+                      s_args.stateMachine().c_str(),
+                      iters);
+        return true;
+    }
+#endif
+
+    bool ok;
+    {
+        RIVLoader riv(bytes,
+                      s_args.artboard().c_str(),
+                      s_args.stateMachine().c_str());
+        ok = render_and_dump_png(cellSize,
+                                 file.c_str(),
+                                 riv.stateMachine(),
+                                 riv.artboard(),
+                                 riv.deferredSession());
+    }
+    // Between-GM cleanup can tear the device down, so the loader and its
+    // recorded resources must already be gone.
+    TestingWindow::Get()->onceAfterGM();
+    return ok;
 }
 
 static bool is_riv_file(const std::filesystem::path& file)
@@ -311,6 +347,9 @@ int main(int argc, const char* argv[])
 
         int cellSize =
             kWindowTargetSize / std::max(s_args.cols(), s_args.rows());
+        int windowWidth = cellSize * s_args.cols();
+        int windowHeight = cellSize * s_args.rows();
+        TestingWindow::Get()->resize(windowWidth, windowHeight);
 
         // First check if the --src argument is a TCP server instead of a file.
         if (TestHarness::Instance().hasTCPConnection())
@@ -320,14 +359,22 @@ int main(int argc, const char* argv[])
             std::vector<uint8_t> rivBytes;
             while (TestHarness::Instance().fetchRivFile(rivName, rivBytes))
             {
-                if (!render_and_dump_png(cellSize,
-                                         rivName.c_str(),
-                                         rivBytes,
-                                         nullptr /*default artboard*/,
-                                         nullptr /*default state machine*/))
                 {
-                    return 0;
+                    RIVLoader riv(rivBytes,
+                                  nullptr /*default artboard*/,
+                                  nullptr /*default state machine*/);
+                    if (!render_and_dump_png(cellSize,
+                                             rivName.c_str(),
+                                             riv.stateMachine(),
+                                             riv.artboard(),
+                                             riv.deferredSession()))
+                    {
+                        return 0;
+                    }
                 }
+                // Between-GM cleanup can tear the device down, so the loader
+                // and its recorded resources must already be gone.
+                TestingWindow::Get()->onceAfterGM();
             }
         }
         else

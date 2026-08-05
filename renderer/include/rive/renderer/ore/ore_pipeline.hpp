@@ -68,6 +68,7 @@ protected:
         {
             m_layouts[i] = ref_rcp(desc.bindGroupLayouts[i]);
         }
+        ownVertexLayout();
     }
 
     Pipeline(rcp<rive::gpu::GPUResourceManager> manager,
@@ -96,9 +97,51 @@ protected:
         {
             m_layouts[i] = ref_rcp(desc.bindGroupLayouts[i]);
         }
+        ownVertexLayout();
     }
 
     PipelineDesc m_desc;
+
+private:
+    // The desc's vertex layout points into caller memory the deferred replay
+    // frees right after makePipeline, so deep copy it into owned storage.
+    std::vector<VertexBufferLayout> m_ownedVertexBuffers;
+    std::vector<VertexAttribute> m_ownedAttributes;
+
+    void ownVertexLayout()
+    {
+        if (m_desc.vertexBufferCount == 0 || m_desc.vertexBuffers == nullptr)
+        {
+            m_desc.vertexBuffers = nullptr;
+            m_desc.vertexBufferCount = 0;
+            return;
+        }
+        // Reserve up front so the vector never reallocates while we repoint
+        // into it.
+        size_t total = 0;
+        for (uint32_t i = 0; i < m_desc.vertexBufferCount; ++i)
+        {
+            total += m_desc.vertexBuffers[i].attributeCount;
+        }
+        m_ownedAttributes.reserve(total);
+        m_ownedVertexBuffers.assign(m_desc.vertexBuffers,
+                                    m_desc.vertexBuffers +
+                                        m_desc.vertexBufferCount);
+        for (uint32_t i = 0; i < m_desc.vertexBufferCount; ++i)
+        {
+            const VertexBufferLayout& src = m_desc.vertexBuffers[i];
+            size_t start = m_ownedAttributes.size();
+            if (src.attributes != nullptr && src.attributeCount > 0)
+            {
+                m_ownedAttributes.insert(m_ownedAttributes.end(),
+                                         src.attributes,
+                                         src.attributes + src.attributeCount);
+            }
+            m_ownedVertexBuffers[i].attributes =
+                src.attributeCount > 0 ? &m_ownedAttributes[start] : nullptr;
+        }
+        m_desc.vertexBuffers = m_ownedVertexBuffers.data();
+    }
 };
 
 } // namespace rive::ore

@@ -686,6 +686,9 @@ public:
             static_cast<uintptr_t>(static_cast<GLuint>(m_texture)));
     }
 
+    // Lets deferred replay back a canvas with a worker context texture.
+    void setGLTexture(GLuint id) { m_texture = glutils::Texture::Adopt(id); }
+
 protected:
     glutils::Texture m_texture;
 };
@@ -714,8 +717,27 @@ public:
     {
         if (m_owner != nullptr)
         {
-            m_owner->unregisterCanvasTarget(m_glID);
+            m_owner->releaseCanvasTarget(m_glID);
         }
+    }
+
+    // Deferred replay backs an id 0 canvas with a worker texture so all reads
+    // resolve coherently on the worker. The registry entry for that texture
+    // belongs to the context that allocated it, which on threaded web is the
+    // worker's impl and not the producer this texture was constructed with, so
+    // the owner moves with the backing. Otherwise the destructor unregisters
+    // from the producer: the worker keeps a stale entry wrapRiveTexture can
+    // resurrect, and the producer loses whatever it held under the same GL
+    // name, GL names being per context and both starting from 1.
+    void rebindBacking(RenderContextGLImpl* owner, GLuint id)
+    {
+        if (m_owner != nullptr && m_glID != 0)
+        {
+            m_owner->releaseCanvasTarget(m_glID);
+        }
+        setGLTexture(id);
+        m_owner = owner;
+        m_glID = id;
     }
 
 private:
@@ -875,15 +897,10 @@ rcp<Texture> RenderContextGLImpl::adoptImageTexture(uint32_t width,
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
-                                                        uint32_t height)
+rcp<RenderCanvas> RenderContextGLImpl::wrapCanvasBacking(uint32_t width,
+                                                         uint32_t height,
+                                                         GLuint tex)
 {
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
-
     // Wrap as a CanvasSourceTextureGLImpl so the registry entry is
     // unregistered automatically when the source texture is destroyed.
     // The texture takes ownership of `tex` (RAII via glutils::Texture).
@@ -900,6 +917,21 @@ rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
     auto renderTarget = make_rcp<TextureRenderTargetGL>(width, height);
     renderTarget->setTargetTexture(tex);
 
+    return make_rcp<RenderCanvas>(std::move(renderImage),
+                                  std::move(renderTarget));
+}
+
+rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
+                                                        uint32_t height)
+{
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
+
+    auto canvas = wrapCanvasBacking(width, height, tex);
+
     // GL renders into the canvas with row 0 = visual bottom (framebuffer
     // bottom-up convention). Register the source GLuint with the mirror
     // registry so wrapRiveTexture (ore_context_gl.cpp) can detect it
@@ -909,13 +941,47 @@ rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
     // See dev/ore_canvas_import_invariant.md.
     registerCanvasTarget(tex);
 
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    return canvas;
+}
+
+rcp<RenderCanvas> RenderContextGLImpl::makeDeferredRenderCanvas(uint32_t width,
+                                                                uint32_t height)
+{
+    // No GPU work here; the replay worker owns the canvas texture, backs it
+    // on first use, and registers the mirror target then.
+    return wrapCanvasBacking(width, height, 0);
+}
+
+void RenderContextGLImpl::ensureDeferredCanvasBacking(gpu::RenderCanvas* canvas)
+{
+    // Set the texture on both the render target and image source so every
+    // read resolves coherently here.
+    auto* rt = static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget());
+    if (rt->externalTextureID() != 0)
+    {
+        return;
+    }
+
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D,
+                   1,
+                   GL_RGBA8,
+                   canvas->width(),
+                   canvas->height());
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    rt->setTargetTexture(tex);
+    static_cast<CanvasSourceTextureGLImpl*>(canvas->renderImage()->getTexture())
+        ->rebindBacking(this, tex);
+    registerCanvasTarget(tex);
 }
 
 std::unique_ptr<rive::ore::Context> RenderContextGLImpl::makeOreContext()
 {
-    return rive::ore::ContextGL::Make();
+    return rive::ore::ContextGL::Make(this);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -969,6 +1035,36 @@ void RenderContextGLImpl::unregisterCanvasTarget(GLuint sourceTex)
         glDeleteFramebuffers(1, &it->second.drawFBO);
     }
     m_canvasMirrors.erase(it);
+}
+
+void RenderContextGLImpl::releaseCanvasTarget(GLuint sourceTex)
+{
+    if (m_glContext == glutils::CurrentContextID())
+    {
+        unregisterCanvasTarget(sourceTex);
+        return;
+    }
+    std::lock_guard<std::mutex> lock(m_releasedCanvasTargetMutex);
+    m_releasedCanvasTargets.push_back(sourceTex);
+    m_hasReleasedCanvasTargets.store(true, std::memory_order_release);
+}
+
+void RenderContextGLImpl::drainReleasedCanvasTargets()
+{
+    if (!m_hasReleasedCanvasTargets.load(std::memory_order_acquire))
+    {
+        return;
+    }
+    std::vector<GLuint> released;
+    {
+        std::lock_guard<std::mutex> lock(m_releasedCanvasTargetMutex);
+        released.swap(m_releasedCanvasTargets);
+        m_hasReleasedCanvasTargets.store(false, std::memory_order_release);
+    }
+    for (GLuint sourceTex : released)
+    {
+        unregisterCanvasTarget(sourceTex);
+    }
 }
 
 rcp<RiveRenderImage> RenderContextGLImpl::getOrCreateCanvasMirror(
@@ -2319,6 +2415,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
+
+    // This context is current on its own thread here, the only place names it
+    // owns can be deleted.
+#ifdef RIVE_CANVAS
+    drainReleasedCanvasTargets();
+#endif
+    glutils::ReclaimAbandonedNames();
 
     // All programs use the same set of per-flush uniforms.
     glBindBufferRange(GL_UNIFORM_BUFFER,

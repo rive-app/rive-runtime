@@ -16,6 +16,16 @@ void ScriptedDrawable::didHydrateScriptInputs()
     addDirt(ComponentDirt::Paint);
 }
 
+void ScriptedDrawable::didReinit()
+{
+    // A paused editor never ticks scripts, so advance and update driven
+    // content, like gpu canvas fills, would stay blank until play; force one
+    // zero step and an update to re-record it.
+    m_isAdvanceActive = true;
+    m_forceAdvance = true;
+    addDirt(ComponentDirt::Paint | ComponentDirt::ScriptUpdate);
+}
+
 void ScriptedDrawable::draw(Renderer* renderer)
 {
     if (!draws() || m_vm == nullptr)
@@ -376,7 +386,9 @@ StatusCode ScriptedDrawable::onAddedDirty(CoreContext* context)
 bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
                                         AdvanceFlags flags)
 {
-    if (elapsedSeconds == 0)
+    bool forced = m_forceAdvance;
+    m_forceAdvance = false;
+    if (elapsedSeconds == 0 && !forced)
     {
         return false;
     }

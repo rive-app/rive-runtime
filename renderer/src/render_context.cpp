@@ -181,6 +181,12 @@ rcp<RenderCanvas> RenderContext::makeRenderCanvas(uint32_t width,
 {
     return m_impl->makeRenderCanvas(width, height);
 }
+
+rcp<RenderCanvas> RenderContext::makeDeferredRenderCanvas(uint32_t width,
+                                                          uint32_t height)
+{
+    return m_impl->makeDeferredRenderCanvas(width, height);
+}
 rive::ore::Context* RenderContext::ore()
 {
     if (m_oreContext == nullptr)

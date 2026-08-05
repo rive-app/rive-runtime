@@ -3,6 +3,7 @@
  */
 
 #include "rive/renderer/gl/gl_utils.hpp"
+#include "rive/rive_types.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <stdio.h>
@@ -11,6 +12,13 @@
 #include <vector>
 
 #include "generated/shaders/glsl.glsl.hpp"
+
+#ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
+#include <atomic>
+#include <mutex>
+#include <unordered_map>
+#include <emscripten/html5.h>
+#endif
 
 #ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
 #include <emscripten/emscripten.h>
@@ -31,6 +39,137 @@ EM_JS(void,
 
 namespace glutils
 {
+static void delete_name(GLObjectType type, GLuint id)
+{
+    switch (type)
+    {
+        case GLObjectType::buffer:
+            glDeleteBuffers(1, &id);
+            return;
+        case GLObjectType::texture:
+            glDeleteTextures(1, &id);
+            return;
+        case GLObjectType::framebuffer:
+            glDeleteFramebuffers(1, &id);
+            return;
+        case GLObjectType::renderbuffer:
+            glDeleteRenderbuffers(1, &id);
+            return;
+        case GLObjectType::vertexArray:
+            glDeleteVertexArrays(1, &id);
+            return;
+        case GLObjectType::shader:
+            glDeleteShader(id);
+            return;
+        case GLObjectType::program:
+            glDeleteProgram(id);
+            return;
+    }
+    RIVE_UNREACHABLE();
+}
+
+#ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
+namespace
+{
+struct AbandonedName
+{
+    GLObjectType type;
+    GLuint id;
+};
+
+std::mutex g_abandonedMutex;
+std::unordered_map<GLContextID, std::vector<AbandonedName>> g_abandonedNames;
+std::atomic<uint32_t> g_abandonedCount{0};
+std::atomic<uint32_t> g_reclaimedCount{0};
+} // namespace
+
+GLContextID CurrentContextID()
+{
+    return static_cast<GLContextID>(emscripten_webgl_get_current_context());
+}
+
+static void abandon_name(GLObjectType type, GLuint id, GLContextID owner)
+{
+    {
+        std::lock_guard<std::mutex> lock(g_abandonedMutex);
+        g_abandonedNames[owner].push_back({type, id});
+    }
+    g_abandonedCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+void ReclaimAbandonedNames()
+{
+    if (g_abandonedCount.load(std::memory_order_acquire) ==
+        g_reclaimedCount.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+    std::vector<AbandonedName> mine;
+    {
+        std::lock_guard<std::mutex> lock(g_abandonedMutex);
+        auto it = g_abandonedNames.find(CurrentContextID());
+        if (it == g_abandonedNames.end())
+        {
+            return;
+        }
+        mine.swap(it->second);
+        g_abandonedNames.erase(it);
+    }
+    for (const AbandonedName& name : mine)
+    {
+        delete_name(name.type, name.id);
+    }
+    g_reclaimedCount.fetch_add(static_cast<uint32_t>(mine.size()),
+                               std::memory_order_release);
+}
+
+uint32_t AbandonedNameCount()
+{
+    return g_abandonedCount.load(std::memory_order_relaxed);
+}
+
+uint32_t ReclaimedNameCount()
+{
+    return g_reclaimedCount.load(std::memory_order_relaxed);
+}
+#endif
+
+void GLObject::destroy(GLObjectType type)
+{
+    if (m_id == 0)
+    {
+        return;
+    }
+#ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
+    if (m_context != CurrentContextID())
+    {
+        abandon_name(type, m_id, m_context);
+        m_id = 0;
+        return;
+    }
+#endif
+    delete_name(type, m_id);
+    m_id = 0;
+}
+
+void GLObject::adopt(GLObjectType type, GLObject&& rhs)
+{
+    destroy(type);
+    m_id = std::exchange(rhs.m_id, 0);
+#ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
+    m_context = rhs.m_context;
+#endif
+}
+
+void GLObject::adoptName(GLObjectType type, GLuint adoptedID)
+{
+    destroy(type);
+    m_id = adoptedID;
+#ifdef RIVE_GL_NAMES_ARE_PER_CONTEXT
+    m_context = CurrentContextID();
+#endif
+}
+
 void CompileAndAttachShader(GLuint program,
                             GLenum type,
                             const char* source,
@@ -240,17 +379,6 @@ void LinkProgram(GLuint program,
 #else
     std::ignore = debugPrintErrornAndAbort;
 #endif
-}
-
-void Program::reset(GLuint adoptedProgramID)
-{
-    m_fragmentShader.reset();
-    m_vertexShader.reset();
-    if (m_id != 0)
-    {
-        glDeleteProgram(m_id);
-    }
-    m_id = adoptedProgramID;
 }
 
 void Program::compileAndAttachShader(GLuint type,

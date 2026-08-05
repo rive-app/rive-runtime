@@ -337,20 +337,10 @@ public:
     Drawable* firstDrawable() { return m_FirstDrawable; };
     void addScriptedObject(ScriptedObject* object);
 
-    void drawCanvases();
-    void internalDrawCanvases();
-
     /// Poll async work (image decodes, etc.) so promises resolve before
     /// script callbacks run. Called at the top of advance().
     void pollAsyncWork();
 
-#ifdef WITH_RIVE_SCRIPTING
-    /// Returns the lua_State* (as void*) for the first drawCanvas scripted
-    /// object in this artboard or any nested artboard, recursively. Returns
-    /// nullptr if no drawCanvas scripts exist. Used by the Dart FFI layer to
-    /// open a GPU frame before calling drawCanvases().
-    void* findDrawCanvasLuauState() const;
-#endif
     void drawInternal(Renderer* renderer);
     void draw(Renderer* renderer) override;
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
@@ -544,13 +534,16 @@ public:
     // provided.
     int defaultStateMachineIndex() const;
 
-    /// Make an instance of this artboard.
-    template <typename T = ArtboardInstance> std::unique_ptr<T> instance() const
+    /// Make an instance of this artboard. A non null factory reroutes the
+    /// instance's render resource creation (a deferred session facade);
+    /// nested instances inherit it.
+    template <typename T = ArtboardInstance>
+    std::unique_ptr<T> instance(Factory* factory = nullptr) const
     {
         std::unique_ptr<T> artboardClone(new T);
         artboardClone->copy(*this);
 
-        artboardClone->m_Factory = m_Factory;
+        artboardClone->m_Factory = factory != nullptr ? factory : m_Factory;
         artboardClone->m_FrameOrigin = m_FrameOrigin;
         artboardClone->m_DataContext = m_DataContext;
         artboardClone->m_IsInstance = true;
@@ -592,6 +585,14 @@ public:
             artboardClone->m_StateMachines.push_back(stateMachine);
         }
 
+        if (factory != nullptr && factory != m_Factory)
+        {
+            // Nested clones instanced off the file level source during the
+            // clone loop; redo them on the override factory before
+            // initialize wires animations to them.
+            artboardClone->reinstanceNestedArtboards(factory);
+        }
+
         if (artboardClone->initialize() != StatusCode::Ok)
         {
             artboardClone = nullptr;
@@ -600,6 +601,8 @@ public:
         assert(artboardClone->isInstance());
         return artboardClone;
     }
+
+    void reinstanceNestedArtboards(Factory* factory);
 
     /// Returns true if the artboard is an instance of another
     bool isInstance() const { return m_IsInstance; }

@@ -1401,6 +1401,22 @@ rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
         new TextureViewD3D11(std::move(texture), viewDesc));
     // Borrow the existing RTV from the D3D render target (AddRefs via ComPtr).
     view->m_d3dRTV = d3dTarget->targetRTV();
+
+    // SRV so a later pass can sample the canvas after rendering into it;
+    // without it a bind group samples an unbound view and reads black.
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Format = d3dDesc.Format;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    ComPtr<ID3D11Device> device;
+    m_d3d11Context->GetDevice(device.GetAddressOf());
+    if (FAILED(device->CreateShaderResourceView(
+            d3dTex,
+            &srvDesc,
+            view->m_d3dSRV.ReleaseAndGetAddressOf())))
+        return nullptr;
+
     return view;
 }
 

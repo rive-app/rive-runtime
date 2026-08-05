@@ -43,7 +43,9 @@ void ScriptedLayout::callScriptedResize(Vec2D size)
         LUA_OK)
     {
         // Stack: [self, status]
-        fprintf(stderr, "resize failed\n");
+        fprintf(stderr,
+                "resize failed: %s\n",
+                lua_tostring(L, -1) ? lua_tostring(L, -1) : "?");
         rive_lua_pop(L, 1);
     }
     // Stack: [self]

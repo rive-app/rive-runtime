@@ -106,7 +106,7 @@ void ScriptAsset::registrationComplete(int ref)
     {
         generatorFunctionRef(ref);
         // Force re-verification on next init so that method detection (e.g.
-        // drawCanvas) reflects the newly compiled script.
+        // draw) reflects the newly compiled script.
         m_initted = false;
     }
 }
@@ -155,6 +155,21 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
         // actually a function on the returned table).
         OptionalScriptedMethods::implementedMethods(
             serializedImplementedMethods() & methodMask);
+#ifdef WITH_RIVE_TOOLS
+        // Bit 15 was the removed drawCanvas callback: the editor detected it
+        // on this script, so its canvas work never runs until moved into
+        // draw. Legacy all-bits exports stay silent; the shipping runtime
+        // stays quiet entirely, the editor console carries the migration.
+        static const uint32_t kRetiredDrawCanvasBit = 1 << 15;
+        static const uint32_t kAllMethodsDefault = (1 << 21) - 1;
+        if (serializedImplementedMethods() != kAllMethodsDefault &&
+            (serializedImplementedMethods() & kRetiredDrawCanvasBit) != 0)
+        {
+            fprintf(stderr,
+                    "rive: script implements drawCanvas, which is no longer "
+                    "called; move its body into draw\n");
+        }
+#endif
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());

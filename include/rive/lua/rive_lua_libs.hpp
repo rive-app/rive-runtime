@@ -72,6 +72,10 @@ class ModuleDetails;
 class ScriptedObject;
 class StateMachineInstance;
 class TransformComponent;
+namespace cmd
+{
+class DeferredCanvasHost;
+}
 enum class LuaAtoms : int16_t
 {
     // Vector
@@ -327,7 +331,6 @@ enum class LuaAtoms : int16_t
     resize,
     canvas,
     gpuCanvas,
-    drawCanvas,
     features,
     shader,
     format,
@@ -813,6 +816,12 @@ public:
     lua_State* m_L = nullptr;
     int m_imageRef = LUA_NOREF;
     gpu::RenderContext* renderCtx = nullptr; // needed for resize()
+    // Size a resize() asked for while no device existed. Web attaches one per
+    // render texture after layout has already run, and a generator resizes
+    // once, so the request is held here and honoured on the first access after
+    // a device appears. Zero once satisfied.
+    uint32_t pendingWidth = 0;
+    uint32_t pendingHeight = 0;
 };
 
 #endif // RIVE_ORE
@@ -834,12 +843,22 @@ public:
     lua_State* m_L = nullptr;
     int m_imageRef = LUA_NOREF;
     gpu::RenderContext* renderCtx = nullptr;
+    // See ScriptedGPUCanvas::pendingWidth.
+    uint32_t pendingWidth = 0;
+    uint32_t pendingHeight = 0;
     CanvasState m_state = CanvasState::Idle;
     // Allocated on beginFrame(), deleted on endFrame(). Wraps renderCtx.
+    // Null in deferred mode, content records into the stream instead.
     RiveRenderer* m_riveRenderer = nullptr;
+    // Set on beginFrame() when a deferred host is recording, endFrame()
+    // routes through it instead of the real flush. Null means immediate.
+    cmd::DeferredCanvasHost* m_deferredHost = nullptr;
     // Lua registry ref to the ScriptedRenderer pushed by beginFrame(),
     // kept alive until endFrame() so the Lua renderer stays valid.
     int m_rendererRef = LUA_NOREF;
+    // Registry ref while the frame is open so post-error cleanup can close
+    // it and GC cannot collect it mid-frame.
+    int m_openFrameRef = LUA_NOREF;
 };
 #endif // RIVE_CANVAS
 
@@ -1523,6 +1542,9 @@ void rive_lua_pop(lua_State* state, int count);
 // Finishes any ORE render pass left open at script return and reports it
 // as a Lua error. Defined in src/lua/renderer/lua_gpu.cpp.
 void rive_lua_closeOrphanRenderPass(lua_State* state);
+// Ends any Canvas frame an errored script left open, which would otherwise
+// corrupt the deferred stream. Defined in src/lua/renderer/lua_gpu.cpp.
+void rive_lua_closeOrphanCanvasFrames(lua_State* state);
 #endif
 
 class ScriptingContext
@@ -1598,11 +1620,19 @@ public:
         std::string m_bare;
     };
 
-    // Ore GPU context for this VM, derived from the render factory. Null when
-    // there is no render context, or it is not GPU-backed. Returned as void* so
-    // callers that include ore headers cast to ore::Context*.
+    // Ore GPU context for this VM, void* so callers cast to ore::Context*.
+    // A deferred host can override it via setOreContext to record instead.
     void* oreContext() const
     {
+        if (m_oreContextOverride != nullptr)
+            return m_oreContextOverride;
+        // A recording construction factory owns the context this VM's GPU work
+        // has to record into, and it has one before any device exists.
+        if (m_factory != nullptr)
+        {
+            if (auto* recording = m_factory->ore())
+                return recording;
+        }
         return m_renderContext ? m_renderContext->ore() : nullptr;
     }
 
@@ -1611,7 +1641,37 @@ public:
     // construction factory(). A RenderContext is a Factory, so callers needing
     // gpu APIs cast down to gpu::RenderContext*.
     void setRenderContext(Factory* ctx) { m_renderContext = ctx; }
-    Factory* renderContext() const { return m_renderContext; }
+    Factory* renderContext() const
+    {
+        if (m_renderContext != nullptr)
+            return m_renderContext;
+        // Nothing handed this VM a device. A recording factory may still have
+        // been given one after import, so ask instead of reporting the null we
+        // saw while the scripts were running.
+        return m_factory != nullptr ? m_factory->renderContext() : nullptr;
+    }
+
+    // True when renderContext() resolved through the recording factory rather
+    // than a device handed to this VM. That device belongs to whoever attached
+    // it, so canvas backings must be deferred to it instead of allocated here.
+    bool renderContextIsLateBound() const { return m_renderContext == nullptr; }
+
+    // Point scripts at a DeferredOreContext so their GPU work records
+    // instead of touching the driver. Null restores the default.
+    void setOreContext(void* ctx) { m_oreContextOverride = ctx; }
+    // Raw override, for transferring deferred routing across a context swap.
+    void* oreContextOverride() const { return m_oreContextOverride; }
+
+    // When set, Canvas:beginFrame records into the deferred stream instead
+    // of issuing to the real RenderContext. Null means immediate.
+    void setDeferredCanvasHost(cmd::DeferredCanvasHost* host)
+    {
+        m_deferredCanvasHost = host;
+    }
+    cmd::DeferredCanvasHost* deferredCanvasHost() const
+    {
+        return m_deferredCanvasHost;
+    }
 
     // WorkPool for async operations (image decode, etc.).
     // Lazily created on first access. Shared across all contexts via a
@@ -1633,10 +1693,24 @@ public:
     void setOreFrameOpen(bool open) { m_oreFrameOpen = open; }
     bool oreFrameOpen() const { return m_oreFrameOpen; }
 
-    // True while Artboard::drawCanvases() is actively walking scripted
-    // objects to invoke their drawCanvas() Lua callbacks.
-    void setCanvasDrawingPhase(bool value) { m_canvasDrawingPhase = value; }
-    bool canvasDrawingPhase() const { return m_canvasDrawingPhase; }
+    // Open canvas frames as registry refs so the post-pcall cleanup can
+    // close frames an errored script abandoned.
+    void registerOpenCanvasFrame(int ref) { m_openCanvasFrames.push_back(ref); }
+    void unregisterOpenCanvasFrame(int ref)
+    {
+        for (size_t i = 0; i < m_openCanvasFrames.size(); i++)
+        {
+            if (m_openCanvasFrames[i] == ref)
+            {
+                m_openCanvasFrames.erase(m_openCanvasFrames.begin() + i);
+                return;
+            }
+        }
+    }
+    std::vector<int> takeOpenCanvasFrames()
+    {
+        return std::move(m_openCanvasFrames);
+    }
 
     // When set, context:gpuCanvas() always returns a deferred (texture-less)
     // canvas regardless of requested size, never calling makeRenderCanvas.
@@ -1666,10 +1740,12 @@ private:
 
 private:
     Factory* m_renderContext = nullptr;
+    void* m_oreContextOverride = nullptr; // deferred host's DeferredOreContext
+    cmd::DeferredCanvasHost* m_deferredCanvasHost = nullptr;
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
-    bool m_canvasDrawingPhase = false;
     bool m_gpuCanvasDeferOnly = false;
+    std::vector<int> m_openCanvasFrames;
     intptr_t m_prevGLContext = 0;
 #ifdef __EMSCRIPTEN__
     int m_glHandle = 0;
@@ -1735,6 +1811,16 @@ public:
 #endif
 };
 
+#ifdef RIVE_CANVAS
+// Allocates a script canvas backing, deferring when a session is recording
+// or the device was late bound, since either way the replay worker owns the
+// texture.
+rcp<gpu::RenderCanvas> allocScriptRenderCanvas(gpu::RenderContext* rc,
+                                               ScriptingContext* ctx,
+                                               uint32_t width,
+                                               uint32_t height);
+#endif
+
 class ScopedScriptedObjectContext
 {
 public:
@@ -1761,32 +1847,6 @@ public:
 private:
     ScriptingContext* m_context;
     ScriptedObject* m_previous;
-};
-
-class ScopedCanvasDrawingPhase
-{
-public:
-    ScopedCanvasDrawingPhase(ScriptingContext* context) :
-        m_context(context),
-        m_previous(context == nullptr ? false : context->canvasDrawingPhase())
-    {
-        if (m_context != nullptr)
-        {
-            m_context->setCanvasDrawingPhase(true);
-        }
-    }
-
-    ~ScopedCanvasDrawingPhase()
-    {
-        if (m_context != nullptr)
-        {
-            m_context->setCanvasDrawingPhase(m_previous);
-        }
-    }
-
-private:
-    ScriptingContext* m_context;
-    bool m_previous;
 };
 
 class ScriptedDataValue

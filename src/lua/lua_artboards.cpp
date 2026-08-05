@@ -101,14 +101,6 @@ static int artboard_draw(lua_State* L)
     return 0;
 }
 
-static int artboard_draw_canvas(lua_State* L)
-{
-    auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
-    scriptedArtboard->artboard()->internalDrawCanvases();
-
-    return 0;
-}
-
 bool ScriptedArtboard::advance(float seconds)
 {
     auto machine = stateMachine();
@@ -226,8 +218,6 @@ static int artboard_namecall(lua_State* L)
         {
             case (int)LuaAtoms::draw:
                 return artboard_draw(L);
-            case (int)LuaAtoms::drawCanvas:
-                return artboard_draw_canvas(L);
             case (int)LuaAtoms::advance:
                 return artboard_advance(L);
             case (int)LuaAtoms::instance:

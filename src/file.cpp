@@ -697,6 +697,7 @@ void File::registerScripts()
         ScriptingVM* vm = m_scriptingVM.get();
         if (vm != nullptr)
         {
+            routeScriptingToImportFactory(vm->context());
             // Set up the Data global (view model constructors) on the active
             // VM, whether it was created here or supplied externally (e.g. by
             // the CommandServer). Skip it when the VM's owner builds Data
@@ -732,6 +733,48 @@ void File::registerScripts()
             {
                 scriptAsset->initScriptedObject(interpolator);
             }
+        }
+    }
+}
+
+// Scripts reach the GPU through their ScriptingContext, and nothing else in
+// the import path hands them one, so a script that opened a gpuCanvas used to
+// fail on every runtime host. The factory the file imported through knows the
+// context it draws to and whether that work has to record, so route from it
+// here, ahead of performRegistration since registration can run script bodies.
+//
+// Only fills pointers the caller left null: the editor routes at workspace
+// level instead, because it swaps the whole ScriptingContext on every
+// recompile and per-VM routing would silently come undone. A caller that
+// already chose a context outranks the factory's default.
+void File::routeScriptingToImportFactory(ScriptingContext* context)
+{
+    if (context == nullptr || m_factory == nullptr)
+    {
+        return;
+    }
+    // Each pointer routes on its own. renderContext() and oreContext() read
+    // through factory fallbacks so they self-heal after a late device bind,
+    // but the canvas host has no fallback: bailing on a factory with no
+    // device yet would lose recording for good. Test the raw member, not
+    // renderContext() - the fallback would report the factory's own context
+    // and skip a caller that never chose one.
+    if (context->renderContextIsLateBound())
+    {
+        if (Factory* renderContext = m_factory->renderContext())
+        {
+            context->setRenderContext(renderContext);
+        }
+    }
+    if (context->deferredCanvasHost() == nullptr)
+    {
+        if (cmd::DeferredCanvasHost* host = m_factory->deferredCanvasHost())
+        {
+            // Recording: script canvas frames become commands, and the ore
+            // context has to be the session's recorder rather than the render
+            // context's real one that setRenderContext would otherwise imply.
+            context->setDeferredCanvasHost(host);
+            context->setOreContext(m_factory->ore());
         }
     }
 }

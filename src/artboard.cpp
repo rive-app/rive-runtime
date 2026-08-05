@@ -261,6 +261,30 @@ bool Artboard::validateObjects()
     return true;
 }
 
+void Artboard::reinstanceNestedArtboards(Factory* factory)
+{
+    for (auto object : m_Objects)
+    {
+        if (object == nullptr || !object->is<NestedArtboard>())
+        {
+            continue;
+        }
+        auto nested = object->as<NestedArtboard>();
+        Artboard* current = nested->sourceArtboard();
+        if (current == nullptr || !current->isInstance() ||
+            current->m_artboardSource == nullptr)
+        {
+            continue;
+        }
+        auto replacement =
+            current->m_artboardSource->instance<ArtboardInstance>(factory);
+        if (replacement != nullptr)
+        {
+            nested->referencedArtboard(replacement.release());
+        }
+    }
+}
+
 StatusCode Artboard::initialize()
 {
     StatusCode code;
@@ -892,25 +916,6 @@ void Artboard::initScriptedObjects()
 
 void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
 
-void Artboard::drawCanvases()
-{
-#ifdef WITH_RIVE_SCRIPTING
-    if (m_scriptingVM)
-    {
-        auto* L = m_scriptingVM->state();
-        if (L != nullptr)
-        {
-            auto* context =
-                static_cast<ScriptingContext*>(lua_getthreaddata(L));
-            ScopedCanvasDrawingPhase phase(context);
-            internalDrawCanvases();
-            return;
-        }
-    }
-#endif
-    internalDrawCanvases();
-}
-
 void Artboard::advanceScriptedViewModels()
 {
 #ifdef WITH_RIVE_SCRIPTING
@@ -923,53 +928,6 @@ void Artboard::advanceScriptedViewModels()
     }
 #endif
 }
-
-void Artboard::internalDrawCanvases()
-{
-    for (auto obj : m_ScriptedObjects)
-    {
-        obj->scriptDrawCanvas();
-    }
-    for (auto artboardHost : m_ArtboardHosts)
-    {
-        for (int i = 0; i < artboardHost->artboardCount(); i++)
-        {
-            auto* nested = artboardHost->artboardInstance(i);
-            if (nested != nullptr)
-            {
-                nested->internalDrawCanvases();
-            }
-        }
-    }
-}
-
-#ifdef WITH_RIVE_SCRIPTING
-void* Artboard::findDrawCanvasLuauState() const
-{
-    for (auto* obj : m_ScriptedObjects)
-    {
-        if (obj->drawsCanvas())
-        {
-            return obj->state();
-        }
-    }
-    for (auto* host : m_ArtboardHosts)
-    {
-        for (int i = 0; i < host->artboardCount(); i++)
-        {
-            auto* nested = host->artboardInstance(i);
-            if (nested != nullptr)
-            {
-                if (auto* state = nested->findDrawCanvasLuauState())
-                {
-                    return state;
-                }
-            }
-        }
-    }
-    return nullptr;
-}
-#endif
 
 Core* Artboard::resolve(uint32_t id) const
 {
@@ -1620,7 +1578,6 @@ bool Artboard::hitTestPoint(const Vec2D& position,
 void Artboard::draw(Renderer* renderer)
 {
     sm_frameId++;
-    drawCanvases();
     drawInternal(renderer);
 }
 

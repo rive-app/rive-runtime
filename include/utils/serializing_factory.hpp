@@ -54,6 +54,12 @@ public:
     void save(const char* filename);
     bool matches(const char* filename);
 
+    // Recorded SRIV stream for replay via serialized_replay.hpp.
+    Span<const uint8_t> bytes() const
+    {
+        return Span<const uint8_t>(m_buffer.data(), m_buffer.size());
+    }
+
 private:
     void saveTarnished(const char* filename);
 

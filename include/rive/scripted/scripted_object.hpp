@@ -66,7 +66,6 @@ public:
     void setViewModelInput(std::string name, ViewModelInstanceValue* value);
     void trigger(std::string name);
     bool scriptAdvance(float elapsedSeconds);
-    void scriptDrawCanvas();
     void scriptUpdate();
     void reinit();
 #ifdef WITH_RIVE_SCRIPTING
@@ -125,6 +124,9 @@ public:
 #ifdef WITH_RIVE_SCRIPTING
     /// Called after hydrateScriptInputs() succeeds;
     virtual void didHydrateScriptInputs() {}
+    // A reinit replaced script state, like a VM swap on editor pause; hosts
+    // re-record content the old state produced.
+    virtual void didReinit() {}
 #endif
 };
 } // namespace rive

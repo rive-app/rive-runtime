@@ -293,7 +293,6 @@ constexpr LuaAtomName atoms[] = {
     {"canvas", (int16_t)LuaAtoms::canvas},
     {"gpuCanvas", (int16_t)LuaAtoms::gpuCanvas},
     {"features", (int16_t)LuaAtoms::features},
-    {"drawCanvas", (int16_t)LuaAtoms::drawCanvas},
     {"shader", (int16_t)LuaAtoms::shader},
     {"format", (int16_t)LuaAtoms::format},
     {"andThen", (int16_t)LuaAtoms::andThen},
@@ -453,6 +452,7 @@ int rive_lua_pcall(lua_State* state, int nargs, int nresults)
     int ret = context->pCall(state, nargs, nresults);
 #ifdef RIVE_ORE
     rive_lua_closeOrphanRenderPass(state);
+    rive_lua_closeOrphanCanvasFrames(state);
 #endif
     return ret;
 }
@@ -468,6 +468,7 @@ int rive_lua_pcall_with_context(lua_State* state,
     int ret = context->pCall(state, nargs, nresults);
 #ifdef RIVE_ORE
     rive_lua_closeOrphanRenderPass(state);
+    rive_lua_closeOrphanCanvasFrames(state);
 #endif
     return ret;
 }

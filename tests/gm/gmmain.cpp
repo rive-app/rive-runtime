@@ -26,6 +26,16 @@ using namespace rivegm;
 static bool verbose = false;
 static int loopCount = 1;
 std::vector<std::tuple<std::function<GM*(void)>, std::string>> gmRegistry;
+// Deferred parity families. Each runs its immediate GM and every deferred
+// variant in-process and requires byte identical frames, so the machinery
+// carries no goldens of its own; the scenes' pixels are the renderer GMs' job.
+std::vector<std::tuple<std::vector<std::function<GM*(void)>>, std::string>>
+    parityRegistry;
+static int parityFailures = 0;
+// Zero demands byte identical frames. Atomic backends rasterize in a
+// nondeterministic order run to run, so they get the same small tolerance the
+// golden diffs allow instead of exactness no two of their frames ever had.
+static int parityMaxChannelDiff = 0;
 extern "C" void gms_build_registry()
 {
     // Only call gms_build_registry() once!
@@ -34,6 +44,24 @@ extern "C" void gms_build_registry()
 #define MAKE_GM(NAME)                                                          \
     extern GM* RIVE_MACRO_CONCAT(make_, NAME)();                               \
     gmRegistry.emplace_back(RIVE_MACRO_CONCAT(make_, NAME), #NAME);
+
+#define MAKE_PARITY_GM2(NAME, IMM, VAR)                                        \
+    extern GM* RIVE_MACRO_CONCAT(make_, IMM)();                                \
+    extern GM* RIVE_MACRO_CONCAT(make_, VAR)();                                \
+    parityRegistry.emplace_back(                                               \
+        std::vector<std::function<GM*(void)>>{RIVE_MACRO_CONCAT(make_, IMM),   \
+                                              RIVE_MACRO_CONCAT(make_, VAR)},  \
+        #NAME);
+
+#define MAKE_PARITY_GM3(NAME, IMM, VAR1, VAR2)                                 \
+    extern GM* RIVE_MACRO_CONCAT(make_, IMM)();                                \
+    extern GM* RIVE_MACRO_CONCAT(make_, VAR1)();                               \
+    extern GM* RIVE_MACRO_CONCAT(make_, VAR2)();                               \
+    parityRegistry.emplace_back(                                               \
+        std::vector<std::function<GM*(void)>>{RIVE_MACRO_CONCAT(make_, IMM),   \
+                                              RIVE_MACRO_CONCAT(make_, VAR1),  \
+                                              RIVE_MACRO_CONCAT(make_, VAR2)}, \
+        #NAME);
 
     // Add slow GMs first so they get more time to run in a multiprocess
     // execution.
@@ -190,6 +218,11 @@ extern "C" void gms_build_registry()
     MAKE_GM(render_canvas_persistence)
     MAKE_GM(render_canvas_prepass)
     MAKE_GM(render_canvas_prepass_multi)
+#ifdef WITH_RIVE_SCRIPTING
+    MAKE_GM(canvas_dag_chain)
+    MAKE_GM(canvas_dag_chain_reversed)
+    MAKE_GM(canvas_dag_cycle)
+#endif
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
@@ -215,8 +248,32 @@ extern "C" void gms_build_registry()
     MAKE_GM(ore_layout_reuse)
     MAKE_GM(ore_layout_mismatch)
     MAKE_GM(ore_depth_only_pipeline)
+    MAKE_PARITY_GM3(ore_deferred_replay,
+                    ore_deferred_replay_immediate,
+                    ore_deferred_replay,
+                    ore_deferred_replay_inline)
+    MAKE_PARITY_GM2(ore_deferred_multipass,
+                    ore_deferred_multipass_immediate,
+                    ore_deferred_multipass)
+    MAKE_PARITY_GM3(ore_deferred_resource,
+                    ore_deferred_resource_immediate,
+                    ore_deferred_resource,
+                    ore_deferred_resource_unified)
+    MAKE_PARITY_GM2(ore_deferred_context,
+                    ore_deferred_context_immediate,
+                    ore_deferred_context)
+    MAKE_PARITY_GM2(render_deferred_canvas,
+                    render_deferred_canvas_immediate,
+                    render_deferred_canvas)
 #endif
 #endif
+    // 2D only so these are not gated on Ore.
+    MAKE_PARITY_GM2(serialized_replay_2d,
+                    serialized_replay_2d_immediate,
+                    serialized_replay_2d)
+    MAKE_PARITY_GM2(render_deferred_2d,
+                    render_deferred_2d_immediate,
+                    render_deferred_2d)
 }
 
 static void dump_gm(GM* gm, const std::string& name)
@@ -246,6 +303,61 @@ static void dump_gm(GM* gm, const std::string& name)
     if (verbose)
     {
         printf("[gms] Sent %s.png\n", name.c_str());
+    }
+}
+
+static void run_parity_gm(const std::vector<std::function<GM*(void)>>& makers,
+                          const std::string& name)
+{
+    if (verbose)
+    {
+        printf("[gms] Running parity %s...\n", name.c_str());
+    }
+    std::vector<uint8_t> immediate;
+    std::vector<uint8_t> variant;
+    for (size_t i = 0; i < makers.size(); ++i)
+    {
+        std::unique_ptr<GM> gm(makers[i]());
+        if (!gm)
+        {
+            return;
+        }
+        TestingWindow::Get()->resize(gm->width(), gm->height());
+        gm->onceBeforeDraw();
+        std::vector<uint8_t>* out = i == 0 ? &immediate : &variant;
+        out->clear();
+        gm->run(name.c_str(), out);
+        if (i == 0)
+        {
+            continue;
+        }
+        bool match = variant.size() == immediate.size();
+        int worst = 0;
+        if (match && parityMaxChannelDiff > 0)
+        {
+            for (size_t b = 0; b < variant.size(); ++b)
+            {
+                int diff = std::abs(static_cast<int>(variant[b]) -
+                                    static_cast<int>(immediate[b]));
+                worst = std::max(worst, diff);
+            }
+            match = worst <= parityMaxChannelDiff;
+        }
+        else if (match)
+        {
+            match = variant == immediate;
+        }
+        if (!match)
+        {
+            parityFailures++;
+            fprintf(stderr,
+                    "[gms] PARITY FAILED: %s variant %zu does not match the "
+                    "immediate frame (worst channel diff %d, allowed %d)\n",
+                    name.c_str(),
+                    i,
+                    worst,
+                    parityMaxChannelDiff);
+        }
     }
 }
 
@@ -307,6 +419,25 @@ static void dumpGMs(const std::string& match, bool interactive)
 #endif
 #ifdef __EMSCRIPTEN__
         // Yield control back to the browser so it can process its event loop.
+        emscripten_sleep(1);
+#endif
+    }
+
+    for (const auto& [makers, name] : parityRegistry)
+    {
+        if (match.size() && !contains(name, match))
+        {
+            continue;
+        }
+        // Claimed like any GM so one worker runs each family; they store no
+        // golden, the claim only partitions the work.
+        if (!TestHarness::Instance().claimGMTest(name))
+        {
+            continue;
+        }
+        run_parity_gm(makers, name);
+        TestingWindow::Get()->onceAfterGM();
+#ifdef __EMSCRIPTEN__
         emscripten_sleep(1);
 #endif
     }
@@ -522,6 +653,7 @@ int main(int argc, const char* argv[])
         visibility = TestingWindow::Visibility::fullscreen;
     }
 #endif
+    parityMaxChannelDiff = backendParams.atomic ? 8 : 0;
     TestingWindow::Init(backend, backendParams, visibility, platformWindow);
 #ifndef RIVE_UNREAL // unreal calls this directly instead
     gms_build_registry();
@@ -529,7 +661,15 @@ int main(int argc, const char* argv[])
 
     dumpGMs(std::string(match), interactive);
 
+    if (parityFailures != 0)
+    {
+        fprintf(stderr, "[gms] %d parity failures\n", parityFailures);
+        fflush(stderr);
+        abort();
+    }
+
     gmRegistry.clear();
+    parityRegistry.clear();
     TestingWindow::Destroy(); // Exercise our PLS teardown process now that
                               // we're done.
     TestHarness::Instance().shutdown();

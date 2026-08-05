@@ -99,6 +99,7 @@ void RiveRenderPath::addRenderPath(const RenderPath* path, const Mat2D& matrix)
 void RiveRenderPath::addRenderPathBackwards(const RenderPath* path,
                                             const Mat2D& transform)
 {
+    assert(m_rawPathMutationLockCount == 0);
     auto riveRenderPath = static_cast<const RiveRenderPath*>(path);
     RawPath::Iter transformedPathIter =
         m_rawPath.addPathBackwards(riveRenderPath->m_rawPath, &transform);
@@ -112,7 +113,9 @@ void RiveRenderPath::addRenderPathBackwards(const RenderPath* path,
 
 void RiveRenderPath::addRawPath(const RawPath& path)
 {
+    assert(m_rawPathMutationLockCount == 0);
     m_rawPath.addPath(path, nullptr);
+    m_dirt = kAllDirt;
 }
 
 const AABB& RiveRenderPath::getBounds() const
