@@ -232,9 +232,9 @@ void IKConstraint::constrain(TransformComponent* component)
         const Mat2D& parentWorld = getParentWorld(*bone);
         item.parentWorldInverse = parentWorld.invertOrIdentity();
 
-        Mat2D& boneTransform = bone->mutableTransform();
-        boneTransform = item.parentWorldInverse * bone->worldTransform();
-        item.transformComponents = boneTransform.decompose();
+        bone->updateTransform();
+        bone->mutableWorldTransform() = parentWorld * bone->transform();
+        item.transformComponents = bone->transform().decompose();
     }
 
     int count = (int)m_FkChain.size();
