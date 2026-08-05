@@ -3,9 +3,10 @@
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/generated/shapes/paint/color_channels_base.hpp"
 namespace rive
 {
-class GradientStopBase : public Component
+class GradientStopBase : public Component, public ColorChannelsBase
 {
 protected:
     typedef Component Super;
@@ -37,8 +38,8 @@ protected:
     float m_Position = 0.0f;
 
 public:
-    inline int colorValue() const { return m_ColorValue; }
-    void colorValue(int value)
+    inline int colorValue() const override { return m_ColorValue; }
+    void colorValue(int value) override
     {
         if (m_ColorValue == value)
         {

@@ -2,9 +2,10 @@
 #define _RIVE_SOLID_COLOR_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
+#include "rive/generated/shapes/paint/color_channels_base.hpp"
 namespace rive
 {
-class SolidColorBase : public Component
+class SolidColorBase : public Component, public ColorChannelsBase
 {
 protected:
     typedef Component Super;
@@ -34,8 +35,8 @@ protected:
     int m_ColorValue = 0xFF747474;
 
 public:
-    inline int colorValue() const { return m_ColorValue; }
-    void colorValue(int value)
+    inline int colorValue() const override { return m_ColorValue; }
+    void colorValue(int value) override
     {
         if (m_ColorValue == value)
         {

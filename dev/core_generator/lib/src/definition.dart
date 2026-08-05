@@ -47,6 +47,10 @@ class Definition {
   Definition? _rawExtensionOf;
   Key? _key;
   bool _isAbstract = false;
+  bool _isMixin = false;
+  bool get isMixin => _isMixin;
+  final List<Definition> _mixinsOf = [];
+  List<Definition> get mixinsOf => _mixinsOf;
   bool _editorOnly = false;
   bool _forRuntime = true;
   bool get forRuntime => _forRuntime;
@@ -102,6 +106,40 @@ class Definition {
     dynamic abstractValue = data['abstract'];
     if (abstractValue is bool) {
       _isAbstract = abstractValue;
+    }
+    dynamic isMixinValue = data['isMixin'];
+    if (isMixinValue is bool) {
+      _isMixin = isMixinValue;
+    }
+    // Parse mixins. In the C++ runtime a mixin is emitted as a non-Core
+    // interface base (multiple inheritance) plus per-consumer dispatch in
+    // core_registry (via a static from(Core*) resolver). We record the mixin
+    // relationship for codegen/registry dispatch, but do not fold the mixin's
+    // properties into the consumer's own property list.
+    void addMixin(String name) {
+      // Editor-only mixins (e.g. publishable, taggable) are not synced into the
+      // runtime def tree. Skip any mixin whose def is absent here — only
+      // runtime-capable mixins (e.g. color_channels) participate in C++.
+      if (!File(defsPath + name).existsSync()) {
+        return;
+      }
+      final mixinDef = Definition.make(name);
+      if (mixinDef != null) {
+        _mixinsOf.add(mixinDef);
+      }
+    }
+
+    dynamic mixinFilename = data['mixin'];
+    if (mixinFilename is String) {
+      addMixin(mixinFilename);
+    }
+    dynamic mixinFilenames = data['mixins'];
+    if (mixinFilenames is List) {
+      for (final name in mixinFilenames) {
+        if (name is String) {
+          addMixin(name);
+        }
+      }
     }
     dynamic editorOnlyValue = data['editorOnly'];
     if (editorOnlyValue is bool) {
@@ -168,6 +206,23 @@ class Definition {
         }
       }
       if (target == null) {
+        // A mixin can passthrough a mask provided by the host class that
+        // includes it (e.g. `colorValue` on SolidColor/GradientStop). The
+        // mask is not a same-def sibling; core_registry drives it per
+        // consuming type. Bit/width validation still applies.
+        if (_isMixin) {
+          p.bitmaskTargetIsHostProvided = true;
+          final bit = p.passthroughBit!;
+          final width = p.passthroughBitWidthOrDefault;
+          if (bit < 0 || width < 1 || bit + width > 32) {
+            color(
+              '${p.name}: passthroughBit/passthroughBitWidth must fit in 0..32 '
+              '(bit $bit, width $width).',
+              front: Styles.RED,
+            );
+          }
+          continue;
+        }
         color(
           '${p.name}: passthroughForBitmask "${p.passthroughForBitmask}" '
           'not found.',
@@ -175,9 +230,10 @@ class Definition {
         );
         continue;
       }
-      if (target.type.name != 'uint') {
+      // Color masks are uint32 under the hood, so they are valid targets too.
+      if (target.type.name != 'uint' && target.type.name != 'Color') {
         color(
-          '${p.name}: passthroughForBitmask target must be uint.',
+          '${p.name}: passthroughForBitmask target must be uint or Color.',
           front: Styles.RED,
         );
         continue;
@@ -244,9 +300,111 @@ class Definition {
   String get concreteCodeFilename => 'rive/${stripExtension(_filename)}.hpp';
   String get localCppCodeFilename => '${stripExtension(_filename)}_base.cpp';
 
+  /// Runtime types that include this mixin (scanned once all defs are loaded).
+  List<Definition> get _mixinConsumers => definitions.values
+      .where((d) => d.forRuntime && d._mixinsOf.contains(this))
+      .toList();
+
+  /// A runtime mixin is emitted as a non-Core interface class (like
+  /// [ListConstraint]): it declares the host mask(s) as pure virtuals — which
+  /// the consuming type's own generated accessor satisfies — and provides the
+  /// shared channel accessor methods + key constants. A static [from] resolves
+  /// a Core object to the interface (or nullptr). Consuming types inherit it as
+  /// a second base, and core_registry dispatches the shared keys through
+  /// [from].
+  Future<void> _generateMixinInterfaceHeader() async {
+    // Distinct host-provided masks required by this mixin's passthroughs.
+    final hostMasks = <String>{};
+    for (final property in properties) {
+      if (property.isBitmaskPassthrough &&
+          property.bitmaskTargetIsHostProvided) {
+        hostMasks.add(property.passthroughForBitmask!);
+      }
+    }
+
+    StringBuffer code = StringBuffer();
+    code.writeln('#include <cstdint>');
+    code.writeln('namespace rive {');
+    code.writeln('class Core;');
+    code.writeln('class ${_name}Base {');
+    code.writeln('public:');
+    code.writeln('static ${_name}Base* from(Core* object);');
+    // The host provides the packed mask; its own accessor overrides these.
+    for (final mask in hostMasks) {
+      code.writeln('virtual int $mask() const = 0;');
+      code.writeln('virtual void $mask(int value) = 0;');
+    }
+    for (final property in properties) {
+      code.writeln('static const uint16_t ${property.name}PropertyKey = '
+          '${property.key!.intValue};');
+      for (final altKey in property.key!.alternates) {
+        code.writeln('static const uint16_t ${altKey.stringValue}PropertyKey = '
+            '${altKey.intValue};');
+      }
+      if (property.isBitmaskPassthrough &&
+          property.bitmaskTargetIsHostProvided &&
+          property.type.name == 'uint') {
+        final mask = property.passthroughForBitmask!;
+        final bit = property.passthroughBit!;
+        final width = property.passthroughBitWidthOrDefault;
+        final fieldMask = ((1 << width) - 1) << bit;
+        final valueMask = (1 << width) - 1;
+        code.writeln('static const uint32_t ${property.name}BitOffset = $bit;');
+        code.writeln('static const uint32_t ${property.name}FieldMask = '
+            '${fieldMask}u;');
+        code.writeln('uint32_t ${property.name}() const { return '
+            '(static_cast<uint32_t>($mask()) >> $bit) & ${valueMask}u; }');
+        code.writeln('void ${property.name}(uint32_t value) {');
+        // Clamp to the field's range so a channel saturates instead of
+        // wrapping into the neighbouring byte.
+        code.writeln('if (value > ${valueMask}u) { value = ${valueMask}u; }');
+        code.writeln('const int _cur = $mask();');
+        code.writeln('const int _fieldMask = static_cast<int>(${fieldMask}u);');
+        code.writeln('const int _next = static_cast<int>('
+            '(_cur & ~_fieldMask) | ((value << $bit) & _fieldMask));');
+        code.writeln('if (_cur != _next) { $mask(_next); }');
+        code.writeln('}');
+      }
+    }
+    code.writeln('};');
+    code.writeln('}');
+
+    var file = File('$generatedHppPath$localCodeFilename');
+    file.createSync(recursive: true);
+    var formattedCode =
+        await _formatter.formatAndGuard('${_name}Base', code.toString());
+    file.writeAsStringSync(formattedCode, flush: true);
+
+    // Emit the from() implementation switching over consuming types.
+    final consumers = _mixinConsumers;
+    StringBuffer cpp = StringBuffer();
+    cpp.writeln('#include "rive/generated/$localCodeFilename"');
+    cpp.writeln('#include "rive/core.hpp"');
+    for (final consumer in consumers) {
+      cpp.writeln('#include "${consumer.concreteCodeFilename}"');
+    }
+    cpp.writeln('using namespace rive;');
+    cpp.writeln('${_name}Base* ${_name}Base::from(Core* object) {');
+    cpp.writeln('switch (object->coreType()) {');
+    for (final consumer in consumers) {
+      cpp.writeln('case ${consumer.name}Base::typeKey:');
+      cpp.writeln('return object->as<${consumer.name}Base>();');
+    }
+    cpp.writeln('} return nullptr; }');
+
+    var cppFile = File('$generatedCppPath$localCppCodeFilename');
+    cppFile.createSync(recursive: true);
+    var formattedCpp = await _formatter.format(cpp.toString());
+    cppFile.writeAsStringSync(formattedCpp, flush: true);
+  }
+
   /// Generates cpp header code based on the Definition
   Future<void> generateCode() async {
     if (!_forRuntime) {
+      return;
+    }
+    if (_isMixin) {
+      await _generateMixinInterfaceHeader();
       return;
     }
     bool defineContextExtension = _extensionOf?._name == null;
@@ -266,6 +424,10 @@ class Definition {
           property.type.snakeRuntimeCoreName +
           '.hpp');
     }
+    // Runtime mixins are inherited as (non-Core) second bases.
+    for (final mixin in _mixinsOf) {
+      includes.add('rive/generated/${mixin.localCodeFilename}');
+    }
 
     var sortedIncludes = includes.toList()..sort();
     for (final include in sortedIncludes) {
@@ -280,7 +442,9 @@ class Definition {
 
     code.writeln('namespace rive {');
     var superTypeName = defineContextExtension ? 'Core' : _extensionOf?._name;
-    code.writeln('class ${_name}Base : public $superTypeName {');
+    final mixinBases =
+        _mixinsOf.map((mixin) => ', public ${mixin.name}Base').join();
+    code.writeln('class ${_name}Base : public $superTypeName$mixinBases {');
 
     code.writeln('protected:');
     code.writeln('typedef $superTypeName Super;');
@@ -385,6 +549,11 @@ class Definition {
         if (property.isBitmaskPassthrough) {
           continue;
         }
+        // A stored mask property (e.g. colorValue) that satisfies a mixin's
+        // host-provided pure virtual must be marked `override`.
+        final overridesMixinMask = _mixinsOf.any((m) => m.properties.any((mp) =>
+            mp.bitmaskTargetIsHostProvided &&
+            mp.passthroughForBitmask == property.name));
         if (!property.getExportType().storesData) {
           code.writeln((property.isSetOverride ? '' : 'virtual ') +
               'void ${property.name}' +
@@ -407,8 +576,7 @@ class Definition {
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
         } else if (property.isPassthrough) {
-          code.writeln(
-              'virtual void set${property.capitalizedName}('
+          code.writeln('virtual void set${property.capitalizedName}('
               '${property.type.cppGetterName} value) = 0;');
           code.writeln(
               'virtual ${property.type.cppGetterName} ${property.name}() '
@@ -428,12 +596,16 @@ class Definition {
                   ? 'virtual'
                   : 'inline') +
               ' ${property.type.cppGetterName} ${property.name}() const ' +
-              (property.isGetOverride ? 'override' : '') +
+              ((property.isGetOverride || overridesMixinMask)
+                  ? 'override'
+                  : '') +
               '{ return m_${property.capitalizedName}; }');
           if (!property.isPureVirtual) {
             code.writeln(
                 'void ${property.name}(${property.type.cppName} value) ' +
-                    (property.isSetOverride ? 'override' : '') +
+                    ((property.isSetOverride || overridesMixinMask)
+                        ? 'override'
+                        : '') +
                     '{'
                         'if(m_${property.capitalizedName} == value)'
                         '{return;}'
@@ -660,12 +832,18 @@ class Definition {
     var runtimeDefinitions =
         definitions.values.where((definition) => definition.forRuntime);
     for (final definition in runtimeDefinitions) {
-      includes.add(definition.concreteCodeFilename);
+      // Mixins have no concrete class; include their (constants-only) base
+      // header directly so core_registry can reference the shared key
+      // constants.
+      includes.add(definition._isMixin
+          ? 'rive/generated/${definition.localCodeFilename}'
+          : definition.concreteCodeFilename);
     }
     var includeList = includes.toList()..sort();
     for (final include in includeList) {
       ctxCode.writeln('#include "$include"');
     }
+
     ctxCode.writeln('namespace rive {class CoreRegistry {'
         'public:');
     ctxCode.writeln('static Core* makeCoreInstance(int typeKey) {'
@@ -706,7 +884,22 @@ class Definition {
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }
-          if (property.isBitmaskPassthrough) {
+          if (property.isBitmaskPassthrough &&
+              property.bitmaskTargetIsHostProvided) {
+            // Shared channel defined in a mixin. Resolve the interface via
+            // from() and let it do the masked write on the host's mask.
+            final iface = '${property.definition.name}Base';
+            ctxCode.writeln('case $iface::${property.name}PropertyKey:');
+            for (final altKey in property.key!.alternates) {
+              ctxCode.writeln('case $iface'
+                  '::${altKey.stringValue}PropertyKey:');
+            }
+            ctxCode.writeln('{');
+            ctxCode.writeln('if (auto* _c = $iface::from(object)) { '
+                '_c->${property.name}(value); }');
+            ctxCode.writeln('break;');
+            ctxCode.writeln('}');
+          } else if (property.isBitmaskPassthrough) {
             final mask = property.bitmaskTargetProperty!.name;
             final bit = property.passthroughBit!;
             final maskType = property.bitmaskTargetProperty!.type.cppName;
@@ -720,29 +913,23 @@ class Definition {
               }
             }
             ctxCode.writeln('{');
-            ctxCode.writeln(
-                'auto* _o = object->as<${defName}Base>();');
+            ctxCode.writeln('auto* _o = object->as<${defName}Base>();');
             ctxCode.writeln('if (_o) {');
-            ctxCode.writeln(
-                'const $maskType _cur = _o->$mask();');
+            ctxCode.writeln('const $maskType _cur = _o->$mask();');
             if (property.type.name == 'uint') {
               final width = property.passthroughBitWidthOrDefault;
               final fieldMask = ((1 << width) - 1) << bit;
-              ctxCode.writeln(
-                  'const $maskType _fieldMask = '
+              ctxCode.writeln('const $maskType _fieldMask = '
                   'static_cast<$maskType>(${fieldMask}u);');
-              ctxCode.writeln(
-                  'const $maskType _next = static_cast<$maskType>(('
+              ctxCode.writeln('const $maskType _next = static_cast<$maskType>(('
                   '_cur & ~_fieldMask) | ((value << $bit) & _fieldMask));');
             } else {
               ctxCode.writeln(
                   'const $maskType _bm = static_cast<$maskType>(1u << $bit);');
-              ctxCode.writeln(
-                  'const $maskType _next = static_cast<$maskType>(('
+              ctxCode.writeln('const $maskType _next = static_cast<$maskType>(('
                   '_cur & ~_bm) | (value ? _bm : static_cast<$maskType>(0)));');
             }
-            ctxCode.writeln(
-                'if (_cur != _next) { _o->$mask(_next); }');
+            ctxCode.writeln('if (_cur != _next) { _o->$mask(_next); }');
             ctxCode.writeln('}');
             ctxCode.writeln('break;');
             ctxCode.writeln('}');
@@ -792,7 +979,13 @@ class Definition {
             ctxCode.writeln('case ${property.definition.name}Base'
                 '::${altKey.stringValue}PropertyKey:');
           }
-          if (property.isBitmaskPassthrough) {
+          if (property.isBitmaskPassthrough &&
+              property.bitmaskTargetIsHostProvided) {
+            final iface = '${property.definition.name}Base';
+            ctxCode.writeln('if (auto* _c = $iface::from(object)) { '
+                'return _c->${property.name}(); }');
+            ctxCode.writeln('return 0u;');
+          } else if (property.isBitmaskPassthrough) {
             final mask = property.bitmaskTargetProperty!.name;
             final bit = property.passthroughBit!;
             final width = property.passthroughBitWidthOrDefault;
@@ -825,9 +1018,9 @@ class Definition {
       var properties = usedFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
-          if (property.isBitmaskPassthrough) {
-            continue;
-          }
+          // Bitmask passthroughs are not serialized on their own, but they DO
+          // have a runtime field type (their value type, e.g. uint) that data
+          // binding needs to resolve the target value — so include them here.
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }
@@ -887,8 +1080,15 @@ class Definition {
             ctxCode.writeln('case ${property.definition.name}Base'
                 '::${altKey.stringValue}PropertyKey:');
           }
-          ctxCode
-              .writeln('return object->is<${property.definition.name}Base>();');
+          if (property.bitmaskTargetIsHostProvided) {
+            // Shared mixin key: supported by any consuming type.
+            ctxCode
+                .writeln('return ${property.definition.name}Base::from(object) '
+                    '!= nullptr;');
+          } else {
+            ctxCode.writeln(
+                'return object->is<${property.definition.name}Base>();');
+          }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorEnd(ctxCode);
           }

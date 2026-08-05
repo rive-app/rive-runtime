@@ -81,6 +81,10 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
             {
                 m_targetValue = new DataValueViewModel();
             }
+            else if (dataBind->sourceOutputType() == DataType::number)
+            {
+                m_targetValue = new DataValueNumber();
+            }
             else
             {
                 m_targetValue = new DataValueInteger();
@@ -255,6 +259,16 @@ bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
             {
                 auto value = CoreRegistry::getUint(dataBind->target(),
                                                    dataBind->propertyKey());
+                // Match whatever target value type initialize() created: a
+                // number source (e.g. a color channel bound to a VM number)
+                // reads back as a DataValueNumber; integer/enum sources stay
+                // DataValueInteger. Keying off the real type keeps the two
+                // methods in lockstep regardless of source-resolution timing.
+                if (m_targetValue != nullptr &&
+                    m_targetValue->is<DataValueNumber>())
+                {
+                    return updateValue<DataValueNumber, float>((float)value);
+                }
                 return updateValue<DataValueInteger, int>(value);
             }
         }

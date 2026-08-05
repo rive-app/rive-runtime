@@ -27,6 +27,12 @@ class Property {
   int? passthroughBit;
   int? passthroughBitWidth;
   Property? bitmaskTargetProperty;
+
+  /// True when this is a bitmask passthrough defined in a mixin whose mask
+  /// ([passthroughForBitmask]) is provided by the host class that includes the
+  /// mixin (e.g. `colorValue` on SolidColor/GradientStop), not a same-def
+  /// sibling. core_registry dispatches these per consuming type.
+  bool bitmaskTargetIsHostProvided = false;
   bool isPureVirtual = false;
   FieldType? typeRuntime;
 

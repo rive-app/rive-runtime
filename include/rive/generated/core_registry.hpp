@@ -211,6 +211,7 @@
 #include "rive/event.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/foreground_layout_drawable.hpp"
+#include "rive/generated/shapes/paint/color_channels_base.hpp"
 #include "rive/inputs/gamepad_input.hpp"
 #include "rive/inputs/keyboard_input.hpp"
 #include "rive/inputs/semantic_input.hpp"
@@ -1466,6 +1467,38 @@ public:
             case TargetEffectBase::targetIdPropertyKey:
                 object->as<TargetEffectBase>()->targetId(value);
                 break;
+            case ColorChannelsBase::colorRedPropertyKey:
+            {
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    _c->colorRed(value);
+                }
+                break;
+            }
+            case ColorChannelsBase::colorGreenPropertyKey:
+            {
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    _c->colorGreen(value);
+                }
+                break;
+            }
+            case ColorChannelsBase::colorBluePropertyKey:
+            {
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    _c->colorBlue(value);
+                }
+                break;
+            }
+            case ColorChannelsBase::colorAlphaPropertyKey:
+            {
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    _c->colorAlpha(value);
+                }
+                break;
+            }
             case StrokeBase::capPropertyKey:
                 object->as<StrokeBase>()->cap(value);
                 break;
@@ -3589,6 +3622,30 @@ public:
                 return object->as<ShapePaintBase>()->blendModeValue();
             case TargetEffectBase::targetIdPropertyKey:
                 return object->as<TargetEffectBase>()->targetId();
+            case ColorChannelsBase::colorRedPropertyKey:
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    return _c->colorRed();
+                }
+                return 0u;
+            case ColorChannelsBase::colorGreenPropertyKey:
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    return _c->colorGreen();
+                }
+                return 0u;
+            case ColorChannelsBase::colorBluePropertyKey:
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    return _c->colorBlue();
+                }
+                return 0u;
+            case ColorChannelsBase::colorAlphaPropertyKey:
+                if (auto* _c = ColorChannelsBase::from(object))
+                {
+                    return _c->colorAlpha();
+                }
+                return 0u;
             case StrokeBase::capPropertyKey:
                 return object->as<StrokeBase>()->cap();
             case StrokeBase::joinPropertyKey:
@@ -4657,6 +4714,10 @@ public:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
             case TargetEffectBase::targetIdPropertyKey:
+            case ColorChannelsBase::colorRedPropertyKey:
+            case ColorChannelsBase::colorGreenPropertyKey:
+            case ColorChannelsBase::colorBluePropertyKey:
+            case ColorChannelsBase::colorAlphaPropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
             case FeatherBase::spaceValuePropertyKey:
@@ -4735,6 +4796,8 @@ public:
             case TextBase::verticalAlignValuePropertyKey:
             case TextBase::textRunListSourcePropertyKey:
             case TextBase::verticalTrimValuePropertyKey:
+            case TextBase::verticalTrimTopValuePropertyKey:
+            case TextBase::verticalTrimBottomValuePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
             case ArtboardListMapRuleBase::artboardIdPropertyKey:
             case ArtboardListMapRuleBase::viewModelIdPropertyKey:
@@ -4826,8 +4889,32 @@ public:
             case PointsCommonPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
+            case FocusDataBase::canFocusPropertyKey:
+            case FocusDataBase::canTouchPropertyKey:
+            case FocusDataBase::canTraversePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
             case LayoutComponentBase::clipPropertyKey:
+            case SemanticDataBase::isExpandablePropertyKey:
+            case SemanticDataBase::isSelectablePropertyKey:
+            case SemanticDataBase::isCheckablePropertyKey:
+            case SemanticDataBase::isToggleablePropertyKey:
+            case SemanticDataBase::isRequirablePropertyKey:
+            case SemanticDataBase::isEnablablePropertyKey:
+            case SemanticDataBase::isFocusablePropertyKey:
+            case SemanticDataBase::isExpandedPropertyKey:
+            case SemanticDataBase::isSelectedPropertyKey:
+            case SemanticDataBase::isCheckedPropertyKey:
+            case SemanticDataBase::isMixedPropertyKey:
+            case SemanticDataBase::isToggledPropertyKey:
+            case SemanticDataBase::isRequiredPropertyKey:
+            case SemanticDataBase::isDisabledPropertyKey:
+            case SemanticDataBase::isFocusedPropertyKey:
+            case SemanticDataBase::isHiddenPropertyKey:
+            case SemanticDataBase::isLiveRegionPropertyKey:
+            case SemanticDataBase::isReadOnlyPropertyKey:
+            case SemanticDataBase::isModalPropertyKey:
+            case SemanticDataBase::isObscuredPropertyKey:
+            case SemanticDataBase::isMultilinePropertyKey:
             case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
@@ -5423,6 +5510,14 @@ public:
                 return object->is<ShapePaintBase>();
             case TargetEffectBase::targetIdPropertyKey:
                 return object->is<TargetEffectBase>();
+            case ColorChannelsBase::colorRedPropertyKey:
+                return ColorChannelsBase::from(object) != nullptr;
+            case ColorChannelsBase::colorGreenPropertyKey:
+                return ColorChannelsBase::from(object) != nullptr;
+            case ColorChannelsBase::colorBluePropertyKey:
+                return ColorChannelsBase::from(object) != nullptr;
+            case ColorChannelsBase::colorAlphaPropertyKey:
+                return ColorChannelsBase::from(object) != nullptr;
             case StrokeBase::capPropertyKey:
                 return object->is<StrokeBase>();
             case StrokeBase::joinPropertyKey:

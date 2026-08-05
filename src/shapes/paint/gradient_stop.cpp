@@ -21,9 +21,15 @@ StatusCode GradientStop::onAddedDirty(CoreContext* context)
 
 void GradientStop::colorValueChanged()
 {
-    parent()->as<LinearGradient>()->markGradientDirty();
+    if (parent() != nullptr && parent()->is<LinearGradient>())
+    {
+        parent()->as<LinearGradient>()->markGradientDirty();
+    }
 }
 void GradientStop::positionChanged()
 {
-    parent()->as<LinearGradient>()->markStopsDirty();
+    if (parent() != nullptr && parent()->is<LinearGradient>())
+    {
+        parent()->as<LinearGradient>()->markStopsDirty();
+    }
 }

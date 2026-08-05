@@ -413,7 +413,11 @@ bool DataBind::targetSupportsPush() const
         key == ScrollConstraintBase::velocityYPropertyKey ||
         key == ScrollConstraintBase::scrollActivePropertyKey ||
         key == ScrollConstraintBase::computedContentWidthPropertyKey ||
-        key == ScrollConstraintBase::computedContentHeightPropertyKey)
+        key == ScrollConstraintBase::computedContentHeightPropertyKey ||
+        key == ColorChannelsBase::colorAlphaPropertyKey ||
+        key == ColorChannelsBase::colorRedPropertyKey ||
+        key == ColorChannelsBase::colorBluePropertyKey ||
+        key == ColorChannelsBase::colorGreenPropertyKey)
     {
         return false;
     }
