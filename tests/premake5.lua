@@ -1,3 +1,13 @@
+newoption({
+    trigger = 'with-coverage',
+    description = 'instrument for llvm-cov so gms runs count toward coverage',
+})
+if _OPTIONS['with-coverage'] then
+    -- premake5_v2 adds the llvm-cov compile flags when TESTING is set, so the
+    -- runtime and renderer inside this workspace get instrumented too.
+    TESTING = true
+end
+
 dofile('rive_tools_project.lua')
 
 newoption({
@@ -19,6 +29,12 @@ end
 
 rive_tools_project('gms', 'RiveTool')
 do
+    filter({ 'options:with-coverage', 'toolset:not msc' })
+    do
+        buildoptions({ '-fprofile-instr-generate', '-fcoverage-mapping' })
+        linkoptions({ '-fprofile-instr-generate', '-fcoverage-mapping' })
+    end
+    filter({})
     files({ 'gm/*.cpp' })
     -- Deferred-rendering 2D record/replay (SerializingFactory + the replay that
     -- drives a real Factory/Renderer) so GMs can verify 2D replay against PLS.

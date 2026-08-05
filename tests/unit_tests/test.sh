@@ -161,10 +161,29 @@ fi
 
 if [[ $COVERAGE = "true" ]]; then
   if [[ $machine = "macosx" ]]; then
-    xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
-    xcrun llvm-cov report $OUT_DIR/unit_tests -instr-profile=default.profdata
-    # xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=text >coverage.json
-    xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=lcov >coverage.txt
+    # The renderer replay paths execute in gms, not the unit binary, so run it
+    # under profiling too. Subsets run separately with their own profile files:
+    # an aborting subset loses only its own counts, and the merge takes
+    # whatever flushed.
+    GMS_BIN=../out/$CONFIG/gms
+    (cd .. && "$RUNTIME/build/build_rive.sh" "$CONFIG" gms --with-coverage \
+      --with_rive_tools --with_rive_audio=external --with_rive_scripting \
+      --no_ffp_contract) || true
+    PROFRAWS=(default.profraw)
+    COV_OBJECTS=()
+    if [[ -f $GMS_BIN ]]; then
+      COV_OBJECTS=(-object $GMS_BIN)
+      for match in ore_ deferred serialized canvas; do
+        LLVM_PROFILE_FILE="gms_$match.profraw" \
+          $GMS_BIN --backend metal --headless --match "$match" || true
+        if [[ -f gms_$match.profraw ]]; then
+          PROFRAWS+=("gms_$match.profraw")
+        fi
+      done
+    fi
+    xcrun llvm-profdata merge -sparse "${PROFRAWS[@]}" -o default.profdata
+    xcrun llvm-cov report $OUT_DIR/unit_tests "${COV_OBJECTS[@]}" -instr-profile=default.profdata
+    xcrun llvm-cov export out/debug/unit_tests "${COV_OBJECTS[@]}" -instr-profile=default.profdata -format=lcov >coverage.txt
     sed -i '' -e 's?'$RUNTIME'?packages/runtime?g' coverage.txt
   else
     echo "'coverage' command line argument was specified but it only works on Mac so it was ignored"
