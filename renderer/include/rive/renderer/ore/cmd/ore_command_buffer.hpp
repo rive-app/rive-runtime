@@ -19,6 +19,15 @@
 #include "rive/renderer/cmd/id_allocator.hpp"
 #include <vector>
 
+// A host may define `check` as a macro -- Unreal does -- which would eat the
+// RecordingThread calls here. Keep the name resolving to the method, and hand
+// the macro back untouched at the end of the header.
+#ifdef check
+#pragma push_macro("check")
+#undef check
+#define RIVE_ORE_COMMAND_BUFFER_RESTORE_CHECK
+#endif
+
 // Records the ore RenderPass call stream into a flat byte stream (see
 // ore_commands.hpp). Upload payloads live in a companion blob arena. Both
 // vectors are reused across frames via reset, keeping capacity.
@@ -187,3 +196,7 @@ private:
 using OreCommandReader = rive::cmd::CommandReader<CommandType>;
 
 } // namespace rive::ore::cmd
+#ifdef RIVE_ORE_COMMAND_BUFFER_RESTORE_CHECK
+#pragma pop_macro("check")
+#undef RIVE_ORE_COMMAND_BUFFER_RESTORE_CHECK
+#endif

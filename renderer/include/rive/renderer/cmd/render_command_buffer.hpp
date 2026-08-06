@@ -14,6 +14,15 @@
 #include <mutex>
 #include <vector>
 
+// A host may define `check` as a macro -- Unreal does -- which would eat the
+// RecordingThread calls here. Keep the name resolving to the method, and hand
+// the macro back untouched at the end of the header.
+#ifdef check
+#pragma push_macro("check")
+#undef check
+#define RIVE_RENDER_COMMAND_BUFFER_RESTORE_CHECK
+#endif
+
 // RenderCommandBuffer is a flat pointer free byte stream plus a blob arena.
 // Everything is referenced by dense resource id, never a pointer, so the bytes
 // cross a SharedArrayBuffer to a worker zero copy. It holds no live resources;
@@ -109,3 +118,7 @@ private:
 using RenderCommandReader = CommandReader<uint8_t>;
 
 } // namespace rive::cmd
+#ifdef RIVE_RENDER_COMMAND_BUFFER_RESTORE_CHECK
+#pragma pop_macro("check")
+#undef RIVE_RENDER_COMMAND_BUFFER_RESTORE_CHECK
+#endif

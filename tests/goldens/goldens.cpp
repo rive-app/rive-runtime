@@ -6,6 +6,7 @@
 #ifndef TESTING
 
 #include "goldens_shared.hpp"
+#include "goldens_runner.hpp"
 #include "common/tcp_client.hpp"
 #include "common/rive_mgr.hpp"
 #include "common/write_png_file.hpp"
@@ -281,7 +282,218 @@ static bool is_riv_file(const std::filesystem::path& file)
     return strcmp(file.extension().string().c_str(), ".riv") == 0;
 }
 
-#if defined(RIVE_UNREAL) || defined(EXTERN_TOOLS)
+bool GoldensRunner::parseArgs(int argc,
+                              const char* const argv[],
+                              FrameRunner::LaunchOptions& options)
+{
+    try
+    {
+        s_args.parse(argc, argv);
+    }
+    catch (const args::Completion&)
+    {
+        return false;
+    }
+    catch (const args::Help&)
+    {
+        return false;
+    }
+    catch (const args::ParseError&)
+    {
+        m_exitCode = 1;
+        return false;
+    }
+    catch (args::ValidationError)
+    {
+        m_exitCode = 1;
+        return false;
+    }
+
+    // The goldens have always defaulted to a windowed GL backend, like the gms.
+    options.backend =
+        s_args.backend().empty()
+            ? TestingWindow::Backend::gl
+            : TestingWindow::ParseBackend(s_args.backend().c_str(),
+                                          &options.backendParams);
+
+    // For determinism, default to always using synchronously-compiled
+    // shaders
+    options.backendParams.shaderCompilationMode =
+        s_args.onlyUbershaders()
+            ? rive::gpu::ShaderCompilationMode::onlyUbershaders
+            : rive::gpu::ShaderCompilationMode::alwaysSynchronous;
+
+    options.visibility = s_args.headless() ? TestingWindow::Visibility::headless
+                                           : TestingWindow::Visibility::window;
+
+    return true;
+}
+
+void GoldensRunner::init()
+{
+    if (!s_args.testHarness().empty())
+    {
+        TestHarness::Instance().init(
+            TCPClient::Connect(s_args.testHarness().c_str()),
+            s_args.pngThreads());
+    }
+    else
+    {
+        TestHarness::Instance().init(
+            std::filesystem::path(s_args.output().c_str()),
+            s_args.pngThreads());
+    }
+    TestHarness::Instance().setPNGCompression(
+        s_args.fastPNG() ? PNGCompression::fast_rle : PNGCompression::compact);
+
+    m_cellSize = kWindowTargetSize / std::max(s_args.cols(), s_args.rows());
+    TestingWindow::Get()->resize(m_cellSize * s_args.cols(),
+                                 m_cellSize * s_args.rows());
+
+    // The .rivs either stream in from the harness, or we walk them off disk.
+    m_fromTestHarness = TestHarness::Instance().hasTCPConnection();
+    if (m_fromTestHarness)
+    {
+        return;
+    }
+
+    try
+    {
+#ifndef RIVE_REMOTE_ONLY
+        const std::filesystem::path& srcPath =
+            std::filesystem::path(s_args.src().c_str());
+        if (is_riv_file(srcPath))
+        {
+            m_localFiles.push_back(s_args.src());
+        }
+        else
+        {
+            // Try to process every riv in the src path dir
+            try
+            {
+                for (const std::filesystem::directory_entry& file :
+                     std::filesystem::directory_iterator(s_args.src()))
+                {
+                    const std::filesystem::path& filePath = file.path();
+                    if (is_riv_file(filePath))
+                    {
+                        m_localFiles.push_back(filePath.string());
+                    }
+                }
+            }
+            catch (...)
+            {
+                // Not a directory
+                throw "Bad src path";
+            }
+        }
+#else
+        throw "Remote only goldens require a connection.";
+#endif
+    }
+    catch (const char* msg)
+    {
+        fprintf(stderr, "error: %s\n", msg);
+        m_exitCode = -1;
+        m_localFiles.clear();
+    }
+}
+
+bool GoldensRunner::doFrame()
+{
+    // One .riv per call, so a host that owns the main loop gets to tick between
+    // them.
+    try
+    {
+        if (m_fromTestHarness)
+        {
+            std::string rivName;
+            std::vector<uint8_t> rivBytes;
+            if (!TestHarness::Instance().fetchRivFile(rivName, rivBytes))
+            {
+                return false; // The server is done sending .rivs.
+            }
+
+            bool ok;
+            {
+                RIVLoader riv(rivBytes,
+                              nullptr /*default artboard*/,
+                              nullptr /*default state machine*/);
+                ok = render_and_dump_png(m_cellSize,
+                                         rivName.c_str(),
+                                         riv.stateMachine(),
+                                         riv.artboard(),
+                                         riv.deferredSession());
+            }
+            // Between-GM cleanup can tear the device down, so the loader and
+            // its recorded resources must already be gone.
+            TestingWindow::Get()->onceAfterGM();
+            return ok;
+        }
+
+        if (m_nextFile >= m_localFiles.size())
+        {
+            return false;
+        }
+        return process_single_golden_file(m_localFiles[m_nextFile++],
+                                          m_cellSize);
+    }
+    catch (const char* msg)
+    {
+        fprintf(stderr, "error: %s\n", msg);
+        m_exitCode = -1;
+        return false;
+    }
+}
+
+// Renders every golden and then tears the process down. The unreal tool widget
+// instead ticks doFrame() itself, one .riv per engine frame, and owns the
+// teardown.
+#ifndef RIVE_UNREAL
+static int goldens_run_to_completion(int argc, const char* const argv[])
+{
+#ifdef _WIN32
+    // Cause stdout and stderr to print immediately without buffering.
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+#endif
+
+    GoldensRunner runner;
+    FrameRunner::LaunchOptions options;
+    if (!runner.parseArgs(argc, argv, options))
+    {
+        return runner.exitCode();
+    }
+
+    void* platformWindow = nullptr;
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
+    platformWindow = rive_android_app_wait_for_window();
+    if (platformWindow != nullptr)
+    {
+        options.visibility = TestingWindow::Visibility::fullscreen;
+    }
+#endif
+    TestingWindow::Init(options.backend,
+                        options.backendParams,
+                        options.visibility,
+                        platformWindow);
+
+    runner.init();
+    while (runner.doFrame())
+    {
+    }
+
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
+                              // we're done.
+    TestHarness::Instance().shutdown();
+#ifdef __EMSCRIPTEN__
+    EM_ASM(if (window && window.close) window.close(););
+#endif
+    return runner.exitCode();
+}
+
+// Unreal drives GoldensRunner directly; it has no entry point of its own here.
+#if defined(EXTERN_TOOLS)
 int goldens_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int goldens_ios_main(int argc, const char* argv[])
@@ -293,162 +505,9 @@ int rive_wasm_main(int argc, const char* const* argv)
 int main(int argc, const char* argv[])
 #endif
 {
-#ifdef _WIN32
-    // Cause stdout and stderr to print immediately without buffering.
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-#endif
-
-    try
-    {
-        s_args.parse(argc, argv);
-        TestingWindow::BackendParams backendParams;
-        auto backend =
-            s_args.backend().empty()
-                ? TestingWindow::Backend::gl
-                : TestingWindow::ParseBackend(s_args.backend().c_str(),
-                                              &backendParams);
-
-        // For determinism, default to always using synchronously-compiled
-        // shaders
-        backendParams.shaderCompilationMode =
-            s_args.onlyUbershaders()
-                ? rive::gpu::ShaderCompilationMode::onlyUbershaders
-                : rive::gpu::ShaderCompilationMode::alwaysSynchronous;
-
-        auto visibility = s_args.headless()
-                              ? TestingWindow::Visibility::headless
-                              : TestingWindow::Visibility::window;
-        void* platformWindow = nullptr;
-#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
-        platformWindow = rive_android_app_wait_for_window();
-        if (platformWindow != nullptr)
-        {
-            visibility = TestingWindow::Visibility::fullscreen;
-        }
-#endif
-        TestingWindow::Init(backend, backendParams, visibility, platformWindow);
-
-        if (!s_args.testHarness().empty())
-        {
-            TestHarness::Instance().init(
-                TCPClient::Connect(s_args.testHarness().c_str()),
-                s_args.pngThreads());
-        }
-        else
-        {
-            TestHarness::Instance().init(
-                std::filesystem::path(s_args.output().c_str()),
-                s_args.pngThreads());
-        }
-        TestHarness::Instance().setPNGCompression(
-            s_args.fastPNG() ? PNGCompression::fast_rle
-                             : PNGCompression::compact);
-
-        int cellSize =
-            kWindowTargetSize / std::max(s_args.cols(), s_args.rows());
-        int windowWidth = cellSize * s_args.cols();
-        int windowHeight = cellSize * s_args.rows();
-        TestingWindow::Get()->resize(windowWidth, windowHeight);
-
-        // First check if the --src argument is a TCP server instead of a file.
-        if (TestHarness::Instance().hasTCPConnection())
-        {
-            // Loop until the server is done sending .rivs.
-            std::string rivName;
-            std::vector<uint8_t> rivBytes;
-            while (TestHarness::Instance().fetchRivFile(rivName, rivBytes))
-            {
-                {
-                    RIVLoader riv(rivBytes,
-                                  nullptr /*default artboard*/,
-                                  nullptr /*default state machine*/);
-                    if (!render_and_dump_png(cellSize,
-                                             rivName.c_str(),
-                                             riv.stateMachine(),
-                                             riv.artboard(),
-                                             riv.deferredSession()))
-                    {
-                        return 0;
-                    }
-                }
-                // Between-GM cleanup can tear the device down, so the loader
-                // and its recorded resources must already be gone.
-                TestingWindow::Get()->onceAfterGM();
-            }
-        }
-        else
-        {
-#ifndef RIVE_REMOTE_ONLY
-            const std::filesystem::path& srcPath =
-                std::filesystem::path(s_args.src().c_str());
-            if (is_riv_file(srcPath))
-            {
-                // Render a single .riv file.
-                if (!process_single_golden_file(s_args.src().c_str(), cellSize))
-                {
-                    return 0;
-                }
-            }
-            else
-            {
-                // Try to process every riv in the src path dir
-                try
-                {
-                    for (const std::filesystem::directory_entry& file :
-                         std::filesystem::directory_iterator(s_args.src()))
-                    {
-                        const std::filesystem::path& filePath = file.path();
-                        if (is_riv_file(filePath))
-                        {
-                            if (!process_single_golden_file(filePath.string(),
-                                                            cellSize))
-                            {
-                                return 0;
-                            }
-                        }
-                    }
-                }
-                catch (...)
-                {
-                    // Not a directory
-                    throw "Bad src path";
-                }
-            }
-#else
-            throw "Remote only goldens require a connection.";
-#endif
-        }
-    }
-    catch (const args::Completion&)
-    {
-        return 0;
-    }
-    catch (const args::Help&)
-    {
-        return 0;
-    }
-    catch (const args::ParseError&)
-    {
-        return 1;
-    }
-    catch (args::ValidationError)
-    {
-        return 1;
-    }
-    catch (const char* msg)
-    {
-        fprintf(stderr, "error: %s\n", msg);
-        return -1;
-    }
-
-    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
-                              // we're done.
-    TestHarness::Instance().shutdown();
-#ifdef __EMSCRIPTEN__
-    EM_ASM(if (window && window.close) window.close(););
-#endif
-    return 0;
+    return goldens_run_to_completion(argc, argv);
 }
+
+#endif // !RIVE_UNREAL
 
 #endif

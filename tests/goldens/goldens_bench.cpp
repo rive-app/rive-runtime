@@ -384,7 +384,6 @@ void run_benchmark(const std::vector<uint8_t>& bytes,
     recFrame(); // first frame includes one time resource creation
     auto coldOre = session->oreContext().streamBytes();
     size_t cold2D = bytes2D();
-    size_t coldBytes = cold2D + coldOre.total();
     for (int i = 1; i < kWarmup; ++i)
         recFrame();
     size_t before = streamBytes();

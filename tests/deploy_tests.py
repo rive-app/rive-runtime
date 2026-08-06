@@ -101,9 +101,11 @@ parser.add_argument("--build-only", action='store_true',
 parser.add_argument("-i", "--install-only", action='store_true',
                     help="only build & install, don't deploy")
 parser.add_argument("--no-rebuild", action='store_true',
-                    help="don't rebuild the native tools in builddir")
+                    help="don't rebuild any native code: the tools in builddir, and "
+                         "(on unreal targets) the rive libraries the plugin links "
+                         "against, which are otherwise built during packaging")
 parser.add_argument("-n", "--no-install", action='store_true',
-                    help="don't package & reinstall the mobile app prior to launch")
+                    help="don't package & reinstall the app prior to launch")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
 parser.add_argument("--sync-validation", action='store_true',
                     help="run with Vulkan synchronization validation")
@@ -499,12 +501,13 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
 
     if args.target == "unreal":
         unreal_exe_path = os.path.join(dirname, *UNREAL_HOST_PACKAGE)
-        return [unreal_exe_path, "/Game/maps/" + toolname] + \
+        return [unreal_exe_path] + unreal_tool_args(toolname) + \
                unreal_engine_args(args.target, args.backend) + \
-               ["-ResX=1280", "-ResY=720", "-RenderOffScreen"] + cmd[1:]
+               ["-ResX=1280", "-ResY=720"] + unreal_offscreen_args(toolname) + \
+               cmd[1:]
 
     if args.target == "unreal_android":
-        tool_args = ' '.join(["/Game/maps/" + toolname] +
+        tool_args = ' '.join(unreal_tool_args(toolname) +
                              unreal_engine_args(args.target, args.backend) + cmd[1:])
         return ["adb", "shell",
                     "am force-stop app.rive.rive_unreal && "
@@ -664,6 +667,19 @@ UNREAL_TARGET_PLATFORMS = {
     "unreal_android": "Android",
 }
 
+# One map serves every tool: which tool runs is chosen by "-rivetool=<name>",
+# and the map itself holds nothing but a PlayerStart (UGMToolSubsystem puts the
+# tool's widget on screen).
+UNREAL_TOOLS_MAP = "/Game/maps/tools"
+
+def unreal_tool_args(toolname):
+    return [UNREAL_TOOLS_MAP, "-rivetool=" + toolname]
+
+def unreal_offscreen_args(toolname):
+    # The harness tools dump pngs and never need to be seen; the player is
+    # something you watch, so it keeps its window.
+    return [] if toolname == "player" else ["-RenderOffScreen"]
+
 UNREAL_RHI_SWITCHES = {
     "d3d": "-dx11",
     "d3d12": "-dx12",
@@ -717,10 +733,15 @@ def package_unreal_project():
     rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
     package_script = os.path.join(rive_tools_dir, "..", "..", "runtime_unreal",
                                   "Scripts", "package_project.py")
-    subprocess.check_call([sys.executable, package_script,
-                           "--engine", args.unreal_engine,
-                           "--output", os.path.abspath(args.builddir),
-                           "--platform", UNREAL_TARGET_PLATFORMS[args.target]])
+    cmd = [sys.executable, package_script,
+           "--engine", args.unreal_engine,
+           "--output", os.path.abspath(args.builddir),
+           "--platform", UNREAL_TARGET_PLATFORMS[args.target]]
+    if args.no_rebuild:
+        # Cook & stage the project, but reuse the native libs already staged in
+        # the plugin's ThirdParty dirs.
+        cmd.append("--no-rive-build")
+    subprocess.check_call(cmd)
 
 def main():
     # Parse skipped tests.
@@ -814,8 +835,13 @@ def main():
     else:
         build_targets = args.tools
 
-    # Build the native code.
-    if not args.no_rebuild and not args.no_install:
+    # Build the native code. "--no-rebuild" owns every native build: this one,
+    # and build-rive.py inside package_unreal_project().
+    #
+    # Unreal never runs these host tools -- only their names survive into the
+    # launch command -- so it skips them and builds the rive libraries its
+    # plugin links during packaging instead.
+    if not args.no_rebuild and "unreal" not in args.target:
         build_rive = [os.path.join(rive_tools_dir, "../build/build_rive.sh")]
         if os.name == "nt":
             if subprocess.run(["where", "msbuild.exe"]).returncode == 0:

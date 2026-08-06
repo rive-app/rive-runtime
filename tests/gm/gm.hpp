@@ -106,5 +106,4 @@ extern "C" bool gms_registry_get_name(REGISTRY_HANDLE position_handle,
 extern "C" bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
                                       size_t& width,
                                       size_t& height);
-extern "C" int gms_main(int argc, const char* argv[]);
 #endif

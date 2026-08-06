@@ -41,8 +41,6 @@ while :; do
             fi
             if [ -z "$RIVE_UNREAL_ENGINE" ]; then
                 ARGS="$ARGS --no-rebuild --no-install"   # expect a prebuilt package
-            else
-                ARGS="$ARGS --no-rebuild"                # build & package on demand
             fi
             shift
         ;;

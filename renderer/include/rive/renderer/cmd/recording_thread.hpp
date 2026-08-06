@@ -9,6 +9,15 @@
 #include <thread>
 #endif
 
+// A host may define `check` as a macro -- Unreal does -- which would eat the
+// RecordingThread calls here. Keep the name resolving to the method, and hand
+// the macro back untouched at the end of the header.
+#ifdef check
+#pragma push_macro("check")
+#undef check
+#define RIVE_RECORDING_THREAD_RESTORE_CHECK
+#endif
+
 // Debug only thread affinity for the deferred producer streams.
 //
 // Recording is single threaded by construction: every widget records
@@ -52,3 +61,7 @@ private:
 };
 
 } // namespace rive::cmd
+#ifdef RIVE_RECORDING_THREAD_RESTORE_CHECK
+#pragma pop_macro("check")
+#undef RIVE_RECORDING_THREAD_RESTORE_CHECK
+#endif
