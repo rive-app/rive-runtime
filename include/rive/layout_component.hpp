@@ -160,6 +160,11 @@ private:
     bool m_positionLeftChanged = true;
     bool m_positionTopChanged = true;
     bool m_hasForegroundDrawable = false;
+    // Files exported before 7.3 never composed a layout's own rotation/scale,
+    // so any stored value was ignored. Import clears this for those files; it
+    // defaults to the current behavior so a layout built outside of import
+    // isn't stuck on the legacy path. See File::minorVersion.
+    bool m_composeTransform = true;
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
@@ -174,6 +179,9 @@ public:
     {
         return worldTransform();
     }
+
+    StatusCode import(ImportStack& importStack) override;
+    Core* clone() const override;
 
     LayoutComponentStyle* style() { return m_style; }
     void style(LayoutComponentStyle* style) { m_style = style; }

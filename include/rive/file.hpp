@@ -84,7 +84,10 @@ public:
     /// Minor version number supported by the runtime.
     /// 7.2: images in a layout apply their fit as a separate scale, leaving
     /// the user-facing scaleX/scaleY free to be edited/animated on top.
-    static const int minorVersion = 2;
+    /// 7.3: layouts compose their own rotation/scale on top of the solved
+    /// slot. Older files wrote those properties but never applied them, so
+    /// they only carry intent at or above this version.
+    static const int minorVersion = 3;
     /// deterministicMode sets a static seed for randomization and uses
     /// timestamps for scrolling.
     static bool deterministicMode;

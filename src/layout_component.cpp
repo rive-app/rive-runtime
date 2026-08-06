@@ -4,6 +4,7 @@
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/drawable.hpp"
 #include "rive/factory.hpp"
+#include "rive/importers/import_stack.hpp"
 #include "rive/intrinsically_sizeable.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/component_origin.hpp"
@@ -193,6 +194,25 @@ bool LayoutComponent::hitTestPoint(const Vec2D& position,
     return false;
 }
 
+StatusCode LayoutComponent::import(ImportStack& importStack)
+{
+    // Files exported before 7.3 composed a layout's transform from the solved
+    // slot alone, so any stored rotation/scale was written but never applied.
+    // Keep that legacy behavior for those files; newer files compose it on top
+    // of the slot. See File::minorVersion.
+    int major = importStack.majorVersion();
+    int minor = importStack.minorVersion();
+    m_composeTransform = major > 7 || (major == 7 && minor >= 3);
+    return Super::import(importStack);
+}
+
+Core* LayoutComponent::clone() const
+{
+    LayoutComponent* twin = LayoutComponentBase::clone()->as<LayoutComponent>();
+    twin->m_composeTransform = m_composeTransform;
+    return twin;
+}
+
 void LayoutComponent::update(ComponentDirt value)
 {
     Super::update(value);
@@ -225,7 +245,8 @@ void LayoutComponent::update(ComponentDirt value)
         // Apply the node's own rotation/scale on top of the layout slot,
         // pivoting at the origin (default 0,0 = top-left). x/y offset:
         // follow-up.
-        if (rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f)
+        if (m_composeTransform &&
+            (rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f))
         {
             Mat2D local =
                 rotation() != 0.0f ? Mat2D::fromRotation(rotation()) : Mat2D();
