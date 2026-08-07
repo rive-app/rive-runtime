@@ -241,6 +241,8 @@ enum class LuaAtoms : int16_t
     markNeedsUpdate,
     viewModel,
     rootViewModel,
+    globalViewModel,
+    globalViewModelNames,
     image,
     blob,
     size,
@@ -2013,6 +2015,8 @@ public:
     void clearScriptedObject() { m_scriptedObject = nullptr; }
     int pushViewModel(lua_State*);
     int pushRootViewModel(lua_State*);
+    int pushGlobalViewModel(lua_State*);
+    int pushGlobalViewModelNames(lua_State*);
     int pushDataContext(lua_State*);
     static constexpr uint8_t luaTag = LUA_T_COUNT + 28;
     static constexpr const char* luaName = "Context";

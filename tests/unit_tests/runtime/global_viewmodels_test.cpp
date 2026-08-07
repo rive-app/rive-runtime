@@ -140,3 +140,34 @@ TEST_CASE("Test global view models with instance explicitly specified",
 
     CHECK(silver.matches("global_viewmodels_test-set_instance"));
 }
+
+TEST_CASE("Global view models access through scripting", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/global_view_models_scripting_test.riv", &silver);
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+    REQUIRE(vmi != nullptr);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("global_view_models_scripting_test"));
+}

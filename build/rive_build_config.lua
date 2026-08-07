@@ -145,6 +145,15 @@ if _OPTIONS['with_optick'] then
     RIVE_OPTICK_VERSION = '1.4.0.0'
 end
 
+newoption({
+    trigger = 'with_rive_path_query',
+    description = 'Deferred render paths retain a queryable RawPath twin on '
+        .. 'request, for hosts that hit test and measure recorded paths.',
+})
+if _OPTIONS['with_rive_path_query'] then
+    defines({ 'WITH_RIVE_PATH_QUERY' })
+end
+
 newoption({ trigger = 'with_microprofile', description = 'use microprofile profiler' })
 if _OPTIONS['with_microprofile'] then
     defines({ 'RIVE_MICROPROFILE' })

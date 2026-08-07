@@ -4,6 +4,10 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/data_bind/data_context.hpp"
+#include "rive/view_model_type.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive_file_reader.hpp"
 #include <string>
 
@@ -699,6 +703,343 @@ end
 
     {
         lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:globalViewModel returns nil with no data context",
+          "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local result = "not_called"
+
+function testGlobalViewModel(context: Context)
+  local vm = context:globalViewModel("Anything")
+  if vm == nil then
+    result = "nil"
+  else
+    result = "found"
+  end
+end
+
+function getResult(): string
+  return result
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testGlobalViewModel");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getResult");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:globalViewModelNames returns empty table with no file",
+          "[scripting]")
+{
+    ScriptedObjectTest scriptedObjectTest;
+
+    ScriptingTest vm(
+        R"(
+local count = -1
+
+function testNames(context: Context)
+  local names = context:globalViewModelNames()
+  count = #names
+end
+
+function getCount(): number
+  return count
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testNames");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectTest);
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getCount");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(lua_tonumber(L, -1) == 0);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:globalViewModel returns a bound global by name",
+          "[scripting]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+    REQUIRE(file != nullptr);
+
+    // The fixture must declare at least one global view model.
+    auto globalNames = file->globalViewModelNames();
+    REQUIRE(!globalNames.empty());
+    const std::string globalName = globalNames.front();
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    // Build a data context holding the artboard's main instance plus the global
+    // bound into its slot (keyed by the global's file index), mirroring what
+    // the runtime does when binding globals.
+    auto mainInstance = file->createDefaultViewModelInstance(artboard.get());
+    auto global =
+        file->createDefaultViewModelInstance(file->viewModel(globalName));
+    REQUIRE(global != nullptr);
+
+    auto dataContext = make_rcp<DataContext>(mainInstance);
+    dataContext->setViewModelInstanceForSlot(file->viewModelId(globalName),
+                                             global);
+
+    ScriptedObjectWithFile scriptedObjectWithFile;
+    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+    scriptedObjectWithFile.dataContext(dataContext);
+
+    ScriptingTest vm(
+        R"(
+local found = false
+local nameCount = 0
+local nameMatched = false
+
+function testGlobal(context: Context, name: string)
+  local vm = context:globalViewModel(name)
+  found = vm ~= nil
+
+  local names = context:globalViewModelNames()
+  nameCount = #names
+  for _, n in ipairs(names) do
+    if n == name then
+      nameMatched = true
+    end
+  end
+end
+
+function getFound(): boolean
+  return found
+end
+
+function getNameCount(): number
+  return nameCount
+end
+
+function getNameMatched(): boolean
+  return nameMatched
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testGlobal");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+        lua_pushstring(L, globalName.c_str());
+        int result = lua_pcall(L, 2, 0, 0);
+        if (result != LUA_OK)
+        {
+            fprintf(stderr, "Lua error: %s\n", lua_tostring(L, -1));
+            lua_pop(L, 1);
+        }
+        CHECK(result == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getFound");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(lua_toboolean(L, -1) == 1);
+        lua_pop(L, 1);
+    }
+
+    {
+        lua_getglobal(L, "getNameCount");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(lua_tonumber(L, -1) == (double)globalNames.size());
+        lua_pop(L, 1);
+    }
+
+    {
+        lua_getglobal(L, "getNameMatched");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(lua_toboolean(L, -1) == 1);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE("context:globalViewModel finds a global in a fully unslotted chain",
+          "[scripting]")
+{
+    // The editor (and nested-artboard propagation inside it) builds data
+    // contexts with the vector DataContext constructor, which assigns NO slot
+    // keys anywhere in the chain. This reproduces that shape — a nested,
+    // unslotted child whose parent is an unslotted root — and verifies the
+    // identity-scan fallback in pushGlobalViewModel still resolves the global.
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+    REQUIRE(file != nullptr);
+
+    auto globalNames = file->globalViewModelNames();
+    REQUIRE(!globalNames.empty());
+    const std::string globalName = globalNames.front();
+    const uint32_t slotKey = file->viewModelId(globalName);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto global =
+        file->createDefaultViewModelInstance(file->viewModel(globalName));
+    REQUIRE(global != nullptr);
+
+    // Root context: unslotted [main, global] (vector constructor), like the
+    // editor's internalDataContextFromInstances.
+    auto rootMain = file->createDefaultViewModelInstance(artboard.get());
+    std::vector<rcp<ViewModelInstance>> rootInstances{rootMain, global};
+    auto rootContext = make_rcp<DataContext>(std::move(rootInstances));
+
+    // Nested child context: also unslotted, parented to the unslotted root.
+    auto nestedMain = file->createDefaultViewModelInstance(artboard.get());
+    std::vector<rcp<ViewModelInstance>> instances{nestedMain, global};
+    auto dataContext = make_rcp<DataContext>(std::move(instances));
+    dataContext->parent(rootContext);
+    // Sanity: no slot keys exist anywhere, so slot lookup misses at every
+    // level.
+    REQUIRE(dataContext->instanceForSlot(slotKey) == nullptr);
+    REQUIRE(rootContext->instanceForSlot(slotKey) == nullptr);
+
+    ScriptedObjectWithFile scriptedObjectWithFile;
+    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+    scriptedObjectWithFile.dataContext(dataContext);
+
+    ScriptingTest vm(
+        R"(
+local found = false
+
+function testGlobal(context: Context, name: string)
+  found = context:globalViewModel(name) ~= nil
+end
+
+function getFound(): boolean
+  return found
+end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testGlobal");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+        lua_pushstring(L, globalName.c_str());
+        int result = lua_pcall(L, 2, 0, 0);
+        if (result != LUA_OK)
+        {
+            fprintf(stderr, "Lua error: %s\n", lua_tostring(L, -1));
+            lua_pop(L, 1);
+        }
+        CHECK(result == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getFound");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(lua_toboolean(L, -1) == 1);
+        lua_pop(L, 1);
+        CHECK(top == lua_gettop(L));
+    }
+}
+
+TEST_CASE(
+    "context:globalViewModel returns nil for a non-global or unknown name",
+    "[scripting]")
+{
+    // The named view model must be validated as an actual global before any
+    // resolution: a non-global (e.g. the main VM) name must never resolve, and
+    // an unknown name must not query an out-of-range slot key.
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/global_variables_test.riv", &silver);
+    REQUIRE(file != nullptr);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto mainInstance = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(mainInstance != nullptr);
+    REQUIRE(mainInstance->viewModel() != nullptr);
+    // The main artboard view model is not a global.
+    const std::string mainName = mainInstance->viewModel()->name();
+    REQUIRE(static_cast<ViewModelType>(
+                mainInstance->viewModel()->viewModelType()) !=
+            ViewModelType::global);
+
+    auto dataContext = make_rcp<DataContext>(mainInstance);
+
+    ScriptedObjectWithFile scriptedObjectWithFile;
+    scriptedObjectWithFile.setFileForScriptAsset(file.get());
+    scriptedObjectWithFile.dataContext(dataContext);
+
+    ScriptingTest vm(
+        R"(
+local mainResult = "not_called"
+local unknownResult = "not_called"
+
+function testNames(context: Context, mainName: string)
+  mainResult = context:globalViewModel(mainName) == nil and "nil" or "found"
+  unknownResult =
+    context:globalViewModel("NoSuchViewModel") == nil and "nil" or "found"
+end
+
+function getMain(): string return mainResult end
+function getUnknown(): string return unknownResult end
+)");
+
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    {
+        lua_getglobal(L, "testNames");
+        lua_newrive<ScriptedContext>(L, &scriptedObjectWithFile);
+        lua_pushstring(L, mainName.c_str());
+        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+        CHECK(top == lua_gettop(L));
+    }
+
+    {
+        lua_getglobal(L, "getMain");
+        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+        CHECK(std::string(lua_tostring(L, -1)) == "nil");
+        lua_pop(L, 1);
+    }
+
+    {
+        lua_getglobal(L, "getUnknown");
         CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
         CHECK(std::string(lua_tostring(L, -1)) == "nil");
         lua_pop(L, 1);

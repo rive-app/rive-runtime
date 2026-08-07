@@ -14,6 +14,7 @@
 #include "rive/renderer/cmd/id_allocator.hpp"
 #include "rive/renderer/cmd/live_recorder_registry.hpp"
 #include <cstdio>
+#include <memory>
 #include <mutex>
 
 // Deferred 2D resources: lite_rtti subclasses of the real Factory types that
@@ -290,6 +291,12 @@ public:
     {
         bump();
         m_scratch.rewind(); // discards any pending per-verb geometry
+#ifdef WITH_RIVE_PATH_QUERY
+        if (m_query != nullptr)
+        {
+            m_query->rewind();
+        }
+#endif
         m_buffer->append(t(RenderCmd::pathRewind), ResIdPOD{m_id});
     }
     void fillRule(FillRule v) override
@@ -306,17 +313,31 @@ public:
         m_buffer->append(t(RenderCmd::pathFillRule),
                          PathFillRulePOD{m_id, static_cast<uint8_t>(v)});
     }
+    FillRule fillRule() const { return m_fillRule; }
 
     // Per verb builders are never hit by app content but the interface
     // requires them; accumulate into a scratch RawPath flushed on next use.
-    void moveTo(float x, float y) override { m_scratch.moveTo(x, y); }
-    void lineTo(float x, float y) override { m_scratch.lineTo(x, y); }
+    void moveTo(float x, float y) override
+    {
+        m_scratch.moveTo(x, y);
+        queryMirror([=](RawPath& q) { q.moveTo(x, y); });
+    }
+    void lineTo(float x, float y) override
+    {
+        m_scratch.lineTo(x, y);
+        queryMirror([=](RawPath& q) { q.lineTo(x, y); });
+    }
     void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
         override
     {
         m_scratch.cubicTo(ox, oy, ix, iy, x, y);
+        queryMirror([=](RawPath& q) { q.cubicTo(ox, oy, ix, iy, x, y); });
     }
-    void close() override { m_scratch.close(); }
+    void close() override
+    {
+        m_scratch.close();
+        queryMirror([](RawPath& q) { q.close(); });
+    }
 
     void addRenderPath(const RenderPath* path, const Mat2D& m) override
     {
@@ -333,12 +354,53 @@ public:
                                         m.yy(),
                                         m.tx(),
                                         m.ty()});
+#ifdef WITH_RIVE_PATH_QUERY
+        if (m_query != nullptr)
+        {
+            auto* d = lite_rtti_cast<DeferredRenderPath*>(
+                const_cast<RenderPath*>(path));
+            if (const RawPath* srcQuery = d ? d->queryRawPath() : nullptr)
+            {
+                if (d == this)
+                {
+                    // Adding a path into itself reads the vector it appends.
+                    RawPath copy(*srcQuery);
+                    m_query->addPath(copy, &m);
+                }
+                else
+                {
+                    m_query->addPath(*srcQuery, &m);
+                }
+            }
+        }
+#endif
     }
     void addRawPath(const RawPath& path) override
     {
         flushScratch(); // preserve order: pending per-verb before this bulk add
         recordAddRawPath(path);
+        queryMirror([&](RawPath& q) { q.addPath(path); });
     }
+
+#ifdef WITH_RIVE_PATH_QUERY
+    // Opt in per path: hosts that hit test or measure what they record call
+    // this at creation; file loads never do, so their paths stay twin free.
+    // A seed refreshes rather than appends, effect paths re-hand the same
+    // live pointer.
+    void retainQueryGeometry(const RawPath* seed = nullptr)
+    {
+        if (m_query == nullptr)
+        {
+            m_query = std::make_unique<RawPath>();
+        }
+        if (seed != nullptr)
+        {
+            m_query->rewind();
+            m_query->addPath(*seed);
+        }
+    }
+    const RawPath* queryRawPath() const { return m_query.get(); }
+#endif
 
     // Emit any pending per verb geometry as one addRawPath. Public so the
     // renderer can flush before a draw or clip.
@@ -391,6 +453,19 @@ private:
                                     static_cast<uint32_t>(verbs.size()),
                                     static_cast<uint32_t>(points.size())});
     }
+
+#ifdef WITH_RIVE_PATH_QUERY
+    template <typename F> void queryMirror(F&& f)
+    {
+        if (m_query != nullptr)
+        {
+            f(*m_query);
+        }
+    }
+    std::unique_ptr<RawPath> m_query;
+#else
+    template <typename F> void queryMirror(F&&) {}
+#endif
 
     RawPath m_scratch; // pending CommandPath per-verb geometry
     FillRule m_fillRule = FillRule::nonZero;

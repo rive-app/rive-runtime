@@ -5,6 +5,8 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/view_model_type.hpp"
 #ifdef WITH_RIVE_AUDIO
 #include "rive/audio/audio_engine.hpp"
 #include "rive/assets/audio_asset.hpp"
@@ -185,6 +187,114 @@ int ScriptedContext::pushRootViewModel(lua_State* state)
     return 0;
 }
 
+// Resolve a global view model instance by name from a script's data context.
+static rcp<ViewModelInstance> resolveGlobalViewModel(
+    const rcp<DataContext>& dataContext,
+    File* file,
+    const char* name)
+{
+    // Validate the name up front (mirrors
+    // Artboard::setGlobalViewModelInstance): an unknown name makes viewModelId
+    // return viewModelCount() (an invalid slot key), and a non-global name must
+    // never resolve — even if something else populated that slot. Only after
+    // confirming the id is in range and the referenced view model is global do
+    // we attempt slot / identity resolution.
+    uint32_t slotKey = file->viewModelId(name);
+    if (slotKey >= file->viewModelCount())
+    {
+        return nullptr;
+    }
+    ViewModel* globalViewModel = file->viewModel(slotKey);
+    if (globalViewModel == nullptr ||
+        static_cast<ViewModelType>(globalViewModel->viewModelType()) !=
+            ViewModelType::global)
+    {
+        return nullptr;
+    }
+
+    // Fast path: the pure runtime slots globals onto the root (top-most) data
+    // context.
+    DataContext* root = dataContext.get();
+    while (root->parent() != nullptr)
+    {
+        root = root->parent().get();
+    }
+    auto viewModelInstance = root->instanceForSlot(slotKey);
+    if (viewModelInstance != nullptr)
+    {
+        return viewModelInstance;
+    }
+
+    // Fallback: the editor (and nested-artboard propagation) build unslotted
+    // contexts, so match the global view model against the contexts' instances.
+    for (DataContext* ctx = dataContext.get(); ctx != nullptr;
+         ctx = ctx->parent().get())
+    {
+        for (const auto& instance : ctx->viewModelInstances())
+        {
+            if (instance != nullptr && instance->viewModel() == globalViewModel)
+            {
+                return instance;
+            }
+        }
+    }
+    return nullptr;
+}
+
+int ScriptedContext::pushGlobalViewModel(lua_State* state)
+{
+    const char* name = luaL_checkstring(state, 2);
+    if (m_scriptedObject)
+    {
+        auto scriptAsset = m_scriptedObject->scriptAsset();
+        auto dataContext = m_scriptedObject->dataContext();
+        if (scriptAsset != nullptr && dataContext != nullptr)
+        {
+            File* file = scriptAsset->file();
+            if (file != nullptr)
+            {
+                auto viewModelInstance =
+                    resolveGlobalViewModel(dataContext, file, name);
+                if (viewModelInstance != nullptr)
+                {
+                    lua_newrive<ScriptedViewModel>(
+                        state,
+                        state,
+                        ref_rcp(viewModelInstance->viewModel()),
+                        viewModelInstance);
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int ScriptedContext::pushGlobalViewModelNames(lua_State* state)
+{
+    std::vector<std::string> names;
+    if (m_scriptedObject)
+    {
+        auto scriptAsset = m_scriptedObject->scriptAsset();
+        if (scriptAsset != nullptr)
+        {
+            File* file = scriptAsset->file();
+            if (file != nullptr)
+            {
+                names = file->globalViewModelNames();
+            }
+        }
+    }
+    lua_createtable(state, (int)names.size(), 0);
+    int index = 1;
+    for (const auto& name : names)
+    {
+        lua_pushstring(state, name.c_str());
+        lua_rawseti(state, -2, index++);
+    }
+    return 1;
+}
+
 int ScriptedContext::pushDataContext(lua_State* state)
 {
 
@@ -232,6 +342,14 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::rootViewModel:
             {
                 return scriptedContext->pushRootViewModel(L);
+            }
+            case (int)LuaAtoms::globalViewModel:
+            {
+                return scriptedContext->pushGlobalViewModel(L);
+            }
+            case (int)LuaAtoms::globalViewModelNames:
+            {
+                return scriptedContext->pushGlobalViewModelNames(L);
             }
             case (int)LuaAtoms::image:
             {

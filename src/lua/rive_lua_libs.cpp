@@ -171,6 +171,8 @@ constexpr LuaAtomName atoms[] = {
     {"markNeedsUpdate", (int16_t)LuaAtoms::markNeedsUpdate},
     {"viewModel", (int16_t)LuaAtoms::viewModel},
     {"rootViewModel", (int16_t)LuaAtoms::rootViewModel},
+    {"globalViewModel", (int16_t)LuaAtoms::globalViewModel},
+    {"globalViewModelNames", (int16_t)LuaAtoms::globalViewModelNames},
     {"dataContext", (int16_t)LuaAtoms::dataContext},
     {"image", (int16_t)LuaAtoms::image},
     {"blob", (int16_t)LuaAtoms::blob},
