@@ -32,6 +32,7 @@
     },
     "borderLeft": {
       "type": "double",
+      "sidecar": "border",
       "initialValue": "0",
       "animates": true,
       "group": "layoutborder",
@@ -44,6 +45,7 @@
     },
     "borderRight": {
       "type": "double",
+      "sidecar": "border",
       "initialValue": "0",
       "animates": true,
       "group": "layoutborder",
@@ -56,6 +58,7 @@
     },
     "borderTop": {
       "type": "double",
+      "sidecar": "border",
       "initialValue": "0",
       "animates": true,
       "group": "layoutborder",
@@ -68,6 +71,7 @@
     },
     "borderBottom": {
       "type": "double",
+      "sidecar": "border",
       "initialValue": "0",
       "animates": true,
       "group": "layoutborder",
@@ -176,6 +180,7 @@
     },
     "positionLeft": {
       "type": "double",
+      "sidecar": "absolutePosition",
       "initialValue": "0",
       "animates": true,
       "group": "layoutposition",
@@ -188,6 +193,7 @@
     },
     "positionRight": {
       "type": "double",
+      "sidecar": "absolutePosition",
       "initialValue": "0",
       "animates": true,
       "group": "layoutposition",
@@ -200,6 +206,7 @@
     },
     "positionTop": {
       "type": "double",
+      "sidecar": "absolutePosition",
       "initialValue": "0",
       "animates": true,
       "group": "layoutposition",
@@ -212,6 +219,7 @@
     },
     "positionBottom": {
       "type": "double",
+      "sidecar": "absolutePosition",
       "initialValue": "0",
       "animates": true,
       "group": "layoutposition",
@@ -220,6 +228,54 @@
         "string": "positionbottom"
       },
       "description": "Bottom position value.",
+      "bindable": true
+    },
+    "positionLeftUnitsValue": {
+      "type": "uint8",
+      "sidecar": "absolutePosition",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 621,
+        "string": "positionleftunitsvalue"
+      },
+      "description": "",
+      "bindable": true
+    },
+    "positionRightUnitsValue": {
+      "type": "uint8",
+      "sidecar": "absolutePosition",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 622,
+        "string": "positionrightunitsvalue"
+      },
+      "description": "",
+      "bindable": true
+    },
+    "positionTopUnitsValue": {
+      "type": "uint8",
+      "sidecar": "absolutePosition",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 623,
+        "string": "positiontopunitsvalue"
+      },
+      "description": "",
+      "bindable": true
+    },
+    "positionBottomUnitsValue": {
+      "type": "uint8",
+      "sidecar": "absolutePosition",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 624,
+        "string": "positionbottomunitsvalue"
+      },
+      "description": "",
       "bindable": true
     },
     "flexBasis": {
@@ -414,6 +470,7 @@
     },
     "borderLeftUnitsValue": {
       "type": "uint8",
+      "sidecar": "border",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -424,6 +481,7 @@
     },
     "borderRightUnitsValue": {
       "type": "uint8",
+      "sidecar": "border",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -434,6 +492,7 @@
     },
     "borderTopUnitsValue": {
       "type": "uint8",
+      "sidecar": "border",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -444,6 +503,7 @@
     },
     "borderBottomUnitsValue": {
       "type": "uint8",
+      "sidecar": "border",
       "initialValue": "0",
       "group": "layoutborder",
       "key": {
@@ -532,50 +592,6 @@
       },
       "description": ""
     },
-    "positionLeftUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutposition",
-      "key": {
-        "int": 621,
-        "string": "positionleftunitsvalue"
-      },
-      "description": "",
-      "bindable": true
-    },
-    "positionRightUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutposition",
-      "key": {
-        "int": 622,
-        "string": "positionrightunitsvalue"
-      },
-      "description": "",
-      "bindable": true
-    },
-    "positionTopUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutposition",
-      "key": {
-        "int": 623,
-        "string": "positiontopunitsvalue"
-      },
-      "description": "",
-      "bindable": true
-    },
-    "positionBottomUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutposition",
-      "key": {
-        "int": 624,
-        "string": "positionbottomunitsvalue"
-      },
-      "description": "",
-      "bindable": true
-    },
     "gapHorizontalUnitsValue": {
       "type": "uint8",
       "initialValue": "0",
@@ -595,15 +611,6 @@
         "string": "gapverticalunitsvalue"
       },
       "description": ""
-    },
-    "linkCornerRadius": {
-      "type": "bool",
-      "initialValue": "true",
-      "key": {
-        "int": 639,
-        "string": "linkcornerradius"
-      },
-      "description": "Whether the TL corner radius defines all the radiuses"
     },
     "justifyItemsValue": {
       "type": "uint8",
@@ -625,8 +632,19 @@
       },
       "description": "Layout algorithm for children: flex (0), grid (1), stack (2). Separate from displayValue, which only controls visibility."
     },
+    "linkCornerRadius": {
+      "type": "bool",
+      "sidecar": "cornerRadius",
+      "initialValue": "true",
+      "key": {
+        "int": 639,
+        "string": "linkcornerradius"
+      },
+      "description": "Whether the TL corner radius defines all the radiuses"
+    },
     "cornerRadiusTL": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -638,6 +656,7 @@
     },
     "cornerRadiusTR": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -649,6 +668,7 @@
     },
     "cornerRadiusBL": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -660,6 +680,7 @@
     },
     "cornerRadiusBR": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {

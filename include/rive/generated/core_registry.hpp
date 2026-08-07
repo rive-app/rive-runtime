@@ -1121,6 +1121,18 @@ public:
             case GridItemPlacementBase::gridRowSpanPropertyKey:
                 object->as<GridItemPlacementBase>()->gridRowSpan(value);
                 break;
+            case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->minWidthUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->maxWidthUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->minHeightUnitsValue(value);
+                break;
+            case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
+                object->as<LayoutSizingStyleBase>()->maxHeightUnitsValue(value);
+                break;
             case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
                 object->as<LayoutSizingStyleBase>()->layoutWidthScaleType(
                     value);
@@ -1135,23 +1147,27 @@ public:
             case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
                 object->as<LayoutSizingStyleBase>()->heightUnitsValue(value);
                 break;
-            case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
-                object->as<LayoutSizingStyleBase>()->minWidthUnitsValue(value);
-                break;
-            case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
-                object->as<LayoutSizingStyleBase>()->maxWidthUnitsValue(value);
-                break;
-            case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
-                object->as<LayoutSizingStyleBase>()->minHeightUnitsValue(value);
-                break;
-            case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
-                object->as<LayoutSizingStyleBase>()->maxHeightUnitsValue(value);
-                break;
             case LayoutSizingStyleBase::justifySelfValuePropertyKey:
                 object->as<LayoutSizingStyleBase>()->justifySelfValue(value);
                 break;
             case LayoutSizingStyleBase::displayValuePropertyKey:
                 object->as<LayoutSizingStyleBase>()->displayValue(value);
+                break;
+            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()->positionLeftUnitsValue(
+                    value);
+                break;
+            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()->positionRightUnitsValue(
+                    value);
+                break;
+            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()->positionTopUnitsValue(
+                    value);
+                break;
+            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()
+                    ->positionBottomUnitsValue(value);
                 break;
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 object->as<LayoutComponentStyleBase>()->interpolatorId(value);
@@ -1236,22 +1252,6 @@ public:
             case LayoutComponentStyleBase::paddingBottomUnitsValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->paddingBottomUnitsValue(
                     value);
-                break;
-            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->positionLeftUnitsValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->positionRightUnitsValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()->positionTopUnitsValue(
-                    value);
-                break;
-            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
-                object->as<LayoutComponentStyleBase>()
-                    ->positionBottomUnitsValue(value);
                 break;
             case LayoutComponentStyleBase::gapHorizontalUnitsValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->gapHorizontalUnitsValue(
@@ -3368,16 +3368,6 @@ public:
                 return object->as<GridItemPlacementBase>()->gridColumnSpan();
             case GridItemPlacementBase::gridRowSpanPropertyKey:
                 return object->as<GridItemPlacementBase>()->gridRowSpan();
-            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
-                return object->as<LayoutSizingStyleBase>()
-                    ->layoutWidthScaleType();
-            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
-                return object->as<LayoutSizingStyleBase>()
-                    ->layoutHeightScaleType();
-            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
-                return object->as<LayoutSizingStyleBase>()->widthUnitsValue();
-            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
-                return object->as<LayoutSizingStyleBase>()->heightUnitsValue();
             case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
                 return object->as<LayoutSizingStyleBase>()
                     ->minWidthUnitsValue();
@@ -3390,10 +3380,32 @@ public:
             case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
                 return object->as<LayoutSizingStyleBase>()
                     ->maxHeightUnitsValue();
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->layoutWidthScaleType();
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+                return object->as<LayoutSizingStyleBase>()
+                    ->layoutHeightScaleType();
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()->widthUnitsValue();
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
+                return object->as<LayoutSizingStyleBase>()->heightUnitsValue();
             case LayoutSizingStyleBase::justifySelfValuePropertyKey:
                 return object->as<LayoutSizingStyleBase>()->justifySelfValue();
             case LayoutSizingStyleBase::displayValuePropertyKey:
                 return object->as<LayoutSizingStyleBase>()->displayValue();
+            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
+                return object->as<LayoutComponentStyleBase>()
+                    ->positionLeftUnitsValue();
+            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
+                return object->as<LayoutComponentStyleBase>()
+                    ->positionRightUnitsValue();
+            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
+                return object->as<LayoutComponentStyleBase>()
+                    ->positionTopUnitsValue();
+            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
+                return object->as<LayoutComponentStyleBase>()
+                    ->positionBottomUnitsValue();
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->interpolatorId();
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
@@ -3456,18 +3468,6 @@ public:
             case LayoutComponentStyleBase::paddingBottomUnitsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->paddingBottomUnitsValue();
-            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->positionLeftUnitsValue();
-            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->positionRightUnitsValue();
-            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->positionTopUnitsValue();
-            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
-                return object->as<LayoutComponentStyleBase>()
-                    ->positionBottomUnitsValue();
             case LayoutComponentStyleBase::gapHorizontalUnitsValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->gapHorizontalUnitsValue();
@@ -4608,16 +4608,20 @@ public:
             case GridTrackBase::trackMaxTypePropertyKey:
             case GridItemPlacementBase::gridColumnSpanPropertyKey:
             case GridItemPlacementBase::gridRowSpanPropertyKey:
-            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
-            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
-            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
-            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
             case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
             case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
             case LayoutSizingStyleBase::minHeightUnitsValuePropertyKey:
             case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
             case LayoutSizingStyleBase::justifySelfValuePropertyKey:
             case LayoutSizingStyleBase::displayValuePropertyKey:
+            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
+            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
@@ -4640,10 +4644,6 @@ public:
             case LayoutComponentStyleBase::paddingRightUnitsValuePropertyKey:
             case LayoutComponentStyleBase::paddingTopUnitsValuePropertyKey:
             case LayoutComponentStyleBase::paddingBottomUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
-            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
             case LayoutComponentStyleBase::gapHorizontalUnitsValuePropertyKey:
             case LayoutComponentStyleBase::gapVerticalUnitsValuePropertyKey:
             case LayoutComponentStyleBase::justifyItemsValuePropertyKey:
@@ -5304,14 +5304,6 @@ public:
                 return object->is<GridItemPlacementBase>();
             case GridItemPlacementBase::gridRowSpanPropertyKey:
                 return object->is<GridItemPlacementBase>();
-            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
-                return object->is<LayoutSizingStyleBase>();
-            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
-                return object->is<LayoutSizingStyleBase>();
-            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
-                return object->is<LayoutSizingStyleBase>();
-            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
-                return object->is<LayoutSizingStyleBase>();
             case LayoutSizingStyleBase::minWidthUnitsValuePropertyKey:
                 return object->is<LayoutSizingStyleBase>();
             case LayoutSizingStyleBase::maxWidthUnitsValuePropertyKey:
@@ -5320,10 +5312,26 @@ public:
                 return object->is<LayoutSizingStyleBase>();
             case LayoutSizingStyleBase::maxHeightUnitsValuePropertyKey:
                 return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::layoutWidthScaleTypePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::layoutHeightScaleTypePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::widthUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
+            case LayoutSizingStyleBase::heightUnitsValuePropertyKey:
+                return object->is<LayoutSizingStyleBase>();
             case LayoutSizingStyleBase::justifySelfValuePropertyKey:
                 return object->is<LayoutSizingStyleBase>();
             case LayoutSizingStyleBase::displayValuePropertyKey:
                 return object->is<LayoutSizingStyleBase>();
+            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
+            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
@@ -5367,14 +5375,6 @@ public:
             case LayoutComponentStyleBase::paddingTopUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::paddingBottomUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::positionLeftUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::positionRightUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::positionTopUnitsValuePropertyKey:
-                return object->is<LayoutComponentStyleBase>();
-            case LayoutComponentStyleBase::positionBottomUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::gapHorizontalUnitsValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();

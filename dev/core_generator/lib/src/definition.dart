@@ -43,6 +43,46 @@ class Definition {
           !property.isPassthrough &&
           !property.isBitmaskPassthrough);
 
+  /// Runtime-only clusters of "cold" properties hoisted into lazily-allocated
+  /// sidecar structs (see [Property.sidecarName]). Insertion-ordered:
+  /// sidecar name -> properties in that cluster. C++ generator only.
+  Map<String, List<Property>> get sidecarGroups {
+    final groups = <String, List<Property>>{};
+    for (final property in properties) {
+      if (property.isSidecar) {
+        groups.putIfAbsent(property.sidecarName!, () => []).add(property);
+      }
+    }
+    return groups;
+  }
+
+  /// Sidecar storage packs plain stored fields into a POD struct behind a lazy
+  /// pointer; it is incompatible with any property whose storage/dispatch is
+  /// special-cased. Fail loudly at generation rather than emit broken C++.
+  void _validateSidecars() {
+    for (final property in properties) {
+      if (!property.isSidecar) {
+        continue;
+      }
+      if (!property.getExportType().storesData ||
+          property.isEncoded ||
+          property.isPassthrough ||
+          property.isBitmaskPassthrough ||
+          property.isVirtual ||
+          property.isPureVirtual ||
+          property.isGetOverride ||
+          property.isSetOverride) {
+        throw Exception(
+            'Property ${_name}.${property.name} cannot be a sidecar: sidecar '
+            'is only supported for plain stored (non-virtual, non-override, '
+            'non-encoded, non-passthrough) properties.');
+      }
+    }
+  }
+
+  String _sidecarStructName(Property property) =>
+      '${_name}${property.capitalizedSidecarName}Sidecar';
+
   Definition? _extensionOf;
   Definition? _rawExtensionOf;
   Key? _key;
@@ -428,6 +468,11 @@ class Definition {
     for (final mixin in _mixinsOf) {
       includes.add('rive/generated/${mixin.localCodeFilename}');
     }
+    final sidecars = sidecarGroups;
+    if (sidecars.isNotEmpty) {
+      _validateSidecars();
+      includes.add('rive/sidecar.hpp');
+    }
 
     var sortedIncludes = includes.toList()..sort();
     for (final include in sortedIncludes) {
@@ -441,6 +486,26 @@ class Definition {
     }
 
     code.writeln('namespace rive {');
+    // Sidecar payload structs: one POD per cluster, emitted before the class so
+    // the lazy holder member and inline accessors see the complete type.
+    for (final group in sidecars.values) {
+      final structName = _sidecarStructName(group.first);
+      code.writeln('struct $structName {');
+      for (final property in group) {
+        var initialize = property.initialValueRuntime ??
+            property.initialValue ??
+            property.type.defaultValue;
+        String fieldLine = '${property.type.cppName} ${property.name}';
+        if (initialize != null) {
+          var converted = property.type.convertCpp(initialize);
+          if (converted != null) {
+            fieldLine += ' = $converted';
+          }
+        }
+        code.writeln('$fieldLine;');
+      }
+      code.writeln('};');
+    }
     var superTypeName = defineContextExtension ? 'Core' : _extensionOf?._name;
     final mixinBases =
         _mixinsOf.map((mixin) => ', public ${mixin.name}Base').join();
@@ -512,9 +577,11 @@ class Definition {
         if (property.isEncoded ||
             !property.getExportType().storesData ||
             property.isPassthrough ||
-            property.isBitmaskPassthrough) {
+            property.isBitmaskPassthrough ||
+            property.isSidecar) {
           // Encoded properties don't store data, it's up to the implementation
-          // to decode and store what it needs.
+          // to decode and store what it needs. Sidecar properties are stored in
+          // a lazily-allocated holder emitted below, not as an inline field.
           continue;
         }
         if (property.isWithRiveToolsOnly) {
@@ -538,6 +605,13 @@ class Definition {
           addPreprocessorEnd(code);
           code.writeln('\n');
         }
+      }
+
+      // Lazily-allocated sidecar holders: one 8-byte pointer per cluster, null
+      // until a property in the cluster is authored.
+      for (final entry in sidecars.entries) {
+        final structName = _sidecarStructName(entry.value.first);
+        code.writeln('Sidecar<$structName> m_${entry.key};');
       }
 
       // Write getter/setters.
@@ -591,6 +665,42 @@ class Definition {
                       '${property.name}Changed();'
                       'notifyPropertyChanged(${property.name}PropertyKey);'
                       '}');
+        } else if (property.isSidecar) {
+          // Getter falls back to the compile-time default when the cluster was
+          // never allocated; setter allocates on the first non-default write.
+          final memberName = 'm_${property.sidecarName}';
+          var initialize = property.initialValueRuntime ??
+              property.initialValue ??
+              property.type.defaultValue;
+          var converted =
+              initialize != null ? property.type.convertCpp(initialize) : null;
+          final getterType =
+              (property.type.cppGetterName ?? property.type.cppName)!;
+          if (getterType.trimRight().endsWith('&')) {
+            // By-reference getter (e.g. `const std::string&`): the null branch
+            // must return an lvalue of the same type, otherwise the ternary
+            // materializes a temporary and the returned reference dangles. Hold
+            // the default in a function-local static of the value type.
+            final defaultLiteral = converted ?? '${property.type.cppName}{}';
+            code.writeln('inline $getterType ${property.name}() const {'
+                'static const ${property.type.cppName} defaultValue = '
+                '$defaultLiteral;'
+                'auto* sidecar = $memberName.get();'
+                'return sidecar != nullptr ? sidecar->${property.name} : '
+                'defaultValue; }');
+          } else {
+            final defaultLiteral = converted ?? '$getterType{}';
+            code.writeln('inline $getterType '
+                '${property.name}() const { auto* sidecar = $memberName.get(); '
+                'return sidecar != nullptr ? sidecar->${property.name} : '
+                '$defaultLiteral; }');
+          }
+          code.writeln('void ${property.name}(${property.type.cppName} value) {'
+              'if(${property.name}() == value){return;}'
+              '$memberName.ensure()->${property.name} = value;'
+              '${property.name}Changed();'
+              'notifyPropertyChanged(${property.name}PropertyKey);'
+              '}');
         } else {
           code.writeln(((property.isVirtual || property.isPureVirtual)
                   ? 'virtual'
@@ -633,6 +743,10 @@ class Definition {
     if (storedPropertiesNoPassthrough.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
       for (final property in storedPropertiesNoPassthrough) {
+        if (property.isSidecar) {
+          // Copied once per cluster below via the holder's deep copy.
+          continue;
+        }
         if (property.isWithRiveToolsOnly) {
           addPreprocessorStart(code, withRiveToolsPreprocessor);
         }
@@ -645,6 +759,10 @@ class Definition {
         if (property.isWithRiveToolsOnly) {
           addPreprocessorEnd(code);
         }
+      }
+      // Deep-copy each sidecar cluster (Sidecar<T> handles null vs allocated).
+      for (final entry in sidecars.entries) {
+        code.writeln('m_${entry.key} = object.m_${entry.key};');
       }
       if (_extensionOf != null) {
         code.writeln('${_extensionOf!.name}::'
@@ -663,7 +781,10 @@ class Definition {
             addPreprocessorStart(code, withRiveToolsPreprocessor);
           }
           code.writeln('case ${property.name}PropertyKey:');
-          if (property.isEncoded) {
+          if (property.isSidecar) {
+            code.writeln('m_${property.sidecarName}.ensure()->${property.name} '
+                '= ${property.type.runtimeCoreType}::deserialize(reader);');
+          } else if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'
                 '(${property.type.runtimeCoreType}::deserialize(reader));');
           } else {

@@ -4,8 +4,39 @@
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/layout/layout_sizing_style.hpp"
+#include "rive/sidecar.hpp"
 namespace rive
 {
+struct LayoutComponentStyleBorderSidecar
+{
+    float borderLeft = 0.0f;
+    float borderRight = 0.0f;
+    float borderTop = 0.0f;
+    float borderBottom = 0.0f;
+    uint8_t borderLeftUnitsValue = 0;
+    uint8_t borderRightUnitsValue = 0;
+    uint8_t borderTopUnitsValue = 0;
+    uint8_t borderBottomUnitsValue = 0;
+};
+struct LayoutComponentStyleAbsolutePositionSidecar
+{
+    float positionLeft = 0.0f;
+    float positionRight = 0.0f;
+    float positionTop = 0.0f;
+    float positionBottom = 0.0f;
+    uint8_t positionLeftUnitsValue = 0;
+    uint8_t positionRightUnitsValue = 0;
+    uint8_t positionTopUnitsValue = 0;
+    uint8_t positionBottomUnitsValue = 0;
+};
+struct LayoutComponentStyleCornerRadiusSidecar
+{
+    bool linkCornerRadius = true;
+    float cornerRadiusTL = 0.0f;
+    float cornerRadiusTR = 0.0f;
+    float cornerRadiusBL = 0.0f;
+    float cornerRadiusBR = 0.0f;
+};
 class LayoutComponentStyleBase : public LayoutSizingStyle
 {
 protected:
@@ -49,6 +80,10 @@ public:
     static const uint16_t positionRightPropertyKey = 517;
     static const uint16_t positionTopPropertyKey = 518;
     static const uint16_t positionBottomPropertyKey = 519;
+    static const uint16_t positionLeftUnitsValuePropertyKey = 621;
+    static const uint16_t positionRightUnitsValuePropertyKey = 622;
+    static const uint16_t positionTopUnitsValuePropertyKey = 623;
+    static const uint16_t positionBottomUnitsValuePropertyKey = 624;
     static const uint16_t flexBasisPropertyKey = 523;
     static const uint16_t aspectRatioPropertyKey = 524;
     static const uint16_t interpolatorIdPropertyKey = 591;
@@ -75,15 +110,11 @@ public:
     static const uint16_t paddingRightUnitsValuePropertyKey = 618;
     static const uint16_t paddingTopUnitsValuePropertyKey = 619;
     static const uint16_t paddingBottomUnitsValuePropertyKey = 620;
-    static const uint16_t positionLeftUnitsValuePropertyKey = 621;
-    static const uint16_t positionRightUnitsValuePropertyKey = 622;
-    static const uint16_t positionTopUnitsValuePropertyKey = 623;
-    static const uint16_t positionBottomUnitsValuePropertyKey = 624;
     static const uint16_t gapHorizontalUnitsValuePropertyKey = 625;
     static const uint16_t gapVerticalUnitsValuePropertyKey = 626;
-    static const uint16_t linkCornerRadiusPropertyKey = 639;
     static const uint16_t justifyItemsValuePropertyKey = 1045;
     static const uint16_t layoutTypeValuePropertyKey = 1059;
+    static const uint16_t linkCornerRadiusPropertyKey = 639;
     static const uint16_t cornerRadiusTLPropertyKey = 640;
     static const uint16_t cornerRadiusTRPropertyKey = 641;
     static const uint16_t cornerRadiusBLPropertyKey = 642;
@@ -92,10 +123,6 @@ public:
 protected:
     float m_GapHorizontal = 0.0f;
     float m_GapVertical = 0.0f;
-    float m_BorderLeft = 0.0f;
-    float m_BorderRight = 0.0f;
-    float m_BorderTop = 0.0f;
-    float m_BorderBottom = 0.0f;
     float m_MarginLeft = 0.0f;
     float m_MarginRight = 0.0f;
     float m_MarginTop = 0.0f;
@@ -104,10 +131,6 @@ protected:
     float m_PaddingRight = 0.0f;
     float m_PaddingTop = 0.0f;
     float m_PaddingBottom = 0.0f;
-    float m_PositionLeft = 0.0f;
-    float m_PositionRight = 0.0f;
-    float m_PositionTop = 0.0f;
-    float m_PositionBottom = 0.0f;
     float m_FlexBasis = 0.0f;
     float m_AspectRatio = 0.0f;
     uint32_t m_InterpolatorId = -1;
@@ -122,10 +145,6 @@ protected:
     uint8_t m_FlexWrapValue = 0;
     uint8_t m_OverflowValue = 0;
     bool m_IntrinsicallySizedValue = false;
-    uint8_t m_BorderLeftUnitsValue = 0;
-    uint8_t m_BorderRightUnitsValue = 0;
-    uint8_t m_BorderTopUnitsValue = 0;
-    uint8_t m_BorderBottomUnitsValue = 0;
     uint8_t m_MarginLeftUnitsValue = 0;
     uint8_t m_MarginRightUnitsValue = 0;
     uint8_t m_MarginTopUnitsValue = 0;
@@ -134,19 +153,13 @@ protected:
     uint8_t m_PaddingRightUnitsValue = 0;
     uint8_t m_PaddingTopUnitsValue = 0;
     uint8_t m_PaddingBottomUnitsValue = 0;
-    uint8_t m_PositionLeftUnitsValue = 0;
-    uint8_t m_PositionRightUnitsValue = 0;
-    uint8_t m_PositionTopUnitsValue = 0;
-    uint8_t m_PositionBottomUnitsValue = 0;
     uint8_t m_GapHorizontalUnitsValue = 0;
     uint8_t m_GapVerticalUnitsValue = 0;
-    bool m_LinkCornerRadius = true;
     uint8_t m_JustifyItemsValue = 7;
     uint8_t m_LayoutTypeValue = 0;
-    float m_CornerRadiusTL = 0.0f;
-    float m_CornerRadiusTR = 0.0f;
-    float m_CornerRadiusBL = 0.0f;
-    float m_CornerRadiusBR = 0.0f;
+    Sidecar<LayoutComponentStyleBorderSidecar> m_border;
+    Sidecar<LayoutComponentStyleAbsolutePositionSidecar> m_absolutePosition;
+    Sidecar<LayoutComponentStyleCornerRadiusSidecar> m_cornerRadius;
 
 public:
     inline float gapHorizontal() const { return m_GapHorizontal; }
@@ -173,50 +186,66 @@ public:
         notifyPropertyChanged(gapVerticalPropertyKey);
     }
 
-    inline float borderLeft() const { return m_BorderLeft; }
+    inline float borderLeft() const
+    {
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderLeft : 0.0f;
+    }
     void borderLeft(float value)
     {
-        if (m_BorderLeft == value)
+        if (borderLeft() == value)
         {
             return;
         }
-        m_BorderLeft = value;
+        m_border.ensure()->borderLeft = value;
         borderLeftChanged();
         notifyPropertyChanged(borderLeftPropertyKey);
     }
 
-    inline float borderRight() const { return m_BorderRight; }
+    inline float borderRight() const
+    {
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderRight : 0.0f;
+    }
     void borderRight(float value)
     {
-        if (m_BorderRight == value)
+        if (borderRight() == value)
         {
             return;
         }
-        m_BorderRight = value;
+        m_border.ensure()->borderRight = value;
         borderRightChanged();
         notifyPropertyChanged(borderRightPropertyKey);
     }
 
-    inline float borderTop() const { return m_BorderTop; }
+    inline float borderTop() const
+    {
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderTop : 0.0f;
+    }
     void borderTop(float value)
     {
-        if (m_BorderTop == value)
+        if (borderTop() == value)
         {
             return;
         }
-        m_BorderTop = value;
+        m_border.ensure()->borderTop = value;
         borderTopChanged();
         notifyPropertyChanged(borderTopPropertyKey);
     }
 
-    inline float borderBottom() const { return m_BorderBottom; }
+    inline float borderBottom() const
+    {
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderBottom : 0.0f;
+    }
     void borderBottom(float value)
     {
-        if (m_BorderBottom == value)
+        if (borderBottom() == value)
         {
             return;
         }
-        m_BorderBottom = value;
+        m_border.ensure()->borderBottom = value;
         borderBottomChanged();
         notifyPropertyChanged(borderBottomPropertyKey);
     }
@@ -317,52 +346,132 @@ public:
         notifyPropertyChanged(paddingBottomPropertyKey);
     }
 
-    inline float positionLeft() const { return m_PositionLeft; }
+    inline float positionLeft() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionLeft : 0.0f;
+    }
     void positionLeft(float value)
     {
-        if (m_PositionLeft == value)
+        if (positionLeft() == value)
         {
             return;
         }
-        m_PositionLeft = value;
+        m_absolutePosition.ensure()->positionLeft = value;
         positionLeftChanged();
         notifyPropertyChanged(positionLeftPropertyKey);
     }
 
-    inline float positionRight() const { return m_PositionRight; }
+    inline float positionRight() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionRight : 0.0f;
+    }
     void positionRight(float value)
     {
-        if (m_PositionRight == value)
+        if (positionRight() == value)
         {
             return;
         }
-        m_PositionRight = value;
+        m_absolutePosition.ensure()->positionRight = value;
         positionRightChanged();
         notifyPropertyChanged(positionRightPropertyKey);
     }
 
-    inline float positionTop() const { return m_PositionTop; }
+    inline float positionTop() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionTop : 0.0f;
+    }
     void positionTop(float value)
     {
-        if (m_PositionTop == value)
+        if (positionTop() == value)
         {
             return;
         }
-        m_PositionTop = value;
+        m_absolutePosition.ensure()->positionTop = value;
         positionTopChanged();
         notifyPropertyChanged(positionTopPropertyKey);
     }
 
-    inline float positionBottom() const { return m_PositionBottom; }
+    inline float positionBottom() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionBottom : 0.0f;
+    }
     void positionBottom(float value)
     {
-        if (m_PositionBottom == value)
+        if (positionBottom() == value)
         {
             return;
         }
-        m_PositionBottom = value;
+        m_absolutePosition.ensure()->positionBottom = value;
         positionBottomChanged();
         notifyPropertyChanged(positionBottomPropertyKey);
+    }
+
+    inline uint8_t positionLeftUnitsValue() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionLeftUnitsValue : 0;
+    }
+    void positionLeftUnitsValue(uint8_t value)
+    {
+        if (positionLeftUnitsValue() == value)
+        {
+            return;
+        }
+        m_absolutePosition.ensure()->positionLeftUnitsValue = value;
+        positionLeftUnitsValueChanged();
+        notifyPropertyChanged(positionLeftUnitsValuePropertyKey);
+    }
+
+    inline uint8_t positionRightUnitsValue() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionRightUnitsValue : 0;
+    }
+    void positionRightUnitsValue(uint8_t value)
+    {
+        if (positionRightUnitsValue() == value)
+        {
+            return;
+        }
+        m_absolutePosition.ensure()->positionRightUnitsValue = value;
+        positionRightUnitsValueChanged();
+        notifyPropertyChanged(positionRightUnitsValuePropertyKey);
+    }
+
+    inline uint8_t positionTopUnitsValue() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionTopUnitsValue : 0;
+    }
+    void positionTopUnitsValue(uint8_t value)
+    {
+        if (positionTopUnitsValue() == value)
+        {
+            return;
+        }
+        m_absolutePosition.ensure()->positionTopUnitsValue = value;
+        positionTopUnitsValueChanged();
+        notifyPropertyChanged(positionTopUnitsValuePropertyKey);
+    }
+
+    inline uint8_t positionBottomUnitsValue() const
+    {
+        auto* sidecar = m_absolutePosition.get();
+        return sidecar != nullptr ? sidecar->positionBottomUnitsValue : 0;
+    }
+    void positionBottomUnitsValue(uint8_t value)
+    {
+        if (positionBottomUnitsValue() == value)
+        {
+            return;
+        }
+        m_absolutePosition.ensure()->positionBottomUnitsValue = value;
+        positionBottomUnitsValueChanged();
+        notifyPropertyChanged(positionBottomUnitsValuePropertyKey);
     }
 
     inline float flexBasis() const { return m_FlexBasis; }
@@ -538,57 +647,64 @@ public:
 
     inline uint8_t borderLeftUnitsValue() const
     {
-        return m_BorderLeftUnitsValue;
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderLeftUnitsValue : 0;
     }
     void borderLeftUnitsValue(uint8_t value)
     {
-        if (m_BorderLeftUnitsValue == value)
+        if (borderLeftUnitsValue() == value)
         {
             return;
         }
-        m_BorderLeftUnitsValue = value;
+        m_border.ensure()->borderLeftUnitsValue = value;
         borderLeftUnitsValueChanged();
         notifyPropertyChanged(borderLeftUnitsValuePropertyKey);
     }
 
     inline uint8_t borderRightUnitsValue() const
     {
-        return m_BorderRightUnitsValue;
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderRightUnitsValue : 0;
     }
     void borderRightUnitsValue(uint8_t value)
     {
-        if (m_BorderRightUnitsValue == value)
+        if (borderRightUnitsValue() == value)
         {
             return;
         }
-        m_BorderRightUnitsValue = value;
+        m_border.ensure()->borderRightUnitsValue = value;
         borderRightUnitsValueChanged();
         notifyPropertyChanged(borderRightUnitsValuePropertyKey);
     }
 
-    inline uint8_t borderTopUnitsValue() const { return m_BorderTopUnitsValue; }
+    inline uint8_t borderTopUnitsValue() const
+    {
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderTopUnitsValue : 0;
+    }
     void borderTopUnitsValue(uint8_t value)
     {
-        if (m_BorderTopUnitsValue == value)
+        if (borderTopUnitsValue() == value)
         {
             return;
         }
-        m_BorderTopUnitsValue = value;
+        m_border.ensure()->borderTopUnitsValue = value;
         borderTopUnitsValueChanged();
         notifyPropertyChanged(borderTopUnitsValuePropertyKey);
     }
 
     inline uint8_t borderBottomUnitsValue() const
     {
-        return m_BorderBottomUnitsValue;
+        auto* sidecar = m_border.get();
+        return sidecar != nullptr ? sidecar->borderBottomUnitsValue : 0;
     }
     void borderBottomUnitsValue(uint8_t value)
     {
-        if (m_BorderBottomUnitsValue == value)
+        if (borderBottomUnitsValue() == value)
         {
             return;
         }
-        m_BorderBottomUnitsValue = value;
+        m_border.ensure()->borderBottomUnitsValue = value;
         borderBottomUnitsValueChanged();
         notifyPropertyChanged(borderBottomUnitsValuePropertyKey);
     }
@@ -710,66 +826,6 @@ public:
         notifyPropertyChanged(paddingBottomUnitsValuePropertyKey);
     }
 
-    inline uint8_t positionLeftUnitsValue() const
-    {
-        return m_PositionLeftUnitsValue;
-    }
-    void positionLeftUnitsValue(uint8_t value)
-    {
-        if (m_PositionLeftUnitsValue == value)
-        {
-            return;
-        }
-        m_PositionLeftUnitsValue = value;
-        positionLeftUnitsValueChanged();
-        notifyPropertyChanged(positionLeftUnitsValuePropertyKey);
-    }
-
-    inline uint8_t positionRightUnitsValue() const
-    {
-        return m_PositionRightUnitsValue;
-    }
-    void positionRightUnitsValue(uint8_t value)
-    {
-        if (m_PositionRightUnitsValue == value)
-        {
-            return;
-        }
-        m_PositionRightUnitsValue = value;
-        positionRightUnitsValueChanged();
-        notifyPropertyChanged(positionRightUnitsValuePropertyKey);
-    }
-
-    inline uint8_t positionTopUnitsValue() const
-    {
-        return m_PositionTopUnitsValue;
-    }
-    void positionTopUnitsValue(uint8_t value)
-    {
-        if (m_PositionTopUnitsValue == value)
-        {
-            return;
-        }
-        m_PositionTopUnitsValue = value;
-        positionTopUnitsValueChanged();
-        notifyPropertyChanged(positionTopUnitsValuePropertyKey);
-    }
-
-    inline uint8_t positionBottomUnitsValue() const
-    {
-        return m_PositionBottomUnitsValue;
-    }
-    void positionBottomUnitsValue(uint8_t value)
-    {
-        if (m_PositionBottomUnitsValue == value)
-        {
-            return;
-        }
-        m_PositionBottomUnitsValue = value;
-        positionBottomUnitsValueChanged();
-        notifyPropertyChanged(positionBottomUnitsValuePropertyKey);
-    }
-
     inline uint8_t gapHorizontalUnitsValue() const
     {
         return m_GapHorizontalUnitsValue;
@@ -800,18 +856,6 @@ public:
         notifyPropertyChanged(gapVerticalUnitsValuePropertyKey);
     }
 
-    inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
-    void linkCornerRadius(bool value)
-    {
-        if (m_LinkCornerRadius == value)
-        {
-            return;
-        }
-        m_LinkCornerRadius = value;
-        linkCornerRadiusChanged();
-        notifyPropertyChanged(linkCornerRadiusPropertyKey);
-    }
-
     inline uint8_t justifyItemsValue() const { return m_JustifyItemsValue; }
     void justifyItemsValue(uint8_t value)
     {
@@ -836,50 +880,82 @@ public:
         notifyPropertyChanged(layoutTypeValuePropertyKey);
     }
 
-    inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
-    void cornerRadiusTL(float value)
+    inline bool linkCornerRadius() const
     {
-        if (m_CornerRadiusTL == value)
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->linkCornerRadius : true;
+    }
+    void linkCornerRadius(bool value)
+    {
+        if (linkCornerRadius() == value)
         {
             return;
         }
-        m_CornerRadiusTL = value;
+        m_cornerRadius.ensure()->linkCornerRadius = value;
+        linkCornerRadiusChanged();
+        notifyPropertyChanged(linkCornerRadiusPropertyKey);
+    }
+
+    inline float cornerRadiusTL() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusTL : 0.0f;
+    }
+    void cornerRadiusTL(float value)
+    {
+        if (cornerRadiusTL() == value)
+        {
+            return;
+        }
+        m_cornerRadius.ensure()->cornerRadiusTL = value;
         cornerRadiusTLChanged();
         notifyPropertyChanged(cornerRadiusTLPropertyKey);
     }
 
-    inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
+    inline float cornerRadiusTR() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusTR : 0.0f;
+    }
     void cornerRadiusTR(float value)
     {
-        if (m_CornerRadiusTR == value)
+        if (cornerRadiusTR() == value)
         {
             return;
         }
-        m_CornerRadiusTR = value;
+        m_cornerRadius.ensure()->cornerRadiusTR = value;
         cornerRadiusTRChanged();
         notifyPropertyChanged(cornerRadiusTRPropertyKey);
     }
 
-    inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
+    inline float cornerRadiusBL() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusBL : 0.0f;
+    }
     void cornerRadiusBL(float value)
     {
-        if (m_CornerRadiusBL == value)
+        if (cornerRadiusBL() == value)
         {
             return;
         }
-        m_CornerRadiusBL = value;
+        m_cornerRadius.ensure()->cornerRadiusBL = value;
         cornerRadiusBLChanged();
         notifyPropertyChanged(cornerRadiusBLPropertyKey);
     }
 
-    inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
+    inline float cornerRadiusBR() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusBR : 0.0f;
+    }
     void cornerRadiusBR(float value)
     {
-        if (m_CornerRadiusBR == value)
+        if (cornerRadiusBR() == value)
         {
             return;
         }
-        m_CornerRadiusBR = value;
+        m_cornerRadius.ensure()->cornerRadiusBR = value;
         cornerRadiusBRChanged();
         notifyPropertyChanged(cornerRadiusBRPropertyKey);
     }
@@ -889,10 +965,6 @@ public:
     {
         m_GapHorizontal = object.m_GapHorizontal;
         m_GapVertical = object.m_GapVertical;
-        m_BorderLeft = object.m_BorderLeft;
-        m_BorderRight = object.m_BorderRight;
-        m_BorderTop = object.m_BorderTop;
-        m_BorderBottom = object.m_BorderBottom;
         m_MarginLeft = object.m_MarginLeft;
         m_MarginRight = object.m_MarginRight;
         m_MarginTop = object.m_MarginTop;
@@ -901,10 +973,6 @@ public:
         m_PaddingRight = object.m_PaddingRight;
         m_PaddingTop = object.m_PaddingTop;
         m_PaddingBottom = object.m_PaddingBottom;
-        m_PositionLeft = object.m_PositionLeft;
-        m_PositionRight = object.m_PositionRight;
-        m_PositionTop = object.m_PositionTop;
-        m_PositionBottom = object.m_PositionBottom;
         m_FlexBasis = object.m_FlexBasis;
         m_AspectRatio = object.m_AspectRatio;
         m_InterpolatorId = object.m_InterpolatorId;
@@ -919,10 +987,6 @@ public:
         m_FlexWrapValue = object.m_FlexWrapValue;
         m_OverflowValue = object.m_OverflowValue;
         m_IntrinsicallySizedValue = object.m_IntrinsicallySizedValue;
-        m_BorderLeftUnitsValue = object.m_BorderLeftUnitsValue;
-        m_BorderRightUnitsValue = object.m_BorderRightUnitsValue;
-        m_BorderTopUnitsValue = object.m_BorderTopUnitsValue;
-        m_BorderBottomUnitsValue = object.m_BorderBottomUnitsValue;
         m_MarginLeftUnitsValue = object.m_MarginLeftUnitsValue;
         m_MarginRightUnitsValue = object.m_MarginRightUnitsValue;
         m_MarginTopUnitsValue = object.m_MarginTopUnitsValue;
@@ -931,19 +995,13 @@ public:
         m_PaddingRightUnitsValue = object.m_PaddingRightUnitsValue;
         m_PaddingTopUnitsValue = object.m_PaddingTopUnitsValue;
         m_PaddingBottomUnitsValue = object.m_PaddingBottomUnitsValue;
-        m_PositionLeftUnitsValue = object.m_PositionLeftUnitsValue;
-        m_PositionRightUnitsValue = object.m_PositionRightUnitsValue;
-        m_PositionTopUnitsValue = object.m_PositionTopUnitsValue;
-        m_PositionBottomUnitsValue = object.m_PositionBottomUnitsValue;
         m_GapHorizontalUnitsValue = object.m_GapHorizontalUnitsValue;
         m_GapVerticalUnitsValue = object.m_GapVerticalUnitsValue;
-        m_LinkCornerRadius = object.m_LinkCornerRadius;
         m_JustifyItemsValue = object.m_JustifyItemsValue;
         m_LayoutTypeValue = object.m_LayoutTypeValue;
-        m_CornerRadiusTL = object.m_CornerRadiusTL;
-        m_CornerRadiusTR = object.m_CornerRadiusTR;
-        m_CornerRadiusBL = object.m_CornerRadiusBL;
-        m_CornerRadiusBR = object.m_CornerRadiusBR;
+        m_border = object.m_border;
+        m_absolutePosition = object.m_absolutePosition;
+        m_cornerRadius = object.m_cornerRadius;
         LayoutSizingStyle::copy(object);
     }
 
@@ -958,16 +1016,20 @@ public:
                 m_GapVertical = CoreDoubleType::deserialize(reader);
                 return true;
             case borderLeftPropertyKey:
-                m_BorderLeft = CoreDoubleType::deserialize(reader);
+                m_border.ensure()->borderLeft =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case borderRightPropertyKey:
-                m_BorderRight = CoreDoubleType::deserialize(reader);
+                m_border.ensure()->borderRight =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case borderTopPropertyKey:
-                m_BorderTop = CoreDoubleType::deserialize(reader);
+                m_border.ensure()->borderTop =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case borderBottomPropertyKey:
-                m_BorderBottom = CoreDoubleType::deserialize(reader);
+                m_border.ensure()->borderBottom =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case marginLeftPropertyKey:
                 m_MarginLeft = CoreDoubleType::deserialize(reader);
@@ -994,16 +1056,36 @@ public:
                 m_PaddingBottom = CoreDoubleType::deserialize(reader);
                 return true;
             case positionLeftPropertyKey:
-                m_PositionLeft = CoreDoubleType::deserialize(reader);
+                m_absolutePosition.ensure()->positionLeft =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case positionRightPropertyKey:
-                m_PositionRight = CoreDoubleType::deserialize(reader);
+                m_absolutePosition.ensure()->positionRight =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case positionTopPropertyKey:
-                m_PositionTop = CoreDoubleType::deserialize(reader);
+                m_absolutePosition.ensure()->positionTop =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case positionBottomPropertyKey:
-                m_PositionBottom = CoreDoubleType::deserialize(reader);
+                m_absolutePosition.ensure()->positionBottom =
+                    CoreDoubleType::deserialize(reader);
+                return true;
+            case positionLeftUnitsValuePropertyKey:
+                m_absolutePosition.ensure()->positionLeftUnitsValue =
+                    CoreUintType::deserialize(reader);
+                return true;
+            case positionRightUnitsValuePropertyKey:
+                m_absolutePosition.ensure()->positionRightUnitsValue =
+                    CoreUintType::deserialize(reader);
+                return true;
+            case positionTopUnitsValuePropertyKey:
+                m_absolutePosition.ensure()->positionTopUnitsValue =
+                    CoreUintType::deserialize(reader);
+                return true;
+            case positionBottomUnitsValuePropertyKey:
+                m_absolutePosition.ensure()->positionBottomUnitsValue =
+                    CoreUintType::deserialize(reader);
                 return true;
             case flexBasisPropertyKey:
                 m_FlexBasis = CoreDoubleType::deserialize(reader);
@@ -1048,16 +1130,20 @@ public:
                 m_IntrinsicallySizedValue = CoreBoolType::deserialize(reader);
                 return true;
             case borderLeftUnitsValuePropertyKey:
-                m_BorderLeftUnitsValue = CoreUintType::deserialize(reader);
+                m_border.ensure()->borderLeftUnitsValue =
+                    CoreUintType::deserialize(reader);
                 return true;
             case borderRightUnitsValuePropertyKey:
-                m_BorderRightUnitsValue = CoreUintType::deserialize(reader);
+                m_border.ensure()->borderRightUnitsValue =
+                    CoreUintType::deserialize(reader);
                 return true;
             case borderTopUnitsValuePropertyKey:
-                m_BorderTopUnitsValue = CoreUintType::deserialize(reader);
+                m_border.ensure()->borderTopUnitsValue =
+                    CoreUintType::deserialize(reader);
                 return true;
             case borderBottomUnitsValuePropertyKey:
-                m_BorderBottomUnitsValue = CoreUintType::deserialize(reader);
+                m_border.ensure()->borderBottomUnitsValue =
+                    CoreUintType::deserialize(reader);
                 return true;
             case marginLeftUnitsValuePropertyKey:
                 m_MarginLeftUnitsValue = CoreUintType::deserialize(reader);
@@ -1083,26 +1169,11 @@ public:
             case paddingBottomUnitsValuePropertyKey:
                 m_PaddingBottomUnitsValue = CoreUintType::deserialize(reader);
                 return true;
-            case positionLeftUnitsValuePropertyKey:
-                m_PositionLeftUnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case positionRightUnitsValuePropertyKey:
-                m_PositionRightUnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case positionTopUnitsValuePropertyKey:
-                m_PositionTopUnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case positionBottomUnitsValuePropertyKey:
-                m_PositionBottomUnitsValue = CoreUintType::deserialize(reader);
-                return true;
             case gapHorizontalUnitsValuePropertyKey:
                 m_GapHorizontalUnitsValue = CoreUintType::deserialize(reader);
                 return true;
             case gapVerticalUnitsValuePropertyKey:
                 m_GapVerticalUnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case linkCornerRadiusPropertyKey:
-                m_LinkCornerRadius = CoreBoolType::deserialize(reader);
                 return true;
             case justifyItemsValuePropertyKey:
                 m_JustifyItemsValue = CoreUintType::deserialize(reader);
@@ -1110,17 +1181,25 @@ public:
             case layoutTypeValuePropertyKey:
                 m_LayoutTypeValue = CoreUintType::deserialize(reader);
                 return true;
+            case linkCornerRadiusPropertyKey:
+                m_cornerRadius.ensure()->linkCornerRadius =
+                    CoreBoolType::deserialize(reader);
+                return true;
             case cornerRadiusTLPropertyKey:
-                m_CornerRadiusTL = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusTL =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusTRPropertyKey:
-                m_CornerRadiusTR = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusTR =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBLPropertyKey:
-                m_CornerRadiusBL = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusBL =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBRPropertyKey:
-                m_CornerRadiusBR = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusBR =
+                    CoreDoubleType::deserialize(reader);
                 return true;
         }
         return LayoutSizingStyle::deserialize(propertyKey, reader);
@@ -1145,6 +1224,10 @@ protected:
     virtual void positionRightChanged() {}
     virtual void positionTopChanged() {}
     virtual void positionBottomChanged() {}
+    virtual void positionLeftUnitsValueChanged() {}
+    virtual void positionRightUnitsValueChanged() {}
+    virtual void positionTopUnitsValueChanged() {}
+    virtual void positionBottomUnitsValueChanged() {}
     virtual void flexBasisChanged() {}
     virtual void aspectRatioChanged() {}
     virtual void interpolatorIdChanged() {}
@@ -1171,15 +1254,11 @@ protected:
     virtual void paddingRightUnitsValueChanged() {}
     virtual void paddingTopUnitsValueChanged() {}
     virtual void paddingBottomUnitsValueChanged() {}
-    virtual void positionLeftUnitsValueChanged() {}
-    virtual void positionRightUnitsValueChanged() {}
-    virtual void positionTopUnitsValueChanged() {}
-    virtual void positionBottomUnitsValueChanged() {}
     virtual void gapHorizontalUnitsValueChanged() {}
     virtual void gapVerticalUnitsValueChanged() {}
-    virtual void linkCornerRadiusChanged() {}
     virtual void justifyItemsValueChanged() {}
     virtual void layoutTypeValueChanged() {}
+    virtual void linkCornerRadiusChanged() {}
     virtual void cornerRadiusTLChanged() {}
     virtual void cornerRadiusTRChanged() {}
     virtual void cornerRadiusBLChanged() {}

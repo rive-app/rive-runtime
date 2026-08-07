@@ -19,6 +19,7 @@
     },
     "name": {
       "type": "String",
+      "sidecar": "name",
       "initialValue": "''",
       "key": {
         "int": 4,

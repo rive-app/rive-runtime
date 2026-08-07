@@ -4,8 +4,13 @@
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/sidecar.hpp"
 namespace rive
 {
+struct ComponentNameSidecar
+{
+    std::string name = "";
+};
 class ComponentBase : public Core
 {
 protected:
@@ -33,18 +38,23 @@ public:
     static const uint16_t parentIdPropertyKey = 5;
 
 protected:
-    std::string m_Name = "";
     uint32_t m_ParentId = 0;
+    Sidecar<ComponentNameSidecar> m_name;
 
 public:
-    inline const std::string& name() const { return m_Name; }
+    inline const std::string& name() const
+    {
+        static const std::string defaultValue = "";
+        auto* sidecar = m_name.get();
+        return sidecar != nullptr ? sidecar->name : defaultValue;
+    }
     void name(std::string value)
     {
-        if (m_Name == value)
+        if (name() == value)
         {
             return;
         }
-        m_Name = value;
+        m_name.ensure()->name = value;
         nameChanged();
         notifyPropertyChanged(namePropertyKey);
     }
@@ -63,8 +73,8 @@ public:
 
     void copy(const ComponentBase& object)
     {
-        m_Name = object.m_Name;
         m_ParentId = object.m_ParentId;
+        m_name = object.m_name;
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -72,7 +82,7 @@ public:
         switch (propertyKey)
         {
             case namePropertyKey:
-                m_Name = CoreStringType::deserialize(reader);
+                m_name.ensure()->name = CoreStringType::deserialize(reader);
                 return true;
             case parentIdPropertyKey:
                 m_ParentId = CoreUintType::deserialize(reader);

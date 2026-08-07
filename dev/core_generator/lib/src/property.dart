@@ -36,6 +36,14 @@ class Property {
   bool isPureVirtual = false;
   FieldType? typeRuntime;
 
+  /// Runtime-only: name of the sidecar cluster this property's storage is
+  /// hoisted into. All properties in a def sharing a [sidecarName] are packed
+  /// into one lazily-allocated struct so the base class pays only an 8-byte
+  /// pointer (null) until the cluster is authored. C++ generator only; the Dart
+  /// generator ignores the JSON `sidecar` key and keeps the field inline.
+  String? sidecarName;
+  bool get isSidecar => sidecarName != null;
+
   bool get isBitmaskPassthrough =>
       passthroughForBitmask != null && passthroughBit != null;
 
@@ -141,6 +149,10 @@ class Property {
     if (pv is bool) {
       isPureVirtual = pv;
     }
+    dynamic sc = data['sidecar'];
+    if (sc is String && sc.isNotEmpty) {
+      sidecarName = sc;
+    }
     key = Key.fromJSON(data['key']) ?? Key.forProperty(this);
   }
 
@@ -152,4 +164,10 @@ class Property {
   String get capitalizedName => '${name[0].toUpperCase()}${name.substring(1)}'
       .replaceAll('<', '')
       .replaceAll('>', '');
+
+  /// Capitalized sidecar cluster name, e.g. `cornerRadius` -> `CornerRadius`.
+  /// Used to build the struct name and `ensure`/member identifiers.
+  String? get capitalizedSidecarName => sidecarName == null
+      ? null
+      : '${sidecarName![0].toUpperCase()}${sidecarName!.substring(1)}';
 }

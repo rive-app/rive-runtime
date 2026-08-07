@@ -4,11 +4,12 @@
     "int": 1056,
     "string": "layoutsizingstyle"
   },
-  "extends": "component.json",
   "abstract": true,
+  "extends": "component.json",
   "properties": {
     "minWidth": {
       "type": "double",
+      "sidecar": "minMaxSizing",
       "initialValue": "0",
       "animates": true,
       "group": "layoutmin",
@@ -21,6 +22,7 @@
     },
     "maxWidth": {
       "type": "double",
+      "sidecar": "minMaxSizing",
       "initialValue": "0",
       "animates": true,
       "group": "layoutmax",
@@ -33,6 +35,7 @@
     },
     "minHeight": {
       "type": "double",
+      "sidecar": "minMaxSizing",
       "initialValue": "0",
       "animates": true,
       "group": "layoutmin",
@@ -45,6 +48,7 @@
     },
     "maxHeight": {
       "type": "double",
+      "sidecar": "minMaxSizing",
       "initialValue": "0",
       "animates": true,
       "group": "layoutmax",
@@ -54,6 +58,50 @@
       },
       "description": "Max height of the item.",
       "bindable": true
+    },
+    "minWidthUnitsValue": {
+      "type": "uint8",
+      "sidecar": "minMaxSizing",
+      "initialValue": "0",
+      "group": "layoutmin",
+      "key": {
+        "int": 627,
+        "string": "minwidthunitsvalue"
+      },
+      "description": ""
+    },
+    "maxWidthUnitsValue": {
+      "type": "uint8",
+      "sidecar": "minMaxSizing",
+      "initialValue": "0",
+      "group": "layoutmax",
+      "key": {
+        "int": 629,
+        "string": "maxwidthunitsvalue"
+      },
+      "description": ""
+    },
+    "minHeightUnitsValue": {
+      "type": "uint8",
+      "sidecar": "minMaxSizing",
+      "initialValue": "0",
+      "group": "layoutmin",
+      "key": {
+        "int": 628,
+        "string": "minheightunitsvalue"
+      },
+      "description": ""
+    },
+    "maxHeightUnitsValue": {
+      "type": "uint8",
+      "sidecar": "minMaxSizing",
+      "initialValue": "0",
+      "group": "layoutmax",
+      "key": {
+        "int": 630,
+        "string": "maxheightunitsvalue"
+      },
+      "description": ""
     },
     "layoutWidthScaleType": {
       "type": "uint8",
@@ -93,46 +141,6 @@
       },
       "description": ""
     },
-    "minWidthUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmin",
-      "key": {
-        "int": 627,
-        "string": "minwidthunitsvalue"
-      },
-      "description": ""
-    },
-    "maxWidthUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmax",
-      "key": {
-        "int": 629,
-        "string": "maxwidthunitsvalue"
-      },
-      "description": ""
-    },
-    "minHeightUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmin",
-      "key": {
-        "int": 628,
-        "string": "minheightunitsvalue"
-      },
-      "description": ""
-    },
-    "maxHeightUnitsValue": {
-      "type": "uint8",
-      "initialValue": "0",
-      "group": "layoutmax",
-      "key": {
-        "int": 630,
-        "string": "maxheightunitsvalue"
-      },
-      "description": ""
-    },
     "justifySelfValue": {
       "type": "uint8",
       "initialValue": "6",
@@ -164,8 +172,8 @@
         "string": "flex"
       },
       "description": "Unused: the layout engines never read this. Alignment is derived from alignmentType and fill weight from scaleType + fractionalWidth/Height. Kept editor-side (runtime: false) rather than deleted so existing files round-trip; delete once nothing references the key.",
-      "bindable": true,
-      "runtime": false
+      "runtime": false,
+      "bindable": true
     },
     "flexGrow": {
       "type": "double",
@@ -176,8 +184,8 @@
         "string": "flexgrow"
       },
       "description": "Unused: the layout engines never read this. Alignment is derived from alignmentType and fill weight from scaleType + fractionalWidth/Height. Kept editor-side (runtime: false) rather than deleted so existing files round-trip; delete once nothing references the key.",
-      "bindable": true,
-      "runtime": false
+      "runtime": false,
+      "bindable": true
     },
     "flexShrink": {
       "type": "double",
@@ -188,8 +196,8 @@
         "string": "flexshrink"
       },
       "description": "Unused: the layout engines never read this. Alignment is derived from alignmentType and fill weight from scaleType + fractionalWidth/Height. Kept editor-side (runtime: false) rather than deleted so existing files round-trip; delete once nothing references the key.",
-      "bindable": true,
-      "runtime": false
+      "runtime": false,
+      "bindable": true
     },
     "alignSelfValue": {
       "type": "uint8",

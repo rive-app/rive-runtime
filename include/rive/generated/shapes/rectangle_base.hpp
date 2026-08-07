@@ -3,8 +3,17 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/shapes/parametric_path.hpp"
+#include "rive/sidecar.hpp"
 namespace rive
 {
+struct RectangleCornerRadiusSidecar
+{
+    bool linkCornerRadius = true;
+    float cornerRadiusTL = 0.0f;
+    float cornerRadiusTR = 0.0f;
+    float cornerRadiusBL = 0.0f;
+    float cornerRadiusBR = 0.0f;
+};
 class RectangleBase : public ParametricPath
 {
 protected:
@@ -42,69 +51,85 @@ public:
     static const uint16_t cornerRadiusBRPropertyKey = 163;
 
 protected:
-    bool m_LinkCornerRadius = true;
-    float m_CornerRadiusTL = 0.0f;
-    float m_CornerRadiusTR = 0.0f;
-    float m_CornerRadiusBL = 0.0f;
-    float m_CornerRadiusBR = 0.0f;
+    Sidecar<RectangleCornerRadiusSidecar> m_cornerRadius;
 
 public:
-    inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
+    inline bool linkCornerRadius() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->linkCornerRadius : true;
+    }
     void linkCornerRadius(bool value)
     {
-        if (m_LinkCornerRadius == value)
+        if (linkCornerRadius() == value)
         {
             return;
         }
-        m_LinkCornerRadius = value;
+        m_cornerRadius.ensure()->linkCornerRadius = value;
         linkCornerRadiusChanged();
         notifyPropertyChanged(linkCornerRadiusPropertyKey);
     }
 
-    inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
+    inline float cornerRadiusTL() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusTL : 0.0f;
+    }
     void cornerRadiusTL(float value)
     {
-        if (m_CornerRadiusTL == value)
+        if (cornerRadiusTL() == value)
         {
             return;
         }
-        m_CornerRadiusTL = value;
+        m_cornerRadius.ensure()->cornerRadiusTL = value;
         cornerRadiusTLChanged();
         notifyPropertyChanged(cornerRadiusTLPropertyKey);
     }
 
-    inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
+    inline float cornerRadiusTR() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusTR : 0.0f;
+    }
     void cornerRadiusTR(float value)
     {
-        if (m_CornerRadiusTR == value)
+        if (cornerRadiusTR() == value)
         {
             return;
         }
-        m_CornerRadiusTR = value;
+        m_cornerRadius.ensure()->cornerRadiusTR = value;
         cornerRadiusTRChanged();
         notifyPropertyChanged(cornerRadiusTRPropertyKey);
     }
 
-    inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
+    inline float cornerRadiusBL() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusBL : 0.0f;
+    }
     void cornerRadiusBL(float value)
     {
-        if (m_CornerRadiusBL == value)
+        if (cornerRadiusBL() == value)
         {
             return;
         }
-        m_CornerRadiusBL = value;
+        m_cornerRadius.ensure()->cornerRadiusBL = value;
         cornerRadiusBLChanged();
         notifyPropertyChanged(cornerRadiusBLPropertyKey);
     }
 
-    inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
+    inline float cornerRadiusBR() const
+    {
+        auto* sidecar = m_cornerRadius.get();
+        return sidecar != nullptr ? sidecar->cornerRadiusBR : 0.0f;
+    }
     void cornerRadiusBR(float value)
     {
-        if (m_CornerRadiusBR == value)
+        if (cornerRadiusBR() == value)
         {
             return;
         }
-        m_CornerRadiusBR = value;
+        m_cornerRadius.ensure()->cornerRadiusBR = value;
         cornerRadiusBRChanged();
         notifyPropertyChanged(cornerRadiusBRPropertyKey);
     }
@@ -112,11 +137,7 @@ public:
     Core* clone() const override;
     void copy(const RectangleBase& object)
     {
-        m_LinkCornerRadius = object.m_LinkCornerRadius;
-        m_CornerRadiusTL = object.m_CornerRadiusTL;
-        m_CornerRadiusTR = object.m_CornerRadiusTR;
-        m_CornerRadiusBL = object.m_CornerRadiusBL;
-        m_CornerRadiusBR = object.m_CornerRadiusBR;
+        m_cornerRadius = object.m_cornerRadius;
         ParametricPath::copy(object);
     }
 
@@ -125,19 +146,24 @@ public:
         switch (propertyKey)
         {
             case linkCornerRadiusPropertyKey:
-                m_LinkCornerRadius = CoreBoolType::deserialize(reader);
+                m_cornerRadius.ensure()->linkCornerRadius =
+                    CoreBoolType::deserialize(reader);
                 return true;
             case cornerRadiusTLPropertyKey:
-                m_CornerRadiusTL = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusTL =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusTRPropertyKey:
-                m_CornerRadiusTR = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusTR =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBLPropertyKey:
-                m_CornerRadiusBL = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusBL =
+                    CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBRPropertyKey:
-                m_CornerRadiusBR = CoreDoubleType::deserialize(reader);
+                m_cornerRadius.ensure()->cornerRadiusBR =
+                    CoreDoubleType::deserialize(reader);
                 return true;
         }
         return ParametricPath::deserialize(propertyKey, reader);

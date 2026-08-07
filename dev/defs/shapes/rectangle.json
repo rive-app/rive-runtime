@@ -8,6 +8,7 @@
   "properties": {
     "linkCornerRadius": {
       "type": "bool",
+      "sidecar": "cornerRadius",
       "initialValue": "true",
       "key": {
         "int": 164,
@@ -18,6 +19,7 @@
     },
     "cornerRadiusTL": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -28,6 +30,7 @@
     },
     "cornerRadiusTR": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -39,6 +42,7 @@
     },
     "cornerRadiusBL": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
@@ -50,6 +54,7 @@
     },
     "cornerRadiusBR": {
       "type": "double",
+      "sidecar": "cornerRadius",
       "initialValue": "0",
       "animates": true,
       "key": {
