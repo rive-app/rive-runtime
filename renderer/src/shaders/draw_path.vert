@@ -70,10 +70,12 @@ NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
 #ifdef @ENABLE_ADVANCED_BLEND
 @OPTIONALLY_FLAT VARYING(6, half, v_blendMode);
 #endif
-
 #ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
 FLAT VARYING(7, uint2, v_coveragePlacement);
 VARYING(8, float2, v_coverageCoord);
+#endif
+#ifdef @ENABLE_MODULATED_IMAGE
+NO_PERSPECTIVE VARYING(9, float3, v_image);
 #endif
 
 VARYING_BLOCK_END
@@ -100,6 +102,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
     VARYING_INIT(v_paint, float4);
+#if defined(@ENABLE_MODULATED_IMAGE)
+    VARYING_INIT(v_image, float3);
+#endif
 
 #ifdef @FEATHER_ATLAS_BLIT
     VARYING_INIT(v_atlasCoord, float2);
@@ -232,9 +237,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // clipRectInverseMatrix transforms from pixel coordinates to a space
         // where the clipRect is the normalized rectangle: [-1, -1, 1, 1].
         float2x2 clipRectInverseMatrix = make_float2x2(
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
         float4 clipRectInverseTranslate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
 #ifndef @RENDER_MODE_MSAA
         v_clipRect =
             find_clip_rect_coverage_distances(clipRectInverseMatrix,
@@ -274,10 +281,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
     else
     {
-        float2x2 paintMatrix =
-            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
+        float2x2 paintMatrix = make_float2x2(
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
         float4 paintTranslate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
         float2 paintCoord = MUL(paintMatrix, fragCoord) + paintTranslate.xy;
         if (paintType == LINEAR_GRADIENT_PAINT_TYPE ||
             paintType == RADIAL_GRADIENT_PAINT_TYPE)
@@ -319,17 +328,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                 v_paint.rg = paintCoord.xy;
             }
         }
-        else // IMAGE_PAINT_TYPE
-        {
-            // v_paint.a <= -1. signals that the paint is an image.
-            // -v_paint.a - 2 is the texture mipmap level-of-detail.
-            // v_paint.b is the image opacity.
-            // v_paint.rg is the normalized image texture coordinate (built into
-            // the paintMatrix).
-            float opacity = uintBitsToFloat(paintData.y);
-            float lod = paintTranslate.z;
-            v_paint = float4(paintCoord.x, paintCoord.y, opacity, -2. - lod);
-        }
     }
 #ifdef @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE
     if (@EMULATE_DYNAMIC_COLOR_WRITE_DISABLE)
@@ -338,6 +336,27 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // interpreted by the fragment shader as a fully transparent
         // SOLID_COLOR_PAINT_TYPE, and then discarded at the blend step.
         v_paint *= pushConstants.colorWriteEnable;
+    }
+#endif
+
+#if defined(@ENABLE_MODULATED_IMAGE)
+    if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)
+    {
+        float2x2 paintMatrix = make_float2x2(
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 4u));
+        float4 paintTranslateAndLOD =
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 5u);
+        float2 paintCoord =
+            MUL(paintMatrix, fragCoord) + paintTranslateAndLOD.xy;
+
+        v_image =
+            float3(paintCoord.x, paintCoord.y, 1. + paintTranslateAndLOD.z);
+    }
+    else
+    {
+        v_image = float3(0.0, 0.0, 0.0);
     }
 #endif
 
@@ -366,6 +385,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
+#if defined(@ENABLE_MODULATED_IMAGE)
+    VARYING_PACK(v_image);
+#endif
 #ifdef @FEATHER_ATLAS_BLIT
     VARYING_PACK(v_atlasCoord);
 #elif !defined(@RENDER_MODE_MSAA)
@@ -406,6 +428,9 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 // Add a function here for fragments to unpack the paint since we're the ones
 // who packed it in the vertex shader.
 INLINE half4 find_paint_color(float4 paint,
+#ifdef @ENABLE_MODULATED_IMAGE
+                              float3 image,
+#endif
                               float coverage FRAGMENT_CONTEXT_DECL)
 {
     half4 color;
@@ -419,7 +444,7 @@ INLINE half4 find_paint_color(float4 paint,
         else
             color *= coverage;
     }
-    else if (paint.a > -1.) // Is paint is a gradient (linear or radial)?
+    else // Paint is a gradient (linear or radial)?
     {
         float t =
             paint.b > .0 ? /*linear*/ paint.r : /*radial*/ length(paint.rg);
@@ -448,21 +473,24 @@ INLINE half4 find_paint_color(float4 paint,
             color.rgb *= color.a;
         }
     }
-    else // The paint is an image.
+
+#if defined(@ENABLE_MODULATED_IMAGE)
+    if (@ENABLE_MODULATED_IMAGE && image.z > 0.0)
     {
-        half lod = -paint.a - 2.;
-        color = TEXTURE_SAMPLE_DYNAMIC_LOD(@imageTexture,
-                                           imageSampler,
-                                           paint.rg,
-                                           lod);
-        half opacity = paint.b * coverage;
+        half lod = image.z - 1.;
+        half4 imageColor = TEXTURE_SAMPLE_DYNAMIC_LOD(@imageTexture,
+                                                      imageSampler,
+                                                      image.rg,
+                                                      lod);
+
         // Images are always premultiplied so the (transparent) background color
         // doesn't bleed into the edges during the hardware filter.
         if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
-            color = make_half4(unmultiply_rgb(color), color.a * opacity);
-        else
-            color *= opacity;
+            imageColor = make_half4(unmultiply_rgb(imageColor), imageColor.a);
+
+        color *= imageColor;
     }
+#endif
     return color;
 }
 

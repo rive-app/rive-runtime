@@ -343,7 +343,8 @@ static uint32_t feather_join_segment_count(float polarSegmentsPerRadian)
 } // namespace
 
 Draw::Draw(IAABB pixelBounds,
-           const Mat2D& matrix,
+           const Mat2D& paintMatrix,
+           const Mat2D* imageMatrix,
            BlendMode blendMode,
            rcp<Texture> imageTexture,
            ImageSampler imageSampler,
@@ -351,7 +352,8 @@ Draw::Draw(IAABB pixelBounds,
     m_imageTextureRef(imageTexture.release()),
     m_imageSampler(imageSampler),
     m_pixelBounds(pixelBounds),
-    m_matrix(matrix),
+    m_paintMatrix(paintMatrix),
+    m_imageMatrix((imageMatrix != nullptr) ? *imageMatrix : paintMatrix),
     m_blendMode(blendMode),
     m_type(type),
     m_clippedPixelBounds(pixelBounds)
@@ -418,7 +420,8 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
 }
 
 DrawUniquePtr PathDraw::Make(RenderContext* context,
-                             const Mat2D& matrix,
+                             const Mat2D& paintMatrix,
+                             const Mat2D* imageMatrix,
                              rcp<const RiveRenderPath> path,
                              FillRule fillRule,
                              const RiveRenderPaint* paint,
@@ -431,7 +434,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
 
     CoverageType coverageType =
         SelectCoverageType(paint,
-                           matrix.findMaxScale(),
+                           paintMatrix.findMaxScale(),
                            context->platformFeatures(),
                            context->frameInterlockMode());
 
@@ -449,7 +452,8 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
 #endif
     {
         // We weren't given pre-computed bounds, so calculate them.
-        AABB mappedBounds = matrix.mapBoundingBox(path->getRawPath().points());
+        AABB mappedBounds =
+            paintMatrix.mapBoundingBox(path->getRawPath().points());
 
         assert(mappedBounds.width() >= 0);
         assert(mappedBounds.height() >= 0);
@@ -478,7 +482,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                 outset += find_feather_radius(paint->getFeather());
             }
             AABB strokePixelOutset =
-                matrix.mapBoundingBox({0, 0, outset, outset});
+                paintMatrix.mapBoundingBox({0, 0, outset, outset});
             // Add an extra pixel to the stroke outset radius to account for:
             //   * Butt caps and bevel joins bleed out 1/2 AA width.
             //   * With Manhattan sytle AA, an AA width can be as large as
@@ -516,14 +520,16 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         // FIXME! Implement interior triangulation in msaa mode.
         if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
             path->getRawPath().verbs().count() < 1000 &&
-            gpu::find_transformed_area(localBounds, matrix) > 512.f * 512.f)
+            gpu::find_transformed_area(localBounds, paintMatrix) >
+                512.f * 512.f)
         {
             doTriangulation = true;
         }
     }
 
     auto draw = context->make<PathDraw>(pixelBounds,
-                                        matrix,
+                                        paintMatrix,
+                                        imageMatrix,
                                         std::move(path),
                                         fillRule,
                                         paint,
@@ -547,7 +553,8 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
 }
 
 PathDraw::PathDraw(IAABB pixelBounds,
-                   const Mat2D& matrix,
+                   const Mat2D& paintMatrix,
+                   const Mat2D* imageMatrix,
                    rcp<const RiveRenderPath> path,
                    FillRule initialFillRule,
                    const RiveRenderPaint* paint,
@@ -555,7 +562,8 @@ PathDraw::PathDraw(IAABB pixelBounds,
                    CoverageType coverageType,
                    const RenderContext::FrameDescriptor& frameDesc) :
     Draw(pixelBounds,
-         matrix,
+         paintMatrix,
+         imageMatrix,
          paint->getBlendMode(),
          ref_rcp(paint->getImageTexture()),
          paint->getImageSampler(),
@@ -644,7 +652,8 @@ PathDraw::PathDraw(IAABB pixelBounds,
     {
         // Clockwise paths need to be reversed when the matrix is left-handed,
         // so that the intended forward triangles remain clockwise.
-        float det = matrix.xx() * matrix.yy() - matrix.yx() * matrix.xy();
+        float det = m_paintMatrix.xx() * m_paintMatrix.yy() -
+                    m_paintMatrix.yx() * m_paintMatrix.xy();
         if (det < 0)
         {
             m_contourDirections =
@@ -667,7 +676,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
     {
         // atomic and rasterOrdering fills need reverse AND forward triangles.
         if (frameDesc.clockwiseFillOverride &&
-            !m_pathRef->isClockwiseDominant(matrix))
+            !m_pathRef->isClockwiseDominant(m_paintMatrix))
         {
             // For clockwiseFill, this is also our opportunity to logically
             // reverse the winding of the path, if it is predominantly
@@ -695,7 +704,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
             // triangle winding area is always clockwise. This maximizes pixel
             // throughput since we will draw counterclockwise triangles twice
             // and clockwise only once.
-            m_contourDirections = m_pathRef->isClockwiseDominant(matrix)
+            m_contourDirections = m_pathRef->isClockwiseDominant(m_paintMatrix)
                                       ? gpu::ContourDirections::forward
                                       : gpu::ContourDirections::reverse;
         }
@@ -719,9 +728,6 @@ PathDraw::PathDraw(IAABB pixelBounds,
                 m_simplePaintValue.color =
                     colorModulateOpacity(m_simplePaintValue.color,
                                          modulatedOpacity);
-                break;
-            case gpu::PaintType::image:
-                m_simplePaintValue.imageOpacity *= modulatedOpacity;
                 break;
             case gpu::PaintType::linearGradient:
             case gpu::PaintType::radialGradient:
@@ -763,7 +769,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
 
     if (isStrokeOrFeather())
     {
-        m_strokeMatrixMaxScale = m_matrix.findMaxScale();
+        m_strokeMatrixMaxScale = m_paintMatrix.findMaxScale();
 
         float r_ = 0;
         if (m_featherRadius != 0)
@@ -888,7 +894,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     // We measure rotations on both curves and round joins.
     size_t rotationIdx = 0;
     bool roundJoinStroked = isStroke() && m_strokeJoin == StrokeJoin::round;
-    wangs_formula::VectorXform vectorXform(m_matrix);
+    wangs_formula::VectorXform vectorXform(m_paintMatrix);
     RawPath::Iter startOfContour = rawPath.begin();
     RawPath::Iter end = rawPath.end();
     // Original number of lines and curves, before chopping.
@@ -2345,7 +2351,7 @@ void PathDraw::iterateInteriorTriangulation(
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();
     assert(!rawPath.empty());
-    wangs_formula::VectorXform vectorXform(m_matrix);
+    wangs_formula::VectorXform vectorXform(m_paintMatrix);
     size_t patchCount = 0;
     size_t contourCount = 0;
     Vec2D p0 = {0, 0};
@@ -2526,8 +2532,8 @@ void PathDraw::iterateInteriorTriangulation(
         m_triangulatorFillRule = m_pathFillRule == FillRule::evenOdd
                                      ? FillRule::evenOdd
                                      : FillRule::nonZero;
-        float matrixDeterminant =
-            m_matrix[0] * m_matrix[3] - m_matrix[2] * m_matrix[1];
+        float matrixDeterminant = m_paintMatrix[0] * m_paintMatrix[3] -
+                                  m_paintMatrix[2] * m_paintMatrix[1];
         m_triangulatorReverseTriangles = matrixDeterminant < 0;
         m_triangulatorNegateWinding =
             (matrixDeterminant < 0) !=
@@ -2592,6 +2598,7 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
                              float opacity) :
     Draw(pixelBounds,
          matrix,
+         nullptr,
          blendMode,
          std::move(imageTexture),
          imageSampler,
@@ -2624,6 +2631,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              float opacity) :
     Draw(pixelBounds,
          matrix,
+         nullptr,
          blendMode,
          std::move(imageTexture),
 
@@ -2662,7 +2670,8 @@ ClipReset::ClipReset(RenderContext* context,
                      gpu::DrawContents previousClipDrawContents,
                      ResetAction resetAction) :
     Draw(context->getClipContentBounds(previousClipID),
-         Mat2D(),
+         Mat2D{},
+         nullptr,
          BlendMode::srcOver,
          nullptr,
          ImageSampler::LinearClamp(),

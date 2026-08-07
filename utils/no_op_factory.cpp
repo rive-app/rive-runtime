@@ -22,6 +22,8 @@ public:
     void shader(rcp<RenderShader>) override {}
     void invalidateStroke() override {}
     void feather(float value) override {}
+    void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&) override
+    {}
 };
 
 class NoOpRenderPath : public RenderPath

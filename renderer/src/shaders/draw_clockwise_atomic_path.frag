@@ -198,6 +198,9 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
 CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_windingWeight, half);
 #else
@@ -216,7 +219,11 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_coveragePlacement, uint2);
     VARYING_UNPACK(v_coverageCoord, float2);
 
-    half4 paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
+    half4 paintColor = find_paint_color(v_paint,
+#ifdef @ENABLE_MODULATED_IMAGE
+                                        v_image,
+#endif
+                                        1. FRAGMENT_CONTEXT_UNPACK);
 
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
     // Fetch the framebuffer BEFORE any atomic operations on the coverage

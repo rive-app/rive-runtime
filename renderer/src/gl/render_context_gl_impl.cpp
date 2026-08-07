@@ -2182,7 +2182,9 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
                                  FEATHER_ATLAS_TEXTURE_IDX);
     }
     if (isImageDraw ||
-        (isPaintDraw && interlockMode != gpu::InterlockMode::atomics))
+        (enums::is_flag_set(shaderFeatures,
+                            ShaderFeatures::ENABLE_MODULATED_IMAGE) &&
+         interlockMode != gpu::InterlockMode::atomics))
     {
         glutils::Uniform1iByName(m_id, GLSL_imageTexture, IMAGE_TEXTURE_IDX);
     }

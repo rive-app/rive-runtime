@@ -587,9 +587,11 @@ INLINE void resolve_paint(uint pathID,
     if (@ENABLE_CLIP_RECT && (paintData.x & PAINT_FLAG_HAS_CLIP_RECT) != 0u)
     {
         float2x2 M = make_float2x2(
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 2u));
         float4 translate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 3u);
         float2 clipCoord = MUL(M, _fragCoord) + translate.xy;
         // translate.zw contains -1 / fwidth(clipCoord), which we use to
         // calculate antialiasing.
@@ -626,10 +628,12 @@ INLINE void resolve_paint(uint pathID,
     }
     else // LINEAR_GRADIENT_PAINT_TYPE or RADIAL_GRADIENT_PAINT_TYPE
     {
-        float2x2 M =
-            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
+        float2x2 M = make_float2x2(
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT));
         float4 translate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
+                                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
         float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
         float t = paintType == LINEAR_GRADIENT_PAINT_TYPE
                       ? /*linear*/ paintCoord.x

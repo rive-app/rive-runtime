@@ -22,6 +22,9 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 {
     VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_windingWeight, half);
 #else
@@ -53,7 +56,11 @@ PLS_MAIN(@drawFragmentMain)
 #endif
     {
         // Calculate the paint color before entering the interlock.
-        paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
+        paintColor = find_paint_color(v_paint,
+#ifdef @ENABLE_MODULATED_IMAGE
+                                      v_image,
+#endif
+                                      1. FRAGMENT_CONTEXT_UNPACK);
 
         maxCoverage = 1.;
 #ifdef @ENABLE_CLIP_RECT

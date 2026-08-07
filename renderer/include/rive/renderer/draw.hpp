@@ -43,7 +43,8 @@ public:
     };
 
     Draw(IAABB pixelBounds,
-         const Mat2D&,
+         const Mat2D& paintMatrix,
+         const Mat2D* imageMatrix,
          BlendMode,
          rcp<Texture> imageTexture,
          ImageSampler imageSampler,
@@ -57,7 +58,8 @@ public:
     {
         return m_clippingPixelBounds;
     }
-    const Mat2D& matrix() const { return m_matrix; }
+    const Mat2D& paintMatrix() const { return m_paintMatrix; }
+    const Mat2D& imageMatrix() const { return m_imageMatrix; }
     BlendMode blendMode() const { return m_blendMode; }
     Type type() const { return m_type; }
     gpu::DrawContents drawContents() const { return m_drawContents; }
@@ -81,6 +83,9 @@ public:
         return enums::is_flag_set(m_drawContents,
                                   gpu::DrawContents::advancedBlend);
     }
+
+    bool hasImageTexture() const { return m_imageTextureRef != nullptr; }
+
     uint32_t clipID() const { return m_clipID; }
     std::optional<AABBu16> scissorRect() const { return m_scissorRect; }
     bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }
@@ -170,7 +175,8 @@ protected:
     Texture* const m_imageTextureRef;
     const ImageSampler m_imageSampler;
     const IAABB m_pixelBounds;
-    const Mat2D m_matrix;
+    const Mat2D m_paintMatrix;
+    const Mat2D m_imageMatrix;
     const BlendMode m_blendMode;
     const Type m_type;
     IAABB m_clippedPixelBounds;
@@ -223,7 +229,8 @@ public:
     // Creates either a normal path draw or an interior triangulation if the
     // path is large enough.
     static DrawUniquePtr Make(RenderContext*,
-                              const Mat2D&,
+                              const Mat2D& paintMatrix,
+                              const Mat2D* imageMatrix,
                               rcp<const RiveRenderPath>,
                               FillRule,
                               const RiveRenderPaint*,
@@ -246,7 +253,8 @@ public:
     };
 
     PathDraw(IAABB pixelBounds,
-             const Mat2D&,
+             const Mat2D& paintMatrix,
+             const Mat2D* imageMatrix,
              rcp<const RiveRenderPath>,
              FillRule,
              const RiveRenderPaint*,

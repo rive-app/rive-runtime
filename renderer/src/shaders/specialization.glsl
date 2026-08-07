@@ -13,6 +13,8 @@ layout(constant_id = NESTED_CLIPPING_SPECIALIZATION_IDX) const
 layout(constant_id = HSL_BLEND_MODES_SPECIALIZATION_IDX) const
     bool EnableHSLBlendModes = true;
 layout(constant_id = DITHER_SPECIALIZATION_IDX) const bool EnableDither = true;
+layout(constant_id = MODULATED_IMAGE_SPECIALIZATION_IDX) const
+    bool EnableModulatedImage = true;
 layout(constant_id = CLOCKWISE_FILL_SPECIALIZATION_IDX) const
     bool ClockwiseFill = true;
 layout(constant_id = NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX) const
@@ -37,6 +39,7 @@ layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
 #define @ENABLE_NESTED_CLIPPING EnableNestedClipping
 #define @ENABLE_HSL_BLEND_MODES EnableHSLBlendModes
 #define @ENABLE_DITHER EnableDither
+#define @ENABLE_MODULATED_IMAGE EnableModulatedImage
 #define @CLOCKWISE_FILL ClockwiseFill
 #define @NESTED_CLIP_UPDATE_ONLY NestedClipUpdateOnly
 #define @BORROWED_COVERAGE_PASS BorrowedCoveragePrepass

@@ -29,6 +29,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #endif
 #else
     VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
 #ifdef @FEATHER_ATLAS_BLIT
     VARYING_UNPACK(v_atlasCoord, float2);
 #endif // @FEATHER_ATLAS_BLIT
@@ -56,7 +59,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
         1.;
 #endif
-    half4 color = find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
+    half4 color = find_paint_color(v_paint,
+#ifdef @ENABLE_MODULATED_IMAGE
+                                   v_image,
+#endif
+                                   coverage FRAGMENT_CONTEXT_UNPACK);
 #endif
 
 // Need to check both flags here because in GL when KHR_blend_equation_advanced

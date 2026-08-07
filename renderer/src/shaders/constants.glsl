@@ -39,12 +39,13 @@
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the
-// resource buffer. Since these only serve paths and contours, both of those are
-// limited to 16-bit indices, 2048 is the min specified texture size in ES3, and
-// no path buffer uses more than 4 texels, we can safely use a width of 128.
-#define STORAGE_TEXTURE_WIDTH 128
-#define STORAGE_TEXTURE_SHIFT_Y 7
-#define STORAGE_TEXTURE_MASK_X 0x7fu
+// resource buffer. The paintAuxBuffer is the bottleneck here, it is large
+// enough that we need a width of 256 for all of the values to sit within the
+// minimum-required texture height of 2048. If not for that, a width of 128
+// would be sufficient (as paths and contours just store 16-bit indices).
+#define STORAGE_TEXTURE_WIDTH 256
+#define STORAGE_TEXTURE_SHIFT_Y 8
+#define STORAGE_TEXTURE_MASK_X 0xffu
 
 // Flags that state whether/how we need to render solid-color borders to the
 // left and/or right side of a GradientSpan. (Borders of complex gradients
@@ -121,12 +122,12 @@
 #define SOLID_COLOR_PAINT_TYPE 1u
 #define LINEAR_GRADIENT_PAINT_TYPE 2u
 #define RADIAL_GRADIENT_PAINT_TYPE 3u
-#define IMAGE_PAINT_TYPE 4u
 
 // Paint flags, found in the x-component value of @paintBuffer.
 #define PAINT_FLAG_NON_ZERO_FILL 0x100u
 #define PAINT_FLAG_EVEN_ODD_FILL 0x200u
 #define PAINT_FLAG_HAS_CLIP_RECT 0x400u
+#define PAINT_FLAG_HAS_IMAGE 0x800u
 
 // PLS draw resources are either updated per flush or per draw. They go into set
 // 0 or set 1, depending on how often they are updated.
@@ -292,14 +293,15 @@
 #define NESTED_CLIPPING_SPECIALIZATION_IDX 5
 #define HSL_BLEND_MODES_SPECIALIZATION_IDX 6
 #define DITHER_SPECIALIZATION_IDX 7
-#define CLOCKWISE_FILL_SPECIALIZATION_IDX 8
-#define NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX 9
-#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 10
-#define EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX 11
-#define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 12
-#define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 13
-#define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 14
-#define SPECIALIZATION_COUNT 15
+#define MODULATED_IMAGE_SPECIALIZATION_IDX 8
+#define CLOCKWISE_FILL_SPECIALIZATION_IDX 9
+#define NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX 10
+#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 11
+#define EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX 12
+#define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 13
+#define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 14
+#define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 15
+#define SPECIALIZATION_COUNT 16
 
 // When rendering to an r32i feather atlas, use 16:16 fixed point.
 #define ATLAS_R32I_FIXED_POINT_FACTOR 65536.
@@ -316,6 +318,10 @@
 // both width and height.
 #define BUFFER_IMAGE_TILE_SIZE 32u
 #define BUFFER_IMAGE_TILE_SIZE_LOG2 5u
+
+// The paint aux data has a specific number of float32x4 elements in it
+#define PAINT_AUX_ENTRY_ELEMENT_COUNT 8u
+
 #ifdef __cplusplus
 #if __cplusplus >= 201703
 static_assert(BUFFER_IMAGE_TILE_SIZE == 1u << BUFFER_IMAGE_TILE_SIZE_LOG2);

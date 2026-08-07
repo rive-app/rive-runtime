@@ -19,13 +19,15 @@ ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 4)
 ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 5)
 ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 6)
 ENABLE_DITHER = Feature('ENABLE_DITHER', 7)
-DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 8)
-FEATHER_ATLAS_BLIT = Feature('FEATHER_ATLAS_BLIT', 9)
+ENABLE_MODULATED_IMAGE = Feature('ENABLE_MODULATED_IMAGE', 8)
+DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 9)
+FEATHER_ATLAS_BLIT = Feature('FEATHER_ATLAS_BLIT', 10)
 
 whole_program_features = {ENABLE_CLIPPING,
                           ENABLE_CLIP_RECT,
                           ENABLE_ADVANCED_BLEND,
-                          ENABLE_FEATHER}
+                          ENABLE_FEATHER,
+                          ENABLE_MODULATED_IMAGE}
 
 fragment_only_features = {ENABLE_EVEN_ODD,
                           ENABLE_NESTED_CLIPPING,
@@ -58,7 +60,8 @@ non_image_mesh_features = {ENABLE_FEATHER,
                            ENABLE_EVEN_ODD,
                            ENABLE_NESTED_CLIPPING,
                            DRAW_INTERIOR_TRIANGLES,
-                           FEATHER_ATLAS_BLIT}
+                           FEATHER_ATLAS_BLIT,
+                           ENABLE_MODULATED_IMAGE}
 
 # Returns whether the given feature set is compatible with an image mesh shader.
 def is_image_mesh_feature_set(feature_set):
@@ -77,7 +80,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
         out.write('#define FRAGMENT\n')
     if draw_type == DrawType.IMAGE_MESH:
         assert(is_image_mesh_feature_set(feature_set))
-    namespace_id = ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0']
+    namespace_id = ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']
     for feature in feature_set:
         namespace_id[feature.index] = '1'
     for feature in feature_set:

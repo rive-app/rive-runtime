@@ -153,6 +153,15 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         return;
     }
 
+    Mat2D imageMatrix;
+    Mat2D* imageMatrixPtr = nullptr;
+    if (paint->getImageTexture() != nullptr)
+    {
+        imageMatrix =
+            m_renderStateStack.back().matrix * paint->getImageTransform();
+        imageMatrixPtr = &imageMatrix;
+    }
+
     if (paint->getFeather() != 0 && !paint->getIsStroked())
     {
         if (path->getFillRule() != FillRule::clockwise &&
@@ -167,6 +176,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
             clipAndPushDraw(gpu::PathDraw::Make(
                 m_context,
                 m_renderStateStack.back().matrix,
+                imageMatrixPtr,
                 path->makeSoftenedCopyForFeathering(paint->getFeather(),
                                                     matrixMaxScale),
                 path->getFillRule(),
@@ -179,6 +189,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     clipAndPushDraw(
         gpu::PathDraw::Make(m_context,
                             m_renderStateStack.back().matrix,
+                            imageMatrixPtr,
                             ref_rcp(path),
                             path->getFillRule(),
                             paint,
@@ -720,6 +731,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         gpu::DrawUniquePtr clipDraw =
             gpu::PathDraw::Make(m_context,
                                 clip.matrix,
+                                nullptr, // imageMatrix, unneeded for clips
                                 std::move(clipPath),
                                 clipFillRule,
                                 &clipUpdatePaint,

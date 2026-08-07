@@ -3352,6 +3352,9 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             enums::is_flag_set(shaderFeatures,
                                gpu::ShaderFeatures::ENABLE_DITHER)),
         static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_MODULATED_IMAGE)),
+        static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::clockwiseFill)),
         static_cast<double>(
@@ -3380,14 +3383,15 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(DITHER_SPECIALIZATION_IDX == 7);
-    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
-    static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 9);
-    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 10);
-    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 11);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
-    static_assert(SPECIALIZATION_COUNT == 15);
+    static_assert(MODULATED_IMAGE_SPECIALIZATION_IDX == 8);
+    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 9);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 10);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 11);
+    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 12);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 13);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 14);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 15);
+    static_assert(SPECIALIZATION_COUNT == 16);
 
     // Build a per-stage WGPUConstantEntry[] from the shader's own override
     // list.
@@ -3414,6 +3418,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             "12",
             "13",
             "14",
+            "15",
         };
         static_assert(std::size(SpecializationIdxIDs) == SPECIALIZATION_COUNT);
 
@@ -3581,6 +3586,19 @@ protected:
                               1.0);
         m_encoder.SetBindGroup(WEBGPU_SAMPLER_BINDINGS_SET,
                                m_impl->m_samplerBindings);
+        if (m_desc.interlockMode == InterlockMode::atomics)
+        {
+            // Work around an issue in atomic mode where some gms render just a
+            // little outside of the draw bounds (causing the texture preserve
+            // to fail). Don't do this in MSAA mode because it fails to restore
+            // properly
+            // TODO: Figure out why this fails in MSAA and also implement the
+            // clipScissor functionality to get scissor working more completely
+            m_encoder.SetScissorRect(m_desc.renderTargetUpdateBounds.left,
+                                     m_desc.renderTargetUpdateBounds.top,
+                                     m_desc.renderTargetUpdateBounds.width(),
+                                     m_desc.renderTargetUpdateBounds.height());
+        }
     }
 
     RenderContextWebGPUImpl* const m_impl;

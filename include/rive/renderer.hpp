@@ -24,6 +24,7 @@
 namespace rive
 {
 class Vec2D;
+class RenderImage;
 
 // Helper that computes a matrix to "align" content (source) to fit inside frame
 // (destination).
@@ -125,6 +126,8 @@ public:
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
     virtual void invalidateStroke() = 0;
+    virtual void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&)
+    {} // TODO: Implement on others
 };
 
 #if defined(__EMSCRIPTEN__)

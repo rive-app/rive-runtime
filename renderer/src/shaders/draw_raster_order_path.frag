@@ -14,6 +14,9 @@ PLS_BLOCK_END
 PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_windingWeight, half);
@@ -156,8 +159,11 @@ PLS_MAIN(@drawFragmentMain)
         }
 #endif // ENABLE_CLIP_RECT
 
-        half4 color =
-            find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
+        half4 color = find_paint_color(v_paint,
+#ifdef @ENABLE_MODULATED_IMAGE
+                                       v_image,
+#endif
+                                       coverage FRAGMENT_CONTEXT_UNPACK);
 
         half4 dstColorPremul;
         if (coverageBufferID != v_pathID)

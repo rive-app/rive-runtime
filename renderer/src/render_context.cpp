@@ -1537,6 +1537,7 @@ void RenderContext::LogicalFlush::writeResources()
                                 GradTextureLayout(),
                                 /*clipID =*/0,
                                 /*hasClipRect =*/false,
+                                /*hasImage =*/false,
                                 BlendMode::srcOver);
     m_ctx->m_paintAuxData.skip_back();
 
@@ -3035,7 +3036,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
 
-    m_ctx->m_pathData.set_back(draw->matrix(),
+    m_ctx->m_pathData.set_back(draw->paintMatrix(),
                                draw->strokeRadius(),
                                draw->featherRadius(),
                                m_currentZIndex,
@@ -3047,8 +3048,10 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
                                 m_gradTextureLayout,
                                 draw->clipID(),
                                 draw->hasClipRect(),
+                                draw->hasImageTexture(),
                                 draw->blendMode());
-    m_ctx->m_paintAuxData.set_back(draw->matrix(),
+    m_ctx->m_paintAuxData.set_back(draw->paintMatrix(),
+                                   draw->imageMatrix(),
                                    draw->paintType(),
                                    draw->simplePaintValue(),
                                    draw->gradient(),
@@ -3507,7 +3510,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
     const uint32_t imageDrawBaseInstance =
         math::lossless_numeric_cast<uint32_t>(
             m_ctx->m_imageDrawInstanceData.elementsWritten());
-    m_ctx->m_imageDrawInstanceData.emplace_back(draw->matrix(),
+    m_ctx->m_imageDrawInstanceData.emplace_back(draw->imageMatrix(),
                                                 draw->opacity(),
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
@@ -3517,7 +3520,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageRect,
                                 m_baselineShaderMiscFlags,
-                                PaintType::image,
+                                PaintType::solidColor,
                                 1,
                                 imageDrawBaseInstance);
     return batch;
@@ -3532,7 +3535,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
     const uint32_t imageDrawBaseInstance =
         math::lossless_numeric_cast<uint32_t>(
             m_ctx->m_imageDrawInstanceData.elementsWritten());
-    m_ctx->m_imageDrawInstanceData.emplace_back(draw->matrix(),
+    m_ctx->m_imageDrawInstanceData.emplace_back(draw->imageMatrix(),
                                                 draw->opacity(),
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
@@ -3542,7 +3545,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageMesh,
                                 m_baselineShaderMiscFlags,
-                                PaintType::image,
+                                PaintType::solidColor,
                                 1, // one instance (the mesh)
                                 imageDrawBaseInstance);
     batch.indexCountPerInstance = draw->indexCount();
@@ -3966,6 +3969,13 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         shaderFeatures |= ShaderFeatures::ENABLE_DITHER;
     }
 
+    if (draw->imageTexture() != nullptr &&
+        m_ctx->frameInterlockMode() != gpu::InterlockMode::atomics &&
+        drawType != DrawType::imageRect && drawType != DrawType::imageMesh)
+    {
+        shaderFeatures |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
+    }
+
     if (paintType != PaintType::clipUpdate &&
         !enums::is_flag_set(shaderMiscFlags,
                             gpu::ShaderMiscFlags::borrowedCoveragePass))
@@ -4003,15 +4013,24 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
          gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
         batch->shaderFeatures);
 
-    if (paintType == PaintType::image)
+    if (draw->imageTexture() != nullptr)
     {
-        assert(draw->imageTexture() != nullptr);
+        if (batch->imageTexture == nullptr)
+        {
+            // We merged in with a batch that did not already have an image so
+            // we need to ensure the sampler is correct.
+            batch->imageSampler = draw->imageSampler();
+        }
+
         if (batch->imageTexture == nullptr)
         {
             batch->imageTexture = draw->imageTexture();
         }
         assert(batch->imageTexture == draw->imageTexture());
     }
+
+    assert(draw->imageTexture() == nullptr ||
+           batch->imageSampler == draw->imageSampler());
 
     m_combinedShaderFeatures |= batch->shaderFeatures;
     return *batch;

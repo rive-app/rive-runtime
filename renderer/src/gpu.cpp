@@ -19,6 +19,10 @@ static_assert(kGradTextureWidth == GRAD_TEXTURE_WIDTH);
 static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
 static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
 
+static_assert(sizeof(PaintAuxData) / StorageBufferElementSizeInBytes(
+                                         PaintAuxData::kBufferStructure) ==
+              PAINT_AUX_ENTRY_ELEMENT_COUNT);
+
 static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
 {
     switch (mode)
@@ -403,6 +407,8 @@ const char* GetShaderFeatureGLSLName(ShaderFeatures feature)
             return GLSL_ENABLE_HSL_BLEND_MODES;
         case ShaderFeatures::ENABLE_DITHER:
             return GLSL_ENABLE_DITHER;
+        case ShaderFeatures::ENABLE_MODULATED_IMAGE:
+            return GLSL_ENABLE_MODULATED_IMAGE;
     }
     RIVE_UNREACHABLE();
 }
@@ -681,7 +687,6 @@ static uint32_t paint_type_to_glsl_id(PaintType paintType)
     static_assert((int)PaintType::solidColor == SOLID_COLOR_PAINT_TYPE);
     static_assert((int)PaintType::linearGradient == LINEAR_GRADIENT_PAINT_TYPE);
     static_assert((int)PaintType::radialGradient == RADIAL_GRADIENT_PAINT_TYPE);
-    static_assert((int)PaintType::image == IMAGE_PAINT_TYPE);
 }
 
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
@@ -852,6 +857,7 @@ void PaintData::set(DrawContents singleDrawContents,
                     GradTextureLayout gradTextureLayout,
                     uint32_t clipID,
                     bool hasClipRect,
+                    bool hasImage,
                     BlendMode blendMode)
 {
     uint32_t shiftedClipID = clipID << 16;
@@ -881,12 +887,6 @@ void PaintData::set(DrawContents singleDrawContents,
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }
-        case PaintType::image:
-        {
-            m_opacity = simplePaintValue.imageOpacity;
-            localParams |= shiftedClipID | shiftedBlendMode;
-            break;
-        }
         case PaintType::clipUpdate:
         {
             m_shiftedClipReplacementID = shiftedClipID;
@@ -906,10 +906,15 @@ void PaintData::set(DrawContents singleDrawContents,
     {
         localParams |= PAINT_FLAG_HAS_CLIP_RECT;
     }
+    if (hasImage)
+    {
+        localParams |= PAINT_FLAG_HAS_IMAGE;
+    }
     m_params = localParams;
 }
 
 void PaintAuxData::set(const Mat2D& viewMatrix,
+                       const Mat2D& imageMatrix,
                        PaintType paintType,
                        SimplePaintValue simplePaintValue,
                        const Gradient* gradient,
@@ -920,82 +925,89 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
 {
     switch (paintType)
     {
-        case PaintType::solidColor:
-        {
-            break;
-        }
         case PaintType::linearGradient:
         case PaintType::radialGradient:
-        case PaintType::image:
         {
+            assert(gradient != nullptr);
+            const float* gradCoeffs = gradient->coeffs();
             Mat2D paintMatrix;
             viewMatrix.invert(&paintMatrix);
+
             if (platformFeatures.framebufferBottomUp)
             {
                 // Flip _fragCoord.y.
-                paintMatrix =
-                    paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+                paintMatrix *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
             }
-            if (paintType == PaintType::image)
+
+            if (paintType == PaintType::linearGradient)
             {
-                // Since we don't use perspective transformations, the image
-                // mipmap level-of-detail is constant throughout the entire
-                // path. Compute it ahead of time here.
-                float dudx = paintMatrix.xx() * imageTexture->width();
-                float dudy = paintMatrix.yx() * imageTexture->height();
-                float dvdx = paintMatrix.xy() * imageTexture->width();
-                float dvdy = paintMatrix.yy() * imageTexture->height();
-                float maxScaleFactorPow2 = std::max(dudx * dudx + dvdx * dvdx,
-                                                    dudy * dudy + dvdy * dvdy);
-                // Instead of finding sqrt(maxScaleFactorPow2), just multiply
-                // the log by .5.
-                m_imageTextureLOD =
-                    (log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f) +
-                    MIP_MAP_LOD_BIAS;
+                paintMatrix = Mat2D(gradCoeffs[0],
+                                    0,
+                                    gradCoeffs[1],
+                                    0,
+                                    gradCoeffs[2],
+                                    0) *
+                              paintMatrix;
             }
             else
             {
-                assert(gradient != nullptr);
-                const float* gradCoeffs = gradient->coeffs();
-                if (paintType == PaintType::linearGradient)
-                {
-                    paintMatrix = Mat2D(gradCoeffs[0],
-                                        0,
-                                        gradCoeffs[1],
-                                        0,
-                                        gradCoeffs[2],
-                                        0) *
-                                  paintMatrix;
-                }
-                else
-                {
-                    assert(paintType == PaintType::radialGradient);
-                    float w = 1 / gradCoeffs[2];
-                    paintMatrix = Mat2D(w,
-                                        0,
-                                        0,
-                                        w,
-                                        -gradCoeffs[0] * w,
-                                        -gradCoeffs[1] * w) *
-                                  paintMatrix;
-                }
-                float left, right;
-                if (simplePaintValue.colorRampLocation.isComplex())
-                {
-                    left = 0;
-                    right = kGradTextureWidth;
-                }
-                else
-                {
-                    left = simplePaintValue.colorRampLocation.col;
-                    right = left + 2;
-                }
-                m_gradTextureHorizontalSpan[0] =
-                    (right - left - 1) * GRAD_TEXTURE_INVERSE_WIDTH;
-                m_gradTextureHorizontalSpan[1] =
-                    (left + .5f) * GRAD_TEXTURE_INVERSE_WIDTH;
+                assert(paintType == PaintType::radialGradient);
+                float w = 1 / gradCoeffs[2];
+                paintMatrix =
+                    Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) *
+                    paintMatrix;
             }
-            write_matrix(m_matrix, paintMatrix);
+            float left, right;
+            if (simplePaintValue.colorRampLocation.isComplex())
+            {
+                left = 0;
+                right = kGradTextureWidth;
+            }
+            else
+            {
+                left = simplePaintValue.colorRampLocation.col;
+                right = left + 2;
+            }
+            m_gradTextureHorizontalSpan[0] =
+                (right - left - 1) * GRAD_TEXTURE_INVERSE_WIDTH;
+            m_gradTextureHorizontalSpan[1] =
+                (left + .5f) * GRAD_TEXTURE_INVERSE_WIDTH;
+
+            write_matrix(m_paintMatrix, paintMatrix);
+        }
+
+            [[fallthrough]];
+
+        case PaintType::solidColor:
+        {
+            if (imageTexture != nullptr)
+            {
+                Mat2D matrix;
+                imageMatrix.invert(&matrix);
+                if (platformFeatures.framebufferBottomUp)
+                {
+                    // Flip _fragCoord.y.
+                    matrix *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+                }
+
+                // Since we don't use perspective transformations, the image
+                // mipmap level-of-detail is constant throughout the entire
+                // path. Compute it ahead of time here.
+                float dudx = matrix.xx() * imageTexture->width();
+                float dudy = matrix.yx() * imageTexture->height();
+                float dvdx = matrix.xy() * imageTexture->width();
+                float dvdy = matrix.yy() * imageTexture->height();
+                float maxScaleFactorPow2 = std::max(dudx * dudx + dvdx * dvdx,
+                                                    dudy * dudy + dvdy * dvdy);
+                // Instead of finding sqrt(maxScaleFactorPow2), just
+                // multiply the log by .5.
+                m_imageTextureLOD =
+                    (log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f) +
+                    MIP_MAP_LOD_BIAS;
+
+                write_matrix(m_imageMatrix, matrix);
+            }
+
             break;
         }
         case PaintType::clipUpdate:

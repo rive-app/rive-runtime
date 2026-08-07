@@ -36,7 +36,8 @@ public:
     PushRetrofittedTrianglesGMDraw(RenderContext* context,
                                    const RiveRenderPaint* paint) :
         PathDraw(FULLSCREEN_PIXEL_BOUNDS,
-                 Mat2D(),
+                 Mat2D{},
+                 nullptr,
                  make_nonempty_placeholder_path(),
                  context->frameDescriptor().clockwiseFillOverride
                      ? FillRule::clockwise
