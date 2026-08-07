@@ -4,6 +4,7 @@
 #include "rive/hit_info.hpp"
 #include "rive/generated/shapes/image_base.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 
 namespace rive
 {
@@ -53,6 +54,7 @@ private:
 public:
     void setMesh(MeshDrawable* mesh);
     ImageAsset* imageAsset() const;
+    ImageSampler imageSampler() const;
     void draw(Renderer* renderer) override;
     bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;

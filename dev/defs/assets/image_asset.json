@@ -45,6 +45,33 @@
       },
       "description": "ASTC block-size index when format == astc. 0=4x4, 1=6x6, 2=8x8, 3=12x12. Ignored for non-ASTC formats.",
       "runtime": false
+    },
+    "samplerFilter": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 1073,
+        "string": "samplerfilter"
+      },
+      "description": "Default sampling filter for this image. 0=bilinear, 1=nearest."
+    },
+    "samplerWrapX": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 1074,
+        "string": "samplerwrapx"
+      },
+      "description": "Default horizontal wrap for this image. 0=clamp, 1=repeat, 2=mirror."
+    },
+    "samplerWrapY": {
+      "type": "uint8",
+      "initialValue": "0",
+      "key": {
+        "int": 1075,
+        "string": "samplerwrapy"
+      },
+      "description": "Default vertical wrap for this image. 0=clamp, 1=repeat, 2=mirror."
     }
   }
 }

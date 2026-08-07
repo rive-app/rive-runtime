@@ -61,6 +61,39 @@
         "string": "alignmenty"
       },
       "description": "Alignment value on Y, determines how the image aligns vertically in its layout container."
+    },
+    "samplerFilter": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "bindable": true,
+      "key": {
+        "int": 1076,
+        "string": "samplerfilter"
+      },
+      "description": "Sampling filter override. 0=inherit from asset, 1=bilinear, 2=nearest."
+    },
+    "samplerWrapX": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "bindable": true,
+      "key": {
+        "int": 1077,
+        "string": "samplerwrapx"
+      },
+      "description": "Horizontal wrap override. 0=inherit from asset, 1=clamp, 2=repeat, 3=mirror."
+    },
+    "samplerWrapY": {
+      "type": "uint8",
+      "initialValue": "0",
+      "animates": true,
+      "bindable": true,
+      "key": {
+        "int": 1078,
+        "string": "samplerwrapy"
+      },
+      "description": "Vertical wrap override. 0=inherit from asset, 1=clamp, 2=repeat, 3=mirror."
     }
   }
 }

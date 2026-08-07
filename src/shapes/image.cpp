@@ -34,13 +34,11 @@ void Image::draw(Renderer* renderer)
     float width = (float)renderImage->width();
     float height = (float)renderImage->height();
 
-    // until image loading and saving is done, use default sampling for
-    // image assets
     if (m_Mesh != nullptr)
     {
         m_Mesh->draw(renderer,
                      renderImage,
-                     rive::ImageSampler::LinearClamp(),
+                     imageSampler(),
                      blendMode(),
                      renderOpacity());
     }
@@ -49,7 +47,7 @@ void Image::draw(Renderer* renderer)
         renderer->transform(worldTransform());
         renderer->translate(-width * originX(), -height * originY());
         renderer->drawImage(renderImage,
-                            rive::ImageSampler::LinearClamp(),
+                            imageSampler(),
                             blendMode(),
                             renderOpacity());
     }
@@ -402,6 +400,42 @@ AABB Image::localBounds() const
 }
 
 ImageAsset* Image::imageAsset() const { return (ImageAsset*)m_fileAsset.get(); }
+
+ImageSampler Image::imageSampler() const
+{
+    // Clamp file values so the key stays inside the backends' sampler tables.
+    auto filterValue = [](uint32_t value) {
+        return value <= (uint32_t)ImageFilter::nearest
+                   ? static_cast<ImageFilter>(value)
+                   : ImageFilter::bilinear;
+    };
+    auto wrapValue = [](uint32_t value) {
+        return value <= (uint32_t)ImageWrap::mirror
+                   ? static_cast<ImageWrap>(value)
+                   : ImageWrap::clamp;
+    };
+    ImageSampler sampler = ImageSampler::LinearClamp();
+    if (ImageAsset* asset = imageAsset())
+    {
+        sampler.filter = filterValue(asset->samplerFilter());
+        sampler.wrapX = wrapValue(asset->samplerWrapX());
+        sampler.wrapY = wrapValue(asset->samplerWrapY());
+    }
+    // Node values are offset by one, zero means inherit from the asset.
+    if (samplerFilter() != 0)
+    {
+        sampler.filter = filterValue(samplerFilter() - 1);
+    }
+    if (samplerWrapX() != 0)
+    {
+        sampler.wrapX = wrapValue(samplerWrapX() - 1);
+    }
+    if (samplerWrapY() != 0)
+    {
+        sampler.wrapY = wrapValue(samplerWrapY() - 1);
+    }
+    return sampler;
+}
 
 #ifdef TESTING
 #include "rive/shapes/mesh.hpp"

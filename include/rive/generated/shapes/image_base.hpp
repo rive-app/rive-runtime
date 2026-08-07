@@ -40,6 +40,9 @@ public:
     static const uint16_t fitPropertyKey = 974;
     static const uint16_t alignmentXPropertyKey = 975;
     static const uint16_t alignmentYPropertyKey = 976;
+    static const uint16_t samplerFilterPropertyKey = 1076;
+    static const uint16_t samplerWrapXPropertyKey = 1077;
+    static const uint16_t samplerWrapYPropertyKey = 1078;
 
 protected:
     uint32_t m_AssetId = -1;
@@ -48,6 +51,9 @@ protected:
     uint32_t m_Fit = 0;
     float m_AlignmentX = 0.0f;
     float m_AlignmentY = 0.0f;
+    uint8_t m_SamplerFilter = 0;
+    uint8_t m_SamplerWrapX = 0;
+    uint8_t m_SamplerWrapY = 0;
 
 public:
     inline uint32_t assetId() const { return m_AssetId; }
@@ -122,6 +128,42 @@ public:
         notifyPropertyChanged(alignmentYPropertyKey);
     }
 
+    inline uint8_t samplerFilter() const { return m_SamplerFilter; }
+    void samplerFilter(uint8_t value)
+    {
+        if (m_SamplerFilter == value)
+        {
+            return;
+        }
+        m_SamplerFilter = value;
+        samplerFilterChanged();
+        notifyPropertyChanged(samplerFilterPropertyKey);
+    }
+
+    inline uint8_t samplerWrapX() const { return m_SamplerWrapX; }
+    void samplerWrapX(uint8_t value)
+    {
+        if (m_SamplerWrapX == value)
+        {
+            return;
+        }
+        m_SamplerWrapX = value;
+        samplerWrapXChanged();
+        notifyPropertyChanged(samplerWrapXPropertyKey);
+    }
+
+    inline uint8_t samplerWrapY() const { return m_SamplerWrapY; }
+    void samplerWrapY(uint8_t value)
+    {
+        if (m_SamplerWrapY == value)
+        {
+            return;
+        }
+        m_SamplerWrapY = value;
+        samplerWrapYChanged();
+        notifyPropertyChanged(samplerWrapYPropertyKey);
+    }
+
     Core* clone() const override;
     void copy(const ImageBase& object)
     {
@@ -131,6 +173,9 @@ public:
         m_Fit = object.m_Fit;
         m_AlignmentX = object.m_AlignmentX;
         m_AlignmentY = object.m_AlignmentY;
+        m_SamplerFilter = object.m_SamplerFilter;
+        m_SamplerWrapX = object.m_SamplerWrapX;
+        m_SamplerWrapY = object.m_SamplerWrapY;
         Drawable::copy(object);
     }
 
@@ -156,6 +201,15 @@ public:
             case alignmentYPropertyKey:
                 m_AlignmentY = CoreDoubleType::deserialize(reader);
                 return true;
+            case samplerFilterPropertyKey:
+                m_SamplerFilter = CoreUintType::deserialize(reader);
+                return true;
+            case samplerWrapXPropertyKey:
+                m_SamplerWrapX = CoreUintType::deserialize(reader);
+                return true;
+            case samplerWrapYPropertyKey:
+                m_SamplerWrapY = CoreUintType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -167,6 +221,9 @@ protected:
     virtual void fitChanged() {}
     virtual void alignmentXChanged() {}
     virtual void alignmentYChanged() {}
+    virtual void samplerFilterChanged() {}
+    virtual void samplerWrapXChanged() {}
+    virtual void samplerWrapYChanged() {}
 };
 } // namespace rive
 

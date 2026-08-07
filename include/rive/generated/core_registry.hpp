@@ -1535,6 +1535,15 @@ public:
             case ImageBase::fitPropertyKey:
                 object->as<ImageBase>()->fit(value);
                 break;
+            case ImageBase::samplerFilterPropertyKey:
+                object->as<ImageBase>()->samplerFilter(value);
+                break;
+            case ImageBase::samplerWrapXPropertyKey:
+                object->as<ImageBase>()->samplerWrapX(value);
+                break;
+            case ImageBase::samplerWrapYPropertyKey:
+                object->as<ImageBase>()->samplerWrapY(value);
+                break;
             case FocusDataBase::focusFlagsPropertyKey:
                 object->as<FocusDataBase>()->focusFlags(value);
                 break;
@@ -1793,6 +1802,15 @@ public:
             case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
                 object->as<ScriptAssetBase>()->serializedImplementedMethods(
                     value);
+                break;
+            case ImageAssetBase::samplerFilterPropertyKey:
+                object->as<ImageAssetBase>()->samplerFilter(value);
+                break;
+            case ImageAssetBase::samplerWrapXPropertyKey:
+                object->as<ImageAssetBase>()->samplerWrapX(value);
+                break;
+            case ImageAssetBase::samplerWrapYPropertyKey:
+                object->as<ImageAssetBase>()->samplerWrapY(value);
                 break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
@@ -3670,6 +3688,12 @@ public:
                 return object->as<ImageBase>()->assetId();
             case ImageBase::fitPropertyKey:
                 return object->as<ImageBase>()->fit();
+            case ImageBase::samplerFilterPropertyKey:
+                return object->as<ImageBase>()->samplerFilter();
+            case ImageBase::samplerWrapXPropertyKey:
+                return object->as<ImageBase>()->samplerWrapX();
+            case ImageBase::samplerWrapYPropertyKey:
+                return object->as<ImageBase>()->samplerWrapY();
             case FocusDataBase::focusFlagsPropertyKey:
                 return object->as<FocusDataBase>()->focusFlags();
             case FocusDataBase::edgeBehaviorValuePropertyKey:
@@ -3833,6 +3857,12 @@ public:
             case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
                 return object->as<ScriptAssetBase>()
                     ->serializedImplementedMethods();
+            case ImageAssetBase::samplerFilterPropertyKey:
+                return object->as<ImageAssetBase>()->samplerFilter();
+            case ImageAssetBase::samplerWrapXPropertyKey:
+                return object->as<ImageAssetBase>()->samplerWrapX();
+            case ImageAssetBase::samplerWrapYPropertyKey:
+                return object->as<ImageAssetBase>()->samplerWrapY();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
             case GamepadInputBase::kindPropertyKey:
@@ -4730,6 +4760,9 @@ public:
             case PolygonBase::pointsPropertyKey:
             case ImageBase::assetIdPropertyKey:
             case ImageBase::fitPropertyKey:
+            case ImageBase::samplerFilterPropertyKey:
+            case ImageBase::samplerWrapXPropertyKey:
+            case ImageBase::samplerWrapYPropertyKey:
             case FocusDataBase::focusFlagsPropertyKey:
             case FocusDataBase::edgeBehaviorValuePropertyKey:
             case DrawRulesBase::drawTargetIdPropertyKey:
@@ -4806,6 +4839,9 @@ public:
             case FileAssetBase::assetIdPropertyKey:
             case ScriptAssetBase::generatorFunctionRefPropertyKey:
             case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
+            case ImageAssetBase::samplerFilterPropertyKey:
+            case ImageAssetBase::samplerWrapXPropertyKey:
+            case ImageAssetBase::samplerWrapYPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
             case GamepadInputBase::kindPropertyKey:
             case GamepadInputBase::mappingPropertyKey:
@@ -5542,6 +5578,12 @@ public:
                 return object->is<ImageBase>();
             case ImageBase::fitPropertyKey:
                 return object->is<ImageBase>();
+            case ImageBase::samplerFilterPropertyKey:
+                return object->is<ImageBase>();
+            case ImageBase::samplerWrapXPropertyKey:
+                return object->is<ImageBase>();
+            case ImageBase::samplerWrapYPropertyKey:
+                return object->is<ImageBase>();
             case FocusDataBase::focusFlagsPropertyKey:
                 return object->is<FocusDataBase>();
             case FocusDataBase::edgeBehaviorValuePropertyKey:
@@ -5694,6 +5736,12 @@ public:
                 return object->is<ScriptAssetBase>();
             case ScriptAssetBase::serializedImplementedMethodsPropertyKey:
                 return object->is<ScriptAssetBase>();
+            case ImageAssetBase::samplerFilterPropertyKey:
+                return object->is<ImageAssetBase>();
+            case ImageAssetBase::samplerWrapXPropertyKey:
+                return object->is<ImageAssetBase>();
+            case ImageAssetBase::samplerWrapYPropertyKey:
+                return object->is<ImageAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
             case GamepadInputBase::kindPropertyKey:
