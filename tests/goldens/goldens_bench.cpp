@@ -310,7 +310,7 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
 static void replay_deferred_frame(rive::cmd::DeferredReplayer& replayer,
                                   rive::cmd::DeferredSession* session)
 {
-    GoldensFrameSink sink;
+    auto sink = goldensFrameSink();
     replayer.replayFrame(*session, sink);
 }
 

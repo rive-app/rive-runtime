@@ -22,6 +22,10 @@
 #include "rive/lua/scripting_vm.hpp"
 #include "rive/renderer/render_context.hpp"
 #endif
+#ifdef RIVE_CANVAS
+#include "common/testing_window_sink.hpp"
+#include "rive/renderer/cmd/deferred_session.hpp"
+#endif
 #include "assets/roboto_flex.ttf.hpp"
 #include <stdio.h>
 #include <fstream>
@@ -50,6 +54,23 @@ struct Player::FPSOverlay
 Player::Player() : m_fps(std::make_unique<FPSOverlay>()) {}
 
 Player::~Player() = default;
+
+void Player::shutdown()
+{
+#ifdef RIVE_CANVAS
+    if (m_session != nullptr)
+    {
+        // Session made resources unwind through the session and the resident
+        // tables against the live context, not at exit.
+        m_fps.reset();
+        m_scene = nullptr;
+        m_artboard = nullptr;
+        m_file = nullptr;
+        m_session = nullptr;
+        m_replayer = nullptr;
+    }
+#endif
+}
 
 static void update_parameter(int& val, int multiplier, char key, bool seenBang)
 {
@@ -209,6 +230,10 @@ bool Player::parseArgs(int argc,
         {
             onlyUbershaders = true;
         }
+        else if (strcmp(argv[i], "--deferred") == 0)
+        {
+            m_useDeferred = true;
+        }
         else if (argv[i][0] == '-' &&
                  argv[i][1] == 'k') // "-k1234asdf" without a space.
         {
@@ -253,7 +278,37 @@ void Player::init()
 void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
 {
     m_rivName = std::move(rivName);
-    m_file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
+    m_factory = TestingWindow::Get()->factory();
+#ifdef RIVE_CANVAS
+    // Importing through the DeferredSession makes the artboard's own 2D
+    // resources deferred objects with ids so drawInternal can record.
+    if (m_useDeferred)
+    {
+        if (auto* rc = TestingWindow::Get()->renderContext())
+        {
+            if (auto* ore = rc->getOreContext())
+            {
+                m_session = std::make_unique<rive::cmd::DeferredSession>(ore);
+                // Bound before import so registration scripts that reach for
+                // the device find it, like a real host.
+                m_session->bindRenderContext(rc);
+                m_replayer = std::make_unique<rive::cmd::DeferredReplayer>();
+                m_factory = m_session.get();
+            }
+        }
+        if (m_session == nullptr)
+        {
+            printf("--deferred unavailable on this backend, drawing "
+                   "immediate\n");
+        }
+    }
+#else
+    if (m_useDeferred)
+    {
+        printf("--deferred requires a RIVE_CANVAS build, drawing immediate\n");
+    }
+#endif
+    m_file = rive::File::import(rivBytes, m_factory);
     assert(m_file);
 
 #ifdef WITH_RIVE_SCRIPTING
@@ -264,6 +319,14 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
         if (auto* sctx = vm->context())
         {
             sctx->setRenderContext(TestingWindow::Get()->renderContext());
+#ifdef RIVE_CANVAS
+            if (m_session != nullptr)
+            {
+                sctx->setOreContext(&m_session->oreContext());
+                // Regular canvas 2D content records into the deferred stream.
+                sctx->setDeferredCanvasHost(m_session.get());
+            }
+#endif
         }
     }
 #endif
@@ -279,11 +342,11 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
 
     // Setup FPS.
     m_fps->roboto = HBFont::Decode(assets::roboto_flex_ttf());
-    m_fps->blackStroke = TestingWindow::Get()->factory()->makeRenderPaint();
+    m_fps->blackStroke = m_factory->makeRenderPaint();
     m_fps->blackStroke->color(0xff000000);
     m_fps->blackStroke->style(rive::RenderPaintStyle::stroke);
     m_fps->blackStroke->thickness(4);
-    m_fps->whiteFill = TestingWindow::Get()->factory()->makeRenderPaint();
+    m_fps->whiteFill = m_factory->makeRenderPaint();
     m_fps->whiteFill->color(0xffffffff);
     m_fps->timeLastUpdate = std::chrono::high_resolution_clock::now();
     m_timestampPrevFrame = std::chrono::high_resolution_clock::now();
@@ -359,13 +422,25 @@ bool Player::doFrame()
         m_lastReportedPauseState = m_paused;
     }
 
-    auto renderer = TestingWindow::Get()->beginFrame({
+    const TestingWindow::FrameOptions frameOptions = {
         .clearColor = 0xff303030,
         .doClear = true,
         .wireframe = m_wireframe,
         .fillsDisabled = m_paintStyle == 2,
         .strokesDisabled = m_paintStyle == 1,
-    });
+    };
+    std::unique_ptr<rive::Renderer> renderer;
+#ifdef RIVE_CANVAS
+    if (m_session != nullptr)
+    {
+        m_session->recordOreReplayMarker();
+        renderer = m_session->makeScreenRenderer();
+    }
+    else
+#endif
+    {
+        renderer = TestingWindow::Get()->beginFrame(frameOptions);
+    }
 
     if (m_hotloadShaders)
     {
@@ -425,6 +500,22 @@ bool Player::doFrame()
     }
 
     renderer->restore();
+#ifdef RIVE_CANVAS
+    if (m_session != nullptr)
+    {
+        // Snapshot replay is the same path a threaded consumer takes.
+        rive::cmd::DeferredFrame frame = rive::cmd::snapshotFrame(*m_session);
+        m_session->resetFrame();
+        TestingWindowFrameSink sink(frameOptions);
+        m_replayer->replayFrame(frame, sink);
+        uint32_t dropped = m_replayer->droppedDraws();
+        if (dropped != 0 && dropped != m_lastDroppedDraws)
+        {
+            printf("deferred replay dropped %u draws\n", dropped);
+        }
+        m_lastDroppedDraws = dropped;
+    }
+#endif
     TestingWindow::Get()->endFrame();
 
     // Count FPS.
@@ -444,8 +535,7 @@ bool Player::doFrame()
 
         char fpsRawText[32];
         snprintf(fpsRawText, sizeof(fpsRawText), "   %.1f FPS   ", fps);
-        m_fps->text =
-            std::make_unique<rive::RawText>(TestingWindow::Get()->factory());
+        m_fps->text = std::make_unique<rive::RawText>(m_factory);
         m_fps->text->maxWidth(width);
 #ifdef RIVE_ANDROID
         m_fps->text->align(rive::TextAlign::center);
@@ -544,6 +634,7 @@ static Player player;
 static void player_shutdown()
 {
     printf("\nShutting down\n");
+    player.shutdown();
     TestingWindow::Destroy(); // Exercise our PLS teardown process now
                               // that we're done.
     TestHarness::Instance().shutdown();

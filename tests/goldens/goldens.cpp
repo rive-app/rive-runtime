@@ -127,7 +127,7 @@ static bool render_and_dump_png(
                     rive::cmd::DeferredFrame frame =
                         rive::cmd::snapshotFrame(*deferredSession);
                     deferredSession->resetFrame();
-                    GoldensFrameSink sink(first);
+                    auto sink = goldensFrameSink(first);
                     replayer.replayFrame(frame, sink);
 
                     bool last =

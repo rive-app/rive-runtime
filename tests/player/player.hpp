@@ -15,9 +15,16 @@
 namespace rive
 {
 class ArtboardInstance;
+class Factory;
 class File;
 class Scene;
 } // namespace rive
+
+namespace rive::cmd
+{
+class DeferredReplayer;
+class DeferredSession;
+} // namespace rive::cmd
 
 class Player : public FrameRunner
 {
@@ -40,6 +47,10 @@ public:
     void init(std::string rivName, std::vector<uint8_t> rivBytes);
 
     bool doFrame() override;
+
+    // Unwinds deferred resources against the live context; call before the
+    // window is destroyed.
+    void shutdown();
 
     void keyPressed(char key);
 
@@ -67,6 +78,17 @@ private:
     bool m_seenBang = false;
 
     std::vector<uint8_t> m_pendingRivBytes;
+
+    bool m_useDeferred = false;
+    // The import factory: the session when deferred, the window's otherwise.
+    rive::Factory* m_factory = nullptr;
+#ifdef RIVE_CANVAS
+    // Destroyed last since deferred resources held by the file record their
+    // destruction into the session, so it must outlive them.
+    std::unique_ptr<rive::cmd::DeferredSession> m_session;
+    std::unique_ptr<rive::cmd::DeferredReplayer> m_replayer;
+    uint32_t m_lastDroppedDraws = 0;
+#endif
 
     std::string m_rivName;
     rive::rcp<rive::File> m_file;
