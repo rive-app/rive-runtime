@@ -414,19 +414,6 @@ bool ScriptedObject::hydrateScriptInputs()
     return true;
 }
 
-void ScriptedObject::disposeScriptInputs()
-{
-    for (auto prop : m_customProperties)
-    {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput != nullptr)
-        {
-            scriptInput->scriptedObject(nullptr);
-        }
-    }
-    m_customProperties.clear();
-}
-
 void ScriptedObject::disposeTrackedProperties()
 {
 
@@ -499,10 +486,24 @@ bool ScriptedObject::scriptAdvance(float elapsedSeconds) { return false; }
 
 void ScriptedObject::scriptUpdate() {}
 
-void ScriptedObject::scriptDispose() {}
-
-void ScriptedObject::disposeScriptInputs() {}
+// Inputs hold a back-pointer to their scripted object; without disposal
+// they dangle at teardown even when scripting is compiled out.
+void ScriptedObject::scriptDispose() { disposeScriptInputs(); }
 #endif
+
+// Shared by both scripting flavors.
+void ScriptedObject::disposeScriptInputs()
+{
+    for (auto prop : m_customProperties)
+    {
+        auto scriptInput = ScriptInput::from(prop);
+        if (scriptInput != nullptr)
+        {
+            scriptInput->scriptedObject(nullptr);
+        }
+    }
+    m_customProperties.clear();
+}
 
 void ScriptedObject::reinit()
 {

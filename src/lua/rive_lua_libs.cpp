@@ -900,8 +900,8 @@ void ScriptingContext::performRegistration(lua_State* state)
         tryRegisterModule(state, moduleDetails);
     }
 
-    // If any modules had dependencies, resolve their registration order
-    // and try registering again
+    // One cleanup pass: producers emit modules in dependency order (the
+    // editor and rive-cli both sort), so a single sorted retry suffices.
     if (!m_pendingModules.empty())
     {
         std::vector<ModuleDetails*> pendingModules;
@@ -922,6 +922,20 @@ void ScriptingContext::performRegistration(lua_State* state)
         // Register modules in sorted order
         for (ModuleDetails* moduleDetails : sortedModules)
         {
+            // Skip utility modules that already made it into the cache.
+            if (checkRegisteredModules(state,
+                                       moduleDetails->moduleName().c_str()) ==
+                1)
+            {
+                lua_pop(state, 1);
+                continue;
+            }
+            // A known-missing require has not registered yet; re-running
+            // the chunk would repeat its side effects and error.
+            if (!moduleDetails->missingDependencies().empty())
+            {
+                continue;
+            }
             tryRegisterModule(state, moduleDetails);
         }
     }
