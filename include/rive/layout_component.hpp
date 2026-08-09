@@ -19,6 +19,7 @@ class KeyFrameInterpolator;
 class LayoutData;
 class LayoutComponentStyle;
 class LayoutConstraint;
+class ComponentOrigin;
 class Layout
 {
 public:
@@ -140,8 +141,18 @@ protected:
     bool isCollapsed() const override;
     void propagateCollapse(bool collapse);
     bool collapse(bool value) override;
-    float computedLocalX() override { return m_layout.left(); };
-    float computedLocalY() override { return m_layout.top(); };
+    float computedLocalX() override { return computedOriginLocal().x; };
+    float computedLocalY() override { return computedOriginLocal().y; };
+    float computedWorldX() override
+    {
+        return (worldTransform() * localAnchor()).x;
+    };
+    float computedWorldY() override
+    {
+        return (worldTransform() * localAnchor()).y;
+    };
+    float computedRootX() override;
+    float computedRootY() override;
     float computedWidth() override { return m_layout.width(); };
     float computedHeight() override { return m_layout.height(); };
     void calculateLayoutInternal(float availableWidth, float availableHeight);
@@ -160,11 +171,22 @@ private:
     bool m_positionLeftChanged = true;
     bool m_positionTopChanged = true;
     bool m_hasForegroundDrawable = false;
+    bool m_hasComponentOrigin = false;
     // Files exported before 7.3 never composed a layout's own rotation/scale,
     // so any stored value was ignored. Import clears this for those files; it
     // defaults to the current behavior so a layout built outside of import
     // isn't stuck on the legacy path. See File::minorVersion.
     bool m_composeTransform = true;
+
+    /// Where the layout engine placed us, in the parent's transform frame.
+    Vec2D layoutTranslation() const;
+    /// The stored x/y offset plus rotation/scale about the pivot.
+    Mat2D buildOwnTransform() const;
+    /// The origin's position in the parent's frame.
+    Vec2D computedOriginLocal() const
+    {
+        return layoutTranslation() + m_Transform * localAnchor();
+    }
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
@@ -196,6 +218,20 @@ public:
     DrawableProxy* proxy() { return &m_proxy; };
     virtual void updateRenderPath();
     void update(ComponentDirt value) override;
+    void updateTransform() override;
+    void composeWorldTransform() override;
+    /// Only our stored x/y — where the layout put us is not something we
+    /// offset by. Files too old to compose x/y keep reporting their solved
+    /// position.
+    Vec2D composedTranslation() const override
+    {
+        return composesLayoutOffset() ? Vec2D(x(), y()) : layoutTranslation();
+    }
+    /// Our box starts at local zero, so the origin is the anchor. Zero for
+    /// artboards, which already draw about theirs. In the .cpp: is<Artboard>
+    /// needs the complete type.
+    Vec2D localAnchor() const override;
+    bool composesLayoutOffset() const;
     void onDirty(ComponentDirt value) override;
     AABB layoutBounds() override
     {
@@ -219,15 +255,15 @@ public:
                               m_layout.height());
     }
 
-    float x() const override { return layoutX(); }
-    float y() const override { return layoutY(); }
     float layoutX() const { return m_layout.left(); }
     float layoutY() const { return m_layout.top(); }
-    /// The pivot that rotation and scale compose about, from the optional
-    /// ComponentOrigin child; 0 when absent, which is the common case. Named
-    /// apart from Artboard's inline originX/originY so the two never shadow.
-    float pivotOriginX() const;
-    float pivotOriginY() const;
+    /// The origin as a fraction of our size, from the optional
+    /// ComponentOrigin child; 0 when absent. Named apart from Artboard's
+    /// inline originX/originY so the two never shadow; Artboard overrides.
+    virtual float pivotOriginX() const;
+    virtual float pivotOriginY() const;
+    void markHasComponentOrigin() { m_hasComponentOrigin = true; }
+    Vec2D originOffset() const;
     float layoutWidth() { return m_layout.width(); }
     float layoutHeight() { return m_layout.height(); }
     float innerWidth()

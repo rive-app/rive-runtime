@@ -15,6 +15,7 @@
 #include "rive_testing.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 TEST_CASE("Component List Artboard Count", "[component_list]")
@@ -403,6 +404,112 @@ TEST_CASE("Component List Virtualized Artboards & State Machines",
             REQUIRE(sm == nullptr);
         }
     }
+}
+
+TEST_CASE("Component List Virtualized Buffer", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // This fixture is a carousel, so the leading buffer wraps to the tail
+    // rather than clamping at index 0.
+    REQUIRE(scroll->infinite() == true);
+
+    scroll->virtualizeBuffer(2);
+    artboard->advance(0.0f);
+
+    REQUIRE(list->artboardCount() == 20);
+    // Items 0-4 are visible, 5-6 are the trailing buffer, and the leading
+    // buffer wraps around to 19 and 18. Collected in index order.
+    std::string realized;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            realized += std::to_string(i) + " ";
+        }
+    }
+    INFO("realized indices: " << realized);
+    REQUIRE(realized == "0 1 2 3 4 5 6 18 19 ");
+}
+
+TEST_CASE("Component List Virtualized Buffer Clamps When Not Infinite",
+          "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // Without the carousel the leading buffer has nowhere to wrap to, so it
+    // clamps at index 0 instead.
+    scroll->infinite(false);
+    scroll->virtualizeBuffer(2);
+    artboard->advance(0.0f);
+
+    std::string realized;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            realized += std::to_string(i) + " ";
+        }
+    }
+    INFO("realized indices: " << realized);
+    REQUIRE(realized == "0 1 2 3 4 5 6 ");
+}
+
+TEST_CASE("Component List Virtualized Buffer Both Sides", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    scroll->virtualizeBuffer(2);
+    artboard->advance(0.0f);
+    // Bring items 5..9 into view.
+    scroll->setScrollIndex(5);
+    artboard->advance(0.0f);
+
+    // 3..4 buffered before, 5..9 visible, 10..11 buffered after.
+    std::string realized;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            realized += std::to_string(i) + " ";
+        }
+    }
+    INFO("realized indices: " << realized);
+    REQUIRE(realized == "3 4 5 6 7 8 9 10 11 ");
 }
 
 TEST_CASE("Component List Virtualized Artboards Layout Bounds",

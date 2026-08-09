@@ -1493,6 +1493,14 @@ void Text::controlSize(Vec2D size,
 {}
 #endif
 
+Vec2D Text::layoutBaseTranslation(LayoutParticipant* participant) const
+{
+    assert(participant != nullptr);
+    return Vec2D(
+        participant->resolvedLeft() + originX() * participant->resolvedWidth(),
+        participant->resolvedTop() + originY() * participant->resolvedHeight());
+}
+
 void Text::composeWorldTransform()
 {
     // The base composes m_WorldTransform = parentWorld * m_Transform; insert
@@ -1502,17 +1510,25 @@ void Text::composeWorldTransform()
     auto* participant = layoutParticipant();
     if (participant != nullptr && m_ParentTransformComponent != nullptr)
     {
-        Mat2D base = Mat2D::fromTranslation(
-            Vec2D(participant->resolvedLeft() +
-                      originX() * participant->resolvedWidth(),
-                  participant->resolvedTop() +
-                      originY() * participant->resolvedHeight()));
+        Mat2D base = Mat2D::fromTranslation(layoutBaseTranslation(participant));
         m_WorldTransform =
             m_ParentTransformComponent->worldTransform() * base * m_Transform;
         return;
     }
 #endif
     Super::composeWorldTransform();
+}
+
+void Text::updateConstraints()
+{
+#ifdef WITH_RIVE_LAYOUT
+    auto* participant = layoutParticipant();
+    if (participant != nullptr)
+    {
+        participant->applyLayoutConstraints();
+    }
+#endif
+    Super::updateConstraints();
 }
 
 LayoutParticipant* Text::layoutParticipant() const

@@ -75,6 +75,12 @@ public:
     // is 0 (unlike Text): the image composes its origin + fit into the render
     // separately, so the slot base is just the slot top-left.
     void composeWorldTransform() override;
+
+protected:
+    void updateConstraints() override;
+
+public:
+    Vec2D layoutBaseTranslation(LayoutParticipant* participant) const;
     LayoutParticipant* layoutParticipant() const;
     bool isParticipatingInLayout() const;
 

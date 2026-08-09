@@ -41,6 +41,7 @@ public:
     static const uint16_t physicsTypeValuePropertyKey = 727;
     static const uint16_t physicsIdPropertyKey = 726;
     static const uint16_t virtualizePropertyKey = 850;
+    static const uint16_t virtualizeBufferPropertyKey = 221;
     static const uint16_t infinitePropertyKey = 851;
     static const uint16_t interactivePropertyKey = 891;
     static const uint16_t thresholdPropertyKey = 894;
@@ -58,6 +59,7 @@ protected:
     uint32_t m_PhysicsTypeValue = 0;
     uint32_t m_PhysicsId = -1;
     bool m_Virtualize = false;
+    uint8_t m_VirtualizeBuffer = 0;
     bool m_Infinite = false;
     bool m_Interactive = true;
     float m_Threshold = 0.0f;
@@ -173,6 +175,18 @@ public:
         m_Virtualize = value;
         virtualizeChanged();
         notifyPropertyChanged(virtualizePropertyKey);
+    }
+
+    inline uint8_t virtualizeBuffer() const { return m_VirtualizeBuffer; }
+    void virtualizeBuffer(uint8_t value)
+    {
+        if (m_VirtualizeBuffer == value)
+        {
+            return;
+        }
+        m_VirtualizeBuffer = value;
+        virtualizeBufferChanged();
+        notifyPropertyChanged(virtualizeBufferPropertyKey);
     }
 
     inline bool infinite() const { return m_Infinite; }
@@ -297,6 +311,7 @@ public:
         m_PhysicsTypeValue = object.m_PhysicsTypeValue;
         m_PhysicsId = object.m_PhysicsId;
         m_Virtualize = object.m_Virtualize;
+        m_VirtualizeBuffer = object.m_VirtualizeBuffer;
         m_Infinite = object.m_Infinite;
         m_Interactive = object.m_Interactive;
         m_Threshold = object.m_Threshold;
@@ -326,6 +341,9 @@ public:
             case virtualizePropertyKey:
                 m_Virtualize = CoreBoolType::deserialize(reader);
                 return true;
+            case virtualizeBufferPropertyKey:
+                m_VirtualizeBuffer = CoreUintType::deserialize(reader);
+                return true;
             case infinitePropertyKey:
                 m_Infinite = CoreBoolType::deserialize(reader);
                 return true;
@@ -352,6 +370,7 @@ protected:
     virtual void physicsTypeValueChanged() {}
     virtual void physicsIdChanged() {}
     virtual void virtualizeChanged() {}
+    virtual void virtualizeBufferChanged() {}
     virtual void infiniteChanged() {}
     virtual void interactiveChanged() {}
     virtual void thresholdChanged() {}

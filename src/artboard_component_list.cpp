@@ -242,17 +242,40 @@ void ArtboardComponentList::markLayoutNodeDirty(
     }
 }
 
+bool ArtboardComponentList::isWithinVisibleWindow(int index) const
+{
+    const int count = static_cast<int>(m_listItems.size());
+    if (count == 0 || m_visibleStartIndex < 0 || m_visibleEndIndex < 0)
+    {
+        return false;
+    }
+    const int start = m_visibleStartIndex % count;
+    const int end = m_visibleEndIndex % count;
+    return start <= end ? (index >= start && index <= end)
+                        : (index >= start || index <= end);
+}
+
 void ArtboardComponentList::updateLayoutBounds(bool animate)
 {
 #ifdef WITH_RIVE_LAYOUT
+    // Buffered items are realized but off screen. Writing their measured size
+    // into m_artboardSizes would feed back into the virtualizer, which sums
+    // that same table to pick the visible window - so only visible items
+    // report their size.
+    const bool hasVirtualWindow = virtualizationEnabled() &&
+                                  m_visibleStartIndex >= 0 &&
+                                  m_visibleEndIndex >= 0;
     for (int i = 0; i < artboardCount(); i++)
     {
         auto artboard = artboardInstance(i);
         if (artboard != nullptr)
         {
             artboard->updateLayoutBounds(animate);
-            auto bounds = artboard->layoutBounds();
-            setItemSize(Vec2D(bounds.width(), bounds.height()), i);
+            if (!hasVirtualWindow || isWithinVisibleWindow(i))
+            {
+                auto bounds = artboard->layoutBounds();
+                setItemSize(Vec2D(bounds.width(), bounds.height()), i);
+            }
         }
     }
 #endif
@@ -1095,13 +1118,13 @@ void ArtboardComponentList::ensureOrderedListIndices()
     std::vector<int>& cache = m_cachedOrderedListIndices;
     cache.clear();
     const bool useVirtualWindow = virtualizationEnabled() &&
-                                  m_visibleStartIndex >= 0 &&
-                                  m_visibleEndIndex >= 0;
+                                  m_realizedStartIndex >= 0 &&
+                                  m_realizedEndIndex >= 0;
 
     if (useVirtualWindow)
     {
-        auto startIndex = m_visibleStartIndex % count;
-        auto endIndex = m_visibleEndIndex % count;
+        auto startIndex = m_realizedStartIndex % count;
+        auto endIndex = m_realizedEndIndex % count;
         int i = startIndex;
         while (true)
         {
@@ -1154,7 +1177,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
     {
         renderer->transform(
             parent()->as<WorldTransformComponent>()->worldTransform());
-        if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
+        if (m_realizedStartIndex != -1 && m_realizedEndIndex != -1)
         {
             // We need to render in the correct order so we get the correct
             // z-index for items in cases where there is overlap

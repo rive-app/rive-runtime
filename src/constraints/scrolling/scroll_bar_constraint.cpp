@@ -106,9 +106,11 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
             thumb()->forcedHeight(thumbHeight);
         }
     }
+    // The thumb offset is in track units, so apply it in the track's frame
+    // rather than the thumb's own — see Constraint::offsetInParentFrame.
     auto targetTransform =
-        Mat2D::multiply(component->worldTransform(),
-                        Mat2D::fromTranslate(thumbOffsetX, thumbOffsetY));
+        offsetInParentFrame(component,
+                            Mat2D::fromTranslate(thumbOffsetX, thumbOffsetY));
     TransformConstraint::constrainWorld(component,
                                         component->worldTransform(),
                                         m_componentsA,

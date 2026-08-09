@@ -21,6 +21,9 @@ void TranslationConstraint::constrain(TransformComponent* component)
     }
     else
     {
+        Vec2D localA = offset() && (doesCopy() || doesCopyY())
+                           ? component->composedTranslation()
+                           : Vec2D();
         Mat2D transformB(m_Target->worldTransform());
         if (sourceSpace() == TransformSpace::local)
         {
@@ -45,7 +48,7 @@ void TranslationConstraint::constrain(TransformComponent* component)
             translationB.x *= copyFactor();
             if (offset())
             {
-                translationB.x += component->x();
+                translationB.x += localA.x;
             }
         }
 
@@ -60,7 +63,7 @@ void TranslationConstraint::constrain(TransformComponent* component)
 
             if (offset())
             {
-                translationB.y += component->y();
+                translationB.y += localA.y;
             }
         }
 
@@ -112,4 +115,5 @@ void TranslationConstraint::constrain(TransformComponent* component)
     // Just interpolate world translation
     transformA[4] = translationA.x * ti + translationB.x * t;
     transformA[5] = translationA.y * ti + translationB.y * t;
+    landAnchor(component, t);
 }

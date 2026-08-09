@@ -12,6 +12,7 @@
 #include "rive/shapes/mesh_drawable.hpp"
 #include "rive/artboard.hpp"
 #include "rive/clip_result.hpp"
+#include <cassert>
 
 using namespace rive;
 
@@ -218,6 +219,12 @@ void Image::controlSize(Vec2D size,
     }
 }
 
+Vec2D Image::layoutBaseTranslation(LayoutParticipant* participant) const
+{
+    assert(participant != nullptr);
+    return Vec2D(participant->resolvedLeft(), participant->resolvedTop());
+}
+
 void Image::composeWorldTransform()
 {
 #ifdef WITH_RIVE_LAYOUT
@@ -226,14 +233,25 @@ void Image::composeWorldTransform()
     {
         // Origin 0: the slot base is just the slot top-left (the image composes
         // its origin + fit separately in updateTransform).
-        Mat2D base = Mat2D::fromTranslation(
-            Vec2D(participant->resolvedLeft(), participant->resolvedTop()));
+        Mat2D base = Mat2D::fromTranslation(layoutBaseTranslation(participant));
         m_WorldTransform =
             m_ParentTransformComponent->worldTransform() * base * m_Transform;
         return;
     }
 #endif
     Super::composeWorldTransform();
+}
+
+void Image::updateConstraints()
+{
+#ifdef WITH_RIVE_LAYOUT
+    auto* participant = layoutParticipant();
+    if (participant != nullptr)
+    {
+        participant->applyLayoutConstraints();
+    }
+#endif
+    Super::updateConstraints();
 }
 
 LayoutParticipant* Image::layoutParticipant() const

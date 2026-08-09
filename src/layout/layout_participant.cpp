@@ -5,6 +5,7 @@
 #include "rive/layout/grid_track.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/layout/layout_style_applier.hpp"
+#include "rive/constraints/layout_constraint.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/intrinsically_sizeable.hpp"
 #include "rive/component.hpp"
@@ -75,6 +76,14 @@ TransformComponent* LayoutParticipant::transformComponent()
     return (p != nullptr && p->is<TransformComponent>())
                ? p->as<TransformComponent>()
                : nullptr;
+}
+
+void LayoutParticipant::applyLayoutConstraints()
+{
+    for (auto parentConstraint : layoutConstraints())
+    {
+        parentConstraint->constrainChild(this);
+    }
 }
 
 LayoutComponent* LayoutParticipant::owningLayout()

@@ -219,8 +219,7 @@ void ScrollConstraint::constrainChild(LayoutNodeProvider* child)
     {
         return;
     }
-    auto targetTransform =
-        Mat2D::multiply(component->worldTransform(), m_scrollTransform);
+    auto targetTransform = offsetInParentFrame(component, m_scrollTransform);
     TransformConstraint::constrainWorld(component,
                                         component->worldTransform(),
                                         m_componentsA,

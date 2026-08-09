@@ -47,10 +47,8 @@ const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
         {
             if (parent()->is<TransformComponent>())
             {
-                Mat2D components =
-                    parent()->as<TransformComponent>()->transform();
-                offsetPosition.x = components[4];
-                offsetPosition.y = components[5];
+                offsetPosition =
+                    parent()->as<TransformComponent>()->composedTranslation();
             }
         }
         transformB[4] = position.x + offsetPosition.x;
@@ -74,7 +72,7 @@ void FollowPathConstraint::constrain(TransformComponent* component)
     auto transformComponents = constrainHelper(component->worldTransform(),
                                                transformB,
                                                targetParentWorld);
-    component->mutableWorldTransform() = Mat2D::compose(transformComponents);
+    composeLandingAnchor(component, transformComponents, strength());
 }
 
 TransformComponents FollowPathConstraint::constrainHelper(

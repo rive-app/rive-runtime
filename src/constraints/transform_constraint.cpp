@@ -51,6 +51,9 @@ void TransformConstraint::constrain(TransformComponent* component)
                                         transformB,
                                         m_ComponentsB,
                                         strength());
+    // Only here: constrainWorld is also the scroll constraints' generic blend,
+    // and they target their own transform plus a delta, with no anchor to land.
+    landAnchor(component, strength());
 }
 
 void TransformConstraint::constrainWorld(TransformComponent* component,

@@ -2,10 +2,9 @@
  * Copyright 2026 Rive
  */
 
-// Verifies that a ComponentOrigin child gives its owner an origin: on a nested
-// artboard it overrides the mounted instance's origin, on a layout it is the
-// pivot rotation/scale compose about. Owners without the child are left
-// untouched (the zero-cost common case).
+// A ComponentOrigin child gives its owner an origin: on a nested artboard it
+// overrides the mounted instance's, on a layout it is the rotation/scale pivot
+// and the anchor constraints target. Owners without the child are untouched.
 
 #include <rive/artboard.hpp>
 #include <rive/nested_artboard.hpp>
@@ -56,8 +55,9 @@ TEST_CASE("ComponentOrigin overrides the mounted instance origin", "[file]")
     REQUIRE(instance->originY() == 0.75f);
 }
 
-// The same child on a LayoutComponent is the pivot its rotation/scale compose
-// about. assets/layout/stack.riv puts a fixed 40x40 box at (160,160).
+// On a LayoutComponent the box stays where the layout engine placed it; the
+// origin is only the pivot. assets/layout/stack.riv has a 40x40 box at
+// (160,160).
 TEST_CASE("ComponentOrigin pivots a layout's transform", "[layout]")
 {
     auto file = ReadRiveFile("assets/layout/stack.riv");
@@ -79,9 +79,8 @@ TEST_CASE("ComponentOrigin pivots a layout's transform", "[layout]")
     REQUIRE(box != nullptr);
     REQUIRE(box->layoutWidth() == 40.0f);
 
-    // Control: rotating with no origin child pivots at the slot's top-left, so
-    // the translation is the slot itself. Check the rotation landed too —
-    // translation alone can't tell an applied rotation from a skipped update.
+    // Control: no origin child pivots at the top-left. Check the rotation
+    // landed too — translation alone can't tell it from a skipped update.
     box->rotation(math::PI / 2.0f);
     artboard->advance(0.0f);
     REQUIRE(box->worldTransform().xx() == Approx(0.0f).margin(1e-6));
@@ -89,10 +88,9 @@ TEST_CASE("ComponentOrigin pivots a layout's transform", "[layout]")
     REQUIRE(box->worldTransform().tx() == Approx(160.0f));
     REQUIRE(box->worldTransform().ty() == Approx(160.0f));
 
-    // Pivot at the box's center: the 90 degree rotation now swings the box
-    // about (20,20), moving its origin to (200,160). Parent through
-    // onAddedDirty rather than addChild alone — addChild only fills the child
-    // list, and the origin needs parent() to dirty its owner on a change.
+    // Pivot at the center: the quarter turn swings the top-left to (200,160).
+    // Parent through onAddedDirty — addChild alone only fills the child list,
+    // and the origin needs parent() to dirty its owner.
     auto origin = new ComponentOrigin();
     artboard->addObject(origin);
     origin->parentId(artboard->idOf(box));
@@ -101,8 +99,14 @@ TEST_CASE("ComponentOrigin pivots a layout's transform", "[layout]")
     origin->originX(0.5f);
     origin->originY(0.5f);
     artboard->advance(0.0f);
+    REQUIRE(box->originOffset().x == Approx(20.0f));
     REQUIRE(box->worldTransform().tx() == Approx(200.0f));
     REQUIRE(box->worldTransform().ty() == Approx(160.0f));
+
+    // Local zero is the top-left, so nothing inside compensates.
+    REQUIRE(box->localBounds().left() == Approx(0.0f));
+    // ...and the origin is the anchor constraints target.
+    REQUIRE(box->localAnchor().x == Approx(20.0f));
 }
 
 TEST_CASE("Animated origin and click events", "[silver]")

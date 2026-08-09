@@ -100,6 +100,16 @@
       },
       "description": "Whether the scroll constraint should virtualize its items."
     },
+    "virtualizeBuffer": {
+      "type": "uint8",
+      "initialValue": "0",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 221,
+        "string": "virtualizebuffer"
+      },
+      "description": "Number of lines kept realized on each side of the visible range when virtualizing. A non-wrapping list has one item per line. Buffered items are positioned, advanced, and drawn (typically clipped by the viewport)."
+    },
     "infinite": {
       "type": "bool",
       "initialValue": "false",

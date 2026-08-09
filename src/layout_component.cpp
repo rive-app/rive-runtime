@@ -112,8 +112,8 @@ void forEachLayoutProvider(Component* from, F&& visit, bool nested = false)
     }
 }
 
-// The optional origin child, or nullptr. Walked rather than cached, matching
-// how NestedArtboard resolves the same child in this runtime.
+// Only reached when m_hasComponentOrigin says one exists, so the common case
+// never walks.
 ComponentOrigin* originChild(const ContainerComponent* owner)
 {
     for (auto* child : owner->children())
@@ -133,12 +133,20 @@ uint32_t LayoutData::count = 0;
 
 float LayoutComponent::pivotOriginX() const
 {
+    if (!m_hasComponentOrigin)
+    {
+        return 0.0f;
+    }
     auto* origin = originChild(this);
     return origin != nullptr ? origin->originX() : 0.0f;
 }
 
 float LayoutComponent::pivotOriginY() const
 {
+    if (!m_hasComponentOrigin)
+    {
+        return 0.0f;
+    }
     auto* origin = originChild(this);
     return origin != nullptr ? origin->originY() : 0.0f;
 }
@@ -213,6 +221,97 @@ Core* LayoutComponent::clone() const
     return twin;
 }
 
+bool LayoutComponent::composesLayoutOffset() const
+{
+    return m_composeTransform && !is<Artboard>();
+}
+
+Vec2D LayoutComponent::localAnchor() const
+{
+    if (!m_hasComponentOrigin || is<Artboard>())
+    {
+        return Vec2D();
+    }
+    return originOffset();
+}
+
+Vec2D LayoutComponent::originOffset() const
+{
+    return Vec2D(pivotOriginX() * m_layout.width(),
+                 pivotOriginY() * m_layout.height());
+}
+
+Vec2D LayoutComponent::layoutTranslation() const
+{
+    // Our own origin deliberately does not enter here: contents sit within
+    // our box whatever it is, so nothing inside has to compensate. An
+    // artboard's origin does define where its local zero sits, so step back
+    // by it to align to its box.
+    auto location = Vec2D(m_layout.left(), m_layout.top());
+    if (parent() != nullptr && parent()->is<Artboard>())
+    {
+        auto art = parent()->as<Artboard>();
+        location -= Vec2D(art->layoutWidth() * art->originX(),
+                          art->layoutHeight() * art->originY());
+    }
+    return location;
+}
+
+Mat2D LayoutComponent::buildOwnTransform() const
+{
+    // Outermost, matching TransformComponent's T * R * S, so the offset is
+    // not rotated or scaled by our own transform.
+    Mat2D own =
+        composesLayoutOffset()
+            ? Mat2D::fromTranslation(Vec2D(NodeBase::x(), NodeBase::y()))
+            : Mat2D();
+
+    // Pivot about the origin. The box stays put, so wrap rather than fold
+    // into the frame.
+    if (m_composeTransform &&
+        (rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f))
+    {
+        Mat2D local =
+            rotation() != 0.0f ? Mat2D::fromRotation(rotation()) : Mat2D();
+        local.scaleByValues(scaleX(), scaleY());
+        auto pivot = originOffset();
+        if (pivot.x != 0.0f || pivot.y != 0.0f)
+        {
+            local = Mat2D::multiply(
+                Mat2D::fromTranslate(pivot.x, pivot.y),
+                Mat2D::multiply(local,
+                                Mat2D::fromTranslate(-pivot.x, -pivot.y)));
+        }
+        own = Mat2D::multiply(own, local);
+    }
+    return own;
+}
+
+float LayoutComponent::computedRootX()
+{
+    return artboard()->rootTransform(worldTransform() * localAnchor()).x;
+}
+
+float LayoutComponent::computedRootY()
+{
+    return artboard()->rootTransform(worldTransform() * localAnchor()).y;
+}
+
+void LayoutComponent::updateTransform() { m_Transform = buildOwnTransform(); }
+
+void LayoutComponent::composeWorldTransform()
+{
+    Mat2D parentWorld =
+        parent() != nullptr && parent()->is<WorldTransformComponent>()
+            ? parent()->as<WorldTransformComponent>()->worldTransform()
+            : Mat2D();
+    // Insert where the layout placed us, the same shape Shape/Text/Image
+    // use for a participant.
+    Mat2D base = Mat2D::fromTranslation(layoutTranslation());
+    m_WorldTransform =
+        Mat2D::multiply(Mat2D::multiply(parentWorld, base), m_Transform);
+}
+
 void LayoutComponent::update(ComponentDirt value)
 {
     Super::update(value);
@@ -229,41 +328,10 @@ void LayoutComponent::update(ComponentDirt value)
     }
     if (parent() != nullptr && hasDirt(value, ComponentDirt::WorldTransform))
     {
-        Mat2D parentWorld =
-            parent()->is<WorldTransformComponent>()
-                ? (parent()->as<WorldTransformComponent>())->worldTransform()
-                : Mat2D();
-        auto location = Vec2D(m_layout.left(), m_layout.top());
-        if (parent()->is<Artboard>())
-        {
-            auto art = parent()->as<Artboard>();
-            location -= Vec2D(art->layoutWidth() * art->originX(),
-                              art->layoutHeight() * art->originY());
-        }
-        auto slot = Mat2D::fromTranslation(location);
-
-        // Apply the node's own rotation/scale on top of the layout slot,
-        // pivoting at the origin (default 0,0 = top-left). x/y offset:
-        // follow-up.
-        if (m_composeTransform &&
-            (rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f))
-        {
-            Mat2D local =
-                rotation() != 0.0f ? Mat2D::fromRotation(rotation()) : Mat2D();
-            local.scaleByValues(scaleX(), scaleY());
-            float ox = pivotOriginX();
-            float oy = pivotOriginY();
-            if (ox != 0.0f || oy != 0.0f)
-            {
-                float px = ox * layoutWidth();
-                float py = oy * layoutHeight();
-                local = Mat2D::multiply(
-                    Mat2D::fromTranslate(px, py),
-                    Mat2D::multiply(local, Mat2D::fromTranslate(-px, -py)));
-            }
-            slot = Mat2D::multiply(slot, local);
-        }
-        m_WorldTransform = Mat2D::multiply(parentWorld, slot);
+        // Not left to Super's Transform-dirt pass: the pivot scales by the
+        // solved size, so a re-solve alone can stale it.
+        m_Transform = buildOwnTransform();
+        composeWorldTransform();
         updateConstraints();
     }
     if (hasDirt(value,
@@ -532,12 +600,13 @@ void LayoutComponent::updateRenderPath()
     }
 
     m_backgroundRawPath.rewind();
-    Path::addRoundedRect(m_backgroundRawPath,
-                         AABB{0.0f, 0.0f, m_layout.width(), m_layout.height()},
-                         tl,
-                         tr,
-                         br,
-                         bl);
+    Path::addRoundedRect(
+        m_backgroundRawPath,
+        AABB::fromLTWH(0.0f, 0.0f, m_layout.width(), m_layout.height()),
+        tl,
+        tr,
+        br,
+        bl);
 
     m_localPath.rewind();
     m_localPath.addPath(m_backgroundRawPath);

@@ -117,6 +117,12 @@ public:
     bool isParticipatingInLayout() const;
     void composeWorldTransform() override;
 
+protected:
+    void updateConstraints() override;
+
+public:
+    Vec2D layoutBaseTranslation(LayoutParticipant* participant) const;
+
     bool hitTestAABB(const Vec2D& position);
     bool hitTestHiFi(const Vec2D& position, float hitRadius);
     bool hitTestPoint(const Vec2D& position,

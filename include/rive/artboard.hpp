@@ -387,6 +387,8 @@ public:
     float layoutHeight() const;
     float layoutX() const;
     float layoutY() const;
+    float pivotOriginX() const override { return originX(); }
+    float pivotOriginY() const override { return originY(); }
     AABB bounds() const;
     AABB worldBounds() const override;
     Vec2D origin() const;

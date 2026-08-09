@@ -1,13 +1,17 @@
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/constraints/scrolling/scroll_virtualizer.hpp"
+#include <algorithm>
 #include <set>
 
 using namespace rive;
 
 ScrollVirtualizer::~ScrollVirtualizer() { reset(); }
 
-void ScrollVirtualizer::reset() { m_visibleIndexStart = m_visibleIndexEnd = 0; }
+void ScrollVirtualizer::reset()
+{
+    m_realizedIndexStart = m_realizedIndexEnd = 0;
+}
 
 bool ScrollVirtualizer::constrain(ScrollConstraint* scroll,
                                   std::vector<LayoutNodeProvider*>& children,
@@ -64,15 +68,15 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
     // ranges of the previous render to the ranges of the upcoming list. This is
     // removing the carousel overflow.
     // normalizing the two values to the actual indexes of available children
-    int lastVisibleIndexStart = m_infinite && totalItemCount > 0
-                                    ? m_visibleIndexStart % totalItemCount
-                                    : m_visibleIndexStart;
-    int lastVisibleIndexEnd = m_infinite && totalItemCount > 0
-                                  ? m_visibleIndexEnd % totalItemCount
-                                  : m_visibleIndexEnd;
+    int lastRealizedIndexStart = m_infinite && totalItemCount > 0
+                                     ? m_realizedIndexStart % totalItemCount
+                                     : m_realizedIndexStart;
+    int lastRealizedIndexEnd = m_infinite && totalItemCount > 0
+                                   ? m_realizedIndexEnd % totalItemCount
+                                   : m_realizedIndexEnd;
 
-    m_visibleIndexStart = 0;
-    m_visibleIndexEnd = totalItemCount - 1;
+    m_realizedIndexStart = 0;
+    m_realizedIndexEnd = totalItemCount - 1;
     float runningSize = 0.0f;
     float runningOffset = 0.0f;
     int runningIndex = 0;
@@ -92,6 +96,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
             if (virt != nullptr)
             {
                 virt->setVisibleIndices(-1, -1);
+                virt->setRealizedIndices(-1, -1);
             }
         }
     }
@@ -105,7 +110,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
             if (runningSize + size > m_offset)
             {
                 runningOffset = runningSize - m_offset;
-                m_visibleIndexStart = runningIndex;
+                m_realizedIndexStart = runningIndex;
                 if (currentChildIndex == children.size() - 1)
                 {
                     childIndex++;
@@ -137,7 +142,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
                 }
                 runningSize += gap;
                 runningOffset = runningSize - m_offset;
-                m_visibleIndexStart = runningIndex;
+                m_realizedIndexStart = runningIndex;
                 goto findVisibleEnd;
             }
             runningSize += gap;
@@ -147,7 +152,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
 
 findVisibleEnd:
     childIndex = childIndex % children.size();
-    int i = m_visibleIndexStart;
+    int i = m_realizedIndexStart;
     bool wrapped = false;
     int cycleCount = 0;
     while (i < totalItemCount && cycleCount < 2)
@@ -158,7 +163,7 @@ findVisibleEnd:
             auto size = getItemSize(child, j, isHorz);
             if (runningSize + size + gap >= m_offset + m_viewportSize)
             {
-                m_visibleIndexEnd =
+                m_realizedIndexEnd =
                     m_infinite ? (wrapped ? i + totalItemCount : i) : i;
                 goto recycle;
             }
@@ -176,13 +181,54 @@ findVisibleEnd:
     }
 
 recycle:
+    // Keep `virtualizeBuffer` lines realized on each side of the visible range
+    // so items are mounted and advancing before they scroll in. Buffered items
+    // are drawn (clipped away by a normal viewport), but stay out of the
+    // visible range, which is what reports measured sizes back to us.
+    int visibleIndexStart = m_realizedIndexStart;
+    int visibleIndexEnd = m_realizedIndexEnd;
+    int buffer =
+        std::min(static_cast<int>(scroll->virtualizeBuffer()), totalItemCount);
+    if (buffer > 0 && totalItemCount > 0)
+    {
+        int visibleSpan = m_realizedIndexEnd - m_realizedIndexStart + 1;
+        int maxExtra = std::max(0, totalItemCount - visibleSpan);
+        int before =
+            std::min(buffer, m_infinite ? maxExtra : m_realizedIndexStart);
+        int after =
+            std::min(buffer,
+                     m_infinite ? maxExtra - before
+                                : totalItemCount - 1 - m_realizedIndexEnd);
+        before = std::max(0, before);
+        after = std::max(0, after);
+        for (int k = 1; k <= before; k++)
+        {
+            runningOffset -= getItemSizeAt(m_realizedIndexStart - k,
+                                           children,
+                                           totalItemCount,
+                                           isHorz) +
+                             gap;
+        }
+        m_realizedIndexStart -= before;
+        m_realizedIndexEnd += after;
+        if (m_infinite)
+        {
+            // Indices are modular when infinite, so bias the widened range into
+            // positive space and keep the visible bounds in the same frame.
+            m_realizedIndexStart += totalItemCount;
+            m_realizedIndexEnd += totalItemCount;
+            visibleIndexStart += totalItemCount;
+            visibleIndexEnd += totalItemCount;
+        }
+    }
+
     std::vector<int> indicesToRecycle;
     int actualStart = m_infinite && totalItemCount > 0
-                          ? m_visibleIndexStart % totalItemCount
-                          : m_visibleIndexStart;
+                          ? m_realizedIndexStart % totalItemCount
+                          : m_realizedIndexStart;
     int actualEnd = m_infinite && totalItemCount > 0
-                        ? m_visibleIndexEnd % totalItemCount
-                        : m_visibleIndexEnd;
+                        ? m_realizedIndexEnd % totalItemCount
+                        : m_realizedIndexEnd;
     std::unordered_map<int, bool> usedIndexes = {};
     // If start < end it means that the range is not going over
     // the end of the list, so we know we can add the full range to the used
@@ -210,10 +256,10 @@ recycle:
     }
     // Similarly, we check the previous ranges and check which
     // ones overlap with the new range and which ones can be recycled.
-    if (lastVisibleIndexStart <= lastVisibleIndexEnd)
+    if (lastRealizedIndexStart <= lastRealizedIndexEnd)
     {
 
-        for (int i = lastVisibleIndexStart; i <= lastVisibleIndexEnd; i++)
+        for (int i = lastRealizedIndexStart; i <= lastRealizedIndexEnd; i++)
         {
             if (usedIndexes.find(i) == usedIndexes.end())
             {
@@ -224,14 +270,14 @@ recycle:
     else
     {
 
-        for (int i = lastVisibleIndexStart; i < totalItemCount; i++)
+        for (int i = lastRealizedIndexStart; i < totalItemCount; i++)
         {
             if (usedIndexes.find(i) == usedIndexes.end())
             {
                 indicesToRecycle.push_back(i);
             }
         }
-        for (int i = 0; i <= lastVisibleIndexEnd; i++)
+        for (int i = 0; i <= lastRealizedIndexEnd; i++)
         {
             if (usedIndexes.find(i) == usedIndexes.end())
             {
@@ -242,10 +288,14 @@ recycle:
     recycleItems(indicesToRecycle, children, totalItemCount);
 
     std::vector<Vec2D> visibleIndices(children.size(), Vec2D(-1, -1));
+    std::vector<Vec2D> realizedIndices(children.size(), Vec2D(-1, -1));
 
-    for (int i = m_visibleIndexStart; i <= m_visibleIndexEnd; ++i)
+    for (int i = m_realizedIndexStart; i <= m_realizedIndexEnd; ++i)
     {
         int actualIndex = m_infinite ? i % totalItemCount : i;
+        // Buffered items are realized and drawn, but only on screen items
+        // report their measured size back.
+        bool isVisible = i >= visibleIndexStart && i <= visibleIndexEnd;
         int runningTotal = 0;
         for (int i = 0; i < children.size(); i++)
         {
@@ -261,12 +311,21 @@ recycle:
                     if (actualIndex < end && actualIndex >= start)
                     {
                         int childIndex = actualIndex - start;
-                        auto& visibleInd = visibleIndices[i];
-                        if (visibleInd.x == -1)
+                        auto& realizedInd = realizedIndices[i];
+                        if (realizedInd.x == -1)
                         {
-                            visibleInd.x = childIndex;
+                            realizedInd.x = childIndex;
                         }
-                        visibleInd.y = childIndex;
+                        realizedInd.y = childIndex;
+                        if (isVisible)
+                        {
+                            auto& visibleInd = visibleIndices[i];
+                            if (visibleInd.x == -1)
+                            {
+                                visibleInd.x = childIndex;
+                            }
+                            visibleInd.y = childIndex;
+                        }
                         auto item = virt->item(childIndex);
                         if (item == nullptr)
                         {
@@ -322,6 +381,8 @@ recycle:
             if (virt != nullptr)
             {
                 virt->setVisibleIndices(visible.x, visible.y);
+                auto realized = realizedIndices[i];
+                virt->setRealizedIndices(realized.x, realized.y);
             }
         }
     }
@@ -367,6 +428,34 @@ void ScrollVirtualizer::recycleItems(std::vector<int> indices,
             runningTotal = end;
         }
     }
+}
+
+float ScrollVirtualizer::getItemSizeAt(
+    int globalIndex,
+    std::vector<LayoutNodeProvider*>& children,
+    int totalItemCount,
+    bool isHorizontal)
+{
+    if (totalItemCount <= 0)
+    {
+        return 0.0f;
+    }
+    int index = globalIndex % totalItemCount;
+    if (index < 0)
+    {
+        index += totalItemCount;
+    }
+    int runningTotal = 0;
+    for (auto child : children)
+    {
+        int end = runningTotal + (int)child->numLayoutNodes();
+        if (index < end)
+        {
+            return getItemSize(child, index - runningTotal, isHorizontal);
+        }
+        runningTotal = end;
+    }
+    return 0.0f;
 }
 
 float ScrollVirtualizer::getItemSize(LayoutNodeProvider* child,

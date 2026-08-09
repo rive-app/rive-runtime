@@ -186,6 +186,12 @@ public:
     // Participates in a parent layout via an optional
     // LayoutParticipant child (origin-based; text sizes via its own layout).
     void composeWorldTransform() override;
+
+protected:
+    void updateConstraints() override;
+
+public:
+    Vec2D layoutBaseTranslation(LayoutParticipant* participant) const;
     LayoutParticipant* layoutParticipant() const;
     bool isParticipatingInLayout() const;
 

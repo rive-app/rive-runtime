@@ -36,6 +36,8 @@ public:
     // measure/size.
     TransformComponent* transformComponent() override;
 
+    void applyLayoutConstraints();
+
     StatusCode onAddedClean(CoreContext* context) override;
 
 #ifdef WITH_RIVE_LAYOUT

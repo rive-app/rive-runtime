@@ -5,6 +5,21 @@
 
 using namespace rive;
 
+StatusCode ComponentOrigin::onAddedDirty(CoreContext* context)
+{
+    StatusCode code = Super::onAddedDirty(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+    auto* owner = parent();
+    if (owner != nullptr && owner->is<LayoutComponent>())
+    {
+        owner->as<LayoutComponent>()->markHasComponentOrigin();
+    }
+    return StatusCode::Ok;
+}
+
 void ComponentOrigin::reapply()
 {
     auto* owner = parent();

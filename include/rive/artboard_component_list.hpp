@@ -115,6 +115,11 @@ public:
     {
         m_visibleStartIndex = start;
         m_visibleEndIndex = end;
+    }
+    void setRealizedIndices(int start, int end) override
+    {
+        m_realizedStartIndex = start;
+        m_realizedEndIndex = end;
         invalidateOrderedListIndicesCache();
     }
     void shouldResetInstances(bool value) { m_shouldResetInstances = value; }
@@ -172,6 +177,7 @@ private:
     void linkStateMachineToArtboard(StateMachineInstance* stateMachineInstance,
                                     ArtboardInstance* artboard);
     void computeLayoutBounds();
+    bool isWithinVisibleWindow(int index) const;
     void createArtboardRecorders(const Artboard*);
     void applyRecorders(Artboard* artboard, const Artboard* sourceArtboard);
     void applyRecorders(StateMachineInstance* stateMachineInstance,
@@ -203,6 +209,8 @@ private:
     Vec2D m_layoutSize;
     int m_visibleStartIndex = -1;
     int m_visibleEndIndex = -1;
+    int m_realizedStartIndex = -1;
+    int m_realizedEndIndex = -1;
     std::unordered_map<ArtboardInstance*, ArtboardComponentListOverride*>
         m_artboardOverridesMap;
     std::unordered_map<int, int> m_artboardMapRules;

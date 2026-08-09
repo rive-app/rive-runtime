@@ -14,6 +14,9 @@ namespace rive
 /// every artboard sets one and the property predates this object.
 class ComponentOrigin : public ComponentOriginBase
 {
+public:
+    StatusCode onAddedDirty(CoreContext* context) override;
+
 protected:
     void originXChanged() override;
     void originYChanged() override;

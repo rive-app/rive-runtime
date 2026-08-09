@@ -1050,6 +1050,9 @@ public:
             case ScrollConstraintBase::physicsIdPropertyKey:
                 object->as<ScrollConstraintBase>()->physicsId(value);
                 break;
+            case ScrollConstraintBase::virtualizeBufferPropertyKey:
+                object->as<ScrollConstraintBase>()->virtualizeBuffer(value);
+                break;
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
                 object->as<ScrollBarConstraintBase>()->scrollConstraintId(
                     value);
@@ -3337,6 +3340,8 @@ public:
                 return object->as<ScrollConstraintBase>()->physicsTypeValue();
             case ScrollConstraintBase::physicsIdPropertyKey:
                 return object->as<ScrollConstraintBase>()->physicsId();
+            case ScrollConstraintBase::virtualizeBufferPropertyKey:
+                return object->as<ScrollConstraintBase>()->virtualizeBuffer();
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
                 return object->as<ScrollBarConstraintBase>()
                     ->scrollConstraintId();
@@ -4616,6 +4621,7 @@ public:
             case DraggableConstraintBase::directionValuePropertyKey:
             case ScrollConstraintBase::physicsTypeValuePropertyKey:
             case ScrollConstraintBase::physicsIdPropertyKey:
+            case ScrollConstraintBase::virtualizeBufferPropertyKey:
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
             case DrawableBase::blendModeValuePropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
@@ -5295,6 +5301,8 @@ public:
             case ScrollConstraintBase::physicsTypeValuePropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::physicsIdPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::virtualizeBufferPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
                 return object->is<ScrollBarConstraintBase>();

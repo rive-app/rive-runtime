@@ -127,5 +127,5 @@ void ScaleConstraint::constrain(TransformComponent* component)
                          m_ComponentsB.scaleY() * t);
     m_ComponentsB.skew(m_ComponentsA.skew());
 
-    component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
+    composeKeepingAnchor(component, m_ComponentsB);
 }

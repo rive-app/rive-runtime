@@ -620,31 +620,45 @@ bool Shape::isParticipatingInLayout() const
     return layoutParticipant() != nullptr;
 }
 
+Vec2D Shape::layoutBaseTranslation(LayoutParticipant* participant) const
+{
+    assert(participant != nullptr);
+    AABB intrinsic = computeIntrinsicBounds();
+    return Vec2D(participant->resolvedLeft() -
+                     intrinsic.left() * participant->hostScaleX(),
+                 participant->resolvedTop() -
+                     intrinsic.top() * participant->hostScaleY());
+}
+
 void Shape::composeWorldTransform()
 {
 #ifdef WITH_RIVE_LAYOUT
     auto* participant = layoutParticipant();
     if (participant != nullptr && m_ParentTransformComponent != nullptr)
     {
-        // Insert the resolved slot base between parent-world and our local
-        // transform; the scale is innermost so it fits the geometry to the
-        // slot, with the node's own transform composing on top. Anchor our
-        // vertex-bounds top-left at the slot (bounds computed once for both
-        // axes, as computeIntrinsicBounds walks every path).
-        AABB intrinsic = computeIntrinsicBounds();
+        // Scale innermost so it fits the geometry to the resolved box, with
+        // our own transform composing on top.
         float scaleX = participant->hostScaleX();
         float scaleY = participant->hostScaleY();
-        float anchorX = -intrinsic.left() * scaleX;
-        float anchorY = -intrinsic.top() * scaleY;
-        Mat2D base =
-            Mat2D::fromTranslation(Vec2D(participant->resolvedLeft() + anchorX,
-                                         participant->resolvedTop() + anchorY));
+        Mat2D base = Mat2D::fromTranslation(layoutBaseTranslation(participant));
         m_WorldTransform = m_ParentTransformComponent->worldTransform() * base *
                            m_Transform * Mat2D::fromScale(scaleX, scaleY);
         return;
     }
 #endif
     Super::composeWorldTransform();
+}
+
+void Shape::updateConstraints()
+{
+#ifdef WITH_RIVE_LAYOUT
+    auto* participant = layoutParticipant();
+    if (participant != nullptr)
+    {
+        participant->applyLayoutConstraints();
+    }
+#endif
+    Super::updateConstraints();
 }
 
 ShapePaintPath* Shape::worldPath() { return m_PathComposer.worldPath(); }
