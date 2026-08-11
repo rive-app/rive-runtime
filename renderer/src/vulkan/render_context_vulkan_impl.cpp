@@ -4113,6 +4113,13 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     }
 
     impl->initGPUObjects(contextOptions.shaderCompilationMode);
+    if (!impl->m_nullImageTexture ||
+        impl->m_nullImageTexture->vkImageView() == VK_NULL_HANDLE)
+    {
+        PRINT_ERROR_LINE(
+            "ERROR: Failed to initialize Vulkan GPU objects and pipelines.");
+        return nullptr;
+    }
     return std::make_unique<RenderContext>(std::move(impl));
 }
 } // namespace rive::gpu

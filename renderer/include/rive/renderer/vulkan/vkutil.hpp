@@ -36,7 +36,7 @@ constexpr static uint32_t Samsung = 0x144d;
 
 const char* string_from_vk_result(VkResult);
 
-inline static void vk_check(VkResult res, const char* file, int line)
+inline static bool vk_check(VkResult res, const char* file, int line)
 {
     if (res != VK_SUCCESS)
     {
@@ -46,8 +46,9 @@ inline static void vk_check(VkResult res, const char* file, int line)
                 res,
                 line,
                 file);
-        abort();
+        return false;
     }
+    return true;
 }
 
 #define VK_CHECK(x) ::rive::gpu::vkutil::vk_check(x, __FILE__, __LINE__)

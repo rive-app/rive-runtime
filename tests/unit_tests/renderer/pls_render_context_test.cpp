@@ -6,6 +6,11 @@
 #include "common/render_context_null.hpp"
 #include <catch.hpp>
 
+#ifdef RIVE_VULKAN
+#include "rive/renderer/vulkan/vkutil.hpp"
+#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#endif
+
 // Rather than spot-disabling this warning at call sites, for test code
 //  we can just disable it for the whole file.
 DISABLE_CLANG_SIMD_ABI_WARNING()
@@ -520,4 +525,23 @@ TEST_CASE("MapFailureUnwind", "[RenderContext]")
         CHECK(ctx.testingImpl()->totalMapCount() == 0);
     }
 }
+
+#ifdef RIVE_VULKAN
+// Verify that vk_check returns false on Vulkan error codes instead of calling abort().
+TEST_CASE("VulkanCheckErrorHandling", "[RenderContext]")
+{
+    CHECK_FALSE(vkutil::vk_check(VK_ERROR_INITIALIZATION_FAILED, __FILE__, __LINE__));
+    CHECK_FALSE(vkutil::vk_check(VK_ERROR_OUT_OF_DEVICE_MEMORY, __FILE__, __LINE__));
+    CHECK_FALSE(vkutil::vk_check(VK_ERROR_DEVICE_LOST, __FILE__, __LINE__));
+    CHECK(vkutil::vk_check(VK_SUCCESS, __FILE__, __LINE__));
+}
+
+// Verify that RenderContextVulkanImpl::MakeContext returns nullptr cleanly when Vulkan GPU object initialization fails.
+TEST_CASE("VulkanMakeContextFailureFallback", "[RenderContext]")
+{
+    auto context = RenderContextVulkanImpl::MakeContext(
+        VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, {}, nullptr);
+    CHECK(context == nullptr);
+}
+#endif
 } // namespace rive::gpu
