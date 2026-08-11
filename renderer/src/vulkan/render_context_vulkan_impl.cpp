@@ -828,10 +828,14 @@ public:
             .pSetLayouts = pipelineDescriptorSetLayouts,
         };
 
-        VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
-                                            &pipelineLayoutCreateInfo,
-                                            nullptr,
-                                            &m_pipelineLayout));
+        if (m_vk->CreatePipelineLayout(m_vk->device,
+                                       &pipelineLayoutCreateInfo,
+                                       nullptr,
+                                       &m_pipelineLayout) != VK_SUCCESS)
+        {
+            m_pipelineLayout = VK_NULL_HANDLE;
+            return;
+        }
 
         VkShaderModuleCreateInfo shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -840,10 +844,13 @@ public:
         };
 
         VkShaderModule vertexShader;
-        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
-                                          &shaderModuleCreateInfo,
-                                          nullptr,
-                                          &vertexShader));
+        if (m_vk->CreateShaderModule(m_vk->device,
+                                     &shaderModuleCreateInfo,
+                                     nullptr,
+                                     &vertexShader) != VK_SUCCESS)
+        {
+            return;
+        }
 
         shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -852,10 +859,14 @@ public:
         };
 
         VkShaderModule fragmentFillShader;
-        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
-                                          &shaderModuleCreateInfo,
-                                          nullptr,
-                                          &fragmentFillShader));
+        if (m_vk->CreateShaderModule(m_vk->device,
+                                     &shaderModuleCreateInfo,
+                                     nullptr,
+                                     &fragmentFillShader) != VK_SUCCESS)
+        {
+            m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
+            return;
+        }
 
         shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -864,10 +875,15 @@ public:
         };
 
         VkShaderModule fragmentStrokeShader;
-        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
-                                          &shaderModuleCreateInfo,
-                                          VK_NULL_HANDLE,
-                                          &fragmentStrokeShader));
+        if (m_vk->CreateShaderModule(m_vk->device,
+                                     &shaderModuleCreateInfo,
+                                     VK_NULL_HANDLE,
+                                     &fragmentStrokeShader) != VK_SUCCESS)
+        {
+            m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
+            m_vk->DestroyShaderModule(m_vk->device, fragmentFillShader, nullptr);
+            return;
+        }
 
         VkPipelineShaderStageCreateInfo stages[] = {
             {
@@ -915,24 +931,38 @@ public:
 
         stages[1].module = fragmentFillShader;
         blendState.colorBlendOp = VK_BLEND_OP_ADD;
-        VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
-                                               VK_NULL_HANDLE,
-                                               1,
-                                               &pipelineCreateInfo,
-                                               nullptr,
-                                               &m_fillPipeline));
+        if (m_vk->CreateGraphicsPipelines(m_vk->device,
+                                          VK_NULL_HANDLE,
+                                          1,
+                                          &pipelineCreateInfo,
+                                          nullptr,
+                                          &m_fillPipeline) != VK_SUCCESS)
+        {
+            m_fillPipeline = VK_NULL_HANDLE;
+            m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
+            m_vk->DestroyShaderModule(m_vk->device, fragmentFillShader, nullptr);
+            m_vk->DestroyShaderModule(m_vk->device, fragmentStrokeShader, nullptr);
+            return;
+        }
         m_vk->setDebugNameIfEnabled(uint64_t(m_fillPipeline),
                                     VK_OBJECT_TYPE_PIPELINE,
                                     "Feather Atlas Fill Pipeline");
 
         stages[1].module = fragmentStrokeShader;
         blendState.colorBlendOp = VK_BLEND_OP_MAX;
-        VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
-                                               VK_NULL_HANDLE,
-                                               1,
-                                               &pipelineCreateInfo,
-                                               nullptr,
-                                               &m_strokePipeline));
+        if (m_vk->CreateGraphicsPipelines(m_vk->device,
+                                          VK_NULL_HANDLE,
+                                          1,
+                                          &pipelineCreateInfo,
+                                          nullptr,
+                                          &m_strokePipeline) != VK_SUCCESS)
+        {
+            m_strokePipeline = VK_NULL_HANDLE;
+            m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
+            m_vk->DestroyShaderModule(m_vk->device, fragmentFillShader, nullptr);
+            m_vk->DestroyShaderModule(m_vk->device, fragmentStrokeShader, nullptr);
+            return;
+        }
         m_vk->setDebugNameIfEnabled(uint64_t(m_strokePipeline),
                                     VK_OBJECT_TYPE_PIPELINE,
                                     "Feather Atlas Stroke Pipeline");
@@ -944,9 +974,15 @@ public:
 
     ~FeatherAtlasPipeline() override
     {
-        m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        m_vk->DestroyPipeline(m_vk->device, m_fillPipeline, nullptr);
-        m_vk->DestroyPipeline(m_vk->device, m_strokePipeline, nullptr);
+        if (m_pipelineLayout != VK_NULL_HANDLE) {
+            m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
+        }
+        if (m_fillPipeline != VK_NULL_HANDLE) {
+            m_vk->DestroyPipeline(m_vk->device, m_fillPipeline, nullptr);
+        }
+        if (m_strokePipeline != VK_NULL_HANDLE) {
+            m_vk->DestroyPipeline(m_vk->device, m_strokePipeline, nullptr);
+        }
     }
 
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
@@ -4113,6 +4149,17 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     }
 
     impl->initGPUObjects(contextOptions.shaderCompilationMode);
+
+    if (impl->m_featherAtlasPipeline == nullptr ||
+        impl->m_featherAtlasPipeline->pipelineLayout() == VK_NULL_HANDLE ||
+        impl->m_featherAtlasPipeline->fillPipeline() == VK_NULL_HANDLE ||
+        impl->m_featherAtlasPipeline->strokePipeline() == VK_NULL_HANDLE)
+    {
+        PRINT_ERROR_LINE(
+            "ERROR: Rive Vulkan renderer failed to initialize FeatherAtlasPipeline.");
+        return nullptr;
+    }
+
     return std::make_unique<RenderContext>(std::move(impl));
 }
 } // namespace rive::gpu
