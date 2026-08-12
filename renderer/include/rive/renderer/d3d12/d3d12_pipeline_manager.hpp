@@ -2,6 +2,7 @@
  * Copyright 2025 Rive
  */
 #pragma once
+#include "rive/math/bitwise.hpp"
 #include "rive/renderer/d3d12/d3d12.hpp"
 #include "rive/renderer/d3d/pipeline_manager.hpp"
 #include "rive/renderer/gpu.hpp"
@@ -9,6 +10,31 @@
 
 namespace rive::gpu
 {
+// D3D12 bakes the rasterizer fill mode into the pipeline state object, so
+// (unlike D3D11, which swaps rasterizer state at draw time) wireframe has to be
+// part of the pipeline key. Extend the standard props with a wireframe bit.
+struct D3D12PipelineProps
+{
+    DrawType drawType;
+    ShaderFeatures shaderFeatures;
+    InterlockMode interlockMode;
+    ShaderMiscFlags shaderMiscFlags;
+    bool wireframe;
+#ifdef WITH_RIVE_TOOLS
+    SynthesizedFailureType synthesizedFailureType =
+        SynthesizedFailureType::none;
+#endif
+
+    uint32_t createKey(const PlatformFeatures&) const
+    {
+        uint32_t key = gpu::ShaderUniqueKey(drawType,
+                                            shaderFeatures,
+                                            interlockMode,
+                                            shaderMiscFlags);
+        return math::add_bits_to_key(key, uint32_t(wireframe), 1);
+    }
+};
+
 // holds all shader stuff including inputlayouts, source blobs and pipeline
 // states
 struct D3D12DrawVertexShader
@@ -28,7 +54,7 @@ struct D3D12Pipeline
 {
     using VertexShaderType = D3D12DrawVertexShader;
     using FragmentShaderType = D3D12DrawPixelShader;
-    using PipelineProps = gpu::StandardPipelineProps;
+    using PipelineProps = D3D12PipelineProps;
 
     ComPtr<ID3D12PipelineState> m_d3dPipelineState;
 

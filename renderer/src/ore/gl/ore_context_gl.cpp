@@ -25,6 +25,14 @@
 #include <cstdio>
 #endif
 
+// From GL_EXT_texture_filter_anisotropic, which the core GLES3 headers omit.
+#ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
+#define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
+#endif
+#ifndef GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT
+#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+#endif
+
 namespace rive::ore
 {
 
@@ -274,6 +282,9 @@ std::unique_ptr<ContextGL> ContextGL::Make(void* renderContextImpl)
     if (emscripten_webgl_enable_extension(webglCtx,
                                           "EXT_color_buffer_half_float"))
         f.colorBufferHalfFloat = true;
+    if (emscripten_webgl_enable_extension(webglCtx,
+                                          "EXT_texture_filter_anisotropic"))
+        f.anisotropicFiltering = true;
 #endif
 
     return ctx;
@@ -540,6 +551,17 @@ rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 
     glSamplerParameterf(s, GL_TEXTURE_MIN_LOD, desc.minLod);
     glSamplerParameterf(s, GL_TEXTURE_MAX_LOD, desc.maxLod);
+
+    // Every other backend honors maxAnisotropy.
+    if (m_features.anisotropicFiltering && desc.maxAnisotropy > 1)
+    {
+        GLfloat maxSupported = 1.f;
+        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxSupported);
+        glSamplerParameterf(
+            s,
+            GL_TEXTURE_MAX_ANISOTROPY_EXT,
+            std::min(static_cast<GLfloat>(desc.maxAnisotropy), maxSupported));
+    }
 
     if (desc.compare != CompareFunction::none)
     {
@@ -891,6 +913,7 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
         binding.texture = viewGL->m_glTextureView != 0 ? viewGL->m_glTextureView
                                                        : texGL->m_glTexture;
         binding.target = texGL->m_glTarget;
+        binding.binding = entry.slot;
         if (!nativeSlot(entry.slot, BindingKind::sampledTexture, &binding.slot))
             continue;
         bg->m_glTextures.push_back(binding);
@@ -906,6 +929,7 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
         auto* samp = lite_rtti_cast<SamplerGL*>(entry.sampler);
         assert(samp);
         binding.sampler = samp->m_glSampler;
+        binding.binding = entry.slot;
         if (!nativeSlot(entry.slot, BindingKind::sampler, &binding.slot))
             continue;
         bg->m_glSamplers.push_back(binding);
@@ -1067,7 +1091,6 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) ==
                GL_FRAMEBUFFER_COMPLETE &&
            "Ore GL FBO incomplete");
-
     // Handle clear ops.
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {
@@ -1159,14 +1182,13 @@ rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     if (m_renderContextImpl != nullptr)
     {
         static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl)
-            ->ensureDeferredCanvasBacking(canvas);
+            ->ensureCanvasBacking(canvas);
     }
 
     auto* glTarget =
         static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget());
     GLuint texID = glTarget->externalTextureID();
     assert(texID != 0);
-
     TextureDesc texDesc{};
     texDesc.width = canvas->width();
     texDesc.height = canvas->height();
@@ -1238,7 +1260,7 @@ rcp<TextureView> ContextGL::wrapCanvasSampleView(gpu::RenderCanvas* canvas)
     if (m_renderContextImpl != nullptr)
     {
         static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl)
-            ->ensureDeferredCanvasBacking(canvas);
+            ->ensureCanvasBacking(canvas);
     }
 
     auto* image = canvas->renderImage();

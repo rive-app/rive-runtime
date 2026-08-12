@@ -20,6 +20,8 @@
 
 #include "shaders/constants.glsl"
 
+#include <algorithm>
+#include <limits>
 #include <string_view>
 
 #ifdef RIVE_DECODERS
@@ -43,11 +45,11 @@ constexpr uint32_t kMaxTextureHeight = 2048;
 constexpr size_t kMaxTessellationVertexCount =
     kMaxTextureHeight * kTessTextureWidth;
 constexpr size_t kMaxTessellationPaddingVertexCount =
-    gpu::kMidpointFanPatchSegmentSpan + // Padding at the beginning of the tess
-                                        // texture
-    (gpu::kOuterCurvePatchSegmentSpan -
-     1) + // Max padding between patch types in the tess texture
-    1;    // Padding at the end of the tessellation texture
+    gpu::kMidpointFanPatchSegmentSpan + // Padding at the beginning of the
+                                        // tessellation texture
+    gpu::OuterCubicPatchSegmentSpan + // Max padding between patch types in the
+                                      // tessellation texture
+    1; // Padding at the end of the tessellation texture
 constexpr size_t kMaxTessellationVertexCountBeforePadding =
     kMaxTessellationVertexCount - kMaxTessellationPaddingVertexCount;
 
@@ -431,6 +433,8 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     }
     m_frameShaderFeaturesMask =
         gpu::ShaderFeaturesMaskFor(m_frameInterlockMode);
+    m_triangulationController.beginFrame(
+        m_frameDescriptor.triangulationThresholds);
     if (m_logicalFlushes.empty())
     {
         m_logicalFlushes.emplace_back(new LogicalFlush(this));
@@ -771,6 +775,8 @@ void RenderContext::flush(const FlushResources& flushResources)
            m_frameDescriptor.renderTargetWidth);
     assert(flushResources.renderTarget->height() ==
            m_frameDescriptor.renderTargetHeight);
+
+    m_triangulationController.endFrame();
 
     m_clipContentID = 0;
 
@@ -1157,7 +1163,7 @@ void RenderContext::LogicalFlush::layoutResources(
         // outerCubic tessellation vertices reside after the midpointFan
         // vertices, aligned on a multiple of the outerCubic patch size.
         uint32_t interiorPadding =
-            math::padding_to_align_up<gpu::kOuterCurvePatchSegmentSpan>(
+            math::padding_to_align_up<gpu::OuterCubicPatchSegmentSpanPlusJoin>(
                 m_midpointFanTessEndLocation);
         m_outerCubicTessVertexIdx =
             m_midpointFanTessEndLocation + interiorPadding;
@@ -3222,6 +3228,34 @@ void RenderContext::TessellationWriter::pushCubic(
     }
 }
 
+void RenderContext::TessellationWriter::pushRetrofitCubicTriStrip(
+    const Vec2D pts[],
+    size_t numPts,
+    gpu::ContourDirections contourDirections,
+    uint32_t contourIDWithFlags)
+{
+    // gpu::TessVertexSpan has 5 points into which we can retrofit strip
+    // vertices (pts[4] and joinTangent), giving us a maximum of 3 triangles we
+    // can shoehorn into a single patch. Due to the topology of an outer cubic
+    // patch, and the structure of the tessellation shader, the strip ordering
+    // has to be:
+    //
+    //   p0, p1, p3, p2, joinTangent
+    //
+    assert(3 <= numPts && numPts <= 5);
+    Vec2D cubicTriangleStrip[4] = {pts[0],
+                                   pts[1],
+                                   pts[std::min<size_t>(3, numPts - 1)],
+                                   pts[2]};
+    pushCubic(cubicTriangleStrip,
+              contourDirections,
+              pts[std::min<size_t>(4, numPts - 1)],
+              gpu::OuterCubicPatchSegmentSpan,
+              1,
+              1,
+              contourIDWithFlags | RETROFIT_TRI_STRIP_CONTOUR_FLAG);
+}
+
 RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
     pushTessellationSpans(const Vec2D pts[4],
                           Vec2D joinTangent,
@@ -3426,13 +3460,15 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushOuterCubicsDraw(
     assert(m_hasDoneLayout);
 
     uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(
-        tessLocation / kOuterCurvePatchSegmentSpan);
+        tessLocation / OuterCubicPatchSegmentSpanPlusJoin);
     // flush() is responsible for alignment.
-    assert(baseInstance * kOuterCurvePatchSegmentSpan == tessLocation);
+    assert(baseInstance * OuterCubicPatchSegmentSpanPlusJoin == tessLocation);
 
-    uint32_t instanceCount = tessVertexCount / kOuterCurvePatchSegmentSpan;
+    uint32_t instanceCount =
+        tessVertexCount / OuterCubicPatchSegmentSpanPlusJoin;
     // flush() is responsible for alignment.
-    assert(instanceCount * kOuterCurvePatchSegmentSpan == tessVertexCount);
+    assert(instanceCount * OuterCubicPatchSegmentSpanPlusJoin ==
+           tessVertexCount);
 
     return pushPathDraw(draw,
                         drawType,

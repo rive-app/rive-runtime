@@ -32,6 +32,14 @@ public:
         m_currentBlockUsage = 0;
     }
 
+    // True if nothing has been allocated since construction or the last
+    // reset().
+    bool empty() const
+    {
+        assert(m_blocks.size() >= 1);
+        return m_blocks.size() == 1 && m_currentBlockUsage == 0;
+    }
+
     template <size_t AlignmentInBytes = 8> void* alloc(size_t sizeInBytes)
     {
         uintptr_t start = reinterpret_cast<uintptr_t>(m_blocks.back().get()) +

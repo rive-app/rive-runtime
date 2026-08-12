@@ -24,11 +24,13 @@ public:
     {
         unsigned int texture = 0; // GLuint
         unsigned int target = 0;  // GLenum (GL_TEXTURE_2D etc.)
+        uint32_t binding = 0;     // WGSL @binding, for pair lookup
         uint32_t slot = 0;        // texture unit
     };
     struct GLSamplerBinding
     {
         unsigned int sampler = 0; // GLuint
+        uint32_t binding = 0;     // WGSL @binding, for pair lookup
         uint32_t slot = 0;        // sampler unit
     };
 

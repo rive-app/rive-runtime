@@ -520,6 +520,10 @@ namespace ore
 {
 class TextureView;
 }
+namespace gpu
+{
+class RenderCanvas;
+}
 #endif
 
 class ScriptedImage
@@ -529,14 +533,9 @@ public:
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     rcp<ore::TextureView> cachedOreView; // Cached for Image:view() to avoid
                                          // leaking D3D12 CPU descriptors.
-#if defined(ORE_BACKEND_GL)
-    // GL only: when the source image is a Rive 2D RenderCanvas, the GL
-    // backend's getCanvasImportMirror returns a Y-flipped companion
-    // image. We hold a strong rcp here so the companion stays alive for
-    // the lifetime of this ScriptedImage. The view in cachedOreView wraps
-    // the companion's texture, not the source's.
-    rcp<RenderImage> cachedMirrorImage;
-#endif
+    // Set when this image is a canvas's backing, so Image:view() imports
+    // through the backend's canvas sampling wrap rather than the raw texture.
+    rcp<gpu::RenderCanvas> sourceCanvas;
 #endif
     // Out-of-line destructor — when ore is enabled, defined in lua_gpu.cpp
     // where ore::TextureView is complete. Otherwise defined in lua_image.cpp.
@@ -1555,6 +1554,9 @@ public:
     ScriptingContext(Factory* factory) : m_factory(factory) {}
     virtual ~ScriptingContext() { shutdownAsync(); }
     Factory* factory() const { return m_factory; }
+    // A caller supplied VM is built before decode picks a factory, so File
+    // re-points it at the one the file imported through.
+    void adoptImportFactory(Factory* factory) { m_factory = factory; }
     ScriptedObject* currentScriptedObject() const
     {
         return m_currentScriptedObject;
@@ -1623,11 +1625,8 @@ public:
     };
 
     // Ore GPU context for this VM, void* so callers cast to ore::Context*.
-    // A deferred host can override it via setOreContext to record instead.
     void* oreContext() const
     {
-        if (m_oreContextOverride != nullptr)
-            return m_oreContextOverride;
         // A recording construction factory owns the context this VM's GPU work
         // has to record into, and it has one before any device exists.
         if (m_factory != nullptr)
@@ -1658,21 +1657,12 @@ public:
     // it, so canvas backings must be deferred to it instead of allocated here.
     bool renderContextIsLateBound() const { return m_renderContext == nullptr; }
 
-    // Point scripts at a DeferredOreContext so their GPU work records
-    // instead of touching the driver. Null restores the default.
-    void setOreContext(void* ctx) { m_oreContextOverride = ctx; }
-    // Raw override, for transferring deferred routing across a context swap.
-    void* oreContextOverride() const { return m_oreContextOverride; }
-
-    // When set, Canvas:beginFrame records into the deferred stream instead
-    // of issuing to the real RenderContext. Null means immediate.
-    void setDeferredCanvasHost(cmd::DeferredCanvasHost* host)
-    {
-        m_deferredCanvasHost = host;
-    }
+    // When non-null, Canvas:beginFrame records into the deferred stream
+    // instead of issuing to the real RenderContext. The construction factory
+    // answers, so a VM routes by importing through a recording session.
     cmd::DeferredCanvasHost* deferredCanvasHost() const
     {
-        return m_deferredCanvasHost;
+        return m_factory != nullptr ? m_factory->deferredCanvasHost() : nullptr;
     }
 
     // WorkPool for async operations (image decode, etc.).
@@ -1742,8 +1732,6 @@ private:
 
 private:
     Factory* m_renderContext = nullptr;
-    void* m_oreContextOverride = nullptr; // deferred host's DeferredOreContext
-    cmd::DeferredCanvasHost* m_deferredCanvasHost = nullptr;
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
     bool m_gpuCanvasDeferOnly = false;

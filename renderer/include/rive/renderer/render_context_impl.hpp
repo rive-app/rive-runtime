@@ -90,6 +90,10 @@ public:
         return makeRenderCanvas(width, height);
     }
 
+    // Backs a canvas whose allocation was deferred, called before its first
+    // use on the replaying context. A no-op once the canvas has a texture.
+    virtual void ensureCanvasBacking(RenderCanvas*) {}
+
     // If canvas is enabled then the backend Impl MUST implement this.
     virtual std::unique_ptr<rive::ore::Context> makeOreContext() = 0;
 #endif
@@ -217,6 +221,11 @@ public:
     // Called after all logical flushes in a frame have completed.
     virtual void postFlush(const RenderContext::FlushResources&) {}
 
+    // Called after replayed Ore passes, before the renderer draws again. Ore
+    // leaves behind state a backend's own cache does not track, which the
+    // next flush would then skip updating and render black.
+    virtual void scrubStateAfterOre() {}
+
     // Creates a platform-specific command buffer for use with flush().
     // Returns an opaque pointer that should be passed as
     // FlushResources::externalCommandBuffer.
@@ -235,17 +244,3 @@ protected:
     PlatformFeatures m_platformFeatures;
 };
 } // namespace rive::gpu
-
-#if defined(ORE_BACKEND_GL) && defined(RIVE_CANVAS)
-namespace rive
-{
-class RiveRenderImage;
-// Returns a Y-flipped companion of a GL canvas texture, or nullptr on
-// non-GL backends. Hides the RenderContextGLImpl downcast so callers
-// don't need GL headers.
-rcp<RiveRenderImage> getCanvasImportMirrorGL(gpu::RenderContext*,
-                                             gpu::Texture* sourceTex,
-                                             uint32_t width,
-                                             uint32_t height);
-} // namespace rive
-#endif

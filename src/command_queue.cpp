@@ -683,6 +683,15 @@ void CommandQueue::setViewModelInstance(StateMachineHandle handle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::clearViewModelInstance(StateMachineHandle handle,
+                                          uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::clearViewModelInstance;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::setGlobalViewModelInstance(StateMachineHandle handle,
                                               std::string name,
                                               ViewModelInstanceHandle viewModel,
@@ -692,6 +701,17 @@ void CommandQueue::setGlobalViewModelInstance(StateMachineHandle handle,
     m_commandStream << Command::setGlobalViewModelInstance;
     m_commandStream << handle;
     m_commandStream << viewModel;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+void CommandQueue::clearGlobalViewModelInstance(StateMachineHandle handle,
+                                                std::string name,
+                                                uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::clearGlobalViewModelInstance;
+    m_commandStream << handle;
     m_commandStream << requestId;
     m_names << name;
 }

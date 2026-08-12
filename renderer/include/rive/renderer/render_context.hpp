@@ -15,11 +15,13 @@
 #include "rive/renderer/shader_compilation_mode.hpp"
 #include "rive/renderer/sk_rectanizer_skyline.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
+#include "rive/renderer/triangulation_controller.hpp"
 #include "rive/shapes/paint/color.hpp"
+#include <algorithm>
 #include <array>
 #include <unordered_map>
 
-class PushRetrofittedTrianglesGMDraw;
+class PushRetrofitTriStripsGMDraw;
 class RenderContextTest;
 
 namespace rive
@@ -109,6 +111,7 @@ public:
         // Use atomic mode (preferred) or msaa instead of rasterOrdering.
         bool disableRasterOrdering = false;
         DitherMode ditherMode = DitherMode::interleavedGradientNoise;
+        TriangulationThresholds triangulationThresholds;
 
         // If nonzero, frames are split up into virtual tiles of this size.
         //
@@ -146,6 +149,14 @@ public:
     // All rendering related calls must be made between beginFrame() and
     // flush().
     void beginFrame(const FrameDescriptor&);
+
+    // Decides which filled paths get an interior triangulation, under the
+    // budget in FrameDescriptor::triangulationThresholds. It is live-tuned
+    // across frames.
+    TriangulationController& triangulationController()
+    {
+        return m_triangulationController;
+    }
 
     const FrameDescriptor& frameDescriptor() const
     {
@@ -323,8 +334,8 @@ private:
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
     friend class ClipReset;
-    friend class ::PushRetrofittedTrianglesGMDraw; // For testing.
-    friend class ::RenderContextTest;              // For testing.
+    friend class ::PushRetrofitTriStripsGMDraw; // For testing.
+    friend class ::RenderContextTest;           // For testing.
 
     // Resets the CPU-side STL containers so they don't have unbounded growth.
     void resetContainers();
@@ -408,6 +419,8 @@ private:
     ResourceAllocationCounts m_currentResourceAllocations;
     ResourceAllocationCounts m_maxRecentResourceRequirements;
     double m_lastResourceTrimTimeInSeconds;
+
+    TriangulationController m_triangulationController;
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;
@@ -991,6 +1004,11 @@ private:
                        uint32_t polarSegmentCount,
                        uint32_t joinSegmentCount,
                        uint32_t contourIDWithFlags);
+
+        void pushRetrofitCubicTriStrip(const Vec2D[],
+                                       size_t numPts,
+                                       gpu::ContourDirections,
+                                       uint32_t contourIDWithFlags);
 
         // pushCubic() impl for forward tessellations.
         RIVE_ALWAYS_INLINE void pushTessellationSpans(

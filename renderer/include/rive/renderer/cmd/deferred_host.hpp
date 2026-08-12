@@ -50,6 +50,7 @@ public:
     uint64_t defaultScreenTarget() override { return m_target; }
     void beginOreFrame() override;
     void endOreFrame() override;
+    void afterOreFrame() override;
     rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
                                        uint32_t clearColor) override;
     void endCanvasContent() override;

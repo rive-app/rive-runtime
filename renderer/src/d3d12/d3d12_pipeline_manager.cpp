@@ -204,7 +204,12 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
     ComPtr<ID3D12PipelineState> pipelineState;
 
     D3D12_RASTERIZER_DESC rasterDesc = {};
-    rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+    // Wireframe is a debugging aid. The resolve is a fullscreen operation, so
+    // leave it solid even in wireframe mode.
+    rasterDesc.FillMode =
+        (props.wireframe && props.drawType != DrawType::renderPassResolve)
+            ? D3D12_FILL_MODE_WIREFRAME
+            : D3D12_FILL_MODE_SOLID;
     rasterDesc.FrontCounterClockwise = FALSE;
     rasterDesc.DepthBias = 0;
     rasterDesc.SlopeScaledDepthBias = 0;

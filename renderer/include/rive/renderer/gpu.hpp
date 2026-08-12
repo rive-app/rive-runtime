@@ -590,10 +590,19 @@ static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
 // # of tessellation segments spanned by the midpoint fan patch.
 constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
 
-// # of tessellation segments spanned by the outer curve patch. (In this
-// particular instance, the final segment is a bowtie join with zero length and
-// no fan triangle.)
-constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
+// # of tessellation segments spanned by the outer cubic patch, NOT counting the
+// additional bowtie-join segment (zero length, no fan triangle) that is just
+// part of the AA border. Use OuterCubicPatchSegmentSpanPlusJoin where the join
+// segment is included.
+constexpr static uint32_t OuterCubicPatchSegmentSpan = 16;
+
+// The final segment in an outer cubic patch is a zero-length bowtie join.
+constexpr static uint32_t OuterCubicPatchJoinSegmentCount = 1;
+
+// Full tessellation stride of an outer cubic patch: the curve segments plus the
+// trailing bowtie-join segment.
+constexpr static uint32_t OuterCubicPatchSegmentSpanPlusJoin =
+    OuterCubicPatchSegmentSpan + OuterCubicPatchJoinSegmentCount;
 
 // Define vertex and index buffers that contain all the triangles in every
 // PatchType.
@@ -625,13 +634,13 @@ constexpr static uint32_t kMidpointFanCenterAAPatchBaseIndex =
 static_assert((kMidpointFanCenterAAPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
 constexpr static uint32_t kOuterCurvePatchVertexCount =
-    kOuterCurvePatchSegmentSpan * 8 /*AA center ramp with bowtie*/ +
-    kOuterCurvePatchSegmentSpan /*Curve fan*/;
+    OuterCubicPatchSegmentSpanPlusJoin * 8 /*AA center ramp with bowtie*/ +
+    OuterCubicPatchSegmentSpanPlusJoin /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchBorderIndexCount =
-    kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/;
+    OuterCubicPatchSegmentSpanPlusJoin * 12 /*AA center ramp with bowtie*/;
 constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchBorderIndexCount /*AA center ramp with bowtie*/ +
-    (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
+    (OuterCubicPatchSegmentSpan - 1) * 3 /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchBaseIndex =
     kMidpointFanCenterAAPatchBaseIndex + kMidpointFanCenterAAPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
@@ -682,7 +691,7 @@ enum class DrawType : uint8_t
     msaaMidpointFanPathsCover,
 
     // MSAA interior triangulation is not currently supported, but this one draw
-    // type is included in order to support the "retrofittedcubictriangles" GM.
+    // type is included in order to support the "retrofitcubictristrips" GM.
     msaaOuterCubics,
 
     // Clear or intersect (based on DrawContents) the clip value.

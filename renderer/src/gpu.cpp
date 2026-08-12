@@ -18,6 +18,8 @@ namespace rive::gpu
 static_assert(kGradTextureWidth == GRAD_TEXTURE_WIDTH);
 static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
 static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
+static_assert(kMidpointFanPatchSegmentSpan == MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
+static_assert(OuterCubicPatchSegmentSpan == OUTER_CUBIC_PATCH_SEGMENT_SPAN);
 
 static_assert(sizeof(PaintAuxData) / StorageBufferElementSizeInBytes(
                                          PaintAuxData::kBufferStructure) ==
@@ -427,7 +429,7 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     // without a fan triangle whose purpose is to be a bowtie join.
     size_t vertexCount = 0;
     int32_t patchSegmentSpan = patchType == PatchType::outerCurves
-                                   ? kOuterCurvePatchSegmentSpan
+                                   ? OuterCubicPatchSegmentSpanPlusJoin
                                    : kMidpointFanPatchSegmentSpan;
     for (int i = 0; i < patchSegmentSpan; ++i)
     {

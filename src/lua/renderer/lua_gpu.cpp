@@ -580,17 +580,18 @@ static bool buildShaderEntries(Context* oreCtx,
     auto fsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(15)
                                                         : Span<const uint8_t>{};
 
-    // Texture-sampler pairs, applied to every module created below.
-    std::vector<ShaderModule::TextureSamplerPair> pairVec;
+    // Texture-sampler pairs, handed to every module created below through the
+    // desc so deferred replay rebuilds them too.
+    std::vector<uint8_t> pairBytes;
     {
         auto pairs = asset.textureSamplerPairs();
-        pairVec.reserve(pairs.size());
+        pairBytes.reserve(pairs.size() * 4);
         for (size_t i = 0; i < pairs.size(); i++)
         {
-            pairVec.push_back({pairs[i].texGroup,
-                               pairs[i].texBinding,
-                               pairs[i].sampGroup,
-                               pairs[i].sampBinding});
+            pairBytes.push_back(pairs[i].texGroup);
+            pairBytes.push_back(pairs[i].texBinding);
+            pairBytes.push_back(pairs[i].sampGroup);
+            pairBytes.push_back(pairs[i].sampBinding);
         }
     }
 
@@ -612,6 +613,9 @@ static bool buildShaderEntries(Context* oreCtx,
                 (v.stage == 0) ? ShaderStage::vertex : ShaderStage::fragment;
             desc.bindingMapBytes = bindingMapBytes;
             desc.bindingMapSize = bindingMapSize;
+            desc.texSamplerPairBytes =
+                pairBytes.empty() ? nullptr : pairBytes.data();
+            desc.texSamplerPairSize = (uint32_t)pairBytes.size();
             desc.shaderAssetId = assetId;
             if (target == ShaderTarget::hlsl)
             {
@@ -631,8 +635,6 @@ static bool buildShaderEntries(Context* oreCtx,
             auto mod = oreCtx->makeShaderModule(desc);
             if (!mod)
                 return false;
-            if (!pairVec.empty())
-                mod->m_textureSamplerPairs = pairVec;
             ScriptedShaderEntry e;
             e.stage = v.stage;
             e.logical = v.logical;
@@ -659,12 +661,12 @@ static bool buildShaderEntries(Context* oreCtx,
     desc.codeSize = srcLen;
     desc.bindingMapBytes = bindingMapBytes;
     desc.bindingMapSize = bindingMapSize;
+    desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
+    desc.texSamplerPairSize = (uint32_t)pairBytes.size();
     desc.shaderAssetId = assetId;
     auto mod = oreCtx->makeShaderModule(desc);
     if (!mod)
         return false;
-    if (!pairVec.empty())
-        mod->m_textureSamplerPairs = pairVec;
     for (const auto& v : views)
     {
         ScriptedShaderEntry e;
@@ -3099,6 +3101,7 @@ static void gpucanvas_satisfyPending(lua_State* L, ScriptedGPUCanvas* self)
     auto* img = lua_newrive<ScriptedImage>(L);
     img->image =
         ref_rcp(static_cast<RenderImage*>(self->canvas->renderImage()));
+    img->sourceCanvas = self->canvas;
     self->m_imageRef = lua_ref(L, -1);
     lua_pop(L, 1); // pop image
 }
@@ -3298,6 +3301,7 @@ static void canvas_satisfyPending(lua_State* L, ScriptedCanvas* self)
     auto* img = lua_newrive<ScriptedImage>(L);
     img->image =
         ref_rcp(static_cast<RenderImage*>(self->canvas->renderImage()));
+    img->sourceCanvas = self->canvas;
     self->m_imageRef = lua_ref(L, -1);
     lua_pop(L, 1);
 }
@@ -3848,56 +3852,34 @@ int riveImageViewImpl(lua_State* L)
     }
     else if (!self->cachedOreView)
     {
-        // Immediate mode requires a live GPU backed image.
-        auto* riveImage = lite_rtti_cast<RiveRenderImage*>(self->image.get());
-        if (!riveImage)
+        // A canvas imports through the backend's own sampling wrap, which is
+        // where GL inserts the Y flip its bottom-up canvases need.
+        if (self->sourceCanvas != nullptr)
         {
-            luaL_error(L, "Image is not a GPU-backed RiveRenderImage");
-            return 0;
+            self->cachedOreView =
+                oreCtx->wrapCanvasSampleView(self->sourceCanvas.get());
         }
-        gpu::Texture* sourceGpuTex = riveImage->getTexture();
-        if (!sourceGpuTex)
+        else
         {
-            luaL_error(L, "Image GPU texture not available");
-            return 0;
-        }
-        // GL canvas-import boundary: on GL/WebGL, sampling a Rive 2D
-        // RenderCanvas as a WGSL texture requires a Y-flipped companion
-        // because PLS renders the canvas bottom-up while WGSL expects
-        // V=0 at the visual top of the image. The render context's
-        // getCanvasImportMirror returns nullptr on every backend except
-        // GL — on GL it lazily allocates a companion texture, registers
-        // a per-flush blit hook, and returns the companion image. We
-        // cache the companion's RiveRenderImage so the companion stays
-        // alive as long as this ScriptedImage does.
-        //
-        // See dev/ore_canvas_import_invariant.md.
-        gpu::Texture* texToWrap = sourceGpuTex;
-#if defined(ORE_BACKEND_GL)
-        {
-            auto* renderCtx =
-                static_cast<gpu::RenderContext*>(ctx->renderContext());
-            self->cachedMirrorImage =
-                getCanvasImportMirrorGL(renderCtx,
-                                        sourceGpuTex,
+            // Immediate mode requires a live GPU backed image.
+            auto* riveImage =
+                lite_rtti_cast<RiveRenderImage*>(self->image.get());
+            if (!riveImage)
+            {
+                luaL_error(L, "Image is not a GPU-backed RiveRenderImage");
+                return 0;
+            }
+            gpu::Texture* sourceGpuTex = riveImage->getTexture();
+            if (!sourceGpuTex)
+            {
+                luaL_error(L, "Image GPU texture not available");
+                return 0;
+            }
+            self->cachedOreView =
+                oreCtx->wrapRiveTexture(sourceGpuTex,
                                         self->image->width(),
                                         self->image->height());
-            if (self->cachedMirrorImage != nullptr)
-            {
-                auto* mirrorRive = lite_rtti_cast<RiveRenderImage*>(
-                    self->cachedMirrorImage.get());
-                if (mirrorRive != nullptr &&
-                    mirrorRive->getTexture() != nullptr)
-                {
-                    texToWrap = mirrorRive->getTexture();
-                }
-            }
         }
-#endif // ORE_BACKEND_GL
-
-        self->cachedOreView = oreCtx->wrapRiveTexture(texToWrap,
-                                                      self->image->width(),
-                                                      self->image->height());
         if (!self->cachedOreView)
         {
             luaL_error(L, "Image:view() not supported on this backend");

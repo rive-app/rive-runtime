@@ -254,6 +254,10 @@ inline bool replayOreLifecycle(Context& ctx,
                 static_cast<const uint8_t*>(bytesOf(pod.bindingMapBytes));
             d.bindingMapSize =
                 static_cast<uint32_t>(blob(pod.bindingMapBytes).size());
+            d.texSamplerPairBytes =
+                static_cast<const uint8_t*>(bytesOf(pod.texSamplerPairBytes));
+            d.texSamplerPairSize =
+                static_cast<uint32_t>(blob(pod.texSamplerPairBytes).size());
             d.glFixupBytes =
                 static_cast<const uint8_t*>(bytesOf(pod.glFixupBytes));
             d.glFixupSize =

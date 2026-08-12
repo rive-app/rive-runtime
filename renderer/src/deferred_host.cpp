@@ -78,12 +78,20 @@ void HostFrameSink::endOreFrame()
     }
 }
 
+void HostFrameSink::afterOreFrame()
+{
+    renderContext()->impl()->scrubStateAfterOre();
+}
+
 rive::Renderer* HostFrameSink::beginCanvasContent(
     rive::gpu::RenderCanvas* canvas,
     uint32_t clearColor)
 {
     m_activeCanvas = canvas;
     auto* rc = renderContext();
+    // A deferred canvas has no texture until the replaying context gives it
+    // one, and this is the first thing that renders into it.
+    rc->impl()->ensureCanvasBacking(canvas);
     rive::gpu::RenderContext::FrameDescriptor d{};
     d.renderTargetWidth = canvas->width();
     d.renderTargetHeight = canvas->height();

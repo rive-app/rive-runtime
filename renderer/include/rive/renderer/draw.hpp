@@ -364,19 +364,13 @@ protected:
                                            const gpu::PlatformFeatures&,
                                            gpu::InterlockMode);
 
-    // Prepares to draw the path by tessellating a fan around its midpoint.
+    // Prepares to draw the path as a fan tessellated around the midpoint.
     void initForMidpointFan(RenderContext*, const RiveRenderPaint*);
 
-    enum class TriangulatorAxis
-    {
-        horizontal,
-        vertical,
-        dontCare,
-    };
-
-    // Prepares to draw the path by triangulating the interior into
-    // non-overlapping triangles and tessellating the outer cubics.
-    void initForInteriorTriangulation(RenderContext*, TriangulatorAxis);
+    // Prepares to draw the path as a triangulated interior with tessellated
+    // outer cubics. The (already-built) inner-fan triangulator is supplied by
+    // the caller.
+    void initForInteriorTriangulation(RenderContext*, GrInnerFanTriangulator*);
 
     uint32_t allocateTessellationVertices(RenderContext::LogicalFlush* flush,
                                           uint32_t tessVertexCount)
@@ -414,27 +408,12 @@ protected:
         uint32_t strokeCapSegmentCount,
         uint32_t contourIDWithFlags);
 
-    enum class InteriorTriangulationOp : bool
-    {
-        // Fills in m_resourceCounts and runs a GrInnerFanTriangulator on the
-        // path's interior polygon.
-        countDataAndTriangulate,
-
-        // Pushes the contours and cubics to the renderContext for an
-        // "outerCurvePatches" draw.
-        pushOuterCubicTessellationData,
-    };
-
-    // Called to processes the interior triangulation both during initialization
-    // and submission. For now, we just iterate and subdivide the path twice
-    // (once for each enum in InteriorTriangulationOp). Since we only do this
-    // for large paths, and since we're triangulating the path interior anyway,
-    // adding complexity to only run Wang's formula and chop once would save
-    // about ~5% of the total CPU time. (And large paths are GPU-bound anyway.)
-    void iterateInteriorTriangulation(InteriorTriangulationOp op,
-                                      TrivialBlockAllocator*,
-                                      TriangulatorAxis,
-                                      RenderContext::TessellationWriter*);
+    // Iterates the path's verbs as outer-cubic patches (the interior itself was
+    // triangulated up front by the given GrInnerFanTriangulator). Runs twice
+    // per path. When tessWriter is null (first pass) it fills in
+    // m_resourceCounts; once resources are allocated, it runs again with a
+    // non-null tessWriter and emits "outerCurvePatches" to render.
+    void iterateOuterCubics(RenderContext::TessellationWriter*);
 
     const RiveRenderPath* const m_pathRef;
     const FillRule m_pathFillRule; // Fill rule can mutate on RenderPath.

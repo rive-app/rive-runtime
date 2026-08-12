@@ -74,6 +74,7 @@ struct ShaderModuleDescPOD
     BlobRef hlslSource;     // D3D11 runtime-compile source, or absent
     BlobRef hlslEntryPoint; // null-terminated, or absent
     BlobRef bindingMapBytes;
+    BlobRef texSamplerPairBytes;
     BlobRef glFixupBytes;
     uint32_t shaderAssetId;
 };

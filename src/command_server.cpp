@@ -1735,6 +1735,15 @@ bool CommandServer::processCommands()
                             rootViewInstance->propertyViewModel(path))
                     {
                         m_viewModels[nestedViewHandle] = nestedViewModel;
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        FileHandle fileHandle = RIVE_NULL_HANDLE;
+                        messageStream << CommandQueue::Message::
+                                viewModelInstanceInstantiated;
+                        messageStream << fileHandle;
+                        messageStream << nestedViewHandle;
+                        messageStream << requestId;
                     }
                     else
                     {
@@ -1786,6 +1795,15 @@ bool CommandServer::processCommands()
                         if (viewModelInstance)
                         {
                             m_viewModels[listViewHandle] = viewModelInstance;
+
+                            std::unique_lock<std::mutex> messageLock(
+                                m_commandQueue->m_messageMutex);
+                            FileHandle fileHandle = RIVE_NULL_HANDLE;
+                            messageStream << CommandQueue::Message::
+                                    viewModelInstanceInstantiated;
+                            messageStream << fileHandle;
+                            messageStream << listViewHandle;
+                            messageStream << requestId;
                         }
                         else
                         {
@@ -1993,6 +2011,37 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::clearViewModelInstance:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> accessLock(
+                        stateMachineWrapper->m_mutex);
+                    if (auto dataContext =
+                            stateMachineWrapper->instance->dataContext())
+                    {
+                        dataContext->setMainViewModelInstance(nullptr);
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for clearing view model instance.";
+                }
+                break;
+            }
+
             case CommandQueue::Command::setGlobalViewModelInstance:
             {
                 StateMachineHandle handle;
@@ -2048,6 +2097,46 @@ bool CommandServer::processCommands()
                         CommandQueue::Message::stateMachineError)
                         << "State machine " << handle
                         << " not found for setting global view model instance.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::clearGlobalViewModelInstance:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                std::string name;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> accessLock(
+                        stateMachineWrapper->m_mutex);
+                    if (!stateMachineWrapper->instance
+                             ->setGlobalViewModelInstance(name, nullptr))
+                    {
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "Could not clear global view model instance "
+                            << "under name " << name << " on a state machine";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for clearing global view model "
+                           "instance.";
                 }
                 break;
             }

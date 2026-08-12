@@ -4642,6 +4642,64 @@ TEST_CASE("viewModelInstanceInstantiatedCallback", "[CommandQueue]")
     serverThread.join();
 }
 
+class ReferencedViewModelInstanceInstantiatedListener
+    : public CommandQueue::FileListener
+{
+public:
+    void onViewModelInstanceInstantiated(
+        const FileHandle fileHandle,
+        uint64_t requestId,
+        ViewModelInstanceHandle viewModelInstanceHandle) override
+    {
+        CHECK(fileHandle == RIVE_NULL_HANDLE);
+        m_handles[requestId] = viewModelInstanceHandle;
+    }
+
+    std::unordered_map<uint64_t, ViewModelInstanceHandle> m_handles;
+};
+
+TEST_CASE("referencedViewModelInstanceInstantiatedCallback", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+
+    auto fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    auto parent =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle, "Test All");
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    ReferencedViewModelInstanceInstantiatedListener listener;
+    commandQueue->setGlobalFileListener(&listener);
+
+    auto nested = commandQueue->referenceNestedViewModelInstance(parent,
+                                                                 "Test Nested",
+                                                                 nullptr,
+                                                                 31);
+    commandQueue->insertViewModelInstanceListViewModel(parent,
+                                                       "Test List",
+                                                       nested,
+                                                       0);
+    auto listItem = commandQueue->referenceListViewModelInstance(parent,
+                                                                 "Test List",
+                                                                 0,
+                                                                 nullptr,
+                                                                 32);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_handles.size() == 2);
+    CHECK(listener.m_handles.at(31) == nested);
+    CHECK(listener.m_handles.at(32) == listItem);
+
+    commandQueue->setGlobalFileListener(nullptr);
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class DecodedImageListener : public CommandQueue::RenderImageListener
 {
 public:
@@ -6647,10 +6705,27 @@ public:
         m_hasCallback = true;
     }
 
+    virtual void onViewModelPropertiesListed(
+        const FileHandle handle,
+        uint64_t requestId,
+        std::string viewModelName,
+        std::vector<CommandQueue::FileListener::ViewModelPropertyData>
+            properties) override
+    {
+        m_handle = handle;
+        m_requestId = requestId;
+        m_propertyViewModelName = std::move(viewModelName);
+        m_properties = std::move(properties);
+        m_hasPropertiesCallback = true;
+    }
+
     bool m_hasCallback = false;
+    bool m_hasPropertiesCallback = false;
     FileHandle m_handle = RIVE_NULL_HANDLE;
     uint64_t m_requestId = 0;
     std::vector<std::string> m_names;
+    std::string m_propertyViewModelName;
+    std::vector<CommandQueue::FileListener::ViewModelPropertyData> m_properties;
 };
 
 TEST_CASE("Global View Model Names Listed", "[CommandQueue]")
@@ -6727,6 +6802,299 @@ public:
     std::string m_viewModelName;
     std::string m_error;
 };
+
+class GlobalValueListener : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelDataReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(requestId == m_requestId);
+        CHECK(data == m_expectedData);
+        m_hasCallback = true;
+    }
+
+    ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
+    uint64_t m_requestId = 0;
+    CommandQueue::ViewModelInstanceData m_expectedData;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("Clear Main View Model Instance", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    GlobalNamesListener fileListener;
+    std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+    commandQueue->requestGlobalViewModelNames(fileHandle, 1);
+    server.processCommands();
+    commandQueue->processMessages();
+
+    REQUIRE(fileListener.m_hasCallback);
+    REQUIRE_FALSE(fileListener.m_names.empty());
+    // Keep one global as a control: clearing main must not clear the rest of
+    // the shared data context.
+    const std::string globalName = fileListener.m_names[0];
+
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto stateMachineHandle =
+        commandQueue->instantiateDefaultStateMachine(artboard);
+
+    rcp<ViewModelInstance> originalMain;
+    rcp<ViewModelInstance> originalGlobal;
+
+    // The command queue has no main-instance getter, so capture both native
+    // identities after bind() for the isolation checks below.
+    commandQueue->bind(stateMachineHandle);
+    commandQueue->runOnce([stateMachineHandle,
+                           globalName,
+                           &originalMain,
+                           &originalGlobal](CommandServer* server) {
+        auto stateMachine = server->getStateMachineInstance(stateMachineHandle);
+        REQUIRE(stateMachine != nullptr);
+        REQUIRE(stateMachine->dataContext() != nullptr);
+
+        originalMain = stateMachine->dataContext()->mainViewModelInstance();
+        originalGlobal = stateMachine->globalViewModelInstance(globalName);
+        REQUIRE(originalMain != nullptr);
+        REQUIRE(originalGlobal != nullptr);
+    });
+
+    // Clear leaves main empty until the next bind, without disturbing globals.
+    commandQueue->clearViewModelInstance(stateMachineHandle, 2);
+    commandQueue->runOnce([stateMachineHandle, globalName, &originalGlobal](
+                              CommandServer* server) {
+        auto stateMachine = server->getStateMachineInstance(stateMachineHandle);
+        REQUIRE(stateMachine != nullptr);
+        REQUIRE(stateMachine->dataContext() != nullptr);
+
+        CHECK(stateMachine->dataContext()->mainViewModelInstance() == nullptr);
+        CHECK(stateMachine->globalViewModelInstance(globalName) ==
+              originalGlobal);
+    });
+
+    // Bind creates a new default main but preserves the existing global.
+    commandQueue->bind(stateMachineHandle);
+    commandQueue->runOnce([stateMachineHandle,
+                           globalName,
+                           &originalMain,
+                           &originalGlobal](CommandServer* server) {
+        auto stateMachine = server->getStateMachineInstance(stateMachineHandle);
+        REQUIRE(stateMachine != nullptr);
+        REQUIRE(stateMachine->dataContext() != nullptr);
+
+        CHECK(stateMachine->dataContext()->mainViewModelInstance() !=
+              originalMain);
+        CHECK(stateMachine->globalViewModelInstance(globalName) ==
+              originalGlobal);
+    });
+
+    server.processCommands();
+    commandQueue->disconnect();
+}
+
+TEST_CASE("Clear Global View Model Instance", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    GlobalNamesListener fileListener;
+    std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+    commandQueue->requestGlobalViewModelNames(fileHandle, 1);
+    server.processCommands();
+    commandQueue->processMessages();
+
+    REQUIRE(fileListener.m_hasCallback);
+    REQUIRE(fileListener.m_names.size() >= 2);
+    const std::string clearedGlobalName = fileListener.m_names[0];
+    const std::string untouchedGlobalName = fileListener.m_names[1];
+
+    // Find a mutable primitive on the untouched global so the preservation
+    // check does not depend on a particular property in the test asset.
+    commandQueue->requestViewModelPropertyDefinitions(fileHandle,
+                                                      untouchedGlobalName,
+                                                      2);
+    server.processCommands();
+    commandQueue->processMessages();
+
+    REQUIRE(fileListener.m_hasPropertiesCallback);
+    REQUIRE(fileListener.m_propertyViewModelName == untouchedGlobalName);
+    auto property =
+        std::find_if(fileListener.m_properties.begin(),
+                     fileListener.m_properties.end(),
+                     [](const auto& candidate) {
+                         return candidate.type == DataType::number ||
+                                candidate.type == DataType::string ||
+                                candidate.type == DataType::color;
+                     });
+    REQUIRE(property != fileListener.m_properties.end());
+
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto stateMachineHandle =
+        commandQueue->instantiateDefaultStateMachine(artboard);
+
+    // Bind all defaults, then mutate a global that will not be cleared. Its
+    // value lets us detect an accidental clear-all/default recreation.
+    commandQueue->bind(stateMachineHandle);
+    auto originalUntouchedHandle =
+        commandQueue->globalViewModelInstance(stateMachineHandle,
+                                              untouchedGlobalName);
+    GlobalValueListener valueListener;
+    valueListener.m_expectedData.metaData = {property->type, property->name};
+    switch (property->type)
+    {
+        case DataType::number:
+            valueListener.m_expectedData.numberValue = 12345.5f;
+            commandQueue->setViewModelInstanceNumber(
+                originalUntouchedHandle,
+                property->name,
+                valueListener.m_expectedData.numberValue);
+            break;
+        case DataType::string:
+            valueListener.m_expectedData.stringValue = "preserved mutation";
+            commandQueue->setViewModelInstanceString(
+                originalUntouchedHandle,
+                property->name,
+                valueListener.m_expectedData.stringValue);
+            break;
+        case DataType::color:
+            valueListener.m_expectedData.colorValue = 0xFF123456;
+            commandQueue->setViewModelInstanceColor(
+                originalUntouchedHandle,
+                property->name,
+                valueListener.m_expectedData.colorValue);
+            break;
+        default:
+            FAIL("Unsupported property type selected for mutation");
+    }
+
+    // Clear only the target slot and query it before bind() to prove that the
+    // clear itself leaves the slot empty rather than eagerly making a default.
+    commandQueue->clearGlobalViewModelInstance(stateMachineHandle,
+                                               clearedGlobalName,
+                                               3);
+    GlobalInstanceListener clearedListener;
+    commandQueue->globalViewModelInstance(stateMachineHandle,
+                                          clearedGlobalName,
+                                          &clearedListener,
+                                          4);
+
+    // Rebinding must restore the cleared slot's default while retaining the
+    // existing instance (and therefore the mutation) in every untouched slot.
+    commandQueue->bind(stateMachineHandle);
+    GlobalInstanceListener reboundListener;
+    auto reboundHandle =
+        commandQueue->globalViewModelInstance(stateMachineHandle,
+                                              clearedGlobalName,
+                                              &reboundListener);
+    commandQueue->requestViewModelInstanceViewModelName(reboundHandle, 5);
+
+    valueListener.m_handle =
+        commandQueue->globalViewModelInstance(stateMachineHandle,
+                                              untouchedGlobalName,
+                                              &valueListener);
+    valueListener.m_requestId = 6;
+    switch (property->type)
+    {
+        case DataType::number:
+            commandQueue->requestViewModelInstanceNumber(
+                valueListener.m_handle,
+                property->name,
+                valueListener.m_requestId);
+            break;
+        case DataType::string:
+            commandQueue->requestViewModelInstanceString(
+                valueListener.m_handle,
+                property->name,
+                valueListener.m_requestId);
+            break;
+        case DataType::color:
+            commandQueue->requestViewModelInstanceColor(
+                valueListener.m_handle,
+                property->name,
+                valueListener.m_requestId);
+            break;
+        default:
+            FAIL("Unsupported property type selected for readback");
+    }
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(clearedListener.m_hasErrorCallback);
+    CHECK(reboundListener.m_hasNameCallback);
+    CHECK(reboundListener.m_viewModelName == clearedGlobalName);
+    CHECK(valueListener.m_hasCallback);
+    commandQueue->disconnect();
+}
+
+TEST_CASE("Clear Global View Model Instance Reports Invalid Name",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    TestStateMachineErrorListener stateMachineListener;
+    auto stateMachineHandle =
+        commandQueue->instantiateDefaultStateMachine(artboard,
+                                                     &stateMachineListener);
+    stateMachineListener.m_handle = stateMachineHandle;
+
+    commandQueue->clearGlobalViewModelInstance(stateMachineHandle,
+                                               "not-a-global",
+                                               1);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(stateMachineListener.m_receivedErrors == 1);
+    commandQueue->disconnect();
+}
+
+TEST_CASE("Clear View Model Instances Report Invalid State Machine",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    TestStateMachineErrorListener stateMachineListener;
+    stateMachineListener.m_handle = reinterpret_cast<StateMachineHandle>(0xFF);
+    commandQueue->setGlobalStateMachineListener(&stateMachineListener);
+
+    commandQueue->clearViewModelInstance(stateMachineListener.m_handle, 1);
+    commandQueue->clearGlobalViewModelInstance(stateMachineListener.m_handle,
+                                               "Global",
+                                               2);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(stateMachineListener.m_receivedErrors == 2);
+    commandQueue->setGlobalStateMachineListener(nullptr);
+    commandQueue->disconnect();
+}
 
 TEST_CASE("Set/Bind/Get Global View Model Instance", "[CommandQueue]")
 {

@@ -647,6 +647,23 @@ void RenderContextGLImpl::invalidateGLState()
     m_state->invalidate();
 }
 
+void RenderContextGLImpl::scrubStateAfterOre()
+{
+    // Ore's FBO work must land before we render through it.
+    glFinish();
+
+    for (int i = 0; i <= DEFAULT_BINDINGS_SET_SIZE; ++i)
+    {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+        glBindSampler(i, 0);
+    }
+    glActiveTexture(GL_TEXTURE0);
+
+    invalidateGLState();
+}
+
 void RenderContextGLImpl::unbindGLInternalResources()
 {
     m_state->bindVAO(0);
@@ -745,34 +762,6 @@ private:
     GLuint m_glID;
 };
 
-// Lifetime hook for the mirror texture of an imported canvas. When this
-// texture is destroyed, we clear the mirror fields on the registry entry
-// (if it still exists) and release the cached read/draw FBOs. The entry
-// itself is left in place so the source canvas can re-allocate a new
-// mirror later via getOrCreateCanvasMirror.
-class CanvasMirrorTextureGLImpl : public TextureGLImpl
-{
-public:
-    CanvasMirrorTextureGLImpl(uint32_t width,
-                              uint32_t height,
-                              GLuint textureID,
-                              const GLCapabilities& caps,
-                              RenderContextGLImpl* owner,
-                              GLuint sourceTexID) :
-        TextureGLImpl(width, height, textureID, caps),
-        m_owner(owner),
-        m_sourceTexID(sourceTexID)
-    {}
-
-    ~CanvasMirrorTextureGLImpl() override; // Defined below the class
-                                           // method definitions on
-                                           // RenderContextGLImpl so we
-                                           // can call its private API.
-
-private:
-    RenderContextGLImpl* m_owner;
-    GLuint m_sourceTexID;
-};
 #endif // RIVE_CANVAS
 
 rcp<Texture> RenderContextGLImpl::makeImageTexture(uint32_t width,
@@ -932,13 +921,9 @@ rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
 
     auto canvas = wrapCanvasBacking(width, height, tex);
 
-    // GL renders into the canvas with row 0 = visual bottom (framebuffer
-    // bottom-up convention). Register the source GLuint with the mirror
-    // registry so wrapRiveTexture (ore_context_gl.cpp) can detect it
-    // later and allocate a Y-flipped companion when an Ore pipeline
-    // imports it as a sampled texture. The registration is bookkeeping
-    // only — no GPU allocation happens until first import.
-    // See dev/ore_canvas_import_invariant.md.
+    // GL renders into the canvas with row 0 = visual bottom, so an Ore
+    // pipeline sampling it needs a Y-flipped companion. Registering is
+    // bookkeeping only; nothing is allocated until the first import.
     registerCanvasTarget(tex);
 
     return canvas;
@@ -952,7 +937,7 @@ rcp<RenderCanvas> RenderContextGLImpl::makeDeferredRenderCanvas(uint32_t width,
     return wrapCanvasBacking(width, height, 0);
 }
 
-void RenderContextGLImpl::ensureDeferredCanvasBacking(gpu::RenderCanvas* canvas)
+void RenderContextGLImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
     // Set the texture on both the render target and image source so every
     // read resolves coherently here.
@@ -1008,8 +993,9 @@ rcp<RiveRenderImage> RenderContextGLImpl::getCanvasImportMirror(
 
 void RenderContextGLImpl::registerCanvasTarget(GLuint sourceTex)
 {
-    // Insert an empty entry. mirrorTex stays 0 / hasMirror stays false
-    // until the first wrapRiveTexture call for this source.
+    // GL recycles names, so a stale entry under this one belongs to a dead
+    // canvas and its companion must not be handed to the new one.
+    unregisterCanvasTarget(sourceTex);
     m_canvasMirrors[sourceTex] = RenderContextGLImpl::CanvasMirrorEntry{};
 }
 
@@ -1020,12 +1006,6 @@ void RenderContextGLImpl::unregisterCanvasTarget(GLuint sourceTex)
     {
         return;
     }
-    // Free FBOs if a mirror was ever allocated. The mirror texture itself
-    // is owned by its CanvasMirrorTextureGLImpl wrapper; that wrapper is
-    // either still alive (in which case its destructor will be a no-op
-    // when it tries to remove an already-removed entry) or already dead
-    // (in which case the FBOs have already been cleared and re-clearing
-    // is harmless).
     if (it->second.readFBO != 0)
     {
         glDeleteFramebuffers(1, &it->second.readFBO);
@@ -1080,19 +1060,9 @@ rcp<RiveRenderImage> RenderContextGLImpl::getOrCreateCanvasMirror(
         return nullptr;
     }
     RenderContextGLImpl::CanvasMirrorEntry& entry = it->second;
-
-    // If a mirror already exists, the caller should be reusing the
-    // RiveRenderImage they previously got back from us. We don't keep
-    // a strong ref to the mirror image (only the wrapping texture
-    // implementation), so re-creating one here would alias a live
-    // GLuint and double-free on shutdown. Therefore: if hasMirror is
-    // true, we MUST NOT allocate again. Return null and let the caller
-    // sample the source directly as a fallback. In practice this code
-    // path is unreachable — the Lua binding caches its cachedOreView
-    // after the first :view() call.
-    if (entry.hasMirror)
+    if (entry.mirrorImage != nullptr)
     {
-        return nullptr;
+        return entry.mirrorImage;
     }
 
     // Allocate a new companion texture sized to match the source.
@@ -1121,35 +1091,27 @@ rcp<RiveRenderImage> RenderContextGLImpl::getOrCreateCanvasMirror(
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-    entry.mirrorTex = mirrorTex;
     entry.width = width;
     entry.height = height;
-    entry.hasMirror = true;
+    entry.mirrorImage = make_rcp<RiveRenderImage>(rcp<TextureGLImpl>(
+        new TextureGLImpl(width, height, mirrorTex, m_capabilities)));
 
-    // Wrap the mirror as a CanvasMirrorTextureGLImpl so its destructor
-    // can clear the entry's mirror fields when the wrapping
-    // RiveRenderImage is dropped (e.g. when the Lua script GCs the
-    // bind group containing the view).
-    auto mirrorTexture =
-        rcp<TextureGLImpl>(new CanvasMirrorTextureGLImpl(width,
-                                                         height,
-                                                         mirrorTex,
-                                                         m_capabilities,
-                                                         this,
-                                                         sourceTex));
-    auto mirrorImage = make_rcp<RiveRenderImage>(std::move(mirrorTexture));
-
-    // The constructor mutated GL FBO/texture bindings; invalidate
-    // Rive's GLState cache so subsequent rendering re-applies state.
+    // Allocating mutated GL FBO/texture bindings; invalidate Rive's GLState
+    // cache so subsequent rendering re-applies state.
     m_state->invalidate();
 
-    return mirrorImage;
+    // The source already holds this frame's content: the canvas flushed
+    // before whoever is importing it now, and the flush hook only fires
+    // for a companion that already exists.
+    blitMirrorIfRegistered(sourceTex);
+
+    return entry.mirrorImage;
 }
 
 void RenderContextGLImpl::blitMirrorIfRegistered(GLuint targetTex)
 {
     auto it = m_canvasMirrors.find(targetTex);
-    if (it == m_canvasMirrors.end() || !it->second.hasMirror)
+    if (it == m_canvasMirrors.end() || it->second.mirrorImage == nullptr)
     {
         // Either not a canvas target or no consumer has imported it yet.
         // Common case for non-canvas flushes: O(1) hash miss.
@@ -1179,38 +1141,6 @@ void RenderContextGLImpl::blitMirrorIfRegistered(GLuint targetTex)
     // The blit mutated GL FBO/state that Rive's GLState cache tracks.
     // Invalidate so any subsequent Rive rendering re-applies state.
     m_state->invalidate();
-}
-
-// Out-of-line definition for CanvasMirrorTextureGLImpl::~ — needs the
-// full RenderContextGLImpl interface to access m_canvasMirrors.
-CanvasMirrorTextureGLImpl::~CanvasMirrorTextureGLImpl()
-{
-    if (m_owner == nullptr)
-    {
-        return;
-    }
-    auto it = m_owner->m_canvasMirrors.find(m_sourceTexID);
-    if (it == m_owner->m_canvasMirrors.end())
-    {
-        // Source canvas was already destroyed (and unregisterCanvasTarget
-        // freed our FBOs). Nothing to clean up here.
-        return;
-    }
-    RenderContextGLImpl::CanvasMirrorEntry& entry = it->second;
-    if (entry.readFBO != 0)
-    {
-        glDeleteFramebuffers(1, &entry.readFBO);
-        entry.readFBO = 0;
-    }
-    if (entry.drawFBO != 0)
-    {
-        glDeleteFramebuffers(1, &entry.drawFBO);
-        entry.drawFBO = 0;
-    }
-    entry.mirrorTex = 0;
-    entry.hasMirror = false;
-    // Leave the entry in the map — the source canvas is still alive and
-    // a future getOrCreateCanvasMirror call must be able to find it.
 }
 #endif
 
@@ -2835,7 +2765,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     if (m_capabilities.ANGLE_polygon_mode && desc.wireframe)
     {
         glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_LINE_ANGLE);
-        glLineWidth(2);
     }
 #endif
 
@@ -3179,6 +3108,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 assert(m_plsImpl->rasterOrderingKnownDisabled());
+#ifdef RIVE_DESKTOP_GL
+                if (m_capabilities.ANGLE_polygon_mode && desc.wireframe)
+                {
+                    // Wireframe is a debugging aid. The resolve is a fullscreen
+                    // operation so leave it solid even in wireframe mode.
+                    glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_FILL_ANGLE);
+                }
+#endif
                 m_state->bindVAO(m_emptyVAO);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
@@ -4071,20 +4008,3 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 } // namespace rive::gpu
-
-#if defined(ORE_BACKEND_GL) && defined(RIVE_CANVAS)
-rive::rcp<rive::RiveRenderImage> rive::getCanvasImportMirrorGL(
-    gpu::RenderContext* renderCtx,
-    gpu::Texture* sourceTex,
-    uint32_t width,
-    uint32_t height)
-{
-    if (renderCtx == nullptr ||
-        !renderCtx->platformFeatures().framebufferBottomUp)
-    {
-        return nullptr;
-    }
-    auto* glImpl = renderCtx->static_impl_cast<gpu::RenderContextGLImpl>();
-    return glImpl->getCanvasImportMirror(sourceTex, width, height);
-}
-#endif

@@ -2,7 +2,7 @@
  * Copyright 2026 Rive
  *
  * GM test for the Rive 2D RenderCanvas → Ore "imported canvas mirror"
- * boundary. See dev/ore_canvas_import_invariant.md for the architecture.
+ * boundary.
  *
  * What this verifies:
  *   1. We render an asymmetric pattern into a Rive 2D RenderCanvas via PLS:

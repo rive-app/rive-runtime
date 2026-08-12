@@ -319,14 +319,6 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
         if (auto* sctx = vm->context())
         {
             sctx->setRenderContext(TestingWindow::Get()->renderContext());
-#ifdef RIVE_CANVAS
-            if (m_session != nullptr)
-            {
-                sctx->setOreContext(&m_session->oreContext());
-                // Regular canvas 2D content records into the deferred stream.
-                sctx->setDeferredCanvasHost(m_session.get());
-            }
-#endif
         }
     }
 #endif

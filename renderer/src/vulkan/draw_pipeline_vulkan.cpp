@@ -315,10 +315,16 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineRasterizationStateCreateInfo
         pipelineRasterizationStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = enums::is_flag_set(props.drawPipelineOptions,
-                                              Options::wireframe)
-                               ? VK_POLYGON_MODE_LINE
-                               : VK_POLYGON_MODE_FILL,
+            .polygonMode =
+                enums::is_flag_set(props.drawPipelineOptions,
+                                   Options::wireframe) &&
+                        // Wireframe is a debugging aid. The initialize/resolve
+                        // are fullscreen operations, so leave them solid even
+                        // in wireframe mode.
+                        props.drawType != gpu::DrawType::renderPassInitialize &&
+                        props.drawType != gpu::DrawType::renderPassResolve
+                    ? VK_POLYGON_MODE_LINE
+                    : VK_POLYGON_MODE_FILL,
             .cullMode = vkutil::vkCullMode(pipelineState.cullFace),
             .frontFace = VK_FRONT_FACE_CLOCKWISE,
             .lineWidth = 1.0,

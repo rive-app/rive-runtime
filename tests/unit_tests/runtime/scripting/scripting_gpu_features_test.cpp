@@ -9,13 +9,14 @@
 // case: replay runs the wrong branch flawlessly on hardware that contradicts
 // it, and nothing downstream can tell.
 //
-// Driven through the ScriptingContext ore override, which is the same hook
-// every host that records uses (riveScriptingUseDeferredSession, the goldens
-// RIVLoader, the editor). The Flutter runtime on this branch never binds a
-// render context, so it is not one of the reachable paths.
+// Driven through the construction factory's ore(), the same derivation every
+// host that records uses by importing through a DeferredSession (the goldens
+// RIVLoader, the player, the editor). The Flutter runtime on this branch never
+// binds a render context, so it is not one of the reachable paths.
 
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "utils/no_op_factory.hpp"
 
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/cmd/ore_deferred_context.hpp"
@@ -100,15 +101,23 @@ public:
 // without that scaffolding.
 int pushGPUFeatures(lua_State* L) { return lua_push_gpu_features(L); }
 
+// Import factory shaped like a recording session: its ore() is the recorder.
+class RecordingOreFactory : public NoOpFactory
+{
+public:
+    ore::Context* recorder = nullptr;
+    ore::Context* ore() override { return recorder; }
+};
+
 // Runs `source` against a VM whose ore context is `ore`, with the features
 // readout exposed as a global. Returns the error message, empty on success.
 std::string runWithOreContext(ore::Context* ore, const char* source)
 {
-    // Deferred execution so the ore override is in place before the chunk
-    // runs, then called here rather than through execute(), which only prints
-    // the message this asserts on.
-    ScriptingTest test(source, 0, true, {}, false);
-    test.vm()->context()->setOreContext(ore);
+    RecordingOreFactory factory;
+    factory.recorder = ore;
+    // Called here rather than through execute(), which only prints the
+    // message this asserts on.
+    ScriptingTest test(source, 0, true, {}, false, &factory);
     lua_State* L = test.state();
     lua_pushcfunction(L, pushGPUFeatures, "features");
     lua_setglobal(L, "gpuFeatures");

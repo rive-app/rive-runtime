@@ -65,6 +65,10 @@ public:
 private:
     friend class ContextGL;
 
+    // Deferred to draw time: the pairing comes from the pipeline, which may
+    // be set after the bind groups.
+    void applySamplerBindings();
+
     unsigned int m_glFBO = 0;   // GLuint
     unsigned int m_glVAO = 0;   // GLuint
     unsigned int m_prevVAO = 0; // GLuint saved before this pass
@@ -75,6 +79,7 @@ private:
     uint32_t m_viewportWidth = 0;
     uint32_t m_viewportHeight = 0;
     uint32_t m_maxSamplerSlot = 0;
+    bool m_samplerBindingsDirty = false;
     uint32_t m_maxAttribSlot = 0;
     bool m_usedSamplers = false;
     bool m_usedAttribs = false;

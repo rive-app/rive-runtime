@@ -30,6 +30,10 @@ public:
     // native slot.
     BindingMap m_bindingMap;
 
+    // Which sampler serves which texture. GL needs it: GLSL folds the two
+    // into one uniform at the texture's unit. Empty on other backends.
+    std::vector<ShaderModule::TextureSamplerPair> m_textureSamplerPairs;
+
     // Layouts the pipeline was created with — one per `@group(N)`. Keeps
     // them alive (the per-backend native handles inside the layouts are
     // referenced by the pipeline's compiled state). Used by `setBindGroup`
@@ -57,6 +61,17 @@ protected:
         else if (desc.fragmentModule != nullptr)
         {
             m_bindingMap = desc.fragmentModule->m_bindingMap;
+        }
+        // Unioned: each GLSL entry point knows only its own pairs.
+        for (const ShaderModule* shaderModule :
+             {desc.vertexModule, desc.fragmentModule})
+        {
+            if (shaderModule == nullptr)
+                continue;
+            m_textureSamplerPairs.insert(
+                m_textureSamplerPairs.end(),
+                shaderModule->m_textureSamplerPairs.begin(),
+                shaderModule->m_textureSamplerPairs.end());
         }
 
         // Stash the user-supplied layouts. Backends overwrite NULL
@@ -86,6 +101,17 @@ protected:
         else if (desc.fragmentModule != nullptr)
         {
             m_bindingMap = desc.fragmentModule->m_bindingMap;
+        }
+        // Unioned: each GLSL entry point knows only its own pairs.
+        for (const ShaderModule* shaderModule :
+             {desc.vertexModule, desc.fragmentModule})
+        {
+            if (shaderModule == nullptr)
+                continue;
+            m_textureSamplerPairs.insert(
+                m_textureSamplerPairs.end(),
+                shaderModule->m_textureSamplerPairs.begin(),
+                shaderModule->m_textureSamplerPairs.end());
         }
 
         // Stash the user-supplied layouts. Backends overwrite NULL

@@ -10,8 +10,11 @@ using namespace rivegm;
 
 void GM::run(const char* name, std::vector<uint8_t>* pixels)
 {
-    TestingWindow::FrameOptions frameOptions = {.name = name,
-                                                .clearColor = clearColor()};
+    TestingWindow::FrameOptions frameOptions = {
+        .name = name,
+        .clearColor = clearColor(),
+        .triangulationThresholds = DeterministicTriangulationThresholds,
+    };
     updateFrameOptions(&frameOptions);
     auto renderer = TestingWindow::Get()->beginFrame(frameOptions);
     draw(renderer.get());

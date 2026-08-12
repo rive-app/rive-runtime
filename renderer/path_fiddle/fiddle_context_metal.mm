@@ -35,7 +35,11 @@ public:
         }
         m_renderContext =
             RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
-        printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
+        printf("==== MTLDevice: %s (%s) ====\n",
+               m_gpu.name.UTF8String,
+               // MTLDebugDevice when API validation is on, the real driver
+               // class when it isn't.
+               NSStringFromClass([m_gpu class]).UTF8String);
     }
 
     float dpiScale(GLFWwindow* window) const override

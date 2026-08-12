@@ -1391,10 +1391,6 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                            atIndex:METAL_BUFFER_IDX(COVERAGE_PLANE_IDX +
                                                     DEFAULT_BINDINGS_SET_SIZE)];
     }
-    if (flushDesc.wireframe)
-    {
-        [encoder setTriangleFillMode:MTLTriangleFillModeLines];
-    }
     return encoder;
 }
 
@@ -1903,6 +1899,17 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
 
         DrawType drawType = batch.drawType;
+        if (desc.wireframe)
+        {
+            // Wireframe is a debugging aid. The initialize/resolve are
+            // fullscreen operations, so leave them solid even in wireframe
+            // mode.
+            [encoder setTriangleFillMode:
+                         drawType != gpu::DrawType::renderPassInitialize &&
+                                 drawType != gpu::DrawType::renderPassResolve
+                             ? MTLTriangleFillModeLines
+                             : MTLTriangleFillModeFill];
+        }
         switch (drawType)
         {
             case DrawType::midpointFanPatches:

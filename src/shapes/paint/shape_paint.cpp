@@ -196,6 +196,12 @@ void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
     if (m_feather != nullptr)
     {
         m_feather->markEffectPathDirty();
+        // The path we paint changed; an inner feather derives its geometry
+        // from that path so it has to rebuild.
+        if (m_feather->isInner())
+        {
+            m_feather->addDirt(ComponentDirt::Path);
+        }
     }
     invalidateRendering();
 }

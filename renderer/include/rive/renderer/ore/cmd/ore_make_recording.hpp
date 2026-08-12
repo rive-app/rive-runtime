@@ -88,6 +88,9 @@ inline void recordMakeShaderModule(OreCommandBuffer& cb,
     pod.bindingMapBytes = cb.appendBlobRef(desc.bindingMapBytes,
                                            desc.bindingMapSize,
                                            !desc.bindingMapBytes);
+    pod.texSamplerPairBytes = cb.appendBlobRef(desc.texSamplerPairBytes,
+                                               desc.texSamplerPairSize,
+                                               !desc.texSamplerPairBytes);
     pod.glFixupBytes = cb.appendBlobRef(desc.glFixupBytes,
                                         desc.glFixupSize,
                                         !desc.glFixupBytes);

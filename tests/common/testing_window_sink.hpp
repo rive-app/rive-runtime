@@ -50,6 +50,9 @@ public:
         d.renderTargetHeight = canvas->height();
         d.loadAction = rive::gpu::LoadAction::clear;
         d.clearColor = clearColor;
+        // Canvas content is the same frame as the screen content around it, so
+        // it has to be drawn under the same rules.
+        d.triangulationThresholds = m_options.triangulationThresholds;
         m_rc->beginFrame(d);
         m_canvasRenderer = std::make_unique<rive::RiveRenderer>(m_rc);
         return m_canvasRenderer.get();

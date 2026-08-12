@@ -126,14 +126,32 @@ public:
 
         virtual void onFileLoaded(const FileHandle, uint64_t requestId) {}
 
-        virtual void onArtboardInstantiated(const FileHandle,
+        /**
+         * Called after an artboard instance is created.
+         *
+         * @param fileHandle The file from which the artboard was instantiated.
+         * @param requestId The request that created the artboard handle.
+         * @param artboardHandle The confirmed artboard handle.
+         */
+        virtual void onArtboardInstantiated(const FileHandle fileHandle,
                                             uint64_t requestId,
-                                            ArtboardHandle)
+                                            ArtboardHandle artboardHandle)
         {}
 
-        virtual void onViewModelInstanceInstantiated(const FileHandle,
-                                                     uint64_t requestId,
-                                                     ViewModelInstanceHandle)
+        /**
+         * Called after a view model instance or instance reference is created.
+         *
+         * @param fileHandle The source file for a newly instantiated view
+         * model, or RIVE_NULL_HANDLE when the new handle references an existing
+         * nested or list-item instance. Confirmations with RIVE_NULL_HANDLE are
+         * delivered only to a FileListener registered for RIVE_NULL_HANDLE.
+         * @param requestId The request that created the instance handle.
+         * @param viewModelInstanceHandle The confirmed instance handle.
+         */
+        virtual void onViewModelInstanceInstantiated(
+            const FileHandle fileHandle,
+            uint64_t requestId,
+            ViewModelInstanceHandle viewModelInstanceHandle)
         {}
 
         virtual void onArtboardsListed(const FileHandle,
@@ -282,9 +300,18 @@ public:
         virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId)
         {}
 
-        virtual void onStateMachineInstantiated(const ArtboardHandle,
-                                                uint64_t requestId,
-                                                StateMachineHandle)
+        /**
+         * Called after a state machine instance is created.
+         *
+         * @param artboardHandle The artboard from which the state machine was
+         * instantiated.
+         * @param requestId The request that created the state machine handle.
+         * @param stateMachineHandle The confirmed state machine handle.
+         */
+        virtual void onStateMachineInstantiated(
+            const ArtboardHandle artboardHandle,
+            uint64_t requestId,
+            StateMachineHandle stateMachineHandle)
         {}
 
         virtual void onStateMachinesListed(
@@ -635,6 +662,18 @@ public:
                               ViewModelInstanceHandle,
                               uint64_t requestId = 0);
 
+    /**
+     * Removes the main (non-global) view model instance from a state machine
+     * without rebinding. Call bind() to create and apply its default main
+     * instance.
+     *
+     * @param stateMachineHandle The state machine whose main instance should
+     * be cleared.
+     * @param requestId The identifier reported with any asynchronous error.
+     */
+    void clearViewModelInstance(StateMachineHandle stateMachineHandle,
+                                uint64_t requestId = 0);
+
     // Sets/replaces the global view model instance bound under the given global
     // view model name without rebinding. Call bind() to apply. Reports a state
     // machine error if the name does not match a global view model.
@@ -642,6 +681,21 @@ public:
                                     std::string name,
                                     ViewModelInstanceHandle,
                                     uint64_t requestId = 0);
+
+    /**
+     * Removes the instance occupying a named global slot without rebinding,
+     * preserving the main instance and every other global slot. Call bind() to
+     * create and apply that slot's default instance. Reports a state machine
+     * error if name does not identify a global view model.
+     *
+     * @param stateMachineHandle The state machine whose global slot should be
+     * cleared.
+     * @param name The global view model slot to clear.
+     * @param requestId The identifier reported with any asynchronous error.
+     */
+    void clearGlobalViewModelInstance(StateMachineHandle stateMachineHandle,
+                                      std::string name,
+                                      uint64_t requestId = 0);
 
     // Returns a handle to the global view model instance currently bound under
     // the given name. Never creates: if none is bound, reports a view model
@@ -652,9 +706,17 @@ public:
         ViewModelInstanceListener* listener = nullptr,
         uint64_t requestId = 0);
 
-    // Applies the current data context: rebinds artboard + state machine data
-    // binds in a single pass. No-op if nothing has been set.
-    void bind(StateMachineHandle, uint64_t requestId = 0);
+    /**
+     * Applies the state machine's current data context to its artboard and
+     * state machine data binds in a single pass. Any missing main or global
+     * view model instances are created from their defaults before binding.
+     * Reports a state machine error asynchronously if the handle is invalid.
+     *
+     * @param stateMachineHandle The state machine whose data context should be
+     * applied.
+     * @param requestId The identifier reported with any asynchronous error.
+     */
+    void bind(StateMachineHandle stateMachineHandle, uint64_t requestId = 0);
 
     void advanceStateMachine(StateMachineHandle,
                              float timeToAdvance,
@@ -1047,7 +1109,9 @@ private:
         clearSemanticFocus,
         bindViewModelInstance,
         setViewModelInstance,
+        clearViewModelInstance,
         setGlobalViewModelInstance,
+        clearGlobalViewModelInstance,
         getGlobalViewModelInstance,
         bind,
         runOnce,

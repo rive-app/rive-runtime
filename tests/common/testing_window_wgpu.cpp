@@ -391,6 +391,7 @@ public:
             .clearColor = options.clearColor,
             .msaaSampleCount = m_backendParams.msaa ? 4u : 0u,
             .disableRasterOrdering = options.disableRasterOrdering,
+            .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,

@@ -24,9 +24,15 @@ public:
     using GroutTriangleList = GrTriangulator::BreadcrumbTriangleList;
 
     GrInnerFanTriangulator(const RawPath& path,
-                           Comparator::Direction direction,
+                           const AABB& pathBounds,
                            TrivialBlockAllocator* alloc) :
-        GrTriangulator(direction, alloc)
+        GrTriangulator(
+            // Sweep along the longer dimension of pathBounds so the sweep line
+            // crosses fewer edges.
+            pathBounds.width() > pathBounds.height()
+                ? Comparator::Direction::kHorizontal
+                : Comparator::Direction::kVertical,
+            alloc)
     {
         fPreserveCollinearVertices = true;
         fCollectBreadcrumbTriangles = true;

@@ -5,6 +5,8 @@
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/text/text_modifier_range.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/shapes/paint/feather.hpp"
+#include "rive/shapes/paint/fill.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
@@ -97,4 +99,58 @@ TEST_CASE("text opacity falloff with feathered and plain fills", "[silver]")
     }
 
     CHECK(silver.matches("text_feather_falloff"));
+}
+
+TEST_CASE("inner feather on text rebuilds as modifiers change the glyphs",
+          "[text]")
+{
+    auto file = ReadRiveFile("assets/text_feather_falloff.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    // A feathered fill on a text that also carries a modifier group: the
+    // modifier is what we drive, so both have to hang off the same text.
+    rive::Feather* feather = nullptr;
+    rive::TextModifierGroup* modifierGroup = nullptr;
+    for (auto style : artboard->find<rive::TextStylePaint>())
+    {
+        auto parent = style->parent();
+        if (parent == nullptr || !parent->is<rive::Text>() ||
+            parent->as<rive::Text>()->modifierGroups().empty())
+        {
+            continue;
+        }
+        for (auto shapePaint : style->shapePaints())
+        {
+            if (shapePaint->is<rive::Fill>() &&
+                shapePaint->feather() != nullptr)
+            {
+                feather = shapePaint->feather();
+                modifierGroup = parent->as<rive::Text>()->modifierGroups()[0];
+                break;
+            }
+        }
+        if (feather != nullptr)
+        {
+            break;
+        }
+    }
+    REQUIRE(feather != nullptr);
+    REQUIRE(modifierGroup != nullptr);
+
+    // Flip to inner so the feather has to derive its path from the glyphs.
+    feather->inner(true);
+    REQUIRE(feather->isInner());
+
+    artboard->advance(0.0f);
+    int baseline = feather->renderCount;
+    REQUIRE(baseline > 0);
+
+    // The reported case: a modifier transform moves the glyphs. Text only
+    // marks itself dirty for that, so the inner feather has to be dirtied
+    // along with the style's paints or it keeps the old glyph geometry.
+    modifierGroup->x(modifierGroup->x() + 10.0f);
+    artboard->advance(0.0f);
+
+    CHECK(feather->renderCount > baseline);
 }

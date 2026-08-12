@@ -4,6 +4,7 @@
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/view_model_type.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -259,6 +260,65 @@ TEST_CASE("state machine set/bind and get by name", "[viewmodel]")
     REQUIRE(stateMachine->setGlobalViewModelInstance(globalNames[0], custom));
     REQUIRE(stateMachine->globalViewModelInstance(globalNames[0]) == custom);
     REQUIRE(boundNames(stateMachine->dataContext().get()) == names);
+}
+
+// Clearing an override discards both it and any earlier default. The next bind
+// creates a fresh default that is independent of every previously bound VMI.
+TEST_CASE("clear and bind recreates an independent global default",
+          "[viewmodel]")
+{
+    auto file = ReadRiveFile("assets/global_viewmodels_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    const std::string globalName = "GlobalColors";
+    const std::string propertyName = "c1";
+
+    // Bind without an override so core creates the first default global.
+    stateMachine->bind();
+    auto originalDefault = stateMachine->globalViewModelInstance(globalName);
+    REQUIRE(originalDefault != nullptr);
+    auto originalColor = originalDefault->propertyValue(propertyName)
+                             ->as<ViewModelInstanceColor>();
+    REQUIRE(originalColor != nullptr);
+    const auto defaultValue = originalColor->propertyValue();
+    const auto mutatedDefaultValue = defaultValue ^ 0x00FFFFFF;
+    originalColor->propertyValue(mutatedDefaultValue);
+    REQUIRE(originalColor->propertyValue() == mutatedDefaultValue);
+
+    // Replace the mutated default with an explicit override.
+    auto override =
+        file->createDefaultViewModelInstance(file->viewModel(globalName));
+    REQUIRE(override != nullptr);
+    auto overrideColor =
+        override->propertyValue(propertyName)->as<ViewModelInstanceColor>();
+    REQUIRE(overrideColor != nullptr);
+    const auto overrideValue = defaultValue ^ 0x0000FFFF;
+    overrideColor->propertyValue(overrideValue);
+    REQUIRE(stateMachine->setGlobalViewModelInstance(globalName, override));
+    stateMachine->bind();
+    REQUIRE(stateMachine->globalViewModelInstance(globalName) == override);
+    REQUIRE(overrideColor->propertyValue() == overrideValue);
+
+    // Clearing leaves the slot empty; bind fills it with a new default rather
+    // than restoring the original mutated instance.
+    REQUIRE(stateMachine->setGlobalViewModelInstance(globalName, nullptr));
+    stateMachine->bind();
+    auto reboundDefault = stateMachine->globalViewModelInstance(globalName);
+    REQUIRE(reboundDefault != nullptr);
+    REQUIRE(reboundDefault != originalDefault);
+    REQUIRE(reboundDefault != override);
+    auto reboundColor = reboundDefault->propertyValue(propertyName)
+                            ->as<ViewModelInstanceColor>();
+    REQUIRE(reboundColor != nullptr);
+    CHECK(reboundColor->propertyValue() == defaultValue);
+
+    // A caller may still hold the detached override, but mutating it no longer
+    // affects the state machine's rebound default.
+    overrideColor->propertyValue(defaultValue ^ 0x00FF00FF);
+    CHECK(reboundColor->propertyValue() == defaultValue);
 }
 
 // A slot only exists for global view models: naming a real but non-global view

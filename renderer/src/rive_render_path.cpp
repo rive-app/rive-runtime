@@ -4,6 +4,7 @@
 
 #include "rive_render_path.hpp"
 
+#include "gr_inner_fan_triangulator.hpp"
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/gpu.hpp"
@@ -154,6 +155,79 @@ uint64_t RiveRenderPath::getRawPathMutationID() const
         m_dirt &= ~kRawPathMutationIDDirt;
     }
     return m_rawPathMutationID;
+}
+
+// Initial block size for a path's cached-triangulation allocator. Kept small
+// since it holds a single path's inner-fan mesh; it grows fibonacci-style if
+// the triangulation needs more.
+constexpr static size_t TriangulatorInitialBlockSize = 512;
+
+GrInnerFanTriangulator* RiveRenderPath::cachedTriangulator() const
+{
+    if (m_cachedTriangulatorMutationID == getRawPathMutationID())
+    {
+        return m_cachedTriangulator;
+    }
+    if (m_cachedTriangulator != nullptr)
+    {
+        // Mutation IDs only ever increase, so this triangulation can never
+        // become current again. Free the memory now.
+        m_cachedTriangulator = nullptr;
+
+        // Make sure no queued draw is holding this mesh before we reset the
+        // allocator. Otherwise, the draw would be left with dangling pointers.
+        // (It shouldn't happen -- the mutation that made this stale would have
+        // had to happen under that same lock.)
+        assert(m_rawPathMutationLockCount == 0);
+        assert(m_triangulatorAllocator != nullptr);
+        m_triangulatorAllocator->reset();
+    }
+    return nullptr;
+}
+
+GrInnerFanTriangulator* RiveRenderPath::createTriangulator(
+    TrivialBlockAllocator& perFrameAllocator) const
+{
+    // Call cachedTriangulator() first and only come here on a miss. It frees
+    // whatever it found stale, which is what leaves the allocator empty for us
+    // here. We only reset the allocator in cachedTriangulator() because it can
+    // guarantee m_rawPathMutationLockCount == 0.
+    assert(m_cachedTriangulator == nullptr);
+    assert(m_triangulatorAllocator == nullptr ||
+           m_triangulatorAllocator->empty());
+
+    const uint64_t mutationID = getRawPathMutationID();
+    if (m_triangulatorFirstSightingMutationID != mutationID)
+    {
+        // First sighting of this geometry. It may never be drawn again -- an
+        // animating path gets a fresh mutation ID every frame -- so build a
+        // throwaway rather than committing storage that outlives the frame.
+        m_triangulatorFirstSightingMutationID = mutationID;
+        return perFrameAllocator.make<GrInnerFanTriangulator>(
+            m_rawPath,
+            getBounds(),
+            &perFrameAllocator);
+    }
+    else
+    {
+        // Second sighting: the same geometry has now been requested twice, so
+        // it's worth triangulating into persistent storage that outlives the
+        // frame.
+        if (m_triangulatorAllocator == nullptr)
+        {
+            m_triangulatorAllocator = std::make_unique<TrivialBlockAllocator>(
+                TriangulatorInitialBlockSize);
+        }
+        assert(m_triangulatorAllocator->empty());
+
+        m_cachedTriangulator =
+            m_triangulatorAllocator->make<GrInnerFanTriangulator>(
+                m_rawPath,
+                getBounds(),
+                m_triangulatorAllocator.get());
+        m_cachedTriangulatorMutationID = mutationID;
+        return m_cachedTriangulator;
+    }
 }
 
 // Chops the cubic definfed by p[4] at 'numChops' locations, each defined by

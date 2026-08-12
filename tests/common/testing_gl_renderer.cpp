@@ -90,6 +90,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                     (m_backendParams.msaa || options.forceMSAA) ? 4u : 0u,
                 .disableRasterOrdering =
                     m_backendParams.atomic || options.disableRasterOrdering,
+                .triangulationThresholds = options.triangulationThresholds,
                 .wireframe = options.wireframe,
                 .fillsDisabled = options.fillsDisabled,
                 .strokesDisabled = options.strokesDisabled,

@@ -11,6 +11,7 @@
 
 #include "common/testing_window.hpp"
 #include "rive/renderer/render_context.hpp"
+#include "rive/renderer/render_context_impl.hpp"
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -227,44 +228,12 @@ struct OreGMContext
     }
 };
 
-// Ore's GL backend modifies GL state (blend, depth, stencil, cull, front face
-// winding, etc.) that Rive's GLState cache tracks. After Ore rendering,
-// invalidate the cache so Rive re-issues all GL state changes on the next
-// flush. Without this, the MSAA path (which relies on correct cached state for
-// culling and stencil) renders black because GLState skips state updates it
-// thinks are redundant.
-// For WGPU, command submission is handled by Context::endFrame() and there
-// is no shared GL state cache to invalidate.
-inline void invalidateGLStateAfterOre(
-    [[maybe_unused]] rive::gpu::RenderContext* renderContext)
+// Ore leaves GL state behind that Rive's own cache does not track, so the
+// next flush would skip updating it and render black. The backend owns the
+// cleanup; every other backend no-ops.
+inline void invalidateGLStateAfterOre(rive::gpu::RenderContext* renderContext)
 {
-#if defined(ORE_BACKEND_GL)
-    auto b = TestingWindow::backend();
-    if (b == TestingWindow::Backend::gl || b == TestingWindow::Backend::angle)
-    {
-        // Ensure all Ore GPU commands are complete before returning to Rive.
-        // On some MSAA drivers, pending Ore FBO operations can interfere with
-        // subsequent Rive MSAA flush.
-        glFinish();
-
-        // Unbind sampler objects from all texture units. Sampler objects are
-        // global state (not per-FBO/VAO) and not restored by
-        // Context::endFrame() or tracked by GLState. A stale sampler can
-        // override Rive's texture sampling parameters and cause black renders
-        // on the MSAA path.
-        for (int i = 0; i < 16; ++i)
-        {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-            glBindSampler(i, 0);
-        }
-        glActiveTexture(GL_TEXTURE0);
-
-        renderContext->static_impl_cast<rive::gpu::RenderContextGLImpl>()
-            ->invalidateGLState();
-    }
-#endif
+    renderContext->impl()->scrubStateAfterOre();
 }
 
 #if defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)

@@ -415,6 +415,12 @@ struct ShaderModuleDesc
     const uint8_t* bindingMapBytes = nullptr;
     uint32_t bindingMapSize = 0;
 
+    // Texture-sampler pairs from the RSTB, four bytes each: texture group and
+    // binding, then sampler group and binding. Travels in the desc so it
+    // survives deferred record and replay, which rebuilds modules from this.
+    const uint8_t* texSamplerPairBytes = nullptr;
+    uint32_t texSamplerPairSize = 0;
+
     // GL program-link fixup blob from the RSTB (target IDs 14/15, one per
     // GLSL stage). Consumed by `oreGLFixupProgramBindings` at
     // `glLinkProgram` time to call `glUniformBlockBinding` / `glUniform1i`

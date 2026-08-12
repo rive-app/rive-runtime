@@ -211,6 +211,7 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
     if (!checkPipelineCompat(pipeline))
         return;
     m_currentPipeline = ref_rcp(pipeline);
+    m_samplerBindingsDirty = true;
 
     auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
     assert(glPipeline);
@@ -429,13 +430,63 @@ void RenderPassGL::setBindGroup(uint32_t groupIndex,
         m_usedSamplers = true;
     }
 
-    for (const auto& samp : glBg->m_glSamplers)
-    {
-        glBindSampler(samp.slot, samp.sampler);
+    // Samplers wait for the pipeline: it carries the pairing.
+    m_samplerBindingsDirty = true;
+}
 
-        if (!m_usedSamplers || samp.slot > m_maxSamplerSlot)
-            m_maxSamplerSlot = samp.slot;
+// GLSL folds a texture and its sampler into one uniform at the texture's unit,
+// so a sampler binds to every unit whose texture it serves.
+void RenderPassGL::applySamplerBindings()
+{
+    if (!m_samplerBindingsDirty)
+        return;
+    m_samplerBindingsDirty = false;
+
+    const std::vector<ShaderModule::TextureSamplerPair>* pairs =
+        m_currentPipeline != nullptr ? &m_currentPipeline->m_textureSamplerPairs
+                                     : nullptr;
+
+    auto bindTo = [this](uint32_t slot, unsigned int sampler) {
+        glBindSampler(slot, sampler);
+        if (!m_usedSamplers || slot > m_maxSamplerSlot)
+            m_maxSamplerSlot = slot;
         m_usedSamplers = true;
+    };
+
+    for (uint32_t group = 0; group < kMaxBindGroups; ++group)
+    {
+        auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
+        if (glBg == nullptr)
+            continue;
+
+        for (const auto& samp : glBg->m_glSamplers)
+        {
+            bool paired = false;
+            if (pairs != nullptr)
+            {
+                for (const auto& pair : *pairs)
+                {
+                    if (pair.samplerGroup != group ||
+                        pair.samplerBinding != samp.binding)
+                        continue;
+                    auto* texBg = lite_rtti_cast<BindGroupGL*>(
+                        m_boundGroups[pair.textureGroup].get());
+                    if (texBg == nullptr)
+                        continue;
+                    for (const auto& tex : texBg->m_glTextures)
+                    {
+                        if (tex.binding != pair.textureBinding)
+                            continue;
+                        bindTo(tex.slot, samp.sampler);
+                        paired = true;
+                    }
+                }
+            }
+            if (!paired)
+            {
+                bindTo(samp.slot, samp.sampler);
+            }
+        }
     }
 }
 
@@ -497,6 +548,7 @@ void RenderPassGL::draw(uint32_t vertexCount,
 {
     validate();
     assert(m_currentPipeline != nullptr);
+    applySamplerBindings();
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
     // drawBaseInstance=false on GL, so the Lua guard rejects firstInstance>0.
@@ -517,6 +569,7 @@ void RenderPassGL::drawIndexed(uint32_t indexCount,
 {
     validate();
     assert(m_currentPipeline != nullptr);
+    applySamplerBindings();
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
     GLenum indexType = (m_glIndexFormat == IndexFormat::uint32)
                            ? GL_UNSIGNED_INT

@@ -5,6 +5,7 @@ import atexit
 import base64
 import glob
 import http.server
+import json
 import os
 import pathlib
 import platform
@@ -24,6 +25,41 @@ import zipfile
 
 HANDSHAKE_TOKEN = 0xfee1600d
 SHUTDOWN_TOKEN = 0xfee1dead
+
+# Metal API validation, gated by metal_validation_env(). Set in our own
+# environment on host, or passed to the launch command on iOS/iossim.
+# These are the vars that Xcode's scheme diagnostics set.
+METAL_VALIDATION_ENV = {
+    "MTL_DEBUG_LAYER": "1",
+    "METAL_DEVICE_WRAPPER_TYPE": "1", # older spelling of MTL_DEBUG_LAYER.
+    "MTL_DEBUG_LAYER_ERROR_MODE": "assert",
+    # Warnings are far too chatty for CI logs.
+    # FIXME: We should address these warnings.
+    "MTL_DEBUG_LAYER_WARNING_MODE": "ignore",
+    # The layer reports through os_log, which only mirrors to stderr when
+    # forced. The harness forwards nothing else.
+    "CFLOG_FORCE_STDERR": "1",
+    "OS_ACTIVITY_DT_MODE": "enable",
+}
+
+# Shader validation re-instruments every pipeline. On device and in the
+# simulator that starves MTLCompilerService, and pipeline creation fails with
+# XPC_ERROR_CONNECTION_INTERRUPTED, so it stays on host.
+METAL_SHADER_VALIDATION_ENV = {
+    "MTL_SHADER_VALIDATION": "1",
+    "MTL_SHADER_VALIDATION_REPORT_TO_STDERR": "1",
+}
+
+# The Metal validation vars for this run, or {} if it doesn't get validation.
+def metal_validation_env():
+    # NOTE: MoltenVK generates Metal validation errors right now, so only turn
+    # these on for our own Metal backends.
+    if "metal" not in args.backend or args.release:
+        return {}
+    env = dict(METAL_VALIDATION_ENV)
+    if args.target == "host":
+        env.update(METAL_SHADER_VALIDATION_ENV)
+    return env
 
 parser = argparse.ArgumentParser(description="Run native gms & goldens, and dump their .pngs")
 parser.add_argument("tools",
@@ -525,21 +561,29 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         print("\nDeploying %s on ios (udid=%s, ios_version=%i)..." %
               (toolname, args.ios_udid, target_info["ios_version"]))
         cmd = [toolname] + cmd[1:]
+        validation_env = metal_validation_env()
         if target_info["ios_version"] >= 17:
             # ios-deploy is no longer supported after iOS 17.
             return ["xcrun", "devicectl", "device", "process", "launch",
                     # "--console",  # TODO: "--console" not currently supported.
-                    "--device", args.ios_udid,
-                    "--environment-variables", '{"MTL_DEBUG_LAYER": "1"}',
-                    "rive.app.golden-test-app"] + cmd
+                    "--device", args.ios_udid] + \
+                   (["--environment-variables", json.dumps(validation_env)]
+                    if validation_env else []) + \
+                   ["rive.app.golden-test-app"] + cmd
         else:
             return ["ios-deploy", "--noinstall", "--noninteractive", "--bundle",
-                    "ios_tests/build/Debug-iphoneos/rive_ios_tests.app",
-                    "--envs", "MTL_DEBUG_LAYER=1",
-                    "--args", ' '.join(cmd)]
+                    "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"] + \
+                   (["--envs", ','.join("%s=%s" % kv
+                                        for kv in validation_env.items())]
+                    if validation_env else []) + \
+                   ["--args", ' '.join(cmd)]
 
     elif args.target == "iossim":
         print("\nDeploying %s on ios simulator (udid=%s)..." % (toolname, args.ios_udid))
+        # host-side env already carries the raw vars; simctl also forwards
+        # SIMCTL_CHILD_-prefixed ones to the simulator process.
+        for key, value in metal_validation_env().items():
+            env["SIMCTL_CHILD_" + key] = value
         cmd = [toolname] + cmd[1:]
         return ["xcrun", "simctl", "launch", args.ios_udid, "rive.app.golden-test-app"] + cmd
 
@@ -819,11 +863,10 @@ def main():
                            "d3d" if platform.system() == "Windows" else \
                            "gl"
 
-    if "metal" in args.backend:
-        # Turn on Metal validation layers.
-        # NOTE: MoltenVK generates Metal validation errors right now, so only them on for our own
-        # Metal backends.
-        os.environ["MTL_DEBUG_LAYER"] = "1"
+    # Turn on Metal validation layers. (iOS/iossim set these on their launch
+    # commands.)
+    # NOTE: metal_validation_env() is empty on non-Metal targets.
+    os.environ.update(metal_validation_env())
 
     if args.server_only:
         args.jobs_per_tool = 1 # Only print the command for each job once.

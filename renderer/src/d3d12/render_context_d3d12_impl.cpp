@@ -1768,6 +1768,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 .shaderFeatures = shaderFeatures,
                 .interlockMode = desc.interlockMode,
                 .shaderMiscFlags = shaderMiscFlags,
+                .wireframe = desc.wireframe,
 #ifdef WITH_RIVE_TOOLS
                 .synthesizedFailureType = desc.synthesizedFailureType,
 #endif

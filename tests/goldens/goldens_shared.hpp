@@ -62,8 +62,11 @@ void dumpPixelsAsPng(const char* rivName,
 // Goldens frames present on a white background.
 inline TestingWindowFrameSink goldensFrameSink(bool doClear = true)
 {
-    return TestingWindowFrameSink(
-        {.clearColor = 0xffffffff, .doClear = doClear});
+    return TestingWindowFrameSink({
+        .clearColor = 0xffffffff,
+        .doClear = doClear,
+        .triangulationThresholds = DeterministicTriangulationThresholds,
+    });
 }
 
 // RIVE_GOLDENS_BENCH=<iters> loads the same scene immediate and deferred and
@@ -108,6 +111,9 @@ public:
                 {
                     m_session =
                         std::make_unique<rive::cmd::DeferredSession>(ore);
+                    // Bound before import so registration scripts that reach
+                    // for the device find it, like a real host.
+                    m_session->bindRenderContext(rc);
                     importFactory = m_session.get();
                 }
             }
@@ -125,14 +131,6 @@ public:
         {
             vm->context()->setRenderContext(
                 TestingWindow::Get()->renderContext());
-#if defined(RIVE_CANVAS)
-            if (m_session)
-            {
-                vm->context()->setOreContext(&m_session->oreContext());
-                // Regular canvas 2D content records into the deferred stream.
-                vm->context()->setDeferredCanvasHost(m_session.get());
-            }
-#endif
         }
 #endif
         if (artboardName != nullptr && artboardName[0] != '\0')

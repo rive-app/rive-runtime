@@ -8,10 +8,29 @@
 #include "common/offscreen_render_target.hpp"
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/shader_compilation_mode.hpp"
+#include "rive/renderer/triangulation_controller.hpp"
 #include "rive/refcnt.hpp"
+#include <limits>
 #include <memory>
 #include <vector>
 #include <string>
+
+// Every harness that compares rendered pixels against a baseline (gms,
+// goldens) must render deterministically, so none of them impose a frame-time
+// limit on triangulation: a path meant to exercise triangulation has to do so
+// on every run and machine. The guards still apply -- GMs can tune those per
+// test in updateFrameOptions().
+//
+// Every frame a harness opens has to use these, not just the ones that look
+// like they matter: goldens' immediate and deferred paths only produce
+// identical pixels if both do.
+//
+// Interactive tools (the player) deliberately don't use this; they want
+// production budgeting behavior.
+constexpr rive::gpu::TriangulationThresholds
+    DeterministicTriangulationThresholds = {
+        .frameBudgetMs = std::numeric_limits<float>::infinity(),
+};
 
 namespace rive
 {
@@ -212,6 +231,7 @@ public:
         bool fillsDisabled = false;
         bool strokesDisabled = false;
         bool clockwiseFillOverride = false;
+        rive::gpu::TriangulationThresholds triangulationThresholds;
 #ifdef WITH_RIVE_TOOLS
         rive::gpu::SynthesizedFailureType synthesizedFailureType =
             rive::gpu::SynthesizedFailureType::none;

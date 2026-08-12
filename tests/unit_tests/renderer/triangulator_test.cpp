@@ -1029,12 +1029,7 @@ static void verify_simple_inner_polygons(const char* shapeName,
         {
             // path.setFillType(fillType);
             TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
-            GrInnerFanTriangulator triangulator(
-                path,
-                path.bounds().width() > path.bounds().height()
-                    ? GrTriangulator::Comparator::Direction::kHorizontal
-                    : GrTriangulator::Comparator::Direction::kVertical,
-                &alloc);
+            GrInnerFanTriangulator triangulator(path, path.bounds(), &alloc);
             // Identity transform, no negate flag -> no reversal or negation.
             const bool reverseTriangles = false;
             const bool negateWinding = false;

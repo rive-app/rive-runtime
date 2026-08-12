@@ -763,9 +763,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         if (vertexType == FAN_MIDPOINT_VERTEX)
             origin = midpoint;
 
-        // If we're actually just drawing a triangle, throw away the entire
-        // patch except a single fan triangle.
-        if ((contourIDWithFlags & RETROFITTED_TRIANGLE_CONTOUR_FLAG) != 0u &&
+        // If we're actually drawing a triangle strip, throw away the entire
+        // patch except the fan triangles.
+        if ((contourIDWithFlags & RETROFIT_TRI_STRIP_CONTOUR_FLAG) != 0u &&
             vertexType != FAN_VERTEX)
         {
             return false;

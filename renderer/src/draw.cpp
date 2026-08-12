@@ -9,24 +9,22 @@
 #include "rive_render_paint.hpp"
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/wangs_formula.hpp"
+#include "rive/renderer/render_context_impl.hpp"
+#include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
 #include "shaders/constants.glsl"
 #include "rive/profiler/profiler_macros.h"
+#include <cmath>
 
 namespace rive::gpu
 {
 namespace
 {
-// The final segment in an outerCurve patch is a bowtie join.
-constexpr static size_t kJoinSegmentCount = 1;
-constexpr static size_t kPatchSegmentCountExcludingJoin =
-    kOuterCurvePatchSegmentSpan - kJoinSegmentCount;
-
 // Maximum # of outerCurve patches a curve on the path can be subdivided into.
 constexpr static size_t kMaxCurveSubdivisions =
-    (kMaxParametricSegments + kPatchSegmentCountExcludingJoin - 1) /
-    kPatchSegmentCountExcludingJoin;
+    (kMaxParametricSegments + OuterCubicPatchSegmentSpan - 1) /
+    OuterCubicPatchSegmentSpan;
 
 static uint32_t find_outer_cubic_subdivision_count(
     const Vec2D pts[],
@@ -34,7 +32,7 @@ static uint32_t find_outer_cubic_subdivision_count(
 {
     float numSubdivisions =
         ceilf(wangs_formula::cubic(pts, kParametricPrecision, vectorXform) *
-              (1.f / kPatchSegmentCountExcludingJoin));
+              (1.f / OuterCubicPatchSegmentSpan));
     return static_cast<uint32_t>(
         math::clamp(numSubdivisions, 1, kMaxCurveSubdivisions));
 }
@@ -500,7 +498,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
     assert(!precomputedPixelBounds.has_value() ||
            pixelBounds == *precomputedPixelBounds);
 
-    bool doTriangulation = false;
+    GrInnerFanTriangulator* triangulator = nullptr;
     const AABB& localBounds = path->getBounds();
     if (context->isOutsideCurrentFrame(pixelBounds))
     {
@@ -516,14 +514,28 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         // enough to benefit from it.
         //
         // FIXME! Implement interior triangulation for feathers.
-        //
+        auto& triController = context->triangulationController();
+        const size_t triVerbCount = path->getRawPath().verbs().count();
+        const float triArea =
+            gpu::find_transformed_area(localBounds, paintMatrix);
         // FIXME! Implement interior triangulation in msaa mode.
         if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
-            path->getRawPath().verbs().count() < 1000 &&
-            gpu::find_transformed_area(localBounds, paintMatrix) >
-                512.f * 512.f)
+            triController.isEligible(triArea, triVerbCount))
         {
-            doTriangulation = true;
+            triangulator = path->cachedTriangulator();
+            if (triangulator != nullptr)
+            {
+                // A cached triangulation is free to reuse.
+                triController.recordCacheHit();
+            }
+            else if (triController.admits(triArea, triVerbCount))
+            {
+                const double triStart = context->impl()->secondsNow();
+                triangulator =
+                    path->createTriangulator(context->perFrameAllocator());
+                triController.recordBuilt(context->impl()->secondsNow() -
+                                          triStart);
+            }
         }
     }
 
@@ -536,13 +548,9 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                                         modulatedOpacity,
                                         coverageType,
                                         context->frameDescriptor());
-    if (doTriangulation)
+    if (triangulator != nullptr)
     {
-        draw->initForInteriorTriangulation(
-            context,
-            localBounds.width() > localBounds.height()
-                ? PathDraw::TriangulatorAxis::horizontal
-                : PathDraw::TriangulatorAxis::vertical);
+        draw->initForInteriorTriangulation(context, triangulator);
     }
     else
     {
@@ -1385,8 +1393,9 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     }
 }
 
-void PathDraw::initForInteriorTriangulation(RenderContext* context,
-                                            TriangulatorAxis triangulatorAxis)
+void PathDraw::initForInteriorTriangulation(
+    RenderContext* context,
+    GrInnerFanTriangulator* triangulator)
 {
     RIVE_PROF_SCOPE_L(2)
     PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
@@ -1394,15 +1403,30 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
     POP_DISABLE_CLANG_SIMD_ABI_WARNING()
     assert(!isStrokeOrFeather());
     assert(m_strokeRadius == 0);
+    assert(m_triangulator == nullptr);
+    assert(triangulator != nullptr);
+
+    m_triangulator = triangulator;
+
+    // The triangulator's mesh is transform- and fill-rule-independent (so
+    // it can be cached); the fill rule and winding are fed per draw.
+    // clockwise and nonZero paths both triangulate as nonZero, because
+    // clockwise fill still needs the backwards triangles for borrowed
+    // coverage.
+    m_triangulatorFillRule = m_pathFillRule == FillRule::evenOdd
+                                 ? FillRule::evenOdd
+                                 : FillRule::nonZero;
+    float matrixDeterminant = m_paintMatrix[0] * m_paintMatrix[3] -
+                              m_paintMatrix[2] * m_paintMatrix[1];
+    m_triangulatorReverseTriangles = matrixDeterminant < 0;
+    m_triangulatorNegateWinding =
+        (matrixDeterminant < 0) !=
+        static_cast<bool>(m_contourFlags & NEGATE_PATH_FILL_COVERAGE_FLAG);
 
     // Every path has at least 1 (non-cubic) move.
     size_t originalNumChopsSize = m_pathRef->getRawPath().verbs().size() - 1;
     m_numChops.reset(context->numChopsAllocator(), originalNumChopsSize);
-    iterateInteriorTriangulation(
-        InteriorTriangulationOp::countDataAndTriangulate,
-        &context->perFrameAllocator(),
-        triangulatorAxis,
-        nullptr);
+    iterateOuterCubics(nullptr); // Fill in m_resourceCounts.
     m_numChops.shrinkToFit(context->numChopsAllocator(), originalNumChopsSize);
 }
 
@@ -1920,11 +1944,7 @@ void PathDraw::pushTessellationData(RenderContext::LogicalFlush* flush,
 
     if (m_triangulator != nullptr)
     {
-        iterateInteriorTriangulation(
-            InteriorTriangulationOp::pushOuterCubicTessellationData,
-            nullptr,
-            TriangulatorAxis::dontCare,
-            &tessWriter);
+        iterateOuterCubics(&tessWriter);
     }
     else
     {
@@ -2341,11 +2361,7 @@ void PathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
 
-void PathDraw::iterateInteriorTriangulation(
-    InteriorTriangulationOp op,
-    TrivialBlockAllocator* allocator,
-    TriangulatorAxis triangulatorAxis,
-    RenderContext::TessellationWriter* tessWriter)
+void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
 {
     RIVE_PROF_SCOPE_L(2)
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
@@ -2355,7 +2371,7 @@ void PathDraw::iterateInteriorTriangulation(
     size_t patchCount = 0;
     size_t contourCount = 0;
     Vec2D p0 = {0, 0};
-    // Used with InteriorTriangulationOp::pushOuterCubicTessellationData.
+    // Only used on the "emit" pass (tessWriter != nullptr).
     uint32_t contourIDWithFlags = 0;
     for (const auto [verb, pts] : rawPath)
     {
@@ -2364,23 +2380,21 @@ void PathDraw::iterateInteriorTriangulation(
             case PathVerb::move:
                 if (contourCount != 0 && pts[-1] != p0)
                 {
-                    if (op ==
-                        InteriorTriangulationOp::pushOuterCubicTessellationData)
+                    if (tessWriter != nullptr)
                     {
                         tessWriter->pushCubic(
                             convert_line_to_cubic(pts[-1], p0).data(),
                             m_contourDirections,
                             {0, 0},
-                            kPatchSegmentCountExcludingJoin,
+                            OuterCubicPatchSegmentSpan,
                             1,
-                            kJoinSegmentCount,
+                            OuterCubicPatchJoinSegmentCount,
                             contourIDWithFlags |
                                 CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
                     ++patchCount;
                 }
-                if (op ==
-                    InteriorTriangulationOp::pushOuterCubicTessellationData)
+                if (tessWriter != nullptr)
                 {
                     contourIDWithFlags =
                         m_contourFlags |
@@ -2393,16 +2407,15 @@ void PathDraw::iterateInteriorTriangulation(
                 ++contourCount;
                 break;
             case PathVerb::line:
-                if (op ==
-                    InteriorTriangulationOp::pushOuterCubicTessellationData)
+                if (tessWriter != nullptr)
                 {
                     tessWriter->pushCubic(
                         convert_line_to_cubic(pts).data(),
                         m_contourDirections,
                         {0, 0},
-                        kPatchSegmentCountExcludingJoin,
+                        OuterCubicPatchSegmentSpan,
                         1,
-                        kJoinSegmentCount,
+                        OuterCubicPatchJoinSegmentCount,
                         contourIDWithFlags |
                             CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                 }
@@ -2413,7 +2426,7 @@ void PathDraw::iterateInteriorTriangulation(
             case PathVerb::cubic:
             {
                 uint32_t numSubdivisions;
-                if (op == InteriorTriangulationOp::countDataAndTriangulate)
+                if (tessWriter == nullptr)
                 {
                     numSubdivisions =
                         find_outer_cubic_subdivision_count(pts, vectorXform);
@@ -2422,15 +2435,25 @@ void PathDraw::iterateInteriorTriangulation(
                 else
                 {
                     numSubdivisions = m_numChops.pop_front();
+                }
+                assert(numSubdivisions >= 1);
+
+                const size_t numGlueTriangles = numSubdivisions - 1;
+                const size_t numGlueTriStrips = (numGlueTriangles + 2) / 3;
+                const size_t numPatches = numSubdivisions + numGlueTriStrips;
+                patchCount += numPatches;
+
+                if (tessWriter != nullptr)
+                {
                     if (numSubdivisions == 1)
                     {
                         tessWriter->pushCubic(
                             pts,
                             m_contourDirections,
                             {0, 0},
-                            kPatchSegmentCountExcludingJoin,
+                            OuterCubicPatchSegmentSpan,
                             1,
-                            kJoinSegmentCount,
+                            OuterCubicPatchJoinSegmentCount,
                             contourIDWithFlags |
                                 CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
@@ -2450,46 +2473,45 @@ void PathDraw::iterateInteriorTriangulation(
                                 chop,
                                 m_contourDirections,
                                 {0, 0},
-                                kPatchSegmentCountExcludingJoin,
+                                OuterCubicPatchSegmentSpan,
                                 1,
-                                kJoinSegmentCount,
+                                OuterCubicPatchJoinSegmentCount,
                                 contourIDWithFlags |
                                     CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                             chop += 3;
                             RIVE_DEBUG_CODE(++pushedPatchCount;)
                         }
-                        // Fill the inner region between subdivisions.
-                        const auto emitMiddleOutGlueTriangles =
-                            [&](auto&& self, size_t p0, size_t pLast) -> void {
-                            if (pLast - p0 < 2)
-                            {
-                                return;
-                            }
-                            size_t pMid = (p0 + pLast) / 2;
-                            Vec2D triangleAsCubic[4] = {chops[p0 * 3],
-                                                        chops[pMid * 3],
-                                                        {0, 0},
-                                                        chops[pLast * 3]};
-                            tessWriter->pushCubic(
-                                triangleAsCubic,
+                        // Fill the gap between the sub-cubics by connecting
+                        // their endpoints with a simple fan. Each fan blade is
+                        // cubic patch with RETROFIT_TRI_STRIP_CONTOUR_FLAG (a
+                        // standard strip of up to 3 triangles, retrofitted into
+                        // a cubic patch), anchored at the first vertex
+                        // (chops[0]).
+                        for (size_t a = 1; a < numSubdivisions; a += 3)
+                        {
+                            const auto segmentsRemaining = numSubdivisions - a;
+                            // Flip the triangle strip orthogonally to the fan
+                            // blade in order to generate more efficient (less
+                            // "sliver") triangles.
+                            const size_t b = segmentsRemaining == 1 ? a : a + 1;
+                            StackVector<Vec2D, 5> strip;
+                            strip.push_back(chops[b * 3]);
+                            strip.push_back(chops[(b + 1) * 3]);
+                            if (segmentsRemaining > 1)
+                                strip.push_back(chops[(b - 1) * 3]);
+                            if (segmentsRemaining > 2)
+                                strip.push_back(chops[(b + 2) * 3]);
+                            strip.push_back(chops[0]);
+                            tessWriter->pushRetrofitCubicTriStrip(
+                                strip.data(),
+                                strip.size(),
                                 m_contourDirections,
-                                {0, 0},
-                                kPatchSegmentCountExcludingJoin,
-                                1,
-                                kJoinSegmentCount,
-                                contourIDWithFlags |
-                                    RETROFITTED_TRIANGLE_CONTOUR_FLAG);
+                                contourIDWithFlags);
                             RIVE_DEBUG_CODE(++pushedPatchCount;)
-                            self(self, p0, pMid);
-                            self(self, pMid, pLast);
-                        };
-                        emitMiddleOutGlueTriangles(emitMiddleOutGlueTriangles,
-                                                   0,
-                                                   numSubdivisions);
-                        assert(pushedPatchCount == numSubdivisions * 2 - 1);
+                        }
+                        assert(pushedPatchCount == numPatches);
                     }
                 }
-                patchCount += numSubdivisions * 2 - 1;
                 break;
             }
             case PathVerb::close:
@@ -2499,45 +2521,23 @@ void PathDraw::iterateInteriorTriangulation(
     Vec2D lastPt = rawPath.points().back();
     if (contourCount != 0 && lastPt != p0)
     {
-        if (op == InteriorTriangulationOp::pushOuterCubicTessellationData)
+        if (tessWriter != nullptr)
         {
             tessWriter->pushCubic(
                 convert_line_to_cubic(lastPt, p0).data(),
                 m_contourDirections,
                 {0, 0},
-                kPatchSegmentCountExcludingJoin,
+                OuterCubicPatchSegmentSpan,
                 1,
-                kJoinSegmentCount,
+                OuterCubicPatchJoinSegmentCount,
                 contourIDWithFlags |
                     CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
         }
         ++patchCount;
     }
 
-    if (op == InteriorTriangulationOp::countDataAndTriangulate)
+    if (tessWriter == nullptr)
     {
-        assert(m_triangulator == nullptr);
-        assert(triangulatorAxis != TriangulatorAxis::dontCare);
-        m_triangulator = allocator->make<GrInnerFanTriangulator>(
-            rawPath,
-            triangulatorAxis == TriangulatorAxis::horizontal
-                ? GrTriangulator::Comparator::Direction::kHorizontal
-                : GrTriangulator::Comparator::Direction::kVertical,
-            allocator);
-        // The triangulator's mesh is transform- and fill-rule-independent (so
-        // it can be cached); the fill rule and winding are fed per draw.
-        // clockwise and nonZero paths both triangulate as nonZero, because
-        // clockwise fill still needs the backwards triangles for borrowed
-        // coverage.
-        m_triangulatorFillRule = m_pathFillRule == FillRule::evenOdd
-                                     ? FillRule::evenOdd
-                                     : FillRule::nonZero;
-        float matrixDeterminant = m_paintMatrix[0] * m_paintMatrix[3] -
-                                  m_paintMatrix[2] * m_paintMatrix[1];
-        m_triangulatorReverseTriangles = matrixDeterminant < 0;
-        m_triangulatorNegateWinding =
-            (matrixDeterminant < 0) !=
-            static_cast<bool>(m_contourFlags & NEGATE_PATH_FILL_COVERAGE_FLAG);
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
@@ -2553,38 +2553,29 @@ void PathDraw::iterateInteriorTriangulation(
             // forward and once mirrored.
             m_resourceCounts.outerCubicTessVertexCount =
                 gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
-                    ? patchCount * kOuterCurvePatchSegmentSpan * 2
-                    : patchCount * kOuterCurvePatchSegmentSpan;
+                    ? patchCount * OuterCubicPatchSegmentSpanPlusJoin * 2
+                    : patchCount * OuterCubicPatchSegmentSpanPlusJoin;
             m_resourceCounts.maxTriangleVertexCount +=
                 m_triangulator->maxVertexCount(m_triangulatorFillRule);
         }
     }
     else
     {
-        assert(m_triangulator != nullptr);
         // Submit grout triangles, retrofitted into outerCubic patches.
         for (auto* node = m_triangulator->groutList().head(); node;
              node = node->fNext)
         {
-            Vec2D triangleAsCubic[4] = {node->fPts[0],
-                                        node->fPts[1],
-                                        {0, 0},
-                                        node->fPts[2]};
-            tessWriter->pushCubic(triangleAsCubic,
-                                  m_contourDirections,
-                                  {0, 0},
-                                  kPatchSegmentCountExcludingJoin,
-                                  1,
-                                  kJoinSegmentCount,
-                                  contourIDWithFlags |
-                                      RETROFITTED_TRIANGLE_CONTOUR_FLAG);
+            tessWriter->pushRetrofitCubicTriStrip(node->fPts,
+                                                  3,
+                                                  m_contourDirections,
+                                                  contourIDWithFlags);
             ++patchCount;
         }
         assert(contourCount == m_resourceCounts.contourCount);
         assert(patchCount == m_resourceCounts.maxTessellatedSegmentCount);
-        assert(patchCount * kOuterCurvePatchSegmentSpan * 2 ==
+        assert(patchCount * OuterCubicPatchSegmentSpanPlusJoin * 2 ==
                    m_resourceCounts.outerCubicTessVertexCount ||
-               patchCount * kOuterCurvePatchSegmentSpan ==
+               patchCount * OuterCubicPatchSegmentSpanPlusJoin ==
                    m_resourceCounts.outerCubicTessVertexCount);
     }
 }

@@ -153,8 +153,10 @@ static bool render_and_dump_png(
 
         // Render the scene in a grid.
         advanceScene(scene);
-        auto renderer =
-            TestingWindow::Get()->beginFrame({.clearColor = 0xffffffff});
+        auto renderer = TestingWindow::Get()->beginFrame({
+            .clearColor = 0xffffffff,
+            .triangulationThresholds = DeterministicTriangulationThresholds,
+        });
         renderer->save();
         for (int y = 0; y < s_args.rows(); ++y)
         {
@@ -164,7 +166,11 @@ static bool render_and_dump_png(
                 {
                     TestingWindow::Get()->endFrame();
                     scene->advanceAndApply(frameDuration);
-                    TestingWindow::Get()->beginFrame({.doClear = false});
+                    TestingWindow::Get()->beginFrame({
+                        .doClear = false,
+                        .triangulationThresholds =
+                            DeterministicTriangulationThresholds,
+                    });
                 }
 
                 renderer->save();

@@ -346,7 +346,10 @@ void run_benchmark(const std::vector<uint8_t>& bytes,
     immScene->advanceAndApply(0.0f);
     auto immFrame = [&]() {
         immScene->advanceAndApply(dt);
-        auto r = win->beginFrame({.clearColor = 0xffffffff});
+        auto r = win->beginFrame({
+            .clearColor = 0xffffffff,
+            .triangulationThresholds = DeterministicTriangulationThresholds,
+        });
         drawInto(r.get(), immScene, immArt);
         win->endFrame();
     };
@@ -502,7 +505,10 @@ void run_benchmark(const std::vector<uint8_t>& bytes,
             immScene->advanceAndApply(dt);
             rive::Artboard::incFrameId();
             auto b = clock::now();
-            auto r = win->beginFrame({.clearColor = 0xffffffff});
+            auto r = win->beginFrame({
+                .clearColor = 0xffffffff,
+                .triangulationThresholds = DeterministicTriangulationThresholds,
+            });
             drawInto(r.get(), immScene, immArt);
             auto c = clock::now();
             win->endFrame();
@@ -538,7 +544,10 @@ void run_benchmark(const std::vector<uint8_t>& bytes,
             }
             auto b = clock::now();
             // Consumer replay against the resident table.
-            auto screen = win->beginFrame({.clearColor = 0xffffffff});
+            auto screen = win->beginFrame({
+                .clearColor = 0xffffffff,
+                .triangulationThresholds = DeterministicTriangulationThresholds,
+            });
             rive::cmd::replayRenderCommands(win->factory(),
                                             screen.get(),
                                             repSession->commandBuffer(),
@@ -596,7 +605,10 @@ void run_benchmark(const std::vector<uint8_t>& bytes,
             defMs->advanceAndApply(dt); // same frame, plus serialize
             auto t2 = clock::now();
             rive::Artboard::incFrameId();
-            auto rim = win->beginFrame({.clearColor = 0xffffffff});
+            auto rim = win->beginFrame({
+                .clearColor = 0xffffffff,
+                .triangulationThresholds = DeterministicTriangulationThresholds,
+            });
             auto t3 = clock::now();
             drawInto(rim.get(), immMs, immMa);
             auto t4 = clock::now();

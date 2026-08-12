@@ -6,9 +6,14 @@
 
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
+#include "rive/renderer/trivial_block_allocator.hpp"
+
+#include <memory>
 
 namespace rive
 {
+class GrInnerFanTriangulator;
+
 // RenderPath implementation for Rive's pixel local storage renderer.
 class RiveRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, RiveRenderPath)
 {
@@ -45,6 +50,25 @@ public:
     bool isClockwiseDominant(const Mat2D& viewMatrix) const;
     uint64_t getRawPathMutationID() const;
 
+    // Returns this path's cached triangulation, or null if it doesn't have one
+    // for its current geometry.
+    // NOTE: An inner-fan triangulation of this path is transform- and
+    // fill-rule-independent (both are applied when its output is emitted), so
+    // one instance serves every draw and transform.
+    GrInnerFanTriangulator* cachedTriangulator() const;
+
+    // Builds a triangulation.
+    //
+    // Generational: the first sighting for a given geometry builds it in
+    // 'perFrameAllocator', where it dies with the frame, so a path that mutates
+    // every frame is never charged for retaining a triangulation it can't
+    // reuse. Only on the second sighting does the path allocate persistent
+    // storage of its own and cache the triangulator.
+    //
+    // Costs real CPU time, so callers gate this; see cachedTriangulator().
+    GrInnerFanTriangulator* createTriangulator(
+        TrivialBlockAllocator& perFrameAllocator) const;
+
     // 1-dimensional feathering along the normal vector quits looking like a
     // blur when there is strong curvature. This method returns a copy of the
     // path with shorter, flatter curves that will more accurately depict a
@@ -71,6 +95,17 @@ private:
     mutable AABB m_bounds;
     mutable float m_coarseArea;
     mutable uint64_t m_rawPathMutationID;
+
+    // Cached inner-fan triangulation, in a dedicated allocator so it outlives
+    // any single frame. Allocated only once a path has been asked to
+    // triangulate the same geometry twice; invalidated when
+    // m_rawPathMutationID changes. See createTriangulator().
+    mutable std::unique_ptr<TrivialBlockAllocator> m_triangulatorAllocator;
+    mutable GrInnerFanTriangulator* m_cachedTriangulator = nullptr;
+    mutable uint64_t m_cachedTriangulatorMutationID = 0;
+    // Geometry seen once, but not yet a second time, so not cached yet.
+    // Mutation IDs start at 1, so 0 means "nothing seen".
+    mutable uint64_t m_triangulatorFirstSightingMutationID = 0;
 
     enum Dirt
     {

@@ -5,6 +5,7 @@
 #include "gm.hpp"
 #include "gr_inner_fan_triangulator.hpp"
 #include "common/testing_window.hpp"
+#include "rive/math/math_types.hpp"
 #include "rive/renderer.hpp"
 #include "rive/renderer/draw.hpp"
 #include "rive/renderer/render_context.hpp"
@@ -12,16 +13,47 @@
 #include "../src/rive_render_path.hpp"
 #include "../src/shaders/constants.glsl"
 
+#include <cmath>
+
 using namespace rivegm;
 using namespace rive;
 using namespace rive::gpu;
 
-constexpr static std::array<Vec2D, 3> kTris[] = {
-    {Vec2D{10, 10}, Vec2D{50, 10}, Vec2D{10, 120}},
-    {Vec2D{10, 290}, Vec2D{290, 10}, Vec2D{270, 280}},
-    {Vec2D{60, 60}, Vec2D{30, 190}, Vec2D{250, 20}},
+// Generates the vertices of a regular n-gon (circumradius r, centered at c,
+// with vertex 0 at startAngleDegrees) in triangle-strip order. The zig-zag
+// sequence 0, 1, n-1, 2, n-2, ... tessellates any convex polygon as a single
+// strip.
+static std::vector<Vec2D> regular_polygon_strip(int n,
+                                                Vec2D c,
+                                                float r,
+                                                float startAngleDegrees)
+{
+    std::vector<Vec2D> perimeter;
+    for (int i = 0; i < n; ++i)
+    {
+        float a = math::degrees_to_radians(startAngleDegrees) +
+                  i * (2.f * math::PI / n);
+        perimeter.push_back({c.x + r * std::cos(a), c.y + r * std::sin(a)});
+    }
+    std::vector<Vec2D> strip = {perimeter[0]};
+    for (int lo = 1, hi = n - 1; lo <= hi;)
+    {
+        strip.push_back(perimeter[lo++]);
+        if (lo <= hi)
+        {
+            strip.push_back(perimeter[hi--]);
+        }
+    }
+    return strip;
+}
+
+// A 1x3 column of regular polygons, each drawn as a single retrofitted cubic
+// triangle strip: an equilateral triangle, a square, then a regular pentagon.
+static const std::vector<std::vector<Vec2D>> TriangleStrips = {
+    regular_polygon_strip(3, {200, 200}, 150, -90.f),
+    regular_polygon_strip(4, {200, 600}, 150, -135.f),
+    regular_polygon_strip(5, {200, 1000}, 150, -90.f),
 };
-constexpr static size_t kNumTriangles = sizeof(kTris) / sizeof(kTris[0]);
 
 rcp<RiveRenderPath> make_nonempty_placeholder_path()
 {
@@ -30,13 +62,14 @@ rcp<RiveRenderPath> make_nonempty_placeholder_path()
     return path;
 }
 
-class PushRetrofittedTrianglesGMDraw : public PathDraw
+class PushRetrofitTriStripsGMDraw : public PathDraw
 {
 public:
-    PushRetrofittedTrianglesGMDraw(RenderContext* context,
-                                   const RiveRenderPaint* paint) :
+    PushRetrofitTriStripsGMDraw(RenderContext* context,
+                                const Mat2D& matrix,
+                                const RiveRenderPaint* paint) :
         PathDraw(FULLSCREEN_PIXEL_BOUNDS,
-                 Mat2D{},
+                 matrix,
                  nullptr,
                  make_nonempty_placeholder_path(),
                  context->frameDescriptor().clockwiseFillOverride
@@ -52,14 +85,16 @@ public:
     {
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = 1;
-        m_resourceCounts.maxTessellatedSegmentCount = kNumTriangles;
+        m_resourceCounts.maxTessellatedSegmentCount = std::size(TriangleStrips);
         m_resourceCounts.outerCubicTessVertexCount =
             context->frameInterlockMode() != gpu::InterlockMode::msaa
-                ? gpu::kOuterCurvePatchSegmentSpan * kNumTriangles * 2
-                : gpu::kOuterCurvePatchSegmentSpan * kNumTriangles;
+                ? gpu::OuterCubicPatchSegmentSpanPlusJoin *
+                      std::size(TriangleStrips) * 2
+                : gpu::OuterCubicPatchSegmentSpanPlusJoin *
+                      std::size(TriangleStrips);
         m_triangulator = context->make<GrInnerFanTriangulator>(
             RawPath(),
-            GrTriangulator::Comparator::Direction::kHorizontal,
+            AABB{},
             &context->perFrameAllocator());
     }
 
@@ -127,18 +162,13 @@ public:
                 {0, 0},
                 /*isStroke=*/false,
                 /*closed=*/true,
-                0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
-            for (const auto& pts : kTris)
+                0 /* gpu::OuterCubicPatchSegmentSpan - 1 */);
+            for (const auto& strips : TriangleStrips)
             {
-                Vec2D tri[4] = {pts[0], pts[1], {0, 0}, pts[2]};
-                tessWriter.pushCubic(tri,
-                                     m_contourDirections,
-                                     {0, 0},
-                                     gpu::kOuterCurvePatchSegmentSpan - 1,
-                                     1,
-                                     1,
-                                     contourID |
-                                         RETROFITTED_TRIANGLE_CONTOUR_FLAG);
+                tessWriter.pushRetrofitCubicTriStrip(strips.data(),
+                                                     strips.size(),
+                                                     m_contourDirections,
+                                                     contourID);
             }
 
             if (flush->frameDescriptor().clockwiseFillOverride)
@@ -159,36 +189,53 @@ public:
     }
 };
 
-// Checks that RenderContext properly draws single triangles when using the
-// "kRetrofittedTriangle" flag.
-class RetrofittedCubicTrianglesGM : public GM
+// Checks that RenderContext properly draws triangle strips when using the
+// RETROFIT_TRI_STRIP_CONTOUR_FLAG flag.
+class RetrofitCubicTriStripsGM : public GM
 {
 public:
-    RetrofittedCubicTrianglesGM() : GM(300, 300) {}
+    RetrofitCubicTriStripsGM() : GM(800, 1200) {}
 
 protected:
+    virtual rive::ColorInt clearColor() const override { return 0xff000000; }
+
     void onDraw(Renderer* renderer) override
     {
-        TestingWindow::Get()->endFrame(nullptr);
         gpu::RenderContext* renderContext =
             TestingWindow::Get()->renderContext();
-        if (!renderContext)
+        if (renderContext != nullptr)
         {
-            TestingWindow::Get()->beginFrame({.clearColor = 0xffff0000});
-        }
-        else
-        {
-            TestingWindow::Get()->beginFrame({.clearColor = 0xff000000});
             RiveRenderPaint paint;
             paint.color(0xffffffff);
             DrawUniquePtr draw(
-                renderContext->make<PushRetrofittedTrianglesGMDraw>(
-                    renderContext,
-                    &paint));
+                renderContext->make<PushRetrofitTriStripsGMDraw>(renderContext,
+                                                                 Mat2D(),
+                                                                 &paint));
             bool success RIVE_MAYBE_UNUSED = renderContext->pushDraws(&draw, 1);
+            assert(success);
+
+            rive::gpu::RenderContext::FrameDescriptor frameDescriptor =
+                renderContext->frameDescriptor();
+            frameDescriptor.loadAction =
+                rive::gpu::LoadAction::preserveRenderTarget;
+#ifndef RIVE_ANDROID
+            // Wireframe is not always supported on Android (e.g. Mali). Skip it
+            // here so every Android device produces the same gold.
+            frameDescriptor.wireframe = true;
+#endif
+            TestingWindow::Get()->flushPLSContext();
+            renderContext->beginFrame(std::move(frameDescriptor));
+            renderer->translate(400, 0);
+
+            DrawUniquePtr wireframeDraw(
+                renderContext->make<PushRetrofitTriStripsGMDraw>(
+                    renderContext,
+                    Mat2D::fromTranslation({400, 0}),
+                    &paint));
+            success = renderContext->pushDraws(&wireframeDraw, 1);
             assert(success);
         }
     }
 };
 
-GMREGISTER(retrofittedcubictriangles, return new RetrofittedCubicTrianglesGM;)
+GMREGISTER(retrofitcubictristrips, return new RetrofitCubicTriStripsGM;)

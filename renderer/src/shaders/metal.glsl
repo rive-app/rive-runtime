@@ -212,6 +212,9 @@
         Varyings _varyings;
 #endif
 
+// imageDrawAttrs is $device, not $constant: the host binds it at a per-draw
+// offset of baseElement * sizeof(ImageDrawInstance), and macOS requires
+// constant-address-space offsets to be 256-byte aligned.
 #define IMAGE_RECT_VERTEX_MAIN(NAME,                                           \
                                Attrs,                                          \
                                attrs,                                          \
@@ -225,7 +228,7 @@
         $constant @FlushUniforms& uniforms                                     \
         [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant Attrs* attrs [[$buffer(0)]],                                 \
-        $constant ImageDrawAttrs* imageDrawAttrs [[$buffer(2)]],               \
+        const $device ImageDrawAttrs* imageDrawAttrs [[$buffer(2)]],           \
         VertexTextures _textures,                                              \
         VertexStorageBuffers _buffers)                                         \
     {                                                                          \
@@ -246,7 +249,7 @@
         [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant PositionAttr* position [[$buffer(0)]],                       \
         $constant UVAttr* uv [[$buffer(1)]],                                   \
-        $constant ImageDrawAttrs* imageDrawAttrs [[$buffer(2)]])               \
+        const $device ImageDrawAttrs* imageDrawAttrs [[$buffer(2)]])           \
     {                                                                          \
         Varyings _varyings;
 
