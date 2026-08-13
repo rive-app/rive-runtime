@@ -27,30 +27,42 @@ struct BlobRef
 };
 constexpr BlobRef kNoBlob = {0, BlobRef::kAbsent, 0};
 
+// Every POD below orders its fields widest first, so the layout carries no
+// implicit padding and a recording never depends on what the compiler left in
+// the gaps. Any trailing pad is named, and the asserts fail if a new field
+// reopens a hole.
 struct BufferDescPOD
 {
-    BufferUsage usage;
-    uint32_t size;
-    bool immutable;
     BlobRef data;  // initial contents, or absent
     BlobRef label; // null-terminated, or absent
+    uint32_t size;
+    BufferUsage usage;
+    bool immutable;
+    uint8_t pad[2];
 };
+static_assert(sizeof(BufferDescPOD) == 40, "wire POD must be padding-free");
 
 struct TextureDescPOD
 {
+    BlobRef label;
     uint32_t width;
     uint32_t height;
     uint32_t depthOrArrayLayers;
+    uint32_t numMipmaps;
+    uint32_t sampleCount;
     TextureFormat format;
     TextureType type;
     bool renderTarget;
-    uint32_t numMipmaps;
-    uint32_t sampleCount;
-    BlobRef label;
+    uint8_t pad[1];
 };
+static_assert(sizeof(TextureDescPOD) == 40, "wire POD must be padding-free");
 
 struct SamplerDescPOD
 {
+    BlobRef label;
+    float minLod;
+    float maxLod;
+    uint32_t maxAnisotropy;
     Filter minFilter;
     Filter magFilter;
     Filter mipmapFilter;
@@ -58,18 +70,14 @@ struct SamplerDescPOD
     WrapMode wrapV;
     WrapMode wrapW;
     CompareFunction compare;
-    float minLod;
-    float maxLod;
-    uint32_t maxAnisotropy;
-    BlobRef label;
+    uint8_t pad[5];
 };
+static_assert(sizeof(SamplerDescPOD) == 40, "wire POD must be padding-free");
 
 // The size fields are recovered from each blob's size at replay.
 struct ShaderModuleDescPOD
 {
     BlobRef code;
-    ShaderLanguage language;
-    ShaderStage stage;
     BlobRef label;
     BlobRef hlslSource;     // D3D11 runtime-compile source, or absent
     BlobRef hlslEntryPoint; // null-terminated, or absent
@@ -77,67 +85,79 @@ struct ShaderModuleDescPOD
     BlobRef texSamplerPairBytes;
     BlobRef glFixupBytes;
     uint32_t shaderAssetId;
+    ShaderLanguage language;
+    ShaderStage stage;
+    uint8_t pad[2];
 };
+static_assert(sizeof(ShaderModuleDescPOD) == 120,
+              "wire POD must be padding-free");
 
 struct BindGroupLayoutDescPOD
 {
-    uint32_t groupIndex;
     BlobRef entries; // entryCount * sizeof(BindGroupLayoutEntry), or absent
-    uint32_t entryCount;
     BlobRef label;
+    uint32_t groupIndex;
+    uint32_t entryCount;
 };
+static_assert(sizeof(BindGroupLayoutDescPOD) == 40,
+              "wire POD must be padding-free");
 
 struct TextureViewDescPOD
 {
     ResourceHandle texture;
-    TextureViewDimension dimension;
-    TextureAspect aspect;
     uint32_t baseMipLevel;
     uint32_t mipCount;
     uint32_t baseLayer;
     uint32_t layerCount;
+    TextureViewDimension dimension;
+    TextureAspect aspect;
+    uint8_t pad[2];
 };
+static_assert(sizeof(TextureViewDescPOD) == 24,
+              "wire POD must be padding-free");
 
 struct VertexBufferLayoutPOD
 {
-    uint32_t stride;
-    VertexStepMode stepMode;
-    uint32_t attributeCount;
     BlobRef attributes; // attributeCount * sizeof(VertexAttribute)
+    uint32_t stride;
+    uint32_t attributeCount;
+    VertexStepMode stepMode;
+    uint8_t pad[7];
 };
+static_assert(sizeof(VertexBufferLayoutPOD) == 32,
+              "wire POD must be padding-free");
 
 // Module and layout references are client handles.
 struct PipelineDescPOD
 {
-    ResourceHandle vertexModule;
     BlobRef vertexEntryPoint; // null-terminated string
-    ResourceHandle fragmentModule;
     BlobRef fragmentEntryPoint;
-
     BlobRef vertexBuffers; // vertexBufferCount * sizeof(VertexBufferLayoutPOD)
+    BlobRef bindGroupLayouts; // bindGroupLayoutCount * sizeof(ResourceHandle)
+    BlobRef label;
+
+    ResourceHandle vertexModule;
+    ResourceHandle fragmentModule;
     uint32_t vertexBufferCount;
+    uint32_t colorCount;
+    uint32_t sampleCount;
+    uint32_t bindGroupLayoutCount;
+
+    DepthStencilState depthStencil;
+
+    ColorTargetState colorTargets[4];
+    StencilFaceState stencilFront;
+    StencilFaceState stencilBack;
 
     PrimitiveTopology topology;
     IndexFormat indexFormat;
     CullMode cullMode;
     FaceWinding winding;
-
-    ColorTargetState colorTargets[4];
-    uint32_t colorCount;
-
-    DepthStencilState depthStencil;
-    StencilFaceState stencilFront;
-    StencilFaceState stencilBack;
     uint8_t stencilReadMask;
     uint8_t stencilWriteMask;
-
-    uint32_t sampleCount;
-
-    BlobRef bindGroupLayouts; // bindGroupLayoutCount * sizeof(ResourceHandle)
-    uint32_t bindGroupLayoutCount;
-
-    BlobRef label;
+    uint8_t pad[6];
 };
+static_assert(sizeof(PipelineDescPOD) == 176, "wire POD must be padding-free");
 
 // BindGroupDesc entries with resource pointers replaced by client handles.
 struct UBOEntryPOD
@@ -160,14 +180,15 @@ struct SampEntryPOD
 
 struct BindGroupDescPOD
 {
-    ResourceHandle layout;
-    BlobRef ubos; // uboCount * sizeof(UBOEntryPOD)
-    uint32_t uboCount;
+    BlobRef ubos;     // uboCount * sizeof(UBOEntryPOD)
     BlobRef textures; // textureCount * sizeof(TexEntryPOD)
-    uint32_t textureCount;
     BlobRef samplers; // samplerCount * sizeof(SampEntryPOD)
-    uint32_t samplerCount;
     BlobRef label;
+    ResourceHandle layout;
+    uint32_t uboCount;
+    uint32_t textureCount;
+    uint32_t samplerCount;
 };
+static_assert(sizeof(BindGroupDescPOD) == 80, "wire POD must be padding-free");
 
 } // namespace rive::ore::cmd

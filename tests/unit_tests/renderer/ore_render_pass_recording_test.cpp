@@ -44,12 +44,12 @@ TEST_CASE("RenderPassRecording emits the expected command stream", "[ore][cmd]")
     begin.colorCount = 1;
     begin.colors[0] = {kInvalidHandle,
                        kInvalidHandle,
-                       LoadOp::clear,
-                       StoreOp::store,
                        0.25f,
                        0.5f,
                        0.75f,
-                       1.0f};
+                       1.0f,
+                       LoadOp::clear,
+                       StoreOp::store};
     begin.depthStencil.view = kInvalidHandle;
     begin.depthStencil.depthLoadOp = LoadOp::clear;
     begin.depthStencil.depthStoreOp = StoreOp::store;

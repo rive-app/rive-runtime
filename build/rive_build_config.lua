@@ -925,7 +925,8 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
 
     filter({ 'options:arch=wasm', 'options:no-wasm-simd' })
     do
-        linkoptions({ '-s MIN_SAFARI_VERSION=120000' })
+        -- 120200 (Safari 12.2) is the oldest emsdk >=4.0 supports; was 120000.
+        linkoptions({ '-s MIN_SAFARI_VERSION=120200' })
     end
 
     filter('options:arch=js')

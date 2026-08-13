@@ -738,8 +738,8 @@ struct TrianglePipeline
     TrianglePipeline& operator=(const TrianglePipeline&) = delete;
 
     rive::ore::VertexAttribute attrs[2] = {
-        {rive::ore::VertexFormat::float2, offsetof(TriVertex, x), 0},
-        {rive::ore::VertexFormat::float4, offsetof(TriVertex, r), 1},
+        {offsetof(TriVertex, x), 0, rive::ore::VertexFormat::float2},
+        {offsetof(TriVertex, r), 1, rive::ore::VertexFormat::float4},
     };
     rive::ore::VertexBufferLayout layout{};
     rive::ore::PipelineDesc desc{};

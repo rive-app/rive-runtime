@@ -237,8 +237,8 @@ TEST_CASE("make stream records a pipeline with vertex layouts + refs",
                          layout1 = 13;
 
     VertexAttribute attrs[2]{};
-    attrs[0] = {VertexFormat::float2, 0, 0};
-    attrs[1] = {VertexFormat::float4, 8, 1};
+    attrs[0] = {0, 0, VertexFormat::float2};
+    attrs[1] = {8, 1, VertexFormat::float4};
     VertexBufferLayout vbl{};
     vbl.stride = 24;
     vbl.stepMode = VertexStepMode::vertex;
@@ -364,47 +364,183 @@ TEST_CASE("make stream records a bind group with entry refs", "[ore][cmd]")
     CHECK(samps[0].sampler == samp0);
 }
 
-TEST_CASE("make stream records equal pipelines byte for byte", "[ore][cmd]")
+namespace
 {
-    // Descriptors reach the recorder on a caller's stack, so their padding
-    // holds whatever was there. The other recording tests compare in silver
-    // form, which normalizes padding away, so only raw bytes catch this.
-    auto record = [](uint8_t stackFill, OreCommandBuffer& cb) {
-        alignas(PipelineDesc) uint8_t storage[sizeof(PipelineDesc)];
-        std::memset(storage, stackFill, sizeof(storage));
-        // Default init, not value init, so the member initializers run and
-        // the padding keeps the fill.
-        PipelineDesc* pd = new (storage) PipelineDesc;
-        pd->vertexEntryPoint = "vs_main";
-        pd->fragmentEntryPoint = "fs_main";
-        pd->colorTargets[0].format = TextureFormat::rgba8unorm;
-        pd->colorTargets[0].blendEnabled = true;
-        pd->colorCount = 1;
-        pd->depthStencil.format = TextureFormat::depth24plusStencil8;
-        pd->depthStencil.depthWriteEnabled = true;
-        pd->depthStencil.depthBias = 2;
-        pd->stencilFront.compare = CompareFunction::equal;
-        pd->sampleCount = 4;
-        pd->label = "pipe";
+// Descriptors reach the recorder on a caller's stack, so their padding holds
+// whatever was there. Default init, not value init, so the member
+// initializers run and the gaps keep the fill.
+template <typename Desc, typename Fn> void withFilledDesc(uint8_t fill, Fn&& fn)
+{
+    alignas(Desc) uint8_t storage[sizeof(Desc)];
+    std::memset(storage, fill, sizeof(storage));
+    Desc* d = new (storage) Desc;
+    fn(*d);
+    d->~Desc();
+}
 
-        ResourceHandle bglHandles[1] = {12};
+#if defined(_MSC_VER)
+#define ORE_NEVER_INLINE __declspec(noinline)
+#else
+#define ORE_NEVER_INLINE __attribute__((noinline))
+#endif
+
+// Leaves a deep stack region dirty so the PODs the recorder builds land on
+// used memory rather than on a fresh page. Inlining would put the scratch in
+// the caller's frame, which the recorder never reaches.
+ORE_NEVER_INLINE void dirtyStack()
+{
+    volatile uint8_t scratch[4096];
+    for (size_t i = 0; i < sizeof(scratch); ++i)
+    {
+        scratch[i] = 0xAB;
+    }
+}
+
+const uint32_t kVerts[4] = {1, 2, 3, 4};
+const uint8_t kCode[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+
+void recordOneOfEach(uint8_t fill, OreCommandBuffer& cb)
+{
+    withFilledDesc<BufferDesc>(fill, [&](BufferDesc& d) {
+        d.usage = BufferUsage::vertex;
+        d.size = sizeof(kVerts);
+        d.data = kVerts;
+        d.immutable = true;
+        d.label = "vb";
+        recordMakeBuffer(cb, 0, 1, d);
+    });
+    withFilledDesc<TextureDesc>(fill, [&](TextureDesc& d) {
+        d.width = 256;
+        d.height = 128;
+        d.format = TextureFormat::rgba8unorm;
+        d.renderTarget = true;
+        d.numMipmaps = 1;
+        d.sampleCount = 4;
+        d.label = "rt";
+        recordMakeTexture(cb, 1, 1, d);
+    });
+    withFilledDesc<SamplerDesc>(fill, [&](SamplerDesc& d) {
+        d.minFilter = Filter::linear;
+        d.magFilter = Filter::nearest;
+        d.compare = CompareFunction::less;
+        d.minLod = 0.5f;
+        d.maxLod = 7.0f;
+        d.maxAnisotropy = 8;
+        recordMakeSampler(cb, 2, 1, d);
+    });
+    withFilledDesc<ShaderModuleDesc>(fill, [&](ShaderModuleDesc& d) {
+        d.code = kCode;
+        d.codeSize = sizeof(kCode);
+        d.language = ShaderLanguage::wgsl;
+        d.stage = ShaderStage::fragment;
+        d.label = "fs";
+        recordMakeShaderModule(cb, 3, 1, d);
+    });
+    withFilledDesc<BindGroupLayoutDesc>(fill, [&](BindGroupLayoutDesc& d) {
+        // Entries reach the blob arena as raw structs, so a filled array is
+        // the only way to catch a gap in the entry type.
+        BindGroupLayoutEntry entries[2];
+        std::memset(entries, fill, sizeof(entries));
+        for (auto& e : entries)
+        {
+            new (&e) BindGroupLayoutEntry;
+        }
+        entries[0].binding = 0;
+        entries[0].kind = BindingKind::uniformBuffer;
+        entries[0].hasDynamicOffset = true;
+        entries[0].minBindingSize = 64;
+        entries[1].binding = 1;
+        entries[1].kind = BindingKind::sampledTexture;
+        entries[1].nativeSlotFS = 5;
+
+        d.groupIndex = 2;
+        d.entries = entries;
+        d.entryCount = 2;
+        d.label = "bgl";
+        recordMakeBindGroupLayout(cb, 4, 1, d);
+    });
+    withFilledDesc<TextureViewDesc>(fill, [&](TextureViewDesc& d) {
+        d.dimension = TextureViewDimension::texture2D;
+        d.aspect = TextureAspect::all;
+        d.mipCount = 1;
+        d.layerCount = 1;
+        recordMakeTextureView(cb, 5, 1, d, 1);
+    });
+    withFilledDesc<PipelineDesc>(fill, [&](PipelineDesc& d) {
+        // Attributes reach the blob arena as raw structs too.
+        VertexAttribute attrs[2];
+        std::memset(attrs, fill, sizeof(attrs));
+        for (auto& a : attrs)
+        {
+            new (&a) VertexAttribute;
+        }
+        attrs[0].format = VertexFormat::float2;
+        attrs[1].format = VertexFormat::float4;
+        attrs[1].offset = 8;
+        attrs[1].shaderSlot = 1;
+        VertexBufferLayout vbl{};
+        vbl.stride = 24;
+        vbl.attributes = attrs;
+        vbl.attributeCount = 2;
+        d.vertexBuffers = &vbl;
+        d.vertexBufferCount = 1;
+
+        d.vertexEntryPoint = "vs_main";
+        d.fragmentEntryPoint = "fs_main";
+        d.colorTargets[0].format = TextureFormat::rgba8unorm;
+        d.colorTargets[0].blendEnabled = true;
+        d.colorCount = 1;
+        d.depthStencil.format = TextureFormat::depth24plusStencil8;
+        d.depthStencil.depthWriteEnabled = true;
+        d.depthStencil.depthBias = 2;
+        d.stencilFront.compare = CompareFunction::equal;
+        d.sampleCount = 4;
+        d.label = "pipe";
+        const ResourceHandle bgls[1] = {4};
         recordMakePipeline(cb,
-                           0,
-                           0,
-                           *pd,
-                           10,
-                           11,
-                           Span<const ResourceHandle>(bglHandles, 1));
-        pd->~PipelineDesc();
-    };
+                           6,
+                           1,
+                           d,
+                           3,
+                           3,
+                           Span<const ResourceHandle>(bgls, 1));
+    });
+    withFilledDesc<BindGroupDesc>(fill, [&](BindGroupDesc& d) {
+        BindGroupDesc::UBOEntry ubo{};
+        ubo.slot = 0;
+        ubo.size = 256;
+        d.ubos = &ubo;
+        d.uboCount = 1;
+        d.label = "bg";
+        const ResourceHandle ubos[1] = {0};
+        recordMakeBindGroup(cb,
+                            7,
+                            1,
+                            d,
+                            4,
+                            Span<const ResourceHandle>(ubos, 1),
+                            Span<const ResourceHandle>(nullptr, 0),
+                            Span<const ResourceHandle>(nullptr, 0));
+    });
+}
+} // namespace
 
-    OreCommandBuffer zeroed, dirty;
-    record(0x00, zeroed);
-    record(0xAB, dirty);
+TEST_CASE("make stream records equal resources byte for byte", "[ore][cmd]")
+{
+    // The other recording tests compare in silver form, which normalizes
+    // padding away, so only raw bytes catch a gap reaching the stream.
+    OreCommandBuffer clean, dirty;
+    recordOneOfEach(0x00, clean);
+    dirtyStack();
+    recordOneOfEach(0xAB, dirty);
 
-    auto a = zeroed.commandBytes(), b = dirty.commandBytes();
+    auto a = clean.commandBytes(), b = dirty.commandBytes();
     REQUIRE(a.size() == b.size());
     CHECK(std::memcmp(a.data(), b.data(), a.size()) == 0);
+
+    auto ba = clean.blobBytes(), bb = dirty.blobBytes();
+    REQUIRE(ba.size() == bb.size());
+    CHECK(std::memcmp(ba.data(), bb.data(), ba.size()) == 0);
 }
 
 TEST_CASE("make stream reset reuses the buffer", "[ore][cmd]")

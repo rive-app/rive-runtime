@@ -434,12 +434,17 @@ struct ShaderModuleDesc
     uint32_t shaderAssetId = 0;
 };
 
+// Recorded into the blob arena as raw structs, so the layout is gapless and
+// pad trails the real fields. Aggregate init stays { offset, shaderSlot,
+// format }, widest first like the recorded PODs.
 struct VertexAttribute
 {
-    VertexFormat format = VertexFormat::float4;
     uint32_t offset = 0;
     uint32_t shaderSlot = 0;
+    VertexFormat format = VertexFormat::float4;
+    uint8_t pad[3] = {};
 };
+static_assert(sizeof(VertexAttribute) == 12, "VertexAttribute grew gaps");
 
 struct VertexBufferLayout
 {
@@ -483,10 +488,13 @@ struct DepthStencilState
     TextureFormat format = TextureFormat::rgba8unorm;
     CompareFunction depthCompare = CompareFunction::always;
     bool depthWriteEnabled = false;
+    // Named so a recorded copy of this struct carries no indeterminate bytes.
+    uint8_t pad = 0;
     int32_t depthBias = 0;
     float depthBiasSlopeScale = 0.0f;
     float depthBiasClamp = 0.0f;
 };
+static_assert(sizeof(DepthStencilState) == 16, "DepthStencilState grew gaps");
 
 // ============================================================================
 // BindGroupLayout Descriptor, explicit layout, Dawn-shaped.
@@ -563,6 +571,8 @@ struct BindGroupLayoutEntry
     };
     SampleType textureSampleType = SampleType::floatFilterable;
     bool textureMultisampled = false;
+    // Named so recording an entry array copies no indeterminate bytes.
+    uint8_t pad[2] = {};
 
     // UBO-only: smallest valid bind size for this entry. 0 = no minimum
     // (use the full buffer range). Matches WebGPU's
@@ -585,6 +595,8 @@ struct BindGroupLayoutEntry
     uint32_t nativeSlotFS = kNativeSlotAbsent;
     uint32_t nativeSlotCS = kNativeSlotAbsent;
 };
+static_assert(sizeof(BindGroupLayoutEntry) == 28,
+              "BindGroupLayoutEntry grew gaps");
 
 struct BindGroupLayoutDesc
 {

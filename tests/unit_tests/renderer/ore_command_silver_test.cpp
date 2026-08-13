@@ -21,21 +21,21 @@ static void recordRepresentative(OreCommandBuffer& buf)
     begin.colorCount = 2;
     begin.colors[0] = {0,
                        kInvalidHandle,
-                       LoadOp::clear,
-                       StoreOp::store,
                        0.1f,
                        0.2f,
                        0.3f,
-                       1.0f};
+                       1.0f,
+                       LoadOp::clear,
+                       StoreOp::store};
     begin.colors[1] =
-        {1, 2, LoadOp::load, StoreOp::discard, 0.0f, 0.0f, 0.0f, 0.0f};
+        {1, 2, 0.0f, 0.0f, 0.0f, 0.0f, LoadOp::load, StoreOp::discard};
     begin.depthStencil = {3,
-                          LoadOp::clear,
-                          StoreOp::store,
                           1.0f,
+                          0,
                           LoadOp::clear,
                           StoreOp::store,
-                          0};
+                          LoadOp::clear,
+                          StoreOp::store};
     buf.append(CommandType::beginRenderPass, begin);
 
     buf.append(CommandType::setPipeline, SetPipelineCmd{7});
@@ -89,7 +89,7 @@ TEST_CASE("ore silver detects a diverging field", "[ore][cmd]")
     BeginRenderPassCmd begin{};
     begin.colorCount = 1;
     begin.colors[0] =
-        {0, kInvalidHandle, LoadOp::clear, StoreOp::store, 0.f, 0.f, 0.f, 1.f};
+        {0, kInvalidHandle, 0.f, 0.f, 0.f, 1.f, LoadOp::clear, StoreOp::store};
     begin.depthStencil.view = kInvalidHandle;
     actual.append(CommandType::beginRenderPass, begin);
     actual.append(CommandType::draw, DrawCmd{99, 1, 0, 0});

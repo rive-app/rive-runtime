@@ -179,14 +179,7 @@ inline void recordMakePipeline(OreCommandBuffer& cb,
         pod.colorTargets[i] = desc.colorTargets[i];
     }
     pod.colorCount = desc.colorCount;
-    // DepthStencilState has a gap before depthBias, so copy it field-wise.
-    pod.depthStencil.format = desc.depthStencil.format;
-    pod.depthStencil.depthCompare = desc.depthStencil.depthCompare;
-    pod.depthStencil.depthWriteEnabled = desc.depthStencil.depthWriteEnabled;
-    pod.depthStencil.depthBias = desc.depthStencil.depthBias;
-    pod.depthStencil.depthBiasSlopeScale =
-        desc.depthStencil.depthBiasSlopeScale;
-    pod.depthStencil.depthBiasClamp = desc.depthStencil.depthBiasClamp;
+    pod.depthStencil = desc.depthStencil;
     pod.stencilFront = desc.stencilFront;
     pod.stencilBack = desc.stencilBack;
     pod.stencilReadMask = desc.stencilReadMask;

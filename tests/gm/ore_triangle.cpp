@@ -98,8 +98,8 @@ public:
 
         // Vertex layout: float2 position + float4 color, interleaved.
         VertexAttribute attrs[] = {
-            {VertexFormat::float2, offsetof(Vertex, x), 0}, // position
-            {VertexFormat::float4, offsetof(Vertex, r), 1}, // color
+            {offsetof(Vertex, x), 0, VertexFormat::float2}, // position
+            {offsetof(Vertex, r), 1, VertexFormat::float4}, // color
         };
         VertexBufferLayout vertexLayout{};
         vertexLayout.stride = sizeof(Vertex);

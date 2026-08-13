@@ -187,8 +187,8 @@ public:
             return;
 
         VertexAttribute attrs[] = {
-            {VertexFormat::float2, offsetof(BSVertex, x), 0},
-            {VertexFormat::float4, offsetof(BSVertex, r), 1},
+            {offsetof(BSVertex, x), 0, VertexFormat::float2},
+            {offsetof(BSVertex, r), 1, VertexFormat::float4},
         };
         VertexBufferLayout vertexLayout{};
         vertexLayout.stride = sizeof(BSVertex);

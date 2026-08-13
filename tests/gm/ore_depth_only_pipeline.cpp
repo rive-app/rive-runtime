@@ -70,8 +70,8 @@ public:
         // `ownedVertexLayoutData`), so these must outlive the rcp below.
         // VertexAttribute = { format, offset, shaderSlot }.
         VertexAttribute attrs[] = {
-            {VertexFormat::float2, 0, 0},
-            {VertexFormat::float4, 8, 1},
+            {0, 0, VertexFormat::float2},
+            {8, 1, VertexFormat::float4},
         };
         VertexBufferLayout vbl{};
         vbl.stride = 8 + 16;

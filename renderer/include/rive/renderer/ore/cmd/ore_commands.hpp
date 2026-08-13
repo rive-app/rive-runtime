@@ -111,25 +111,30 @@ struct ColorAttachmentPOD
 {
     ResourceHandle view;
     ResourceHandle resolveTarget;
-    LoadOp loadOp;
-    StoreOp storeOp;
     float clearR;
     float clearG;
     float clearB;
     float clearA;
+    LoadOp loadOp;
+    StoreOp storeOp;
+    uint8_t pad[2];
 };
+static_assert(sizeof(ColorAttachmentPOD) == 7 * sizeof(uint32_t),
+              "wire POD must be pointer-free and padding-free");
 
 // view == kInvalidHandle means no depth stencil attachment.
 struct DepthStencilAttachmentPOD
 {
     ResourceHandle view;
+    float depthClearValue;
+    uint32_t stencilClearValue;
     LoadOp depthLoadOp;
     StoreOp depthStoreOp;
-    float depthClearValue;
     LoadOp stencilLoadOp;
     StoreOp stencilStoreOp;
-    uint32_t stencilClearValue;
 };
+static_assert(sizeof(DepthStencilAttachmentPOD) == 4 * sizeof(uint32_t),
+              "wire POD must be pointer-free and padding-free");
 
 // Fixed 4 slot color array keeps the command a flat POD.
 struct BeginRenderPassCmd
@@ -138,6 +143,8 @@ struct BeginRenderPassCmd
     ColorAttachmentPOD colors[4];
     DepthStencilAttachmentPOD depthStencil;
 };
+static_assert(sizeof(BeginRenderPassCmd) == 33 * sizeof(uint32_t),
+              "wire POD must be pointer-free and padding-free");
 
 struct SetPipelineCmd
 {

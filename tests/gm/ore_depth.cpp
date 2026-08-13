@@ -142,8 +142,8 @@ public:
 
         // Vertex layout: float3 position + float4 color, interleaved.
         VertexAttribute attrs[] = {
-            {VertexFormat::float3, offsetof(DepthVertex, x), 0},
-            {VertexFormat::float4, offsetof(DepthVertex, r), 1},
+            {offsetof(DepthVertex, x), 0, VertexFormat::float3},
+            {offsetof(DepthVertex, r), 1, VertexFormat::float4},
         };
         VertexBufferLayout vertexLayout{};
         vertexLayout.stride = sizeof(DepthVertex);

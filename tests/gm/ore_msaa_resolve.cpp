@@ -167,8 +167,8 @@ public:
         }
 
         VertexAttribute attrs[] = {
-            {VertexFormat::float2, offsetof(MsaaVertex, x), 0},
-            {VertexFormat::float4, offsetof(MsaaVertex, r), 1},
+            {offsetof(MsaaVertex, x), 0, VertexFormat::float2},
+            {offsetof(MsaaVertex, r), 1, VertexFormat::float4},
         };
         VertexBufferLayout vertexLayout{};
         vertexLayout.stride = sizeof(MsaaVertex);
