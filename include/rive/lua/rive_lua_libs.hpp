@@ -795,7 +795,7 @@ class ScriptedGPUTextureView
 public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 51;
     static constexpr const char* luaName = "GPUTextureView";
-    static constexpr bool hasMetatable = false;
+    static constexpr bool hasMetatable = true;
     rcp<ore::TextureView> view;
     // When created from Image:view(), retains the RenderImage so the
     // underlying gpu::Texture stays alive even if the Image is GC'd.
@@ -1222,6 +1222,7 @@ public:
     const lua_State* state() const { return m_state; }
 
     ViewModelInstanceValue* instanceValue() { return m_instanceValue.get(); }
+    bool disposed() const { return m_disposed; }
     ScriptedObject* owner() const { return m_owner; }
 #ifdef WITH_RIVE_TOOLS
     uint32_t orphanOwnerTag() const { return m_orphanOwnerTag; }

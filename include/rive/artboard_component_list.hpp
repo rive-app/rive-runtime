@@ -140,6 +140,7 @@ public:
     float gap();
     void syncLayoutChildren();
     bool mainAxisIsRow();
+    bool isStack();
     LayoutComponent* layoutParent();
     const Mat2D& listTransform() override;
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;

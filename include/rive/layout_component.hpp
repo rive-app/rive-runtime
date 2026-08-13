@@ -163,6 +163,7 @@ private:
     float m_heightOverride = NAN;
     int m_heightUnitValueOverride = -1;
     bool m_parentIsRow = true;
+    bool m_parentIsStack = false;
     bool m_widthIntrinsicallySizeOverride = false;
     bool m_heightIntrinsicallySizeOverride = false;
     float m_forcedWidth = NAN;
@@ -289,6 +290,7 @@ public:
     void widthOverride(float width, int unitValue = 1, bool isRow = true);
     void heightOverride(float height, int unitValue = 1, bool isRow = true);
     void parentIsRow(bool isRow);
+    void parentIsStack(bool isStack);
     void widthIntrinsicallySizeOverride(bool intrinsic);
     void heightIntrinsicallySizeOverride(bool intrinsic);
     virtual bool canHaveOverrides() { return false; }
@@ -302,6 +304,9 @@ public:
 #endif
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
+    // Whether this layout stacks its children, for hosts that push the
+    // container's state into a hosted artboard.
+    bool isStackContainer();
     bool overridesKeyedInterpolation(int propertyKey) override;
     bool hasShapePaints() const { return m_ShapePaints.size() > 0; }
     bool advanceComponent(float elapsedSeconds,

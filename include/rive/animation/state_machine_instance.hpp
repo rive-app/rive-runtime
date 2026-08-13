@@ -259,6 +259,19 @@ public:
     bool focusNext();
     bool focusPrevious();
     void clearFocus();
+
+    /// Route a key event to the focused element via the active focus manager.
+    /// Returns true if the event was handled.
+    bool keyInput(Key key,
+                  KeyModifiers modifiers,
+                  bool isPressed,
+                  bool isRepeat);
+
+    /// Route committed text (a typed character, an Input Method Editor (IME)
+    /// commit, a paste) to the focused element via the active focus manager.
+    /// Returns true if the text was handled.
+    bool textInput(const std::string& text);
+
     void clearDataContext();
     void relinkDataContext() override;
     void rebuildDataBind(DataBind*) override;

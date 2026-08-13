@@ -43,6 +43,7 @@ public:
         return this->as<TransformComponent>();
     }
     bool isRow();
+    bool isStack();
 
 protected:
     void instanceWidthChanged() override;

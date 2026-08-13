@@ -576,7 +576,6 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
 
     auto abi = artboard->instance();
     StateMachineInstance smi(stateMachine, abi.get());
-    auto focusManager = abi->focusManager();
 
     // Advance to initialize
     smi.advanceAndApply(0.0f);
@@ -598,14 +597,21 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     textInput->rawTextInput()->cursor(Cursor::zero());
 
     // Test textInput through state machine
-    bool handled = focusManager->textInput("typed text");
+    bool handled = smi.textInput("typed text");
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed text");
 
     // Test keyInput through state machine (backspace)
-    handled =
-        focusManager->keyInput(Key::backspace, KeyModifiers::none, true, false);
+    handled = smi.keyInput(Key::backspace, KeyModifiers::none, true, false);
     CHECK(handled == true);
+    CHECK(textInput->rawTextInput()->text() == "typed tex");
+
+    // With focus cleared there is no target, so the state machine reports the
+    // events as unhandled and the text is left alone.
+    smi.clearFocus();
+    CHECK(smi.textInput("more") == false);
+    CHECK(smi.keyInput(Key::backspace, KeyModifiers::none, true, false) ==
+          false);
     CHECK(textInput->rawTextInput()->text() == "typed tex");
 }
 

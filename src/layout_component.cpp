@@ -367,6 +367,16 @@ void LayoutComponent::parentIsRow(bool isRow)
     markLayoutNodeDirty();
 }
 
+void LayoutComponent::parentIsStack(bool isStack)
+{
+    if (m_parentIsStack == isStack)
+    {
+        return;
+    }
+    m_parentIsStack = isStack;
+    markLayoutNodeDirty();
+}
+
 void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
 {
     m_widthIntrinsicallySizeOverride = intrinsic;
@@ -697,6 +707,11 @@ bool LayoutComponent::mainAxisIsColumn()
            style()->flexDirection() == YGFlexDirectionColumnReverse;
 }
 
+bool LayoutComponent::isStackContainer()
+{
+    return style() != nullptr && style()->isStack();
+}
+
 bool LayoutComponent::isLeaf()
 {
     bool leaf = true;
@@ -1001,10 +1016,16 @@ void LayoutComponent::syncStyle()
     auto* parentLayout = layoutParent();
     auto* parentLayoutStyle =
         parentLayout != nullptr ? parentLayout->style() : nullptr;
-    bool parentIsGridLike =
-        parentLayoutStyle != nullptr && parentLayoutStyle->isGrid();
-    bool parentIsStack =
-        parentLayoutStyle != nullptr && parentLayoutStyle->isStack();
+    // A hosted artboard (list item, nested artboard layout) has no parent() to
+    // walk, so its host pushes the container's stack state in. Only stack is
+    // pushed: a grid already auto-places these nodes correctly, and claiming
+    // grid here would move them off the flex sizing path they use today.
+    bool parentIsStack = parentLayoutStyle != nullptr
+                             ? parentLayoutStyle->isStack()
+                             : (canHaveOverrides() && m_parentIsStack);
+    bool parentIsGridLike = parentLayoutStyle != nullptr
+                                ? parentLayoutStyle->isGrid()
+                                : parentIsStack;
     uint32_t containerJustifyItems =
         parentLayoutStyle != nullptr ? parentLayoutStyle->justifyItemsValue()
                                      : (uint32_t)YGJustifyStretch;
@@ -1682,6 +1703,7 @@ void LayoutComponent::onDirty(ComponentDirt value) {}
 bool LayoutComponent::mainAxisIsRow() { return true; }
 
 bool LayoutComponent::mainAxisIsColumn() { return false; }
+bool LayoutComponent::isStackContainer() { return false; }
 void LayoutComponent::calculateLayoutInternal(float availableWidth,
                                               float availableHeight)
 {}

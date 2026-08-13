@@ -189,6 +189,21 @@ TEST_CASE("an unbound recording context refuses to report capabilities",
     CHECK(error.find("context.features") != std::string::npos);
 }
 
+TEST_CASE("a texture view answers indexed reads", "[scripting][gpu]")
+{
+    // GPUTextureView shipped with hasMetatable = false, so its registered
+    // __index was never attached and view.format raised for every script.
+    FakeDeviceContext device;
+    ore::cmd::DeferredOreContext recorder(&device);
+    std::string error = runWithOreContext(
+        &recorder,
+        "local t = GPUTexture.new({ width = 4, height = 4, "
+        "format = 'rgba8unorm' })\n"
+        "local v = t:view()\n"
+        "assert(v.format == 'rgba8unorm', 'format ' .. tostring(v.format))\n");
+    CHECK(error.empty());
+}
+
 TEST_CASE("an undecidable capability gate does not invent a refusal",
           "[scripting][gpu][features]")
 {

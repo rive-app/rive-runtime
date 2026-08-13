@@ -3471,3 +3471,20 @@ void StateMachineInstance::clearFocus()
     assert(fm != nullptr);
     fm->clearFocus();
 }
+
+bool StateMachineInstance::keyInput(Key key,
+                                    KeyModifiers modifiers,
+                                    bool isPressed,
+                                    bool isRepeat)
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    return fm->keyInput(key, modifiers, isPressed, isRepeat);
+}
+
+bool StateMachineInstance::textInput(const std::string& text)
+{
+    auto* fm = focusManager();
+    assert(fm != nullptr);
+    return fm->textInput(text);
+}

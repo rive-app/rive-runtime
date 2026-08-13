@@ -457,13 +457,59 @@ int ScriptedViewModel::instance(lua_State* L)
     return 1;
 }
 
+#ifdef WITH_RIVE_TOOLS
+static ScriptedProperty* scriptedPropertyOrNull(lua_State* L, int idx)
+{
+    if (!lua_isuserdata(L, idx))
+    {
+        return nullptr;
+    }
+    switch (lua_userdatatag(L, idx))
+    {
+        case ScriptedPropertyNumber::luaTag:
+        case ScriptedPropertyTrigger::luaTag:
+        case ScriptedPropertyList::luaTag:
+        case ScriptedPropertyColor::luaTag:
+        case ScriptedPropertyString::luaTag:
+        case ScriptedPropertyBoolean::luaTag:
+        case ScriptedPropertyEnum::luaTag:
+        case ScriptedPropertyImage::luaTag:
+        case ScriptedPropertyFont::luaTag:
+        case ScriptedPropertyBlob::luaTag:
+            return (ScriptedProperty*)lua_touserdata(L, idx);
+        default:
+            return nullptr;
+    }
+}
+#endif
+
 int ScriptedViewModel::pushValue(const char* name, int coreType)
 {
     auto itr = m_propertyRefs.find(name);
     if (itr != m_propertyRefs.end())
     {
         lua_rawgeti(m_state, LUA_REGISTRYINDEX, itr->second);
+#ifdef WITH_RIVE_TOOLS
+        // Orphan properties (which are only tracked/swept under
+        // WITH_RIVE_TOOLS) can be disposed out from under us when a
+        // scripting-context regeneration (e.g. the editor's recompileAll)
+        // sweeps them but keeps this lua_State alive — leaving the
+        // ScriptedViewModel (cached on a long-lived artboard/self) pointing at
+        // dead wrappers.
+        ScriptedProperty* cached = scriptedPropertyOrNull(m_state, -1);
+        if (cached != nullptr && cached->disposed())
+        {
+            lua_pop(m_state, 1);
+            lua_unref(m_state, itr->second);
+            m_propertyRefs.erase(itr);
+        }
+        else
+        {
+            return 1;
+        }
+#else
         return 1;
+#endif
     }
     // To be fully typesafe at runtime we should check the property in the
     // viewmodel and make sure the one in the value matches the same type or
@@ -693,8 +739,8 @@ static int property_namecall_atom(lua_State* L,
             if (value != nullptr && value->is<ViewModelInstanceTrigger>())
             {
                 value->as<ViewModelInstanceTrigger>()->trigger();
-                return 0;
             }
+            return 0;
         }
         case (int)LuaAtoms::push:
         {

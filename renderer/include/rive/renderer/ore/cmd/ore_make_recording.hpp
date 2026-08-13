@@ -170,12 +170,23 @@ inline void recordMakePipeline(OreCommandBuffer& cb,
     pod.indexFormat = desc.indexFormat;
     pod.cullMode = desc.cullMode;
     pod.winding = desc.winding;
+    // Struct assignment is only safe for gapless types, since a copy drags
+    // the caller's indeterminate padding into the recorded stream.
+    static_assert(sizeof(ColorTargetState) == 9, "ColorTargetState grew gaps");
+    static_assert(sizeof(StencilFaceState) == 4, "StencilFaceState grew gaps");
     for (uint32_t i = 0; i < 4; ++i)
     {
         pod.colorTargets[i] = desc.colorTargets[i];
     }
     pod.colorCount = desc.colorCount;
-    pod.depthStencil = desc.depthStencil;
+    // DepthStencilState has a gap before depthBias, so copy it field-wise.
+    pod.depthStencil.format = desc.depthStencil.format;
+    pod.depthStencil.depthCompare = desc.depthStencil.depthCompare;
+    pod.depthStencil.depthWriteEnabled = desc.depthStencil.depthWriteEnabled;
+    pod.depthStencil.depthBias = desc.depthStencil.depthBias;
+    pod.depthStencil.depthBiasSlopeScale =
+        desc.depthStencil.depthBiasSlopeScale;
+    pod.depthStencil.depthBiasClamp = desc.depthStencil.depthBiasClamp;
     pod.stencilFront = desc.stencilFront;
     pod.stencilBack = desc.stencilBack;
     pod.stencilReadMask = desc.stencilReadMask;

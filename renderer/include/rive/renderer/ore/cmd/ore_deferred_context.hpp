@@ -127,7 +127,8 @@ public:
         return make_rcp<DeferredBindGroupLayout>(a.id,
                                                  a.generation,
                                                  &m_render,
-                                                 &m_ids);
+                                                 &m_ids,
+                                                 desc);
     }
 
     rcp<Pipeline> makePipeline(const PipelineDesc& desc,
@@ -183,7 +184,8 @@ public:
         return make_rcp<DeferredBindGroup>(a.id,
                                            a.generation,
                                            &m_render,
-                                           &m_ids);
+                                           &m_ids,
+                                           desc);
     }
 
     std::unique_ptr<RenderPass> beginRenderPass(

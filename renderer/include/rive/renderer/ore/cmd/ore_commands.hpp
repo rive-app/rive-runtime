@@ -151,12 +151,16 @@ struct SetVertexBufferCmd
     uint32_t offset;
 };
 
+// pad trails the real fields so a brace init can leave it out.
 struct SetIndexBufferCmd
 {
     ResourceHandle buffer;
-    IndexFormat format;
     uint32_t offset;
+    IndexFormat format;
+    uint8_t pad[3];
 };
+static_assert(sizeof(SetIndexBufferCmd) == 3 * sizeof(uint32_t),
+              "wire POD must be pointer-free and padding-free");
 
 // Dynamic offsets live in the blob arena at dynamicOffsetStart.
 struct SetBindGroupCmd

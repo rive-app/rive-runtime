@@ -75,8 +75,11 @@ public:
                         IndexFormat format,
                         uint32_t offset = 0) override
     {
-        m_cmd->append(CommandType::setIndexBuffer,
-                      SetIndexBufferCmd{idOf(buffer), format, offset});
+        SetIndexBufferCmd c{};
+        c.buffer = idOf(buffer);
+        c.format = format;
+        c.offset = offset;
+        m_cmd->append(CommandType::setIndexBuffer, c);
     }
 
     void setBindGroup(uint32_t groupIndex,

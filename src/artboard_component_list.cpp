@@ -232,12 +232,14 @@ void ArtboardComponentList::markLayoutNodeDirty(
     bool shouldForceUpdateLayoutBounds)
 {
     bool parentIsRow = mainAxisIsRow();
+    bool parentIsStack = isStack();
     for (int i = 0; i < artboardCount(); i++)
     {
         auto artboard = artboardInstance(i);
         if (artboard != nullptr)
         {
             artboard->parentIsRow(parentIsRow);
+            artboard->parentIsStack(parentIsStack);
         }
     }
 }
@@ -1503,6 +1505,7 @@ void ArtboardComponentList::addArtboardAt(
             artboardInstance->host(this);
             artboardInstance->frameOrigin(false);
             artboardInstance->parentIsRow(mainAxisIsRow());
+            artboardInstance->parentIsStack(isStack());
         }
         if (forceLayoutSync)
         {
@@ -1904,6 +1907,12 @@ bool ArtboardComponentList::mainAxisIsRow()
 {
     auto p = layoutParent();
     return p != nullptr ? p->mainAxisIsRow() : true;
+}
+
+bool ArtboardComponentList::isStack()
+{
+    auto p = layoutParent();
+    return p != nullptr && p->isStackContainer();
 }
 
 LayoutComponent* ArtboardComponentList::layoutParent()

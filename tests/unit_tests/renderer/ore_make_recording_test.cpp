@@ -11,6 +11,7 @@
 
 #include <catch.hpp>
 #include <cstring>
+#include <new>
 
 using namespace rive::ore;
 using namespace rive::ore::cmd;
@@ -361,6 +362,49 @@ TEST_CASE("make stream records a bind group with entry refs", "[ore][cmd]")
         reinterpret_cast<const SampEntryPOD*>(blobOf(r, b.samplers).data());
     CHECK(samps[0].slot == 2u);
     CHECK(samps[0].sampler == samp0);
+}
+
+TEST_CASE("make stream records equal pipelines byte for byte", "[ore][cmd]")
+{
+    // Descriptors reach the recorder on a caller's stack, so their padding
+    // holds whatever was there. The other recording tests compare in silver
+    // form, which normalizes padding away, so only raw bytes catch this.
+    auto record = [](uint8_t stackFill, OreCommandBuffer& cb) {
+        alignas(PipelineDesc) uint8_t storage[sizeof(PipelineDesc)];
+        std::memset(storage, stackFill, sizeof(storage));
+        // Default init, not value init, so the member initializers run and
+        // the padding keeps the fill.
+        PipelineDesc* pd = new (storage) PipelineDesc;
+        pd->vertexEntryPoint = "vs_main";
+        pd->fragmentEntryPoint = "fs_main";
+        pd->colorTargets[0].format = TextureFormat::rgba8unorm;
+        pd->colorTargets[0].blendEnabled = true;
+        pd->colorCount = 1;
+        pd->depthStencil.format = TextureFormat::depth24plusStencil8;
+        pd->depthStencil.depthWriteEnabled = true;
+        pd->depthStencil.depthBias = 2;
+        pd->stencilFront.compare = CompareFunction::equal;
+        pd->sampleCount = 4;
+        pd->label = "pipe";
+
+        ResourceHandle bglHandles[1] = {12};
+        recordMakePipeline(cb,
+                           0,
+                           0,
+                           *pd,
+                           10,
+                           11,
+                           Span<const ResourceHandle>(bglHandles, 1));
+        pd->~PipelineDesc();
+    };
+
+    OreCommandBuffer zeroed, dirty;
+    record(0x00, zeroed);
+    record(0xAB, dirty);
+
+    auto a = zeroed.commandBytes(), b = dirty.commandBytes();
+    REQUIRE(a.size() == b.size());
+    CHECK(std::memcmp(a.data(), b.data(), a.size()) == 0);
 }
 
 TEST_CASE("make stream reset reuses the buffer", "[ore][cmd]")

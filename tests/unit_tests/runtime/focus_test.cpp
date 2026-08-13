@@ -1319,6 +1319,99 @@ TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
     CHECK(state.expectsKeyboardInput == false);
 }
 
+TEST_CASE("StateMachineInstance::keyInput and textInput route to the focused "
+          "element",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable focusable;
+    focusable.returnValue = true;
+    auto node = make_rcp<FocusNode>(&focusable);
+
+    // Nothing focused yet, so there is nobody to route the events to.
+    CHECK(smi.keyInput(Key::a, KeyModifiers::none, true, false) == false);
+    CHECK(smi.textInput("hello") == false);
+    CHECK(focusable.keyInputCount == 0);
+    CHECK(focusable.textInputCount == 0);
+
+    smi.focusManager()->addChild(nullptr, node);
+    smi.focusManager()->setFocus(node);
+
+    CHECK(smi.keyInput(Key::b, KeyModifiers::shift, true, false) == true);
+    CHECK(focusable.keyInputCount == 1);
+    CHECK(focusable.lastKey == Key::b);
+
+    CHECK(smi.textInput("world") == true);
+    CHECK(focusable.textInputCount == 1);
+    CHECK(focusable.lastText == "world");
+}
+
+TEST_CASE("StateMachineInstance::keyInput and textInput report unhandled "
+          "events from the focused element",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable focusable;
+    focusable.returnValue = false;
+    auto node = make_rcp<FocusNode>(&focusable);
+    smi.focusManager()->addChild(nullptr, node);
+    smi.focusManager()->setFocus(node);
+
+    // The focused element saw both events but declined to handle them.
+    CHECK(smi.keyInput(Key::escape, KeyModifiers::none, true, false) == false);
+    CHECK(smi.textInput("ignored") == false);
+    CHECK(focusable.keyInputCount == 1);
+    CHECK(focusable.textInputCount == 1);
+}
+
+TEST_CASE("StateMachineInstance::keyInput and textInput use the external focus "
+          "manager when set",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    MockFocusable internalFocusable;
+    internalFocusable.returnValue = true;
+    auto internalNode = make_rcp<FocusNode>(&internalFocusable);
+    smi.internalFocusManager()->addChild(nullptr, internalNode);
+    smi.internalFocusManager()->setFocus(internalNode);
+
+    FocusManager external;
+    MockFocusable externalFocusable;
+    externalFocusable.returnValue = true;
+    auto externalNode = make_rcp<FocusNode>(&externalFocusable);
+    external.addChild(nullptr, externalNode);
+    external.setFocus(externalNode);
+
+    smi.setExternalFocusManager(&external);
+
+    CHECK(smi.keyInput(Key::c, KeyModifiers::none, true, false) == true);
+    CHECK(smi.textInput("external") == true);
+
+    // Events land on the external tree, not the internal one.
+    CHECK(externalFocusable.keyInputCount == 1);
+    CHECK(externalFocusable.textInputCount == 1);
+    CHECK(externalFocusable.lastText == "external");
+    CHECK(internalFocusable.keyInputCount == 0);
+    CHECK(internalFocusable.textInputCount == 0);
+
+    smi.setExternalFocusManager(nullptr);
+}
+
 TEST_CASE("FocusManager setFocus on a scope descends to first leaf",
           "[FocusManager]")
 {

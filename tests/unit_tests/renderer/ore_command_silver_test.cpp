@@ -41,7 +41,7 @@ static void recordRepresentative(OreCommandBuffer& buf)
     buf.append(CommandType::setPipeline, SetPipelineCmd{7});
     buf.append(CommandType::setVertexBuffer, SetVertexBufferCmd{0, 4, 16});
     buf.append(CommandType::setIndexBuffer,
-               SetIndexBufferCmd{5, IndexFormat::uint16, 0});
+               SetIndexBufferCmd{5, 0, IndexFormat::uint16});
 
     const uint32_t dynOffsets[2] = {64, 128};
     uint64_t dynStart = buf.appendBlob(dynOffsets, sizeof(dynOffsets));

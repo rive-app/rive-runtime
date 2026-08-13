@@ -164,6 +164,12 @@ bool NestedArtboardLayout::isRow()
                : true;
 }
 
+bool NestedArtboardLayout::isStack()
+{
+    return parent()->is<LayoutComponent>() &&
+           parent()->as<LayoutComponent>()->isStackContainer();
+}
+
 void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }
 
 void NestedArtboardLayout::instanceHeightChanged() { updateHeightOverride(); }

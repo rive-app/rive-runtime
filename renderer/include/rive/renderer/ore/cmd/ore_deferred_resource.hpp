@@ -194,9 +194,15 @@ public:
     DeferredBindGroupLayout(ResourceHandle handle,
                             uint32_t generation,
                             OreCommandBuffer* stream,
-                            rive::IdAllocator<ResourceHandle>* allocator) :
+                            rive::IdAllocator<ResourceHandle>* allocator,
+                            const BindGroupLayoutDesc& desc) :
         DeferredResource(handle, generation, stream, allocator)
-    {}
+    {
+        // Recording-side callers query groupIndex()/hasDynamicOffset() before
+        // replay, so the layout keeps its descriptor like every backend.
+        m_groupIndex = desc.groupIndex;
+        m_entries.assign(desc.entries, desc.entries + desc.entryCount);
+    }
 };
 
 class DeferredPipeline : public LITE_RTTI_OVERRIDE(Pipeline, DeferredPipeline),
@@ -221,9 +227,22 @@ public:
     DeferredBindGroup(ResourceHandle handle,
                       uint32_t generation,
                       OreCommandBuffer* stream,
-                      rive::IdAllocator<ResourceHandle>* allocator) :
+                      rive::IdAllocator<ResourceHandle>* allocator,
+                      const BindGroupDesc& desc) :
         DeferredResource(handle, generation, stream, allocator)
-    {}
+    {
+        // setBindGroup validates dynamic offset counts at record time, so
+        // mirror the backends' bookkeeping.
+        m_layoutRef = ref_rcp(desc.layout);
+        for (uint32_t i = 0; i < desc.uboCount; ++i)
+        {
+            if (m_layoutRef != nullptr &&
+                m_layoutRef->hasDynamicOffset(desc.ubos[i].slot))
+            {
+                m_dynamicOffsetCount++;
+            }
+        }
+    }
 };
 
 } // namespace rive::ore::cmd
