@@ -11,6 +11,11 @@ class Property {
   String? initialValueRuntime;
   bool isVirtual = false;
   bool animates = false;
+
+  /// Opt-in for property types whose keyframes hold by default (uint) to
+  /// interpolate between keys instead. See the editor-side generator for the
+  /// full rationale.
+  bool interpolates = false;
   String? group;
   Key? key;
   String? description;
@@ -98,6 +103,10 @@ class Property {
     dynamic a = data['animates'];
     if (a is bool) {
       animates = a;
+    }
+    dynamic interp = data['interpolates'];
+    if (interp is bool) {
+      interpolates = interp;
     }
     dynamic virtualValue = data['virtual'];
     isVirtual = virtualValue is bool && virtualValue;

@@ -5220,6 +5220,19 @@ public:
                 return -1;
         }
     }
+    static bool isInterpolatableUint(uint32_t propertyKey)
+    {
+        switch (propertyKey)
+        {
+            case ColorChannelsBase::colorRedPropertyKey:
+            case ColorChannelsBase::colorGreenPropertyKey:
+            case ColorChannelsBase::colorBluePropertyKey:
+            case ColorChannelsBase::colorAlphaPropertyKey:
+                return true;
+            default:
+                return false;
+        }
+    }
     static bool isCallback(uint32_t propertyKey)
     {
         switch (propertyKey)

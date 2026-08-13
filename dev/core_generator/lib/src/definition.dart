@@ -1161,6 +1161,32 @@ class Definition {
 
     ctxCode.writeln('default: return -1;}}');
 
+    // Uint properties hold between keyframes by default (they're mostly enums
+    // and ids). The ones flagged `interpolates` in their def opt into being
+    // tweened instead; KeyFrameUint consults this to decide.
+    ctxCode.writeln('''
+      static bool isInterpolatableUint(uint32_t propertyKey) {
+        switch(propertyKey) {''');
+    for (final fieldType in usedFieldTypes.keys) {
+      var properties = usedFieldTypes[fieldType];
+      if (properties != null) {
+        bool found = false;
+        for (final property in properties) {
+          if (property.interpolates &&
+              property.getExportType().name == 'uint') {
+            found = true;
+            ctxCode.write('case ${property.definition._name}Base');
+            ctxCode.write('::${property.name}PropertyKey:');
+          }
+        }
+        if (found) {
+          ctxCode.writeln('return true;');
+        }
+      }
+    }
+    ctxCode.writeln('default:return false;');
+    ctxCode.writeln('}}');
+
     ctxCode.writeln('''
       static bool isCallback(uint32_t propertyKey) {
         switch(propertyKey) {''');
