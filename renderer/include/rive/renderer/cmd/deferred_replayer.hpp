@@ -73,6 +73,9 @@ struct DeferredFrame
     std::vector<rcp<rive::gpu::GPUResource>> oreReals; // unflagged real id
     // Assembled scheduler segments; byte ranges index the streams above.
     std::vector<DeferredSegment> segments;
+    // The caps the recording answered with, so a replay far from the session
+    // can still verify it runs on the device the stream was declared for.
+    ore::ReplayCaps oreCaps;
 };
 
 inline DeferredFrame snapshotFrame(DeferredSession& session)
@@ -92,6 +95,7 @@ inline DeferredFrame snapshotFrame(DeferredSession& session)
     f.contentCanvases = session.contentCanvases();
     f.oreReals = session.oreContext().realResources();
     f.segments = session.schedulerSegments();
+    f.oreCaps = session.oreContext().caps();
     return f;
 }
 
@@ -123,7 +127,8 @@ public:
             [&](RenderHandle id) { return session.contentCanvasAt(id); },
             session.oreContext().realResources(),
             sink,
-            session.schedulerSegments());
+            session.schedulerSegments(),
+            session.oreContext().caps());
     }
 
     // Snapshot form: replay an owned frame, independent of the session.
@@ -146,7 +151,8 @@ public:
             },
             frame.oreReals,
             sink,
-            frame.segments);
+            frame.segments,
+            frame.oreCaps);
     }
 
     // Drop the resident tables so the next replay recreates everything.
@@ -178,7 +184,8 @@ private:
                 ContentCanvasFn contentCanvas,
                 const std::vector<rcp<rive::gpu::GPUResource>>& oreReals,
                 DeferredFrameSink& sink,
-                const std::vector<DeferredSegment>& segments)
+                const std::vector<DeferredSegment>& segments,
+                const ore::ReplayCaps& oreCaps)
     {
         m_stats = ReplayStats{};
         m_2d.clearVersionAliases();
@@ -224,6 +231,16 @@ private:
                     "bytes (canvas content will be lost)\n",
                     oreCommands.size());
                 return;
+            }
+            // A host that declared caps recorded against them; a replay
+            // device that disagrees executes a stream recorded for other
+            // hardware.
+            if (oreCaps.featuresKnown && !oreCaps.matchesReplayDevice(*realOre))
+            {
+                fprintf(stderr,
+                        "rive deferred: TRIPWIRE replay device disagrees with "
+                        "the declared ReplayCaps\n");
+                assert(false && "replay device does not match declared caps");
             }
             sink.beginOreFrame();
             ore::cmd::replayOreStream(

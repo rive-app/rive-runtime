@@ -275,6 +275,37 @@ protected:
     rcp<rive::gpu::GPUResourceManager> m_manager;
 };
 
+// The replay device's capabilities carried as data, so a recording thread can
+// answer scripts truthfully without holding the device. A host with the real
+// context in hand captures it with from(); a host whose device lives on
+// another thread or process ships these values across once instead.
+struct ReplayCaps
+{
+    Features features{};
+    bool featuresKnown = false;
+    ShaderTarget shaderTarget = ShaderTarget::glsl;
+    TextureFormat canvasTargetFormat = TextureFormat::rgba8unorm;
+
+    static ReplayCaps from(const Context& real)
+    {
+        ReplayCaps caps;
+        caps.features = real.features();
+        caps.featuresKnown = real.featuresKnown();
+        caps.shaderTarget = real.shaderTarget();
+        caps.canvasTargetFormat = real.canvasTargetFormat();
+        return caps;
+    }
+
+    // Whether the device about to replay is the one this recording was
+    // declared for. A stream recorded against other caps replays the wrong
+    // shader variant and canvas format, wrong in ways replay cannot detect.
+    bool matchesReplayDevice(const Context& real) const
+    {
+        return shaderTarget == real.shaderTarget() &&
+               canvasTargetFormat == real.canvasTargetFormat();
+    }
+};
+
 // ============================================================================
 // RenderPass inline helpers — defined here rather than in ore_render_pass.hpp
 // because they depend on Pipeline::desc() / TextureView::texture()->format(),

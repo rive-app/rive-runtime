@@ -29,12 +29,14 @@ namespace rive::ore::cmd
 class DeferredOreContext : public Context
 {
 public:
-    // real may be null at construction and bound later via bindReal.
-    // Recording never touches it, but its capabilities are the ones a script
-    // must see, so they are copied in as soon as there is a device to copy.
-    explicit DeferredOreContext(Context* real) : Context(nullptr), m_real(real)
+    // The replay device's capabilities, carried as data so recording holds no
+    // device. A host that also passes the real context keeps the sessionless
+    // GM wrap fallback; every capability answer comes from the caps.
+    explicit DeferredOreContext(const ReplayCaps& caps,
+                                Context* real = nullptr) :
+        Context(nullptr), m_caps(caps), m_real(real)
     {
-        adoptRealFeatures();
+        adoptCapsFeatures();
         m_render.realHandleProvider = [this](rive::gpu::GPUResource* r) {
             return realHandleFor(r);
         };
@@ -42,6 +44,13 @@ public:
         rive::cmd::registerRecorder(&m_render);
         rive::cmd::registerRecorder(&m_ids);
     }
+
+    // real may be null at construction and bound later via bindReal.
+    explicit DeferredOreContext(Context* real) :
+        DeferredOreContext(real != nullptr ? ReplayCaps::from(*real)
+                                           : ReplayCaps{},
+                           real)
+    {}
 
     ~DeferredOreContext() override
     {
@@ -202,18 +211,31 @@ public:
     // Late binding for hosts whose real context outlives session creation.
     void bindReal(Context* real)
     {
-        bool late = m_real == nullptr && real != nullptr;
         m_real = real;
-        adoptRealFeatures();
-        if (late)
+        if (real != nullptr)
         {
-            checkUnboundAssumptions();
+            bindCaps(ReplayCaps::from(*real));
         }
     }
 
+    // Descriptor form of the late bind, for hosts whose device lives on
+    // another thread or process and only its capabilities travel.
+    void bindCaps(const ReplayCaps& caps)
+    {
+        bool late = !m_caps.featuresKnown && caps.featuresKnown;
+        if (late)
+        {
+            checkUnboundAssumptions(caps);
+        }
+        m_caps = caps;
+        adoptCapsFeatures();
+    }
+
     // A script must not branch on a capability this context cannot know. It
-    // knows one only once there is a real device to ask.
-    bool featuresKnown() const override { return m_real != nullptr; }
+    // knows one only once a replay device's caps arrive.
+    bool featuresKnown() const override { return m_caps.featuresKnown; }
+
+    const ReplayCaps& caps() const { return m_caps; }
 
     bool isRecording() const override { return true; }
 
@@ -237,8 +259,7 @@ public:
         TextureDesc texDesc{};
         texDesc.width = width;
         texDesc.height = height;
-        texDesc.format = m_real != nullptr ? m_real->canvasTargetFormat()
-                                           : kUnboundCanvasFormat;
+        texDesc.format = m_caps.canvasTargetFormat;
         texDesc.type = TextureType::texture2D;
         texDesc.renderTarget = true;
         texDesc.numMipmaps = 1;
@@ -336,11 +357,7 @@ public:
     // an assumption about one host rather than a guess about any device, and
     // checkUnboundAssumptions fires if a late bind ever contradicts it.
     static constexpr ShaderTarget kUnboundShaderTarget = ShaderTarget::glsl;
-    ShaderTarget shaderTarget() const override
-    {
-        return m_real != nullptr ? m_real->shaderTarget()
-                                 : kUnboundShaderTarget;
-    }
+    ShaderTarget shaderTarget() const override { return m_caps.shaderTarget; }
 
     // No GPU at record time.
 
@@ -357,6 +374,9 @@ public:
                      RealTable& table,
                      const OreCanvasResolve& canvasAt = {})
     {
+        // A host that declared caps recorded against them; a replay device
+        // that disagrees executes a stream recorded for other hardware.
+        assert(!m_caps.featuresKnown || m_caps.matchesReplayDevice(realCtx));
         replayOreStream(
             realCtx,
             m_render,
@@ -447,40 +467,40 @@ private:
     // than forwarded so features() stays a non-virtual field read, and the
     // copy cannot go stale because a backend measures its Features once, in
     // its Make.
-    void adoptRealFeatures()
+    void adoptCapsFeatures()
     {
-        if (m_real != nullptr)
+        if (m_caps.featuresKnown)
         {
-            m_features = m_real->features();
+            m_features = m_caps.features;
         }
     }
 
     // Everything answered before a late bind was answered without a device.
     // features() refused rather than guessing, but the shader target and the
     // canvas format had to answer something, and a script has already loaded
-    // and recorded against both. If the device that just arrived disagrees,
-    // the stream is already wrong in a way replay cannot detect: a mismatched
+    // and recorded against both. If the caps that just arrived disagree, the
+    // stream is already wrong in a way replay cannot detect: a mismatched
     // canvas format makes checkPipelineCompat drop every setPipeline, leaving
     // draws with no pipeline bound.
-    void checkUnboundAssumptions()
+    void checkUnboundAssumptions(const ReplayCaps& incoming)
     {
-        if (m_real->shaderTarget() != kUnboundShaderTarget)
+        if (incoming.shaderTarget != m_caps.shaderTarget)
         {
             fprintf(stderr,
                     "rive deferred: TRIPWIRE late bound backend consumes "
                     "shader target %u, but recording already loaded %u\n",
-                    static_cast<unsigned>(m_real->shaderTarget()),
-                    static_cast<unsigned>(kUnboundShaderTarget));
+                    static_cast<unsigned>(incoming.shaderTarget),
+                    static_cast<unsigned>(m_caps.shaderTarget));
             assert(false && "late bind changed the recorded shader target");
         }
-        if (m_real->canvasTargetFormat() != kUnboundCanvasFormat)
+        if (incoming.canvasTargetFormat != m_caps.canvasTargetFormat)
         {
             fprintf(stderr,
                     "rive deferred: TRIPWIRE late bound backend allocates "
                     "canvases as format %u, but recording already reserved "
                     "canvas views as %u\n",
-                    static_cast<unsigned>(m_real->canvasTargetFormat()),
-                    static_cast<unsigned>(kUnboundCanvasFormat));
+                    static_cast<unsigned>(incoming.canvasTargetFormat),
+                    static_cast<unsigned>(m_caps.canvasTargetFormat));
             assert(false && "late bind changed the recorded canvas format");
         }
     }
@@ -535,6 +555,9 @@ private:
         return h;
     }
 
+    // What the recording answers about the replay device; the only capability
+    // source. m_real exists solely for the sessionless GM wrap fallback.
+    ReplayCaps m_caps;
     Context* m_real;
     OreCommandBuffer m_render; // the one ordered stream
     // Reusable id space shared by every resource type.

@@ -110,6 +110,24 @@ TEST_CASE("a recording context reports the replay device's capabilities",
         CHECK_FALSE(recorder.featuresKnown());
         CHECK_FALSE(recorder.features().colorBufferHalfFloat);
     }
+
+    SECTION("bound by caps alone, no device pointer ever reaches recording")
+    {
+        DeferredOreContext recorder(ReplayCaps::from(device));
+        CHECK(recorder.featuresKnown());
+        CHECK(recorder.features().colorBufferHalfFloat);
+        CHECK(recorder.features().maxSamples == 8u);
+        CHECK(recorder.shaderTarget() == device.shaderTarget());
+    }
+
+    SECTION("caps arrive late, as a remote consumer ships them on attach")
+    {
+        DeferredOreContext recorder(nullptr);
+        CHECK_FALSE(recorder.featuresKnown());
+        recorder.bindCaps(ReplayCaps::from(device));
+        CHECK(recorder.featuresKnown());
+        CHECK(recorder.features().maxSamples == 8u);
+    }
 }
 
 TEST_CASE("a real context always knows its own capabilities",

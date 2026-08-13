@@ -47,23 +47,20 @@ public:
     // realOre may be null on web; it late binds via bindRealOre.
     explicit DeferredSession(ore::Context* realOre) : m_ore(realOre)
     {
-        // Register wrapped canvases under the shared 2D id space so the
-        // consumer can perform the real wrap at replay.
-        m_ore.canvasIdProvider = [this](gpu::RenderCanvas* canvas) -> uint32_t {
-            RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
-                              kCanvasHandleMask;
-            m_contentCanvases[id] = ref_rcp(canvas);
-            return id;
-        };
-        // The 2D stream shares the ore stream's single writer contract.
-        commandBuffer().bindRecordingThread();
-        // Lets view() on a canvas backed image resolve its canvas id off the
-        // registry.
-        m_ore.canvasRegistry = &m_canvases;
+        wireOreCanvases();
+    }
+
+    // Capability only construction: recording holds no device, so a host can
+    // record on a thread or process the real context never visits. The
+    // consumer's caps late bind via bindReplayCaps if unknown here.
+    explicit DeferredSession(const ore::ReplayCaps& caps) : m_ore(caps)
+    {
+        wireOreCanvases();
     }
 
     ore::cmd::DeferredOreContext& oreContext() { return m_ore; }
     void bindRealOre(ore::Context* real) { m_ore.bindReal(real); }
+    void bindReplayCaps(const ore::ReplayCaps& caps) { m_ore.bindCaps(caps); }
 
     // Cross session image sharing lives here, not in an id space: the
     // registry carries a real rcp<RenderImage> through the frame snapshot, so
@@ -325,6 +322,23 @@ public:
     }
 
 private:
+    void wireOreCanvases()
+    {
+        // Register wrapped canvases under the shared 2D id space so the
+        // consumer can perform the real wrap at replay.
+        m_ore.canvasIdProvider = [this](gpu::RenderCanvas* canvas) -> uint32_t {
+            RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
+                              kCanvasHandleMask;
+            m_contentCanvases[id] = ref_rcp(canvas);
+            return id;
+        };
+        // The 2D stream shares the ore stream's single writer contract.
+        commandBuffer().bindRecordingThread();
+        // Lets view() on a canvas backed image resolve its canvas id off the
+        // registry.
+        m_ore.canvasRegistry = &m_canvases;
+    }
+
     uint32_t streamSize() const
     {
         return static_cast<uint32_t>(commandBuffer().commandBytes().size());
