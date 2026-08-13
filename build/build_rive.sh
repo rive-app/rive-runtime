@@ -348,7 +348,7 @@ fi
 
 # Setup emscripten.
 if [[ $RIVE_ARCH = "wasm" ]] || [[ $RIVE_ARCH = "js" ]]; then
-    RIVE_EMSDK_VERSION="${RIVE_EMSDK_VERSION:-3.1.61}"
+    RIVE_EMSDK_VERSION="${RIVE_EMSDK_VERSION:-4.0.23}"
     # An RIVE_EMSDK_VERSION value of "none" means to just use whatever
     # environment is already set up.
     if [[ "$RIVE_EMSDK_VERSION" != "none" ]]; then
