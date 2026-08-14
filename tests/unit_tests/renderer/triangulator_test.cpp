@@ -9,10 +9,12 @@
 #include "gr_inner_fan_triangulator.hpp"
 #include "rive/math/math_types.hpp"
 
+#include <array>
 #include <cmath>
 #include <map>
 #include <utility>
 #include <sstream>
+#include <vector>
 #include <catch.hpp>
 
 class GrRecordingContext;
@@ -1442,6 +1444,152 @@ TEST_CASE("GrInnerFanTriangulator", "[triangulator]")
         std::ostringstream s;
         s << "random_path_" << i;
         verify_simple_inner_polygons(s.str().c_str(), randomPath);
+    }
+}
+
+// Verifies that GrInnerFanTriangulator::polysToRetrofitCubicPatches() -- used
+// to fill paths in MSAA, where the interior triangles are drawn as retrofitted
+// cubic patches -- emits each triangle in its natural winding direction:
+// positive-winding triangles clockwise (front-facing) and negative-winding
+// triangles counterclockwise (back-facing). MSAA's borrowed-coverage stencil
+// counts winding from the geometry, so the direction has to carry the sign.
+// (Coverage modes instead normalize every triangle to one direction and carry
+// the sign in the vertex weight.)
+//
+// The retrofit emits this winding in the triangulator's own space and does not
+// bake in the view matrix's handedness -- ContourDirections resolves it to the
+// screen downstream (the same path the grout triangles take). So this test
+// asserts the raw per-winding orientation directly; there are no view-matrix or
+// reverseTriangles variants.
+TEST_CASE("GrInnerFanTriangulator-retrofitted-cubics", "[triangulator]")
+{
+    // Twice the signed area of the triangle. Rive's front-facing/clockwise
+    // convention is a positive signed area (see RawPath::computeCoarseArea and
+    // RiveRenderPath::isClockwiseDominant).
+    const auto signedArea = [](Vec2D a, Vec2D b, Vec2D c) {
+        return Vec2D::cross(b - a, c - a);
+    };
+
+    for (int i = 0; i < (int)std::size(kNonEdgeAAPaths); ++i)
+    {
+        RawPath path = kNonEdgeAAPaths[i]();
+        CAPTURE(i);
+        TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
+        GrInnerFanTriangulator triangulator(path, path.bounds(), &alloc);
+
+        // The retrofit emits raw geometry -- it does NOT bake handedness, since
+        // its patches are drawn through ContourDirections downstream (like the
+        // grout triangles). The only orientation it bakes is the weight sign,
+        // so that's all we verify here.
+        for (FillRule fillRule : {FillRule::nonZero, FillRule::evenOdd})
+        {
+            CAPTURE(fillRule == FillRule::evenOdd);
+            const auto checkOrientation = [&](gpu::WindingFaces faces,
+                                              bool clockwise) {
+                triangulator.polysToRetrofitCubicPatches(
+                    fillRule,
+                    faces,
+                    [&](const Vec2D* strip, size_t cornerCount) {
+                        // Merged polygons are emitted as a triangle fan
+                        // from strip[2]. The fan's signed areas sum to
+                        // the polygon's signed area, which must carry the
+                        // winding sign. (A reflex polygon can contain
+                        // individual back-facing fan triangles; the
+                        // stencil resolves them, so we check the sum, not
+                        // each triangle.)
+                        float area = signedArea(strip[0], strip[1], strip[2]);
+                        if (cornerCount >= 4)
+                        {
+                            area += signedArea(strip[1], strip[3], strip[2]);
+                        }
+                        if (cornerCount >= 5)
+                        {
+                            area += signedArea(strip[3], strip[4], strip[2]);
+                        }
+                        // Zero-area (collinear) or non-finite polygons
+                        // carry no coverage, so their winding direction
+                        // is moot; only real polygons must be oriented.
+                        if (!std::isfinite(area) || area == 0)
+                        {
+                            return;
+                        }
+                        if (clockwise)
+                        {
+                            CHECK(area > 0);
+                        }
+                        else
+                        {
+                            CHECK(area < 0);
+                        }
+                    });
+            };
+
+            // Positive winding -> clockwise (front face, increments the
+            // stencil). Negative winding -> counterclockwise (back face,
+            // decrements the stencil).
+            checkOrientation(gpu::WindingFaces::positive, /*clockwise=*/true);
+            checkOrientation(gpu::WindingFaces::negative, /*clockwise=*/false);
+        }
+    }
+}
+
+// GrInnerFanTriangulator::retrofitCubicPatchCount() caches the patch count
+// (one slot per fill rule) so the resource-count pass doesn't re-walk the mesh
+// every frame. Verify the cached value always matches a fresh, uncached count
+// from our own counting emitter -- touching each fill rule's slot on first
+// sight and again after switching away and back (a hit either way, since the
+// slots don't invalidate each other).
+TEST_CASE("GrInnerFanTriangulator-retrofitted-cubic-count-cache",
+          "[triangulator]")
+{
+    // Uncached count: run the full traversal with an emitter that just tallies.
+    const auto uncachedCount = [](const GrInnerFanTriangulator& triangulator,
+                                  FillRule fillRule,
+                                  gpu::WindingFaces windingFaces) {
+        size_t count = 0;
+        triangulator.polysToRetrofitCubicPatches(
+            fillRule,
+            windingFaces,
+            [&](const Vec2D*, size_t) { ++count; });
+        return count;
+    };
+
+    for (int i = 0; i < (int)std::size(kNonEdgeAAPaths); ++i)
+    {
+        RawPath path = kNonEdgeAAPaths[i]();
+        CAPTURE(i);
+        TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
+        GrInnerFanTriangulator triangulator(path, path.bounds(), &alloc);
+
+        // Alternate fill rules -- first sight of each fills its slot, repeats
+        // and the switch back are hits -- checking each against a fresh count.
+        // clockwise shares nonZero's slot (the triangulator treats it as
+        // nonZero), so it must yield the same count.
+        for (FillRule fillRule : {FillRule::nonZero,
+                                  FillRule::clockwise,
+                                  FillRule::evenOdd,
+                                  FillRule::evenOdd,
+                                  FillRule::nonZero})
+        {
+            CAPTURE(fillRule == FillRule::evenOdd);
+            size_t cached = triangulator.retrofitCubicPatchCount(fillRule);
+            CHECK(cached == uncachedCount(triangulator,
+                                          fillRule,
+                                          gpu::WindingFaces::all));
+
+            // A single all-faces pass might merge *less* than two independent
+            // per-face passes: a (rare) opposite-winding triangle between two
+            // same-winding neighbors would force a flush in the combined pass
+            // that a single-face pass would avoid. So the per-face counts sum
+            // to a lower bound on the all-faces count, not an equality.
+            CHECK(uncachedCount(triangulator,
+                                fillRule,
+                                gpu::WindingFaces::positive) +
+                      uncachedCount(triangulator,
+                                    fillRule,
+                                    gpu::WindingFaces::negative) <=
+                  cached);
+        }
     }
 }
 

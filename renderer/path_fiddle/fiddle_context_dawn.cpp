@@ -183,7 +183,43 @@ public:
 
             WGPUAdapterInfo info = {0};
             wgpuAdapterGetInfo(m_adapter.Get(), &info);
-            printf("=== WebGPU GPU: %s ===\n", info.description.data);
+            const char* backendName = "Unknown";
+            switch (info.backendType)
+            {
+                case WGPUBackendType_D3D11:
+                    backendName = "D3D11";
+                    break;
+                case WGPUBackendType_D3D12:
+                    backendName = "D3D12";
+                    break;
+                case WGPUBackendType_Metal:
+                    backendName = "Metal";
+                    break;
+                case WGPUBackendType_Vulkan:
+                    backendName = "Vulkan";
+                    break;
+                case WGPUBackendType_OpenGL:
+                    backendName = "OpenGL";
+                    break;
+                case WGPUBackendType_OpenGLES:
+                    backendName = "OpenGLES";
+                    break;
+                default:
+                    break;
+            }
+            if (info.description.length == WGPU_STRLEN)
+            {
+                printf("=== Dawn GPU (%s): %s ===\n",
+                       backendName,
+                       info.description.data);
+            }
+            else
+            {
+                printf("=== Dawn GPU (%s): %.*s ===\n",
+                       backendName,
+                       (int)info.description.length,
+                       info.description.data);
+            }
 #if 0
             const char* adapter_types[] = {
                 [WGPUAdapterType_DiscreteGPU] = "Discrete GPU",

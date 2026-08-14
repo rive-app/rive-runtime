@@ -116,7 +116,8 @@ inline VkCullModeFlags vkCullMode(CullFace cullFace)
 // agree on this, so both derive it here.
 inline bool hasPipelineDynamicState(DrawType drawType)
 {
-    return drawType == DrawType::msaaDynamicMidpointFans;
+    return drawType == DrawType::msaaDynamicMidpointFans ||
+           drawType == DrawType::msaaDynamicOuterCubics;
 }
 
 // Feeds the push-constant for ShaderMiscFlags::emulateDynamicColorWriteDisable:

@@ -518,9 +518,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         const size_t triVerbCount = path->getRawPath().verbs().count();
         const float triArea =
             gpu::find_transformed_area(localBounds, paintMatrix);
-        // FIXME! Implement interior triangulation in msaa mode.
-        if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
-            triController.isEligible(triArea, triVerbCount))
+        if (triController.isEligible(triArea, triVerbCount))
         {
             triangulator = path->cachedTriangulator();
             if (triangulator != nullptr)
@@ -1408,14 +1406,8 @@ void PathDraw::initForInteriorTriangulation(
 
     m_triangulator = triangulator;
 
-    // The triangulator's mesh is transform- and fill-rule-independent (so
-    // it can be cached); the fill rule and winding are fed per draw.
-    // clockwise and nonZero paths both triangulate as nonZero, because
-    // clockwise fill still needs the backwards triangles for borrowed
-    // coverage.
-    m_triangulatorFillRule = m_pathFillRule == FillRule::evenOdd
-                                 ? FillRule::evenOdd
-                                 : FillRule::nonZero;
+    // The triangulator's mesh is transform- and fill-rule-independent (so it
+    // can be cached); the fill rule and winding are fed per draw.
     float matrixDeterminant = m_paintMatrix[0] * m_paintMatrix[3] -
                               m_paintMatrix[2] * m_paintMatrix[1];
     m_triangulatorReverseTriangles = matrixDeterminant < 0;
@@ -1674,7 +1666,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                               ,
                               &m_numInteriorTriangleVerticesPushed));
                 assert(m_numInteriorTriangleVerticesPushed <=
-                       m_triangulator->maxVertexCount(m_triangulatorFillRule));
+                       m_triangulator->maxVertexCount(m_pathFillRule));
                 return batch;
             }
             RIVE_UNREACHABLE();
@@ -1729,9 +1721,8 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                                 : gpu::ShaderMiscFlags::none RIVE_DEBUG_CODE(
                                       ,
                                       &m_numInteriorTriangleVerticesPushed));
-                    assert(
-                        m_numInteriorTriangleVerticesPushed <=
-                        m_triangulator->maxVertexCount(m_triangulatorFillRule));
+                    assert(m_numInteriorTriangleVerticesPushed <=
+                           m_triangulator->maxVertexCount(m_pathFillRule));
                     return batch;
                 }
             }
@@ -1753,6 +1744,52 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
             }
             assert(1 <= passCount && passCount <= 3);
             assert(passIdx < passCount);
+            if (m_triangulator != nullptr)
+            {
+                // MSAA interior triangulation: the path interior is filled by
+                // smuggling its triangles in with outerCubic patches, rather
+                // than introducing a distinct triangle-buffer draw.
+                gpu::DrawType outerCubicDrawType;
+                if (passCount == 1)
+                {
+                    if (enums::all_flags_set(m_drawContents,
+                                             gpu::kNestedClipUpdateMask))
+                    {
+                        outerCubicDrawType =
+                            gpu::DrawType::msaaOuterCubicPathsStencil;
+                    }
+                    else
+                    {
+                        assert(flush->platformFeatures()
+                                   .supportsPipelineDynamicState);
+                        outerCubicDrawType =
+                            gpu::DrawType::msaaDynamicOuterCubics;
+                    }
+                }
+                else
+                {
+                    constexpr static gpu::DrawType
+                        MsaaOuterCubicFillTypes[][3] = {
+                            // Slow path (passCount == 2): stencil-then-cover.
+                            {
+                                gpu::DrawType::msaaOuterCubicPathsStencil,
+                                gpu::DrawType::msaaOuterCubicPathsCover,
+                            },
+                            // Fast path (passCount == 3).
+                            {
+                                gpu::DrawType::msaaOuterCubicBorrowedCoverage,
+                                gpu::DrawType::msaaOuterCubics,
+                                gpu::DrawType::msaaOuterCubicStencilReset,
+                            },
+                        };
+                    outerCubicDrawType =
+                        MsaaOuterCubicFillTypes[passCount - 2][passIdx];
+                }
+                return &flush->pushOuterCubicsDraw(this,
+                                                   outerCubicDrawType,
+                                                   tessVertexCount,
+                                                   m_msaaTessLocation);
+            }
             gpu::DrawType msaaDrawType;
             if (passCount == 1)
             {
@@ -2371,6 +2408,10 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
     size_t patchCount = 0;
     size_t contourCount = 0;
     Vec2D p0 = {0, 0};
+    // A straight edge produces a single-segment cubic patch. In MSAA we draw
+    // only the patch interior (not the AA border), and that interior is
+    // degenerate for a single segment, so we skip these patches entirely.
+    const bool skipFlatOuterCubics = m_coverageType == CoverageType::msaa;
     // Only used on the "emit" pass (tessWriter != nullptr).
     uint32_t contourIDWithFlags = 0;
     for (const auto [verb, pts] : rawPath)
@@ -2378,7 +2419,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
         switch (verb)
         {
             case PathVerb::move:
-                if (contourCount != 0 && pts[-1] != p0)
+                if (contourCount != 0 && pts[-1] != p0 && !skipFlatOuterCubics)
                 {
                     if (tessWriter != nullptr)
                     {
@@ -2407,19 +2448,22 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 ++contourCount;
                 break;
             case PathVerb::line:
-                if (tessWriter != nullptr)
+                if (!skipFlatOuterCubics)
                 {
-                    tessWriter->pushCubic(
-                        convert_line_to_cubic(pts).data(),
-                        m_contourDirections,
-                        {0, 0},
-                        OuterCubicPatchSegmentSpan,
-                        1,
-                        OuterCubicPatchJoinSegmentCount,
-                        contourIDWithFlags |
-                            CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+                    if (tessWriter != nullptr)
+                    {
+                        tessWriter->pushCubic(
+                            convert_line_to_cubic(pts).data(),
+                            m_contourDirections,
+                            {0, 0},
+                            OuterCubicPatchSegmentSpan,
+                            1,
+                            OuterCubicPatchJoinSegmentCount,
+                            contourIDWithFlags |
+                                CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
+                    }
+                    ++patchCount;
                 }
-                ++patchCount;
                 break;
             case PathVerb::quad:
                 RIVE_UNREACHABLE();
@@ -2519,7 +2563,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
         }
     }
     Vec2D lastPt = rawPath.points().back();
-    if (contourCount != 0 && lastPt != p0)
+    if (contourCount != 0 && lastPt != p0 && !skipFlatOuterCubics)
     {
         if (tessWriter != nullptr)
         {
@@ -2541,6 +2585,14 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
+        if (m_coverageType == CoverageType::msaa)
+        {
+            // MSAA fills the path interior by smuggling its triangles in with
+            // outerCubic patches (rather than a distinct triangle-buffer draw).
+            patchCount +=
+                m_triangulator->retrofitCubicPatchCount(m_pathFillRule);
+        }
+
         if (patchCount > 0)
         {
             m_resourceCounts.pathCount = 1;
@@ -2555,8 +2607,14 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
                     ? patchCount * OuterCubicPatchSegmentSpanPlusJoin * 2
                     : patchCount * OuterCubicPatchSegmentSpanPlusJoin;
-            m_resourceCounts.maxTriangleVertexCount +=
-                m_triangulator->maxVertexCount(m_triangulatorFillRule);
+            if (m_coverageType != CoverageType::msaa)
+            {
+                // In MSAA, the interior triangles are smuggled in with
+                // outerCubic patches (counted above) instead of being drawn
+                // from the triangle buffer.
+                m_resourceCounts.maxTriangleVertexCount +=
+                    m_triangulator->maxVertexCount(m_pathFillRule);
+            }
         }
     }
     else
@@ -2570,6 +2628,19 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                                                   m_contourDirections,
                                                   contourIDWithFlags);
             ++patchCount;
+        }
+        if (m_coverageType == CoverageType::msaa)
+        {
+            // Smuggle the interior triangles in with outerCubic patches.
+            patchCount += m_triangulator->polysToRetrofitCubicPatches(
+                m_pathFillRule,
+                gpu::WindingFaces::all,
+                [&](const Vec2D* strip, size_t cornerCount) {
+                    tessWriter->pushRetrofitCubicTriStrip(strip,
+                                                          cornerCount,
+                                                          m_contourDirections,
+                                                          contourIDWithFlags);
+                });
         }
         assert(contourCount == m_resourceCounts.contourCount);
         assert(patchCount == m_resourceCounts.maxTessellatedSegmentCount);

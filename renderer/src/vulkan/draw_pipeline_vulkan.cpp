@@ -152,10 +152,15 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::msaaStrokes:
         case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
         case gpu::DrawType::msaaDynamicMidpointFans:
+        case gpu::DrawType::msaaDynamicOuterCubics:
         case gpu::DrawType::msaaMidpointFans:
         case gpu::DrawType::msaaMidpointFanStencilReset:
         case gpu::DrawType::msaaMidpointFanPathsStencil:
         case gpu::DrawType::msaaMidpointFanPathsCover:
+        case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
+        case gpu::DrawType::msaaOuterCubicStencilReset:
+        case gpu::DrawType::msaaOuterCubicPathsStencil:
+        case gpu::DrawType::msaaOuterCubicPathsCover:
         case gpu::DrawType::msaaOuterCubics:
         case gpu::DrawType::clipReset:
             return mainSubpassIdx;
@@ -530,10 +535,15 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:

@@ -311,10 +311,15 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
@@ -2286,10 +2291,15 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaDynamicMidpointFans:
+            case DrawType::msaaDynamicOuterCubics:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:
             case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubicBorrowedCoverage:
+            case DrawType::msaaOuterCubicStencilReset:
+            case DrawType::msaaOuterCubicPathsStencil:
+            case DrawType::msaaOuterCubicPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:

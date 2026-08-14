@@ -3492,7 +3492,7 @@ gpu::DrawBatch* RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
         m_ctx->m_triangleVertexData.elementsWritten());
     size_t actualVertexCount = draw->triangulator()->polysToTriangles(
         pathID,
-        draw->triangulatorFillRule(),
+        draw->pathFillRule(),
         draw->triangulatorReverseTriangles(),
         draw->triangulatorNegateWinding(),
         windingFaces,
@@ -3737,7 +3737,12 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
         case DrawType::msaaMidpointFanPathsCover:
             return kMidpointFanPatchIndexCount -
                    kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             return kOuterCurvePatchIndexCount -
                    kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
@@ -3771,7 +3776,12 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
         case DrawType::msaaMidpointFanPathsCover:
             return kMidpointFanPatchBaseIndex +
                    kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
@@ -3799,7 +3809,12 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             batch->indexCountPerInstance = patchIndexCount(drawType);
             batch->baseIndex = patchBaseIndex(drawType);
             break;
@@ -3887,7 +3902,12 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
         case DrawType::clipReset:
             if (!m_drawList.empty() &&
                 !enums::is_flag_set(m_pendingBarriers,

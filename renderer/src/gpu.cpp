@@ -95,7 +95,11 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::msaaMidpointFanStencilReset,
                 DrawType::msaaMidpointFanPathsStencil,
                 DrawType::msaaMidpointFanPathsCover,
+                DrawType::msaaOuterCubicBorrowedCoverage,
                 DrawType::msaaOuterCubics,
+                DrawType::msaaOuterCubicStencilReset,
+                DrawType::msaaOuterCubicPathsStencil,
+                DrawType::msaaOuterCubicPathsCover,
                 DrawType::clipReset,
                 DrawType::renderPassInitialize,
                 DrawType::renderPassResolve,
@@ -165,11 +169,16 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             break;
     }
 
@@ -337,11 +346,16 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             drawTypeKey = 0;
             break;
         case DrawType::interiorTriangulation:
@@ -1163,21 +1177,24 @@ DepthState get_depth_state(InterlockMode interlockMode,
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::featherAtlasBlit:
-        case DrawType::outerCurvePatches:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaOuterCubicPathsStencil:
         case DrawType::clipReset:
             return {.depthTestEnabled = true, .depthWriteEnabled = false};
             break;
 
         case DrawType::msaaStrokes:
-        case DrawType::msaaOuterCubics:
             return {.depthTestEnabled = true, .depthWriteEnabled = true};
             break;
 
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicPathsCover:
             return {
                 .depthTestEnabled = true,
                 .depthWriteEnabled =
@@ -1186,6 +1203,7 @@ DepthState get_depth_state(InterlockMode interlockMode,
             break;
 
         case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaOuterCubicStencilReset:
             return {
                 .depthTestEnabled = true,
                 .depthWriteEnabled = enums::no_flags_set(
@@ -1198,6 +1216,7 @@ DepthState get_depth_state(InterlockMode interlockMode,
             return {.depthTestEnabled = false, .depthWriteEnabled = false};
 
         case DrawType::interiorTriangulation:
+        case DrawType::outerCurvePatches:
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
             break;
@@ -1225,7 +1244,6 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
         case DrawType::imageMesh:
         case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
-        case DrawType::msaaOuterCubics:
             if (enums::is_flag_set(drawContents, DrawContents::activeClip))
             {
                 return {
@@ -1244,6 +1262,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
             }
 
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
             return {
                 StencilType::borrowedCoverage,
                 DrawContents::activeClip,
@@ -1251,7 +1270,9 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
             };
 
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
+        case DrawType::msaaOuterCubics:
             return {
                 StencilType::forwardClippedByBackward,
                 DrawContents::activeClip | DrawContents::clipUpdate,
@@ -1259,6 +1280,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
             };
 
         case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaOuterCubicStencilReset:
             return {
                 StencilType::backwardTriangleCleanup,
                 DrawContents::clockwiseFill | DrawContents::activeClip |
@@ -1267,6 +1289,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
             };
 
         case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaOuterCubicPathsStencil:
             areDrawContentsValid =
                 enums::is_flag_set(drawContents, DrawContents::evenOddFill) ||
                 enums::all_flags_set(drawContents, kNestedClipUpdateMask);
@@ -1277,6 +1300,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
             };
 
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicPathsCover:
             areDrawContentsValid =
                 enums::is_flag_set(drawContents, DrawContents::evenOddFill);
             return {StencilType::evenOddDrawAndReset,
@@ -1527,11 +1551,15 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::featherAtlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
+        case DrawType::msaaOuterCubics:
         case DrawType::clipReset:
             return CullFace::counterclockwise;
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaOuterCubicStencilReset:
             // clockwise is always the front face in Rive, but for a couple
             // draws we encode some stencil work in the counterclockwise face.
             // It's done this way because the cull face is often supported as
@@ -1544,7 +1572,8 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::imageMesh:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
         case DrawType::renderPassResolve:
         case DrawType::renderPassInitialize:
             return CullFace::none;
@@ -1695,17 +1724,22 @@ bool get_color_write_enable(DrawType drawType,
             return fixedFunctionColorOutput ||
                    interlockMode == InterlockMode::msaa;
         case DrawType::msaaStrokes:
-        case DrawType::msaaOuterCubics:
             return true;
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaOuterCubicPathsStencil:
         case DrawType::clipReset:
             return false;
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicPathsCover:
             return !enums::is_flag_set(drawContents, DrawContents::clipUpdate);
         case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaOuterCubicStencilReset:
             // For clockwise fill, disable color writes when cleaning up
             // backward triangles. Clockwise only fills in forward triangles.
             return enums::no_flags_set(drawContents,
@@ -1850,12 +1884,17 @@ PipelineState get_pipeline_state(DrawType drawType,
 
         case DrawType::msaaStrokes:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             assert(interlockMode == InterlockMode::msaa);
             break;
 

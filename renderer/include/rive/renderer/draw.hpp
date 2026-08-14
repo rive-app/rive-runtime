@@ -264,6 +264,7 @@ public:
 
     CoverageType coverageType() const { return m_coverageType; }
 
+    FillRule pathFillRule() const { return m_pathFillRule; }
     const Gradient* gradient() const { return m_gradientRef; }
     gpu::PaintType paintType() const { return m_paintType; }
     bool isFeatheredFill() const
@@ -339,7 +340,6 @@ public:
     {
         return m_triangulatorNegateWinding;
     }
-    FillRule triangulatorFillRule() const { return m_triangulatorFillRule; }
 
     bool allocateResources(RenderContext::LogicalFlush*) override;
     void countSubpasses(const gpu::PlatformFeatures&) override;
@@ -434,7 +434,6 @@ protected:
     gpu::CoverageBufferRange m_coverageBufferRange;
 
     GrInnerFanTriangulator* m_triangulator = nullptr;
-    FillRule m_triangulatorFillRule = FillRule::nonZero;
     bool m_triangulatorReverseTriangles = false;
     bool m_triangulatorNegateWinding = false;
 

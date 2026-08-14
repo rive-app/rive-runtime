@@ -66,10 +66,15 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::msaaStrokes:
         case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
         case gpu::DrawType::msaaDynamicMidpointFans:
+        case gpu::DrawType::msaaDynamicOuterCubics:
         case gpu::DrawType::msaaMidpointFans:
         case gpu::DrawType::msaaMidpointFanStencilReset:
         case gpu::DrawType::msaaMidpointFanPathsStencil:
         case gpu::DrawType::msaaMidpointFanPathsCover:
+        case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
+        case gpu::DrawType::msaaOuterCubicStencilReset:
+        case gpu::DrawType::msaaOuterCubicPathsStencil:
+        case gpu::DrawType::msaaOuterCubicPathsCover:
         case gpu::DrawType::msaaOuterCubics:
             return true;
         case gpu::DrawType::imageRect:
@@ -1759,10 +1764,15 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::msaaStrokes:
         case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
         case gpu::DrawType::msaaDynamicMidpointFans:
+        case gpu::DrawType::msaaDynamicOuterCubics:
         case gpu::DrawType::msaaMidpointFans:
         case gpu::DrawType::msaaMidpointFanStencilReset:
         case gpu::DrawType::msaaMidpointFanPathsStencil:
         case gpu::DrawType::msaaMidpointFanPathsCover:
+        case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
+        case gpu::DrawType::msaaOuterCubicStencilReset:
+        case gpu::DrawType::msaaOuterCubicPathsStencil:
+        case gpu::DrawType::msaaOuterCubicPathsCover:
         case gpu::DrawType::msaaOuterCubics:
             if (shaderType == GL_VERTEX_SHADER)
             {
@@ -1855,10 +1865,15 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::msaaStrokes:
                 case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
                 case gpu::DrawType::msaaDynamicMidpointFans:
+                case gpu::DrawType::msaaDynamicOuterCubics:
                 case gpu::DrawType::msaaMidpointFans:
                 case gpu::DrawType::msaaMidpointFanStencilReset:
                 case gpu::DrawType::msaaMidpointFanPathsStencil:
                 case gpu::DrawType::msaaMidpointFanPathsCover:
+                case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
+                case gpu::DrawType::msaaOuterCubicStencilReset:
+                case gpu::DrawType::msaaOuterCubicPathsStencil:
+                case gpu::DrawType::msaaOuterCubicPathsCover:
                 case gpu::DrawType::msaaOuterCubics:
                 case gpu::DrawType::clipReset:
                 case gpu::DrawType::renderPassInitialize:
@@ -1878,10 +1893,15 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::msaaStrokes:
                 case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
                 case gpu::DrawType::msaaDynamicMidpointFans:
+                case gpu::DrawType::msaaDynamicOuterCubics:
                 case gpu::DrawType::msaaMidpointFans:
                 case gpu::DrawType::msaaMidpointFanStencilReset:
                 case gpu::DrawType::msaaMidpointFanPathsStencil:
                 case gpu::DrawType::msaaMidpointFanPathsCover:
+                case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
+                case gpu::DrawType::msaaOuterCubicStencilReset:
+                case gpu::DrawType::msaaOuterCubicPathsStencil:
+                case gpu::DrawType::msaaOuterCubicPathsCover:
                 case gpu::DrawType::msaaOuterCubics:
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
@@ -2986,10 +3006,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaDynamicMidpointFans:
+            case DrawType::msaaDynamicOuterCubics:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:
             case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubicBorrowedCoverage:
+            case DrawType::msaaOuterCubicStencilReset:
+            case DrawType::msaaOuterCubicPathsStencil:
+            case DrawType::msaaOuterCubicPathsCover:
             case DrawType::msaaOuterCubics:
             {
                 m_state->bindVAO(m_drawVAO);

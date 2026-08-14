@@ -12,6 +12,8 @@
 
 #include "gr_triangulator.hpp"
 
+#include <optional>
+
 namespace rive
 {
 // Triangulates the inner polygon(s) of a path (i.e., the triangle fan for a
@@ -54,6 +56,41 @@ public:
                                   : 0;
     }
 
+    // Emits the interior triangulation as weight-expanded retrofitted cubic
+    // patches, merging into patches of up to 3 edge-adjacent triangles.
+    // Returns the number of patches emitted.
+    size_t polysToRetrofitCubicPatches(
+        FillRule fillRule,
+        gpu::WindingFaces windingFaces,
+        const RetrofitCubicPatchEmitter& emitPatch) const
+    {
+        if (m_polys == nullptr)
+        {
+            return 0;
+        }
+        return GrTriangulator::polysToRetrofitCubicPatches(m_polys,
+                                                           fillRule,
+                                                           windingFaces,
+                                                           emitPatch);
+    }
+
+    // Number of patches polysToRetrofitCubicPatches() emits for this
+    // triangulation. Lazily computed and cached because it requires the full
+    // (nontrivial) triangle traversal and shared-edge detection.
+    size_t retrofitCubicPatchCount(FillRule fillRule) const
+    {
+        std::optional<size_t>& cached = fillRule == FillRule::evenOdd
+                                            ? m_evenOddPatchCount
+                                            : m_nonZeroPatchCount;
+        if (!cached.has_value())
+        {
+            cached = polysToRetrofitCubicPatches(fillRule,
+                                                 gpu::WindingFaces::all,
+                                                 [](const Vec2D*, size_t) {});
+        }
+        return *cached;
+    }
+
     size_t polysToTriangles(
         uint16_t pathID,
         FillRule fillRule,
@@ -80,6 +117,12 @@ public:
 
 private:
     Poly* m_polys = nullptr;
+
+    // Lazily-computed retrofitCubicPatchCount() cache: one slot per fill rule
+    // the triangulator sees (nonZero -- which clockwise maps to -- and
+    // evenOdd).
+    mutable std::optional<size_t> m_nonZeroPatchCount;
+    mutable std::optional<size_t> m_evenOddPatchCount;
 };
 } // namespace rive
 

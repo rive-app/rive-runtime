@@ -686,13 +686,28 @@ enum class DrawType : uint8_t
     // together, while collapsing three pipeline binds into one.
     msaaDynamicMidpointFans,
 
+    // Same as the midpoint-fan "fast" path, but submits outer-cubic patches
+    // instead of midpoint-fan patches. These use the exact same depth/stencil
+    // settings as their midpoint-fan counterparts; they just draw a different
+    // patch of triangles. Used to fill paths via interior triangulation, whose
+    // interior is smuggled via cubics (RETROFIT_TRI_STRIP_CONTOUR_FLAG).
+    msaaOuterCubicBorrowedCoverage,
+    msaaOuterCubics,
+    msaaOuterCubicStencilReset,
+
+    // The msaaDynamicMidpointFans equivalent for outer cubics: collapses
+    // msaaOuterCubicBorrowedCoverage + msaaOuterCubics +
+    // msaaOuterCubicStencilReset onto a single pipeline, switching between them
+    // with dynamic state. Same geometry as the outer-cubic passes above.
+    msaaDynamicOuterCubics,
+
     // MSAA "slow" path: stencil-then-cover.
     msaaMidpointFanPathsStencil,
     msaaMidpointFanPathsCover,
 
-    // MSAA interior triangulation is not currently supported, but this one draw
-    // type is included in order to support the "retrofitcubictristrips" GM.
-    msaaOuterCubics,
+    // Same as the midpoint-fan "slow" path, but submits outer-cubic patches.
+    msaaOuterCubicPathsStencil,
+    msaaOuterCubicPathsCover,
 
     // Clear or intersect (based on DrawContents) the clip value.
     clipReset,
@@ -725,11 +740,16 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -943,11 +963,16 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
         case DrawType::msaaMidpointFans:
         case DrawType::msaaMidpointFanStencilReset:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
             mask = kAllShaderFeatures;
             break;
         case DrawType::clipReset:

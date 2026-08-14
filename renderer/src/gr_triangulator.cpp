@@ -12,6 +12,7 @@
 
 #include "gr_triangulator.hpp"
 
+#include "rive/renderer/stack_vector.hpp"
 #include <algorithm>
 
 #if !defined(SK_ENABLE_OPTIMIZE_SIZE)
@@ -113,13 +114,12 @@ bool GrTriangulator::Comparator::sweep_lt(const Vec2D& a, const Vec2D& b) const
                                                 : sweep_lt_vert(a, b);
 }
 
-static size_t emit_triangle(
-    Vertex* v0,
-    Vertex* v1,
-    Vertex* v2,
-    int16_t riveWeight,
-    uint16_t pathID,
-    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory)
+template <typename Sink>
+static size_t emit_triangle(Vertex* v0,
+                            Vertex* v1,
+                            Vertex* v2,
+                            int16_t riveWeight,
+                            Sink* sink)
 {
     TESS_LOG("emit_triangle %g (%g, %g) %d\n",
              v0->fID,
@@ -136,9 +136,7 @@ static size_t emit_triangle(
              v2->fPoint.x,
              v2->fPoint.y,
              v2->fAlpha);
-    mappedMemory->emplace_back(v0->fPoint, riveWeight, pathID);
-    mappedMemory->emplace_back(v1->fPoint, riveWeight, pathID);
-    mappedMemory->emplace_back(v2->fPoint, riveWeight, pathID);
+    sink->emitTriangle(v0->fPoint, v1->fPoint, v2->fPoint, riveWeight);
     return 3;
 }
 
@@ -445,13 +443,11 @@ void GrTriangulator::MonotonePoly::addEdge(Edge* edge)
     }
 }
 
-size_t GrTriangulator::emitMonotonePoly(
-    const MonotonePoly* monotonePoly,
-    uint16_t pathID,
-    bool reverseTriangles,
-    bool negateWinding,
-    gpu::WindingFaces windingFaces,
-    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
+template <typename Sink>
+size_t GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
+                                        bool negateWinding,
+                                        gpu::WindingFaces windingFaces,
+                                        Sink* sink) const
 {
     // GrTriangulator and Rive unfortunately have opposite winding senses.
     int16_t riveWeight = -monotonePoly->fWinding;
@@ -496,13 +492,7 @@ size_t GrTriangulator::emitMonotonePoly(
         Vertex* next = v->fNext;
         if (count == 3)
         {
-            vertexCount += emitTriangle(prev,
-                                        curr,
-                                        next,
-                                        riveWeight,
-                                        pathID,
-                                        reverseTriangles,
-                                        mappedMemory);
+            vertexCount += emitTriangle(prev, curr, next, riveWeight, sink);
             break;
         }
         double ax = static_cast<double>(curr->fPoint.x) - prev->fPoint.x;
@@ -511,13 +501,7 @@ size_t GrTriangulator::emitMonotonePoly(
         double by = static_cast<double>(next->fPoint.y) - curr->fPoint.y;
         if (ax * by - ay * bx >= 0.0)
         {
-            vertexCount += emitTriangle(prev,
-                                        curr,
-                                        next,
-                                        riveWeight,
-                                        pathID,
-                                        reverseTriangles,
-                                        mappedMemory);
+            vertexCount += emitTriangle(prev, curr, next, riveWeight, sink);
             v->fPrev->fNext = v->fNext;
             v->fNext->fPrev = v->fPrev;
             count--;
@@ -538,20 +522,14 @@ size_t GrTriangulator::emitMonotonePoly(
     return vertexCount;
 }
 
-size_t GrTriangulator::emitTriangle(
-    Vertex* prev,
-    Vertex* curr,
-    Vertex* next,
-    int16_t riveWeight,
-    uint16_t pathID,
-    bool reverseTriangles,
-    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
+template <typename Sink>
+size_t GrTriangulator::emitTriangle(Vertex* prev,
+                                    Vertex* curr,
+                                    Vertex* next,
+                                    int16_t riveWeight,
+                                    Sink* sink) const
 {
-    if (reverseTriangles)
-    {
-        std::swap(prev, next);
-    }
-    return emit_triangle(prev, curr, next, riveWeight, pathID, mappedMemory);
+    return emit_triangle(prev, curr, next, riveWeight, sink);
 }
 
 GrTriangulator::Poly::Poly(Vertex* v, int winding) :
@@ -635,13 +613,11 @@ Poly* GrTriangulator::Poly::addEdge(Edge* e, Side side, GrTriangulator* tri)
     return poly;
 }
 
-size_t GrTriangulator::emitPoly(
-    const Poly* poly,
-    uint16_t pathID,
-    bool reverseTriangles,
-    bool negateWinding,
-    gpu::WindingFaces windingFaces,
-    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
+template <typename Sink>
+size_t GrTriangulator::emitPoly(const Poly* poly,
+                                bool negateWinding,
+                                gpu::WindingFaces windingFaces,
+                                Sink* sink) const
 {
     if (poly->fCount < 3)
     {
@@ -651,12 +627,7 @@ size_t GrTriangulator::emitPoly(
     size_t vertexCount = 0;
     for (MonotonePoly* m = poly->fHead; m != nullptr; m = m->fNext)
     {
-        vertexCount += emitMonotonePoly(m,
-                                        pathID,
-                                        reverseTriangles,
-                                        negateWinding,
-                                        windingFaces,
-                                        mappedMemory);
+        vertexCount += emitMonotonePoly(m, negateWinding, windingFaces, sink);
     }
     return vertexCount;
 }
@@ -879,13 +850,15 @@ static inline bool apply_fill_type(FillRule fillRule, int winding)
 {
     switch (fillRule)
     {
+        // Clockwise triangulates the same as nonZero because clockwise still
+        // uses the backward ones for borrowed coverage.
         case FillRule::nonZero:
+        case FillRule::clockwise:
             return winding != 0;
         case FillRule::evenOdd:
             return (winding & 1) != 0;
-        default:
-            RIVE_UNREACHABLE();
     }
+    RIVE_UNREACHABLE();
 }
 
 static inline bool apply_fill_type(FillRule fillType, const Poly* poly)
@@ -2458,26 +2431,19 @@ std::tuple<Poly*, bool> GrTriangulator::contoursToPolys(VertexList* contours,
 }
 
 // Stage 6: Triangulate the monotone polygons into a vertex buffer.
-size_t GrTriangulator::polysToTriangles(
-    Poly* polys,
-    FillRule overrideFillType,
-    uint16_t pathID,
-    bool reverseTriangles,
-    bool negateWinding,
-    gpu::WindingFaces windingFaces,
-    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
+template <typename Sink>
+size_t GrTriangulator::polysToTriangles(Poly* polys,
+                                        FillRule overrideFillType,
+                                        bool negateWinding,
+                                        gpu::WindingFaces windingFaces,
+                                        Sink* sink) const
 {
     size_t vertexCount = 0;
     for (Poly* poly = polys; poly; poly = poly->fNext)
     {
         if (apply_fill_type(overrideFillType, poly))
         {
-            vertexCount += emitPoly(poly,
-                                    pathID,
-                                    reverseTriangles,
-                                    negateWinding,
-                                    windingFaces,
-                                    mappedMemory);
+            vertexCount += emitPoly(poly, negateWinding, windingFaces, sink);
         }
     }
     return vertexCount;
@@ -2580,15 +2546,179 @@ size_t GrTriangulator::polysToTriangles(
         return 0;
     }
 
-    size_t actualCount = polysToTriangles(polys,
-                                          fillRule,
-                                          pathID,
-                                          reverseTriangles,
-                                          negateWinding,
-                                          windingFaces,
-                                          mappedMemory);
+    // Emits triangulations into Rive's mapped triangle vertex buffer.
+    class TriangleVertexBufferSink
+    {
+    public:
+        TriangleVertexBufferSink(
+            uint16_t pathID,
+            bool reverseTriangles,
+            gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) :
+            m_pathID(pathID),
+            m_reverseTriangles(reverseTriangles),
+            m_mappedMemory(mappedMemory)
+        {}
+
+        void emitTriangle(Vec2D a, Vec2D b, Vec2D c, int16_t riveWeight)
+        {
+            if (m_reverseTriangles)
+            {
+                std::swap(a, c);
+            }
+            m_mappedMemory->emplace_back(a, riveWeight, m_pathID);
+            m_mappedMemory->emplace_back(b, riveWeight, m_pathID);
+            m_mappedMemory->emplace_back(c, riveWeight, m_pathID);
+        }
+
+    private:
+        const uint16_t m_pathID;
+        const bool m_reverseTriangles;
+        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* const m_mappedMemory;
+    };
+
+    TriangleVertexBufferSink sink(pathID, reverseTriangles, mappedMemory);
+    size_t actualCount =
+        polysToTriangles(polys, fillRule, negateWinding, windingFaces, &sink);
     assert(actualCount <= maxVertexCount);
     return actualCount;
+}
+
+size_t GrTriangulator::polysToRetrofitCubicPatches(
+    Poly* polys,
+    FillRule fillRule,
+    gpu::WindingFaces windingFaces,
+    const RetrofitCubicPatchEmitter& emitPatch) const
+{
+    // Accumulates edge-adjacent, equally-wound triangles into 3-triangle strips
+    // that we emit in patches instead of 1 at a time, roughly halving the patch
+    // count.
+    class BufferedTriStripSink
+    {
+    public:
+        BufferedTriStripSink(const RetrofitCubicPatchEmitter& emitPatch) :
+            m_emitPatch(emitPatch)
+        {}
+
+        void emitTriangle(Vec2D a, Vec2D b, Vec2D c, int16_t riveWeight)
+        {
+            if (a == b || a == c || b == c || riveWeight == 0)
+            {
+                return;
+            }
+            if (!tryMerge(a, b, c, riveWeight))
+            {
+                flush();
+                reset(a, b, c, riveWeight);
+            }
+        }
+
+        // Emits the buffered polygon (if any) as abs(weight) properly-wound
+        // patches.
+        void flush()
+        {
+            if (m_corners.size() != 0)
+            {
+                // The triangulator is designed to emit all triangles clockwise,
+                // and rely on the "weight" attribute. Stencil relies on actual
+                // triangle winding to know whether to increment or decrement,
+                // so reverse negative-weight polygons.
+                if (m_weight < 0)
+                {
+                    std::reverse(m_corners.begin(), m_corners.end());
+                }
+
+                // Convert the polygon vertices to strip ordering.
+                // (Rotate the first 3 left by 1 position, yielding
+                // {v1,v2,v0,v3,v4}).
+                std::rotate(m_corners.begin(),
+                            m_corners.begin() + 1,
+                            m_corners.begin() + 3);
+
+                // Stencil can't incr/decr by a variable amount, so emit
+                // abs(m_weight) patches instead.
+                size_t numPatches = std::abs(m_weight);
+                for (size_t i = 0; i < numPatches; ++i)
+                {
+                    m_emitPatch(m_corners.data(), m_corners.size());
+                }
+
+                m_emittedPatchCount += numPatches;
+                m_corners.clear();
+            }
+        }
+
+        // Total patches emitted across all flushes.
+        size_t emittedPatchCount() const { return m_emittedPatchCount; }
+
+    private:
+        // Start a fresh polygon from a single triangle.
+        void reset(Vec2D a, Vec2D b, Vec2D c, int16_t weight)
+        {
+            m_corners.clear();
+            m_corners.push_back(a);
+            m_corners.push_back(b);
+            m_corners.push_back(c);
+            m_weight = weight;
+        }
+
+        // Merges a triangle if it fits in the patch, has the same winding, and
+        // shares an edge with any side of the polygon.
+        // Returns false if it can't, in which case the caller flushes and
+        // starts a new polygon.
+        bool tryMerge(Vec2D a, Vec2D b, Vec2D c, int16_t weight)
+        {
+            if (m_corners.size() == 0 || weight != m_weight ||
+                m_corners.size() >= 5)
+            {
+                return false;
+            }
+            // Compare each triangle edge against each edge of the buffered
+            // polygon, searching for a match.
+            Vec2D tri[3] = {a, b, c};
+            for (int e = 0; e < 3; ++e)
+            {
+                Vec2D e0 = tri[e], e1 = tri[(e + 1) % 3],
+                      opp = tri[(e + 2) % 3];
+                for (uint32_t i = 0; i < m_corners.size(); ++i)
+                {
+                    Vec2D c0 = m_corners[i];
+                    Vec2D c1 = m_corners[i + 1 == m_corners.size() ? 0 : i + 1];
+                    if (e0 == c1 && e1 == c0)
+                    {
+                        // Match! Insert opp between c0 and c1.
+                        m_corners.insert(i + 1, opp);
+                        return true;
+                    }
+                    else
+                    {
+                        // Not a match. Since the buffered triangles all wind in
+                        // the same direction, and since the triangulator
+                        // guarantees no overlap, a matching edge will always be
+                        // (e0,e1)<->(c1,c0).
+                        assert(e0 != c0 || e1 != c1);
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Buffered polygon that we are attempting to emit as a strip of 3
+        // triangles instead of a single one.
+        StackVector<Vec2D, 5> m_corners;
+        int16_t m_weight = 0;
+
+        const RetrofitCubicPatchEmitter& m_emitPatch;
+        size_t m_emittedPatchCount = 0;
+    };
+
+    BufferedTriStripSink sink(emitPatch);
+    polysToTriangles(polys,
+                     fillRule,
+                     /*negateWinding=*/false,
+                     windingFaces,
+                     &sink);
+    sink.flush(); // Flush the final buffered polygon (if any).
+    return sink.emittedPatchCount();
 }
 } // namespace rive
 

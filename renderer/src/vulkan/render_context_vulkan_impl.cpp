@@ -2271,10 +2271,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
+            case DrawType::msaaOuterCubicBorrowedCoverage:
+            case DrawType::msaaOuterCubicStencilReset:
+            case DrawType::msaaOuterCubicPathsStencil:
+            case DrawType::msaaOuterCubicPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaDynamicMidpointFans:
+            case DrawType::msaaDynamicOuterCubics:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:
@@ -3758,6 +3763,10 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
+            case DrawType::msaaOuterCubicBorrowedCoverage:
+            case DrawType::msaaOuterCubicStencilReset:
+            case DrawType::msaaOuterCubicPathsStencil:
+            case DrawType::msaaOuterCubicPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
@@ -3799,6 +3808,7 @@ void RenderContextVulkanImpl::submitDrawList(
             }
 
             case DrawType::msaaDynamicMidpointFans:
+            case DrawType::msaaDynamicOuterCubics:
             {
                 pendingTessPatchCount -= batch.elementCount;
                 if (drawPipeline == nullptr)
@@ -3806,13 +3816,13 @@ void RenderContextVulkanImpl::submitDrawList(
                     break;
                 }
 
-                // Combined fast-path fill: borrowed coverage, fans, and stencil
-                // reset share this one dynamic-state pipeline. Draw the whole
-                // batch (instanced across non-overlapping paths) three times,
-                // updating dynamic state between passes. depthCompareOp stays
-                // baked at LESS so Hi-Z keeps culling; color is suppressed via
-                // VK_EXT_color_write_enable (or, without the extension, a push
-                // constant that outputs color == 0).
+                // Combined fast-path fill: borrowed coverage, main fill, and
+                // stencil reset share this one dynamic-state pipeline. Draw the
+                // whole batch (instanced across non-overlapping paths) three
+                // times, updating dynamic state between passes. depthCompareOp
+                // stays baked at LESS so Hi-Z keeps culling; color is
+                // suppressed via VK_EXT_color_write_enable (or, without the
+                // extension, a push constant that outputs color == 0).
                 //
                 // The combine is gated to GPUs that don't need the "renderpass
                 // interrupt" workaround, so a single draw covers the whole
@@ -3830,12 +3840,12 @@ void RenderContextVulkanImpl::submitDrawList(
                                          *m_pathPatchIndexBuffer,
                                          0,
                                          VK_INDEX_TYPE_UINT16);
-                static constexpr DrawType Passes[] = {
-                    DrawType::msaaMidpointFanBorrowedCoverage,
-                    DrawType::msaaMidpointFans,
-                    DrawType::msaaMidpointFanStencilReset,
-                };
-                for (DrawType pass : Passes)
+                // The outer-cubic passes use identical dynamic state to their
+                // midpoint-fan counterparts, so drive both modes from the
+                // midpoint-fan types.
+                for (DrawType pass : {DrawType::msaaMidpointFanBorrowedCoverage,
+                                      DrawType::msaaMidpointFans,
+                                      DrawType::msaaMidpointFanStencilReset})
                 {
                     gpu::PipelineState pipelineState =
                         gpu::get_pipeline_state(pass,

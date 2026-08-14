@@ -21,6 +21,8 @@
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
 
+#include <functional>
+
 namespace rive
 {
 #define TRIANGULATOR_LOGGING 0
@@ -118,15 +120,16 @@ protected:
     virtual std::tuple<Poly*, bool> tessellate(const VertexList& vertices,
                                                const Comparator&);
 
-    // 6) Triangulate the monotone polygons directly into a vertex buffer:
-    size_t polysToTriangles(
-        Poly* polys,
-        FillRule overrideFillRule,
-        uint16_t pathID,
-        bool reverseTriangles,
-        bool negateWinding,
-        gpu::WindingFaces,
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    // 6) Triangulate the monotone polygons directly into a vertex buffer.
+    //
+    // Templated on the triangle "Sink", which receives each triangle via
+    // sink->emitTriangle(v0, v1, v2, riveWeight).
+    template <typename Sink>
+    size_t polysToTriangles(Poly* polys,
+                            FillRule overrideFillRule,
+                            bool negateWinding,
+                            gpu::WindingFaces,
+                            Sink*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with
     // the linked list of vertices (and the necessity of inserting new vertices
@@ -182,26 +185,22 @@ protected:
     // counterclockwise, rather that transposing.
 
     // Additional helpers and driver functions.
-    size_t emitMonotonePoly(
-        const MonotonePoly*,
-        uint16_t pathID,
-        bool reverseTriangles,
-        bool negateWinding,
-        gpu::WindingFaces,
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    template <typename Sink>
+    size_t emitMonotonePoly(const MonotonePoly*,
+                            bool negateWinding,
+                            gpu::WindingFaces,
+                            Sink*) const;
+    template <typename Sink>
     size_t emitTriangle(Vertex* prev,
                         Vertex* curr,
                         Vertex* next,
                         int16_t riveWeight,
-                        uint16_t pathID,
-                        bool reverseTriangles,
-                        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+                        Sink*) const;
+    template <typename Sink>
     size_t emitPoly(const Poly*,
-                    uint16_t pathID,
-                    bool reverseTriangles,
                     bool negateWinding,
                     gpu::WindingFaces,
-                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+                    Sink*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
@@ -304,6 +303,23 @@ protected:
         bool negateWinding,
         gpu::WindingFaces,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+
+    // Emits the interior triangulation in strips of up to 3-triangles.
+    // Edge-adjacent triangles of equal winding are merged together, roughly
+    // halving the patch count.
+    //
+    // To handle winding-numbers, all triangles are wound clockwise
+    // for positive weights and counterclockwise for negative, and duplicated
+    // abs(winding) times so that it stencils the correct winding number.
+    //
+    // Returns the number of patches emitted.
+    using RetrofitCubicPatchEmitter =
+        std::function<void(const Vec2D* strip, size_t vertexCount)>;
+    size_t polysToRetrofitCubicPatches(
+        Poly*,
+        FillRule,
+        gpu::WindingFaces,
+        const RetrofitCubicPatchEmitter& emitPatch) const;
 
     Comparator::Direction fDirection;
     TrivialBlockAllocator* const fAlloc;
