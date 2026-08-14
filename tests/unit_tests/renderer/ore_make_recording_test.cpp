@@ -8,6 +8,8 @@
 
 #include "rive/renderer/ore/cmd/ore_command_buffer.hpp"
 #include "rive/renderer/ore/cmd/ore_make_recording.hpp"
+#include "rive/renderer/ore/cmd/ore_make_replay.hpp"
+#include "rive/renderer/ore/ore_context.hpp"
 
 #include <catch.hpp>
 #include <cstring>
@@ -140,12 +142,199 @@ TEST_CASE("make stream: a buffer with no initial data is absent, not empty",
     CHECK(blobOf(r, b.data).size() == 0u);
 }
 
+// Every ShaderModuleDesc field has to reach the wire, and the three places
+// that carry it are hand written mirrors of this struct. Binding all members
+// here fails to compile when one is added, which is the reminder to carry it
+// through ShaderModuleDescPOD, recordMakeShaderModule and the replay side.
+// State attached to a module outside this desc never crosses replay at all.
+TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
+{
+    ShaderModuleDesc desc{};
+    auto& [code,
+           codeSize,
+           language,
+           stage,
+           label,
+           hlslSource,
+           hlslSourceSize,
+           hlslEntryPoint,
+           bindingMapBytes,
+           bindingMapSize,
+           texSamplerPairBytes,
+           texSamplerPairSize,
+           glFixupBytes,
+           glFixupSize,
+           shaderAssetId] = desc;
+    (void)code;
+    (void)codeSize;
+    (void)language;
+    (void)stage;
+    (void)label;
+    (void)hlslSource;
+    (void)hlslSourceSize;
+    (void)hlslEntryPoint;
+    (void)bindingMapBytes;
+    (void)bindingMapSize;
+    (void)texSamplerPairBytes;
+    (void)texSamplerPairSize;
+    (void)glFixupBytes;
+    (void)glFixupSize;
+    (void)shaderAssetId;
+}
+
+// Binding the members above only forces a compile break when a field is added;
+// it does not force the field through the recorder and the replayer. Replaying
+// a fully populated desc and comparing what the device is handed is what makes
+// an omitted mirror fail.
+namespace
+{
+class CapturingContext : public rive::ore::Context
+{
+public:
+    CapturingContext() : Context(nullptr) {}
+
+    bool captured = false;
+    ShaderModuleDesc desc{};
+    std::vector<uint8_t> code, bindingMap, texSamplerPair, glFixup;
+    std::string label, hlslSource, hlslEntryPoint;
+
+    rive::rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& d) override
+    {
+        captured = true;
+        desc = d;
+        auto copy = [](const void* p, uint32_t n, std::vector<uint8_t>& out) {
+            out.assign(static_cast<const uint8_t*>(p),
+                       static_cast<const uint8_t*>(p) + n);
+        };
+        copy(d.code, d.codeSize, code);
+        copy(d.bindingMapBytes, d.bindingMapSize, bindingMap);
+        copy(d.texSamplerPairBytes, d.texSamplerPairSize, texSamplerPair);
+        copy(d.glFixupBytes, d.glFixupSize, glFixup);
+        label = d.label != nullptr ? d.label : "";
+        hlslSource = d.hlslSource != nullptr ? d.hlslSource : "";
+        hlslEntryPoint = d.hlslEntryPoint != nullptr ? d.hlslEntryPoint : "";
+        return nullptr;
+    }
+
+    rive::rcp<Buffer> makeBuffer(const BufferDesc&) override { return nullptr; }
+    rive::rcp<Texture> makeTexture(const TextureDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<TextureView> makeTextureView(const TextureViewDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<Sampler> makeSampler(const SamplerDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<BindGroupLayout> makeBindGroupLayout(
+        const BindGroupLayoutDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<Pipeline> makePipeline(const PipelineDesc&, std::string*) override
+    {
+        return nullptr;
+    }
+    rive::rcp<BindGroup> makeBindGroup(const BindGroupDesc&) override
+    {
+        return nullptr;
+    }
+    std::unique_ptr<RenderPass> beginRenderPass(const RenderPassDesc&,
+                                                std::string*) override
+    {
+        return nullptr;
+    }
+    void beginFrame(const FrameDescriptor&) override {}
+    void endFrame() override {}
+    void waitForGPU() override {}
+    rive::rcp<TextureView> wrapCanvasTexture(rive::gpu::RenderCanvas*) override
+    {
+        return nullptr;
+    }
+    rive::rcp<TextureView> wrapRiveTexture(rive::gpu::Texture*,
+                                           uint32_t,
+                                           uint32_t) override
+    {
+        return nullptr;
+    }
+    ShaderTarget shaderTarget() const override { return ShaderTarget::glsl; }
+};
+} // namespace
+
+TEST_CASE("every shader module desc field survives record and replay",
+          "[ore][cmd]")
+{
+    const uint8_t code[8] = {0xDE, 0xAD, 0xBE, 0xEF, 1, 2, 3, 4};
+    const uint8_t bmap[3] = {9, 8, 7};
+    const uint8_t pairs[8] = {1, 1, 0, 0, 1, 2, 0, 0};
+    const uint8_t fixup[2] = {4, 5};
+
+    ShaderModuleDesc sent{};
+    sent.code = code;
+    sent.codeSize = sizeof(code);
+    sent.language = ShaderLanguage::wgsl;
+    sent.stage = ShaderStage::fragment;
+    sent.label = "every_field";
+    sent.hlslSource = "float4 main() : SV_Target { return 0; }";
+    sent.hlslSourceSize = (uint32_t)strlen(sent.hlslSource);
+    sent.hlslEntryPoint = "main";
+    sent.bindingMapBytes = bmap;
+    sent.bindingMapSize = sizeof(bmap);
+    sent.texSamplerPairBytes = pairs;
+    sent.texSamplerPairSize = sizeof(pairs);
+    sent.glFixupBytes = fixup;
+    sent.glFixupSize = sizeof(fixup);
+    sent.shaderAssetId = 4242;
+
+    OreCommandBuffer cb;
+    // Ids must append into an empty resident table.
+    recordMakeShaderModule(cb, 0, 3, sent);
+
+    CapturingContext ctx;
+    OreResident table;
+    OreCommandReader r(cb.commandBytes(), cb.blobBytes());
+    CommandType t;
+    REQUIRE(r.next(t));
+    REQUIRE(t == CommandType::makeShaderModule);
+    REQUIRE(replayOreLifecycle(
+        ctx,
+        table,
+        t,
+        r,
+        [](ResourceHandle, OreKind) -> rive::gpu::GPUResource* {
+            return nullptr;
+        }));
+
+    REQUIRE(ctx.captured);
+    const ShaderModuleDesc& got = ctx.desc;
+    CHECK(got.codeSize == sent.codeSize);
+    CHECK(ctx.code == std::vector<uint8_t>(code, code + sizeof(code)));
+    CHECK(got.language == sent.language);
+    CHECK(got.stage == sent.stage);
+    CHECK(ctx.label == "every_field");
+    CHECK(ctx.hlslSource == sent.hlslSource);
+    CHECK(ctx.hlslEntryPoint == "main");
+    CHECK(got.bindingMapSize == sent.bindingMapSize);
+    CHECK(ctx.bindingMap == std::vector<uint8_t>(bmap, bmap + sizeof(bmap)));
+    CHECK(got.texSamplerPairSize == sent.texSamplerPairSize);
+    CHECK(ctx.texSamplerPair ==
+          std::vector<uint8_t>(pairs, pairs + sizeof(pairs)));
+    CHECK(got.glFixupSize == sent.glFixupSize);
+    CHECK(ctx.glFixup == std::vector<uint8_t>(fixup, fixup + sizeof(fixup)));
+    CHECK(got.shaderAssetId == sent.shaderAssetId);
+}
+
 TEST_CASE("make stream records shader module, layout, view", "[ore][cmd]")
 {
     OreCommandBuffer cb;
 
     const uint8_t code[8] = {0xDE, 0xAD, 0xBE, 0xEF, 1, 2, 3, 4};
     const uint8_t bmap[3] = {9, 8, 7};
+    const uint8_t pairs[8] = {1, 1, 0, 0, 1, 2, 0, 0};
+    const uint8_t fixup[2] = {4, 5};
     ShaderModuleDesc sm{};
     sm.code = code;
     sm.codeSize = sizeof(code);
@@ -153,6 +342,10 @@ TEST_CASE("make stream records shader module, layout, view", "[ore][cmd]")
     sm.stage = ShaderStage::vertex;
     sm.bindingMapBytes = bmap;
     sm.bindingMapSize = sizeof(bmap);
+    sm.texSamplerPairBytes = pairs;
+    sm.texSamplerPairSize = sizeof(pairs);
+    sm.glFixupBytes = fixup;
+    sm.glFixupSize = sizeof(fixup);
     sm.shaderAssetId = 42;
     recordMakeShaderModule(cb, 0, 0, sm);
 
@@ -192,7 +385,15 @@ TEST_CASE("make stream records shader module, layout, view", "[ore][cmd]")
     auto codeBlob = blobOf(r, s.code);
     REQUIRE(codeBlob.size() == sizeof(code));
     CHECK(std::memcmp(codeBlob.data(), code, sizeof(code)) == 0);
-    CHECK(blobOf(r, s.bindingMapBytes).size() == sizeof(bmap));
+    auto bmapBlob = blobOf(r, s.bindingMapBytes);
+    REQUIRE(bmapBlob.size() == sizeof(bmap));
+    CHECK(std::memcmp(bmapBlob.data(), bmap, sizeof(bmap)) == 0);
+    auto pairBlob = blobOf(r, s.texSamplerPairBytes);
+    REQUIRE(pairBlob.size() == sizeof(pairs));
+    CHECK(std::memcmp(pairBlob.data(), pairs, sizeof(pairs)) == 0);
+    auto fixupBlob = blobOf(r, s.glFixupBytes);
+    REQUIRE(fixupBlob.size() == sizeof(fixup));
+    CHECK(std::memcmp(fixupBlob.data(), fixup, sizeof(fixup)) == 0);
     CHECK(s.hlslSource.absent());
     CHECK(s.label.absent());
 
