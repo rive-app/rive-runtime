@@ -16,7 +16,7 @@ using namespace rive;
 TEST_CASE("recorded per verb geometry drops empty segments",
           "[cmd][deferred][path]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
 
