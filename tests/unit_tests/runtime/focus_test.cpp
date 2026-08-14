@@ -209,6 +209,73 @@ TEST_CASE("FocusManager basic focus operations", "[FocusManager]")
     CHECK(focusable.blurredCount == 1);
 }
 
+// Focusable that can report live world bounds, like FocusData/TextInput do.
+class MockBoundedFocusable : public MockFocusable
+{
+public:
+    bool hasBounds = true;
+    AABB liveBounds = AABB(10, 20, 110, 220);
+
+    bool worldBounds(AABB& outBounds) override
+    {
+        if (!hasBounds)
+        {
+            return false;
+        }
+        outBounds = liveBounds;
+        return true;
+    }
+};
+
+TEST_CASE("primaryFocusBounds prefers live focusable bounds over cached",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockBoundedFocusable focusable;
+    auto node = make_rcp<FocusNode>(&focusable);
+    manager.addChild(nullptr, node);
+    manager.setFocus(node);
+
+    // Stale bounds cached on the node by a previous update pass.
+    node->worldBounds(AABB(1, 2, 3, 4));
+
+    AABB bounds;
+    REQUIRE(manager.primaryFocusBounds(bounds) == true);
+    CHECK(bounds.minX == 10);
+    CHECK(bounds.minY == 20);
+    CHECK(bounds.maxX == 110);
+    CHECK(bounds.maxY == 220);
+
+    // When the focusable cannot compute, the cached bounds remain the
+    // fallback.
+    focusable.hasBounds = false;
+    REQUIRE(manager.primaryFocusBounds(bounds) == true);
+    CHECK(bounds.minX == 1);
+    CHECK(bounds.maxY == 4);
+
+    manager.clearFocus();
+    CHECK(manager.primaryFocusBounds(bounds) == false);
+}
+
+TEST_CASE("primaryFocusBounds uses cached bounds without a focusable",
+          "[FocusManager]")
+{
+    // Externally-managed nodes (e.g. created over FFI by a host) have no
+    // focusable; their host pushes bounds into the node directly.
+    FocusManager manager;
+    auto node = make_rcp<FocusNode>();
+    manager.addChild(nullptr, node);
+    manager.setFocus(node);
+
+    AABB bounds;
+    CHECK(manager.primaryFocusBounds(bounds) == false);
+
+    node->worldBounds(AABB(5, 6, 7, 8));
+    REQUIRE(manager.primaryFocusBounds(bounds) == true);
+    CHECK(bounds.minX == 5);
+    CHECK(bounds.maxY == 8);
+}
+
 TEST_CASE("FocusManager focus change notifications", "[FocusManager]")
 {
     FocusManager manager;
@@ -2830,4 +2897,62 @@ TEST_CASE("Initially-empty bindable slot keeps its authored tab position on "
     CHECK(stateMachine->focusNext() == true);
     CHECK(focusedArtboardName() == "StaticNestWithFocusable");
     CHECK(stateMachine->focusNext() == false);
+}
+
+TEST_CASE("Focus bounds track a nested artboard host that moves",
+          "[FocusManager]")
+{
+    // The focusable's own layout geometry never changes here -- only the
+    // NestedArtboard hosting it slides. The bounds cached on the FocusNode
+    // during the update pass are written from that unchanged geometry, so they
+    // describe where the element used to be. FocusData::worldBounds recomputes
+    // through the root transform at call time, which is what keeps a focus
+    // bracket attached to the element as its host animates.
+    auto file = ReadRiveFile("assets/focus_bounds_moving_host.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    // Settle without consuming time so the host is still at its authored
+    // position when the first bounds are read. The scene focuses itself: the
+    // hosted artboard's entry state fires an event at start and its own
+    // listener performs the FocusActionTarget.
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto* focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+    REQUIRE(focusManager->primaryFocus() != nullptr);
+
+    rive::AABB atRest;
+    REQUIRE(focusManager->primaryFocusBounds(atRest) == true);
+
+    // Host authored at (100, 100); the target layout sits at its artboard's
+    // origin, since yoga owns a LayoutComponent's position and ignores the
+    // node's own x/y. Anchoring the start makes a drift in absolute placement
+    // visible, not just a wrong delta.
+    CHECK(atRest.minX == Approx(100.0f).margin(0.5f));
+    CHECK(atRest.minY == Approx(100.0f).margin(0.5f));
+    CHECK(atRest.width() == Approx(120.0f).margin(0.5f));
+    CHECK(atRest.height() == Approx(80.0f).margin(0.5f));
+
+    // Run the slide halfway: the full travel is 200pt right and 60pt down over
+    // 60 frames, linearly. Stop at 30 rather than 60 -- the animation
+    // ping-pongs, so the far end is a turning point and float accumulation
+    // could land either side of it.
+    for (int i = 0; i < 30; i++)
+    {
+        stateMachine->advanceAndApply(1.0f / 60.0f);
+    }
+
+    rive::AABB moved;
+    REQUIRE(focusManager->primaryFocusBounds(moved) == true);
+
+    CHECK(moved.minX == Approx(atRest.minX + 100.0f).margin(0.5f));
+    CHECK(moved.minY == Approx(atRest.minY + 30.0f).margin(0.5f));
+    // The element itself did not resize; only its host moved.
+    CHECK(moved.width() == Approx(atRest.width()).margin(0.5f));
+    CHECK(moved.height() == Approx(atRest.height()).margin(0.5f));
 }

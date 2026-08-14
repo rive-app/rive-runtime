@@ -76,6 +76,9 @@ public:
     void focused() override;
     void blurred() override;
     bool worldPosition(Vec2D& outPosition) override;
+    /// Root-space bounds computed at call time; the FocusNode's cached bounds
+    /// go stale when an ancestor host moves this artboard instance.
+    bool worldBounds(AABB& outBounds) override;
     Artboard* focusableArtboard() const override { return artboard(); }
     bool acceptsKeyboardInput() const override
     {

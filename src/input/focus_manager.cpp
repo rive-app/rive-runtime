@@ -305,46 +305,52 @@ bool FocusManager::focusPrevious()
     return findNextFocusable(m_primaryFocus.get(), false) != nullptr;
 }
 
-// Helper to get root-space world position from FocusNode
-// Computes center from bounds if available, falls back to Focusable
+// Root-space world position from FocusNode. Live focusable geometry first;
+// the node's cached bounds go stale when an ancestor host moves the
+// containing artboard instance, and remain only for externally-managed nodes.
 static bool getRootPosition(FocusNode* node, Vec2D& outPosition)
 {
     if (!node)
     {
         return false;
     }
-    // First try bounds stored directly on FocusNode (set during update cycle)
+    if (node->focusable())
+    {
+        AABB bounds;
+        if (node->focusable()->worldBounds(bounds))
+        {
+            outPosition = bounds.center();
+            return true;
+        }
+        if (node->focusable()->worldPosition(outPosition))
+        {
+            return true;
+        }
+    }
     if (node->hasWorldBounds())
     {
         outPosition = node->worldBounds().center();
         return true;
     }
-    // Fall back to Focusable for legacy implementations
-    if (node->focusable())
-    {
-        return node->focusable()->worldPosition(outPosition);
-    }
     return false;
 }
 
-// Helper to get root-space world bounds from FocusNode
-// First checks bounds stored on FocusNode, falls back to Focusable
+// Root-space world bounds from FocusNode; same live-first policy as
+// getRootPosition.
 static bool getRootBounds(FocusNode* node, AABB& outBounds)
 {
     if (!node)
     {
         return false;
     }
-    // First try bounds stored directly on FocusNode (set during update cycle)
+    if (node->focusable() && node->focusable()->worldBounds(outBounds))
+    {
+        return true;
+    }
     if (node->hasWorldBounds())
     {
         outBounds = node->worldBounds();
         return true;
-    }
-    // Fall back to Focusable for legacy implementations
-    if (node->focusable())
-    {
-        return node->focusable()->worldBounds(outBounds);
     }
     return false;
 }

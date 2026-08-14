@@ -14,6 +14,7 @@
 #include "rive/node.hpp"
 #include "rive/parent_traversal.hpp"
 #include "rive/semantic/semantic_data.hpp"
+#include "rive/semantic/semantic_provider.hpp"
 #include "rive/semantic/semantic_state.hpp"
 #include "rive/text/text_input.hpp"
 #include "rive/transform_component.hpp"
@@ -611,6 +612,25 @@ void FocusData::update(ComponentDirt value)
     }
 }
 
+bool FocusData::worldBounds(AABB& outBounds)
+{
+    auto* parentComponent = parent();
+    if (parentComponent == nullptr || !parentComponent->is<LayoutComponent>())
+    {
+        return false;
+    }
+    AABB bounds = parentComponent->as<LayoutComponent>()->worldBounds();
+    // Transform to root artboard space (handles nested artboards); all four
+    // corners so rotated/skewed hosts still yield a valid AABB.
+    auto* ab = artboard();
+    if (ab != nullptr)
+    {
+        bounds = SemanticProvider::rootTransformAABB(ab, bounds);
+    }
+    outBounds = bounds;
+    return true;
+}
+
 void FocusData::updateWorldBounds()
 {
     if (m_focusNode == nullptr)
@@ -618,24 +638,13 @@ void FocusData::updateWorldBounds()
         return;
     }
 
-    auto* parentComponent = parent();
-    if (parentComponent != nullptr && parentComponent->is<LayoutComponent>())
+    AABB bounds;
+    if (worldBounds(bounds))
     {
-        // LayoutComponent has worldBounds based on its layout dimensions
-        AABB bounds = parentComponent->as<LayoutComponent>()->worldBounds();
-        // Transform to root artboard space (handles nested artboards)
-        auto* ab = artboard();
-        if (ab != nullptr)
-        {
-            Vec2D min = ab->rootTransform(Vec2D(bounds.minX, bounds.minY));
-            Vec2D max = ab->rootTransform(Vec2D(bounds.maxX, bounds.maxY));
-            bounds = AABB(min.x, min.y, max.x, max.y);
-        }
         m_focusNode->worldBounds(bounds);
     }
     else
     {
-        // For non-layout parents, clear bounds (will fall back to position)
         m_focusNode->clearWorldBounds();
     }
 }

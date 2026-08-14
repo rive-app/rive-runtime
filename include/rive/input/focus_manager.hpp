@@ -51,7 +51,19 @@ public:
     /// Returns true if bounds are valid, false if no focus or no bounds.
     bool primaryFocusBounds(AABB& outBounds) const
     {
-        if (m_primaryFocus == nullptr || !m_primaryFocus->hasWorldBounds())
+        if (m_primaryFocus == nullptr)
+        {
+            return false;
+        }
+        // Live focusable bounds first; the node's cached bounds go stale when
+        // an ancestor host moves the containing artboard instance, and remain
+        // only for nodes whose host pushes bounds in externally.
+        if (m_primaryFocus->focusable() != nullptr &&
+            m_primaryFocus->focusable()->worldBounds(outBounds))
+        {
+            return true;
+        }
+        if (!m_primaryFocus->hasWorldBounds())
         {
             return false;
         }
