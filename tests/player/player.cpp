@@ -288,7 +288,8 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
         {
             if (auto* ore = rc->getOreContext())
             {
-                m_session = std::make_unique<rive::cmd::DeferredSession>(ore);
+                m_session = std::make_unique<rive::cmd::DeferredSession>(
+                    rive::ore::ReplayCaps::from(*ore));
                 // Bound before import so registration scripts that reach for
                 // the device find it, like a real host.
                 m_session->bindRenderContext(rc);

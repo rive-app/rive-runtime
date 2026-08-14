@@ -364,7 +364,7 @@ void measureRiv(const std::string& name, int frames, int warmup)
     }
     fclose(fp);
 
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     auto file = ReadRiveFile(path.c_str(), &session);
     if (file == nullptr)
     {
@@ -559,7 +559,7 @@ TEST_CASE("deferred measure concurrent sessions", "[.][deferred_measure]")
         }
         fclose(fp);
         auto l = std::make_unique<Live>();
-        l->session = std::make_unique<DeferredSession>(nullptr);
+        l->session = std::make_unique<DeferredSession>(rive::ore::ReplayCaps{});
         l->file = ReadRiveFile(path.c_str(), l->session.get());
         if (l->file == nullptr)
         {

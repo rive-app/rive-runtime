@@ -111,7 +111,8 @@ public:
         {
             // Same DeferredReplayer the goldens host and editor use. The marker
             // orders the Ore replay before the screen draw.
-            rive::cmd::DeferredSession session(&realCtx);
+            rive::cmd::DeferredSession session(
+                rive::ore::ReplayCaps::from(realCtx));
 
             auto view = session.oreContext().wrapCanvasTexture(canvas.get());
             recordClear(session.oreContext(), view.get());

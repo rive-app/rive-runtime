@@ -44,22 +44,15 @@ class DeferredSession : public DeferredFactory,
                         public DeferredRouteHost
 {
 public:
-    // realOre may be null on web; it late binds via bindRealOre.
-    explicit DeferredSession(ore::Context* realOre) : m_ore(realOre)
-    {
-        wireOreCanvases();
-    }
-
     // Capability only construction: recording holds no device, so a host can
-    // record on a thread or process the real context never visits. The
-    // consumer's caps late bind via bindReplayCaps if unknown here.
+    // record on a thread or process the real context never visits. Web has no
+    // caps at creation and late binds them via bindReplayCaps.
     explicit DeferredSession(const ore::ReplayCaps& caps) : m_ore(caps)
     {
         wireOreCanvases();
     }
 
     ore::cmd::DeferredOreContext& oreContext() { return m_ore; }
-    void bindRealOre(ore::Context* real) { m_ore.bindReal(real); }
     void bindReplayCaps(const ore::ReplayCaps& caps) { m_ore.bindCaps(caps); }
 
     // Cross session image sharing lives here, not in an id space: the

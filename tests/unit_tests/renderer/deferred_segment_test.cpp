@@ -30,7 +30,7 @@ std::unique_ptr<cmd::DeferredRenderer> canvasRecorder(
 
 TEST_CASE("a screen only frame is one screen segment", "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
     uint32_t afterCreates =
@@ -49,7 +49,7 @@ TEST_CASE("a screen only frame is one screen segment", "[ore][cmd][segment]")
 TEST_CASE("bytes recorded before any target draws claim no segment",
           "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     // Creates and drained destroys replay from the whole stream, so they need
     // no segment; giving them one would open a target's frame in a frame
     // where only other targets drew.
@@ -63,7 +63,7 @@ TEST_CASE("bytes recorded before any target draws claim no segment",
 TEST_CASE("a canvas bracket carves leading and trailing screen segments",
           "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto canvas = canvasRecorder(session, 1);
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
@@ -90,7 +90,7 @@ TEST_CASE("a canvas bracket carves leading and trailing screen segments",
 TEST_CASE("a canvas bracket at offset 0 has no leading screen segment",
           "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto canvas = canvasRecorder(session, 1);
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
@@ -121,7 +121,7 @@ TEST_CASE("a canvas bracket at offset 0 has no leading screen segment",
 
 TEST_CASE("each screen target gets its own segments", "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
 
@@ -149,7 +149,7 @@ TEST_CASE("each screen target gets its own segments", "[ore][cmd][segment]")
 TEST_CASE("a canvas hands the stream back to the screen it interrupted",
           "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto canvas = canvasRecorder(session, 1);
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();
@@ -174,7 +174,7 @@ TEST_CASE("a canvas hands the stream back to the screen it interrupted",
 TEST_CASE("a session frame closes when the last target finishes",
           "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     uint64_t a = session.acquireScreenTarget();
     uint64_t b = session.acquireScreenTarget();
     CHECK(a == 0u);
@@ -201,7 +201,7 @@ TEST_CASE("a session frame closes when the last target finishes",
 TEST_CASE("the screen recorder for a target survives resetFrame",
           "[ore][cmd][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     // FFI hosts take this raw and keep drawing through it across frames.
     Renderer* first = session.screenRenderer(3);
     session.resetFrame();

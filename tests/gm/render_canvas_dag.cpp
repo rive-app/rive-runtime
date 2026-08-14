@@ -167,7 +167,7 @@ public:
         auto mainDesc = rc->frameDescriptor();
         bool flip = rc->platformFeatures().framebufferBottomUp;
 
-        rive::cmd::DeferredSession session(nullptr);
+        rive::cmd::DeferredSession session(rive::ore::ReplayCaps{});
         rive::cmd::DeferredReplayer replayer;
         auto green = solidPaint(session, 0xff30c060);
         auto orange = solidPaint(session, 0xffe08830);
@@ -236,7 +236,7 @@ public:
         auto mainDesc = rc->frameDescriptor();
         bool flip = rc->platformFeatures().framebufferBottomUp;
 
-        rive::cmd::DeferredSession session(nullptr);
+        rive::cmd::DeferredSession session(rive::ore::ReplayCaps{});
         rive::cmd::DeferredReplayer replayer;
 
         // Frame one: seed A green, B orange, no cross sampling.

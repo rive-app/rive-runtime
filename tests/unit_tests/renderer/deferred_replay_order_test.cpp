@@ -85,7 +85,7 @@ TEST_CASE("a create inside a canvas bracket replays in mint order",
 TEST_CASE("interleaved multi-target drawing splits per-renderer ranges",
           "[deferred][replay][segment]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto* screen = session.screenRenderer();
     // Routed canvas recorders like beginCanvasContent hands a script.
     cmd::DeferredRenderer c1(&session.commandBuffer(),
@@ -144,7 +144,7 @@ TEST_CASE("interleaved multi-target drawing splits per-renderer ranges",
 TEST_CASE("Image:view on a decoded image records an imageView wrap",
           "[deferred][replay][image]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto view = session.oreContext().recordWrapImageView(42, 64, 64);
     REQUIRE(view != nullptr);
 
@@ -216,7 +216,7 @@ TEST_CASE("a screen-gap destroy does not starve a reordered canvas segment",
 TEST_CASE("a paint mutated after a draw keeps the draw's version",
           "[deferred][replay][version]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto* screen = session.screenRenderer();
     cmd::DeferredRenderer canvas(&session.commandBuffer(),
                                  &session.canvases(),
@@ -253,7 +253,7 @@ TEST_CASE("a paint mutated after a draw keeps the draw's version",
 TEST_CASE("a paint mutated only before its draws stays one object",
           "[deferred][replay][version]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto* screen = session.screenRenderer();
 
     auto paint = session.makeRenderPaint();
@@ -282,7 +282,7 @@ TEST_CASE("a paint mutated only before its draws stays one object",
 TEST_CASE("the first mutation of a new frame reuses the live object",
           "[deferred][replay][version]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     auto* screen = session.screenRenderer();
     auto paint = session.makeRenderPaint();
     auto path = session.makeEmptyRenderPath();

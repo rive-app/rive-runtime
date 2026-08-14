@@ -207,7 +207,7 @@ TEST_CASE("replay opens the sampled canvas before its reader despite record "
           "order",
           "[cmd][canvas-dag]")
 {
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     auto canvasA = fakeCanvas();
     auto canvasB = fakeCanvas();
 
@@ -234,7 +234,7 @@ TEST_CASE("replay opens the sampled canvas before its reader despite record "
 
 TEST_CASE("a canvas only frame still opens a screen frame", "[cmd][canvas-dag]")
 {
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     auto canvas = fakeCanvas();
 
     Renderer* c = session.beginCanvasContent(canvas.get(), 0);
@@ -258,7 +258,7 @@ TEST_CASE("a canvas only frame still opens a screen frame", "[cmd][canvas-dag]")
 TEST_CASE("a frame that only creates resources opens no screen frame",
           "[cmd][canvas-dag]")
 {
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     // Creates land outside every renderer. Attributing them would open a
     // target that drew nothing, which is why they stay unattributed.
     auto paint = session.makeRenderPaint();

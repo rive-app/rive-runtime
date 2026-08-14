@@ -150,7 +150,7 @@ private:
 TEST_CASE("a canvas written and sampled in one frame wraps after its content",
           "[deferred][canvas-import]")
 {
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     auto canvas = fakeCanvas();
 
     // What a script does: draw into the canvas, then Image:view() it.
@@ -181,7 +181,7 @@ TEST_CASE("a canvas written and sampled in one frame wraps after its content",
 TEST_CASE("each recorded canvas view resolves to its own canvas",
           "[deferred][canvas-import]")
 {
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     auto canvasA = fakeCanvas();
     auto canvasB = fakeCanvas();
 

@@ -51,7 +51,7 @@ private:
 TEST_CASE("a frame that never opened neither replays nor presents",
           "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredInlineHost host;
     host.bindSession(&session);
 
@@ -65,7 +65,7 @@ TEST_CASE("a frame that never opened neither replays nor presents",
 TEST_CASE("a marker only frame consumes the marker without presenting",
           "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredInlineHost host;
     host.bindSession(&session);
     host.beginRecord(true, 0xff112233);
@@ -83,7 +83,7 @@ TEST_CASE("a marker only frame consumes the marker without presenting",
 TEST_CASE("a recorded frame replays once and resets the session",
           "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredInlineHost host;
     host.bindSession(&session);
 
@@ -108,7 +108,7 @@ TEST_CASE("a recorded frame replays once and resets the session",
 TEST_CASE("present is skipped when the screen never opens",
           "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredInlineHost host;
     host.bindSession(&session);
 

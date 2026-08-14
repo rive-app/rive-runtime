@@ -177,7 +177,7 @@ private:
 
 std::vector<FlushStats> runDeferred(const char* rivPath)
 {
-    DeferredSession session(nullptr);
+    DeferredSession session(rive::ore::ReplayCaps{});
     auto file = ReadRiveFile(rivPath, &session);
     auto artboard = file->artboardDefault();
     auto scene = artboard->defaultScene();

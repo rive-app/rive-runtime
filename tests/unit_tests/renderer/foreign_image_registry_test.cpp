@@ -129,8 +129,8 @@ TEST_CASE("a foreign image resolves in a session that never decoded it",
 
     // Two sessions with nothing shared between them: separate id spaces,
     // separate registries, separate streams.
-    cmd::DeferredSession first(nullptr);
-    cmd::DeferredSession second(nullptr);
+    cmd::DeferredSession first(rive::ore::ReplayCaps{});
+    cmd::DeferredSession second(rive::ore::ReplayCaps{});
 
     drawForeign(first, image.get());
     auto firstDrawn = replayed(cmd::takeFrame(first));
@@ -158,13 +158,13 @@ TEST_CASE("two sessions numbering the same images oppositely each resolve "
     // Registration order sets the unflagged id, so the two sessions give the
     // same pair of images opposite ids. Resolving through anything id keyed
     // and shared crosses them, and both draws still land.
-    cmd::DeferredSession forward(nullptr);
+    cmd::DeferredSession forward(rive::ore::ReplayCaps{});
     drawForeign(forward, a.get());
     drawForeign(forward, b.get());
     auto forwardLive = replayedInline(forward);
     auto forwardDrawn = replayed(cmd::takeFrame(forward));
 
-    cmd::DeferredSession reverse(nullptr);
+    cmd::DeferredSession reverse(rive::ore::ReplayCaps{});
     drawForeign(reverse, b.get());
     drawForeign(reverse, a.get());
     auto reverseLive = replayedInline(reverse);
@@ -193,7 +193,7 @@ TEST_CASE("a snapshot holds a foreign image past the frame and past its "
     auto* raw = new ForeignImage(3, &destroyed);
     rcp<ForeignImage> image(raw);
 
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     drawForeign(session, raw);
 
     // takeFrame copies the retained images out and clears the registry, so

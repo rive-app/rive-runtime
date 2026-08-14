@@ -32,7 +32,7 @@ cmd::GpuCensus replayAndCensus(cmd::DeferredSession& session,
 
 TEST_CASE("the census counts what replay left resident", "[deferred][census]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredReplayer replayer;
     TestSink sink;
 
@@ -56,7 +56,7 @@ TEST_CASE("the census counts what replay left resident", "[deferred][census]")
 TEST_CASE("census bytes scale with the resources resident",
           "[deferred][census]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredReplayer replayer;
     TestSink sink;
 
@@ -90,7 +90,7 @@ TEST_CASE("census bytes scale with the resources resident",
 TEST_CASE("a destroyed resource leaves the census but keeps its slot",
           "[deferred][census]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredReplayer replayer;
     TestSink sink;
 
@@ -118,7 +118,7 @@ TEST_CASE("a destroyed resource leaves the census but keeps its slot",
 
 TEST_CASE("reset empties the census", "[deferred][census]")
 {
-    cmd::DeferredSession session(nullptr);
+    cmd::DeferredSession session(rive::ore::ReplayCaps{});
     cmd::DeferredReplayer replayer;
     TestSink sink;
 
