@@ -70,8 +70,8 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         {
             // Stack: [self, outputPathData]
             auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, -1);
-            auto rawPath = path->mutableRawPath();
-            rawPath->addPath(scriptedPath->rawPath);
+            // Through ShapePaintPath, which prunes what the script returned.
+            path->addPath(scriptedPath->rawPath);
         }
         // Stack: [self, status] or [self, outputPathData]
         rive_lua_pop(L, 2);

@@ -139,6 +139,13 @@ RenderImage::~RenderImage() {}
 RenderPath::RenderPath() {}
 RenderPath::~RenderPath() {}
 
+void RenderPath::addUntrustedRawPath(const RawPath& path)
+{
+    RawPath sanitized(path);
+    sanitized.pruneEmptySegments();
+    addRawPath(sanitized);
+}
+
 bool rive::isWhiteSpace(Unichar c)
 {
     // 0x2028 is a Line separator.

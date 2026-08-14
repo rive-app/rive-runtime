@@ -96,6 +96,9 @@ ShapePaintPath* PathDasher::applyDash(ShapePaintPath* destination,
             dashed += dashLength;
             draw = !draw;
         }
+        // getSegment has its own precision guards, but a tiny dash can still
+        // land a segment on a single point.
+        rawPath->pruneEmptySegments();
     }
     return destination;
 }

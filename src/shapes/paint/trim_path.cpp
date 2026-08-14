@@ -177,6 +177,10 @@ void TrimPath::trimPath(ShapePaintPath* destination,
         default:
             RIVE_UNREACHABLE();
     }
+
+    // getSegment has its own precision guards, but a tiny trim window can
+    // still land a segment on a single point.
+    rawPath->pruneEmptySegments();
 }
 
 void TrimPath::startChanged() { invalidateEffectFromLocal(); }

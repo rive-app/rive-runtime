@@ -97,4 +97,30 @@ TEST_CASE("addRawPath invalidates derived state", "[RiveRenderPath]")
     CHECK(path.getCoarseArea() == 100 + 400);
     CHECK(path.getRawPathMutationID() != firstMutationID);
 }
+
+// A script can hand us a contour of coincident points, which the tessellator
+// cannot find a join tangent in.
+TEST_CASE("addUntrustedRawPath prunes empty segments", "[RiveRenderPath]")
+{
+    RawPath degenerate;
+    degenerate.move({304, 160});
+    degenerate.line({304, 160});
+    degenerate.line({304, 160});
+    degenerate.line({304, 160});
+    degenerate.close();
+
+    RiveRenderPath path;
+    path.addUntrustedRawPath(degenerate);
+
+    const RawPath& pruned = path.getRawPath();
+    REQUIRE(pruned.verbs().size() == 2);
+    CHECK(pruned.verbs()[0] == PathVerb::move);
+    CHECK(pruned.verbs()[1] == PathVerb::close);
+    CHECK(pruned.points().size() == 1);
+
+    // The trusted entry point stays a plain append.
+    RiveRenderPath trusted;
+    trusted.addRawPath(degenerate);
+    CHECK(trusted.getRawPath().verbs().size() == 5);
+}
 } // namespace rive::gpu

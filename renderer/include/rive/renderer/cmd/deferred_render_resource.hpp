@@ -315,8 +315,9 @@ public:
     }
     FillRule fillRule() const { return m_fillRule; }
 
-    // Per verb builders are never hit by app content but the interface
-    // requires them; accumulate into a scratch RawPath flushed on next use.
+    // Where a host RawPath re-enters us, since RawPath::addTo fans out to
+    // these. Accumulate into a scratch RawPath flushed on next use, dropping
+    // zero length segments like RiveRenderPath so replay draws the same thing.
     void moveTo(float x, float y) override
     {
         m_scratch.moveTo(x, y);
@@ -324,14 +325,15 @@ public:
     }
     void lineTo(float x, float y) override
     {
-        m_scratch.lineTo(x, y);
-        queryMirror([=](RawPath& q) { q.lineTo(x, y); });
+        appendLine(m_scratch, {x, y});
+        queryMirror([=](RawPath& q) { appendLine(q, {x, y}); });
     }
     void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
         override
     {
-        m_scratch.cubicTo(ox, oy, ix, iy, x, y);
-        queryMirror([=](RawPath& q) { q.cubicTo(ox, oy, ix, iy, x, y); });
+        appendCubic(m_scratch, {ox, oy}, {ix, iy}, {x, y});
+        queryMirror(
+            [=](RawPath& q) { appendCubic(q, {ox, oy}, {ix, iy}, {x, y}); });
     }
     void close() override
     {
@@ -432,6 +434,25 @@ public:
 
 private:
     static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }
+
+    // Start the contour even when the segment itself is empty, matching
+    // RiveRenderPath.
+    static void appendLine(RawPath& path, Vec2D p1)
+    {
+        path.injectImplicitMoveIfNeeded();
+        if (path.points().back() != p1)
+        {
+            path.line(p1);
+        }
+    }
+    static void appendCubic(RawPath& path, Vec2D p1, Vec2D p2, Vec2D p3)
+    {
+        path.injectImplicitMoveIfNeeded();
+        if (path.points().back() != p1 || p1 != p2 || p2 != p3)
+        {
+            path.cubic(p1, p2, p3);
+        }
+    }
     // Replay seeds a bumped path version from the outgoing one, so appends
     // land on prior geometry and a rewind clears the seed via its own
     // recorded command.

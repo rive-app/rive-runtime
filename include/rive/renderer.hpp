@@ -197,7 +197,13 @@ public:
         // No-op on non rive renderer.
     }
 
+    // The caller is expected to provide a valid path with no zero length
+    // segments.
     virtual void addRawPath(const RawPath& path) = 0;
+
+    // Same, but prunes zero length segments first, for paths we did not build
+    // like scripted ones.
+    void addUntrustedRawPath(const RawPath& path);
 };
 
 class Renderer
