@@ -9,7 +9,8 @@
 #include "rive/assets/blob_asset.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
-#include "rive/assets/script_asset.hpp"
+#include "rive/assets/manifest_asset.hpp"
+#include "rive/assets/text_asset.hpp"
 #include "rive/file.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
@@ -83,10 +84,12 @@ public:
                 return false;
             }
         }
-        else if (asset.is<ScriptAsset>())
+        else if (asset.is<TextAsset>() || asset.is<BlobAsset>() ||
+                 asset.is<ManifestAsset>())
         {
-            // Script assets cannot currently be added externally.
-            // Let the file loader handle it.
+            // These assets cannot be registered externally with the command
+            // server. Returning false lets the importer decode their in-band
+            // contents. TextAsset includes ScriptAsset and ShaderAsset.
             return false;
         }
         else
