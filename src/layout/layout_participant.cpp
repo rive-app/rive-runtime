@@ -328,7 +328,8 @@ bool LayoutParticipant::syncStyleChanges()
         return false;
     }
     YGNode& node = m_layoutData->node;
-    YGStyle& ygStyle = m_layoutData->style;
+    // Appliers write straight into the node's own style; no scratch copy.
+    YGStyle& ygStyle = m_layoutData->style();
 
     LayoutScaleType widthScale = (LayoutScaleType)layoutWidthScaleType();
     LayoutScaleType heightScale = (LayoutScaleType)layoutHeightScaleType();
@@ -366,12 +367,8 @@ bool LayoutParticipant::syncStyleChanges()
     syncContext.isLTR =
         lc == nullptr || lc->actualDirection() != LayoutDirection::rtl;
     syncContext.hasLayoutParent = lc != nullptr;
-    if (m_layoutData != nullptr)
-    {
-        m_layoutData->applyLayoutStyles(ygStyle, syncContext);
-    }
+    m_layoutData->applyLayoutStyles(ygStyle, syncContext);
 
-    node.setStyle(ygStyle);
     node.markDirtyAndPropagate();
     // Fold display:none into the host's collapse so it stops drawing (it's
     // already removed from the layout flow via the yoga display above).

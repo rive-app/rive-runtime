@@ -998,7 +998,8 @@ void LayoutComponent::syncStyle()
         return;
     }
     YGNode& ygNode = m_layoutData->node;
-    YGStyle& ygStyle = m_layoutData->style;
+    // Appliers write straight into the node's own style; no scratch copy.
+    YGStyle& ygStyle = m_layoutData->style();
     if (m_style->intrinsicallySized() && isLeaf())
     {
         ygNode.setContext(this);
@@ -1039,8 +1040,6 @@ void LayoutComponent::syncStyle()
     syncContext.isLTR = actualDirection() != LayoutDirection::rtl;
     syncContext.hasLayoutParent = layoutParent() != nullptr;
     m_layoutData->applyLayoutStyles(ygStyle, syncContext);
-
-    ygNode.setStyle(ygStyle);
 
     // Sync the styles of participant children that provide their
     // own layout node (including any nested inside transparent groups).

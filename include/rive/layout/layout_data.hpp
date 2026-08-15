@@ -49,7 +49,12 @@ public:
 #endif
 
     YGNode node;
-    YGStyle style;
+
+    /// The Yoga style lives inside the node itself; this is the single source
+    /// of truth appliers write into. Go through here rather than reaching for
+    /// node.getStyle() so callers don't depend on YGNode's accessor shape.
+    YGStyle& style() { return node.getStyle(); }
+    const YGStyle& style() const { return node.getStyle(); }
 
     /// Objects contributing to this item's style. Lazy, so an item with none
     /// pays one null pointer. Unsorted — apply order comes from the phase
