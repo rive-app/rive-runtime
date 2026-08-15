@@ -23,7 +23,18 @@ namespace
 //          1  [u8]  allocator_version   (= kAllocatorVersion)
 //          2  [u16] entry_size (LE)     (grows append-only)
 //          4  [u32] entry_count (LE)
-//          8  [entry_count * entry_size] entries
+//          8  [u16] group_size (LE)     (grows append-only)
+//         10  [u16] group_count (LE)
+//         12  [entry_count * entry_size] entries
+//            [group_count * group_size] group layout ids
+//
+// Each group row (group_size = 9 bytes):
+//
+//          0  [u8]  group
+//          1  [u64] layout_id (LE)
+//
+// The group table makes layout identity a build-time fact, not a runtime
+// hash. Ids are backend scoped, since they cover native slots.
 //
 // Each entry (entry_size = 14 bytes, no trailing alignment):
 //
@@ -47,8 +58,9 @@ namespace
 // matters semantically (blob_version or allocator_version) is a loud
 // error.
 
-constexpr size_t kBlobHeaderSize = 8;
+constexpr size_t kBlobHeaderSize = 12;
 constexpr uint16_t kEntryWireSize = 14;
+constexpr uint16_t kGroupWireSize = 9;
 
 inline uint16_t readU16LE(const uint8_t* p)
 {
@@ -60,6 +72,14 @@ inline uint32_t readU32LE(const uint8_t* p)
     return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
            (static_cast<uint32_t>(p[2]) << 16) |
            (static_cast<uint32_t>(p[3]) << 24);
+}
+
+inline uint64_t readU64LE(const uint8_t* p)
+{
+    uint64_t v = 0;
+    for (int i = 7; i >= 0; --i)
+        v = (v << 8) | static_cast<uint64_t>(p[i]);
+    return v;
 }
 
 #ifdef WITH_RIVE_TOOLS
@@ -76,6 +96,12 @@ inline void writeU32LE(uint8_t* p, uint32_t v)
     p[2] = static_cast<uint8_t>((v >> 16) & 0xFF);
     p[3] = static_cast<uint8_t>((v >> 24) & 0xFF);
 }
+
+inline void writeU64LE(uint8_t* p, uint64_t v)
+{
+    for (int i = 0; i < 8; ++i)
+        p[i] = static_cast<uint8_t>((v >> (i * 8)) & 0xFF);
+}
 #endif
 
 } // namespace
@@ -87,6 +113,7 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
     if (out == nullptr || data == nullptr)
         return false;
     out->m_entries.clear();
+    out->m_groupLayouts.clear();
 #ifdef WITH_RIVE_TOOLS
     out->m_finalized = false;
 #endif
@@ -103,14 +130,19 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
 
     const uint16_t entrySize = readU16LE(&data[2]);
     const uint32_t entryCount = readU32LE(&data[4]);
+    const uint16_t groupSize = readU16LE(&data[8]);
+    const uint16_t groupCount = readU16LE(&data[10]);
 
     // Reject writers that emit fewer fields than the reader needs.
     // Larger entry_size is fine — trailing unknown bytes are skipped.
     if (entrySize < kEntryWireSize)
         return false;
+    if (groupCount != 0 && groupSize < kGroupWireSize)
+        return false;
 
-    const size_t needed =
-        kBlobHeaderSize + static_cast<size_t>(entryCount) * entrySize;
+    const size_t entryBytes = static_cast<size_t>(entryCount) * entrySize;
+    const size_t groupBytes = static_cast<size_t>(groupCount) * groupSize;
+    const size_t needed = kBlobHeaderSize + entryBytes + groupBytes;
     if (size < needed)
         return false;
 
@@ -134,6 +166,16 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
         out->m_entries.push_back(e);
         p += entrySize;
     }
+
+    out->m_groupLayouts.reserve(groupCount);
+    for (uint16_t i = 0; i < groupCount; ++i)
+    {
+        GroupLayout g{};
+        g.group = p[0];
+        g.layoutId = readU64LE(&p[1]);
+        out->m_groupLayouts.push_back(g);
+        p += groupSize;
+    }
 #ifdef WITH_RIVE_TOOLS
     // Flip the finalized flag so tooling-build lookups satisfy their assert.
     // The blob is already sorted by construction; no std::sort call.
@@ -147,11 +189,14 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
 std::vector<uint8_t> BindingMap::toBlob() const
 {
     std::vector<uint8_t> blob(kBlobHeaderSize +
-                              m_entries.size() * kEntryWireSize);
+                              m_entries.size() * kEntryWireSize +
+                              m_groupLayouts.size() * kGroupWireSize);
     blob[0] = kBlobVersion;
     blob[1] = kAllocatorVersion;
     writeU16LE(&blob[2], kEntryWireSize);
     writeU32LE(&blob[4], static_cast<uint32_t>(m_entries.size()));
+    writeU16LE(&blob[8], kGroupWireSize);
+    writeU16LE(&blob[10], static_cast<uint16_t>(m_groupLayouts.size()));
 
     uint8_t* p = blob.data() + kBlobHeaderSize;
     for (const Entry& e : m_entries)
@@ -169,7 +214,57 @@ std::vector<uint8_t> BindingMap::toBlob() const
         p[13] = e.textureMultisampled ? 1u : 0u;
         p += kEntryWireSize;
     }
+
+    for (const GroupLayout& g : m_groupLayouts)
+    {
+        p[0] = g.group;
+        writeU64LE(&p[1], g.layoutId);
+        p += kGroupWireSize;
+    }
     return blob;
+}
+
+void BindingMap::computeLayoutIds()
+{
+    // A serialized field left out of the hash makes two different layouts
+    // collide on one id, and misbind at draw time.
+    static_assert(kEntryWireSize == 14,
+                  "Entry grew, hash the new field below before bumping");
+
+    assert(m_finalized && "BindingMap::computeLayoutIds before finalize");
+    m_groupLayouts.clear();
+
+    // FNV-1a 64, fed little-endian so ids match across baking hosts.
+    constexpr uint64_t kOffsetBasis = 0xcbf29ce484222325ull;
+    constexpr uint64_t kPrime = 0x100000001b3ull;
+    auto mix = [](uint64_t h, uint8_t b) { return (h ^ b) * kPrime; };
+    auto mix16 = [&mix](uint64_t h, uint16_t v) {
+        h = mix(h, static_cast<uint8_t>(v & 0xFF));
+        return mix(h, static_cast<uint8_t>((v >> 8) & 0xFF));
+    };
+
+    for (size_t i = 0; i < m_entries.size();)
+    {
+        const uint8_t group = m_entries[i].group;
+        uint64_t h = mix(kOffsetBasis, group);
+        size_t j = i;
+        for (; j < m_entries.size() && m_entries[j].group == group; ++j)
+        {
+            const Entry& e = m_entries[j];
+            h = mix(h, e.binding);
+            h = mix(h, static_cast<uint8_t>(e.kind));
+            h = mix(h, e.stageMask);
+            h = mix16(h, e.backendSlot[0]);
+            h = mix16(h, e.backendSlot[1]);
+            h = mix16(h, e.backendSlot[2]);
+            h = mix(h, static_cast<uint8_t>(e.textureViewDim));
+            h = mix(h, static_cast<uint8_t>(e.textureSampleType));
+            h = mix(h, e.textureMultisampled ? 1u : 0u);
+        }
+        // 0 is the "no baked id" sentinel, so never hand it out.
+        m_groupLayouts.push_back({group, h == kNoLayoutId ? 1ull : h});
+        i = j;
+    }
 }
 
 void BindingMap::finalize()

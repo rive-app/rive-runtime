@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "rive/refcnt.hpp"
 #include "rive/renderer/render_canvas.hpp"
@@ -240,6 +241,19 @@ public:
         m_lastError = buf;
     }
 
+    // Shared by baked id, so one bind group does not cost two descriptor
+    // sets on Vulkan and D3D12. Strong refs, released with the context.
+    rcp<BindGroupLayout> findInternedBindGroupLayout(uint64_t layoutId) const
+    {
+        auto it = m_internedLayouts.find(layoutId);
+        return it == m_internedLayouts.end() ? nullptr : it->second;
+    }
+
+    void internBindGroupLayout(uint64_t layoutId, rcp<BindGroupLayout> layout)
+    {
+        m_internedLayouts[layoutId] = std::move(layout);
+    }
+
     Context(const Context&) = delete;
     Context& operator=(const Context&) = delete;
     Context(Context&&) = delete;
@@ -265,6 +279,8 @@ protected:
     std::string m_lastError;
 
     bool m_deferredRecording = false;
+
+    std::unordered_map<uint64_t, rcp<BindGroupLayout>> m_internedLayouts;
 
     cmd::OreCommandBuffer m_pendingFrame;
 

@@ -8,6 +8,7 @@
 #include "rive/renderer/ore/ore_shader_module.hpp"
 
 #include <sstream>
+#include <vector>
 
 namespace rive::ore
 {
@@ -112,12 +113,17 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
     };
     const BindingMap& bm = shader->m_bindingMap;
     uint32_t n = 0;
-    for (size_t i = 0; i < bm.size() && n < maxEntries; ++i)
+    for (size_t i = 0; i < bm.size(); ++i)
     {
         const BindingMap::Entry& e = bm.at(i);
         if (e.group != groupIndex)
             continue;
-        BindGroupLayoutEntry& out = entries[n++];
+        // Keep counting past the buffer so the caller can size up instead
+        // of quietly losing bindings.
+        const uint32_t index = n++;
+        if (index >= maxEntries)
+            continue;
+        BindGroupLayoutEntry& out = entries[index];
         out.binding = e.binding;
         out.kind = bindingKindFromResource(e.kind);
         // Mirror the shader's declared visibility — narrower than this
@@ -159,19 +165,52 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     const uint32_t* dynamicUBOBindings,
     uint32_t dynamicUBOCount)
 {
-    static constexpr uint32_t kMaxEntries = 16;
-    BindGroupLayoutEntry entries[kMaxEntries]{};
-    uint32_t n = populateBindGroupLayoutEntriesFromShader(entries,
-                                                          kMaxEntries,
-                                                          shader,
-                                                          groupIndex,
-                                                          dynamicUBOBindings,
-                                                          dynamicUBOCount);
+    // The baked id never covers dynamic offsets, so those skip interning.
+    const uint64_t layoutId =
+        (shader != nullptr && dynamicUBOCount == 0)
+            ? shader->m_bindingMap.layoutIdForGroup(groupIndex)
+            : BindingMap::kNoLayoutId;
+    if (layoutId != BindingMap::kNoLayoutId)
+    {
+        if (rcp<BindGroupLayout> hit =
+                ctx.findInternedBindGroupLayout(layoutId))
+            return hit;
+    }
+
+    static constexpr uint32_t kInlineEntries = 16;
+    BindGroupLayoutEntry inlineEntries[kInlineEntries]{};
+    const uint32_t n =
+        populateBindGroupLayoutEntriesFromShader(inlineEntries,
+                                                 kInlineEntries,
+                                                 shader,
+                                                 groupIndex,
+                                                 dynamicUBOBindings,
+                                                 dynamicUBOCount);
+
+    // Wide groups spill to the heap. Layout creation is setup-time, so the
+    // second walk is not worth a cap.
+    std::vector<BindGroupLayoutEntry> spilled;
+    const BindGroupLayoutEntry* entries = inlineEntries;
+    if (n > kInlineEntries)
+    {
+        spilled.resize(n);
+        populateBindGroupLayoutEntriesFromShader(spilled.data(),
+                                                 n,
+                                                 shader,
+                                                 groupIndex,
+                                                 dynamicUBOBindings,
+                                                 dynamicUBOCount);
+        entries = spilled.data();
+    }
+
     BindGroupLayoutDesc desc;
     desc.groupIndex = groupIndex;
     desc.entries = entries;
     desc.entryCount = n;
-    return ctx.makeBindGroupLayout(desc);
+    rcp<BindGroupLayout> layout = ctx.makeBindGroupLayout(desc);
+    if (layout != nullptr && layoutId != BindingMap::kNoLayoutId)
+        ctx.internBindGroupLayout(layoutId, layout);
+    return layout;
 }
 
 // Map ore::BindingKind (public layout API) ↔ ore::ResourceKind (binding-map

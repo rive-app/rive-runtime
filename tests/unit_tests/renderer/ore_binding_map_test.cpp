@@ -243,8 +243,9 @@ TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
     original.finalize();
 
     std::vector<uint8_t> blob = original.toBlob();
-    // Header: 8 bytes. Each entry: 14 bytes. Total: 8 + 3*14 = 50.
-    REQUIRE(blob.size() == 50);
+    // Header: 12 bytes. Each entry: 14 bytes. No layout ids computed here,
+    // so no group rows. Total: 12 + 3*14 = 54.
+    REQUIRE(blob.size() == 54);
     CHECK(blob[0] == BindingMap::kBlobVersion);
     CHECK(blob[1] == BindingMap::kAllocatorVersion);
     // entry_size = 14 (little-endian).
@@ -255,6 +256,11 @@ TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
     CHECK(blob[5] == 0);
     CHECK(blob[6] == 0);
     CHECK(blob[7] == 0);
+    // group_size = 9, group_count = 0.
+    CHECK(blob[8] == 9);
+    CHECK(blob[9] == 0);
+    CHECK(blob[10] == 0);
+    CHECK(blob[11] == 0);
 
     BindingMap restored;
     REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
@@ -334,16 +340,20 @@ TEST_CASE("BindingMap forward-compat: larger entry_size parses OK",
     constexpr uint16_t kExtraTrailing = 4;
     const uint16_t futureEntrySize = currentEntrySize + kExtraTrailing;
 
-    std::vector<uint8_t> futureBlob(8 + 1 * futureEntrySize);
+    constexpr size_t kHeader = 12;
+    std::vector<uint8_t> futureBlob(kHeader + 1 * futureEntrySize);
     futureBlob[0] = BindingMap::kBlobVersion;
     futureBlob[1] = BindingMap::kAllocatorVersion;
     futureBlob[2] = static_cast<uint8_t>(futureEntrySize & 0xFF);
     futureBlob[3] = static_cast<uint8_t>((futureEntrySize >> 8) & 0xFF);
     futureBlob[4] = 1; // entry_count LE
+    futureBlob[8] = 9; // group_size LE, group_count stays 0
     // Copy the current entry verbatim, then append unknown trailing bytes.
-    std::memcpy(futureBlob.data() + 8, blob.data() + 8, currentEntrySize);
+    std::memcpy(futureBlob.data() + kHeader,
+                blob.data() + kHeader,
+                currentEntrySize);
     for (uint16_t i = 0; i < kExtraTrailing; ++i)
-        futureBlob[8 + currentEntrySize + i] = 0xFF;
+        futureBlob[kHeader + currentEntrySize + i] = 0xFF;
 
     BindingMap out;
     REQUIRE(BindingMap::fromBlob(futureBlob.data(), futureBlob.size(), &out));
@@ -359,7 +369,7 @@ TEST_CASE("BindingMap forward-compat: smaller entry_size rejected",
     // A blob claiming entry_size below the reader's known prefix would
     // mean the writer omitted a field the reader needs — reject loudly
     // rather than misinterpret.
-    std::vector<uint8_t> blob(8);
+    std::vector<uint8_t> blob(12);
     blob[0] = BindingMap::kBlobVersion;
     blob[1] = BindingMap::kAllocatorVersion;
     blob[2] = 10; // entry_size = 10, below kEntryWireSize (14)
@@ -368,9 +378,52 @@ TEST_CASE("BindingMap forward-compat: smaller entry_size rejected",
     blob[5] = 0;
     blob[6] = 0;
     blob[7] = 0;
+    blob[8] = 9; // group_size
+    blob[9] = 0;
+    blob[10] = 0; // group_count = 0
+    blob[11] = 0;
 
     BindingMap out;
     CHECK_FALSE(BindingMap::fromBlob(blob.data(), blob.size(), &out));
+}
+
+TEST_CASE("BindingMap layout ids round-trip and are structural",
+          "[ore_binding_map]")
+{
+    auto build = [](uint8_t binding) {
+        BindingMap m;
+        m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+        m.push(makeEntry(1, binding, ResourceKind::SampledTexture, 3, 3));
+        m.finalize();
+        m.computeLayoutIds();
+        return m;
+    };
+
+    BindingMap a = build(1);
+    REQUIRE(a.groupLayoutCount() == 2);
+    CHECK(a.layoutIdForGroup(0) != BindingMap::kNoLayoutId);
+    CHECK(a.layoutIdForGroup(1) != BindingMap::kNoLayoutId);
+    CHECK(a.layoutIdForGroup(0) != a.layoutIdForGroup(1));
+    // A group the map never mentions has no baked identity.
+    CHECK(a.layoutIdForGroup(2) == BindingMap::kNoLayoutId);
+
+    // Independently built but identical, so the ids must match. This is
+    // what lets two shaders share one layout.
+    BindingMap same = build(1);
+    CHECK(same.layoutIdForGroup(0) == a.layoutIdForGroup(0));
+    CHECK(same.layoutIdForGroup(1) == a.layoutIdForGroup(1));
+
+    // Differing reflection must not collide.
+    BindingMap other = build(2);
+    CHECK(other.layoutIdForGroup(1) != a.layoutIdForGroup(1));
+    // Group 0 is untouched by the change, so it still shares.
+    CHECK(other.layoutIdForGroup(0) == a.layoutIdForGroup(0));
+
+    std::vector<uint8_t> blob = a.toBlob();
+    BindingMap restored;
+    REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
+    CHECK(restored.layoutIdForGroup(0) == a.layoutIdForGroup(0));
+    CHECK(restored.layoutIdForGroup(1) == a.layoutIdForGroup(1));
 }
 
 TEST_CASE("ResourceKind numeric values are frozen", "[ore_binding_map]")

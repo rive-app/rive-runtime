@@ -123,10 +123,16 @@ do
             'CoreGraphics.framework',
             'CoreText.framework',
         })
-        -- The ore helper pulls in <Metal/Metal.h>, so compile this test as
+        -- The ore helper pulls in <Metal/Metal.h>, so compile these tests as
         -- Obj-C++ on Apple instead of the C++ glob.
-        files({ 'renderer/ore_buffer_race_test.mm' })
-        removefiles({ 'renderer/ore_buffer_race_test.cpp' })
+        files({
+            'renderer/ore_buffer_race_test.mm',
+            'renderer/ore_layout_intern_test.mm',
+        })
+        removefiles({
+            'renderer/ore_buffer_race_test.cpp',
+            'renderer/ore_layout_intern_test.cpp',
+        })
     end
 
     filter({ 'toolset:not msc' })

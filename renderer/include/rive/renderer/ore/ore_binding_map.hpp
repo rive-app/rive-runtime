@@ -142,7 +142,10 @@ public:
     // RSTB blob version byte. Bumped when the on-disk schema changes in a
     // way that renders old blobs unreadable. A mismatch on load is a loud
     // error, never a silent misbind.
-    static constexpr uint8_t kBlobVersion = 2;
+    //
+    // v3 added the group layout-id table. v2 is rejected, since every
+    // producer is in-tree and re-bakes.
+    static constexpr uint8_t kBlobVersion = 3;
 
     // Allocator version currently supported. Pipelines load with this
     // value; any blob stamped with a different version fails `fromBlob`
@@ -170,6 +173,17 @@ public:
         TextureSampleType textureSampleType = TextureSampleType::Undefined;
         bool textureMultisampled = false;
     };
+
+    // Equal ids share one `BindGroupLayout`. Backend scoped, since the id
+    // covers native slots.
+    struct GroupLayout
+    {
+        uint8_t group;
+        uint64_t layoutId;
+    };
+
+    // No baked identity, so the caller derives at runtime.
+    static constexpr uint64_t kNoLayoutId = 0;
 
     BindingMap() = default;
 
@@ -232,6 +246,23 @@ public:
     // `WITH_RIVE_TOOLS`).
     const Entry& at(size_t i) const { return m_entries[i]; }
 
+    // Key the runtime's layout intern cache off this.
+    uint64_t layoutIdForGroup(uint32_t group) const
+    {
+        for (const GroupLayout& g : m_groupLayouts)
+        {
+            if (g.group == group)
+                return g.layoutId;
+        }
+        return kNoLayoutId;
+    }
+
+    size_t groupLayoutCount() const { return m_groupLayouts.size(); }
+    const GroupLayout& groupLayoutAt(size_t i) const
+    {
+        return m_groupLayouts[i];
+    }
+
     // ----------------------------------------------------------------
     // Tooling-only API. Compiled only in builds that define
     // WITH_RIVE_TOOLS (editor, scripting_workspace, unit_tests). The
@@ -253,6 +284,10 @@ public:
     }
 
     void finalize();
+
+    // Requires `finalize()` first, since the id hashes entries in sorted
+    // order. Excludes hasDynamicOffset, which the toolchain cannot see.
+    void computeLayoutIds();
 
     bool isFinalized() const { return m_finalized; }
 
@@ -293,6 +328,7 @@ private:
     }
 
     std::vector<Entry> m_entries;
+    std::vector<GroupLayout> m_groupLayouts;
 #ifdef WITH_RIVE_TOOLS
     bool m_finalized = false;
 #endif

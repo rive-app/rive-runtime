@@ -66,8 +66,10 @@ protected:
 };
 
 // Walk a shader's BindingMap for the given group, populating layout entries
-// with kind / visibility / texture metadata / native slots. Returns the
-// entry count actually filled.
+// with kind / visibility / texture metadata / native slots.
+//
+// Returns what the group needs, which may exceed `maxEntries`. Nothing past
+// that is written, so a short buffer must size up and call again.
 //
 // `dynamicUBOBindings` (optional): array of WGSL @binding values within
 // `groupIndex` whose UBO entries should set `hasDynamicOffset = true`.
