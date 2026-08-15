@@ -80,6 +80,7 @@
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
+#include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #endif
 
 namespace ore_gm
@@ -558,34 +559,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     return result;
 }
 
-// Map ResourceKind (binding-map enum) to BindingKind (public layout enum).
-inline rive::ore::BindingKind bindingKindFromResource(rive::ore::ResourceKind k)
-{
-    using K = rive::ore::BindingKind;
-    using R = rive::ore::ResourceKind;
-    switch (k)
-    {
-        case R::UniformBuffer:
-            return K::uniformBuffer;
-        case R::StorageBufferRO:
-            return K::storageBufferRO;
-        case R::StorageBufferRW:
-            return K::storageBufferRW;
-        case R::SampledTexture:
-            return K::sampledTexture;
-        case R::StorageTexture:
-            return K::storageTexture;
-        case R::Sampler:
-            return K::sampler;
-        case R::ComparisonSampler:
-            return K::comparisonSampler;
-    }
-    return K::uniformBuffer;
-}
-
 // Build a `BindGroupLayout` from a shader's `BindingMap` for a given group.
-// Walks every entry whose `group == g`, copies kind / visibility / native
-// slots into a `BindGroupLayoutEntry`, and calls `ctx.makeBindGroupLayout`.
 //
 // `dynamicUBOBindings` (optional): array of WGSL @binding values within
 // `group` whose UBO entries should set `hasDynamicOffset = true`. Mirrors
@@ -597,105 +571,11 @@ inline rive::rcp<rive::ore::BindGroupLayout> makeLayoutFromShader(
     const uint32_t* dynamicUBOBindings = nullptr,
     uint32_t dynamicUBOCount = 0)
 {
-    using namespace rive::ore;
-    static constexpr int kMaxEntries = 16;
-    BindGroupLayoutEntry entries[kMaxEntries]{};
-    uint32_t n = 0;
-
-    auto isDynamic = [&](uint32_t binding) -> bool {
-        for (uint32_t i = 0; i < dynamicUBOCount; ++i)
-            if (dynamicUBOBindings[i] == binding)
-                return true;
-        return false;
-    };
-
-    auto viewDimFromBindingMap =
-        [](rive::ore::TextureViewDim d) -> rive::ore::TextureViewDimension {
-        using D = rive::ore::TextureViewDim;
-        using O = rive::ore::TextureViewDimension;
-        switch (d)
-        {
-            case D::Cube:
-                return O::cube;
-            case D::CubeArray:
-                return O::cubeArray;
-            case D::D3:
-                return O::texture3D;
-            case D::D2Array:
-                return O::array2D;
-            case D::D1:
-            case D::D2:
-            case D::Undefined:
-                return O::texture2D;
-        }
-        return O::texture2D;
-    };
-
-    auto sampleTypeFromBindingMap = [](rive::ore::TextureSampleType s)
-        -> rive::ore::BindGroupLayoutEntry::SampleType {
-        using S = rive::ore::TextureSampleType;
-        using O = rive::ore::BindGroupLayoutEntry::SampleType;
-        switch (s)
-        {
-            case S::UnfilterableFloat:
-                return O::floatUnfilterable;
-            case S::Depth:
-                return O::depth;
-            case S::Sint:
-                return O::sint;
-            case S::Uint:
-                return O::uint;
-            case S::Float:
-            case S::Undefined:
-                return O::floatFilterable;
-        }
-        return O::floatFilterable;
-    };
-
-    const BindingMap& bm = shader->m_bindingMap;
-    for (size_t i = 0; i < bm.size() && n < kMaxEntries; ++i)
-    {
-        const BindingMap::Entry& e = bm.at(i);
-        if (e.group != group)
-            continue;
-        BindGroupLayoutEntry& out = entries[n++];
-        out.binding = e.binding;
-        out.kind = bindingKindFromResource(e.kind);
-        // Mirror the shader's declared visibility — narrower than this
-        // would be rejected by validateLayoutsAgainstBindingMap.
-        uint8_t vis = 0;
-        if (e.stageMask & BindingMap::kStageVertex)
-            vis |= StageVisibility::kVertex;
-        if (e.stageMask & BindingMap::kStageFragment)
-            vis |= StageVisibility::kFragment;
-        if (e.stageMask & BindingMap::kStageCompute)
-            vis |= StageVisibility::kCompute;
-        out.visibility.mask = vis;
-        out.hasDynamicOffset =
-            (out.kind == BindingKind::uniformBuffer && isDynamic(e.binding));
-        // Texture reflection — required for validation to accept cube /
-        // 3D / array textures that don't match the texture2D default.
-        out.textureViewDim = viewDimFromBindingMap(e.textureViewDim);
-        out.textureSampleType = sampleTypeFromBindingMap(e.textureSampleType);
-        out.textureMultisampled = e.textureMultisampled;
-        // Pre-resolve native slots from the shader's binding map.
-        const uint16_t vs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
-        const uint16_t fs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
-        out.nativeSlotVS = (vs == BindingMap::kAbsent)
-                               ? BindGroupLayoutEntry::kNativeSlotAbsent
-                               : static_cast<uint32_t>(vs);
-        out.nativeSlotFS = (fs == BindingMap::kAbsent)
-                               ? BindGroupLayoutEntry::kNativeSlotAbsent
-                               : static_cast<uint32_t>(fs);
-    }
-
-    BindGroupLayoutDesc desc;
-    desc.groupIndex = group;
-    desc.entries = entries;
-    desc.entryCount = n;
-    return ctx.makeBindGroupLayout(desc);
+    return rive::ore::makeBindGroupLayoutFromShader(ctx,
+                                                    shader,
+                                                    group,
+                                                    dynamicUBOBindings,
+                                                    dynamicUBOCount);
 }
 
 // Shared triangle pass used by the deferred GMs.

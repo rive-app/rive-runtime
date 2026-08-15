@@ -19,6 +19,7 @@ class Context;
 class ContextMetal;
 class ContextGL;
 class ContextD3D11;
+class ShaderModule;
 
 // Public Ore type — created via `Context::makeBindGroupLayout`. Carries the
 // user-supplied entries plus per-backend baked layout handles.
@@ -63,6 +64,29 @@ protected:
     // Context back-pointer for deferred-destruction routing. Weak ref.
     Context* m_context = nullptr;
 };
+
+// Walk a shader's BindingMap for the given group, populating layout entries
+// with kind / visibility / texture metadata / native slots. Returns the
+// entry count actually filled.
+//
+// `dynamicUBOBindings` (optional): array of WGSL @binding values within
+// `groupIndex` whose UBO entries should set `hasDynamicOffset = true`.
+uint32_t populateBindGroupLayoutEntriesFromShader(
+    BindGroupLayoutEntry* entries,
+    uint32_t maxEntries,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings = nullptr,
+    uint32_t dynamicUBOCount = 0);
+
+// Derive the group's entries from the shader's binding map and build the
+// layout via `Context::makeBindGroupLayout`.
+rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
+    Context& ctx,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings = nullptr,
+    uint32_t dynamicUBOCount = 0);
 
 // Validate user-supplied layouts against the shader's reflected binding map.
 //

@@ -4,6 +4,8 @@
 
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
+#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_shader_module.hpp"
 
 #include <sstream>
 
@@ -27,6 +29,149 @@ bool BindGroupLayout::hasDynamicOffset(uint32_t binding) const
     const BindGroupLayoutEntry* e = findEntry(binding);
     return e != nullptr && e->kind == BindingKind::uniformBuffer &&
            e->hasDynamicOffset;
+}
+
+// Map binding-map types to layout-entry types.
+static BindingKind bindingKindFromResource(ResourceKind k)
+{
+    switch (k)
+    {
+        case ResourceKind::UniformBuffer:
+            return BindingKind::uniformBuffer;
+        case ResourceKind::StorageBufferRO:
+            return BindingKind::storageBufferRO;
+        case ResourceKind::StorageBufferRW:
+            return BindingKind::storageBufferRW;
+        case ResourceKind::SampledTexture:
+            return BindingKind::sampledTexture;
+        case ResourceKind::StorageTexture:
+            return BindingKind::storageTexture;
+        case ResourceKind::Sampler:
+            return BindingKind::sampler;
+        case ResourceKind::ComparisonSampler:
+            return BindingKind::comparisonSampler;
+    }
+    return BindingKind::uniformBuffer;
+}
+
+static TextureViewDimension viewDimFromBindingMap(TextureViewDim d)
+{
+    switch (d)
+    {
+        case TextureViewDim::Cube:
+            return TextureViewDimension::cube;
+        case TextureViewDim::CubeArray:
+            return TextureViewDimension::cubeArray;
+        case TextureViewDim::D3:
+            return TextureViewDimension::texture3D;
+        case TextureViewDim::D2Array:
+            return TextureViewDimension::array2D;
+        case TextureViewDim::D1:
+        case TextureViewDim::D2:
+        case TextureViewDim::Undefined:
+            return TextureViewDimension::texture2D;
+    }
+    return TextureViewDimension::texture2D;
+}
+
+static BindGroupLayoutEntry::SampleType sampleTypeFromBindingMap(
+    TextureSampleType s)
+{
+    switch (s)
+    {
+        case TextureSampleType::UnfilterableFloat:
+            return BindGroupLayoutEntry::SampleType::floatUnfilterable;
+        case TextureSampleType::Depth:
+            return BindGroupLayoutEntry::SampleType::depth;
+        case TextureSampleType::Sint:
+            return BindGroupLayoutEntry::SampleType::sint;
+        case TextureSampleType::Uint:
+            return BindGroupLayoutEntry::SampleType::uint;
+        case TextureSampleType::Float:
+        case TextureSampleType::Undefined:
+            return BindGroupLayoutEntry::SampleType::floatFilterable;
+    }
+    return BindGroupLayoutEntry::SampleType::floatFilterable;
+}
+
+uint32_t populateBindGroupLayoutEntriesFromShader(
+    BindGroupLayoutEntry* entries,
+    uint32_t maxEntries,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings,
+    uint32_t dynamicUBOCount)
+{
+    if (shader == nullptr)
+        return 0;
+    auto isDynamic = [&](uint32_t binding) -> bool {
+        for (uint32_t i = 0; i < dynamicUBOCount; ++i)
+            if (dynamicUBOBindings[i] == binding)
+                return true;
+        return false;
+    };
+    const BindingMap& bm = shader->m_bindingMap;
+    uint32_t n = 0;
+    for (size_t i = 0; i < bm.size() && n < maxEntries; ++i)
+    {
+        const BindingMap::Entry& e = bm.at(i);
+        if (e.group != groupIndex)
+            continue;
+        BindGroupLayoutEntry& out = entries[n++];
+        out.binding = e.binding;
+        out.kind = bindingKindFromResource(e.kind);
+        // Mirror the shader's declared visibility — narrower than this
+        // would be rejected by validateLayoutsAgainstBindingMap.
+        uint8_t vis = 0;
+        if (e.stageMask & BindingMap::kStageVertex)
+            vis |= StageVisibility::kVertex;
+        if (e.stageMask & BindingMap::kStageFragment)
+            vis |= StageVisibility::kFragment;
+        if (e.stageMask & BindingMap::kStageCompute)
+            vis |= StageVisibility::kCompute;
+        out.visibility.mask = vis;
+        out.hasDynamicOffset =
+            (out.kind == BindingKind::uniformBuffer && isDynamic(e.binding));
+        // Texture reflection — required for validation to accept cube /
+        // 3D / array textures that don't match the texture2D default.
+        out.textureViewDim = viewDimFromBindingMap(e.textureViewDim);
+        out.textureSampleType = sampleTypeFromBindingMap(e.textureSampleType);
+        out.textureMultisampled = e.textureMultisampled;
+        // Pre-resolve native slots from the shader's binding map.
+        const uint16_t vs =
+            e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
+        const uint16_t fs =
+            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
+        out.nativeSlotVS = (vs == BindingMap::kAbsent)
+                               ? BindGroupLayoutEntry::kNativeSlotAbsent
+                               : static_cast<uint32_t>(vs);
+        out.nativeSlotFS = (fs == BindingMap::kAbsent)
+                               ? BindGroupLayoutEntry::kNativeSlotAbsent
+                               : static_cast<uint32_t>(fs);
+    }
+    return n;
+}
+
+rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
+    Context& ctx,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings,
+    uint32_t dynamicUBOCount)
+{
+    static constexpr uint32_t kMaxEntries = 16;
+    BindGroupLayoutEntry entries[kMaxEntries]{};
+    uint32_t n = populateBindGroupLayoutEntriesFromShader(entries,
+                                                          kMaxEntries,
+                                                          shader,
+                                                          groupIndex,
+                                                          dynamicUBOBindings,
+                                                          dynamicUBOCount);
+    BindGroupLayoutDesc desc;
+    desc.groupIndex = groupIndex;
+    desc.entries = entries;
+    desc.entryCount = n;
+    return ctx.makeBindGroupLayout(desc);
 }
 
 // Map ore::BindingKind (public layout API) ↔ ore::ResourceKind (binding-map

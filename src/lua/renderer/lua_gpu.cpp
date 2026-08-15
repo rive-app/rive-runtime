@@ -2,6 +2,7 @@
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "lualib.h"
 #include "rive/lua/rive_lua_libs.hpp"
+#include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
@@ -1479,126 +1480,6 @@ ScriptedGPUBindGroup::~ScriptedGPUBindGroup() {}
 // GPUBindGroupLayout.new — explicit BindGroupLayout (Phase E).
 // ============================================================================
 
-// Map binding-map types to layout-entry types. These mirror the GM helper
-// `makeLayoutFromShader` so Lua-built layouts validate the same way as
-// C++-built ones.
-static BindingKind bindingKindFromResource(ResourceKind k)
-{
-    switch (k)
-    {
-        case ResourceKind::UniformBuffer:
-            return BindingKind::uniformBuffer;
-        case ResourceKind::StorageBufferRO:
-            return BindingKind::storageBufferRO;
-        case ResourceKind::StorageBufferRW:
-            return BindingKind::storageBufferRW;
-        case ResourceKind::SampledTexture:
-            return BindingKind::sampledTexture;
-        case ResourceKind::StorageTexture:
-            return BindingKind::storageTexture;
-        case ResourceKind::Sampler:
-            return BindingKind::sampler;
-        case ResourceKind::ComparisonSampler:
-            return BindingKind::comparisonSampler;
-    }
-    return BindingKind::uniformBuffer;
-}
-
-static TextureViewDimension viewDimFromBindingMap(TextureViewDim d)
-{
-    switch (d)
-    {
-        case TextureViewDim::Cube:
-            return TextureViewDimension::cube;
-        case TextureViewDim::CubeArray:
-            return TextureViewDimension::cubeArray;
-        case TextureViewDim::D3:
-            return TextureViewDimension::texture3D;
-        case TextureViewDim::D2Array:
-            return TextureViewDimension::array2D;
-        case TextureViewDim::D1:
-        case TextureViewDim::D2:
-        case TextureViewDim::Undefined:
-            return TextureViewDimension::texture2D;
-    }
-    return TextureViewDimension::texture2D;
-}
-
-static BindGroupLayoutEntry::SampleType sampleTypeFromBindingMap(
-    TextureSampleType s)
-{
-    switch (s)
-    {
-        case TextureSampleType::UnfilterableFloat:
-            return BindGroupLayoutEntry::SampleType::floatUnfilterable;
-        case TextureSampleType::Depth:
-            return BindGroupLayoutEntry::SampleType::depth;
-        case TextureSampleType::Sint:
-            return BindGroupLayoutEntry::SampleType::sint;
-        case TextureSampleType::Uint:
-            return BindGroupLayoutEntry::SampleType::uint;
-        case TextureSampleType::Float:
-        case TextureSampleType::Undefined:
-            return BindGroupLayoutEntry::SampleType::floatFilterable;
-    }
-    return BindGroupLayoutEntry::SampleType::floatFilterable;
-}
-
-// Walk a shader's BindingMap for the given group, populating layout entries
-// with kind / visibility / texture metadata / native slots — the same path the
-// GM helper takes. Returns the entry count actually filled.
-static uint32_t populateEntriesFromShader(BindGroupLayoutEntry* entries,
-                                          uint32_t maxEntries,
-                                          const ore::ShaderModule* shader,
-                                          uint32_t group,
-                                          const uint32_t* dynamicUBOBindings,
-                                          uint32_t dynamicUBOCount)
-{
-    if (shader == nullptr)
-        return 0;
-    auto isDynamic = [&](uint32_t binding) -> bool {
-        for (uint32_t i = 0; i < dynamicUBOCount; ++i)
-            if (dynamicUBOBindings[i] == binding)
-                return true;
-        return false;
-    };
-    const BindingMap& bm = shader->m_bindingMap;
-    uint32_t n = 0;
-    for (size_t i = 0; i < bm.size() && n < maxEntries; ++i)
-    {
-        const BindingMap::Entry& e = bm.at(i);
-        if (e.group != group)
-            continue;
-        BindGroupLayoutEntry& out = entries[n++];
-        out.binding = e.binding;
-        out.kind = bindingKindFromResource(e.kind);
-        uint8_t vis = 0;
-        if (e.stageMask & BindingMap::kStageVertex)
-            vis |= StageVisibility::kVertex;
-        if (e.stageMask & BindingMap::kStageFragment)
-            vis |= StageVisibility::kFragment;
-        if (e.stageMask & BindingMap::kStageCompute)
-            vis |= StageVisibility::kCompute;
-        out.visibility.mask = vis;
-        out.hasDynamicOffset =
-            (out.kind == BindingKind::uniformBuffer && isDynamic(e.binding));
-        out.textureViewDim = viewDimFromBindingMap(e.textureViewDim);
-        out.textureSampleType = sampleTypeFromBindingMap(e.textureSampleType);
-        out.textureMultisampled = e.textureMultisampled;
-        const uint16_t vs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
-        const uint16_t fs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
-        out.nativeSlotVS = (vs == BindingMap::kAbsent)
-                               ? BindGroupLayoutEntry::kNativeSlotAbsent
-                               : static_cast<uint32_t>(vs);
-        out.nativeSlotFS = (fs == BindingMap::kAbsent)
-                               ? BindGroupLayoutEntry::kNativeSlotAbsent
-                               : static_cast<uint32_t>(fs);
-    }
-    return n;
-}
-
 static int gpubindgrouplayout_construct(lua_State* L)
 {
     Context* oreCtx = getOreContext(L);
@@ -1608,10 +1489,9 @@ static int gpubindgrouplayout_construct(lua_State* L)
     luaL_checktype(L, 1, LUA_TTABLE);
     int descIdx = 1;
 
-    BindGroupLayoutDesc desc;
-    desc.groupIndex = static_cast<uint32_t>(
+    uint32_t groupIndex = static_cast<uint32_t>(
         lua_getoptionalnumberfield(L, descIdx, "groupIndex", 0));
-    if (desc.groupIndex >= ore::kMaxBindGroups)
+    if (groupIndex >= ore::kMaxBindGroups)
         luaL_error(L,
                    "GPUBindGroupLayout.new: groupIndex must be in [0, %u)",
                    ore::kMaxBindGroups);
@@ -1629,7 +1509,6 @@ static int gpubindgrouplayout_construct(lua_State* L)
                    "a loaded module");
 
     static constexpr int kMaxEntries = 16;
-    BindGroupLayoutEntry entries[kMaxEntries]{};
 
     // Optional `dynamicUBOs`: array of WGSL @binding values whose UBO
     // entries should set hasDynamicOffset.
@@ -1653,17 +1532,12 @@ static int gpubindgrouplayout_construct(lua_State* L)
 
     // Vertex module carries the merged binding map for both stages —
     // the same module the GM helper walks.
-    uint32_t entryCount = populateEntriesFromShader(entries,
-                                                    kMaxEntries,
-                                                    scripted->vertexMod(),
-                                                    desc.groupIndex,
-                                                    dynUBOs,
-                                                    dynUBOCount);
-
-    desc.entries = entries;
-    desc.entryCount = entryCount;
-
-    rcp<BindGroupLayout> layout = oreCtx->makeBindGroupLayout(desc);
+    rcp<BindGroupLayout> layout =
+        makeBindGroupLayoutFromShader(*oreCtx,
+                                      scripted->vertexMod(),
+                                      groupIndex,
+                                      dynUBOs,
+                                      dynUBOCount);
     if (!layout)
     {
         const std::string& err = oreCtx->lastError();
@@ -2216,23 +2090,14 @@ static int gpupipeline_construct(lua_State* L)
                 maxGroup = g + 1;
         }
         autoLayouts.resize(maxGroup);
-        static constexpr int kMaxEntries = 16;
         for (uint32_t g = 0; g < maxGroup; ++g)
         {
             if (!seen[g])
                 continue;
-            BindGroupLayoutEntry entries[kMaxEntries]{};
-            uint32_t n = populateEntriesFromShader(entries,
-                                                   kMaxEntries,
-                                                   vsShader->vertexMod(),
-                                                   g,
-                                                   nullptr,
-                                                   0);
-            BindGroupLayoutDesc lDesc;
-            lDesc.groupIndex = g;
-            lDesc.entries = entries;
-            lDesc.entryCount = n;
-            autoLayouts[g] = getOreContext(L)->makeBindGroupLayout(lDesc);
+            autoLayouts[g] =
+                makeBindGroupLayoutFromShader(*getOreContext(L),
+                                              vsShader->vertexMod(),
+                                              g);
             layoutPtrs[g] = autoLayouts[g].get();
         }
         layoutCount = maxGroup;
