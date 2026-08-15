@@ -1656,6 +1656,25 @@ TEST_CASE("nan-triangulator-path", "[triangulator]")
     verify_simple_inner_polygons("nan-path", path);
 }
 
+// Regression test (skia:fee7272f5b) for a null-pointer crash: when coincident
+// or overlapping edges merge, the redundant "zombie" edge gets fTop/fBottom set
+// to null. Edge::dist() -- used by isLeftOf()/isRightOf() -- must tolerate that
+// instead of dereferencing them.
+TEST_CASE("GrTriangulator-edge-dist-null-pointer", "[triangulator]")
+{
+    GrTriangulator::Vertex top(Vec2D{0.0f, 0.0f}, 0);
+    GrTriangulator::Vertex bottom(Vec2D{0.0f, 10.0f}, 0);
+    GrTriangulator::Edge edge(&top,
+                              &bottom,
+                              1,
+                              GrTriangulator::EdgeType::kInner);
+    edge.fTop = nullptr;
+    edge.fBottom = nullptr;
+    GrTriangulator::Vertex v(Vec2D{1.0f, 2.0f}, 0);
+    CHECK(edge.isLeftOf(v));
+    CHECK(!edge.isRightOf(v));
+}
+
 #if 0
 static void test_crbug_1262444(skiatest::Reporter* r)
 {

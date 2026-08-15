@@ -6,6 +6,8 @@
  *
  * Initial import from
  * skia:c2a399a74da523ec445f1202367764d04b5df2ec@src/gpu/ganesh/geometry/GrTriangulator.h
+ * Last synced to
+ * skia:fee7272f5bc258d2b4199c7ed133a72d996c0fb0@src/gpu/ganesh/geometry/GrTriangulator.h
  *
  * Copyright 2023 Rive
  */
@@ -37,11 +39,11 @@ public:
     constexpr static int kArenaDefaultChunkSize = 16 * 1024;
 
     // Enums used by GrTriangulator internals.
-    typedef enum
+    enum class Side
     {
-        kLeft_Side,
-        kRight_Side
-    } Side;
+        kLeft,
+        kRight
+    };
 
     enum class EdgeType
     {
@@ -325,6 +327,8 @@ protected:
     TrivialBlockAllocator* const fAlloc;
     int fNumMonotonePolys = 0;
     int fNumEdges = 0;
+    // Track how deep of a stack we get from mergeCollinearEdges().
+    mutable int fMergeCollinearStackCount = 0;
 
     // Internal control knobs.
 #if 0
@@ -620,8 +624,11 @@ struct GrTriangulator::Edge
         // Coerce points coincident with the vertices to have dist = 0, since
         // converting from a double intersection point back to float storage
         // might construct a point that's no longer on the ideal line.
-        return (p == fTop->fPoint || p == fBottom->fPoint) ? 0.0
-                                                           : fLine.dist(p);
+        if ((fTop && p == fTop->fPoint) || (fBottom && p == fBottom->fPoint))
+        {
+            return 0.0;
+        }
+        return fLine.dist(p);
     }
     bool isRightOf(const Vertex& v) const { return this->dist(v.fPoint) < 0.0; }
     bool isLeftOf(const Vertex& v) const { return this->dist(v.fPoint) > 0.0; }
@@ -630,6 +637,10 @@ struct GrTriangulator::Edge
     void insertBelow(Vertex*, const Comparator&);
     void disconnect();
     bool intersect(const Edge& other, Vec2D* p, uint8_t* alpha = nullptr) const;
+    bool hasTopAndBottom() const
+    {
+        return fTop != nullptr && fBottom != nullptr;
+    }
 };
 
 struct GrTriangulator::EdgeList

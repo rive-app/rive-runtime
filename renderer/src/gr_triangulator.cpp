@@ -6,6 +6,8 @@
  *
  * Initial import from
  * skia:c2a399a74da523ec445f1202367764d04b5df2ec@src/gpu/ganesh/geometry/GrTriangulator.h
+ * Last synced to
+ * skia:fee7272f5bc258d2b4199c7ed133a72d996c0fb0@src/gpu/ganesh/geometry/GrTriangulator.cpp
  *
  * Copyright 2023 Rive
  */
@@ -419,7 +421,7 @@ bool GrTriangulator::EdgeList::remove(Edge* edge)
 
 void GrTriangulator::MonotonePoly::addEdge(Edge* edge)
 {
-    if (fSide == kRight_Side)
+    if (fSide == Side::kRight)
     {
         assert(!edge->fUsedInRightPoly);
         list_insert<Edge, &Edge::fRightPolyPrev, &Edge::fRightPolyNext>(
@@ -469,7 +471,7 @@ size_t GrTriangulator::emitMonotonePoly(const MonotonePoly* monotonePoly,
     int count = 1;
     while (e != nullptr)
     {
-        if (kRight_Side == monotonePoly->fSide)
+        if (Side::kRight == monotonePoly->fSide)
         {
             vertices.append(e->fBottom);
             e = e->fRightPolyNext;
@@ -554,10 +556,10 @@ Poly* GrTriangulator::Poly::addEdge(Edge* e, Side side, GrTriangulator* tri)
              e->fTop->fID,
              e->fBottom->fID,
              fID,
-             side == kLeft_Side ? "left" : "right");
+             side == Side::kLeft ? "left" : "right");
     Poly* partner = fPartner;
     Poly* poly = this;
-    if (side == kRight_Side)
+    if (side == Side::kRight)
     {
         if (e->fUsedInRightPoly)
         {
@@ -1050,17 +1052,29 @@ static bool rewind(EdgeList* activeEdges,
         Edge* leftEdge = v->fLeftEnclosingEdge;
         for (Edge* e = v->fFirstEdgeAbove; e; e = e->fNextEdgeAbove)
         {
+            if (!e)
+            {
+                return false;
+            }
             if (!activeEdges->insert(e, leftEdge))
             {
                 return false;
             }
             leftEdge = e;
             Vertex* top = e->fTop;
+            if (!top ||
+                (top->fLeftEnclosingEdge &&
+                 !top->fLeftEnclosingEdge->hasTopAndBottom()) ||
+                (top->fRightEnclosingEdge &&
+                 !top->fRightEnclosingEdge->hasTopAndBottom()))
+            {
+                return false;
+            }
             if (c.sweep_lt(top->fPoint, dst->fPoint) &&
                 ((top->fLeftEnclosingEdge &&
-                  !top->fLeftEnclosingEdge->isLeftOf(*e->fTop)) ||
+                  !top->fLeftEnclosingEdge->isLeftOf(*top)) ||
                  (top->fRightEnclosingEdge &&
-                  !top->fRightEnclosingEdge->isRightOf(*e->fTop))))
+                  !top->fRightEnclosingEdge->isRightOf(*top))))
             {
                 dst = top;
             }
@@ -1218,6 +1232,21 @@ bool GrTriangulator::setBottom(Edge* edge,
     return this->mergeCollinearEdges(edge, activeEdges, current, c);
 }
 
+/*
+ * NOTE: Also used in mergeEdgesBelow().
+ * Merges two adjacent, collinear edges. Two main cases:
+ *
+ * 1. Coincident endpoints: if the edges share the exact same top/bottom vertex,
+ *    one edge's winding is absorbed into the other. The now-unused "zombie"
+ * edge is fully disconnected and also explicitly removed from activeEdges, to
+ *    prevent state corruption that can lead to null-pointer dereferences
+ *    (b/419397557, b/421959607).
+ *
+ * 2. Non-coincident (overlapping) endpoints: one edge is shortened in place to
+ *    meet the other's endpoint. This is fragile -- it relies on the stability
+ * of the floating-point geometric comparisons (isLeftOf, etc.) to succeed on
+ *    pathological coordinates.
+ */
 bool GrTriangulator::mergeEdgesAbove(Edge* edge,
                                      Edge* other,
                                      EdgeList* activeEdges,
@@ -1241,6 +1270,10 @@ bool GrTriangulator::mergeEdgesAbove(Edge* edge,
         }
         other->fWinding += edge->fWinding;
         edge->disconnect();
+        if (activeEdges)
+        {
+            activeEdges->remove(edge);
+        }
         edge->fTop = edge->fBottom = nullptr;
     }
     else if (c.sweep_lt(edge->fTop->fPoint, other->fTop->fPoint))
@@ -1270,6 +1303,7 @@ bool GrTriangulator::mergeEdgesAbove(Edge* edge,
     return true;
 }
 
+// NOTE: See mergeEdgesAbove() comment.
 bool GrTriangulator::mergeEdgesBelow(Edge* edge,
                                      Edge* other,
                                      EdgeList* activeEdges,
@@ -1293,6 +1327,10 @@ bool GrTriangulator::mergeEdgesBelow(Edge* edge,
         }
         other->fWinding += edge->fWinding;
         edge->disconnect();
+        if (activeEdges)
+        {
+            activeEdges->remove(edge);
+        }
         edge->fTop = edge->fBottom = nullptr;
     }
     else if (c.sweep_lt(edge->fBottom->fPoint, other->fBottom->fPoint))
@@ -1343,11 +1381,19 @@ static bool bottom_collinear(Edge* left, Edge* right)
            !right->isRightOf(*left->fBottom);
 }
 
+// How deep of a stack of mergeCollinearEdges() we'll accept.
+static constexpr int kMaxMergeCollinearCalls = 64;
+
 bool GrTriangulator::mergeCollinearEdges(Edge* edge,
                                          EdgeList* activeEdges,
                                          Vertex** current,
                                          const Comparator& c) const
 {
+    // Stack is unreasonably deep.
+    if (++fMergeCollinearStackCount > kMaxMergeCollinearCalls)
+    {
+        return false;
+    }
     for (;;)
     {
         if (top_collinear(edge->fPrevEdgeAbove, edge))
@@ -1469,6 +1515,7 @@ GrTriangulator::BoolFail GrTriangulator::splitEdge(Edge* edge,
     Edge* newEdge = this->allocateEdge(top, bottom, winding, edge->fType);
     newEdge->insertBelow(top, c);
     newEdge->insertAbove(bottom, c);
+    fMergeCollinearStackCount = 0;
     if (!this->mergeCollinearEdges(newEdge, activeEdges, current, c))
     {
         return BoolFail::kFail;
@@ -1560,6 +1607,7 @@ Edge* GrTriangulator::makeConnectingEdge(Vertex* prev,
     edge->insertBelow(edge->fTop, c);
     edge->insertAbove(edge->fBottom, c);
     edge->fWinding *= windingScale;
+    fMergeCollinearStackCount = 0;
     this->mergeCollinearEdges(edge, nullptr, nullptr, c);
     return edge;
 }
@@ -1579,12 +1627,16 @@ void GrTriangulator::mergeVertices(Vertex* src,
     {
         src->fPartner->fPartner = dst;
     }
+    // setBottom()/setTop() call mergeCollinearEdges(), which can recurse, so
+    // clear the stack count before each.
     while (Edge* edge = src->fFirstEdgeAbove)
     {
+        fMergeCollinearStackCount = 0;
         std::ignore = this->setBottom(edge, dst, nullptr, nullptr, c);
     }
     while (Edge* edge = src->fFirstEdgeBelow)
     {
+        fMergeCollinearStackCount = 0;
         std::ignore = this->setTop(edge, dst, nullptr, nullptr, c);
     }
     mesh->remove(src);
@@ -2064,12 +2116,19 @@ GrTriangulator::SimplifyResult GrTriangulator::simplify(VertexList* mesh,
     TESS_LOG("simplifying complex polygons\n");
 
     int initialNumEdges = fNumEdges;
+    int initialNumVertices = 0;
+    for (Vertex* v = mesh->fHead; v != nullptr; v = v->fNext)
+    {
+        ++initialNumVertices;
+    }
     int numSelfIntersections = 0;
 
     EdgeList activeEdges;
     auto result = SimplifyResult::kAlreadySimple;
+    int numVisitedVertices = 0;
     for (Vertex* v = mesh->fHead; v != nullptr; v = v->fNext)
     {
+        ++numVisitedVertices;
         if (!v->isConnected())
         {
             continue;
@@ -2083,9 +2142,7 @@ GrTriangulator::SimplifyResult GrTriangulator::simplify(VertexList* mesh,
             return SimplifyResult::kFailed;
         }
 
-        // In pathological cases, a path can intersect itself millions of times.
-        // After 500,000 self-intersections are found, reject the path.
-        if (numSelfIntersections > 500000)
+        if (numVisitedVertices > 170 * initialNumVertices)
         {
             return SimplifyResult::kFailed;
         }
@@ -2167,6 +2224,14 @@ GrTriangulator::SimplifyResult GrTriangulator::simplify(VertexList* mesh,
                     restartChecks = true;
                     ++numSelfIntersections;
                 }
+            }
+
+            // In pathological cases, a path can intersect itself millions of
+            // times. After 500,000 self-intersections are found, reject the
+            // path.
+            if (numSelfIntersections > 500000)
+            {
+                return SimplifyResult::kFailed;
             }
         } while (restartChecks);
 #ifdef SK_DEBUG
@@ -2256,12 +2321,12 @@ std::tuple<Poly*, bool> GrTriangulator::tessellate(const VertexList& vertices,
             if (leftPoly)
             {
                 leftPoly =
-                    leftPoly->addEdge(v->fFirstEdgeAbove, kRight_Side, this);
+                    leftPoly->addEdge(v->fFirstEdgeAbove, Side::kRight, this);
             }
             if (rightPoly)
             {
                 rightPoly =
-                    rightPoly->addEdge(v->fLastEdgeAbove, kLeft_Side, this);
+                    rightPoly->addEdge(v->fLastEdgeAbove, Side::kLeft, this);
             }
             for (Edge* e = v->fFirstEdgeAbove; e != v->fLastEdgeAbove;
                  e = e->fNextEdgeAbove)
@@ -2270,12 +2335,12 @@ std::tuple<Poly*, bool> GrTriangulator::tessellate(const VertexList& vertices,
                 activeEdges.remove(e);
                 if (e->fRightPoly)
                 {
-                    e->fRightPoly->addEdge(e, kLeft_Side, this);
+                    e->fRightPoly->addEdge(e, Side::kLeft, this);
                 }
                 if (rightEdge->fLeftPoly &&
                     rightEdge->fLeftPoly != e->fRightPoly)
                 {
-                    rightEdge->fLeftPoly->addEdge(e, kRight_Side, this);
+                    rightEdge->fLeftPoly->addEdge(e, Side::kRight, this);
                 }
             }
             activeEdges.remove(v->fLastEdgeAbove);
@@ -2299,7 +2364,7 @@ std::tuple<Poly*, bool> GrTriangulator::tessellate(const VertexList& vertices,
                     if (leftPoly == rightPoly)
                     {
                         if (leftPoly->fTail &&
-                            leftPoly->fTail->fSide == kLeft_Side)
+                            leftPoly->fTail->fSide == Side::kLeft)
                         {
                             leftPoly = this->makePoly(&polys,
                                                       leftPoly->lastVertex(),
@@ -2318,8 +2383,8 @@ std::tuple<Poly*, bool> GrTriangulator::tessellate(const VertexList& vertices,
                                                     v,
                                                     1,
                                                     EdgeType::kInner);
-                    leftPoly = leftPoly->addEdge(join, kRight_Side, this);
-                    rightPoly = rightPoly->addEdge(join, kLeft_Side, this);
+                    leftPoly = leftPoly->addEdge(join, Side::kRight, this);
+                    rightPoly = rightPoly->addEdge(join, Side::kLeft, this);
                 }
             }
             Edge* leftEdge = v->fFirstEdgeBelow;
