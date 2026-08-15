@@ -313,6 +313,163 @@ TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
     REQUIRE(text->m_transform.xx() == Approx(1.0f));
 }
 
+TEST_CASE("fitFontSize scales custom line height and letter spacing "
+          "proportionally",
+          "[text]")
+{
+    auto file = ReadRiveFile("assets/ellipsis.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // Author absolute custom line height and letter spacing on every style so
+    // we can verify they track the fitted font size.
+    const float authoredLineHeight = 40.0f;
+    const float authoredLetterSpacing = 3.0f;
+    auto styles = artboard->find<rive::TextStyle>();
+    REQUIRE(!styles.empty());
+    for (auto style : styles)
+    {
+        style->lineHeight(authoredLineHeight);
+        style->letterSpacing(authoredLetterSpacing);
+    }
+
+    // Authored (unscaled) size: the custom values pass through as-is.
+    text->overflow(rive::TextOverflow::visible);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float authoredSize = text->shape()[0].runs[0].size;
+    REQUIRE(authoredSize > 1.0f);
+    REQUIRE(text->shape()[0].runs[0].lineHeight == Approx(authoredLineHeight));
+    REQUIRE(text->shape()[0].runs[0].letterSpacing ==
+            Approx(authoredLetterSpacing));
+
+    // With fitFontSize the font shrinks; the custom line height and letter
+    // spacing must shrink by the same multiplier so the layout stays a uniform
+    // scale of the authored one.
+    text->overflow(rive::TextOverflow::fitFontSize);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float fittedSize = text->shape()[0].runs[0].size;
+    REQUIRE(fittedSize < authoredSize);
+
+    float expectedScale = fittedSize / authoredSize;
+    REQUIRE(text->shape()[0].runs[0].lineHeight ==
+            Approx(authoredLineHeight * expectedScale));
+    REQUIRE(text->shape()[0].runs[0].letterSpacing ==
+            Approx(authoredLetterSpacing * expectedScale));
+}
+
+TEST_CASE("fitFontSize scales paragraph spacing proportionally", "[text]")
+{
+    // double_line.riv has multiple paragraphs (explicit new lines), so the
+    // paragraph gap actually contributes to the vertical layout.
+    auto file = ReadRiveFile("assets/double_line.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // A large absolute paragraph gap so any (mis)scaling of it is obvious.
+    text->paragraphSpacing(30.0f);
+
+    // A wide fixed box keeps line breaking identical between the two passes
+    // (only the width affects breaking), so the ordered lines line up 1:1.
+    text->sizingValue((uint32_t)rive::TextSizing::fixed);
+    text->width(2000.0f);
+    text->height(2000.0f);
+
+    // Authored pass: visible never shrinks, so this is the natural layout.
+    text->overflow(rive::TextOverflow::visible);
+    artboard->advance(0.0f);
+
+    // The fixture must actually have multiple paragraphs or the gap is never
+    // exercised.
+    REQUIRE(text->shape().size() >= 2);
+    REQUIRE(!text->shape()[0].runs.empty());
+    float authoredSize = text->shape()[0].runs[0].size;
+    REQUIRE(authoredSize > 1.0f);
+
+    std::vector<float> authoredY;
+    for (const rive::OrderedLine& line : text->orderedLines())
+    {
+        authoredY.push_back(line.y());
+    }
+    REQUIRE(authoredY.size() >= 2);
+
+    // Fitted pass: same width (same breaking) but a short box forces the font
+    // to shrink. Everything absolute -- including the paragraph gap -- must
+    // shrink with it.
+    text->height(40.0f);
+    text->overflow(rive::TextOverflow::fitFontSize);
+    artboard->advance(0.0f);
+
+    REQUIRE(!text->shape()[0].runs.empty());
+    float fittedSize = text->shape()[0].runs[0].size;
+    REQUIRE(fittedSize < authoredSize);
+
+    const auto& fittedLines = text->orderedLines();
+    REQUIRE(fittedLines.size() == authoredY.size());
+
+    const float scale = fittedSize / authoredSize;
+
+    // A true uniform scale: every line's y (which accumulates line heights AND
+    // the paragraph gap) tracks the font size. Without scaling the paragraph
+    // gap, lines past the first paragraph would sit too low.
+    for (size_t i = 0; i < authoredY.size(); i++)
+    {
+        REQUIRE(fittedLines[i].y() == Approx(authoredY[i] * scale));
+    }
+
+    // The vertical span across paragraphs (which is dominated by the gap) must
+    // itself have shrunk by the same ratio -- guards against a trivial pass at
+    // y == 0.
+    float authoredSpan = authoredY.back() - authoredY.front();
+    float fittedSpan = fittedLines.back().y() - fittedLines.front().y();
+    REQUIRE(authoredSpan > 0.0f);
+    REQUIRE(fittedSpan < authoredSpan);
+    REQUIRE(fittedSpan == Approx(authoredSpan * scale));
+}
+
+TEST_CASE("changing paragraph spacing reshapes fitFontSize text", "[text]")
+{
+    auto file = ReadRiveFile("assets/double_line.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // A fixed box that forces the multi-paragraph text to shrink to fit.
+    text->sizingValue((uint32_t)rive::TextSizing::fixed);
+    text->width(2000.0f);
+    text->height(150.0f);
+    text->overflow(rive::TextOverflow::fitFontSize);
+
+    text->paragraphSpacing(0.0f);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float sizeWithoutGap = text->shape()[0].runs[0].size;
+    REQUIRE(sizeWithoutGap > 1.0f);
+
+    // Growing the paragraph gap eats vertical space, so the fitted font must
+    // shrink. This only happens if the change re-runs the fit search (a
+    // reshape); a plain paint rebuild would leave the size untouched.
+    text->paragraphSpacing(60.0f);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float sizeWithGap = text->shape()[0].runs[0].size;
+
+    REQUIRE(sizeWithGap < sizeWithoutGap);
+}
+
 static std::vector<rive::Unichar> toUnicode(const char text[])
 {
     std::vector<rive::Unichar> codePoints;
@@ -817,4 +974,34 @@ TEST_CASE("Text box matches layout-controlled size", "[silver]")
     }
 
     CHECK(silver.matches("layout_text_match"));
+}
+
+TEST_CASE("Fit font size with varying sizes", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/text_fit_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.032f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(3.0f / 0.032f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.032f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("text_fit_test"));
 }

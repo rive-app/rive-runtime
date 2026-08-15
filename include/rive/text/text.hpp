@@ -318,6 +318,14 @@ private:
     RawPath m_clipRect;
     ShapePaintPath m_clipPath;
     AABB m_bounds;
+    // The font-size multiplier chosen by the last fitFontSize layout. Per-run
+    // values are baked into the shaped runs by makeStyled; paragraph spacing is
+    // a Text-level gap added between paragraphs during layout, so it is scaled
+    // by this to keep the fitted layout a true uniform scale of the authored
+    // one. Only meaningful while fitFontSize is the active overflow -- read it
+    // through fitParagraphSpacing(), never directly, so a stale value from a
+    // previous fit can't leak into a paint-only rebuild.
+    float m_fitFontScale = 1.0f;
     std::vector<TextModifierGroup*> m_modifierGroups;
 
     StyledText m_styledText;
@@ -332,6 +340,12 @@ private:
     std::
         unordered_map<ColorGlyphCacheKey, rcp<RenderImage>, ColorGlyphCacheHash>
             m_emojiImageCache;
+    float fitParagraphSpacing() const
+    {
+        return overflow() == TextOverflow::fitFontSize
+                   ? paragraphSpacing() * m_fitFontScale
+                   : paragraphSpacing();
+    }
     TextBoundsInfo computeBoundsInfo();
     // For TextOverflow::fitFontSize: binary-searches the largest integer font
     // size that fits the bounds and returns it as a multiplier of the authored

@@ -315,7 +315,7 @@ static void computeVerticalTrim(
 
 TextBoundsInfo Text::computeBoundsInfo()
 {
-    const float paragraphSpace = paragraphSpacing();
+    const float paragraphSpace = fitParagraphSpacing();
 
     // Build up ordered runs as we go.
     int paragraphIndex = 0;
@@ -425,7 +425,6 @@ float Text::fitFontScale()
 
     const float boxWidth = effectiveWidth();
     const float boxHeight = effectiveHeight();
-    const float paragraphSpace = paragraphSpacing();
 
     StyledText styledText;
 
@@ -461,7 +460,7 @@ float Text::fitFontScale()
             {
                 y += paragraphLines.back().bottom;
             }
-            y += paragraphSpace;
+            y += paragraphSpacing() * scale;
         }
 
         bool widthFits = maxWidth <= boxWidth;
@@ -602,7 +601,7 @@ void Text::buildRenderStyles()
 
     // Step 4: update bounds. A layout-controlled axis uses the layout's size
     // so the text box always matches the layout.
-    const float paragraphSpace = paragraphSpacing();
+    const float paragraphSpace = fitParagraphSpacing();
     const float autoSizeMaxY =
         std::isnan(m_layoutHeight)
             ? std::max(minY,
@@ -809,7 +808,7 @@ void Text::buildRenderStyles()
         {
             curY += paragraphLines.back().bottom;
         }
-        curY += paragraphSpacing();
+        curY += fitParagraphSpacing();
     }
 skipLines:
     // Step 7: consider fit mode, and update local transform
@@ -1036,7 +1035,7 @@ void Text::sizingValueChanged() { markShapeDirty(); }
 
 void Text::overflowValueChanged()
 {
-    if (effectiveSizing() != TextSizing::autoWidth)
+    if (effectiveSizing() != TextSizing::autoWidth || overflowAsFixed())
     {
         markShapeDirty();
     }
@@ -1050,7 +1049,17 @@ void Text::widthChanged()
     }
 }
 
-void Text::paragraphSpacingChanged() { markPaintDirty(); }
+void Text::paragraphSpacingChanged()
+{
+    if (overflow() == TextOverflow::fitFontSize)
+    {
+        markShapeDirty();
+    }
+    else
+    {
+        markPaintDirty();
+    }
+}
 
 void Text::heightChanged()
 {
@@ -1101,10 +1110,21 @@ bool Text::makeStyled(StyledText& styledText,
             runIndex++;
             continue;
         }
+        // A custom line height (>= 0) is an absolute value that overrides the
+        // font-metric spacing, so it must scale with the font to keep
+        // fitFontScale a true uniform scale of the authored layout. The -1
+        // sentinel ("derive from font metrics") is left untouched. Letter
+        // spacing is likewise an absolute advance added after glyph shaping, so
+        // it scales for the same reason.
+        float lineHeight = style->lineHeight();
+        if (lineHeight >= 0.0f)
+        {
+            lineHeight *= fontScale;
+        }
         styledText.append(style->font(),
                           style->fontSize() * fontScale,
-                          style->lineHeight(),
-                          style->letterSpacing(),
+                          lineHeight,
+                          style->letterSpacing() * fontScale,
                           text,
                           runIndex++);
     }
@@ -1202,6 +1222,7 @@ void Text::update(ComponentDirt value)
         // bounds, then shape/lay out the text at that size below.
         float fontScale =
             overflow() == TextOverflow::fitFontSize ? fitFontScale() : 1.0f;
+        m_fitFontScale = fontScale;
         if (precomputeModifierCoverage &&
             makeStyled(m_modifierStyledText, false, fontScale))
         {
