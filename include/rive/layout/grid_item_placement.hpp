@@ -29,8 +29,8 @@ public:
     void buildDependencies() override;
 
 #ifdef WITH_RIVE_LAYOUT
-    void applyItemStyle(YGStyle& style,
-                        const LayoutSyncContext& context) override;
+    void applyPlacementStyle(YGStyle& style,
+                             const LayoutSyncContext& context) override;
 #endif
 
 protected:

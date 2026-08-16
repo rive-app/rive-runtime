@@ -87,6 +87,10 @@ public:
         {
             applier->applyItemStyle(style, context);
         }
+        for (auto* applier : appliers)
+        {
+            applier->applyPlacementStyle(style, context);
+        }
     }
 #endif
 };

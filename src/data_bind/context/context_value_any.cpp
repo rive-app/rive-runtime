@@ -36,6 +36,13 @@ void DataBindContextValueAny::apply(Core* target,
                     target->as<Solo>()->updateByIndex(
                         (size_t)std::round(value));
                 }
+                else if (CoreRegistry::isSignedInt(propertyKey))
+                {
+                    // No clamp: a negative grid line is end-relative.
+                    CoreRegistry::setInt(target,
+                                         propertyKey,
+                                         (int32_t)std::round(value));
+                }
                 else
                 {
                     int rounded = value < 0 ? 0 : std::round(value);

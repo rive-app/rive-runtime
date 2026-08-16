@@ -51,8 +51,8 @@ void GridItemPlacement::buildDependencies()
 }
 
 #ifdef WITH_RIVE_LAYOUT
-void GridItemPlacement::applyItemStyle(YGStyle& style,
-                                       const LayoutSyncContext& context)
+void GridItemPlacement::applyPlacementStyle(YGStyle& style,
+                                            const LayoutSyncContext& context)
 {
     // A stack collapses every child into its single cell, so explicit placement
     // has nothing to say. Note this is a no-op rather than an absent applier:

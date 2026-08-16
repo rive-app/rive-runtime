@@ -5233,6 +5233,18 @@ public:
                 return false;
         }
     }
+    static bool isSignedInt(uint32_t propertyKey)
+    {
+        switch (propertyKey)
+        {
+            case GridItemPlacementBase::gridColumnPropertyKey:
+            case GridItemPlacementBase::gridRowPropertyKey:
+            case KeyFrameIntBase::valuePropertyKey:
+                return true;
+            default:
+                return false;
+        }
+    }
     static bool isCallback(uint32_t propertyKey)
     {
         switch (propertyKey)

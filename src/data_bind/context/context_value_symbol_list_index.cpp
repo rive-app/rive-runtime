@@ -25,7 +25,14 @@ void DataBindContextValueSymbolListIndex::apply(Core* target,
             CoreRegistry::setDouble(target, propertyKey, (float)value);
             break;
         case CoreUintType::id:
-            CoreRegistry::setUint(target, propertyKey, value);
+            if (CoreRegistry::isSignedInt(propertyKey))
+            {
+                CoreRegistry::setInt(target, propertyKey, (int32_t)value);
+            }
+            else
+            {
+                CoreRegistry::setUint(target, propertyKey, value);
+            }
             break;
     }
 }

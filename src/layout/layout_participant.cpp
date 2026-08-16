@@ -2,6 +2,7 @@
 #include "rive/layout_component.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/layout/layout_node_style.hpp"
+#include "rive/layout/grid_item_placement.hpp"
 #include "rive/layout/grid_track.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/layout/layout_style_applier.hpp"
@@ -210,6 +211,14 @@ void LayoutParticipant::resync()
         m_layoutData->node.setMeasureFunc(participantMeasureFunc);
         // We are our own sizing style.
         addLayoutStyleApplier(this);
+    }
+    // A sibling placement that cleaned before us was dropped on the floor:
+    // addLayoutStyleApplier is a no-op until m_layoutData exists, and
+    // onAddedClean runs in file order, so nothing fixes the order for us.
+    // Idempotent — appliers are pushed unique.
+    if (auto* placement = GridItemPlacement::from(host))
+    {
+        addLayoutStyleApplier(placement);
     }
     syncStyleChanges();
     if (auto* lc = owningLayout())

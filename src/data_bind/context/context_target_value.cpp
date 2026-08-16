@@ -257,8 +257,18 @@ bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
             }
             else
             {
-                auto value = CoreRegistry::getUint(dataBind->target(),
-                                                   dataBind->propertyKey());
+                int32_t value;
+                if (CoreRegistry::isSignedInt(dataBind->propertyKey()))
+                {
+                    value = CoreRegistry::getInt(dataBind->target(),
+                                                 dataBind->propertyKey());
+                }
+                else
+                {
+                    value =
+                        (int32_t)CoreRegistry::getUint(dataBind->target(),
+                                                       dataBind->propertyKey());
+                }
                 // Match whatever target value type initialize() created: a
                 // number source (e.g. a color channel bound to a VM number)
                 // reads back as a DataValueNumber; integer/enum sources stay

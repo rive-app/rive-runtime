@@ -65,6 +65,15 @@ public:
     virtual void applyItemStyle(YGStyle& style,
                                 const LayoutSyncContext& context)
     {}
+    /// Explicit grid placement, applied after applyItemStyle.
+    ///
+    /// Its own phase because the item phase *resets* the grid cell
+    /// (LayoutSizingStyle::applyItemStyle) — sharing a phase would make the
+    /// winner depend on applier registration order, which is sibling order,
+    /// which the file decides.
+    virtual void applyPlacementStyle(YGStyle& style,
+                                     const LayoutSyncContext& context)
+    {}
 #endif
 };
 } // namespace rive

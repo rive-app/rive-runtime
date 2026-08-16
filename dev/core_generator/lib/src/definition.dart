@@ -1187,6 +1187,30 @@ class Definition {
     ctxCode.writeln('default:return false;');
     ctxCode.writeln('}}');
 
+    // CoreIntType shares CoreUintType's field id (on the wire it is a varuint),
+    // so propertyFieldId can't tell the two apart. Anything switching on the
+    // field id and then writing a value needs this to pick set/getInt. Keyed
+    // off the same group that generates them, so the three stay in step.
+    ctxCode.writeln('''
+      static bool isSignedInt(uint32_t propertyKey) {
+        switch(propertyKey) {''');
+    final intProperties = getSetFieldTypes[FieldType.find('int')];
+    if (intProperties != null && intProperties.isNotEmpty) {
+      for (final property in intProperties) {
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+        }
+        ctxCode.writeln('case ${property.definition._name}Base'
+            '::${property.name}PropertyKey:');
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(ctxCode);
+        }
+      }
+      ctxCode.writeln('return true;');
+    }
+    ctxCode.writeln('default:return false;');
+    ctxCode.writeln('}}');
+
     ctxCode.writeln('''
       static bool isCallback(uint32_t propertyKey) {
         switch(propertyKey) {''');
