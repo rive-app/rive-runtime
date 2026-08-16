@@ -3,9 +3,20 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/loop.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
+#include "rive/animation/keyframe.hpp"
+#include "rive/animation/keyframe_double.hpp"
+#include "rive/animation/keyframe_color.hpp"
+#include "rive/animation/keyframe_bool.hpp"
+#include "rive/animation/keyframe_string.hpp"
+#include "rive/artboard.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
+#include "rive/data_bind/bindable_property_color.hpp"
+#include "rive/data_bind/bindable_property_boolean.hpp"
+#include "rive/data_bind/bindable_property_string.hpp"
+#include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_interpolator.hpp"
 
@@ -59,16 +70,24 @@ LinearAnimationInstance::~LinearAnimationInstance()
             m_artboardInstance->removeDataBind(bind);
             delete bind;
         }
+        // Keyframe value bind clones target the holders below, so remove +
+        // delete them from the artboard BEFORE freeing the holders (mirrors the
+        // scripted-interpolator teardown above). ~Artboard deletes m_Objects —
+        // which own the LAIs (nested animations, joysticks) — before
+        // deleteDataBinds(), so the artboard's bind list is still valid here.
+        for (auto& pair : m_keyFrameValueBinds)
+        {
+            m_artboardInstance->removeDataBind(pair.second);
+            delete pair.second;
+        }
     }
     m_clonedArtboardDataBinds.clear();
+    m_keyFrameValueBinds.clear();
     // m_scriptedInterpolatorInstances destructs here via unique_ptr; safe now
     // that no DataBind still points at the clones' CustomPropertys.
 
-    // Keyframe value holders are owned here. The StateMachineInstance has
-    // already removed+deleted the data binds that target them (on
-    // state-instance removal, or via deleteDataBinds() before the layers in its
-    // destructor), so deleting the holders now is safe. The unique_ptr frees
-    // the map itself.
+    // Keyframe value holders are owned here; safe to delete now that the clones
+    // targeting them were removed above. The unique_ptr frees the map itself.
     if (m_keyFrameValueHolders != nullptr)
     {
         for (auto& pair : *m_keyFrameValueHolders)
@@ -78,26 +97,118 @@ LinearAnimationInstance::~LinearAnimationInstance()
     }
 }
 
-void LinearAnimationInstance::addKeyFrameValueHolder(const KeyFrame* keyframe,
-                                                     BindableProperty* holder)
+// The BindableProperty value property key matching a keyframe's value type, or
+// 0 for unsupported keyframe types (e.g. id/uint), which are left unbound.
+static uint32_t keyFrameHolderPropertyKey(uint16_t keyFrameType)
 {
+    switch (keyFrameType)
+    {
+        case KeyFrameDoubleBase::typeKey:
+            return BindablePropertyNumberBase::propertyValuePropertyKey;
+        case KeyFrameColorBase::typeKey:
+            return BindablePropertyColorBase::propertyValuePropertyKey;
+        case KeyFrameBoolBase::typeKey:
+            return BindablePropertyBooleanBase::propertyValuePropertyKey;
+        case KeyFrameStringBase::typeKey:
+            return BindablePropertyStringBase::propertyValuePropertyKey;
+        default:
+            return 0;
+    }
+}
+
+// Creates the BindableProperty holder matching a keyframe's value type.
+static BindableProperty* makeKeyFrameValueHolder(uint16_t keyFrameType)
+{
+    switch (keyFrameType)
+    {
+        case KeyFrameDoubleBase::typeKey:
+            return new BindablePropertyNumber();
+        case KeyFrameColorBase::typeKey:
+            return new BindablePropertyColor();
+        case KeyFrameBoolBase::typeKey:
+            return new BindablePropertyBoolean();
+        case KeyFrameStringBase::typeKey:
+            return new BindablePropertyString();
+        default:
+            return nullptr;
+    }
+}
+
+BindableProperty* LinearAnimationInstance::keyFrameValueHolder(
+    const KeyFrame* keyframe) const
+{
+    // Already resolved for this LAI (holder cached).
+    if (m_keyFrameValueHolders != nullptr)
+    {
+        auto it = m_keyFrameValueHolders->find(keyframe);
+        if (it != m_keyFrameValueHolders->end())
+        {
+            // Refresh the holder from its source now (if the source changed
+            // this frame) so the value is current at read time, regardless of
+            // where the batched artboard updateDataBinds() falls relative to
+            // the animation apply that's calling us. No-op when the bind isn't
+            // dirty.
+            auto bindIt = m_keyFrameValueBinds.find(keyframe);
+            if (bindIt != m_keyFrameValueBinds.end() &&
+                m_artboardInstance != nullptr)
+            {
+                m_artboardInstance->flushDataBind(bindIt->second);
+            }
+            return it->second;
+        }
+    }
+    // Lazily resolve from the source artboard's keyframe data binds. The gate
+    // keeps playback in files without any keyframe binds free of per-keyframe
+    // work (hasKeyFrameSourceBinds() is a cached O(1) check).
+    if (m_artboardInstance == nullptr)
+    {
+        return nullptr;
+    }
+    const Artboard* source = m_artboardInstance->artboardSource();
+    if (source == nullptr || !source->hasKeyFrameSourceBinds())
+    {
+        return nullptr;
+    }
+    DataBind* sourceBind = source->keyFrameSourceBind(keyframe);
+    if (sourceBind == nullptr)
+    {
+        return nullptr;
+    }
+    return buildKeyFrameValueHolder(keyframe, sourceBind);
+}
+
+BindableProperty* LinearAnimationInstance::buildKeyFrameValueHolder(
+    const KeyFrame* keyframe,
+    DataBind* sourceBind) const
+{
+    uint32_t propertyKey = keyFrameHolderPropertyKey(keyframe->coreType());
+    if (propertyKey == 0)
+    {
+        return nullptr;
+    }
+    BindableProperty* holder = makeKeyFrameValueHolder(keyframe->coreType());
     if (m_keyFrameValueHolders == nullptr)
     {
         m_keyFrameValueHolders = std::make_unique<
             std::unordered_map<const KeyFrame*, BindableProperty*>>();
     }
     (*m_keyFrameValueHolders)[keyframe] = holder;
-}
 
-BindableProperty* LinearAnimationInstance::keyFrameValueHolder(
-    const KeyFrame* keyframe) const
-{
-    if (m_keyFrameValueHolders == nullptr)
+    // Clone the source bind, retarget it at the per-instance holder, and park
+    // it on the artboard's data-bind container so it's advanced each frame.
+    // addDataBind primes the holder synchronously when the data context is set.
+    auto* clone = static_cast<DataBind*>(sourceBind->clone());
+    clone->file(sourceBind->file());
+    clone->target(holder);
+    clone->propertyKey(propertyKey);
+    clone->initialize();
+    if (sourceBind->converter() != nullptr)
     {
-        return nullptr;
+        clone->converter(sourceBind->converter()->clone()->as<DataConverter>());
     }
-    auto it = m_keyFrameValueHolders->find(keyframe);
-    return it != m_keyFrameValueHolders->end() ? it->second : nullptr;
+    m_artboardInstance->addDataBind(clone);
+    m_keyFrameValueBinds[keyframe] = clone;
+    return holder;
 }
 
 // Returns a per-(this LAI, keyframe) stateful clone of the given shared

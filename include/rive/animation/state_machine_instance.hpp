@@ -242,18 +242,6 @@ public:
         const StateTransition* transition,
         uint32_t propertyKey) const;
 
-    /// Builds keyframe-value data binds for every LinearAnimationInstance the
-    /// given state instance drives: clones each keyframe-targeting DataBind
-    /// from the source artboard, creates a per-LAI holder for the keyframe
-    /// value, reroutes the clone to the holder, and adds it to this state
-    /// machine's data bind container so it advances each frame. No-op for
-    /// states without bound keyframes. Called when a state instance is created.
-    void buildStateKeyFrameBinds(StateInstance* stateInstance);
-    /// Removes and deletes the keyframe-value data binds created for the given
-    /// state instance. Called before the state instance (and its LAIs/holders)
-    /// are destroyed.
-    void removeStateKeyFrameBinds(StateInstance* stateInstance);
-
     bool hasListeners() { return m_hitComponents.size() > 0; }
     bool hasFocusNodes();
     bool focusNext();
@@ -426,12 +414,6 @@ private:
     std::unordered_map<const Core*,
                        std::unordered_map<uint32_t, BindablePropertyNumber*>>
         m_transitionPropertyInstances;
-    /// Keyframe-value data binds cloned per state instance, keyed by the
-    /// StateInstance whose LinearAnimationInstance(s) own the target holders.
-    /// Owned by this state machine's data bind container; built when a state
-    /// instance is created and removed+deleted when it is destroyed.
-    std::unordered_map<StateInstance*, std::vector<DataBind*>>
-        m_stateKeyFrameDataBinds;
     uint8_t m_drawOrderChangeCounter = 0;
     void unbind();
     void removeEventListeners();

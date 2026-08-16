@@ -22,6 +22,7 @@
 #include "rive/draw_target_placement.hpp"
 #include "rive/drawable.hpp"
 #include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyframe.hpp"
 #include "rive/factory.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
@@ -1016,6 +1017,41 @@ void Artboard::cloneObjectDataBinds(const Core* object,
     }
 }
 
+void Artboard::buildKeyFrameSourceBindsIndex() const
+{
+    m_keyFrameSourceBindsBuilt = true;
+    for (auto dataBind : dataBinds())
+    {
+        auto target = dataBind->target();
+        if (target == nullptr || !target->is<KeyFrame>())
+        {
+            continue;
+        }
+        // A keyframe holds a single value, so keep the first bind per target
+        // (emplace does not overwrite an existing key).
+        m_keyFrameSourceBinds.emplace(target->as<KeyFrame>(), dataBind);
+    }
+}
+
+bool Artboard::hasKeyFrameSourceBinds() const
+{
+    if (!m_keyFrameSourceBindsBuilt)
+    {
+        buildKeyFrameSourceBindsIndex();
+    }
+    return !m_keyFrameSourceBinds.empty();
+}
+
+DataBind* Artboard::keyFrameSourceBind(const KeyFrame* keyframe) const
+{
+    if (!m_keyFrameSourceBindsBuilt)
+    {
+        buildKeyFrameSourceBindsIndex();
+    }
+    auto it = m_keyFrameSourceBinds.find(keyframe);
+    return it != m_keyFrameSourceBinds.end() ? it->second : nullptr;
+}
+
 void Artboard::host(ArtboardHost* artboardHost)
 {
     addedToHost();
@@ -1146,7 +1182,17 @@ void Artboard::update(ComponentDirt value)
 
 void Artboard::addDirtyDataBind(DataBind* dataBind)
 {
-    onComponentDirty(dataBind->target()->as<Component>());
+    // Most artboard data binds target Components and need the component graph
+    // marked dirty. Keyframe value binds instead target transient
+    // BindableProperty holders (see
+    // LinearAnimationInstance::keyFrameValueHolder) that aren't in the
+    // component graph — they're read directly during animation apply — so only
+    // propagate component dirt for Component targets.
+    auto target = dataBind->target();
+    if (target != nullptr && target->is<Component>())
+    {
+        onComponentDirty(target->as<Component>());
+    }
     DataBindContainer::addDirtyDataBind(dataBind);
 }
 

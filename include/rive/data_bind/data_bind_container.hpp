@@ -13,6 +13,11 @@ public:
     virtual void updateDataBinds(bool applyTargetToSource = true);
     void addDataBind(DataBind* dataBind);
     void removeDataBind(DataBind* dataBind);
+    // Applies a single (source→target) data bind immediately if it is dirty.
+    // Used to refresh per-instance keyframe value holders at read time so their
+    // value is current regardless of where the batched updateDataBinds() falls
+    // in the frame. A no-op when the bind is not dirty.
+    void flushDataBind(DataBind* dataBind) { updateDataBind(dataBind, false); }
     const std::vector<DataBind*> dataBinds() const { return m_dataBinds; }
     virtual void addDirtyDataBind(DataBind* dataBind);
     virtual void rebind() {};

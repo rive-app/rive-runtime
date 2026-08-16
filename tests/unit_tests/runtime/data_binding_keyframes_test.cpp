@@ -198,7 +198,7 @@ TEST_CASE("keyframe interpolation reads the data-bound start value",
     CHECK(inTween);
 }
 
-TEST_CASE("standalone animation instance ignores keyframe value binds",
+TEST_CASE("standalone animation instance resolves keyframe value binds",
           "[data binding]")
 {
     auto file = ReadRiveFile("assets/data_bind_keyframes_test.riv");
@@ -207,12 +207,12 @@ TEST_CASE("standalone animation instance ignores keyframe value binds",
     REQUIRE(artboard->animationCount() > 0);
 
     auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    setStartText(vmi, "SHOULD_NOT_BIND");
+    setStartText(vmi, "STANDALONE_BOUND");
     setStartX(vmi, 424242.0f);
-    // Bind the artboard's data context but drive playback via a *standalone*
-    // LinearAnimationInstance (not a state machine). Keyframe value binds are
-    // built only for state-machine-driven instances, so the authored keyframe
-    // values must apply here instead of the bound ones.
+    // Bind the artboard's data context and drive playback via a *standalone*
+    // LinearAnimationInstance (no state machine). Keyframe value resolution is
+    // LAI-self-managed, so any playing LinearAnimationInstance — state machine,
+    // joystick, nested, or standalone — resolves the bound values.
     artboard->bindViewModelInstance(vmi);
 
     auto animation = artboard->animationAt(0);
@@ -221,6 +221,40 @@ TEST_CASE("standalone animation instance ignores keyframe value binds",
 
     auto* run = firstTextRun(artboard.get());
     REQUIRE(run != nullptr);
-    CHECK(run->text() != "SHOULD_NOT_BIND");
-    CHECK_FALSE(anyNodeHasX(artboard.get(), 424242.0f));
+    CHECK(run->text() == "STANDALONE_BOUND");
+    CHECK(anyNodeHasX(artboard.get(), 424242.0f));
+}
+
+TEST_CASE("Data binding keyframes animated by joysticks", "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/joystick_databound_keyframe_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(stateMachine != nullptr);
+    auto renderer = silver.makeRenderer();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.2f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(
+            rive::Vec2D(artboard->width() * i / frames, 250.0f));
+        stateMachine->advanceAndApply(0.2f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("joystick_databound_keyframe_test"));
 }

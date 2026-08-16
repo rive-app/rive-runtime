@@ -32,6 +32,7 @@
 namespace rive
 {
 class KeyFrameInterpolator;
+class KeyFrame;
 class ArtboardComponentList;
 class ArtboardHost;
 class File;
@@ -124,6 +125,17 @@ private:
     void cloneObjectDataBinds(const Core* object,
                               Core* clone,
                               Artboard* artboard) const;
+    // Lazily-built index of this artboard's data binds that target keyframes,
+    // keyed by the (shared) keyframe. Keyframe binds live in dataBinds() but
+    // are never applied directly (keyframes aren't Components); instead a
+    // playing LinearAnimationInstance clones them onto per-instance holders and
+    // resolves them via keyFrameValueHolder. Built once from dataBinds(); the
+    // source artboard's binds don't change at runtime. `mutable` so the const
+    // accessors below can populate it on first use.
+    mutable std::unordered_map<const KeyFrame*, DataBind*>
+        m_keyFrameSourceBinds;
+    mutable bool m_keyFrameSourceBindsBuilt = false;
+    void buildKeyFrameSourceBindsIndex() const;
     void initScriptedObjects();
 
     // Variable that tracks whenever the draw order changes. It is used by the
@@ -153,6 +165,14 @@ public:
     static void incFrameId() { sm_frameId++; }
 #endif
     void updateDataBinds(bool applyTargetToSource = true) override;
+    // The data bind (if any) targeting the given keyframe's value, resolved
+    // from this artboard's serialized keyframe binds. Used by
+    // LinearAnimationInstance to lazily build per-instance value holders. Call
+    // on the source artboard (see Artboard::artboardSource()).
+    DataBind* keyFrameSourceBind(const KeyFrame* keyframe) const;
+    // True if any of this artboard's data binds target a keyframe. Cheap gate
+    // so playback in files without keyframe binds does no per-keyframe work.
+    bool hasKeyFrameSourceBinds() const;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
     void addedToHost() { m_justAddedToHost = true; }

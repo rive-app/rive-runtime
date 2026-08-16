@@ -2,8 +2,13 @@
 #include "rive/artboard.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/animation/keyed_object.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
 
 using namespace rive;
+
+Joystick::Joystick() = default;
+Joystick::~Joystick() = default;
 
 StatusCode Joystick::onAddedDirty(CoreContext* context)
 {
@@ -29,6 +34,28 @@ StatusCode Joystick::onAddedClean(CoreContext* context)
 {
     m_xAnimation = artboard()->animation(xId());
     m_yAnimation = artboard()->animation(yId());
+
+    // On an artboard instance, create a playback context per animation so that
+    // data-bound keyframe values resolve when the joystick applies them (the
+    // shared LinearAnimation is applied directly, with no scene driving it).
+    // The source artboard is never played, so skip it (and it isn't an
+    // ArtboardInstance to construct the context against).
+    if (artboard()->isInstance())
+    {
+        auto* instance = static_cast<ArtboardInstance*>(artboard());
+        if (m_xAnimation != nullptr)
+        {
+            m_xAnimationInstance =
+                std::make_unique<LinearAnimationInstance>(m_xAnimation,
+                                                          instance);
+        }
+        if (m_yAnimation != nullptr)
+        {
+            m_yAnimationInstance =
+                std::make_unique<LinearAnimationInstance>(m_yAnimation,
+                                                          instance);
+        }
+    }
 
     return StatusCode::Ok;
 }
@@ -86,7 +113,9 @@ void Joystick::apply(Artboard* artboard) const
         m_xAnimation->apply(
             artboard,
             ((isJoystickFlagged(JoystickFlags::invertX) ? -x() : x()) + 1.0f) /
-                2.0f * m_xAnimation->durationSeconds());
+                2.0f * m_xAnimation->durationSeconds(),
+            1.0f,
+            m_xAnimationInstance.get());
     }
     if (m_yAnimation != nullptr)
     {
@@ -94,7 +123,9 @@ void Joystick::apply(Artboard* artboard) const
         m_yAnimation->apply(
             artboard,
             ((isJoystickFlagged(JoystickFlags::invertY) ? -y() : y()) + 1.0f) /
-                2.0f * m_yAnimation->durationSeconds());
+                2.0f * m_yAnimation->durationSeconds(),
+            1.0f,
+            m_yAnimationInstance.get());
     }
     for (const auto& nestedRemapAnimation : m_dependents)
     {

@@ -38,14 +38,17 @@ public:
     // Returns a pointer to the instance's animation
     const LinearAnimation* animation() const { return m_animation; }
 
-    // Per-instance holder that receives the data-bound value for a keyframe in
-    // this animation instance. Populated by StateMachineInstance when the
-    // owning state instance is created (only state-machine-driven LAIs are
-    // bound); the cloned data bind targets the holder, and keyframes read it
-    // via effectiveValue(context). The holder is owned by this LAI and freed in
-    // the destructor.
-    void addKeyFrameValueHolder(const KeyFrame* keyframe,
-                                BindableProperty* holder);
+    // Returns the per-instance holder receiving the data-bound value for the
+    // given keyframe in this animation instance, lazily building it on first
+    // request. On first use for a keyframe that has a source data bind (see
+    // Artboard::keyFrameSourceBind), it clones that bind onto a freshly created
+    // BindableProperty holder, parks the clone on the artboard's data-bind
+    // container (advanced with the rest each frame), and caches the holder.
+    // Returns nullptr when the keyframe is not data bound; keyframes then fall
+    // back to their authored value in effectiveValue(context). This makes data
+    // binding work for ANY playback path (state machine, joystick, nested,
+    // standalone), mirroring the scripted-interpolator mechanism below. Holders
+    // and clones are owned by this LAI and torn down in the destructor.
     BindableProperty* keyFrameValueHolder(const KeyFrame* keyframe) const;
 
     // Returns the current point in time at which this instance has advance
@@ -171,15 +174,29 @@ private:
     // populate from the const apply() path. Not copied by the copy ctor.
     mutable std::vector<DataBind*> m_clonedArtboardDataBinds;
 
-    // Per-keyframe holders receiving data-bound values for this instance. Keyed
-    // by the shared KeyFrame*. Owned here and deleted in the destructor (after
-    // the StateMachineInstance has removed the data binds that target them).
-    // Lazy unique_ptr => the common case (no bound keyframes) is an 8 B null
-    // pointer + a single nullptr check on the apply hot path, instead of an
-    // inline empty map. Mirrors m_scriptedInterpolatorInstances above.
-    // Not copied by the copy ctor — a copied LAI starts unbound.
-    std::unique_ptr<std::unordered_map<const KeyFrame*, BindableProperty*>>
+    // Per-keyframe holders receiving data-bound values for this instance, keyed
+    // by the shared KeyFrame*. Built lazily by keyFrameValueHolder() on first
+    // apply of a bound keyframe; owned here and deleted in the destructor
+    // (after the clones targeting them are removed, below). Lazy unique_ptr =>
+    // the common case (no bound keyframes) is an 8 B null pointer, no inline
+    // map. `mutable` so keyFrameValueHolder() can populate it from const
+    // apply(). Not copied by the copy ctor — a copied LAI starts unbound.
+    mutable std::unique_ptr<
+        std::unordered_map<const KeyFrame*, BindableProperty*>>
         m_keyFrameValueHolders;
+
+    // Clones of the source keyframe data binds, retargeted to the holders above
+    // and appended to m_artboardInstance's data-bind container, keyed by the
+    // keyframe so keyFrameValueHolder can refresh a holder at read time.
+    // Removed
+    // + deleted in ~LinearAnimationInstance BEFORE the holders they target,
+    // same teardown discipline as m_clonedArtboardDataBinds. `mutable` for the
+    // const apply() path; not copied by the copy ctor.
+    mutable std::unordered_map<const KeyFrame*, DataBind*> m_keyFrameValueBinds;
+
+    // Lazily clones the source bind onto a holder and parks it on the artboard.
+    BindableProperty* buildKeyFrameValueHolder(const KeyFrame* keyframe,
+                                               DataBind* sourceBind) const;
 };
 } // namespace rive
 #endif
