@@ -54,7 +54,7 @@ public:
         {
             return;
         }
-        m_name.ensure()->name = value;
+        m_name.ensureAllocated()->name = value;
         nameChanged();
         notifyPropertyChanged(namePropertyKey);
     }
@@ -82,7 +82,8 @@ public:
         switch (propertyKey)
         {
             case namePropertyKey:
-                m_name.ensure()->name = CoreStringType::deserialize(reader);
+                m_name.ensureAllocated()->name =
+                    CoreStringType::deserialize(reader);
                 return true;
             case parentIdPropertyKey:
                 m_ParentId = CoreUintType::deserialize(reader);

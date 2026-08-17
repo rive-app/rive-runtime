@@ -77,7 +77,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->minWidth = value;
+        m_minMaxSizing.ensureAllocated()->minWidth = value;
         minWidthChanged();
         notifyPropertyChanged(minWidthPropertyKey);
     }
@@ -93,7 +93,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->maxWidth = value;
+        m_minMaxSizing.ensureAllocated()->maxWidth = value;
         maxWidthChanged();
         notifyPropertyChanged(maxWidthPropertyKey);
     }
@@ -109,7 +109,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->minHeight = value;
+        m_minMaxSizing.ensureAllocated()->minHeight = value;
         minHeightChanged();
         notifyPropertyChanged(minHeightPropertyKey);
     }
@@ -125,7 +125,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->maxHeight = value;
+        m_minMaxSizing.ensureAllocated()->maxHeight = value;
         maxHeightChanged();
         notifyPropertyChanged(maxHeightPropertyKey);
     }
@@ -141,7 +141,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->minWidthUnitsValue = value;
+        m_minMaxSizing.ensureAllocated()->minWidthUnitsValue = value;
         minWidthUnitsValueChanged();
         notifyPropertyChanged(minWidthUnitsValuePropertyKey);
     }
@@ -157,7 +157,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->maxWidthUnitsValue = value;
+        m_minMaxSizing.ensureAllocated()->maxWidthUnitsValue = value;
         maxWidthUnitsValueChanged();
         notifyPropertyChanged(maxWidthUnitsValuePropertyKey);
     }
@@ -173,7 +173,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->minHeightUnitsValue = value;
+        m_minMaxSizing.ensureAllocated()->minHeightUnitsValue = value;
         minHeightUnitsValueChanged();
         notifyPropertyChanged(minHeightUnitsValuePropertyKey);
     }
@@ -189,7 +189,7 @@ public:
         {
             return;
         }
-        m_minMaxSizing.ensure()->maxHeightUnitsValue = value;
+        m_minMaxSizing.ensureAllocated()->maxHeightUnitsValue = value;
         maxHeightUnitsValueChanged();
         notifyPropertyChanged(maxHeightUnitsValuePropertyKey);
     }
@@ -289,35 +289,35 @@ public:
         switch (propertyKey)
         {
             case minWidthPropertyKey:
-                m_minMaxSizing.ensure()->minWidth =
+                m_minMaxSizing.ensureAllocated()->minWidth =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case maxWidthPropertyKey:
-                m_minMaxSizing.ensure()->maxWidth =
+                m_minMaxSizing.ensureAllocated()->maxWidth =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case minHeightPropertyKey:
-                m_minMaxSizing.ensure()->minHeight =
+                m_minMaxSizing.ensureAllocated()->minHeight =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case maxHeightPropertyKey:
-                m_minMaxSizing.ensure()->maxHeight =
+                m_minMaxSizing.ensureAllocated()->maxHeight =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case minWidthUnitsValuePropertyKey:
-                m_minMaxSizing.ensure()->minWidthUnitsValue =
+                m_minMaxSizing.ensureAllocated()->minWidthUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case maxWidthUnitsValuePropertyKey:
-                m_minMaxSizing.ensure()->maxWidthUnitsValue =
+                m_minMaxSizing.ensureAllocated()->maxWidthUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case minHeightUnitsValuePropertyKey:
-                m_minMaxSizing.ensure()->minHeightUnitsValue =
+                m_minMaxSizing.ensureAllocated()->minHeightUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case maxHeightUnitsValuePropertyKey:
-                m_minMaxSizing.ensure()->maxHeightUnitsValue =
+                m_minMaxSizing.ensureAllocated()->maxHeightUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case layoutWidthScaleTypePropertyKey:

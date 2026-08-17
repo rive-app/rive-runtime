@@ -68,7 +68,7 @@ public:
 
     // Allocate on first use, then return the backing object. Generated setters
     // and deserialize call this before writing an authored value.
-    T* ensure()
+    T* ensureAllocated()
     {
         if (m_v == nullptr)
         {

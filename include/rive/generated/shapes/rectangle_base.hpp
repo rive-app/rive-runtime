@@ -65,7 +65,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->linkCornerRadius = value;
+        m_cornerRadius.ensureAllocated()->linkCornerRadius = value;
         linkCornerRadiusChanged();
         notifyPropertyChanged(linkCornerRadiusPropertyKey);
     }
@@ -81,7 +81,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusTL = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusTL = value;
         cornerRadiusTLChanged();
         notifyPropertyChanged(cornerRadiusTLPropertyKey);
     }
@@ -97,7 +97,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusTR = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusTR = value;
         cornerRadiusTRChanged();
         notifyPropertyChanged(cornerRadiusTRPropertyKey);
     }
@@ -113,7 +113,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusBL = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusBL = value;
         cornerRadiusBLChanged();
         notifyPropertyChanged(cornerRadiusBLPropertyKey);
     }
@@ -129,7 +129,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusBR = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusBR = value;
         cornerRadiusBRChanged();
         notifyPropertyChanged(cornerRadiusBRPropertyKey);
     }
@@ -146,23 +146,23 @@ public:
         switch (propertyKey)
         {
             case linkCornerRadiusPropertyKey:
-                m_cornerRadius.ensure()->linkCornerRadius =
+                m_cornerRadius.ensureAllocated()->linkCornerRadius =
                     CoreBoolType::deserialize(reader);
                 return true;
             case cornerRadiusTLPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusTL =
+                m_cornerRadius.ensureAllocated()->cornerRadiusTL =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusTRPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusTR =
+                m_cornerRadius.ensureAllocated()->cornerRadiusTR =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBLPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusBL =
+                m_cornerRadius.ensureAllocated()->cornerRadiusBL =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBRPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusBR =
+                m_cornerRadius.ensureAllocated()->cornerRadiusBR =
                     CoreDoubleType::deserialize(reader);
                 return true;
         }

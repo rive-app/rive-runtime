@@ -197,7 +197,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderLeft = value;
+        m_border.ensureAllocated()->borderLeft = value;
         borderLeftChanged();
         notifyPropertyChanged(borderLeftPropertyKey);
     }
@@ -213,7 +213,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderRight = value;
+        m_border.ensureAllocated()->borderRight = value;
         borderRightChanged();
         notifyPropertyChanged(borderRightPropertyKey);
     }
@@ -229,7 +229,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderTop = value;
+        m_border.ensureAllocated()->borderTop = value;
         borderTopChanged();
         notifyPropertyChanged(borderTopPropertyKey);
     }
@@ -245,7 +245,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderBottom = value;
+        m_border.ensureAllocated()->borderBottom = value;
         borderBottomChanged();
         notifyPropertyChanged(borderBottomPropertyKey);
     }
@@ -357,7 +357,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionLeft = value;
+        m_absolutePosition.ensureAllocated()->positionLeft = value;
         positionLeftChanged();
         notifyPropertyChanged(positionLeftPropertyKey);
     }
@@ -373,7 +373,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionRight = value;
+        m_absolutePosition.ensureAllocated()->positionRight = value;
         positionRightChanged();
         notifyPropertyChanged(positionRightPropertyKey);
     }
@@ -389,7 +389,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionTop = value;
+        m_absolutePosition.ensureAllocated()->positionTop = value;
         positionTopChanged();
         notifyPropertyChanged(positionTopPropertyKey);
     }
@@ -405,7 +405,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionBottom = value;
+        m_absolutePosition.ensureAllocated()->positionBottom = value;
         positionBottomChanged();
         notifyPropertyChanged(positionBottomPropertyKey);
     }
@@ -421,7 +421,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionLeftUnitsValue = value;
+        m_absolutePosition.ensureAllocated()->positionLeftUnitsValue = value;
         positionLeftUnitsValueChanged();
         notifyPropertyChanged(positionLeftUnitsValuePropertyKey);
     }
@@ -437,7 +437,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionRightUnitsValue = value;
+        m_absolutePosition.ensureAllocated()->positionRightUnitsValue = value;
         positionRightUnitsValueChanged();
         notifyPropertyChanged(positionRightUnitsValuePropertyKey);
     }
@@ -453,7 +453,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionTopUnitsValue = value;
+        m_absolutePosition.ensureAllocated()->positionTopUnitsValue = value;
         positionTopUnitsValueChanged();
         notifyPropertyChanged(positionTopUnitsValuePropertyKey);
     }
@@ -469,7 +469,7 @@ public:
         {
             return;
         }
-        m_absolutePosition.ensure()->positionBottomUnitsValue = value;
+        m_absolutePosition.ensureAllocated()->positionBottomUnitsValue = value;
         positionBottomUnitsValueChanged();
         notifyPropertyChanged(positionBottomUnitsValuePropertyKey);
     }
@@ -656,7 +656,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderLeftUnitsValue = value;
+        m_border.ensureAllocated()->borderLeftUnitsValue = value;
         borderLeftUnitsValueChanged();
         notifyPropertyChanged(borderLeftUnitsValuePropertyKey);
     }
@@ -672,7 +672,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderRightUnitsValue = value;
+        m_border.ensureAllocated()->borderRightUnitsValue = value;
         borderRightUnitsValueChanged();
         notifyPropertyChanged(borderRightUnitsValuePropertyKey);
     }
@@ -688,7 +688,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderTopUnitsValue = value;
+        m_border.ensureAllocated()->borderTopUnitsValue = value;
         borderTopUnitsValueChanged();
         notifyPropertyChanged(borderTopUnitsValuePropertyKey);
     }
@@ -704,7 +704,7 @@ public:
         {
             return;
         }
-        m_border.ensure()->borderBottomUnitsValue = value;
+        m_border.ensureAllocated()->borderBottomUnitsValue = value;
         borderBottomUnitsValueChanged();
         notifyPropertyChanged(borderBottomUnitsValuePropertyKey);
     }
@@ -891,7 +891,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->linkCornerRadius = value;
+        m_cornerRadius.ensureAllocated()->linkCornerRadius = value;
         linkCornerRadiusChanged();
         notifyPropertyChanged(linkCornerRadiusPropertyKey);
     }
@@ -907,7 +907,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusTL = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusTL = value;
         cornerRadiusTLChanged();
         notifyPropertyChanged(cornerRadiusTLPropertyKey);
     }
@@ -923,7 +923,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusTR = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusTR = value;
         cornerRadiusTRChanged();
         notifyPropertyChanged(cornerRadiusTRPropertyKey);
     }
@@ -939,7 +939,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusBL = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusBL = value;
         cornerRadiusBLChanged();
         notifyPropertyChanged(cornerRadiusBLPropertyKey);
     }
@@ -955,7 +955,7 @@ public:
         {
             return;
         }
-        m_cornerRadius.ensure()->cornerRadiusBR = value;
+        m_cornerRadius.ensureAllocated()->cornerRadiusBR = value;
         cornerRadiusBRChanged();
         notifyPropertyChanged(cornerRadiusBRPropertyKey);
     }
@@ -1016,19 +1016,19 @@ public:
                 m_GapVertical = CoreDoubleType::deserialize(reader);
                 return true;
             case borderLeftPropertyKey:
-                m_border.ensure()->borderLeft =
+                m_border.ensureAllocated()->borderLeft =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case borderRightPropertyKey:
-                m_border.ensure()->borderRight =
+                m_border.ensureAllocated()->borderRight =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case borderTopPropertyKey:
-                m_border.ensure()->borderTop =
+                m_border.ensureAllocated()->borderTop =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case borderBottomPropertyKey:
-                m_border.ensure()->borderBottom =
+                m_border.ensureAllocated()->borderBottom =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case marginLeftPropertyKey:
@@ -1056,35 +1056,35 @@ public:
                 m_PaddingBottom = CoreDoubleType::deserialize(reader);
                 return true;
             case positionLeftPropertyKey:
-                m_absolutePosition.ensure()->positionLeft =
+                m_absolutePosition.ensureAllocated()->positionLeft =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case positionRightPropertyKey:
-                m_absolutePosition.ensure()->positionRight =
+                m_absolutePosition.ensureAllocated()->positionRight =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case positionTopPropertyKey:
-                m_absolutePosition.ensure()->positionTop =
+                m_absolutePosition.ensureAllocated()->positionTop =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case positionBottomPropertyKey:
-                m_absolutePosition.ensure()->positionBottom =
+                m_absolutePosition.ensureAllocated()->positionBottom =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case positionLeftUnitsValuePropertyKey:
-                m_absolutePosition.ensure()->positionLeftUnitsValue =
+                m_absolutePosition.ensureAllocated()->positionLeftUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case positionRightUnitsValuePropertyKey:
-                m_absolutePosition.ensure()->positionRightUnitsValue =
+                m_absolutePosition.ensureAllocated()->positionRightUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case positionTopUnitsValuePropertyKey:
-                m_absolutePosition.ensure()->positionTopUnitsValue =
+                m_absolutePosition.ensureAllocated()->positionTopUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case positionBottomUnitsValuePropertyKey:
-                m_absolutePosition.ensure()->positionBottomUnitsValue =
+                m_absolutePosition.ensureAllocated()->positionBottomUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case flexBasisPropertyKey:
@@ -1130,19 +1130,19 @@ public:
                 m_IntrinsicallySizedValue = CoreBoolType::deserialize(reader);
                 return true;
             case borderLeftUnitsValuePropertyKey:
-                m_border.ensure()->borderLeftUnitsValue =
+                m_border.ensureAllocated()->borderLeftUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case borderRightUnitsValuePropertyKey:
-                m_border.ensure()->borderRightUnitsValue =
+                m_border.ensureAllocated()->borderRightUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case borderTopUnitsValuePropertyKey:
-                m_border.ensure()->borderTopUnitsValue =
+                m_border.ensureAllocated()->borderTopUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case borderBottomUnitsValuePropertyKey:
-                m_border.ensure()->borderBottomUnitsValue =
+                m_border.ensureAllocated()->borderBottomUnitsValue =
                     CoreUintType::deserialize(reader);
                 return true;
             case marginLeftUnitsValuePropertyKey:
@@ -1182,23 +1182,23 @@ public:
                 m_LayoutTypeValue = CoreUintType::deserialize(reader);
                 return true;
             case linkCornerRadiusPropertyKey:
-                m_cornerRadius.ensure()->linkCornerRadius =
+                m_cornerRadius.ensureAllocated()->linkCornerRadius =
                     CoreBoolType::deserialize(reader);
                 return true;
             case cornerRadiusTLPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusTL =
+                m_cornerRadius.ensureAllocated()->cornerRadiusTL =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusTRPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusTR =
+                m_cornerRadius.ensureAllocated()->cornerRadiusTR =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBLPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusBL =
+                m_cornerRadius.ensureAllocated()->cornerRadiusBL =
                     CoreDoubleType::deserialize(reader);
                 return true;
             case cornerRadiusBRPropertyKey:
-                m_cornerRadius.ensure()->cornerRadiusBR =
+                m_cornerRadius.ensureAllocated()->cornerRadiusBR =
                     CoreDoubleType::deserialize(reader);
                 return true;
         }

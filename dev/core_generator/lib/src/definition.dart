@@ -697,7 +697,7 @@ class Definition {
           }
           code.writeln('void ${property.name}(${property.type.cppName} value) {'
               'if(${property.name}() == value){return;}'
-              '$memberName.ensure()->${property.name} = value;'
+              '$memberName.ensureAllocated()->${property.name} = value;'
               '${property.name}Changed();'
               'notifyPropertyChanged(${property.name}PropertyKey);'
               '}');
@@ -782,7 +782,8 @@ class Definition {
           }
           code.writeln('case ${property.name}PropertyKey:');
           if (property.isSidecar) {
-            code.writeln('m_${property.sidecarName}.ensure()->${property.name} '
+            code.writeln('m_${property.sidecarName}.ensureAllocated()'
+                '->${property.name} '
                 '= ${property.type.runtimeCoreType}::deserialize(reader);');
           } else if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'
