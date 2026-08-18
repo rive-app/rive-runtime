@@ -312,18 +312,6 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
     m_file = rive::File::import(rivBytes, m_factory);
     assert(m_file);
 
-#ifdef WITH_RIVE_SCRIPTING
-    // Wire contexts before artboard instantiation; verify hooks may
-    // call context:gpuCanvas() during construction.
-    if (auto* vm = m_file->scriptingVM())
-    {
-        if (auto* sctx = vm->context())
-        {
-            sctx->setRenderContext(TestingWindow::Get()->renderContext());
-        }
-    }
-#endif
-
     m_artboard = m_file->artboardDefault();
     assert(m_artboard);
     m_scene = m_artboard->defaultStateMachine();

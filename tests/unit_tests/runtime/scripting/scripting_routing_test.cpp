@@ -1,5 +1,8 @@
 #include "catch.hpp"
 #include "scripting_test_utilities.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/command_queue.hpp"
+#include "rive/command_server.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/renderer/cmd/deferred_canvas_host.hpp"
 #include "rive_file_reader.hpp"
@@ -205,3 +208,34 @@ end
     CHECK(lua_pcall(L, 2, 1, 0) != LUA_OK);
 }
 #endif
+
+// The command server builds the VM itself, so a host cannot route the file
+// after import the way a direct File::import caller can.
+TEST_CASE("a command server load routes the device off the import factory",
+          "[scripting]")
+{
+    BoundSessionFactory factory;
+    auto commandQueue = make_rcp<CommandQueue>();
+    CommandServer server(commandQueue, &factory);
+
+    FileHandle fileHandle =
+        commandQueue->loadFile(ReadFile("assets/script_advance_test.riv"));
+
+    ScriptingContext* context = nullptr;
+    commandQueue->runOnce([&](CommandServer* s) {
+        if (auto* file = s->getFile(fileHandle))
+        {
+            context = file->scriptingVM()->context();
+        }
+    });
+    server.processCommands();
+
+    REQUIRE(context != nullptr);
+    CHECK(context->factory() == &factory);
+    CHECK(context->deferredCanvasHost() == &factory.host);
+    CHECK(context->oreContext() == static_cast<void*>(factory.ore()));
+    // The device, never the session: scripts cast this to gpu::RenderContext*.
+    CHECK(context->renderContext() == &factory.device);
+
+    commandQueue->disconnect();
+}

@@ -124,15 +124,6 @@ public:
         {
             throw "Bad riv file";
         }
-#ifdef WITH_RIVE_SCRIPTING
-        // Without the RenderContext handed over like a real host does,
-        // gpuCanvas bails and no GPU work runs.
-        if (auto* vm = m_file->scriptingVM())
-        {
-            vm->context()->setRenderContext(
-                TestingWindow::Get()->renderContext());
-        }
-#endif
         if (artboardName != nullptr && artboardName[0] != '\0')
         {
             m_artboard = m_file->artboardNamed(artboardName);
