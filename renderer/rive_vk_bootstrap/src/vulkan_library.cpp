@@ -48,17 +48,31 @@ VulkanLibrary::VulkanLibrary(bool* successOut)
 #endif
     };
 
-    for (auto* filenameCandidate : libFilenameCandidates)
+    // Allow embedders (e.g. JVM hosts that extract a bundled MoltenVK to a
+    // temp directory) to point directly at a Vulkan library.
+    if (const char* explicitPath = getenv("RIVE_VULKAN_LIBRARY_PATH"))
     {
 #ifdef _WIN32
-        m_library = LoadLibraryA(filenameCandidate);
+        m_library = LoadLibraryA(explicitPath);
 #else
-        m_library = dlopen(filenameCandidate, RTLD_NOW | RTLD_LOCAL);
+        m_library = dlopen(explicitPath, RTLD_NOW | RTLD_LOCAL);
+#endif
+    }
+
+    if (m_library == nullptr)
+    {
+        for (auto* filenameCandidate : libFilenameCandidates)
+        {
+#ifdef _WIN32
+            m_library = LoadLibraryA(filenameCandidate);
+#else
+            m_library = dlopen(filenameCandidate, RTLD_NOW | RTLD_LOCAL);
 #endif
 
-        if (m_library != nullptr)
-        {
-            break;
+            if (m_library != nullptr)
+            {
+                break;
+            }
         }
     }
 
