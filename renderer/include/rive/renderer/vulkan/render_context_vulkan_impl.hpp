@@ -120,8 +120,10 @@ public:
 private:
     RenderContextVulkanImpl(rcp<VulkanContext>, const ContextOptions&);
 
-    // Called outside the constructor so we can use virtual methods.
-    void initGPUObjects(ShaderCompilationMode);
+    // Returns false if the driver fails to create our objects.
+    // A driver that can't allocate our startup resources should fall back on
+    // another backend rather than abort the process.
+    bool initGPUObjects(ShaderCompilationMode);
 
     bool wantsManualRenderPassResolve(
         gpu::InterlockMode,

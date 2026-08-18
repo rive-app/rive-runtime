@@ -105,7 +105,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .pBindings = plsLayoutBindings.data(),
         };
 
-        VK_CHECK(
+        VK_ABORT_ON_FAIL(
             m_vk->CreateDescriptorSetLayout(m_vk->device,
                                             &plsLayoutInfo,
                                             nullptr,
@@ -137,10 +137,10 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             &vkutil::ColorWriteEnablePushConstant;
     }
 
-    VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
-                                        &pipelineLayoutCreateInfo,
-                                        nullptr,
-                                        &m_pipelineLayout));
+    VK_ABORT_ON_FAIL(m_vk->CreatePipelineLayout(m_vk->device,
+                                                &pipelineLayoutCreateInfo,
+                                                nullptr,
+                                                &m_pipelineLayout));
 }
 
 DrawPipelineLayoutVulkan::~DrawPipelineLayoutVulkan()

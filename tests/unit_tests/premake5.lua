@@ -72,6 +72,15 @@ do
         luau .. '/Common/include',
     })
 
+    -- The renderer premake only puts these on rive_pls_renderer's search path,
+    -- but the vulkan tests include vkutil.hpp directly.
+    if _OPTIONS['with_vulkan'] then
+        externalincludedirs({
+            vulkan_headers .. '/include',
+            vulkan_memory_allocator .. '/include',
+        })
+    end
+
     links({
         'rive',
         'rive_harfbuzz',

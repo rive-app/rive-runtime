@@ -15,9 +15,12 @@ class PipelineManagerVulkan : public AsyncPipelineManager<DrawPipelineVulkan>
     using Super = AsyncPipelineManager<DrawPipelineVulkan>;
 
 public:
-    PipelineManagerVulkan(rcp<VulkanContext>,
-                          ShaderCompilationMode,
-                          VkImageView nullTextureView);
+    // Returns null if the driver fails to create our objects.
+    static std::unique_ptr<PipelineManagerVulkan> make(
+        rcp<VulkanContext>,
+        ShaderCompilationMode,
+        VkImageView nullTextureView);
+
     ~PipelineManagerVulkan();
 
     RenderPassVulkan& getRenderPassSynchronous(InterlockMode,
@@ -95,6 +98,10 @@ public:
                                          const PlatformFeatures&);
 
 private:
+    PipelineManagerVulkan(rcp<VulkanContext>, ShaderCompilationMode);
+
+    bool init(VkImageView nullTextureView);
+
     virtual std::unique_ptr<DrawShaderVulkan> createVertexShader(
         DrawType drawType,
         ShaderFeatures shaderFeatures,
@@ -127,18 +134,18 @@ private:
     VkFormat m_featherAtlasFormat;
 
     // Samplers.
-    VkSampler m_linearSampler;
-    VkSampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
+    VkSampler m_linearSampler = VK_NULL_HANDLE;
+    VkSampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS] = {};
 
     // With the exception of PLS texture bindings, which differ by interlock
     // mode, all other shaders use the same shared descriptor set layouts.
-    VkDescriptorSetLayout m_perFlushDescriptorSetLayout;
-    VkDescriptorSetLayout m_perDrawDescriptorSetLayout;
-    VkDescriptorSetLayout m_emptyDescriptorSetLayout; // For when a set isn't
-                                                      // used by a shader.
-    VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
-                                             // change between frames.
-    VkDescriptorSet m_nullImageDescriptorSet;
+    VkDescriptorSetLayout m_perFlushDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_perDrawDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_emptyDescriptorSetLayout =
+        VK_NULL_HANDLE; // For when a set isn't used by a shader.
+    VkDescriptorPool m_staticDescriptorPool =
+        VK_NULL_HANDLE; // For descriptorSets that never change between frames.
+    VkDescriptorSet m_nullImageDescriptorSet = VK_NULL_HANDLE;
 };
 
 } // namespace rive::gpu

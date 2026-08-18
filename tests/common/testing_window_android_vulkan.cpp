@@ -85,10 +85,10 @@ public:
             m_instance->loadInstanceFunc<PFN_vkCreateAndroidSurfaceKHR>(
                 "vkCreateAndroidSurfaceKHR");
         assert(pfnvkCreateAndroidSurfaceKHR != nullptr);
-        VK_CHECK(pfnvkCreateAndroidSurfaceKHR(m_instance->vkInstance(),
-                                              &androidSurfaceCreateInfo,
-                                              nullptr,
-                                              &m_windowSurface));
+        VK_ABORT_ON_FAIL(pfnvkCreateAndroidSurfaceKHR(m_instance->vkInstance(),
+                                                      &androidSurfaceCreateInfo,
+                                                      nullptr,
+                                                      &m_windowSurface));
     }
 
     ~TestingWindowAndroidVulkan()
@@ -171,7 +171,7 @@ public:
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
         if (!m_swapchain->isFrameStarted())
         {
-            VK_CHECK(m_swapchain->beginFrame());
+            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_swapchain->currentVkImageView(),
@@ -190,7 +190,7 @@ public:
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
         oreContext->endFrame();
         auto lastAccess = m_renderTarget->targetLastAccess();
-        VK_CHECK(m_swapchain->endFrame(lastAccess));
+        VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
     }
 
     void resize(int width, int height) override
@@ -278,7 +278,7 @@ public:
     {
         if (!m_swapchain->isFrameStarted())
         {
-            VK_CHECK(m_swapchain->beginFrame());
+            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
 
             if (m_overflowTexture != nullptr)
             {
@@ -378,10 +378,11 @@ public:
             }
         }
 
-        VK_CHECK(m_swapchain->endFrame(swapchainLastAccess));
+        VK_ABORT_ON_FAIL(m_swapchain->endFrame(swapchainLastAccess));
         if (pixelData != nullptr)
         {
-            VK_CHECK(m_swapchain->getPixelsFromLastImageCopy(pixelData));
+            VK_ABORT_ON_FAIL(
+                m_swapchain->getPixelsFromLastImageCopy(pixelData));
         }
     }
 
@@ -430,8 +431,8 @@ private:
             });
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
-        VK_CHECK(m_device->getSurfaceCapabilities(m_windowSurface,
-                                                  &windowCapabilities));
+        VK_ABORT_ON_FAIL(m_device->getSurfaceCapabilities(m_windowSurface,
+                                                          &windowCapabilities));
 
         auto swapOpts = VulkanSwapchain::Options{
             .formatPreferences =

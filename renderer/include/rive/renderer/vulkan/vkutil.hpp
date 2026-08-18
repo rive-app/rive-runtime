@@ -36,21 +36,89 @@ constexpr static uint32_t Samsung = 0x144d;
 
 const char* string_from_vk_result(VkResult);
 
-inline static void vk_check(VkResult res, const char* file, int line)
+// Prints a diagnostic if 'res' is a failure; returns whether it succeeded.
+inline static bool vkReportError(VkResult res, const char* file, int line)
 {
     if (res != VK_SUCCESS)
     {
         fprintf(stderr,
-                "Vulkan error %s (%i) at line: %i in file: %s\n",
+                "%s:%i: vulkan error: %s (%i)\n",
+                file,
+                line,
+                string_from_vk_result(res),
+                res);
+        return false;
+    }
+    return true;
+}
+
+// Same, but also names the resource.
+inline static bool vkReportAllocationError(VkResult res,
+                                           const char* what,
+                                           const char* file,
+                                           int line)
+{
+    if (res != VK_SUCCESS)
+    {
+        fprintf(stderr,
+                "%s:%i: vulkan error: %s (%i) allocating %s\n",
+                file,
+                line,
                 string_from_vk_result(res),
                 res,
-                line,
-                file);
+                what);
+        return false;
+    }
+    return true;
+}
+
+inline static void vkAbortOnError(VkResult res, const char* file, int line)
+{
+    if (!vkReportError(res, file, line))
+    {
         abort();
     }
 }
 
-#define VK_CHECK(x) ::rive::gpu::vkutil::vk_check(x, __FILE__, __LINE__)
+// For call sites that have no way to recover from a driver failure.
+#define VK_ABORT_ON_FAIL(x)                                                    \
+    ::rive::gpu::vkutil::vkAbortOnError(x, __FILE__, __LINE__)
+
+// For call sites in initialization paths, where a driver failure can be
+// reported back to the client instead of crashing.
+#define VK_RETURN_FALSE_ON_FAIL(x)                                             \
+    do                                                                         \
+    {                                                                          \
+        if (!::rive::gpu::vkutil::vkReportError(x, __FILE__, __LINE__))        \
+        {                                                                      \
+            return false;                                                      \
+        }                                                                      \
+    } while (false)
+
+// Prints a diagnostic if the allocation 'x' failed, naming the resource it was
+// for. Evaluates to whether it succeeded.
+#define VK_SUCCEEDED(x, what)                                                  \
+    ::rive::gpu::vkutil::vkReportAllocationError(x, what, __FILE__, __LINE__)
+
+// The handle a vkCreate*() command writes to its final out parameter.
+template <typename PFN_vkCreate> struct CreatedHandle;
+
+template <typename CreateInfo, typename Handle>
+struct CreatedHandle<VkResult(VKAPI_PTR*)(VkDevice,
+                                          const CreateInfo*,
+                                          const VkAllocationCallbacks*,
+                                          Handle*)>
+{
+    using type = Handle;
+};
+
+// Creates a Vulkan object. Prints a diagnostic, bumps
+// vk->allocationFailureCount() and returns VK_NULL_HANDLE if the driver fails.
+#define VK_CREATE_HANDLE(vk, createCommand, pCreateInfo)                       \
+    (vk)->createHandle(&::rive::gpu::VulkanContext::createCommand,             \
+                       pCreateInfo,                                            \
+                       __FILE__,                                               \
+                       __LINE__)
 
 constexpr static VkColorComponentFlags kColorWriteMaskNone = 0;
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
@@ -163,6 +231,10 @@ public:
     // VkBuffer is not queued up in any in-flight command buffers.
     void resizeImmediately(VkDeviceSize sizeInBytes);
 
+    // Whether contents() is safe to call. False if either the buffer or its
+    // memory map failed to allocate.
+    bool hasContents() const { return m_contents != nullptr; }
+
     void* contents()
     {
         assert(m_contents != nullptr);
@@ -268,7 +340,7 @@ private:
 
     const rcp<Image> m_textureRefOrNull;
     VkImageViewCreateInfo m_info;
-    VkImageView m_vkImageView;
+    VkImageView m_vkImageView = VK_NULL_HANDLE;
 };
 
 // Tracks the current layout and access parameters of a VkImage.
@@ -438,7 +510,7 @@ private:
     Framebuffer(rcp<VulkanContext>, const VkFramebufferCreateInfo&);
 
     VkFramebufferCreateInfo m_info;
-    VkFramebuffer m_vkFramebuffer;
+    VkFramebuffer m_vkFramebuffer = VK_NULL_HANDLE;
 };
 
 // Utility to generate a simple 2D VkViewport from a VkRect2D.

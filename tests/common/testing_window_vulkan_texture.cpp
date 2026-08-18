@@ -184,7 +184,7 @@ public:
     {
         if (!m_frameSynchronizer->isFrameStarted())
         {
-            VK_CHECK(m_frameSynchronizer->beginFrame());
+            VK_ABORT_ON_FAIL(m_frameSynchronizer->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_frameSynchronizer->vkImageView(),
@@ -212,11 +212,11 @@ public:
             m_frameSynchronizer->queueImageCopy(&lastAccess);
         }
 
-        VK_CHECK(m_frameSynchronizer->endFrame(lastAccess));
+        VK_ABORT_ON_FAIL(m_frameSynchronizer->endFrame(lastAccess));
 
         if (pixelData != nullptr)
         {
-            VK_CHECK(
+            VK_ABORT_ON_FAIL(
                 m_frameSynchronizer->getPixelsFromLastImageCopy(pixelData));
         }
     }
@@ -284,7 +284,7 @@ private:
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
         if (!m_frameSynchronizer->isFrameStarted())
         {
-            VK_CHECK(m_frameSynchronizer->beginFrame());
+            VK_ABORT_ON_FAIL(m_frameSynchronizer->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_frameSynchronizer->vkImageView(),
@@ -305,7 +305,7 @@ private:
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
         oreContext->endFrame();
         auto lastAccess = m_renderTarget->targetLastAccess();
-        VK_CHECK(m_frameSynchronizer->endFrame(lastAccess));
+        VK_ABORT_ON_FAIL(m_frameSynchronizer->endFrame(lastAccess));
     }
 
     const BackendParams m_backendParams;

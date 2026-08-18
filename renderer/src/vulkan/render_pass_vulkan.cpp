@@ -870,10 +870,10 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         .pDependencies = subpassDeps.data(),
     };
 
-    VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
-                                    &renderPassCreateInfo,
-                                    nullptr,
-                                    &m_renderPass));
+    VK_ABORT_ON_FAIL(m_vk->CreateRenderPass(m_vk->device,
+                                            &renderPassCreateInfo,
+                                            nullptr,
+                                            &m_renderPass));
 
     const std::string renderPipelineLabel =
         (std::ostringstream()

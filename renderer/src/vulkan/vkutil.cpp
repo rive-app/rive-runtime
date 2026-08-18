@@ -97,6 +97,12 @@ VmaAllocationCreateFlags vma_flags_for_mappability(Mappability mappability)
 
 void Buffer::init()
 {
+    // Cleared up front so a failed allocation leaves nothing for ~Buffer() to
+    // free; vmaCreateBuffer() doesn't define its outputs when it fails.
+    m_vkBuffer = VK_NULL_HANDLE;
+    m_vmaAllocation = VK_NULL_HANDLE;
+    m_contents = nullptr;
+
     if (m_info.size > 0)
     {
         VmaAllocationCreateInfo allocInfo = {
@@ -104,30 +110,44 @@ void Buffer::init()
             .usage = VMA_MEMORY_USAGE_AUTO,
         };
 
-        VK_CHECK(vmaCreateBuffer(vk()->allocator(),
-                                 &m_info,
-                                 &allocInfo,
-                                 &m_vkBuffer,
-                                 &m_vmaAllocation,
-                                 nullptr));
+        VkBuffer buffer;
+        VmaAllocation allocation;
+        if (!VK_SUCCEEDED(vmaCreateBuffer(vk()->allocator(),
+                                          &m_info,
+                                          &allocInfo,
+                                          &buffer,
+                                          &allocation,
+                                          nullptr),
+                          "a buffer"))
+        {
+            vk()->reportAllocationFailure();
+            return;
+        }
+        m_vkBuffer = buffer;
+        m_vmaAllocation = allocation;
 
         if (m_mappability != Mappability::none)
         {
             // Leave the buffer constantly mapped and let the OS/drivers handle
             // the rest.
-            VK_CHECK(
-                vmaMapMemory(vk()->allocator(), m_vmaAllocation, &m_contents));
+            void* contents;
+            if (!VK_SUCCEEDED(
+                    vmaMapMemory(vk()->allocator(), m_vmaAllocation, &contents),
+                    "a buffer mapping"))
+            {
+                // Throw the buffer away too. A mappable buffer we can't map is
+                // useless, and callers test the handle to decide whether we
+                // allocated anything at all.
+                vmaDestroyBuffer(vk()->allocator(),
+                                 m_vkBuffer,
+                                 m_vmaAllocation);
+                m_vkBuffer = VK_NULL_HANDLE;
+                m_vmaAllocation = VK_NULL_HANDLE;
+                vk()->reportAllocationFailure();
+                return;
+            }
+            m_contents = contents;
         }
-        else
-        {
-            m_contents = nullptr;
-        }
-    }
-    else
-    {
-        m_vkBuffer = VK_NULL_HANDLE;
-        m_vmaAllocation = VK_NULL_HANDLE;
-        m_contents = nullptr;
     }
 }
 
@@ -249,12 +269,21 @@ Image::Image(rcp<VulkanContext> vulkanContext,
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    VK_CHECK(vmaCreateImage(vk()->allocator(),
-                            &m_info,
-                            &allocInfo,
-                            &m_vkImage,
-                            &m_vmaAllocation,
-                            nullptr));
+    VkImage image;
+    VmaAllocation allocation;
+    if (!VK_SUCCEEDED(vmaCreateImage(vk()->allocator(),
+                                     &m_info,
+                                     &allocInfo,
+                                     &image,
+                                     &allocation,
+                                     nullptr),
+                      name))
+    {
+        vk()->reportAllocationFailure();
+        return;
+    }
+    m_vkImage = image;
+    m_vmaAllocation = allocation;
     vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
                                 VK_OBJECT_TYPE_IMAGE,
                                 name);
@@ -299,9 +328,14 @@ ImageView::ImageView(rcp<VulkanContext> vulkanContext,
         assert(m_textureRefOrNull == nullptr ||
                m_info.image == *m_textureRefOrNull);
     }
+    if (m_info.image == VK_NULL_HANDLE)
+    {
+        // The image we're viewing failed to allocate. Stay null as well.
+        return;
+    }
+
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    VK_CHECK(
-        vk()->CreateImageView(vk()->device, &m_info, nullptr, &m_vkImageView));
+    m_vkImageView = VK_CREATE_HANDLE(vk(), CreateImageView, &m_info);
     vk()->setDebugNameIfEnabled(uint64_t(m_vkImageView),
                                 VK_OBJECT_TYPE_IMAGE_VIEW,
                                 name);
@@ -364,6 +398,11 @@ void Texture2D::scheduleUpload(const void* imageDataRGBAPremul,
             .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         },
         vkutil::Mappability::writeOnly);
+    if (!imageBufferRGBAPremul->hasContents())
+    {
+        // Nothing to upload into; the init path that owns us will bail shortly.
+        return;
+    }
     memcpy(imageBufferRGBAPremul->contents(),
            imageDataRGBAPremul,
            imageDataSizeInBytes);
@@ -580,10 +619,7 @@ Framebuffer::Framebuffer(rcp<VulkanContext> vulkanContext,
     Resource(std::move(vulkanContext)), m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    VK_CHECK(vk()->CreateFramebuffer(vk()->device,
-                                     &m_info,
-                                     nullptr,
-                                     &m_vkFramebuffer));
+    m_vkFramebuffer = VK_CREATE_HANDLE(vk(), CreateFramebuffer, &m_info);
 }
 
 Framebuffer::~Framebuffer()
