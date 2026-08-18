@@ -711,7 +711,6 @@ bool CommandServer::processCommands()
                     scriptingContext =
                         std::make_unique<CPPRuntimeScriptingContext>(m_factory);
                 }
-                scriptingContext->setRenderContext(m_factory);
                 auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
                 rcp<rive::File> file = rive::File::import(rivBytes,
                                                           m_factory,
