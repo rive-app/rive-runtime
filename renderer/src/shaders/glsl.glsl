@@ -105,6 +105,16 @@
     }                                                                          \
     NAME;
 
+#define PUSH_CONSTANT_BLOCK_BEGIN(NAME)                                        \
+    layout(push_constant) uniform NAME                                         \
+    {
+
+#define PUSH_CONSTANT(TYPE, NAME) TYPE NAME;
+
+#define PUSH_CONSTANT_BLOCK_END(NAME)                                          \
+    }                                                                          \
+    NAME;
+
 #define ATTR_BLOCK_BEGIN(NAME)
 #define ATTR(IDX, TYPE, NAME) layout(location = IDX) in TYPE NAME
 #define ATTR_BLOCK_END

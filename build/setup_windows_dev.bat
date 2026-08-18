@@ -6,14 +6,23 @@ pushd %SCRIPT_PATH%\..\..\..\
 SET RIVE_ROOT=%CD%
 echo %CD%
 popd
+
 WHERE fxc >nul 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    REM we could check where vs is install via the registery like stated here https://superuser.com/questions/539666/how-to-get-the-visual-studio-installation-path-in-a-batch-file but i think that is overkill
-    if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" (
-        CALL "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat"
-    ) else (
-        if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" ( 
-            CALL "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
-        ) else echo "Visual Studio 2022 does not appear to be installed, please install visual studio to C:\Program Files\Microsoft Visual Studio"
-    )
+IF %ERRORLEVEL% EQU 0 GOTO :eof
+
+REM vswhere ships at a fixed location alongside every Visual Studio since 2017,
+REM so ask it where Visual Studio is rather than hardcoding a year and edition.
+REM The old hardcoded "2022\Enterprise" and "2022\Community" paths stopped
+REM matching when Visual Studio moved to version 18.
+SET "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+SET "VSPATH="
+IF EXIST "%VSWHERE%" FOR /F "usebackq tokens=*" %%i IN (`"%VSWHERE%" -latest -property installationPath`) DO SET "VSPATH=%%i"
+
+IF DEFINED VSPATH IF EXIST "%VSPATH%\Common7\Tools\VsDevCmd.bat" (
+    CALL "%VSPATH%\Common7\Tools\VsDevCmd.bat"
+    GOTO :eof
 )
+
+echo "Could not locate Visual Studio via vswhere. Install Visual Studio with the"
+echo "Desktop development with C++ workload, or run from a developer prompt so"
+echo "that fxc is already on PATH."

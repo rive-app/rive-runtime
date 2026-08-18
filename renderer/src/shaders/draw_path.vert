@@ -88,8 +88,9 @@ VARYING_BLOCK_END
 // then gets discarded at the blend step).
 // NOTE: This is intentionally declared inside "#ifdef @VERTEX" so it doesn't
 // get needlessly added to fragment shaders.
-layout(push_constant) uniform PushConstants { float colorWriteEnable; }
-pushConstants;
+PUSH_CONSTANT_BLOCK_BEGIN(PushConstants)
+PUSH_CONSTANT(float, colorWriteEnable)
+PUSH_CONSTANT_BLOCK_END(pushConstants)
 #endif
 
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)

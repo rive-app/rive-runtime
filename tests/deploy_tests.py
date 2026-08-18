@@ -547,7 +547,7 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
                              unreal_engine_args(args.target, args.backend) + cmd[1:])
         return ["adb", "shell",
                     "am force-stop app.rive.rive_unreal && "
-                    f"am start -n app.rive.rive_unreal/com.epicgames.unreal.GameActivity -e args '{tool_args}'"]
+                    f"am start -n app.rive.rive_unreal/com.epicgames.unreal.GameActivity -e cmdline '{tool_args}'"]
 
     if args.target == "android":
         sharedlib = os.path.join(dirname, "lib%s.so" % toolname)
@@ -763,12 +763,37 @@ def unreal_engine_args(target, name):
         sys.exit("backend '%s' is not supported on --target=%s (supported RHIs: %s)"
                  % (name, target, ", ".join(supported)))
     engine_args = [UNREAL_RHI_SWITCHES[rhi]]
+    if target == "unreal_android":
+        dpcvars = ["r.RenderTargetPoolMin=32"]
+        fake_limit = os.getenv("RIVE_VULKAN_FAKE_MEMORY_LIMIT")
+        if fake_limit:
+            dpcvars.append("r.Vulkan.FakeMemoryLimit=%s" % fake_limit)
+        extra_dpcvars = os.getenv("RIVE_EXTRA_DPCVARS")
+        if extra_dpcvars:
+            dpcvars.append(extra_dpcvars)
+        engine_args.append("-dpcvars=" + ",".join(dpcvars))
     if suffix in UNREAL_INTERLOCK_OVERRIDES:
         engine_args.append("-riveRenderOverride=%s" % UNREAL_INTERLOCK_OVERRIDES[suffix])
     extra_args = os.getenv("RIVE_EXTRA_UNREAL_ARGS")
     if extra_args:
         engine_args.extend(extra_args.split())
     return engine_args
+
+def unreal_client_config():
+    # -r builds the native tools release, so package unreal to match.
+    return "Test" if args.release else "Development"
+
+def unreal_android_installer(stage_dir):
+    config = unreal_client_config()
+    name = ("Install_rive_unreal-arm64.bat" if config == "Development"
+            else "Install_rive_unreal-Android-%s-arm64.bat" % config)
+    if os.path.exists(os.path.join(stage_dir, name)):
+        return name
+    staged = sorted(glob.glob(os.path.join(stage_dir, "Install_rive_unreal*.bat")))
+    raise RuntimeError(
+        "expected %s in %s for the %s config, found: %s" %
+        (name, stage_dir, config,
+         ", ".join(os.path.basename(s) for s in staged) or "nothing"))
 
 def package_unreal_project():
     # No engine path -> assume the project is already packaged (legacy behavior).
@@ -780,7 +805,8 @@ def package_unreal_project():
     cmd = [sys.executable, package_script,
            "--engine", args.unreal_engine,
            "--output", os.path.abspath(args.builddir),
-           "--platform", UNREAL_TARGET_PLATFORMS[args.target]]
+           "--platform", UNREAL_TARGET_PLATFORMS[args.target],
+           "--config", unreal_client_config()]
     if args.no_rebuild:
         # Cook & stage the project, but reuse the native libs already staged in
         # the plugin's ThirdParty dirs.
@@ -902,8 +928,9 @@ def main():
         if args.target == "unreal_android":
             unreal_android_path = os.path.join(args.builddir, "Android_ASTC")
             current = os.getcwd()
+            installer = unreal_android_installer(unreal_android_path)
             os.chdir(unreal_android_path)
-            subprocess.check_call(["Install_rive_unreal-arm64.bat"])
+            subprocess.check_call([installer])
             print()
             os.chdir(current)
         if args.target == "android":

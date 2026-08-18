@@ -538,10 +538,6 @@ if _OPTIONS['for_android'] then
     -- Detect the NDK.
     local EXPECTED_NDK_VERSION = 'r27c'
     local NDK_LONG_VERSION_STRING = "27.2.12479018"
-    if _OPTIONS['for_unreal'] then
-        EXPECTED_NDK_VERSION = '25.1.8937393'
-        NDK_LONG_VERSION_STRING = '25.1.8937393'
-    end
     ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK') or '<undefined>'
     local ndk_version = '<undetected>'
     local ndk_long_version = '<undetected>'

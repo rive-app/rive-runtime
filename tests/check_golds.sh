@@ -46,7 +46,9 @@ while :; do
         ;;
         -ua)
             TARGET="unreal_android"
-            DEFAULT_BACKEND=vkatomic
+            # msaa is what we target on android. atomics needs pixel shader
+            # UAVs, which mobile handles badly, and it hangs on adreno.
+            DEFAULT_BACKEND=vkmsaa
             ARGS="$ARGS --no-rebuild"
             shift
         ;;
@@ -110,6 +112,10 @@ while :; do
         -n)
             ARGS="$ARGS --no-rebuild --no-install"
             shift
+        ;;
+        -m)
+            ARGS="$ARGS --match $2"
+            shift 2
         ;;
         -H)
             DIFF_ARGS="$DIFF_ARGS -H"
