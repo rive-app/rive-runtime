@@ -3,6 +3,30 @@
 
 using namespace rive;
 
+// Crossing-number test of a point against a simple closed contour. The
+// contours coming out of RectanglesToContour never touch each other, so
+// probing with a vertex of another contour is safe.
+static bool contourContains(const Contour& contour, Vec2D point)
+{
+    size_t size = contour.size();
+    if (size < 3)
+    {
+        return false;
+    }
+    bool inside = false;
+    for (size_t i = 0, j = size - 1; i < size; j = i++)
+    {
+        Vec2D a = contour.point(i);
+        Vec2D b = contour.point(j);
+        if ((a.y > point.y) != (b.y > point.y) &&
+            point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x)
+        {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
 void TextSelectionPath::update(Span<AABB> rects, float cornerRadius)
 {
     rewind();
@@ -14,29 +38,50 @@ void TextSelectionPath::update(Span<AABB> rects, float cornerRadius)
     m_rectanglesToContour.computeContours();
 
     RawPath& rawPath = *mutableRawPath();
-    for (auto contour : m_rectanglesToContour)
+    size_t count = m_rectanglesToContour.contourCount();
+    for (size_t i = 0; i < count; i++)
     {
-        addRoundedPath(contour, cornerRadius, rawPath);
+        Contour contour = m_rectanglesToContour.contour(i);
+        if (contour.size() < 2)
+        {
+            continue;
+        }
+        // Wind outer contours clockwise and holes counter-clockwise so the
+        // geometry reads the same under the clockwise, non-zero and even-odd
+        // fill rules. Feathered fills are only drawn when the path is
+        // clockwise, so this is what lets a feather apply here at all.
+        Vec2D probe = contour.point(0);
+        size_t depth = 0;
+        for (size_t j = 0; j < count; j++)
+        {
+            if (j != i &&
+                contourContains(m_rectanglesToContour.contour(j), probe))
+            {
+                depth++;
+            }
+        }
+        addRoundedPath(contour, cornerRadius, rawPath, (depth & 1) == 0);
     }
 }
 
 void TextSelectionPath::addRoundedPath(const Contour& contour,
                                        float radius,
-                                       RawPath& rawPath)
+                                       RawPath& rawPath,
+                                       bool clockwise)
 {
-    bool isClockwise = contour.isClockwise();
+    bool reversed = contour.isClockwise() != clockwise;
     size_t length = contour.size();
     if (length < 2)
     {
         return;
     }
 
-    Vec2D firstPoint = contour.point(0, !isClockwise);
+    Vec2D firstPoint = contour.point(0, reversed);
     Vec2D point = firstPoint;
 
     if (radius > 0.0f)
     {
-        Vec2D prev = contour.point(length - 1, !isClockwise);
+        Vec2D prev = contour.point(length - 1, reversed);
         Vec2D pos = point;
 
         Vec2D toPrev = prev - pos;
@@ -44,7 +89,7 @@ void TextSelectionPath::addRoundedPath(const Contour& contour,
         toPrev.x /= toPrevLength;
         toPrev.y /= toPrevLength;
 
-        Vec2D next = contour.point(1, !isClockwise);
+        Vec2D next = contour.point(1, reversed);
 
         Vec2D toNext = next - pos;
         float toNextLength = toNext.length();
@@ -82,11 +127,11 @@ void TextSelectionPath::addRoundedPath(const Contour& contour,
 
     for (size_t i = 1; i < length; i++)
     {
-        Vec2D point = contour.point(i, !isClockwise);
+        Vec2D point = contour.point(i, reversed);
 
         if (radius > 0.0f)
         {
-            Vec2D prev = contour.point(i - 1, !isClockwise);
+            Vec2D prev = contour.point(i - 1, reversed);
 
             Vec2D pos = point;
             Vec2D toPrev = prev - pos;
@@ -95,7 +140,7 @@ void TextSelectionPath::addRoundedPath(const Contour& contour,
             toPrev.x /= toPrevLength;
             toPrev.y /= toPrevLength;
 
-            Vec2D next = contour.point((i + 1) % length, !isClockwise);
+            Vec2D next = contour.point((i + 1) % length, reversed);
 
             Vec2D toNext = next - pos;
             float toNextLength = toNext.length();

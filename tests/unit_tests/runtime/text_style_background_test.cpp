@@ -79,6 +79,29 @@ TEST_CASE("selection path keeps disjoint lines as separate contours", "[text]")
     REQUIRE(path.numContours() == 2);
 }
 
+TEST_CASE("selection path winds holes opposite to their outer contour",
+          "[text]")
+{
+    // A ring: two full-width bars joined by a left and a right column, so the
+    // union encloses an empty 20x20 square.
+    TextSelectionPath path(true, FillRule::clockwise);
+    std::vector<AABB> rects = {
+        AABB(0.0f, 0.0f, 60.0f, 20.0f),
+        AABB(0.0f, 20.0f, 20.0f, 40.0f),
+        AABB(40.0f, 20.0f, 60.0f, 40.0f),
+        AABB(0.0f, 40.0f, 60.0f, 60.0f),
+    };
+    path.update(rects, 0.0f);
+    REQUIRE(path.numContours() == 2);
+
+    // If the hole wound the same way as the outer contour the areas would add
+    // up to 4000 instead of cancelling down to the ring's real 3200. Getting
+    // this right is what makes the clockwise (and non-zero) fill rules agree
+    // with even-odd -- and the renderer only feathers clockwise fills.
+    REQUIRE(std::abs(path.rawPath()->computeCoarseArea()) ==
+            Approx(3200.0f).margin(0.01f));
+}
+
 TEST_CASE("selection path rewinds between updates", "[text]")
 {
     TextSelectionPath path(true, FillRule::evenOdd);
@@ -136,12 +159,34 @@ TEST_CASE("editor-exported text style background renders at runtime", "[text]")
     artboard->draw(&renderer);
 }
 
+TEST_CASE("text style background sorts into the dependency graph", "[text]")
+{
+    auto file = ReadRiveFile("assets/text_style_background.riv");
+    auto artboard = file->artboard();
+
+    auto backgrounds = artboard->find<rive::TextStyleBackground>();
+    REQUIRE(backgrounds.size() == 1);
+    auto background = backgrounds[0];
+    auto text = background->parent()->parent()->as<rive::Text>();
+
+    // Nothing else pulls the background into the dependency order, and a
+    // Feather under one of its paints hangs off it -- without that the feather
+    // would never update, so its strength would never reach the RenderPaint
+    // and an inner feather would never build its path. Sorting after the Text
+    // also guarantees the rects are filled in before the feather reads them.
+    REQUIRE(background->graphOrder() != 0);
+    REQUIRE(background->graphOrder() > text->graphOrder());
+}
+
 TEST_CASE("text style background is a shape paint container", "[text]")
 {
     TextStyleBackground background;
     REQUIRE(ShapePaintContainer::from(&background) == &background);
     REQUIRE(background.localPath() != nullptr);
     REQUIRE(background.localClockwisePath() == background.localPath());
-    REQUIRE(background.localPath()->fillRule() == FillRule::evenOdd);
+    // Outer contours are wound clockwise and holes counter-clockwise, so the
+    // clockwise fill rule is accurate -- and the renderer only feathers fills
+    // whose path is clockwise.
+    REQUIRE(background.localPath()->fillRule() == FillRule::clockwise);
     REQUIRE(background.cornerRadius() == 0.0f);
 }

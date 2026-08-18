@@ -19,7 +19,10 @@ public:
 private:
     RectanglesToContour m_rectanglesToContour;
 
-    void addRoundedPath(const Contour& contour, float radius, RawPath& rawPath);
+    void addRoundedPath(const Contour& contour,
+                        float radius,
+                        RawPath& rawPath,
+                        bool clockwise);
 };
 }; // namespace rive
 #endif

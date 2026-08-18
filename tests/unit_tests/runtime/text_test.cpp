@@ -1005,3 +1005,26 @@ TEST_CASE("Fit font size with varying sizes", "[text]")
 
     CHECK(silver.matches("text_fit_test"));
 }
+
+TEST_CASE("Text with background color with active feather", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/text_background_feather_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.032f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("text_background_feather_test"));
+}

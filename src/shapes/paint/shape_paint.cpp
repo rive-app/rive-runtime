@@ -124,6 +124,12 @@ void ShapePaint::draw(Renderer* renderer,
         {
             if (m_feather->innerPath() == nullptr)
             {
+                // Bail out, but never leave the renderer's state stack
+                // unbalanced: we may already have saved above.
+                if (saved && needsSaveOperation)
+                {
+                    renderer->restore();
+                }
                 return;
             }
             // When a path effect is active, the inner path and clip must be

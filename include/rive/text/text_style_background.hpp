@@ -16,6 +16,7 @@ class TextStyleBackground : public TextStyleBackgroundBase,
 {
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
+    void buildDependencies() override;
 
     void resetPath();
     void addRect(const AABB& rect);
@@ -36,9 +37,10 @@ private:
     TextStylePaint* style() const;
 
     std::vector<AABB> m_rects;
-    // Even-odd keeps rendering winding-agnostic so the Dart editor's
-    // un-normalized contours paint identically.
-    TextSelectionPath m_path{true, FillRule::evenOdd};
+    // TextSelectionPath winds outer contours clockwise and holes
+    // counter-clockwise, so the clockwise fill rule is accurate here -- and
+    // the renderer only feathers fills whose path is clockwise.
+    TextSelectionPath m_path{true, FillRule::clockwise};
 };
 } // namespace rive
 
