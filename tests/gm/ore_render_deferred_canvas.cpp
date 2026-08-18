@@ -39,6 +39,7 @@ public:
     {
         return TestingWindow::Get()->factory();
     }
+    rive::gpu::RenderContext* renderContext() override { return m_rc; }
     // The GM hands over one already open screen renderer, so there is nothing
     // to dispatch on.
     rive::Renderer* beginScreenFrame(uint64_t target) override
@@ -75,7 +76,12 @@ public:
 
 #if ORE_GM_HAS_BACKEND
         auto& realCtx = *renderContext->getOreContext();
-        auto canvas = renderContext->makeRenderCanvas(200, 200);
+        // The deferred half records against a shell canvas the replay backs,
+        // which is what a scripted gpuCanvas gets; the goldens must still
+        // match the immediate half that allocates up front.
+        auto canvas = m_deferred
+                          ? renderContext->makeDeferredRenderCanvas(200, 200)
+                          : renderContext->makeRenderCanvas(200, 200);
         if (!canvas)
         {
             return;

@@ -179,11 +179,6 @@ struct FakeTarget : gpu::RenderTarget
     FakeTarget() : RenderTarget(8, 8) {}
 };
 
-struct FakeImage : RiveRenderImage
-{
-    FakeImage() : RiveRenderImage(8, 8) {}
-};
-
 // Logs canvas frame open order; canvas draws drop against the null renderer.
 class OrderSink : public deferred_test::TestSink
 {
@@ -198,8 +193,9 @@ public:
 
 rcp<gpu::RenderCanvas> fakeCanvas()
 {
-    return make_rcp<gpu::RenderCanvas>(make_rcp<FakeImage>(),
-                                       make_rcp<FakeTarget>());
+    auto canvas = make_rcp<gpu::RenderCanvas>(8, 8);
+    canvas->setBacking(nullptr, make_rcp<FakeTarget>());
+    return canvas;
 }
 } // namespace
 

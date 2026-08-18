@@ -30,6 +30,8 @@ public:
         return TestingWindow::Get()->factory();
     }
 
+    rive::gpu::RenderContext* renderContext() override { return m_rc; }
+
     // The tools render into the one TestingWindow, so there is a single
     // target.
     rive::Renderer* beginScreenFrame(uint64_t target) override

@@ -2315,9 +2315,14 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
-                                                            uint32_t height)
+void RenderContextWebGPUImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
     wgpu::TextureDescriptor textureDesc = {
         .usage = wgpu::TextureUsage::TextureBinding |
                  wgpu::TextureUsage::RenderAttachment |
@@ -2337,10 +2342,7 @@ rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
     renderTarget->setTargetTextureView(texture->textureView(),
                                        texture->texture());
 
-    auto renderImage = make_rcp<RiveRenderImage>(std::move(texture));
-
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    canvas->setBacking(std::move(texture), std::move(renderTarget));
 }
 std::unique_ptr<rive::ore::Context> RenderContextWebGPUImpl::makeOreContext()
 {

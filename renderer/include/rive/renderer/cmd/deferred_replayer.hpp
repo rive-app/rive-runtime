@@ -9,6 +9,7 @@
 #include "rive/renderer/cmd/gpu_census.hpp"
 #include "rive/renderer/cmd/render_replay.hpp"
 #include "rive/renderer/ore/cmd/ore_replay.hpp"
+#include "rive/renderer/render_context_impl.hpp"
 #include <algorithm>
 #include <deque>
 #include <mutex>
@@ -35,6 +36,11 @@ public:
     // Defaults to the factory's ore context; hosts whose factory does not own
     // one override it.
     virtual ore::Context* oreContext() { return factory()->ore(); }
+
+    // The device replay runs against. Null leaves a canvas recorded without a
+    // backing texture unbacked, so its content is dropped rather than drawn
+    // into whatever the producer's texture id happens to name here.
+    virtual gpu::RenderContext* renderContext() { return nullptr; }
 
     // Open the screen frame for one render target and return its renderer.
     // A session drives every target its render context owns, so replay asks
@@ -192,6 +198,23 @@ private:
         ReplayHooks hooks;
         hooks.stats = &m_stats;
         hooks.canvasImage = canvasImage;
+        // Recording allocates no canvas backing, so every path that resolves
+        // one here allocates it on this device first. A sink with no render
+        // context leaves it unbacked and drops the content rather than
+        // drawing into whatever the producer's texture id happens to name.
+        auto resolveCanvas = [&](RenderHandle id) -> gpu::RenderCanvas* {
+            gpu::RenderCanvas* canvas = contentCanvas(id);
+#ifdef RIVE_CANVAS
+            if (canvas != nullptr && !canvas->isBacked())
+            {
+                if (auto* rc = sink.renderContext())
+                {
+                    rc->impl()->ensureCanvasBacking(canvas);
+                }
+            }
+#endif
+            return canvas;
+        };
         // A canvas's content may span several ranges; its real frame opens at
         // the first range and flushes once its group ends below.
         Renderer* openContentRenderer = nullptr;
@@ -202,9 +225,11 @@ private:
             {
                 return openContentRenderer; // later range, frame already open
             }
-            gpu::RenderCanvas* canvas = contentCanvas(id);
+            gpu::RenderCanvas* canvas = resolveCanvas(id);
             openContentRenderer =
-                canvas ? sink.beginCanvasContent(canvas, clearColor) : nullptr;
+                canvas != nullptr && canvas->isBacked()
+                    ? sink.beginCanvasContent(canvas, clearColor)
+                    : nullptr;
             openContentId = id;
             return openContentRenderer;
         };
@@ -254,7 +279,9 @@ private:
                     return i < oreReals.size() ? oreReals[i].get() : nullptr;
                 },
                 [&](uint32_t canvasId) -> gpu::RenderCanvas* {
-                    return contentCanvas(canvasId);
+                    gpu::RenderCanvas* canvas = resolveCanvas(canvasId);
+                    return canvas != nullptr && canvas->isBacked() ? canvas
+                                                                   : nullptr;
                 },
                 [&](uint32_t imageId) -> RenderImage* {
                     // Resident 2D image, created by the hoisted create pass

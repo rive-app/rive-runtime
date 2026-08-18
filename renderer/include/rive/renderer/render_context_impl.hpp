@@ -8,10 +8,9 @@
 #include "rive/gpu_texture_format.hpp"
 
 #ifdef RIVE_CANVAS
+#include "rive/renderer/render_canvas.hpp"
 #include <memory>
-#endif
 
-#ifdef RIVE_CANVAS
 namespace rive::ore
 {
 class Context;
@@ -20,9 +19,6 @@ class Context;
 
 namespace rive::gpu
 {
-#ifdef RIVE_CANVAS
-class RenderCanvas;
-#endif
 class Texture;
 
 // This class manages GPU buffers and isues the actual rendering commands from
@@ -74,25 +70,27 @@ public:
         bool generateRemainingMips = false) = 0;
 
 #ifdef RIVE_CANVAS
+    // Allocates a canvas's texture and render target on this device, once,
+    // before its first use here. A backend with no canvas support leaves the
+    // canvas unbacked, which is how makeRenderCanvas reports it made none.
+    virtual void ensureCanvasBacking(RenderCanvas*) {}
+
+    // A canvas nothing has allocated for yet. The recording only needs the
+    // image identity it refers to, so this touches no device and whichever
+    // context replays owns the pixels.
+    rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width, uint32_t height)
+    {
+        return make_rcp<RenderCanvas>(width, height);
+    }
+
     // Creates a RenderCanvas: a GPU texture usable as both a render target
     // and a render image. Returns nullptr if not supported by this backend.
-    virtual rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height)
+    rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height)
     {
-        return nullptr;
+        rcp<RenderCanvas> canvas = makeDeferredRenderCanvas(width, height);
+        ensureCanvasBacking(canvas.get());
+        return canvas->isBacked() ? canvas : nullptr;
     }
-
-    // Deferred allocation is only distinct on GL, where the replay worker
-    // must own the texture on its own context. Everywhere else the device
-    // is shared and eager allocation is correct.
-    virtual rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width,
-                                                       uint32_t height)
-    {
-        return makeRenderCanvas(width, height);
-    }
-
-    // Backs a canvas whose allocation was deferred, called before its first
-    // use on the replaying context. A no-op once the canvas has a texture.
-    virtual void ensureCanvasBacking(RenderCanvas*) {}
 
     // If canvas is enabled then the backend Impl MUST implement this.
     virtual std::unique_ptr<rive::ore::Context> makeOreContext() = 0;

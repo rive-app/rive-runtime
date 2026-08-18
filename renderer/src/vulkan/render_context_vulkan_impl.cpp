@@ -301,15 +301,20 @@ private:
 };
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
-                                                            uint32_t height)
+void RenderContextVulkanImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
-    VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
-    VkImageUsageFlags usage =
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    constexpr VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+    constexpr VkImageUsageFlags usage =
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
+    uint32_t width = canvas->width(), height = canvas->height();
     auto texture = m_vk->makeTexture2D(
         {
             .format = format,
@@ -318,18 +323,16 @@ rcp<RenderCanvas> RenderContextVulkanImpl::makeRenderCanvas(uint32_t width,
         },
         "RenderCanvas");
 
-    auto renderImage = make_rcp<RiveRenderImage>(texture);
-
     auto renderTarget = rcp(new RenderTargetVulkanTexture(m_vk,
-                                                          std::move(texture),
+                                                          texture,
                                                           width,
                                                           height,
                                                           format,
                                                           usage));
 
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    canvas->setBacking(std::move(texture), std::move(renderTarget));
 }
+
 std::unique_ptr<rive::ore::Context> RenderContextVulkanImpl::makeOreContext()
 {
     return rive::ore::ContextVulkan::Make(m_vk);

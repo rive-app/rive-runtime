@@ -34,7 +34,7 @@ public:
     {}
 
     // The real render context replay runs against.
-    virtual rive::gpu::RenderContext* renderContext() = 0;
+    rive::gpu::RenderContext* renderContext() override = 0;
     // Open the platform screen frame for one render target and return its
     // renderer, called once per target per replayed frame.
     virtual rive::Renderer* beginScreen(uint64_t target,

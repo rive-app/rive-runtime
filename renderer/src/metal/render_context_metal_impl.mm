@@ -991,11 +991,17 @@ rcp<Texture> RenderContextMetalImpl::adoptImageTexture(id<MTLTexture> texture,
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
-                                                           uint32_t height)
+void RenderContextMetalImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
-    // Create an MTLTexture usable as both a render target and a shader-read
-    // image for compositing into Rive draws.
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
+
+    // An MTLTexture usable as both a render target and a shader-read image
+    // for compositing into Rive draws.
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
     desc.width = width;
@@ -1006,18 +1012,14 @@ rcp<RenderCanvas> RenderContextMetalImpl::makeRenderCanvas(uint32_t width,
     desc.storageMode = MTLStorageModePrivate;
     id<MTLTexture> mtlTexture = [m_gpu newTextureWithDescriptor:desc];
 
-    // Wrap as a RenderTarget for rendering into.
     auto renderTarget =
         makeRenderTarget(MTLPixelFormatRGBA8Unorm, width, height);
     renderTarget->setTargetTexture(mtlTexture);
 
-    // Wrap as a RiveRenderImage for compositing. The TextureMetalImpl adopt
-    // constructor takes a pre-created MTLTexture without uploading data.
-    auto texture = make_rcp<TextureMetalImpl>(mtlTexture, width, height);
-    auto renderImage = make_rcp<RiveRenderImage>(std::move(texture));
-
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    // The TextureMetalImpl adopt constructor takes a pre-created MTLTexture
+    // without uploading data.
+    canvas->setBacking(make_rcp<TextureMetalImpl>(mtlTexture, width, height),
+                       std::move(renderTarget));
 }
 
 std::unique_ptr<rive::ore::Context> RenderContextMetalImpl::makeOreContext()

@@ -317,8 +317,8 @@ public:
     // (for rendering into) and a render image (for compositing into draws).
     rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height);
 
-    // Like makeRenderCanvas, but on GL the deferred replay worker lazily
-    // allocates the texture on its own context instead of this one.
+    // Like makeRenderCanvas, but allocates nothing: whichever context ends up
+    // replaying the recording owns the pixels and backs it there.
     rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width, uint32_t height);
 
     rive::ore::Context* ore() override;

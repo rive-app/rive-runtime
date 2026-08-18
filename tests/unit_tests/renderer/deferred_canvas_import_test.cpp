@@ -25,15 +25,11 @@ struct FakeTarget : gpu::RenderTarget
     FakeTarget() : gpu::RenderTarget(8, 8) {}
 };
 
-struct FakeImage : RiveRenderImage
-{
-    FakeImage() : RiveRenderImage(8, 8) {}
-};
-
 rcp<gpu::RenderCanvas> fakeCanvas()
 {
-    return make_rcp<gpu::RenderCanvas>(make_rcp<FakeImage>(),
-                                       make_rcp<FakeTarget>());
+    auto canvas = make_rcp<gpu::RenderCanvas>(8, 8);
+    canvas->setBacking(nullptr, make_rcp<FakeTarget>());
+    return canvas;
 }
 
 // GPU free stand-in for the replaying backend. Only the canvas wraps are

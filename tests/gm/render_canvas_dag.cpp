@@ -34,6 +34,8 @@ public:
 
     Factory* factory() override { return TestingWindow::Get()->factory(); }
 
+    RenderContext* renderContext() override { return m_rc; }
+
     // The GM harness owns one main render target.
     Renderer* beginScreenFrame(uint64_t target) override
     {

@@ -743,25 +743,6 @@ public:
         }
     }
 
-    // Deferred replay backs an id 0 canvas with a worker texture so all reads
-    // resolve coherently on the worker. The registry entry for that texture
-    // belongs to the context that allocated it, which on threaded web is the
-    // worker's impl and not the producer this texture was constructed with, so
-    // the owner moves with the backing. Otherwise the destructor unregisters
-    // from the producer: the worker keeps a stale entry wrapRiveTexture can
-    // resurrect, and the producer loses whatever it held under the same GL
-    // name, GL names being per context and both starting from 1.
-    void rebindBacking(RenderContextGLImpl* owner, GLuint id)
-    {
-        if (m_owner != nullptr && m_glID != 0)
-        {
-            m_owner->releaseCanvasTarget(m_glID);
-        }
-        setGLTexture(id);
-        m_owner = owner;
-        m_glID = id;
-    }
-
 private:
     RenderContextGLImpl* m_owner;
     GLuint m_glID;
@@ -891,10 +872,21 @@ rcp<Texture> RenderContextGLImpl::adoptImageTexture(uint32_t width,
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextGLImpl::wrapCanvasBacking(uint32_t width,
-                                                         uint32_t height,
-                                                         GLuint tex)
+void RenderContextGLImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     // Wrap as a CanvasSourceTextureGLImpl so the registry entry is
     // unregistered automatically when the source texture is destroyed.
     // The texture takes ownership of `tex` (RAII via glutils::Texture).
@@ -904,68 +896,17 @@ rcp<RenderCanvas> RenderContextGLImpl::wrapCanvasBacking(uint32_t width,
                                                          tex,
                                                          m_capabilities,
                                                          this));
-    auto renderImage = make_rcp<RiveRenderImage>(std::move(sourceTexture));
 
-    // Wrap as TextureRenderTargetGL. It references the same GLuint without
-    // taking ownership.
+    // TextureRenderTargetGL references the same GLuint without taking
+    // ownership.
     auto renderTarget = make_rcp<TextureRenderTargetGL>(width, height);
     renderTarget->setTargetTexture(tex);
 
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
-}
-
-rcp<RenderCanvas> RenderContextGLImpl::makeRenderCanvas(uint32_t width,
-                                                        uint32_t height)
-{
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
-
-    auto canvas = wrapCanvasBacking(width, height, tex);
+    canvas->setBacking(std::move(sourceTexture), std::move(renderTarget));
 
     // GL renders into the canvas with row 0 = visual bottom, so an Ore
     // pipeline sampling it needs a Y-flipped companion. Registering is
     // bookkeeping only; nothing is allocated until the first import.
-    registerCanvasTarget(tex);
-
-    return canvas;
-}
-
-rcp<RenderCanvas> RenderContextGLImpl::makeDeferredRenderCanvas(uint32_t width,
-                                                                uint32_t height)
-{
-    // No GPU work here; the replay worker owns the canvas texture, backs it
-    // on first use, and registers the mirror target then.
-    return wrapCanvasBacking(width, height, 0);
-}
-
-void RenderContextGLImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
-{
-    // Set the texture on both the render target and image source so every
-    // read resolves coherently here.
-    auto* rt = static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget());
-    if (rt->externalTextureID() != 0)
-    {
-        return;
-    }
-
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexStorage2D(GL_TEXTURE_2D,
-                   1,
-                   GL_RGBA8,
-                   canvas->width(),
-                   canvas->height());
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    rt->setTargetTexture(tex);
-    static_cast<CanvasSourceTextureGLImpl*>(canvas->renderImage()->getTexture())
-        ->rebindBacking(this, tex);
     registerCanvasTarget(tex);
 }
 

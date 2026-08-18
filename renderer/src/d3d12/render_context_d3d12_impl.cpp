@@ -827,9 +827,14 @@ rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(ID3D12Resource* resource,
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
-                                                           uint32_t height)
+void RenderContextD3D12Impl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
     auto texture =
         manager()->make2DTexture(width,
                                  height,
@@ -842,11 +847,8 @@ rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
     auto renderTarget = make_rcp<RenderTargetD3D12>(this, width, height);
     renderTarget->setTargetTexture(texture);
 
-    auto renderImage =
-        make_rcp<RiveRenderImage>(adoptImageTexture(std::move(texture)));
-
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    canvas->setBacking(adoptImageTexture(std::move(texture)),
+                       std::move(renderTarget));
 }
 
 std::unique_ptr<rive::ore::Context> RenderContextD3D12Impl::makeOreContext()

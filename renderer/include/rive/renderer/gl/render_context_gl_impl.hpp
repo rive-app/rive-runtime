@@ -66,14 +66,6 @@ public:
                                    GLuint textureID);
 
 #ifdef RIVE_CANVAS
-    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
-                                       uint32_t height) override;
-
-    // Creates a shell canvas with no texture; the deferred replay worker
-    // backs it on its own context via ensureCanvasBacking.
-    rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width,
-                                               uint32_t height) override;
-
     void ensureCanvasBacking(gpu::RenderCanvas* canvas) override;
 
     std::unique_ptr<rive::ore::Context> makeOreContext() override;
@@ -96,7 +88,7 @@ public:
     // to be Y-flip-blitted at the end of the source canvas's own flush()
     // (when GL state is clean).
     //
-    // Lifetime: registerCanvasTarget is called from makeRenderCanvas;
+    // Lifetime: registerCanvasTarget is called from ensureCanvasBacking;
     // unregisterCanvasTarget is called from the canvas-target texture's
     // destructor (CanvasTargetTextureGLImpl). The entry owns the
     // companion, so every import of one source shares one companion and
@@ -192,13 +184,6 @@ public:
 #endif
 
 private:
-#ifdef RIVE_CANVAS
-    // Shared canvas wiring; `tex` of 0 makes an unbacked shell canvas.
-    rcp<RenderCanvas> wrapCanvasBacking(uint32_t width,
-                                        uint32_t height,
-                                        GLuint tex);
-#endif
-
     class DrawProgram;
 
     // Manages how we implement pixel local storage in shaders.

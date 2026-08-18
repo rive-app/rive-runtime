@@ -1173,17 +1173,9 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
 // wrapCanvasTexture
 // ============================================================================
 
-// During deferred replay the canvas texture from the main context is invalid
-// here, so back the canvas with a worker owned texture first.
 rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
-
-    if (m_renderContextImpl != nullptr)
-    {
-        static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl)
-            ->ensureCanvasBacking(canvas);
-    }
 
     auto* glTarget =
         static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget());
@@ -1256,12 +1248,6 @@ rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
 rcp<TextureView> ContextGL::wrapCanvasSampleView(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
-
-    if (m_renderContextImpl != nullptr)
-    {
-        static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl)
-            ->ensureCanvasBacking(canvas);
-    }
 
     auto* image = canvas->renderImage();
     gpu::Texture* sourceTex = image->getTexture();

@@ -1128,9 +1128,14 @@ rcp<Texture> RenderContextD3DImpl::adoptImageTexture(
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
-                                                         uint32_t height)
+void RenderContextD3DImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
     auto texture = makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
                                        width,
                                        height,
@@ -1142,11 +1147,8 @@ rcp<RenderCanvas> RenderContextD3DImpl::makeRenderCanvas(uint32_t width,
     auto renderTarget = makeRenderTarget(width, height);
     renderTarget->setTargetTexture(texture);
 
-    auto renderImage =
-        make_rcp<RiveRenderImage>(adoptImageTexture(texture, width, height));
-
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    canvas->setBacking(adoptImageTexture(texture, width, height),
+                       std::move(renderTarget));
 }
 
 std::unique_ptr<rive::ore::Context> RenderContextD3DImpl::makeOreContext()

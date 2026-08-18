@@ -153,8 +153,8 @@ public:
                                    uint32_t height);
 
 #ifdef RIVE_CANVAS
-    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
-                                       uint32_t height) override;
+    void ensureCanvasBacking(gpu::RenderCanvas* canvas) override;
+
     std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
