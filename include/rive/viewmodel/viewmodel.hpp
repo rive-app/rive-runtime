@@ -28,9 +28,7 @@ public:
     rcp<ViewModelInstance> createInstance();
     rcp<ViewModelInstance> createFromInstance(const std::string& instanceName);
     void file(File* value) { m_file = value; };
-#ifdef WITH_RIVE_TOOLS
-    File* file() { return m_file; };
-#endif
+    File* file() const { return m_file; };
     ViewModelInstance* defaultInstance();
     size_t instanceCount() const;
     std::vector<ViewModelProperty*> properties() { return m_Properties; }
