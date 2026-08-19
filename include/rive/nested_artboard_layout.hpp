@@ -20,7 +20,7 @@ public:
     void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
     void markLayoutNodeDirty(
         bool shouldForceUpdateLayoutBounds = false) override;
-    void update(ComponentDirt value) override;
+    void composeWorldTransform() override;
     void updateConstraints() override;
     StatusCode onAddedClean(CoreContext* context) override;
 

@@ -59,29 +59,35 @@ void NestedArtboardLayout::markLayoutNodeDirty(
     updateHeightOverride();
 }
 
-void NestedArtboardLayout::update(ComponentDirt value)
+// Where the layout put us, less the mounted artboard's own origin, as one base
+// translation — the same shape Shape::layoutBaseTranslation builds for a
+// participant:
+//
+//   parentWorld * translate(slot - origin) * m_Transform
+//
+// Done here rather than after Super::update so the base's
+// composeWorldTransform/updateConstraints pair stays in order: constraints run
+// against the composed transform, and their result is not overwritten by a
+// later recomposition. Same split LayoutComponent uses.
+void NestedArtboardLayout::composeWorldTransform()
 {
-    Super::update(value);
     auto artboard = artboardInstance();
-    if (hasDirt(value, ComponentDirt::WorldTransform) && artboard != nullptr)
+    if (artboard == nullptr)
     {
-        auto layoutPosition = Vec2D(artboard->layoutX(), artboard->layoutY());
-
-        if (parent()->is<Artboard>())
-        {
-            auto parentArtboard = parent()->as<Artboard>();
-            auto correctedArtboardSpace = Mat2D::fromTranslation(
-                parentArtboard->origin() + layoutPosition);
-            m_WorldTransform = correctedArtboardSpace * m_WorldTransform;
-        }
-        else
-        {
-            m_WorldTransform =
-                Mat2D::fromTranslation(layoutPosition) * m_WorldTransform;
-        }
-        auto back = Mat2D::fromTranslation(-artboard->origin());
-        m_WorldTransform = back * m_WorldTransform;
+        Super::composeWorldTransform();
+        return;
     }
+    auto base =
+        Vec2D(artboard->layoutX(), artboard->layoutY()) - artboard->origin();
+    if (parent()->is<Artboard>())
+    {
+        base += parent()->as<Artboard>()->origin();
+    }
+    Mat2D parentWorld =
+        parent()->is<WorldTransformComponent>()
+            ? parent()->as<WorldTransformComponent>()->worldTransform()
+            : Mat2D();
+    m_WorldTransform = parentWorld * Mat2D::fromTranslation(base) * m_Transform;
 }
 
 void NestedArtboardLayout::updateConstraints()
