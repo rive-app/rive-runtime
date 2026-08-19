@@ -12,6 +12,9 @@
 #include "rive/input/focusable.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/animation/nested_state_machine.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/semantic/semantic_data.hpp"
+#include "rive/semantic/semantic_manager.hpp"
 #include "rive/data_bind/data_bind_path.hpp"
 #include "rive/clip_result.hpp"
 #include "rive/text/text_input.hpp"
@@ -258,6 +261,7 @@ void NestedArtboard::updateArtboard(
     if (outgoing != nullptr)
     {
         outgoing->cleanupFocusTree();
+        outgoing->cleanupSemanticTree();
     }
     clearDataContext();
     clearNestedAnimations();
@@ -377,6 +381,33 @@ void NestedArtboard::updateArtboard(
         // setExternalFocusManager above rebuilds the nested tree at the
         // manager root, so scope placement must be the final write.
         syncNestedFocusTree(FocusData::findClosestFocusNode(this));
+
+        // Register the swapped-in instance with the host's semantic manager,
+        // reparented under the enclosing SemanticData the same way
+        // ArtboardComponentList wires its items
+        auto* parentSemanticManager =
+            parentAb != nullptr ? parentAb->semanticManager() : nullptr;
+        if (parentSemanticManager != nullptr)
+        {
+            auto parentSemanticNode =
+                SemanticData::findClosestSemanticNode(this);
+            auto* semanticSmi =
+                m_boundNestedStateMachine != nullptr
+                    ? m_boundNestedStateMachine->stateMachineInstance()
+                    : nullptr;
+            if (semanticSmi != nullptr)
+            {
+                semanticSmi->setExternalSemanticManager(parentSemanticManager,
+                                                        parentSemanticNode);
+            }
+            else if (m_Instance != nullptr)
+            {
+                // Artboards with no state machine have no instance to hang
+                // the external manager off; build the subtree directly.
+                m_Instance->buildSemanticTree(parentSemanticManager,
+                                              parentSemanticNode);
+            }
+        }
     }
 }
 

@@ -55,6 +55,10 @@ public:
     // the next call starts fresh.
     SemanticsDiff drainDiff();
 
+#ifdef TESTING
+    size_t nodeCount() const { return m_nodesById.size(); }
+#endif
+
 private:
     void refresh();
     SemanticsDiff consumeDiff();
