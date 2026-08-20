@@ -279,13 +279,10 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     // --- Validate user-supplied layouts against shader binding map ---
     {
         std::string err;
-        if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
-                                              desc.bindGroupLayouts,
-                                              desc.bindGroupLayoutCount,
-                                              &err) ||
-            !validateColorRequiresFragment(desc.colorCount,
-                                           desc.fragmentModule != nullptr,
-                                           &err))
+        if (!validatePipelineDesc(desc,
+                                  pipeline->m_bindingMap,
+                                  NativeSlotScope::perGroup,
+                                  &err))
         {
             if (outError)
                 *outError = err;

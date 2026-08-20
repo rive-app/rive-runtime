@@ -24,9 +24,10 @@ public:
     const PipelineDesc& desc() const { return m_desc; }
 
     // (group, binding) → per-backend native slot map for this pipeline's
-    // resources. Copied from the vertex / fragment ShaderModule at
-    // construction. Consumed by each backend's `makeBindGroup` to translate
-    // a `BindGroupDesc::*Entry::slot` (= WGSL `@binding`) into the backend's
+    // resources. Merged from the vertex and fragment ShaderModules at
+    // construction, each stage taken from the module that compiled it.
+    // Consumed by each backend's `makeBindGroup` to translate a
+    // `BindGroupDesc::*Entry::slot` (= WGSL `@binding`) into the backend's
     // native slot.
     BindingMap m_bindingMap;
 
@@ -47,61 +48,14 @@ protected:
     friend class Context;
     friend class RenderPass;
 
-    Pipeline(const PipelineDesc& desc) :
-        rive::gpu::GPUResource(nullptr), m_desc(desc)
-    {
-        // Propagate the binding map from the VS module (or FS if VS is
-        // absent, e.g. blit-only pipelines). The two modules are
-        // compiled from a single WGSL source so their maps agree, and
-        // every module is required to carry a populated map.
-        if (desc.vertexModule != nullptr)
-        {
-            m_bindingMap = desc.vertexModule->m_bindingMap;
-        }
-        else if (desc.fragmentModule != nullptr)
-        {
-            m_bindingMap = desc.fragmentModule->m_bindingMap;
-        }
-        // Unioned: each GLSL entry point knows only its own pairs.
-        for (const ShaderModule* shaderModule :
-             {desc.vertexModule, desc.fragmentModule})
-        {
-            if (shaderModule == nullptr)
-                continue;
-            m_textureSamplerPairs.insert(
-                m_textureSamplerPairs.end(),
-                shaderModule->m_textureSamplerPairs.begin(),
-                shaderModule->m_textureSamplerPairs.end());
-        }
-
-        // Stash the user-supplied layouts. Backends overwrite NULL
-        // entries (groups the shader doesn't bind) with a no-op
-        // BindGroupLayout if needed for empty-set semantics.
-        const uint32_t count = std::min(desc.bindGroupLayoutCount,
-                                        static_cast<uint32_t>(kMaxBindGroups));
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            m_layouts[i] = ref_rcp(desc.bindGroupLayouts[i]);
-        }
-        ownVertexLayout();
-    }
+    Pipeline(const PipelineDesc& desc) : Pipeline(nullptr, desc) {}
 
     Pipeline(rcp<rive::gpu::GPUResourceManager> manager,
              const PipelineDesc& desc) :
         rive::gpu::GPUResource(std::move(manager)), m_desc(desc)
     {
-        // Propagate the binding map from the VS module (or FS if VS is
-        // absent, e.g. blit-only pipelines). The two modules are
-        // compiled from a single WGSL source so their maps agree, and
-        // every module is required to carry a populated map.
-        if (desc.vertexModule != nullptr)
-        {
-            m_bindingMap = desc.vertexModule->m_bindingMap;
-        }
-        else if (desc.fragmentModule != nullptr)
-        {
-            m_bindingMap = desc.fragmentModule->m_bindingMap;
-        }
+        m_bindingMap =
+            bindingMapForStages(desc.vertexModule, desc.fragmentModule);
         // Unioned: each GLSL entry point knows only its own pairs.
         for (const ShaderModule* shaderModule :
              {desc.vertexModule, desc.fragmentModule})

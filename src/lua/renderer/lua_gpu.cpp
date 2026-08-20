@@ -1530,14 +1530,39 @@ static int gpubindgrouplayout_construct(lua_State* L)
     }
     lua_pop(L, 1); // dynamicUBOs
 
-    // Vertex module carries the merged binding map for both stages —
-    // the same module the GM helper walks.
+    // Optional `fragment`: the Shader carrying the fragment stage when the
+    // pipeline's stages live in different files. Its slots are only in its
+    // own map, so a layout built without it cannot resolve them.
+    //
+    // Resolved through the fragment entry rather than `fragmentMod()`, which
+    // answers with the vertex module when a shader has no @fragment — that
+    // would fold a vertex-only file's bindings in as fragment ones.
+    const ore::ShaderModule* fragmentModule = scripted->fragmentMod();
+    lua_getfield(L, descIdx, "fragment");
+    if (!lua_isnil(L, -1))
+    {
+        auto* fragmentScripted = lua_torive<ScriptedShader>(L, -1);
+        const ScriptedShaderEntry* fragmentEntry =
+            fragmentScripted != nullptr ? fragmentScripted->firstOfStage(1)
+                                        : nullptr;
+        if (fragmentEntry == nullptr)
+        {
+            luaL_error(L,
+                       "GPUBindGroupLayout.new: 'fragment' must be a Shader "
+                       "with a @fragment entry point");
+        }
+        fragmentModule = fragmentEntry->module.get();
+    }
+    lua_pop(L, 1);
+
+    const BindingMap bindingMap =
+        bindingMapForStages(scripted->vertexMod(), fragmentModule);
     rcp<BindGroupLayout> layout =
-        makeBindGroupLayoutFromShader(*oreCtx,
-                                      scripted->vertexMod(),
-                                      groupIndex,
-                                      dynUBOs,
-                                      dynUBOCount);
+        makeBindGroupLayoutFromBindingMap(*oreCtx,
+                                          bindingMap,
+                                          groupIndex,
+                                          dynUBOs,
+                                          dynUBOCount);
     if (!layout)
     {
         const std::string& err = oreCtx->lastError();
@@ -2077,7 +2102,12 @@ static int gpupipeline_construct(lua_State* L)
         // Auto path: scan the binding map for unique groups, build a
         // layout per group. Sparse-group shaders are supported (e.g.
         // group 0 + group 2 → autoLayouts[1] is null/empty).
-        const BindingMap& bm = vsShader->vertexMod()->m_bindingMap;
+        //
+        // Merged across both stages, so a fragment compiled from another
+        // file contributes its own bindings and slots — matching WebGPU,
+        // where `layout: 'auto'` derives from every stage.
+        const BindingMap bm =
+            bindingMapForStages(desc.vertexModule, desc.fragmentModule);
         uint32_t maxGroup = 0;
         bool seen[ore::kMaxBindGroups] = {};
         for (size_t i = 0; i < bm.size(); ++i)
@@ -2095,9 +2125,7 @@ static int gpupipeline_construct(lua_State* L)
             if (!seen[g])
                 continue;
             autoLayouts[g] =
-                makeBindGroupLayoutFromShader(*getOreContext(L),
-                                              vsShader->vertexMod(),
-                                              g);
+                makeBindGroupLayoutFromBindingMap(*getOreContext(L), bm, g);
             layoutPtrs[g] = autoLayouts[g].get();
         }
         layoutCount = maxGroup;

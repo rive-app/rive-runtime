@@ -63,11 +63,11 @@ inline VkShaderStageFlags oreVisibilityToVk(StageVisibility v)
 // Build a `VkDescriptorSetLayout` from a public `BindGroupLayoutDesc`.
 // One entry → one VkDescriptorSetLayoutBinding.
 //
-// The SPIR-V backend COMPACTS sparse `@binding`s within a group
-// (`@binding(0,7)` → slots `0,1`). The descriptor `binding` here must
-// match what the SPIR-V emits, which is the allocator-assigned native
-// slot (`nativeSlotVS` / `nativeSlotFS`) — NOT the raw WGSL `@binding`.
-// `makeLayoutFromShader` populates these from the shader's binding map.
+// The descriptor `binding` must match what the SPIR-V emits, so it comes
+// from the allocator-assigned native slot (`nativeSlotVS` / `nativeSlotFS`)
+// that `makeLayoutFromShader` populates from the shader's binding map. That
+// slot is the WGSL `@binding` as of allocator v2, but reading it from the
+// map is what keeps this correct across allocator changes.
 //
 // Empty descs produce a valid empty DSL.
 inline VkDescriptorSetLayout createDSLFromLayoutDesc(

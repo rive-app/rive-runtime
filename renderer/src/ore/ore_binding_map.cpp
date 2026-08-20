@@ -184,6 +184,67 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
     return true;
 }
 
+void BindingMap::replaceStage(const BindingMap& other, Stage stage)
+{
+    const size_t slotIndex = static_cast<size_t>(stage);
+    const uint8_t stageBit = static_cast<uint8_t>(1u << slotIndex);
+
+    // Drop what this map said about the stage, then keep only the rows some
+    // other stage still needs.
+    for (Entry& e : m_entries)
+    {
+        e.stageMask &= static_cast<uint8_t>(~stageBit);
+        e.backendSlot[slotIndex] = kAbsent;
+    }
+    m_entries.erase(
+        std::remove_if(m_entries.begin(),
+                       m_entries.end(),
+                       [](const Entry& e) { return e.stageMask == 0; }),
+        m_entries.end());
+
+    for (size_t i = 0; i < other.size(); ++i)
+    {
+        const Entry& src = other.at(i);
+        if ((src.stageMask & stageBit) == 0)
+            continue;
+        auto it = std::lower_bound(
+            m_entries.begin(),
+            m_entries.end(),
+            std::pair<uint32_t, uint32_t>{src.group, src.binding},
+            [](const Entry& e, const std::pair<uint32_t, uint32_t>& key) {
+                return std::pair<uint32_t, uint32_t>{e.group, e.binding} < key;
+            });
+        if (it != m_entries.end() && it->group == src.group &&
+            it->binding == src.binding)
+        {
+            it->stageMask |= stageBit;
+            it->backendSlot[slotIndex] = src.backendSlot[slotIndex];
+            // The other stage may have declared a texture without reflecting
+            // its shape, so fill from whichever module knows it.
+            if (it->textureViewDim == TextureViewDim::Undefined)
+                it->textureViewDim = src.textureViewDim;
+            if (it->textureSampleType == TextureSampleType::Undefined)
+                it->textureSampleType = src.textureSampleType;
+            it->textureMultisampled |= src.textureMultisampled;
+            continue;
+        }
+        Entry e = src;
+        e.stageMask = stageBit;
+        for (size_t s = 0; s < 3; ++s)
+        {
+            if (s != slotIndex)
+                e.backendSlot[s] = kAbsent;
+        }
+        m_entries.insert(it, e);
+    }
+
+    m_groupLayouts.clear();
+#ifdef WITH_RIVE_TOOLS
+    // Insertion held the sort, so lookups stay legal without a finalize.
+    m_finalized = true;
+#endif
+}
+
 #ifdef WITH_RIVE_TOOLS
 
 std::vector<uint8_t> BindingMap::toBlob() const

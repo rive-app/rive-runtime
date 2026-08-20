@@ -852,13 +852,10 @@ rcp<Pipeline> ContextWGPU::makePipeline(const PipelineDesc& desc,
     // shader binding must be declared by the corresponding layout.
     {
         std::string err;
-        if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
-                                              desc.bindGroupLayouts,
-                                              desc.bindGroupLayoutCount,
-                                              &err) ||
-            !validateColorRequiresFragment(desc.colorCount,
-                                           desc.fragmentModule != nullptr,
-                                           &err))
+        if (!validatePipelineDesc(desc,
+                                  pipeline->m_bindingMap,
+                                  NativeSlotScope::perStage,
+                                  &err))
         {
             if (outError)
                 *outError = err;

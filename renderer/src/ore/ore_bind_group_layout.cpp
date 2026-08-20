@@ -95,23 +95,58 @@ static BindGroupLayoutEntry::SampleType sampleTypeFromBindingMap(
     return BindGroupLayoutEntry::SampleType::floatFilterable;
 }
 
-uint32_t populateBindGroupLayoutEntriesFromShader(
-    BindGroupLayoutEntry* entries,
-    uint32_t maxEntries,
-    const ShaderModule* shader,
-    uint32_t groupIndex,
-    const uint32_t* dynamicUBOBindings,
-    uint32_t dynamicUBOCount)
+// Per-entry backends hand each stage its own ShaderModule even for a
+// combined file, and those two parse the same sidecar. Layout ids are
+// content hashes, so matching ids mean the merge would rebuild the map it
+// started from — and drop the ids that keep the layout interned.
+static bool sameBakedLayout(const BindingMap& a, const BindingMap& b)
 {
-    if (shader == nullptr)
-        return 0;
+    if (a.groupLayoutCount() == 0 ||
+        a.groupLayoutCount() != b.groupLayoutCount())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < a.groupLayoutCount(); ++i)
+    {
+        const BindingMap::GroupLayout& ga = a.groupLayoutAt(i);
+        const BindingMap::GroupLayout& gb = b.groupLayoutAt(i);
+        if (ga.group != gb.group || ga.layoutId != gb.layoutId ||
+            ga.layoutId == BindingMap::kNoLayoutId)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+BindingMap bindingMapForStages(const ShaderModule* vertex,
+                               const ShaderModule* fragment)
+{
+    if (vertex == nullptr)
+        return fragment != nullptr ? fragment->m_bindingMap : BindingMap();
+    if (fragment == nullptr || fragment == vertex ||
+        sameBakedLayout(vertex->m_bindingMap, fragment->m_bindingMap))
+    {
+        return vertex->m_bindingMap;
+    }
+    BindingMap merged = vertex->m_bindingMap;
+    merged.replaceStage(fragment->m_bindingMap, BindingMap::Stage::FS);
+    return merged;
+}
+
+uint32_t populateBindGroupLayoutEntries(BindGroupLayoutEntry* entries,
+                                        uint32_t maxEntries,
+                                        const BindingMap& bm,
+                                        uint32_t groupIndex,
+                                        const uint32_t* dynamicUBOBindings,
+                                        uint32_t dynamicUBOCount)
+{
     auto isDynamic = [&](uint32_t binding) -> bool {
         for (uint32_t i = 0; i < dynamicUBOCount; ++i)
             if (dynamicUBOBindings[i] == binding)
                 return true;
         return false;
     };
-    const BindingMap& bm = shader->m_bindingMap;
     uint32_t n = 0;
     for (size_t i = 0; i < bm.size(); ++i)
     {
@@ -158,18 +193,37 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
     return n;
 }
 
-rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
-    Context& ctx,
+uint32_t populateBindGroupLayoutEntriesFromShader(
+    BindGroupLayoutEntry* entries,
+    uint32_t maxEntries,
     const ShaderModule* shader,
     uint32_t groupIndex,
     const uint32_t* dynamicUBOBindings,
     uint32_t dynamicUBOCount)
 {
+    if (shader == nullptr)
+        return 0;
+    return populateBindGroupLayoutEntries(entries,
+                                          maxEntries,
+                                          shader->m_bindingMap,
+                                          groupIndex,
+                                          dynamicUBOBindings,
+                                          dynamicUBOCount);
+}
+
+rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
+    Context& ctx,
+    const BindingMap& bindingMap,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings,
+    uint32_t dynamicUBOCount)
+{
     // The baked id never covers dynamic offsets, so those skip interning.
-    const uint64_t layoutId =
-        (shader != nullptr && dynamicUBOCount == 0)
-            ? shader->m_bindingMap.layoutIdForGroup(groupIndex)
-            : BindingMap::kNoLayoutId;
+    // A map merged across two modules carries no ids either, so split-stage
+    // pipelines build their layouts fresh.
+    const uint64_t layoutId = dynamicUBOCount == 0
+                                  ? bindingMap.layoutIdForGroup(groupIndex)
+                                  : BindingMap::kNoLayoutId;
     if (layoutId != BindingMap::kNoLayoutId)
     {
         if (rcp<BindGroupLayout> hit =
@@ -179,13 +233,12 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
 
     static constexpr uint32_t kInlineEntries = 16;
     BindGroupLayoutEntry inlineEntries[kInlineEntries]{};
-    const uint32_t n =
-        populateBindGroupLayoutEntriesFromShader(inlineEntries,
-                                                 kInlineEntries,
-                                                 shader,
-                                                 groupIndex,
-                                                 dynamicUBOBindings,
-                                                 dynamicUBOCount);
+    const uint32_t n = populateBindGroupLayoutEntries(inlineEntries,
+                                                      kInlineEntries,
+                                                      bindingMap,
+                                                      groupIndex,
+                                                      dynamicUBOBindings,
+                                                      dynamicUBOCount);
 
     // Wide groups spill to the heap. Layout creation is setup-time, so the
     // second walk is not worth a cap.
@@ -194,12 +247,12 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     if (n > kInlineEntries)
     {
         spilled.resize(n);
-        populateBindGroupLayoutEntriesFromShader(spilled.data(),
-                                                 n,
-                                                 shader,
-                                                 groupIndex,
-                                                 dynamicUBOBindings,
-                                                 dynamicUBOCount);
+        populateBindGroupLayoutEntries(spilled.data(),
+                                       n,
+                                       bindingMap,
+                                       groupIndex,
+                                       dynamicUBOBindings,
+                                       dynamicUBOCount);
         entries = spilled.data();
     }
 
@@ -211,6 +264,22 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     if (layout != nullptr && layoutId != BindingMap::kNoLayoutId)
         ctx.internBindGroupLayout(layoutId, layout);
     return layout;
+}
+
+rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
+    Context& ctx,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings,
+    uint32_t dynamicUBOCount)
+{
+    static const BindingMap kEmpty;
+    return makeBindGroupLayoutFromBindingMap(
+        ctx,
+        shader != nullptr ? shader->m_bindingMap : kEmpty,
+        groupIndex,
+        dynamicUBOBindings,
+        dynamicUBOCount);
 }
 
 // Map ore::BindingKind (public layout API) ↔ ore::ResourceKind (binding-map
@@ -410,6 +479,102 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
     return true;
 }
 
+namespace
+{
+// GL / D3D12 give buffers, textures and samplers each their own numbering,
+// so a slot only clashes with another slot of the same kind.
+uint8_t slotKindBucket(ResourceKind kind)
+{
+    switch (kind)
+    {
+        case ResourceKind::UniformBuffer:
+        case ResourceKind::StorageBufferRO:
+        case ResourceKind::StorageBufferRW:
+            return 0;
+        case ResourceKind::SampledTexture:
+        case ResourceKind::StorageTexture:
+            return 1;
+        case ResourceKind::Sampler:
+        case ResourceKind::ComparisonSampler:
+            return 2;
+    }
+    return 0;
+}
+} // namespace
+
+bool validateSplitStageSlots(bool stagesCompiledApart,
+                             const BindingMap& mergedMap,
+                             NativeSlotScope scope,
+                             std::string* outError)
+{
+    if (!stagesCompiledApart || scope == NativeSlotScope::perStage)
+        return true;
+
+    struct Claim
+    {
+        uint32_t scopeKey;
+        uint32_t slot;
+        uint8_t group;
+        uint8_t binding;
+    };
+    std::vector<Claim> claimed;
+    claimed.reserve(mergedMap.size());
+
+    for (size_t i = 0; i < mergedMap.size(); ++i)
+    {
+        const BindingMap::Entry& e = mergedMap.at(i);
+        // Mirror what every stage-sharing backend binds with: the vertex
+        // slot when there is one, otherwise the fragment's.
+        const uint16_t vs =
+            e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
+        const uint16_t fs =
+            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
+        // A binding both stages read, numbered differently by each file.
+        // Only one number survives into the layout, so the other stage's
+        // compiled source reads whatever sits at the number it baked.
+        if (vs != BindingMap::kAbsent && fs != BindingMap::kAbsent && vs != fs)
+        {
+            std::ostringstream oss;
+            oss << "@group(" << static_cast<uint32_t>(e.group) << ") @binding("
+                << static_cast<uint32_t>(e.binding)
+                << "): the vertex module put it on native slot " << vs
+                << " and the fragment module on " << fs
+                << ", and this backend shares one slot namespace between the "
+                   "stages. Declare the same bindings in both files, or "
+                   "compile both stages from one shader";
+            if (outError != nullptr)
+                *outError = oss.str();
+            return false;
+        }
+        const uint16_t slot = vs != BindingMap::kAbsent ? vs : fs;
+        if (slot == BindingMap::kAbsent)
+            continue;
+        const uint32_t scopeKey = scope == NativeSlotScope::perGroup
+                                      ? e.group
+                                      : slotKindBucket(e.kind);
+        for (const Claim& c : claimed)
+        {
+            if (c.scopeKey != scopeKey || c.slot != slot)
+                continue;
+            std::ostringstream oss;
+            oss << "@group(" << static_cast<uint32_t>(e.group) << ") @binding("
+                << static_cast<uint32_t>(e.binding) << ") and @group("
+                << static_cast<uint32_t>(c.group) << ") @binding("
+                << static_cast<uint32_t>(c.binding)
+                << ") both land on native slot " << slot
+                << ": the vertex and fragment modules were compiled apart, "
+                   "and this backend shares one slot namespace between them. "
+                   "Declare the same bindings in both, or compile both stages "
+                   "from one shader";
+            if (outError != nullptr)
+                *outError = oss.str();
+            return false;
+        }
+        claimed.push_back({scopeKey, slot, e.group, e.binding});
+    }
+    return true;
+}
+
 bool validateColorRequiresFragment(uint32_t colorCount,
                                    bool hasFragmentModule,
                                    std::string* outError)
@@ -423,6 +588,89 @@ bool validateColorRequiresFragment(uint32_t colorCount,
         return false;
     }
     return true;
+}
+
+bool validateStagesAgree(const BindingMap& vertexMap,
+                         const BindingMap& fragmentMap,
+                         std::string* outError)
+{
+    auto fail = [&](const BindingMap::Entry& e, const char* what) {
+        std::ostringstream oss;
+        oss << "@group(" << static_cast<uint32_t>(e.group) << ") @binding("
+            << static_cast<uint32_t>(e.binding)
+            << "): the vertex and fragment files declare it with a different "
+            << what
+            << ". A pipeline carries one declaration per binding, so the stage "
+               "that loses reads what the other one bound";
+        if (outError != nullptr)
+            *outError = oss.str();
+        return false;
+    };
+
+    for (size_t f = 0; f < fragmentMap.size(); ++f)
+    {
+        const BindingMap::Entry& fs = fragmentMap.at(f);
+        for (size_t v = 0; v < vertexMap.size(); ++v)
+        {
+            const BindingMap::Entry& vs = vertexMap.at(v);
+            if (vs.group != fs.group || vs.binding != fs.binding)
+                continue;
+            // Sampler and comparison sampler are one category to every
+            // caller, matching `BindingMap::lookup`.
+            const bool bothSamplers =
+                (vs.kind == ResourceKind::Sampler ||
+                 vs.kind == ResourceKind::ComparisonSampler) &&
+                (fs.kind == ResourceKind::Sampler ||
+                 fs.kind == ResourceKind::ComparisonSampler);
+            if (vs.kind != fs.kind && !bothSamplers)
+                return fail(fs, "kind");
+            if (vs.textureViewDim != TextureViewDim::Undefined &&
+                fs.textureViewDim != TextureViewDim::Undefined &&
+                vs.textureViewDim != fs.textureViewDim)
+            {
+                return fail(fs, "texture dimension");
+            }
+            if (vs.textureSampleType != TextureSampleType::Undefined &&
+                fs.textureSampleType != TextureSampleType::Undefined &&
+                vs.textureSampleType != fs.textureSampleType)
+            {
+                return fail(fs, "texture sample type");
+            }
+            break;
+        }
+    }
+    return true;
+}
+
+bool validatePipelineDesc(const PipelineDesc& desc,
+                          const BindingMap& mergedMap,
+                          NativeSlotScope scope,
+                          std::string* outError)
+{
+    const bool stagesCompiledApart = desc.vertexModule != nullptr &&
+                                     desc.fragmentModule != nullptr &&
+                                     desc.vertexModule != desc.fragmentModule;
+    // Ahead of the layout check: a disagreement here means the merged map
+    // itself is wrong, and a layout complaint would only describe the
+    // symptom.
+    if (stagesCompiledApart &&
+        !validateStagesAgree(desc.vertexModule->m_bindingMap,
+                             desc.fragmentModule->m_bindingMap,
+                             outError))
+    {
+        return false;
+    }
+    return validateLayoutsAgainstBindingMap(mergedMap,
+                                            desc.bindGroupLayouts,
+                                            desc.bindGroupLayoutCount,
+                                            outError) &&
+           validateColorRequiresFragment(desc.colorCount,
+                                         desc.fragmentModule != nullptr,
+                                         outError) &&
+           validateSplitStageSlots(stagesCompiledApart,
+                                   mergedMap,
+                                   scope,
+                                   outError);
 }
 
 } // namespace rive::ore

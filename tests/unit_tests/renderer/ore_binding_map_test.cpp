@@ -3,6 +3,7 @@
  */
 
 #include "rive/renderer/ore/ore_binding_map.hpp"
+#include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include <catch.hpp>
 
 namespace rive::ore
@@ -453,6 +454,294 @@ TEST_CASE("lookupBackendSlot helper", "[ore_binding_map]")
                             0,
                             ResourceKind::UniformBuffer,
                             BindingMap::Stage::FS) == 7);
+}
+
+TEST_CASE("replaceStage takes the fragment stage from the other map",
+          "[ore_binding_map]")
+{
+    // Vertex file: a UBO both stages read, plus a vertex-only texture.
+    BindingMap vertex;
+    vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+    vertex.push(makeEntry(0,
+                          1,
+                          ResourceKind::SampledTexture,
+                          0,
+                          BindingMap::kAbsent,
+                          BindingMap::kAbsent,
+                          BindingMap::kStageVertex));
+    vertex.finalize();
+
+    // Fragment file: the same UBO at a slot of its own, plus a texture the
+    // vertex file never saw.
+    BindingMap fragment;
+    fragment.push(makeEntry(0,
+                            0,
+                            ResourceKind::UniformBuffer,
+                            BindingMap::kAbsent,
+                            3,
+                            BindingMap::kAbsent,
+                            BindingMap::kStageFragment));
+    fragment.push(makeEntry(0,
+                            2,
+                            ResourceKind::SampledTexture,
+                            BindingMap::kAbsent,
+                            4,
+                            BindingMap::kAbsent,
+                            BindingMap::kStageFragment));
+    fragment.finalize();
+
+    BindingMap merged = vertex;
+    merged.replaceStage(fragment, BindingMap::Stage::FS);
+
+    REQUIRE(merged.size() == 3);
+    // Shared UBO: vertex slot from the vertex file, fragment slot from the
+    // fragment file.
+    CHECK(merged.lookup(0,
+                        0,
+                        ResourceKind::UniformBuffer,
+                        BindingMap::Stage::VS) == 0);
+    CHECK(merged.lookup(0,
+                        0,
+                        ResourceKind::UniformBuffer,
+                        BindingMap::Stage::FS) == 3);
+    // Vertex-only texture keeps its slot and stays invisible to fragment.
+    CHECK(merged.lookup(0,
+                        1,
+                        ResourceKind::SampledTexture,
+                        BindingMap::Stage::VS) == 0);
+    CHECK(merged.lookup(0,
+                        1,
+                        ResourceKind::SampledTexture,
+                        BindingMap::Stage::FS) == BindingMap::kAbsent);
+    // The fragment file's own texture is in the map at all, which is what
+    // the layout needs to declare it.
+    CHECK(merged.lookup(0,
+                        2,
+                        ResourceKind::SampledTexture,
+                        BindingMap::Stage::FS) == 4);
+    CHECK(merged.lookup(0,
+                        2,
+                        ResourceKind::SampledTexture,
+                        BindingMap::Stage::VS) == BindingMap::kAbsent);
+}
+
+TEST_CASE("replaceStage drops rows the new stage no longer claims",
+          "[ore_binding_map]")
+{
+    // The vertex file declares a fragment-only sampler. Once the fragment
+    // comes from elsewhere, nothing reads it.
+    BindingMap vertex;
+    vertex.push(makeEntry(0,
+                          0,
+                          ResourceKind::Sampler,
+                          BindingMap::kAbsent,
+                          0,
+                          BindingMap::kAbsent,
+                          BindingMap::kStageFragment));
+    vertex.finalize();
+    CHECK(vertex.layoutIdForGroup(0) == BindingMap::kNoLayoutId);
+
+    BindingMap fragment;
+    fragment.finalize();
+
+    BindingMap merged = vertex;
+    merged.replaceStage(fragment, BindingMap::Stage::FS);
+    CHECK(merged.size() == 0);
+}
+
+TEST_CASE("replaceStage clears baked layout ids", "[ore_binding_map]")
+{
+    BindingMap vertex;
+    vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+    vertex.finalize();
+    vertex.computeLayoutIds();
+    REQUIRE(vertex.layoutIdForGroup(0) != BindingMap::kNoLayoutId);
+
+    BindingMap fragment;
+    fragment.push(makeEntry(0,
+                            0,
+                            ResourceKind::UniformBuffer,
+                            BindingMap::kAbsent,
+                            2,
+                            BindingMap::kAbsent,
+                            BindingMap::kStageFragment));
+    fragment.finalize();
+
+    BindingMap merged = vertex;
+    merged.replaceStage(fragment, BindingMap::Stage::FS);
+    // The id described the pre-merge map; interning against it would hand
+    // back a layout with the wrong fragment slots.
+    CHECK(merged.layoutIdForGroup(0) == BindingMap::kNoLayoutId);
+}
+
+// Two bindings the two files each numbered from zero. Metal and D3D11 give
+// each stage its own namespace and bind both; Vulkan, D3D12 and GL cannot.
+static BindingMap collidingMergedMap()
+{
+    BindingMap m;
+    m.push(makeEntry(0,
+                     0,
+                     ResourceKind::UniformBuffer,
+                     0,
+                     BindingMap::kAbsent,
+                     BindingMap::kAbsent,
+                     BindingMap::kStageVertex));
+    m.push(makeEntry(1,
+                     0,
+                     ResourceKind::UniformBuffer,
+                     BindingMap::kAbsent,
+                     0,
+                     BindingMap::kAbsent,
+                     BindingMap::kStageFragment));
+    m.finalize();
+    return m;
+}
+
+TEST_CASE("split-stage slot collisions are rejected per scope",
+          "[ore_binding_map]")
+{
+    const BindingMap merged = collidingMergedMap();
+    std::string error;
+
+    CHECK(validateSplitStageSlots(true,
+                                  merged,
+                                  NativeSlotScope::perStage,
+                                  &error));
+    CHECK(validateSplitStageSlots(false,
+                                  merged,
+                                  NativeSlotScope::perKind,
+                                  &error));
+
+    CHECK(!validateSplitStageSlots(true,
+                                   merged,
+                                   NativeSlotScope::perKind,
+                                   &error));
+    CHECK(error.find("@binding(0)") != std::string::npos);
+
+    // Vulkan numbers within a descriptor set, so bindings in different
+    // groups reusing slot 0 are fine there.
+    CHECK(validateSplitStageSlots(true,
+                                  merged,
+                                  NativeSlotScope::perGroup,
+                                  &error));
+}
+
+TEST_CASE("split-stage files must agree on what a binding is",
+          "[ore_binding_map]")
+{
+    BindingMap vertex;
+    vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+    vertex.finalize();
+
+    // Same slot, declared a texture by the other file. The merge keeps one
+    // kind, so whichever stage loses samples what the winner bound.
+    BindingMap fragment;
+    fragment.push(makeEntry(0,
+                            0,
+                            ResourceKind::SampledTexture,
+                            BindingMap::kAbsent,
+                            0,
+                            BindingMap::kAbsent,
+                            BindingMap::kStageFragment));
+    fragment.finalize();
+
+    std::string error;
+    CHECK(!validateStagesAgree(vertex, fragment, &error));
+    CHECK(error.find("@binding(0)") != std::string::npos);
+    CHECK(error.find("kind") != std::string::npos);
+
+    // A binding only one file declares is not a disagreement.
+    BindingMap fragmentElsewhere;
+    fragmentElsewhere.push(makeEntry(1,
+                                     0,
+                                     ResourceKind::SampledTexture,
+                                     BindingMap::kAbsent,
+                                     0,
+                                     BindingMap::kAbsent,
+                                     BindingMap::kStageFragment));
+    fragmentElsewhere.finalize();
+    CHECK(validateStagesAgree(vertex, fragmentElsewhere, &error));
+}
+
+TEST_CASE("split-stage files must agree on a texture's shape",
+          "[ore_binding_map]")
+{
+    auto textureEntry = [](TextureViewDim dim, uint16_t slotVs) {
+        BindingMap::Entry e =
+            makeEntry(0, 0, ResourceKind::SampledTexture, slotVs, 0);
+        e.textureViewDim = dim;
+        return e;
+    };
+
+    BindingMap vertex;
+    vertex.push(textureEntry(TextureViewDim::D2, 0));
+    vertex.finalize();
+
+    BindingMap fragment;
+    fragment.push(textureEntry(TextureViewDim::Cube, BindingMap::kAbsent));
+    fragment.finalize();
+
+    std::string error;
+    CHECK(!validateStagesAgree(vertex, fragment, &error));
+    CHECK(error.find("dimension") != std::string::npos);
+
+    // Undefined on one side is a reflection gap, not a conflict.
+    BindingMap unreflected;
+    unreflected.push(
+        textureEntry(TextureViewDim::Undefined, BindingMap::kAbsent));
+    unreflected.finalize();
+    CHECK(validateStagesAgree(vertex, unreflected, &error));
+}
+
+// The vertex file declares two UBOs and the fragment file only the second,
+// so each numbers that shared UBO differently. Nothing collides — one
+// binding simply cannot be at two slots at once on a stage-shared backend.
+TEST_CASE("a shared binding numbered differently by each file is rejected",
+          "[ore_binding_map]")
+{
+    BindingMap m;
+    m.push(makeEntry(0,
+                     0,
+                     ResourceKind::UniformBuffer,
+                     0,
+                     BindingMap::kAbsent,
+                     BindingMap::kAbsent,
+                     BindingMap::kStageVertex));
+    m.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 0));
+    m.finalize();
+
+    std::string error;
+    CHECK(validateSplitStageSlots(true, m, NativeSlotScope::perStage, &error));
+
+    CHECK(!validateSplitStageSlots(true, m, NativeSlotScope::perKind, &error));
+    CHECK(error.find("@binding(1)") != std::string::npos);
+    CHECK(!validateSplitStageSlots(true, m, NativeSlotScope::perGroup, &error));
+}
+
+TEST_CASE("split-stage bindings of different kinds do not collide",
+          "[ore_binding_map]")
+{
+    BindingMap m;
+    m.push(makeEntry(0,
+                     0,
+                     ResourceKind::UniformBuffer,
+                     0,
+                     BindingMap::kAbsent,
+                     BindingMap::kAbsent,
+                     BindingMap::kStageVertex));
+    m.push(makeEntry(0,
+                     1,
+                     ResourceKind::SampledTexture,
+                     BindingMap::kAbsent,
+                     0,
+                     BindingMap::kAbsent,
+                     BindingMap::kStageFragment));
+    m.finalize();
+
+    std::string error;
+    CHECK(validateSplitStageSlots(true, m, NativeSlotScope::perKind, &error));
+    // Same descriptor-set binding number, which Vulkan cannot express.
+    CHECK(!validateSplitStageSlots(true, m, NativeSlotScope::perGroup, &error));
 }
 
 } // namespace rive::ore

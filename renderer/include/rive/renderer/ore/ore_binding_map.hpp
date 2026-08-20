@@ -151,8 +151,11 @@ public:
     // value; any blob stamped with a different version fails `fromBlob`
     // with a clear error.
     //
-    // WebGPU-aligned global-counter-per-kind allocation.
-    static constexpr uint8_t kAllocatorVersion = 1;
+    // WebGPU-aligned global-counter-per-kind allocation. v2 made SPIR-V
+    // numbering identity — a binding keeps its `@binding` — so two files
+    // compiled apart agree on a binding they share. Blobs baked at v1 are
+    // rejected rather than mixed with v2 ones.
+    static constexpr uint8_t kAllocatorVersion = 2;
 
     // One row of the binding map. Layout matches the on-disk RSTB row
     // but packed tighter (fewer bits where the semantics allow).
@@ -197,6 +200,15 @@ public:
     // `kAllocatorVersion`; mismatch either and parse fails loudly.
     // Serialization (`toBlob`) lives in the tooling-gated portion of the API.
     static bool fromBlob(const uint8_t* data, size_t size, BindingMap* out);
+
+    // Take everything `stage` needs from `other`, dropping what this map
+    // held for it. Slots are allocated per module, so a pipeline whose
+    // stages compile from different modules can only bind correctly if each
+    // stage's rows come from the module that emitted its source.
+    //
+    // Clears the baked group layout ids, which described the map before the
+    // swap and would otherwise intern this as a layout it no longer is.
+    void replaceStage(const BindingMap& other, Stage stage);
 
     // Per-stage backend-slot lookup. Returns kAbsent when the resource
     // is not in the map, or not visible to the requested stage, or the
