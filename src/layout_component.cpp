@@ -112,8 +112,8 @@ void forEachLayoutProvider(Component* from, F&& visit, bool nested = false)
     }
 }
 
-// Only reached when m_hasComponentOrigin says one exists, so the common case
-// never walks.
+// Only reached when the HasComponentOrigin flag says one exists, so the common
+// case never walks.
 ComponentOrigin* originChild(const ContainerComponent* owner)
 {
     for (auto* child : owner->children())
@@ -133,7 +133,7 @@ uint32_t LayoutData::count = 0;
 
 float LayoutComponent::pivotOriginX() const
 {
-    if (!m_hasComponentOrigin)
+    if (!hasLayoutFlag(LayoutComponentFlags::HasComponentOrigin))
     {
         return 0.0f;
     }
@@ -143,7 +143,7 @@ float LayoutComponent::pivotOriginX() const
 
 float LayoutComponent::pivotOriginY() const
 {
-    if (!m_hasComponentOrigin)
+    if (!hasLayoutFlag(LayoutComponentFlags::HasComponentOrigin))
     {
         return 0.0f;
     }
@@ -210,25 +210,39 @@ StatusCode LayoutComponent::import(ImportStack& importStack)
     // of the slot. See File::minorVersion.
     int major = importStack.majorVersion();
     int minor = importStack.minorVersion();
-    m_composeTransform = major > 7 || (major == 7 && minor >= 3);
+    setLayoutFlag(LayoutComponentFlags::ComposeTransform,
+                  major > 7 || (major == 7 && minor >= 3));
     return Super::import(importStack);
 }
 
 Core* LayoutComponent::clone() const
 {
     LayoutComponent* twin = LayoutComponentBase::clone()->as<LayoutComponent>();
-    twin->m_composeTransform = m_composeTransform;
+    twin->setLayoutFlag(LayoutComponentFlags::ComposeTransform,
+                        hasLayoutFlag(LayoutComponentFlags::ComposeTransform));
+    // The clip-may-be-dynamic (KeyedObject::onAddedDirty) and listener-target
+    // (StateMachineListener::onAddedClean) reasons for ForceDrawableProxy are
+    // stamped only on the source, since instances share animations and state
+    // machines. Carry the flag so an instance's proxy is still injected before
+    // its first sort. (The scroll-interaction reason re-marks per instance in
+    // buildDependencies, so carrying it here is a harmless no-op for that
+    // case.)
+    twin->setLayoutFlag(
+        LayoutComponentFlags::ForceDrawableProxy,
+        hasLayoutFlag(LayoutComponentFlags::ForceDrawableProxy));
     return twin;
 }
 
 bool LayoutComponent::composesLayoutOffset() const
 {
-    return m_composeTransform && !is<Artboard>();
+    return hasLayoutFlag(LayoutComponentFlags::ComposeTransform) &&
+           !is<Artboard>();
 }
 
 Vec2D LayoutComponent::localAnchor() const
 {
-    if (!m_hasComponentOrigin || is<Artboard>())
+    if (!hasLayoutFlag(LayoutComponentFlags::HasComponentOrigin) ||
+        is<Artboard>())
     {
         return Vec2D();
     }
@@ -268,7 +282,7 @@ Mat2D LayoutComponent::buildOwnTransform() const
 
     // Pivot about the origin. The box stays put, so wrap rather than fold
     // into the frame.
-    if (m_composeTransform &&
+    if (hasLayoutFlag(LayoutComponentFlags::ComposeTransform) &&
         (rotation() != 0.0f || scaleX() != 1.0f || scaleY() != 1.0f))
     {
         Mat2D local =
@@ -341,45 +355,46 @@ void LayoutComponent::update(ComponentDirt value)
         updateRenderPath();
     }
 
-    m_positionLeftChanged = false;
-    m_positionTopChanged = false;
+    setLayoutFlag(LayoutComponentFlags::PositionLeftChanged, false);
+    setLayoutFlag(LayoutComponentFlags::PositionTopChanged, false);
 }
 
 void LayoutComponent::widthOverride(float width, int unitValue, bool isRow)
 {
     m_widthOverride = width;
-    m_widthUnitValueOverride = unitValue;
-    m_parentIsRow = isRow;
+    m_widthUnitValueOverride = static_cast<int8_t>(unitValue);
+    setLayoutFlag(LayoutComponentFlags::ParentIsRow, isRow);
     markLayoutNodeDirty();
 }
 
 void LayoutComponent::heightOverride(float height, int unitValue, bool isRow)
 {
     m_heightOverride = height;
-    m_heightUnitValueOverride = unitValue;
-    m_parentIsRow = isRow;
+    m_heightUnitValueOverride = static_cast<int8_t>(unitValue);
+    setLayoutFlag(LayoutComponentFlags::ParentIsRow, isRow);
     markLayoutNodeDirty();
 }
 
 void LayoutComponent::parentIsRow(bool isRow)
 {
-    m_parentIsRow = isRow;
+    setLayoutFlag(LayoutComponentFlags::ParentIsRow, isRow);
     markLayoutNodeDirty();
 }
 
 void LayoutComponent::parentIsStack(bool isStack)
 {
-    if (m_parentIsStack == isStack)
+    if (hasLayoutFlag(LayoutComponentFlags::ParentIsStack) == isStack)
     {
         return;
     }
-    m_parentIsStack = isStack;
+    setLayoutFlag(LayoutComponentFlags::ParentIsStack, isStack);
     markLayoutNodeDirty();
 }
 
 void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
 {
-    m_widthIntrinsicallySizeOverride = intrinsic;
+    setLayoutFlag(LayoutComponentFlags::WidthIntrinsicallySizeOverride,
+                  intrinsic);
     // If we have an intrinsically sized override, set units to auto
     // otherwise set to points
     m_widthUnitValueOverride = intrinsic ? 3 : 1;
@@ -388,7 +403,8 @@ void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
 
 void LayoutComponent::heightIntrinsicallySizeOverride(bool intrinsic)
 {
-    m_heightIntrinsicallySizeOverride = intrinsic;
+    setLayoutFlag(LayoutComponentFlags::HeightIntrinsicallySizeOverride,
+                  intrinsic);
     // If we have an intrinsically sized override, set units to auto
     // otherwise set to points
     m_heightUnitValueOverride = intrinsic ? 3 : 1;
@@ -486,8 +502,7 @@ bool LayoutComponent::collapse(bool value)
 
 #ifdef WITH_RIVE_LAYOUT
 
-LayoutComponent::LayoutComponent() :
-    m_layoutData(new LayoutData()), m_proxy(this)
+LayoutComponent::LayoutComponent() : m_layoutData(new LayoutData())
 {
     m_layoutData->node.getConfig()->setPointScaleFactor(0);
 }
@@ -553,11 +568,20 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
 
 void LayoutComponent::drawProxy(Renderer* renderer)
 {
-    if (clip())
+    // Pair the save/clip here with the restore in draw(). Record whether we
+    // actually saved so draw() never restores a save that wasn't issued. Set OR
+    // clear it every time the proxy draws: the proxy is injected once and stays
+    // in the draw order, so a later pass where clip() is off must clear a stale
+    // true from an earlier pass. (When the proxy isn't in the draw order at
+    // all, this never runs, the flag stays false, and draw() skips the
+    // restore.)
+    const bool saveForClip = clip();
+    if (saveForClip)
     {
         renderer->save();
-        renderer->clipPath(m_worldPath.renderPath(this));
+        renderer->clipPath(mutableRenderPaths().world.renderPath(this));
     }
+    setLayoutFlag(LayoutComponentFlags::ClipSaved, saveForClip);
     for (auto shapePaint : m_ShapePaints)
     {
         if (!shapePaint->shouldDraw())
@@ -575,9 +599,13 @@ void LayoutComponent::drawProxy(Renderer* renderer)
 
 void LayoutComponent::draw(Renderer* renderer)
 {
-    // Restore clip before drawing stroke so we don't clip the stroke
-    if (clip())
+    // Restore clip before drawing stroke so we don't clip the stroke. Pair the
+    // restore with drawProxy()'s save via ClipSaved rather than clip(): if the
+    // proxy wasn't in the draw order (so drawProxy() never saved) but clip() is
+    // true, restoring here would underflow the renderer's save stack.
+    if (hasLayoutFlag(LayoutComponentFlags::ClipSaved))
     {
+        setLayoutFlag(LayoutComponentFlags::ClipSaved, false);
         renderer->restore();
     }
 }
@@ -588,7 +616,8 @@ void LayoutComponent::updateRenderPath()
     {
         return;
     }
-    if (m_ShapePaints.empty() && !clip() && !m_hasForegroundDrawable)
+    if (m_ShapePaints.empty() && !clip() &&
+        !hasLayoutFlag(LayoutComponentFlags::HasForegroundDrawable))
     {
         return;
     }
@@ -609,20 +638,21 @@ void LayoutComponent::updateRenderPath()
         }
     }
 
-    m_backgroundRawPath.rewind();
+    auto& renderPaths = mutableRenderPaths();
+    renderPaths.background.rewind();
     Path::addRoundedRect(
-        m_backgroundRawPath,
+        renderPaths.background,
         AABB::fromLTWH(0.0f, 0.0f, m_layout.width(), m_layout.height()),
         tl,
         tr,
         br,
         bl);
 
-    m_localPath.rewind();
-    m_localPath.addPath(m_backgroundRawPath);
+    renderPaths.local.rewind();
+    renderPaths.local.addPath(renderPaths.background);
 
-    m_worldPath.rewind(false, FillRule::clockwise);
-    m_worldPath.addPath(m_backgroundRawPath, &m_WorldTransform);
+    renderPaths.world.rewind(false, FillRule::clockwise);
+    renderPaths.world.addPath(renderPaths.background, &m_WorldTransform);
 
     for (auto shapePaint : m_ShapePaints)
     {
@@ -682,7 +712,7 @@ bool LayoutComponent::effectiveParentIsRow()
 {
     if (canHaveOverrides())
     {
-        return m_parentIsRow;
+        return hasLayoutFlag(LayoutComponentFlags::ParentIsRow);
     }
     return layoutParent() != nullptr ? layoutParent()->mainAxisIsRow() : true;
 }
@@ -826,7 +856,8 @@ void LayoutComponent::applyBaseStyle(YGStyle& ygStyle,
                     realWidthScaleType = LayoutScaleType::fixed;
                     break;
                 case YGUnitAuto:
-                    if (m_widthIntrinsicallySizeOverride)
+                    if (hasLayoutFlag(LayoutComponentFlags::
+                                          WidthIntrinsicallySizeOverride))
                     {
                         realWidthScaleType = LayoutScaleType::hug;
                     }
@@ -849,7 +880,8 @@ void LayoutComponent::applyBaseStyle(YGStyle& ygStyle,
                     realHeightScaleType = LayoutScaleType::fixed;
                     break;
                 case YGUnitAuto:
-                    if (m_heightIntrinsicallySizeOverride)
+                    if (hasLayoutFlag(LayoutComponentFlags::
+                                          HeightIntrinsicallySizeOverride))
                     {
                         realHeightScaleType = LayoutScaleType::hug;
                     }
@@ -1021,9 +1053,11 @@ void LayoutComponent::syncStyle()
     // walk, so its host pushes the container's stack state in. Only stack is
     // pushed: a grid already auto-places these nodes correctly, and claiming
     // grid here would move them off the flex sizing path they use today.
-    bool parentIsStack = parentLayoutStyle != nullptr
-                             ? parentLayoutStyle->isStack()
-                             : (canHaveOverrides() && m_parentIsStack);
+    bool parentIsStack =
+        parentLayoutStyle != nullptr
+            ? parentLayoutStyle->isStack()
+            : (canHaveOverrides() &&
+               hasLayoutFlag(LayoutComponentFlags::ParentIsStack));
     bool parentIsGridLike = parentLayoutStyle != nullptr
                                 ? parentLayoutStyle->isGrid()
                                 : parentIsStack;
@@ -1224,9 +1258,9 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     Layout newLayout = layoutFromYoga(yogaLayout);
     m_layoutPadding = layoutPaddingFromYoga(yogaLayout);
 
-    if (m_justAddedToHost)
+    if (hasLayoutFlag(LayoutComponentFlags::JustAddedToHost))
     {
-        m_justAddedToHost = false;
+        setLayoutFlag(LayoutComponentFlags::JustAddedToHost, false);
         // In cases were we have a host (ie, Component List, etc), we
         // don't want to animate the x/y/width/height because the initial
         // x/y/width/height will have been 0,0,0,0 within the parent host.
@@ -1244,27 +1278,29 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         animationData->elapsedSeconds = 0.0f;
         propagateSize();
         markWorldTransformDirty();
-        m_forceUpdateLayoutBounds = false;
+        setLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds, false);
         return;
     }
 
     if (animate && animates())
     {
         auto animationData = currentAnimationData();
-        if (newLayout != animationData->to || m_forceUpdateLayoutBounds)
+        if (newLayout != animationData->to ||
+            hasLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds))
         {
             if (animationData->elapsedSeconds != 0.0f)
             {
-                if (m_isSmoothingAnimation)
+                if (hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation))
                 {
                     // we were already smoothening.
                     m_animationDataA.copy(m_animationDataB);
                 }
-                m_isSmoothingAnimation = true;
+                setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation, true);
             }
             else
             {
-                m_isSmoothingAnimation = false;
+                setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation,
+                              false);
             }
             animationData = currentAnimationData();
             animationData->from = m_layout;
@@ -1274,7 +1310,8 @@ void LayoutComponent::updateLayoutBounds(bool animate)
             markWorldTransformDirty();
         }
     }
-    else if (newLayout != m_layout || m_forceUpdateLayoutBounds)
+    else if (newLayout != m_layout ||
+             hasLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds))
     {
         if (m_layout.width() != newLayout.width() ||
             m_layout.height() != newLayout.height())
@@ -1287,7 +1324,7 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         propagateSize();
         markWorldTransformDirty();
     }
-    m_forceUpdateLayoutBounds = false;
+    setLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds, false);
 }
 
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
@@ -1448,7 +1485,9 @@ void LayoutComponent::clearInheritedInterpolation()
 
 LayoutAnimationData* LayoutComponent::currentAnimationData()
 {
-    return m_isSmoothingAnimation ? &m_animationDataB : &m_animationDataA;
+    return hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation)
+               ? &m_animationDataB
+               : &m_animationDataA;
 }
 
 void LayoutAnimationData::copy(const LayoutAnimationData& source)
@@ -1466,7 +1505,7 @@ bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
     {
         return false;
     }
-    if (m_isSmoothingAnimation)
+    if (hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation))
     {
         float f = std::fmin(1.0f,
                             interpolationTime() > 0.0f
@@ -1483,7 +1522,7 @@ bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
         if (f == 1.0f)
         {
             m_animationDataA.copy(m_animationDataB);
-            m_isSmoothingAnimation = false;
+            setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation, false);
         }
         else
         {
@@ -1502,9 +1541,9 @@ bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
         }
         m_layout = animationData->to;
 
-        if (m_isSmoothingAnimation)
+        if (hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation))
         {
-            m_isSmoothingAnimation = false;
+            setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation, false);
             m_animationDataA.copy(m_animationDataB);
             m_animationDataA.elapsedSeconds = m_animationDataB.elapsedSeconds =
                 0.0f;
@@ -1565,7 +1604,8 @@ void LayoutComponent::markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds)
 {
     if (shouldForceUpdateLayoutBounds == true)
     {
-        m_forceUpdateLayoutBounds = shouldForceUpdateLayoutBounds;
+        setLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds,
+                      shouldForceUpdateLayoutBounds);
     }
     m_layoutData->node.markDirtyAndPropagate();
     artboard()->markLayoutDirty(this);
@@ -1592,11 +1632,11 @@ void LayoutComponent::positionTypeChanged()
         // Preserve computed position only if left/top were not explicitly keyed
         // this frame. If keyed, honor those values and only set units
         // appropriately.
-        if (!m_positionLeftChanged)
+        if (!hasLayoutFlag(LayoutComponentFlags::PositionLeftChanged))
         {
             m_style->positionLeft(layoutBounds().left());
         }
-        if (!m_positionTopChanged)
+        if (!hasLayoutFlag(LayoutComponentFlags::PositionTopChanged))
         {
             m_style->positionTop(layoutBounds().top());
         }
@@ -1670,9 +1710,7 @@ void LayoutComponent::directionChanged()
     markLayoutNodeDirty(true);
 }
 #else
-LayoutComponent::LayoutComponent() :
-    m_layoutData(new LayoutData()), m_proxy(this)
-{}
+LayoutComponent::LayoutComponent() : m_layoutData(new LayoutData()) {}
 
 float LayoutComponent::gapHorizontal() { return 0; }
 float LayoutComponent::gapVertical() { return 0; }
@@ -1732,8 +1770,17 @@ void LayoutComponent::styleIdChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::fractionalWidthChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::fractionalHeightChanged() { markLayoutNodeDirty(); }
 
-ShapePaintPath* LayoutComponent::worldPath() { return &m_worldPath; }
-ShapePaintPath* LayoutComponent::localPath() { return &m_localPath; }
-ShapePaintPath* LayoutComponent::localClockwisePath() { return &m_localPath; }
+ShapePaintPath* LayoutComponent::worldPath()
+{
+    return m_renderPaths != nullptr ? &m_renderPaths->world : nullptr;
+}
+ShapePaintPath* LayoutComponent::localPath()
+{
+    return m_renderPaths != nullptr ? &m_renderPaths->local : nullptr;
+}
+ShapePaintPath* LayoutComponent::localClockwisePath()
+{
+    return m_renderPaths != nullptr ? &m_renderPaths->local : nullptr;
+}
 
 Component* LayoutComponent::pathBuilder() { return this; }

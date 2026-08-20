@@ -123,6 +123,18 @@ void ScrollBarConstraint::buildDependencies()
 {
     m_scrollConstraint->addDependent(this);
     Super::buildDependencies();
+    // draggables() hands the thumb and track proxies out as drag hit targets,
+    // so they must be injected into the draw order even if they never paint or
+    // clip. Stamp them here, before the artboard's one-time proxy injection.
+    if (parent() != nullptr && parent()->is<LayoutComponent>())
+    {
+        thumb()->markInteractionTarget();
+        if (parent()->parent() != nullptr &&
+            parent()->parent()->is<LayoutComponent>())
+        {
+            track()->markInteractionTarget();
+        }
+    }
 }
 
 StatusCode ScrollBarConstraint::onAddedDirty(CoreContext* context)

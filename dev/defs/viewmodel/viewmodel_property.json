@@ -30,7 +30,7 @@
       "runtime": false
     },
     "symbolTypeValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 875,
@@ -39,7 +39,7 @@
       "description": "Special types of properties. 0 is not a special value type"
     },
     "componentProps": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 957,

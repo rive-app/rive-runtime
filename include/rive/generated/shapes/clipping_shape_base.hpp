@@ -35,7 +35,7 @@ public:
 
 protected:
     uint32_t m_SourceId = -1;
-    uint32_t m_FillRule = 0;
+    uint8_t m_FillRule = 0;
     bool m_IsVisible = true;
 
 public:
@@ -51,8 +51,8 @@ public:
         notifyPropertyChanged(sourceIdPropertyKey);
     }
 
-    inline uint32_t fillRule() const { return m_FillRule; }
-    void fillRule(uint32_t value)
+    inline uint8_t fillRule() const { return m_FillRule; }
+    void fillRule(uint8_t value)
     {
         if (m_FillRule == value)
         {

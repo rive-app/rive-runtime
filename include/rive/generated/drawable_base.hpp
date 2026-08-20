@@ -36,12 +36,12 @@ public:
     static const uint16_t drawableFlagsPropertyKey = 129;
 
 protected:
-    uint32_t m_BlendModeValue = 3;
-    uint32_t m_DrawableFlags = 0;
+    uint8_t m_BlendModeValue = 3;
+    uint16_t m_DrawableFlags = 0;
 
 public:
-    inline uint32_t blendModeValue() const { return m_BlendModeValue; }
-    void blendModeValue(uint32_t value)
+    inline uint8_t blendModeValue() const { return m_BlendModeValue; }
+    void blendModeValue(uint8_t value)
     {
         if (m_BlendModeValue == value)
         {
@@ -52,8 +52,8 @@ public:
         notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
-    inline uint32_t drawableFlags() const { return m_DrawableFlags; }
-    void drawableFlags(uint32_t value)
+    inline uint16_t drawableFlags() const { return m_DrawableFlags; }
+    void drawableFlags(uint16_t value)
     {
         if (m_DrawableFlags == value)
         {

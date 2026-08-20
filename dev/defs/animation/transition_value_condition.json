@@ -8,7 +8,7 @@
   "extends": "animation/transition_input_condition.json",
   "properties": {
     "opValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 156,

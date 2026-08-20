@@ -32,12 +32,12 @@ public:
     static const uint16_t componentPropsPropertyKey = 957;
 
 protected:
-    uint32_t m_SymbolTypeValue = 0;
-    uint32_t m_ComponentProps = 0;
+    uint8_t m_SymbolTypeValue = 0;
+    uint8_t m_ComponentProps = 0;
 
 public:
-    inline uint32_t symbolTypeValue() const { return m_SymbolTypeValue; }
-    void symbolTypeValue(uint32_t value)
+    inline uint8_t symbolTypeValue() const { return m_SymbolTypeValue; }
+    void symbolTypeValue(uint8_t value)
     {
         if (m_SymbolTypeValue == value)
         {
@@ -48,8 +48,8 @@ public:
         notifyPropertyChanged(symbolTypeValuePropertyKey);
     }
 
-    inline uint32_t componentProps() const { return m_ComponentProps; }
-    void componentProps(uint32_t value)
+    inline uint8_t componentProps() const { return m_ComponentProps; }
+    void componentProps(uint8_t value)
     {
         if (m_ComponentProps == value)
         {

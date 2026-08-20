@@ -32,11 +32,11 @@ public:
     static const uint16_t opValuePropertyKey = 156;
 
 protected:
-    uint32_t m_OpValue = 0;
+    uint8_t m_OpValue = 0;
 
 public:
-    inline uint32_t opValue() const { return m_OpValue; }
-    void opValue(uint32_t value)
+    inline uint8_t opValue() const { return m_OpValue; }
+    void opValue(uint8_t value)
     {
         if (m_OpValue == value)
         {

@@ -33,11 +33,11 @@ public:
     static const uint16_t fillRulePropertyKey = 40;
 
 protected:
-    uint32_t m_FillRule = 0;
+    uint8_t m_FillRule = 0;
 
 public:
-    inline uint32_t fillRule() const { return m_FillRule; }
-    void fillRule(uint32_t value)
+    inline uint8_t fillRule() const { return m_FillRule; }
+    void fillRule(uint8_t value)
     {
         if (m_FillRule == value)
         {

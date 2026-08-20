@@ -8,15 +8,24 @@
   "extends": "node.json",
   "properties": {
     "blendModeValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "3",
       "key": {
         "int": 23,
         "string": "blendModeValue"
       }
     },
+    "isTargetOpaque": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 477,
+        "string": "istargetopaque"
+      },
+      "runtime": false
+    },
     "drawableFlags": {
-      "type": "uint",
+      "type": "uint16",
       "initialValue": "0",
       "key": {
         "int": 129,

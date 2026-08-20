@@ -18,7 +18,7 @@
       "description": "Identifier used to track the node to use as a clipping source."
     },
     "fillRule": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 93,

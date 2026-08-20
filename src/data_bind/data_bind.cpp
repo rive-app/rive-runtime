@@ -1,5 +1,6 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/artboard.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/data_bind/bindable_property_artboard.hpp"
@@ -350,6 +351,16 @@ void DataBind::target(Core* value)
         setFlag(Flag::Observing, false);
     }
     m_target = value;
+    // `clip` is bindable; a layout bound on clip needs its DrawableProxy up
+    // front so it exists before the artboard's one-time proxy injection, even
+    // while clip is currently false. Stamped here so it also covers instance
+    // clones, whose targets are re-assigned through this setter.
+    if (m_target != nullptr &&
+        propertyKey() == LayoutComponentBase::clipPropertyKey &&
+        m_target->is<LayoutComponent>())
+    {
+        m_target->as<LayoutComponent>()->markClipMayBeDynamic();
+    }
     if (toSource() && m_target != nullptr && targetSupportsPush())
     {
         m_target->addPropertyObserver(this);

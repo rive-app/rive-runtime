@@ -5,7 +5,7 @@
 namespace rive
 {
 class StateMachineInstance;
-enum class StateMachineFireOccurance : int
+enum class StateMachineFireOccurance : uint8_t
 {
     atStart = 0,
     atEnd = 1

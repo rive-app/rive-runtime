@@ -26,6 +26,8 @@ public:
     // }
     virtual bool hasListener(ListenerType) const;
     bool hasListeners(Span<const ListenerType> listenerTypes) const;
+    // True if any listener type hit-tests a pointer against the target.
+    bool hasPointerListeners() const;
     size_t actionCount() const { return m_actions.size(); }
     size_t listenerInputTypeCount() const
     {
@@ -35,6 +37,10 @@ public:
     const ListenerAction* action(size_t index) const;
     const ListenerInputType* listenerInputType(size_t index) const;
     StatusCode import(ImportStack& importStack) override;
+    // Stamps a targeted LayoutComponent as a listener hit target so the
+    // artboard injects its proxy into the draw order (see
+    // LayoutComponent::needsDrawableProxy).
+    StatusCode onAddedClean(CoreContext* context) override;
 
     void performChanges(StateMachineInstance* stateMachineInstance,
                         const ListenerInvocation& invocation) const;

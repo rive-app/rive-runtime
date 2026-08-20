@@ -17,7 +17,7 @@
       "runtime": false
     },
     "occursValue": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 393,

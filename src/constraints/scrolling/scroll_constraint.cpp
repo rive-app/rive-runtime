@@ -368,6 +368,14 @@ std::vector<DraggableProxy*> ScrollConstraint::draggables()
 void ScrollConstraint::buildDependencies()
 {
     Super::buildDependencies();
+    // draggables() hands the viewport's proxy out as the drag hit target, so it
+    // must be injected into the draw order even if the viewport never paints or
+    // clips. Stamp it here, before the artboard's one-time proxy injection.
+    if (parent() != nullptr && parent()->parent() != nullptr &&
+        parent()->parent()->is<LayoutComponent>())
+    {
+        viewport()->markInteractionTarget();
+    }
     m_hasListChildren = false;
     for (auto child : content()->children())
     {

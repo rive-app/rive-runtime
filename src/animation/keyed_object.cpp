@@ -2,6 +2,7 @@
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/artboard.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
 #include "rive/generated/core_registry.hpp"
 
@@ -23,6 +24,12 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
+    // `clip` is animatable; a layout whose clip is keyed needs its
+    // DrawableProxy up front so it exists before the artboard's one-time proxy
+    // injection, even while clip is currently false. This runs on the source
+    // only (instances share animations); LayoutComponent::clone carries the
+    // flag to instances.
+    const bool isLayout = coreObject->is<LayoutComponent>();
 
     for (auto itr = m_keyedProperties.begin(); itr != m_keyedProperties.end();)
     {
@@ -34,6 +41,11 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
         {
             itr = m_keyedProperties.erase(itr);
             continue;
+        }
+        if (isLayout &&
+            property->propertyKey() == LayoutComponentBase::clipPropertyKey)
+        {
+            coreObject->as<LayoutComponent>()->markClipMayBeDynamic();
         }
         StatusCode code;
         if ((code = property->onAddedDirty(context)) != StatusCode::Ok)

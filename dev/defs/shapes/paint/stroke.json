@@ -17,7 +17,7 @@
       "bindable": true
     },
     "cap": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 48,
@@ -25,7 +25,7 @@
       }
     },
     "join": {
-      "type": "uint",
+      "type": "uint8",
       "initialValue": "0",
       "key": {
         "int": 49,

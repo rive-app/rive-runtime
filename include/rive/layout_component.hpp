@@ -9,8 +9,10 @@
 #include "rive/layout/layout_style_applier.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/layout/layout_enums.hpp"
+#include <memory>
 
 namespace rive
 {
@@ -20,6 +22,38 @@ class LayoutData;
 class LayoutComponentStyle;
 class LayoutConstraint;
 class ComponentOrigin;
+
+// Boolean state of a LayoutComponent, packed into one word instead of a dozen
+// separate bytes. Gains the bitwise operators + rive::enums helpers for free by
+// having a None == 0 member (see rive/enums.hpp).
+enum class LayoutComponentFlags : uint16_t
+{
+    None = 0,
+    ParentIsRow = 1 << 0,   // default ON
+    ParentIsStack = 1 << 1, //
+    WidthIntrinsicallySizeOverride = 1 << 2,
+    HeightIntrinsicallySizeOverride = 1 << 3,
+    ForceUpdateLayoutBounds = 1 << 4,
+    PositionLeftChanged = 1 << 5, // default ON
+    PositionTopChanged = 1 << 6,  // default ON
+    HasForegroundDrawable = 1 << 7,
+    HasComponentOrigin = 1 << 8,
+    ComposeTransform = 1 << 9, // default ON
+    IsSmoothingAnimation = 1 << 10,
+    JustAddedToHost = 1 << 11,
+    // Forces a DrawableProxy into the draw order even when the layout's current
+    // paint/clip state wouldn't require one, so the proxy can draw or (more
+    // often) be sorted as a hit target. Set for any of: a clip a keyframe/data
+    // bind can toggle on at runtime, a scroll/drag interaction target, or a
+    // state-machine pointer listener target. See the mark* helpers below.
+    ForceDrawableProxy = 1 << 12,
+    // Transient per-draw flag: drawProxy() issued a renderer->save() for
+    // clipping, so draw() owes the matching restore(). Guards against restoring
+    // when drawProxy() never ran (e.g. a pure container whose proxy isn't in
+    // the draw order but whose clip() turned on at runtime).
+    ClipSaved = 1 << 13,
+};
+
 class Layout
 {
 public:
@@ -93,6 +127,19 @@ struct LayoutAnimationData
     void copy(const LayoutAnimationData& from);
 };
 
+// The render-path buffers a LayoutComponent needs only when it actually paints,
+// clips, has a foreground drawable, or is an Artboard. These are ~240 bytes
+// together; heap-allocating them on first use keeps a plain container layout
+// (which never paints) from carrying them inline. `background` is scratch for
+// building the rounded-rect; `local`/`world` match the old member defaults
+// (both default-constructed local, world switched at rewind time).
+struct LayoutRenderPaths
+{
+    RawPath background;
+    ShapePaintPath local;
+    ShapePaintPath world;
+};
+
 class LayoutComponent : public LayoutComponentBase,
                         public ProxyDrawing,
                         public ShapePaintContainer,
@@ -110,17 +157,56 @@ protected:
 
     LayoutAnimationData m_animationDataA;
     LayoutAnimationData m_animationDataB;
-    bool m_isSmoothingAnimation = false;
     KeyFrameInterpolator* m_inheritedInterpolator;
+    // The two 1-byte enums and the 2-byte flags word are kept adjacent so they
+    // pack into a single 4-byte slot with no padding.
     LayoutStyleInterpolation m_inheritedInterpolation =
         LayoutStyleInterpolation::hold;
-    float m_inheritedInterpolationTime = 0;
     LayoutDirection m_inheritedDirection = LayoutDirection::inherit;
-    RawPath m_backgroundRawPath;
-    ShapePaintPath m_localPath;
-    ShapePaintPath m_worldPath;
-    DrawableProxy m_proxy;
-    bool m_justAddedToHost = false;
+    LayoutComponentFlags m_layoutFlags =
+        LayoutComponentFlags::ParentIsRow |
+        LayoutComponentFlags::PositionLeftChanged |
+        LayoutComponentFlags::PositionTopChanged |
+        LayoutComponentFlags::ComposeTransform;
+    float m_inheritedInterpolationTime = 0;
+    // Null until this layout first paints/clips/has a foreground drawable, or
+    // (for Artboard) builds its background/clip path. See LayoutRenderPaths.
+    std::unique_ptr<LayoutRenderPaths> m_renderPaths;
+    // Lazily created: only layouts that actually paint, clip, or can gain a
+    // clip at runtime (see needsDrawableProxy) — or that are referenced as a
+    // scroll/listener target — ever allocate a proxy. A pure container layout
+    // never pays for one. See DrawableProxy for why the object is needed at
+    // all.
+    std::unique_ptr<DrawableProxy> m_proxy;
+
+    bool hasLayoutFlag(LayoutComponentFlags f) const
+    {
+        return (m_layoutFlags & f) != LayoutComponentFlags::None;
+    }
+    void setLayoutFlag(LayoutComponentFlags f, bool on)
+    {
+        if (on)
+        {
+            m_layoutFlags |= f;
+        }
+        else
+        {
+            m_layoutFlags &= ~f;
+        }
+    }
+
+    // Allocates the render-path buffers on first use. Callers that build or
+    // hand out a path go through this; the ShapePaintContainer accessors
+    // (worldPath/localPath/localClockwisePath) instead return null while unset,
+    // which is a valid contract and keeps plain containers allocation-free.
+    LayoutRenderPaths& mutableRenderPaths()
+    {
+        if (m_renderPaths == nullptr)
+        {
+            m_renderPaths = std::make_unique<LayoutRenderPaths>();
+        }
+        return *m_renderPaths;
+    }
 
     Artboard* getArtboard() override { return artboard(); }
     LayoutAnimationData* currentAnimationData();
@@ -159,25 +245,19 @@ protected:
 
 private:
     float m_widthOverride = NAN;
-    int m_widthUnitValueOverride = -1;
     float m_heightOverride = NAN;
-    int m_heightUnitValueOverride = -1;
-    bool m_parentIsRow = true;
-    bool m_parentIsStack = false;
-    bool m_widthIntrinsicallySizeOverride = false;
-    bool m_heightIntrinsicallySizeOverride = false;
     float m_forcedWidth = NAN;
     float m_forcedHeight = NAN;
-    bool m_forceUpdateLayoutBounds = false;
-    bool m_positionLeftChanged = true;
-    bool m_positionTopChanged = true;
-    bool m_hasForegroundDrawable = false;
-    bool m_hasComponentOrigin = false;
-    // Files exported before 7.3 never composed a layout's own rotation/scale,
-    // so any stored value was ignored. Import clears this for those files; it
-    // defaults to the current behavior so a layout built outside of import
-    // isn't stuck on the legacy path. See File::minorVersion.
-    bool m_composeTransform = true;
+    // Yoga YGUnit values (0..3) plus a -1 sentinel; int8_t is ample.
+    int8_t m_widthUnitValueOverride = -1;
+    int8_t m_heightUnitValueOverride = -1;
+    // Remaining boolean state now lives in m_layoutFlags. Two flags carry the
+    // notable defaults documented here:
+    // - ComposeTransform (default ON): files exported before 7.3 never composed
+    //   a layout's own rotation/scale, so any stored value was ignored. Import
+    //   clears it for those files; the default keeps current behavior so a
+    //   layout built outside of import isn't stuck on the legacy path. See
+    //   File::minorVersion.
 
     /// Where the layout engine placed us, in the parent's transform frame.
     Vec2D layoutTranslation() const;
@@ -216,7 +296,52 @@ public:
     bool hitTestPoint(const Vec2D& position,
                       bool skipOnUnclipped,
                       bool isPrimaryHit) override;
-    DrawableProxy* proxy() { return &m_proxy; };
+    DrawableProxy* proxy()
+    {
+        if (m_proxy == nullptr)
+        {
+            m_proxy = std::make_unique<DrawableProxy>(this);
+        }
+        return m_proxy.get();
+    };
+    // True if this layout has (or can gain) something for its proxy to draw or
+    // hit-test: a background/stroke, an active clip, or one of the deferred
+    // reasons stamped as ForceDrawableProxy (runtime-toggleable clip, scroll
+    // interaction target, or pointer-listener target). When true the artboard
+    // injects the proxy into the draw order so it can be sorted for both
+    // drawing and hit-testing.
+    bool needsDrawableProxy() const
+    {
+        return clip() || !shapePaints().empty() ||
+               hasLayoutFlag(LayoutComponentFlags::ForceDrawableProxy);
+    }
+    // The mark* helpers below are the distinct call sites that all set the one
+    // ForceDrawableProxy bit; they differ only in why the proxy is needed.
+
+    // Called when a keyframe or data bind that targets this layout's `clip`
+    // resolves, guaranteeing a proxy before the artboard's first sort.
+    void markClipMayBeDynamic()
+    {
+        setLayoutFlag(LayoutComponentFlags::ForceDrawableProxy, true);
+    }
+    // Called from a scroll/scrollbar constraint's buildDependencies() (which
+    // runs before the artboard's one-time proxy injection, on every instance)
+    // when this layout is its viewport/thumb/track. Without the proxy in the
+    // draw order, the drag hit target can't be sorted and opaque content on top
+    // would swallow the gesture before the drag ever starts.
+    void markInteractionTarget()
+    {
+        setLayoutFlag(LayoutComponentFlags::ForceDrawableProxy, true);
+    }
+    // Called from StateMachineListener::onAddedClean (which runs on the source
+    // artboard before its one-time proxy injection) when a pointer listener
+    // targets this layout. Carried to instances by clone(), since the listener
+    // hook only runs on the source. Without the proxy in the draw order the hit
+    // target can't be sorted and overlapping opaque content would swallow it.
+    void markListenerTarget()
+    {
+        setLayoutFlag(LayoutComponentFlags::ForceDrawableProxy, true);
+    }
     virtual void updateRenderPath();
     void update(ComponentDirt value) override;
     void updateTransform() override;
@@ -263,7 +388,10 @@ public:
     /// inline originX/originY so the two never shadow; Artboard overrides.
     virtual float pivotOriginX() const;
     virtual float pivotOriginY() const;
-    void markHasComponentOrigin() { m_hasComponentOrigin = true; }
+    void markHasComponentOrigin()
+    {
+        setLayoutFlag(LayoutComponentFlags::HasComponentOrigin, true);
+    }
     Vec2D originOffset() const;
     float layoutWidth() { return m_layout.width(); }
     float layoutHeight() { return m_layout.height(); }
@@ -367,8 +495,14 @@ public:
     void syncChildProviderStyles();
 #endif
 
-    void markPositionLeftChanged() { m_positionLeftChanged = true; }
-    void markPositionTopChanged() { m_positionTopChanged = true; }
+    void markPositionLeftChanged()
+    {
+        setLayoutFlag(LayoutComponentFlags::PositionLeftChanged, true);
+    }
+    void markPositionTopChanged()
+    {
+        setLayoutFlag(LayoutComponentFlags::PositionTopChanged, true);
+    }
     void buildDependencies() override;
 
 #ifdef WITH_RIVE_LAYOUT
@@ -378,7 +512,10 @@ public:
         bool shouldForceUpdateLayoutBounds = false) override;
     void markLayoutStyleDirty();
     void clipChanged() override;
-    void registerForegroundDrawable() { m_hasForegroundDrawable = true; }
+    void registerForegroundDrawable()
+    {
+        setLayoutFlag(LayoutComponentFlags::HasForegroundDrawable, true);
+    }
     void widthChanged() override;
     void heightChanged() override;
     void styleIdChanged() override;

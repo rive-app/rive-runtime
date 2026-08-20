@@ -490,6 +490,14 @@ StatusCode Artboard::initialize()
             m_clippingShapes.push_back(object->as<ClippingShape>());
         }
     }
+    // A layout only needs a DrawableProxy if it paints, clips, can gain a clip
+    // at runtime, or is an interaction/listener hit target. Those deferred
+    // reasons are stamped as ForceDrawableProxy when their references resolve
+    // (KeyedObject::onAddedDirty, DataBind::target, ScrollConstraint, and
+    // StateMachineListener::onAddedClean; source-only ones are carried to
+    // instances by LayoutComponent::clone) -- guaranteeing the proxy exists
+    // before this first, one-time injection. See needsDrawableProxy.
+
     // Iterate over the drawables in order to inject proxies for layouts
     std::vector<LayoutComponent*> layouts;
     for (int i = 0; i < m_Drawables.size(); i++)
@@ -504,16 +512,21 @@ StatusCode Artboard::initialize()
         }
         // We inject a DrawableProxy after all of the children of a
         // LayoutComponent so that we can draw a stroke above and background
-        // below the children This also allows us to clip the children
+        // below the children This also allows us to clip the children. Layouts
+        // that will never paint or clip skip the proxy entirely (it would draw
+        // nothing) -- pure containers are the common case.
         if (currentLayout != nullptr && !isInCurrentLayout)
         {
             // This is the first item in the list of drawables that isn't a
             // child of the layout, so we insert a proxy before it
             do
             {
-                m_Drawables.insert(m_Drawables.begin() + i,
-                                   currentLayout->proxy());
-                i += 1;
+                if (currentLayout->needsDrawableProxy())
+                {
+                    m_Drawables.insert(m_Drawables.begin() + i,
+                                       currentLayout->proxy());
+                    i += 1;
+                }
                 layouts.pop_back();
                 if (!layouts.empty())
                 {
@@ -530,7 +543,10 @@ StatusCode Artboard::initialize()
     while (!layouts.empty())
     {
         auto layout = layouts.back();
-        m_Drawables.push_back(layout->proxy());
+        if (layout->needsDrawableProxy())
+        {
+            m_Drawables.push_back(layout->proxy());
+        }
         layouts.pop_back();
     }
 
@@ -1144,10 +1160,11 @@ void Artboard::updateRenderPath()
     {
         clip = bg;
     }
-    m_localPath.rewind();
-    m_localPath.addRect(bg);
-    m_worldPath.rewind();
-    m_worldPath.addRect(clip);
+    auto& renderPaths = mutableRenderPaths();
+    renderPaths.local.rewind();
+    renderPaths.local.addRect(bg);
+    renderPaths.world.rewind();
+    renderPaths.world.addRect(clip);
 }
 
 void Artboard::update(ComponentDirt value)
@@ -1662,11 +1679,11 @@ void Artboard::drawInternal(Renderer* renderer)
     }
 
     // Clip after the frame-origin and self transforms so the clip region tracks
-    // the (possibly rotated/scaled) artboard. m_localPath is the content-local
-    // bounds, so it is transformed along with the content.
+    // the (possibly rotated/scaled) artboard. The local path is the
+    // content-local bounds, so it is transformed along with the content.
     if (clip())
     {
-        renderer->clipPath(m_localPath.renderPath(this));
+        renderer->clipPath(mutableRenderPaths().local.renderPath(this));
     }
 
     for (auto shapePaint : m_ShapePaints)

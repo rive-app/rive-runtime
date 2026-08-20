@@ -39,8 +39,8 @@ public:
 
 protected:
     float m_Thickness = 1.0f;
-    uint32_t m_Cap = 0;
-    uint32_t m_Join = 0;
+    uint8_t m_Cap = 0;
+    uint8_t m_Join = 0;
     bool m_TransformAffectsStroke = true;
 
 public:
@@ -56,8 +56,8 @@ public:
         notifyPropertyChanged(thicknessPropertyKey);
     }
 
-    inline uint32_t cap() const { return m_Cap; }
-    void cap(uint32_t value)
+    inline uint8_t cap() const { return m_Cap; }
+    void cap(uint8_t value)
     {
         if (m_Cap == value)
         {
@@ -68,8 +68,8 @@ public:
         notifyPropertyChanged(capPropertyKey);
     }
 
-    inline uint32_t join() const { return m_Join; }
-    void join(uint32_t value)
+    inline uint8_t join() const { return m_Join; }
+    void join(uint8_t value)
     {
         if (m_Join == value)
         {

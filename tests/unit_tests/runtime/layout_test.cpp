@@ -747,3 +747,80 @@ TEST_CASE("padding insets a fill child", "[layout]")
     REQUIRE(child->layoutWidth() == Approx(160.0f));  // 200 - 10 - 30
     REQUIRE(child->layoutHeight() == Approx(140.0f)); // 200 - 20 - 40
 }
+
+TEST_CASE("Layout occluded by rectangle pointer test", "[silver]")
+{
+    // This tests two semi overlapping component, above is a layout and below is
+    // an opaque rectangle
+    // It has two toggling squares from red to green every time the pointer
+    // triggers Top square is layout, bottom square is rectangle
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout_order_pointer_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    // Frame 0
+    artboard->draw(renderer.get());
+
+    // Frame 1
+    // This clicks on layout but not on rectangle
+    // The layout hit point is on a child of the layout with the listener
+    // Top toggles top to green, bottom stays red
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Frame 2
+    // This clicks both on layout and rectangle
+    // The layout hit point is on a child of the layout with the listener
+    // Top toggles top to red, toggles bottom to green
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(60.0f, 60.0f));
+    stateMachine->pointerUp(rive::Vec2D(60.0f, 60.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Frame 3
+    // This clicks both on layout and rectangle
+    // The layout hit point is direct on the layout with the listener
+    // Top toggles top to green, toggles bottom to red
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(150.0f, 150.0f));
+    stateMachine->pointerUp(rive::Vec2D(150.0f, 150.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Frame 4
+    // This clicks both on layout and rectangle
+    // The layout hit point is on a child rectangle beyond the layout area, thus
+    // not triggering the layout listener
+    // Top stays green, toggles bottom to green
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(300.0f, 300.0f));
+    stateMachine->pointerUp(rive::Vec2D(300.0f, 300.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Frame 5
+    // This clicks only on the rectangle
+    // Top stays green, toggles bottom to red
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(450.0f, 450.0f));
+    stateMachine->pointerUp(rive::Vec2D(450.0f, 450.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("layout_order_pointer_test"));
+}

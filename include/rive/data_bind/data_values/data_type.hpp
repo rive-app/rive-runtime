@@ -1,9 +1,10 @@
 #ifndef _RIVE_DATA_TYPE_HPP_
 #define _RIVE_DATA_TYPE_HPP_
+#include <cstdint>
 namespace rive
 {
 /// Data types used for converters.
-enum class DataType : unsigned int
+enum class DataType : uint8_t
 {
     /// None.
     none = 0,

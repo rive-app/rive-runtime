@@ -30,11 +30,11 @@ public:
     static const uint16_t occursValuePropertyKey = 393;
 
 protected:
-    uint32_t m_OccursValue = 0;
+    uint8_t m_OccursValue = 0;
 
 public:
-    inline uint32_t occursValue() const { return m_OccursValue; }
-    void occursValue(uint32_t value)
+    inline uint8_t occursValue() const { return m_OccursValue; }
+    void occursValue(uint8_t value)
     {
         if (m_OccursValue == value)
         {

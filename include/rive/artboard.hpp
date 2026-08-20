@@ -175,7 +175,10 @@ public:
     bool hasKeyFrameSourceBinds() const;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
-    void addedToHost() { m_justAddedToHost = true; }
+    void addedToHost()
+    {
+        setLayoutFlag(LayoutComponentFlags::JustAddedToHost, true);
+    }
 
     /// Set the active FocusManager for this artboard. The FocusManager is
     /// typically owned by a StateMachineInstance.
@@ -368,8 +371,11 @@ public:
 
     void changed();
 #ifdef TESTING
-    ShapePaintPath* clipPath() { return &m_worldPath; }
-    ShapePaintPath* backgroundPath() { return &m_localPath; }
+    const ShapePaintPath* clipPath() { return &mutableRenderPaths().world; }
+    const ShapePaintPath* backgroundPath()
+    {
+        return &mutableRenderPaths().local;
+    }
 #endif
 
     const std::vector<Core*>& objects() const { return m_Objects; }

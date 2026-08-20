@@ -114,20 +114,6 @@ static std::string getStateName(const StateInstance* stateInstance)
 
 namespace rive
 {
-namespace
-{
-constexpr std::array<ListenerType, 9> kPointerHitListenerTypes = {
-    ListenerType::enter,
-    ListenerType::exit,
-    ListenerType::down,
-    ListenerType::up,
-    ListenerType::move,
-    ListenerType::click,
-    ListenerType::dragStart,
-    ListenerType::dragEnd,
-    ListenerType::drag,
-};
-} // namespace
 
 class StateMachineLayerInstance
 {
@@ -1943,7 +1929,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
         }
 
-        if (listener->hasListeners(kPointerHitListenerTypes))
+        if (listener->hasPointerListeners())
         {
             auto listenerGroup = std::make_unique<ListenerGroup>(listener);
             auto target = m_artboardInstance->resolve(listener->targetId());
