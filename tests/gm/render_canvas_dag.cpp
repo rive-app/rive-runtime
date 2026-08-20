@@ -9,7 +9,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
 
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/rive_renderer.hpp"
@@ -288,6 +288,6 @@ GMREGISTER(canvas_dag_cycle, return new CanvasDagCycleGM())
 
 #else
 
-// Canvas or scripting disabled: nothing to register.
+// Canvas disabled: nothing to register.
 
 #endif

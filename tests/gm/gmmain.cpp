@@ -213,11 +213,9 @@ extern "C" void gms_build_registry()
     MAKE_GM(render_canvas_persistence)
     MAKE_GM(render_canvas_prepass)
     MAKE_GM(render_canvas_prepass_multi)
-#ifdef WITH_RIVE_SCRIPTING
     MAKE_GM(canvas_dag_chain)
     MAKE_GM(canvas_dag_chain_reversed)
     MAKE_GM(canvas_dag_cycle)
-#endif
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
