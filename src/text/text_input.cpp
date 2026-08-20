@@ -481,6 +481,15 @@ bool TextInput::textInput(const std::string& value)
     return true;
 }
 
+std::string TextInput::selectedText() const
+{
+#ifdef WITH_RIVE_TEXT
+    return m_rawTextInput.selectedText();
+#else
+    return std::string();
+#endif
+}
+
 bool TextInput::gamepadDispatch(const ListenerInvocation&, ScriptedDrawable**)
 {
     return false;

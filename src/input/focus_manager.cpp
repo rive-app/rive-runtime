@@ -756,6 +756,27 @@ bool FocusManager::textInput(const std::string& text)
     return false;
 }
 
+std::string FocusManager::selectedText() const
+{
+    // Bubble up through the focus tree until someone reports a selection,
+    // mirroring how textInput routes.
+    FocusNode* node = m_primaryFocus.get();
+    while (node != nullptr)
+    {
+        Focusable* focusable = node->focusable();
+        if (focusable != nullptr)
+        {
+            std::string text = focusable->selectedText();
+            if (!text.empty())
+            {
+                return text;
+            }
+        }
+        node = node->parent();
+    }
+    return std::string();
+}
+
 bool FocusManager::gamepadDispatch(
     const ListenerInvocation& invocation,
     ScriptedDrawable** outDispatchedScriptedDrawable)

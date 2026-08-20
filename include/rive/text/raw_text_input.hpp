@@ -121,6 +121,9 @@ public:
     void clearSelection();
 
     std::string text() const;
+    // The text within the cursor's selection range (empty when the selection
+    // is collapsed).
+    std::string selectedText() const;
     void text(std::string value);
     void textPreserveCursor(std::string value);
     // Length of the input text.

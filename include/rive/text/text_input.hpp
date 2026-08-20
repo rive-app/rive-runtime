@@ -50,6 +50,7 @@ public:
                   bool isPressed,
                   bool isRepeat) override;
     bool textInput(const std::string& text) override;
+    std::string selectedText() const override;
     bool gamepadDispatch(
         const ListenerInvocation& invocation,
         ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;

@@ -806,16 +806,8 @@ void RawTextInput::moveCursorTo(Vec2D translation, bool select)
     flag(Flags::selectionDirty);
 }
 
-std::string RawTextInput::text() const
+static std::string encodeCodePoints(Span<const Unichar> codePoints)
 {
-    size_t size = m_text.size();
-    if (size == 0)
-    {
-        return std::string();
-    }
-
-    auto codePoints = Span<const Unichar>(m_text.data(), size - 1);
-
     std::vector<uint8_t> buffer(UTF::CountCodePointLength(codePoints));
     uint8_t* encoded = buffer.data();
     for (auto codePoint : codePoints)
@@ -826,6 +818,35 @@ std::string RawTextInput::text() const
     std::string str;
     std::move(buffer.begin(), buffer.end(), std::back_inserter(str));
     return str;
+}
+
+std::string RawTextInput::text() const
+{
+    size_t size = m_text.size();
+    if (size == 0)
+    {
+        return std::string();
+    }
+
+    return encodeCodePoints(Span<const Unichar>(m_text.data(), size - 1));
+}
+
+std::string RawTextInput::selectedText() const
+{
+    if (m_text.empty())
+    {
+        return std::string();
+    }
+    // Exclude the trailing sentinel code point from the selectable range.
+    size_t textEnd = m_text.size() - 1;
+    size_t first = std::min((size_t)m_cursor.first().codePointIndex(), textEnd);
+    size_t last = std::min((size_t)m_cursor.last().codePointIndex(), textEnd);
+    if (first >= last)
+    {
+        return std::string();
+    }
+    return encodeCodePoints(
+        Span<const Unichar>(m_text.data() + first, last - first));
 }
 
 void RawTextInput::setTextPrivate(std::string value)

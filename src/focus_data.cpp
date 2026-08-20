@@ -170,6 +170,19 @@ bool FocusData::textInput(const std::string& text)
     return false;
 }
 
+std::string FocusData::selectedText() const
+{
+    // Mirror the TextInput special case in KeyboardListenerGroup's
+    // key/text routing: the focus target for a text input is a FocusData
+    // child whose parent is the TextInput itself.
+    Component* target = parent();
+    if (target != nullptr && target->is<TextInput>())
+    {
+        return target->as<TextInput>()->selectedText();
+    }
+    return std::string();
+}
+
 bool FocusData::gamepadDispatch(
     const ListenerInvocation& invocation,
     ScriptedDrawable** outDispatchedScriptedDrawable)

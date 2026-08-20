@@ -176,6 +176,12 @@ public:
                           bool isRepeat) = 0;
     virtual bool textInput(const std::string& text) = 0;
 
+    /// The currently selected text within this focusable (empty when it has
+    /// no selection or doesn't hold text). Lets hosts implement clipboard
+    /// copy/cut, which the runtime can't do itself (no system clipboard
+    /// access).
+    virtual std::string selectedText() const { return std::string(); }
+
     /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
     /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
     /// `ScriptedDrawable` that ended up receiving the event so callers can

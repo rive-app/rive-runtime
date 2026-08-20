@@ -131,6 +131,11 @@ public:
                   bool isRepeat);
     bool textInput(const std::string& text);
 
+    /// The selected text of the focused element (bubbling up like textInput
+    /// until a focusable reports a non-empty selection). Empty when nothing
+    /// with a selection is focused. Lets hosts implement clipboard copy/cut.
+    std::string selectedText() const;
+
     /// Bubble gamepad invocations from primary focus up through ancestors.
     /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
     /// `ScriptedDrawable` that the focus tree forwarded the event to so
