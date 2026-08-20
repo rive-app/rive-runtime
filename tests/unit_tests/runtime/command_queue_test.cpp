@@ -51,9 +51,10 @@ bool operator!=(const CommandQueue::FileListener::ViewModelPropertyData& l,
 bool operator==(const CommandQueue::FileListener::FileAssetData& l,
                 const CommandQueue::FileListener::FileAssetData& r)
 {
-    return l.name == r.name && l.assetID == r.assetID &&
-           l.cdnUUID == r.cdnUUID && l.cdnBaseURL == r.cdnBaseURL &&
-           l.fileExtension == r.fileExtension && l.type == r.type;
+    return l.name == r.name && l.uniqueName == r.uniqueName &&
+           l.assetID == r.assetID && l.cdnUUID == r.cdnUUID &&
+           l.cdnBaseURL == r.cdnBaseURL && l.fileExtension == r.fileExtension &&
+           l.type == r.type;
 }
 bool operator!=(const CommandQueue::FileListener::FileAssetData& l,
                 const CommandQueue::FileListener::FileAssetData& r)
@@ -5961,6 +5962,7 @@ TEST_CASE("file assets listed - image asset", "[CommandQueue]")
 
     auto& asset = listener.m_assets[0];
     CHECK(asset.name == "one.png");
+    CHECK(asset.uniqueName == "one-45008");
     CHECK(asset.assetID == 45008);
     CHECK(asset.cdnUUID == "edcb1816-8405-4983-acd2-16db48d85df4");
     CHECK(asset.cdnBaseURL == "https://public.uat.rive.app/cdn/uuid");
@@ -5995,6 +5997,7 @@ TEST_CASE("file assets listed - font asset", "[CommandQueue]")
 
     auto& asset = listener.m_assets[0];
     CHECK(asset.name == "Inter");
+    CHECK(asset.uniqueName == "Inter-43276");
     CHECK(asset.assetID == 43276);
     CHECK(asset.cdnBaseURL == "https://public.uat.rive.app/cdn/uuid");
     CHECK(asset.fileExtension == "ttf");

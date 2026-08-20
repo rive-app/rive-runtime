@@ -1423,6 +1423,7 @@ void CommandQueue::processMessages()
                     m_messageStream >> asset.assetID;
                     m_messageStream >> asset.type;
                     m_messageNames >> asset.name;
+                    m_messageNames >> asset.uniqueName;
                     m_messageNames >> asset.cdnUUID;
                     m_messageNames >> asset.cdnBaseURL;
                     m_messageNames >> asset.fileExtension;

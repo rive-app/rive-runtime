@@ -2620,6 +2620,7 @@ bool CommandServer::processCommands()
                         messageStream << asset->assetId();
                         messageStream << asset->coreType();
                         m_commandQueue->m_messageNames << asset->name();
+                        m_commandQueue->m_messageNames << asset->uniqueName();
                         m_commandQueue->m_messageNames << asset->cdnUuidStr();
                         m_commandQueue->m_messageNames << asset->cdnBaseUrl();
                         m_commandQueue->m_messageNames

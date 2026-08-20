@@ -199,6 +199,7 @@ public:
         struct FileAssetData
         {
             std::string name;
+            std::string uniqueName;
             uint32_t assetID = 0;
             std::string cdnUUID;
             std::string cdnBaseURL;
