@@ -1952,23 +1952,26 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         if (listener->hasListener(ListenerType::gamepad))
         {
             auto target = m_artboardInstance->resolve(listener->targetId());
-            auto node = target->as<Node>();
-            FocusData* focusData = nullptr;
-            for (auto child : node->children())
+            if (target != nullptr && target->is<Node>())
             {
-                if (child->is<FocusData>())
+                auto node = target->as<Node>();
+                FocusData* focusData = nullptr;
+                for (auto child : node->children())
                 {
-                    focusData = child->as<FocusData>();
-                    break;
+                    if (child->is<FocusData>())
+                    {
+                        focusData = child->as<FocusData>();
+                        break;
+                    }
                 }
-            }
-            if (focusData != nullptr)
-            {
-                auto gamepadGroup =
-                    std::make_unique<GamepadListenerGroup>(focusData,
-                                                           listener,
-                                                           this);
-                m_gamepadListenerGroups.push_back(std::move(gamepadGroup));
+                if (focusData != nullptr)
+                {
+                    auto gamepadGroup =
+                        std::make_unique<GamepadListenerGroup>(focusData,
+                                                               listener,
+                                                               this);
+                    m_gamepadListenerGroups.push_back(std::move(gamepadGroup));
+                }
             }
         }
     }
@@ -2458,6 +2461,39 @@ StateMachineInstance::FocusState StateMachineInstance::focusState() const
     return state;
 }
 
+const Artboard* StateMachineInstance::rootArtboard() const
+{
+    const Artboard* artboard = m_artboardInstance;
+    while (artboard != nullptr && artboard->host() != nullptr &&
+           artboard->host()->parentArtboard() != nullptr)
+    {
+        artboard = artboard->host()->parentArtboard();
+    }
+    return artboard;
+}
+
+void StateMachineInstance::queueFocusTarget(FocusData* focusData)
+{
+    if (focusData == nullptr)
+    {
+        return;
+    }
+    focusManager()->requestFocus(focusData->focusNode(), rootArtboard());
+    m_needsAdvance = true;
+}
+
+void StateMachineInstance::queueClearFocus()
+{
+    focusManager()->requestClearFocus(rootArtboard());
+    m_needsAdvance = true;
+}
+
+void StateMachineInstance::queueFocusTraversal(uint32_t traversalKind)
+{
+    focusManager()->requestTraversal(traversalKind, rootArtboard());
+    m_needsAdvance = true;
+}
+
 void StateMachineInstance::processFocusEvents()
 {
     if (m_queuedFocusEvents.empty())
@@ -2638,6 +2674,14 @@ bool StateMachineInstance::advanceAndApply(float seconds,
             keepGoing = true;
         }
 
+        // Authoritative drain: updatePass has recomputed renderOpacity and
+        // propagated collapse, so target eligibility can be measured against
+        // real values. Reaches nested artboards and artboard-component-list
+        // items too, since they share this manager. A target can still need
+        // several passes to settle, so a request that doesn't take here is
+        // kept for the next iteration.
+        focusManager()->processPendingFocusRequests(rootArtboard());
+
         // Advance all animations.
         if (this->tryChangeState())
         {
@@ -2666,6 +2710,10 @@ bool StateMachineInstance::advanceAndApply(float seconds,
             break;
         }
     }
+    // Last chance for this frame: picks up a request queued by the loop's
+    // final tryChangeState, and drops anything that still can't take so an
+    // unreachable target doesn't leave a request queued indefinitely.
+    focusManager()->finishPendingFocusRequests(rootArtboard());
     if (advanceViewModels)
     {
         // Advance detached scripted view models (created via scripts, not part

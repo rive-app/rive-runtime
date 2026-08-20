@@ -147,6 +147,183 @@ void FocusManager::setFocus(rcp<FocusNode> node)
     notifyFocusChange(oldFocus, m_primaryFocus.get());
 }
 
+void FocusManager::enqueueFocusRequest(PendingFocusRequest request)
+{
+    if (m_pendingFocusRequests.size() >= maxPendingFocusRequests)
+    {
+        m_pendingFocusRequests.erase(m_pendingFocusRequests.begin());
+    }
+    m_pendingFocusRequests.push_back(std::move(request));
+}
+
+bool FocusManager::hasPendingFocusRequests(const Artboard* rootArtboard) const
+{
+    for (const auto& request : m_pendingFocusRequests)
+    {
+        if (request.rootArtboard == rootArtboard)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FocusManager::applyFocusTraversal(uint32_t traversalKind)
+{
+    switch (traversalKind)
+    {
+        case 1:
+            return focusPrevious();
+        case 2:
+            return focusUp();
+        case 3:
+            return focusDown();
+        case 4:
+            return focusLeft();
+        case 5:
+            return focusRight();
+        case 0:
+        default:
+            return focusNext();
+    }
+}
+
+void FocusManager::requestFocus(rcp<FocusNode> node,
+                                const Artboard* rootArtboard)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+    // Try now: when the target is already focusable this lands on the frame it
+    // was asked for, which is what pointer- and script-driven focus expect.
+    // Only a failed attempt is deferred, and a failed attempt is a true no-op
+    // (setFocus rejects an ineligible node before touching primary focus), so
+    // trying costs nothing. Skipped while requests are already pending for
+    // this root, so a queued request can't be overtaken by a later one.
+    if (!hasPendingFocusRequests(rootArtboard))
+    {
+        setFocus(node);
+        if (hasFocus(node))
+        {
+            return;
+        }
+    }
+    enqueueFocusRequest(
+        {PendingFocusRequest::Kind::target, std::move(node), 0, rootArtboard});
+}
+
+void FocusManager::requestClearFocus(const Artboard* rootArtboard)
+{
+    // Clearing can't be blocked by stale components, so it never needs to be
+    // retried — it only queues to stay behind requests already pending.
+    if (!hasPendingFocusRequests(rootArtboard))
+    {
+        clearFocus();
+        return;
+    }
+    enqueueFocusRequest(
+        {PendingFocusRequest::Kind::clear, nullptr, 0, rootArtboard});
+}
+
+void FocusManager::requestTraversal(uint32_t traversalKind,
+                                    const Artboard* rootArtboard)
+{
+    if (!hasPendingFocusRequests(rootArtboard) &&
+        applyFocusTraversal(traversalKind))
+    {
+        return;
+    }
+    enqueueFocusRequest({PendingFocusRequest::Kind::traverse,
+                         nullptr,
+                         traversalKind,
+                         rootArtboard});
+}
+
+bool FocusManager::applyPendingFocusRequest(const PendingFocusRequest& request)
+{
+    switch (request.kind)
+    {
+        case PendingFocusRequest::Kind::target:
+            // A FocusData destroyed between queueing and draining clears its
+            // node's focusable. Report that as done, not as "didn't take":
+            // the target is gone, so retrying would never help.
+            if (request.node == nullptr || request.node->focusable() == nullptr)
+            {
+                return true;
+            }
+            setFocus(request.node);
+            return hasFocus(request.node);
+        case PendingFocusRequest::Kind::clear:
+            clearFocus();
+            return true;
+        case PendingFocusRequest::Kind::traverse:
+            return applyFocusTraversal(request.traversalKind);
+    }
+    return true;
+}
+
+void FocusManager::processPendingFocusRequests(const Artboard* rootArtboard)
+{
+    drainPendingFocusRequests(rootArtboard,
+                              /*keepUnapplied=*/true,
+                              /*allRoots=*/false);
+}
+
+void FocusManager::processAllPendingFocusRequests()
+{
+    drainPendingFocusRequests(nullptr,
+                              /*keepUnapplied=*/true,
+                              /*allRoots=*/true);
+}
+
+void FocusManager::finishPendingFocusRequests(const Artboard* rootArtboard)
+{
+    drainPendingFocusRequests(rootArtboard,
+                              /*keepUnapplied=*/false,
+                              /*allRoots=*/false);
+}
+
+void FocusManager::finishAllPendingFocusRequests()
+{
+    drainPendingFocusRequests(nullptr,
+                              /*keepUnapplied=*/false,
+                              /*allRoots=*/true);
+}
+
+void FocusManager::drainPendingFocusRequests(const Artboard* rootArtboard,
+                                             bool keepUnapplied,
+                                             bool allRoots)
+{
+    if (m_pendingFocusRequests.empty())
+    {
+        return;
+    }
+
+    // Applying a request notifies focus/blur listeners, which can queue more
+    // work, so move the pending list out before draining it. Requests from
+    // other roots go back on the queue for their own root to drain.
+    //
+    // Everything put back goes through enqueueFocusRequest, not a bare
+    // push_back: a listener firing mid-drain can enqueue alongside us, so the
+    // queue has to stay under its cap here too.
+    auto requests = std::move(m_pendingFocusRequests);
+    m_pendingFocusRequests.clear();
+
+    for (auto& request : requests)
+    {
+        if (!allRoots && request.rootArtboard != rootArtboard)
+        {
+            enqueueFocusRequest(std::move(request));
+            continue;
+        }
+        if (!applyPendingFocusRequest(request) && keepUnapplied)
+        {
+            enqueueFocusRequest(std::move(request));
+        }
+    }
+}
+
 void FocusManager::clearFocus()
 {
     if (m_primaryFocus)

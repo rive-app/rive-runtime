@@ -2110,14 +2110,24 @@ void Artboard::cleanupFocusTree()
                 // FocusNode never lazily created — nothing to remove.
                 continue;
             }
-            // Remove the node when it belongs to this manager, or when its
-            // manager was nulled by an ancestor removal while it is still
-            // attached (removeChild clears m_manager across a removed subtree).
-            // Nodes owned by a DIFFERENT live manager are left untouched.
-            if (node->manager() == m_activeFocusManager ||
-                (node->manager() == nullptr && node->parent() != nullptr))
+            // Remove the node when it belongs to this manager. Nodes owned by
+            // a DIFFERENT live manager are left untouched.
+            if (node->manager() == m_activeFocusManager)
             {
                 m_activeFocusManager->removeChild(node);
+            }
+            else if (node->manager() == nullptr && node->parent() != nullptr)
+            {
+                // The node's manager was nulled while it is still attached —
+                // either by an ancestor removal (removeChild clears m_manager
+                // across a removed subtree) or by ~FocusManager, which nulls
+                // m_manager tree-wide as it dies. Detach node-side only: in the
+                // second case m_activeFocusManager is already dangling (it is
+                // an unowned back-pointer, see setActiveFocusManager) and
+                // touching it is a use-after-free. Nothing is lost by skipping
+                // markFocusableContentDirty here — if the manager is alive, the
+                // ancestor removal that nulled m_manager already marked it.
+                node->removeFromParent();
             }
         }
     }

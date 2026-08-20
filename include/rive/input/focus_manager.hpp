@@ -108,6 +108,88 @@ public:
 
     const std::vector<rcp<FocusNode>>& rootNodes() const { return m_rootNodes; }
 
+    // === Deferred Focus Requests ===
+
+    /// A focus change requested by a FocusAction while the artboard's
+    /// components were not yet up to date for the frame.
+    ///
+    /// FocusActions run while a state machine advances its layers, or from a
+    /// listener — both before the frame's update pass has recomputed
+    /// renderOpacity and propagated collapse. Applying a change there tests the
+    /// target's eligibility against stale values (renderOpacity is still its 0
+    /// default on the first advance; a target uncollapsed by the same
+    /// interaction still reads as collapsed), so a perfectly focusable target
+    /// is rejected and the request silently dropped. Requests are queued here
+    /// and applied by processPendingFocusRequests once components are current.
+    ///
+    /// The queue lives on the manager rather than on each StateMachineInstance
+    /// because nested artboards and artboard-component-list items share their
+    /// root's manager: one drain reaches every state machine in the tree, with
+    /// no traversal.
+    struct PendingFocusRequest
+    {
+        enum class Kind : uint8_t
+        {
+            target,
+            clear,
+            traverse
+        };
+        Kind kind;
+        /// Kind::target. Held as a FocusNode rather than a FocusData so the
+        /// request can't outlive its target: ~FocusData clears the node's
+        /// focusable, which the drain treats as "gone".
+        rcp<FocusNode> node;
+        /// Kind::traverse: 0=next, 1=previous, 2=up, 3=down, 4=left, 5=right
+        /// (sync with FocusActionTraversal's traversalKind property).
+        uint32_t traversalKind;
+        /// Root artboard of the tree that raised this request. A manager can be
+        /// shared across independent roots (the editor can wire that up through
+        /// stateMachineSetExternalFocusManager), and each root updates its own
+        /// components; draining another root's request would test eligibility
+        /// against components that root hasn't updated yet.
+        const Artboard* rootArtboard;
+    };
+
+    /// Safety valve for a host that queues requests but never drains them
+    /// (draining is the caller's job — advanceAndApply does it internally,
+    /// anyone driving advance() directly calls processPendingFocusRequests /
+    /// finishPendingFocusRequests). Focus is latest-wins, so the oldest
+    /// request is the one to drop.
+    static constexpr size_t maxPendingFocusRequests = 64;
+
+    /// Requests apply immediately when they can: only an attempt that doesn't
+    /// take (the stale-components case above) is queued for retry, so focus
+    /// asked for against an already-focusable target still lands on the same
+    /// frame.
+    void requestFocus(rcp<FocusNode> node, const Artboard* rootArtboard);
+    void requestClearFocus(const Artboard* rootArtboard);
+    void requestTraversal(uint32_t traversalKind, const Artboard* rootArtboard);
+
+    /// Applies the requests raised by [rootArtboard]'s tree, keeping any that
+    /// couldn't take yet for the next call. Requests from other roots are
+    /// always left queued.
+    ///
+    /// Call after an update pass: a target's eligibility is read from
+    /// renderOpacity and collapse, which that pass computes. Called any
+    /// earlier it reads values that aren't meaningful yet and rejects a
+    /// perfectly focusable target.
+    void processPendingFocusRequests(const Artboard* rootArtboard);
+
+    /// processPendingFocusRequests for every root on this manager at once, for
+    /// a host that updates all of its roots together and so can drain them
+    /// together.
+    void processAllPendingFocusRequests();
+
+    /// Last call of the frame for [rootArtboard]'s tree: applies what it can
+    /// and discards the rest, so a request for a target that never becomes
+    /// focusable can't linger and steal focus in some later frame.
+    void finishPendingFocusRequests(const Artboard* rootArtboard);
+
+    /// finishPendingFocusRequests for every root on this manager at once, for
+    /// a host that knows the frame is over for all of them — a manager shared
+    /// across roots has nothing left to wait for at that point.
+    void finishAllPendingFocusRequests();
+
     // === Traversal ===
 
     bool focusNext();
@@ -182,8 +264,19 @@ public:
     void markFocusableContentDirty() { m_focusableContentDirty = true; }
 
 private:
+    void enqueueFocusRequest(PendingFocusRequest request);
+    void drainPendingFocusRequests(const Artboard* rootArtboard,
+                                   bool keepUnapplied,
+                                   bool allRoots);
+    bool hasPendingFocusRequests(const Artboard* rootArtboard) const;
+    bool applyFocusTraversal(uint32_t traversalKind);
+    /// @returns true when the request is done with — it took effect, or it
+    /// never can (its target is gone). False means "try again later".
+    bool applyPendingFocusRequest(const PendingFocusRequest& request);
+
     rcp<FocusNode> m_primaryFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;
+    std::vector<PendingFocusRequest> m_pendingFocusRequests;
     // Backing for hasFocusableContent(); mutable so the const getter can
     // recompute lazily. Starts dirty so the first call computes.
     mutable bool m_hasFocusableContent = false;

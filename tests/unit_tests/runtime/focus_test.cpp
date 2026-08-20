@@ -22,10 +22,66 @@
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/animation/listener_invocation.hpp"
+#include "rive/input/gamepad_batch.hpp"
 #include "rive/input/gamepad_snapshot.hpp"
+#include "rive/input/standard_gamepad.hpp"
+#include <cstring>
 
 namespace rive
 {
+
+namespace
+{
+// Minimal builder for the little-endian gamepad batch wire format documented
+// in `gamepad_batch.cpp`, enough to connect a pad and press one button.
+// gamepad_test.cpp has a fuller version for the parsing tests.
+struct GamepadWire
+{
+    std::vector<uint8_t> buf;
+
+    void u8(uint8_t v) { buf.push_back(v); }
+    void u32(uint32_t v)
+    {
+        buf.push_back(static_cast<uint8_t>(v));
+        buf.push_back(static_cast<uint8_t>(v >> 8));
+        buf.push_back(static_cast<uint8_t>(v >> 16));
+        buf.push_back(static_cast<uint8_t>(v >> 24));
+    }
+    void f32(float v)
+    {
+        uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        u32(bits);
+    }
+
+    GamepadWire() { u32(kGamepadBatchWireVersion); }
+
+    // A standard-mapped pad: 17 buttons, 4 axes, all at rest.
+    void connected(int32_t deviceId)
+    {
+        u8(static_cast<uint8_t>(GamepadRecordType::connected));
+        u32(static_cast<uint32_t>(deviceId));
+        u8(0);  // mapping: standard
+        u8(17); // buttons
+        u8(4);  // axes
+        u8(0);  // padding to align the float arrays
+        for (int i = 0; i < 17 + 4; i++)
+        {
+            f32(0.f);
+        }
+    }
+
+    void button(int32_t deviceId, StandardGamepadButton index, float value)
+    {
+        u8(static_cast<uint8_t>(GamepadRecordType::update));
+        u32(static_cast<uint32_t>(deviceId));
+        u8(1); // nChanges
+        u8(static_cast<uint8_t>(GamepadInputChangeKind::button));
+        u8(static_cast<uint8_t>(index));
+        f32(value);
+    }
+};
+} // namespace
 
 // Mock Focusable for testing
 class MockFocusable : public Focusable
@@ -2955,4 +3011,87 @@ TEST_CASE("Focus bounds track a nested artboard host that moves",
     // The element itself did not resize; only its host moved.
     CHECK(moved.width() == Approx(atRest.width()).margin(0.5f));
     CHECK(moved.height() == Approx(atRest.height()).margin(0.5f));
+}
+
+TEST_CASE("Focus change with gamepad navigation", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/gamepad_inputs_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // An update is only accepted for a device the state machine has already
+    // seen connected, so announce the pad before pressing anything.
+    constexpr int32_t kDeviceId = 0;
+    rive::GamepadWire connect;
+    connect.connected(kDeviceId);
+    REQUIRE(stateMachine->submitGamepadsFromBuffer(connect.buf.data(),
+                                                   connect.buf.size()));
+
+    silver.addFrame();
+    rive::GamepadWire press;
+    press.button(kDeviceId, rive::StandardGamepadButton::rightShoulder, 1.0f);
+    REQUIRE(stateMachine->submitGamepadsFromBuffer(press.buf.data(),
+                                                   press.buf.size()));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    rive::GamepadWire release;
+    release.button(kDeviceId, rive::StandardGamepadButton::rightShoulder, 0.0f);
+    REQUIRE(stateMachine->submitGamepadsFromBuffer(release.buf.data(),
+                                                   release.buf.size()));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("gamepad_inputs_test"));
+}
+
+TEST_CASE("Uncollapse and focus element on the same action", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/gamepad_inputs_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("UncollapsedParent");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(475.0f, 475.0f));
+    stateMachine->pointerUp(rive::Vec2D(475.0f, 475.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(475.0f, 475.0f));
+    stateMachine->pointerUp(rive::Vec2D(475.0f, 475.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("gamepad_inputs_test-collapsing"));
 }

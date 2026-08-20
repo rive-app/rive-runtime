@@ -328,6 +328,16 @@ public:
     /// Set focus to a specific FocusData's node.
     void setFocus(FocusData* focusData);
 
+    /// Queue a focus change requested by a FocusAction, to be applied once the
+    /// artboard's components are up to date for the frame. See
+    /// FocusManager::PendingFocusRequest for why this is deferred rather than
+    /// applied where the action runs.
+    void queueFocusTarget(FocusData* focusData);
+    void queueClearFocus();
+    /// [traversalKind]: 0=next, 1=previous, 2=up, 3=down, 4=left, 5=right
+    /// (sync with FocusActionTraversal's traversalKind property).
+    void queueFocusTraversal(uint32_t traversalKind);
+
     /// Snapshot of the current focus state. Designed for host polling (e.g.
     /// deciding whether to show a soft keyboard / IME). Cheap to query;
     /// future fields (e.g. keyboard type) will be added additively.
@@ -448,6 +458,12 @@ private:
     };
     std::vector<QueuedFocusEvent> m_queuedFocusEvents;
     void processFocusEvents();
+
+    // Root artboard of this instance's tree, used to tag deferred focus
+    // requests so a manager shared across independent roots drains each root's
+    // requests only after that root has updated. See
+    // FocusManager::PendingFocusRequest.
+    const Artboard* rootArtboard() const;
 
     // Semantic listener groups and queued events
     std::vector<std::unique_ptr<SemanticListenerGroup>>
