@@ -95,9 +95,11 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::msaaMidpointFanStencilReset,
                 DrawType::msaaMidpointFanPathsStencil,
                 DrawType::msaaMidpointFanPathsCover,
+                DrawType::msaaDynamicMidpointFans,
                 DrawType::msaaOuterCubicBorrowedCoverage,
                 DrawType::msaaOuterCubics,
                 DrawType::msaaOuterCubicStencilReset,
+                DrawType::msaaDynamicOuterCubics,
                 DrawType::msaaOuterCubicPathsStencil,
                 DrawType::msaaOuterCubicPathsCover,
                 DrawType::clipReset,
@@ -219,6 +221,13 @@ void ForEachUbershaderPermutation(
     {
         if (drawType == DrawType::renderPassInitialize &&
             !allowRenderPassInitialize)
+        {
+            continue;
+        }
+
+        // Don't build an ubershader for a DrawType we don't support.
+        if (drawTypeHasPipelineDynamicState(drawType) &&
+            !platformFeatures.supportsPipelineDynamicState)
         {
             continue;
         }

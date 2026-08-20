@@ -6,6 +6,7 @@
 #include "rive/renderer/gpu.hpp"
 #include "shaders/constants.glsl"
 #include <catch.hpp>
+#include <set>
 
 namespace rive
 {
@@ -155,4 +156,49 @@ TEST_CASE("inverse_gaussian_integral_table", "[gpu]")
     CHECK(inverseGaussianIntegral(std::numeric_limits<float>::quiet_NaN()) ==
           0);
 }
+// ForEachUbershaderPermutation() has to enumerate every DrawType a backend can
+// actually bind. The dynamic-state DrawTypes were missing from msaa's
+// list, so no ubershader ever got built for them and a draw that fell back to
+// the async path had nothing to fall back to.
+TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
+{
+    auto enumerateDrawTypes = [](bool supportsPipelineDynamicState) {
+        gpu::PlatformFeatures platformFeatures;
+        platformFeatures.supportsPipelineDynamicState =
+            supportsPipelineDynamicState;
+        std::set<gpu::DrawType> drawTypes;
+        gpu::ForEachUbershaderPermutation(gpu::InterlockMode::msaa,
+                                          platformFeatures,
+                                          [&drawTypes](gpu::DrawType drawType,
+                                                       gpu::ShaderFeatures,
+                                                       gpu::ShaderMiscFlags) {
+                                              drawTypes.insert(drawType);
+                                              return true; // Keep iterating.
+                                          });
+        return drawTypes;
+    };
+
+    const std::set<gpu::DrawType> withDynamicState = enumerateDrawTypes(true);
+    CHECK(withDynamicState.count(gpu::DrawType::msaaDynamicMidpointFans) == 1);
+    CHECK(withDynamicState.count(gpu::DrawType::msaaDynamicOuterCubics) == 1);
+
+    // Backends that can't switch depth/stencil/cull/color-write without
+    // rebinding a pipeline never bind these, so they don't precompile them.
+    const std::set<gpu::DrawType> withoutDynamicState =
+        enumerateDrawTypes(false);
+    CHECK(withoutDynamicState.count(gpu::DrawType::msaaDynamicMidpointFans) ==
+          0);
+    CHECK(withoutDynamicState.count(gpu::DrawType::msaaDynamicOuterCubics) ==
+          0);
+
+    // The passes they collapse are enumerated either way.
+    for (auto drawType : {gpu::DrawType::msaaMidpointFanBorrowedCoverage,
+                          gpu::DrawType::msaaMidpointFans,
+                          gpu::DrawType::msaaMidpointFanStencilReset})
+    {
+        CHECK(withDynamicState.count(drawType) == 1);
+        CHECK(withoutDynamicState.count(drawType) == 1);
+    }
+}
+
 } // namespace rive

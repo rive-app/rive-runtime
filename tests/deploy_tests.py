@@ -123,6 +123,9 @@ parser.add_argument("-k", "--options",
                     type=str,
                     default=None,
                     help="additional options to pass through (player only)")
+parser.add_argument("-w", "--window",
+                    action='store_true',
+                    help="draw to a visible window instead of offscreen (player only)")
 parser.add_argument("-S", "--server_only",
                     action='store_true',
                     help="Start servers but don't launch gms or goldens tools")
@@ -681,6 +684,8 @@ def launch_player(test_harness_server):
            "--backend", args.backend]
     if args.options:
         cmd += ["--options", args.options]
+    if args.window:
+        cmd += ["--window"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     if os.path.isdir(args.src):
@@ -814,9 +819,15 @@ def package_unreal_project():
     subprocess.check_call(cmd)
 
 def main():
-    # Parse skipped tests.
+    # Parse skipped tests. These only apply to a whole-corpus sweep: gms or
+    # goldens pointed at a directory. Anything drawing a single file it was
+    # handed -- the player, or gms/goldens given one .riv -- would just be left
+    # with nothing to fetch.
+    # NOTE: a nonexistent --src is not a single file. Leave the skip list on
+    # and let the existing os.path.exists() check report it.
     rive_skipped_golden_tests = os.getenv("RIVE_SKIPPED_GOLDEN_TESTS")
-    if rive_skipped_golden_tests:
+    if (rive_skipped_golden_tests and not os.path.isfile(args.src) and
+            not set(args.tools).isdisjoint(("gms", "goldens"))):
         for test in rive_skipped_golden_tests.split(","):
             if '/' in test:
                 # A "/" character separates a specific backend from a test name.

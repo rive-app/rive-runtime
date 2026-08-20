@@ -3823,7 +3823,7 @@ void RenderContextVulkanImpl::submitDrawList(
                 : batch.shaderFeatures;
 
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (vkutil::hasPipelineDynamicState(drawType) &&
+        if (gpu::drawTypeHasPipelineDynamicState(drawType) &&
             !m_vk->features.colorWriteEnable)
         {
             shaderMiscFlags |=
@@ -4045,7 +4045,7 @@ void RenderContextVulkanImpl::submitDrawList(
                                                 desc.fixedFunctionColorOutput,
                                                 batch.firstBlendMode,
                                                 m_platformFeatures);
-                    assert(vkutil::hasPipelineDynamicState(drawType));
+                    assert(gpu::drawTypeHasPipelineDynamicState(drawType));
                     pipelineBinder.setDynamicState(
                         commandBuffer,
                         pipelineState,

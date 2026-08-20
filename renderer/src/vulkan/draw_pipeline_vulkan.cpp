@@ -111,7 +111,7 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
     // -- so fold the layout choice into the key.
     key = math::add_bits_to_key(
         key,
-        uint64_t(vkutil::hasPipelineDynamicState(drawType)),
+        uint64_t(gpu::drawTypeHasPipelineDynamicState(drawType)),
         1);
 
     return key;
@@ -489,7 +489,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     StackVector<VkDynamicState, 8> dynamicStates;
     dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
     dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
-    if (vkutil::hasPipelineDynamicState(props.drawType))
+    if (gpu::drawTypeHasPipelineDynamicState(props.drawType))
     {
         // Dynamic state is currently only used for multi-pass path draws, which
         // toggle depth-write, stencil, cull, and color-write per pass.

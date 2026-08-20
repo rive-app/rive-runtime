@@ -178,16 +178,6 @@ inline VkCullModeFlags vkCullMode(CullFace cullFace)
     RIVE_UNREACHABLE();
 }
 
-// True for draw types that switch color/depth/stencil/cull with dynamic state
-// on a single pipeline (the DYNAMIC_PIPELINE_STATE layout) rather than baking
-// them. Pipeline-layout selection and the per-pass dynamic-state updates must
-// agree on this, so both derive it here.
-inline bool hasPipelineDynamicState(DrawType drawType)
-{
-    return drawType == DrawType::msaaDynamicMidpointFans ||
-           drawType == DrawType::msaaDynamicOuterCubics;
-}
-
 // Feeds the push-constant for ShaderMiscFlags::emulateDynamicColorWriteDisable:
 // One float by which the vertex shader multiplies its paint (1 writes, 0
 // suppresses).

@@ -725,6 +725,41 @@ enum class DrawType : uint8_t
 
 };
 
+// True for drawTypes that switch dynamic state on a single pipeline and issue
+// multiple draws, rather than baking multiple pipelines.
+constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::msaaDynamicMidpointFans:
+        case DrawType::msaaDynamicOuterCubics:
+            return true;
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubicBorrowedCoverage:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaOuterCubicStencilReset:
+        case DrawType::msaaOuterCubicPathsStencil:
+        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
 {
     switch (drawType)
