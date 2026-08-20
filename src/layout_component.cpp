@@ -51,6 +51,15 @@ bool isTransparentLayoutContainer(Component* component)
     return component->coreType() == NodeBase::typeKey || component->is<Solo>();
 }
 
+// Whether content-sizing stops here. Narrower than
+// isTransparentLayoutContainer: a plain group is a barrier (its contents are
+// free content), but a Solo is not — its children content-size just as direct
+// children of the layout do.
+bool stopsContentSizing(Component* component)
+{
+    return component->coreType() == NodeBase::typeKey;
+}
+
 // An ArtboardComponentList provides a layout node unconditionally — it never
 // opted in the way a participant does. Wrapping one in a group is how a file
 // says "render these items but don't lay them out", freeing them to be placed
@@ -1132,10 +1141,11 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
     }
     for (auto child : component->children())
     {
-        // Don't content-size nested layouts, or containers transparent to
-        // layout (groups/Solos) — their contents are free content or
-        // participants, never content-sized from here.
-        if (child->is<LayoutComponent>() || isTransparentLayoutContainer(child))
+        // Don't content-size nested layouts, or groups — a group's contents are
+        // free content, never content-sized from here. A Solo is not a barrier:
+        // its children content-size as direct children would. A participating
+        // child is caught by the provider check below.
+        if (child->is<LayoutComponent>() || stopsContentSizing(child))
         {
             continue;
         }
