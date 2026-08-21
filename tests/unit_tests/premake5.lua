@@ -104,6 +104,12 @@ do
         '../../../texture_compressor/src/write_ktx2.cpp',
     })
 
+    -- These exercise the Luau backend directly; the wasm backend's coverage
+    -- is the two-runner differential in rive-cli until wasm twins land.
+    if _OPTIONS['scripting_vm'] == 'wasm' then
+        removefiles({ 'runtime/scripting/**' })
+    end
+
     filter('system:linux')
     do
         links({ 'dl', 'pthread' })

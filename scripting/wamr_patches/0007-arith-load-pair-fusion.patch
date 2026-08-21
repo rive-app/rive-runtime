@@ -1,0 +1,353 @@
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index 5c78d30..c2aebd3 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1906,6 +1906,94 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                 HANDLE_OP_END();
+             }
+ 
++/* rive: fused arith/load pairs; operand layout keeps the producer's
++   [rhs][lhs] in place, then the second op's operand, then dst */
++#define DEF_OP_FUSED_ARITH(op1_expr, op2_expr) \
++    do {                                       \
++        uint32 t = (op1_expr);                 \
++        SET_OPERAND(I32, 6, (op2_expr));       \
++        frame_ip += 8;                         \
++    } while (0)
++
++            HANDLE_OP(EXT_OP_I32_SHL_ADD)
++            {
++                DEF_OP_FUSED_ARITH(GET_OPERAND(uint32, I32, 2)
++                                       << (GET_OPERAND(uint32, I32, 0) % 32),
++                                   GET_OPERAND(uint32, I32, 4) + t);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_SHR_U_AND)
++            {
++                DEF_OP_FUSED_ARITH(GET_OPERAND(uint32, I32, 2)
++                                       >> (GET_OPERAND(uint32, I32, 0) % 32),
++                                   GET_OPERAND(uint32, I32, 4) & t);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_AND_ADD)
++            {
++                DEF_OP_FUSED_ARITH(GET_OPERAND(uint32, I32, 2)
++                                       & GET_OPERAND(uint32, I32, 0),
++                                   GET_OPERAND(uint32, I32, 4) + t);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_ADD_SHR_U)
++            {
++                DEF_OP_FUSED_ARITH(GET_OPERAND(uint32, I32, 2)
++                                       + GET_OPERAND(uint32, I32, 0),
++                                   t >> (GET_OPERAND(uint32, I32, 4) % 32));
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_AND_SHL)
++            {
++                DEF_OP_FUSED_ARITH(GET_OPERAND(uint32, I32, 2)
++                                       & GET_OPERAND(uint32, I32, 0),
++                                   t << (GET_OPERAND(uint32, I32, 4) % 32));
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_LOAD_ADD)
++            {
++                uint32 offset, addr;
++                addr =
++                    GET_OPERAND(uint32, I32, 2) + GET_OPERAND(uint32, I32, 0);
++                frame_ip += 4;
++                offset = read_uint32(frame_ip);
++                addr_ret = GET_OFFSET();
++                CHECK_MEMORY_OVERFLOW(4);
++                frame_lp[addr_ret] = LOAD_I32(maddr);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_LOAD_SHR_U)
++            {
++                uint32 offset, addr, shift;
++                offset = read_uint32(frame_ip);
++                addr = GET_OPERAND(uint32, I32, 0);
++                shift = GET_OPERAND(uint32, I32, 2);
++                frame_ip += 4;
++                addr_ret = GET_OFFSET();
++                CHECK_MEMORY_OVERFLOW(4);
++                frame_lp[addr_ret] = (uint32)LOAD_I32(maddr) >> (shift % 32);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_I32_LOAD8_U_SHL)
++            {
++                uint32 offset, addr, shift;
++                offset = read_uint32(frame_ip);
++                addr = GET_OPERAND(uint32, I32, 0);
++                shift = GET_OPERAND(uint32, I32, 2);
++                frame_ip += 4;
++                addr_ret = GET_OFFSET();
++                CHECK_MEMORY_OVERFLOW(1);
++                frame_lp[addr_ret] = (uint32)(*(uint8 *)maddr) << (shift % 32);
++                HANDLE_OP_END();
++            }
++
+             HANDLE_OP(EXT_OP_BR_IF_I32_GE_U)
+             {
+ #if WASM_ENABLE_THREAD_MGR != 0
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index 8cf82b0..3f64472 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -9255,6 +9255,15 @@ fail:
+ #define WASM_LOADER_FUSE_BR 0
+ #endif
+ 
++/* rive: arith/load pair fusion patches emitted labels in place, which
++   needs the pointer-sized label encoding */
++#if WASM_LOADER_FUSE_BR != 0 && WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0 \
++    && WASM_ENABLE_MEMORY64 == 0
++#define WASM_LOADER_FUSE_ARITH 1
++#else
++#define WASM_LOADER_FUSE_ARITH 0
++#endif
++
+ #define emit_br_info(frame_csp, is_br, omit_zero_arity)             \
+     do {                                                            \
+         if (!wasm_loader_emit_br_info(loader_ctx, frame_csp, is_br, \
+@@ -9590,6 +9599,20 @@ preserve_referenced_local(WASMLoaderContext *loader_ctx, uint8 opcode,
+     return true;
+ }
+ 
++#if WASM_LOADER_FUSE_ARITH != 0
++/* pop offsets without emitting them, for operands a fused op absorbed */
++static void
++wasm_loader_fuse_pop_offsets(WASMLoaderContext *ctx, uint32 cells)
++{
++    while (cells--) {
++        ctx->frame_offset--;
++        if ((*ctx->frame_offset > ctx->start_dynamic_offset)
++            && (*ctx->frame_offset < ctx->max_dynamic_offset))
++            ctx->dynamic_offset--;
++    }
++}
++#endif
++
+ static bool
+ preserve_local_for_block(WASMLoaderContext *loader_ctx, uint8 opcode,
+                          char *error_buf, uint32 error_buf_size)
+@@ -11670,6 +11693,13 @@ wasm_loader_prepare_bytecode(WASMModule *module, WASMFunction *func,
+ #if WASM_ENABLE_FAST_INTERP != 0
+     int16 operand_offset = 0;
+     uint8 last_op = 0;
++#if WASM_LOADER_FUSE_ARITH != 0
++    /* pending fusable producer: its opcode, dst slot, and how many single
++       cell pushes (consts / local gets) landed above it since */
++    uint8 fuse_prod_op = 0, fuse_prod_depth = 0;
++    int16 fuse_prod_off = 0;
++    bool fuse_suppress = false;
++#endif
+     bool disable_emit, preserve_local = false, if_condition_available = true;
+     float32 f32_const;
+     float64 f64_const;
+@@ -14358,6 +14388,32 @@ re_scan:
+                     goto fail;
+                 }
+ #if WASM_ENABLE_FAST_INTERP != 0
++#if WASM_LOADER_FUSE_ARITH != 0
++                if (opcode == WASM_OP_I32_LOAD
++                    && fuse_prod_op == WASM_OP_I32_ADD && fuse_prod_depth == 0
++                    && !(loader_ctx->frame_csp - 1)->is_stack_polymorphic
++                    && loader_ctx->stack_cell_num
++                           > (loader_ctx->frame_csp - 1)->stack_cell_num
++                    && *(loader_ctx->frame_offset - 1) == fuse_prod_off) {
++                    skip_label();
++                    /* take over the add's instruction: drop its dst and
++                       append the memarg in place */
++                    wasm_loader_emit_backspace(loader_ctx, 2);
++                    if (loader_ctx->p_code_compiled)
++                        *(void **)(loader_ctx->p_code_compiled - 4
++                                   - sizeof(void *)) =
++                            handle_table[EXT_OP_I32_LOAD_ADD];
++                    emit_uint32(loader_ctx, mem_offset);
++                    wasm_loader_fuse_pop_offsets(loader_ctx, 1);
++                    POP_TYPE(VALUE_TYPE_I32);
++                    PUSH_I32();
++                    fuse_suppress = true;
++#if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
++                    func->has_memory_operations = true;
++#endif
++                    break;
++                }
++#endif
+                 emit_uint32(loader_ctx, mem_offset);
+ #endif
+ #if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
+@@ -14589,8 +14645,79 @@ re_scan:
+             case WASM_OP_I32_SHR_U:
+             case WASM_OP_I32_ROTL:
+             case WASM_OP_I32_ROTR:
++#if WASM_LOADER_FUSE_ARITH != 0
++            {
++                uint8 fused_arith = 0;
++                if (fuse_prod_op
++                    && !(loader_ctx->frame_csp - 1)->is_stack_polymorphic
++                    && loader_ctx->stack_cell_num
++                               - (loader_ctx->frame_csp - 1)->stack_cell_num
++                           >= 2
++                    && *(loader_ctx->frame_offset - 1 - fuse_prod_depth)
++                           == fuse_prod_off) {
++                    switch (opcode) {
++                        case WASM_OP_I32_ADD:
++                            if (fuse_prod_op == WASM_OP_I32_SHL)
++                                fused_arith = EXT_OP_I32_SHL_ADD;
++                            else if (fuse_prod_op == WASM_OP_I32_AND)
++                                fused_arith = EXT_OP_I32_AND_ADD;
++                            break;
++                        case WASM_OP_I32_AND:
++                            if (fuse_prod_op == WASM_OP_I32_SHR_U)
++                                fused_arith = EXT_OP_I32_SHR_U_AND;
++                            break;
++                        /* non-commutative consumers only fuse a producer in
++                           lhs position */
++                        case WASM_OP_I32_SHR_U:
++                            if (fuse_prod_depth == 1) {
++                                if (fuse_prod_op == WASM_OP_I32_ADD)
++                                    fused_arith = EXT_OP_I32_ADD_SHR_U;
++                                else if (fuse_prod_op == WASM_OP_I32_LOAD)
++                                    fused_arith = EXT_OP_I32_LOAD_SHR_U;
++                            }
++                            break;
++                        case WASM_OP_I32_SHL:
++                            if (fuse_prod_depth == 1) {
++                                if (fuse_prod_op == WASM_OP_I32_AND)
++                                    fused_arith = EXT_OP_I32_AND_SHL;
++                                else if (fuse_prod_op == WASM_OP_I32_LOAD8_U)
++                                    fused_arith = EXT_OP_I32_LOAD8_U_SHL;
++                            }
++                            break;
++                    }
++                }
++                if (fused_arith) {
++                    uint32 prod_bytes = (fuse_prod_op == WASM_OP_I32_LOAD
++                                         || fuse_prod_op == WASM_OP_I32_LOAD8_U)
++                                            ? 8
++                                            : 6;
++                    skip_label();
++                    if (loader_ctx->p_code_compiled) {
++                        /* take over the producer's instruction: retarget its
++                           label and turn its dst slot into the second
++                           operand of the fused op */
++                        int16 other_off =
++                            *(loader_ctx->frame_offset - 2 + fuse_prod_depth);
++                        *(void **)(loader_ctx->p_code_compiled - prod_bytes
++                                   - sizeof(void *)) =
++                            handle_table[fused_arith];
++                        STORE_U16(loader_ctx->p_code_compiled - 2,
++                                  (uint16)other_off);
++                    }
++                    wasm_loader_fuse_pop_offsets(loader_ctx, 2);
++                    POP_TYPE(VALUE_TYPE_I32);
++                    POP_TYPE(VALUE_TYPE_I32);
++                    PUSH_I32();
++                    fuse_suppress = true;
++                    break;
++                }
++                POP2_AND_PUSH(VALUE_TYPE_I32, VALUE_TYPE_I32);
++                break;
++            }
++#else
+                 POP2_AND_PUSH(VALUE_TYPE_I32, VALUE_TYPE_I32);
+                 break;
++#endif
+ 
+             case WASM_OP_I64_CLZ:
+             case WASM_OP_I64_CTZ:
+@@ -16996,6 +17123,46 @@ re_scan:
+ 
+ #if WASM_ENABLE_FAST_INTERP != 0
+         last_op = opcode;
++#endif
++#if WASM_LOADER_FUSE_ARITH != 0
++        if (fuse_suppress) {
++            /* an op fused this iteration left a non-standard encoding, so
++               its result must not seed another fusion */
++            fuse_suppress = false;
++            fuse_prod_op = 0;
++        }
++        else {
++            switch (opcode) {
++                case WASM_OP_I32_ADD:
++                case WASM_OP_I32_AND:
++                case WASM_OP_I32_SHL:
++                case WASM_OP_I32_SHR_U:
++                case WASM_OP_I32_LOAD:
++                case WASM_OP_I32_LOAD8_U:
++                    if (!(loader_ctx->frame_csp - 1)->is_stack_polymorphic
++                        && loader_ctx->stack_cell_num
++                               > (loader_ctx->frame_csp - 1)->stack_cell_num) {
++                        fuse_prod_op = opcode;
++                        fuse_prod_depth = 0;
++                        fuse_prod_off = *(loader_ctx->frame_offset - 1);
++                    }
++                    else
++                        fuse_prod_op = 0;
++                    break;
++                case WASM_OP_I32_CONST:
++                case WASM_OP_GET_LOCAL:
++                    if (fuse_prod_depth == 0
++                        && (opcode == WASM_OP_I32_CONST
++                            || is_32bit_type(local_type)))
++                        fuse_prod_depth = 1;
++                    else
++                        fuse_prod_op = 0;
++                    break;
++                default:
++                    fuse_prod_op = 0;
++                    break;
++            }
++        }
+ #endif
+     }
+ 
+diff --git a/core/iwasm/interpreter/wasm_opcode.h b/core/iwasm/interpreter/wasm_opcode.h
+index 217c0e0..1a0b3a3 100644
+--- a/core/iwasm/interpreter/wasm_opcode.h
++++ b/core/iwasm/interpreter/wasm_opcode.h
+@@ -303,6 +303,17 @@ typedef enum WASMOpcode {
+     EXT_OP_BR_IF_I32_GE_S = 0xee,
+     EXT_OP_BR_IF_I32_GE_U = 0xef,
+ 
++    /* rive: profile-guided arith/load pair fusions, emitted only by the
++       fast-interp loader */
++    EXT_OP_I32_SHL_ADD = 0xf0,     /* dst = c + (a << b) */
++    EXT_OP_I32_SHR_U_AND = 0xf1,   /* dst = c & (a >> b) */
++    EXT_OP_I32_AND_ADD = 0xf2,     /* dst = c + (a & b) */
++    EXT_OP_I32_ADD_SHR_U = 0xf3,   /* dst = (a + b) >> c */
++    EXT_OP_I32_AND_SHL = 0xf4,     /* dst = (a & b) << c */
++    EXT_OP_I32_LOAD_ADD = 0xf5,    /* dst = mem32[moff + a + b] */
++    EXT_OP_I32_LOAD_SHR_U = 0xf6,  /* dst = mem32[moff + addr] >> c */
++    EXT_OP_I32_LOAD8_U_SHL = 0xf7, /* dst = mem8[moff + addr] << c */
++
+     /* Post-MVP extend op prefix */
+     WASM_OP_GC_PREFIX = 0xfb,
+     WASM_OP_MISC_PREFIX = 0xfc,
+@@ -832,7 +843,15 @@ typedef enum WASMAtomicEXTOpcode {
+         SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_LE_S),                      \
+         SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_LE_U),                      \
+         SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GE_S),                      \
+-        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GE_U),
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GE_U),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_SHL_ADD),                         \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_SHR_U_AND),                       \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_AND_ADD),                         \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_ADD_SHR_U),                       \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_AND_SHL),                         \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_LOAD_ADD),                        \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_LOAD_SHR_U),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_I32_LOAD8_U_SHL),
+ #else
+ #define DEF_EXT_FUSED_BR_HANDLES()
+ #endif

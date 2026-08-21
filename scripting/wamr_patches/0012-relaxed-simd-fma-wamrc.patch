@@ -1,0 +1,143 @@
+From: rive
+Subject: [PATCH 0012] relaxed-simd fma subset for wamrc
+
+f32x4.relaxed_madd/relaxed_nmadd (0xfd 0x105/0x106) accepted by the loader
+under WASM_ENABLE_WAMR_COMPILER only and lowered to llvm.fma, so relaxed
+artifacts compile to deterministic single-rounding fused code while
+interpreter builds keep refusing the opcodes (dual-artifact policy).
+
+--- a/core/iwasm/interpreter/wasm_opcode.h
++++ b/core/iwasm/interpreter/wasm_opcode.h
+@@ -728,6 +728,11 @@
+     SIMD_i32x4_trunc_sat_f64x2_u_zero = 0xfd,
+     SIMD_f64x2_convert_low_i32x4_s = 0xfe,
+     SIMD_f64x2_convert_low_i32x4_u = 0xff,
++
++    /* relaxed-simd subset (wamrc only): fused multiply-add, lowered to
++       llvm.fma so results are the deterministic single-rounding fma */
++    SIMD_f32x4_relaxed_madd = 0x105,
++    SIMD_f32x4_relaxed_nmadd = 0x106,
+ } WASMSimdEXTOpcode;
+ 
+ typedef enum WASMAtomicEXTOpcode {
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -8079,6 +8079,15 @@
+                 uint32 opcode1;
+ 
+                 read_leb_uint32(p, p_end, opcode1);
++#if WASM_ENABLE_WAMR_COMPILER != 0
++                /* relaxed-simd subset: no immediates to skip; must not fall
++                   through to the uint8 truncation below (0x105 would alias
++                   v128.load8x8_s and mis-skip a memarg) */
++                if (opcode1 == SIMD_f32x4_relaxed_madd
++                    || opcode1 == SIMD_f32x4_relaxed_nmadd) {
++                    break;
++                }
++#endif
+                 /* opcode1 was checked in wasm_loader_prepare_bytecode and
+                    is no larger than UINT8_MAX */
+                 opcode = (uint8)opcode1;
+@@ -16537,11 +16546,24 @@
+                     }
+ 
+                     case SIMD_v128_bitselect:
++                    {
++                        POP_V128();
++                        POP2_AND_PUSH(VALUE_TYPE_V128, VALUE_TYPE_V128);
++                        break;
++                    }
++
++#if WASM_ENABLE_WAMR_COMPILER != 0
++                    /* relaxed-simd subset: accepted for offline AOT only;
++                       interpreter builds keep refusing so the dual-artifact
++                       policy holds */
++                    case SIMD_f32x4_relaxed_madd:
++                    case SIMD_f32x4_relaxed_nmadd:
+                     {
+                         POP_V128();
+                         POP2_AND_PUSH(VALUE_TYPE_V128, VALUE_TYPE_V128);
+                         break;
+                     }
++#endif
+ 
+                     case SIMD_v128_any_true:
+                     {
+--- a/core/iwasm/compilation/aot_compiler.c
++++ b/core/iwasm/compilation/aot_compiler.c
+@@ -2786,6 +2786,16 @@
+                 }
+ 
+                 read_leb_uint32(frame_ip, frame_ip_end, opcode1);
++                /* relaxed-simd subset sits above the uint8 range; dispatch
++                   before the truncation below */
++                if (opcode1 == SIMD_f32x4_relaxed_madd
++                    || opcode1 == SIMD_f32x4_relaxed_nmadd) {
++                    if (!aot_compile_simd_f32x4_relaxed_madd(
++                            comp_ctx, func_ctx,
++                            opcode1 == SIMD_f32x4_relaxed_nmadd))
++                        return false;
++                    break;
++                }
+                 /* opcode1 was checked in loader and is no larger than
+                    UINT8_MAX */
+                 opcode = (uint8)opcode1;
+--- a/core/iwasm/compilation/simd/simd_floating_point.c
++++ b/core/iwasm/compilation/simd/simd_floating_point.c
+@@ -62,6 +62,43 @@
+     return simd_v128_float_arith(comp_ctx, func_ctx, arith_op, V128_f64x2_TYPE);
+ }
+ 
++/* relaxed_madd(a, b, c) = a * b + c, lowered to llvm.fma so the result is
++   the deterministic single-rounding fused form on every fma-capable target;
++   nmadd negates the product */
++bool
++aot_compile_simd_f32x4_relaxed_madd(AOTCompContext *comp_ctx,
++                                    AOTFuncContext *func_ctx, bool is_nmadd)
++{
++    LLVMValueRef a, b, c, result;
++    LLVMTypeRef param_types[3] = { V128_f32x4_TYPE, V128_f32x4_TYPE,
++                                   V128_f32x4_TYPE };
++
++    if (!(c = simd_pop_v128_and_bitcast(comp_ctx, func_ctx, V128_f32x4_TYPE,
++                                        "c"))
++        || !(b = simd_pop_v128_and_bitcast(comp_ctx, func_ctx, V128_f32x4_TYPE,
++                                           "b"))
++        || !(a = simd_pop_v128_and_bitcast(comp_ctx, func_ctx, V128_f32x4_TYPE,
++                                           "a"))) {
++        return false;
++    }
++
++    if (is_nmadd) {
++        if (!(a = LLVMBuildFNeg(comp_ctx->builder, a, "neg_a"))) {
++            HANDLE_FAILURE("LLVMBuildFNeg");
++            return false;
++        }
++    }
++
++    if (!(result = aot_call_llvm_intrinsic(comp_ctx, func_ctx, "llvm.fma.v4f32",
++                                           V128_f32x4_TYPE, param_types, 3, a,
++                                           b, c))) {
++        HANDLE_FAILURE("LLVMBuildCall");
++        return false;
++    }
++
++    return simd_bitcast_and_push_v128(comp_ctx, func_ctx, result, "result");
++}
++
+ static bool
+ simd_v128_float_neg(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+                     LLVMTypeRef vector_type)
+--- a/core/iwasm/compilation/simd/simd_floating_point.h
++++ b/core/iwasm/compilation/simd/simd_floating_point.h
+@@ -24,6 +24,10 @@
+ aot_compile_simd_f32x4_neg(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx);
+ 
+ bool
++aot_compile_simd_f32x4_relaxed_madd(AOTCompContext *comp_ctx,
++                                    AOTFuncContext *func_ctx, bool is_nmadd);
++
++bool
+ aot_compile_simd_f64x2_neg(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx);
+ 
+ bool

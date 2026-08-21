@@ -113,18 +113,34 @@ function rive_tools_project(name, project_kind)
         })
     end
 
-    filter({ 'options:with_rive_scripting' })
-    do
-        includedirs({
-            luau .. '/VM/include',
-        })
-    end
+    if _OPTIONS['scripting_vm'] ~= 'wasm' then
+        filter({ 'options:with_rive_scripting' })
+        do
+            includedirs({
+                luau .. '/VM/include',
+            })
+        end
 
-    -- When scripting is enabled, librive.a contains lua_promise.o and
-    -- lua_image_decode.o which reference luau symbols.
-    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
-    do
-        links({ 'luau_vm' })
+        -- When scripting is enabled, librive.a contains lua_promise.o and
+        -- lua_image_decode.o which reference luau symbols.
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
+        do
+            links({ 'luau_vm' })
+        end
+    end
+    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+    then
+        -- librive.a's WasmScriptingVM needs the WAMR runtime.
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
+        do
+            links({ 'wamr' })
+        end
+        -- Ladder and transplant tests speak the public wamr API directly.
+        filter({ 'options:with_rive_scripting' })
+        do
+            includedirs({ wamr .. '/core/iwasm/include' })
+        end
+        filter({})
     end
 
     filter({ 'system:windows or macosx or linux', 'options:not for_unreal'  })

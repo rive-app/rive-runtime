@@ -2418,6 +2418,9 @@ TEST_CASE("List under Node: when parent has a direct FocusData, "
     }
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Focus is correctly built and updated for lists", "[silver]")
 {
     rive::SerializingFactory silver;
@@ -2498,6 +2501,7 @@ TEST_CASE("Focus is correctly built and updated for lists", "[silver]")
 
     CHECK(silver.matches("list_focus_order"));
 }
+#endif
 
 TEST_CASE("Focus based transitions work", "[silver]")
 {

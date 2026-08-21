@@ -22,7 +22,7 @@
 #include "rive/virtualizing_component.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/semantic/semantic_node.hpp"
-#include "rive/lua/scripting_vm.hpp"
+#include "rive/scripting_slots.hpp"
 
 #include <queue>
 #include <unordered_map>
@@ -95,7 +95,7 @@ private:
     std::vector<AdvancingComponent*> m_advancingComponents;
     rcp<DataContext> m_DataContext = nullptr;
 #ifdef WITH_RIVE_SCRIPTING
-    rcp<ScriptingVM> m_scriptingVM = nullptr;
+    [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif
     bool m_JoysticksApplyBeforeUpdate = true;
 
@@ -394,7 +394,7 @@ public:
         return m_ComponentLists;
     }
     rcp<DataContext> dataContext() { return m_DataContext; }
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     void scriptingVM(rcp<ScriptingVM> value)
     {
         m_scriptingVM = std::move(value);

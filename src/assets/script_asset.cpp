@@ -1,11 +1,17 @@
 #ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+// Only for the ScriptingVM to ScriptBackend conversion in backend().
+#include "rive/lua/scripting_vm.hpp"
+#endif
 #include "libhydrogen.h"
 #include "rive/importers/text_asset_importer.hpp"
 #endif
 #include "rive/assets/script_asset.hpp"
 #include "rive/signed_content_header.hpp"
 #include "rive/file.hpp"
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#include "rive/wasm/wasm_scripting_vm.hpp"
+#endif
 #include "rive/script_input_artboard.hpp"
 #include "rive/script_input_boolean.hpp"
 #include "rive/script_input_color.hpp"
@@ -66,26 +72,34 @@ bool ScriptInput::hydrateScriptInput()
 bool ScriptInput::validateHydrationPrerequisites() { return true; }
 
 #ifdef WITH_RIVE_SCRIPTING
-ScriptingVM* ScriptAsset::scriptingVM()
+ScriptBackend* ScriptAsset::backend()
 {
     if (m_file == nullptr)
     {
         return nullptr;
     }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    if (m_wasmBackend != nullptr)
+    {
+        return m_wasmBackend;
+    }
+    if (m_file->wasmScriptingVM() != nullptr)
+    {
+        return m_file->wasmScriptingVM();
+    }
+#endif
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     return m_file->scriptingVM();
-}
-
-lua_State* ScriptAsset::vm()
-{
-    auto scriptingVM = this->scriptingVM();
-    return scriptingVM ? scriptingVM->state() : nullptr;
+#else
+    return nullptr;
+#endif
 }
 #endif
 
 bool ScriptAsset::initScriptedObject(ScriptedObject* object)
 {
 #ifdef WITH_RIVE_SCRIPTING
-    if (scriptingVM() == nullptr)
+    if (backend() == nullptr)
     {
         return false;
     }
@@ -115,27 +129,13 @@ void ScriptAsset::registrationComplete(int ref)
 bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
 {
 #if defined(WITH_RIVE_SCRIPTING)
-    auto scriptVM = scriptingVM();
-    if (scriptVM == nullptr)
+    auto scriptBackend = backend();
+    if (scriptBackend == nullptr)
     {
         return false;
     }
-    lua_State* state = scriptVM->state();
 
-    int ref = 0;
-#ifdef WITH_RIVE_TOOLS
-    ScriptingContext* context =
-        static_cast<ScriptingContext*>(lua_getthreaddata(state));
-    if (context != nullptr && context->hasGeneratorRef(generatorFunctionRef()))
-    {
-        ref = context->getGeneratorRef(generatorFunctionRef());
-    }
-    else
-#endif
-    {
-        ref = generatorFunctionRef();
-    }
-
+    int ref = scriptBackend->resolveGeneratorRef(generatorFunctionRef());
     if (ref == 0)
     {
         fprintf(stderr,
@@ -143,7 +143,6 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                 name().c_str());
         return false;
     }
-    rive_lua_pushRef(state, ref);
 
     if (!m_initted)
     {
@@ -173,7 +172,7 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());
-    return object->ensureScriptInitialized(scriptVM);
+    return object->ensureScriptInitialized(scriptBackend, ref);
 #else
     return false;
 #endif

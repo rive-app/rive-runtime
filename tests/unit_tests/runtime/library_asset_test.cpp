@@ -11,7 +11,9 @@
 #include <rive/assets/font_asset.hpp>
 #include <rive/assets/script_asset.hpp>
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include <rive/lua/rive_lua_libs.hpp>
+#endif
 #endif
 #include <rive/animation/nested_simple_animation.hpp>
 #include <rive/animation/nested_state_machine.hpp>
@@ -166,7 +168,7 @@ TEST_CASE("Library script exports flat under its mangle prefix", "[libraries]")
     REQUIRE(script != nullptr);
     REQUIRE(script->moduleName() == "FruitsLib@4/FruitModule");
 
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     // A file with scripts still makes a VM.
     REQUIRE(file->scriptingVM() != nullptr);
 #endif
@@ -199,7 +201,7 @@ TEST_CASE("Nested library scripts export flat under distinct prefixes",
     REQUIRE(mesh != nullptr);
     REQUIRE(mesh->moduleName() == "InnerLib@4/mesh");
 
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     REQUIRE(file->scriptingVM() != nullptr);
 #endif
 }

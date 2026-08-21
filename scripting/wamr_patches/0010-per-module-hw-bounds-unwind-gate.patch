@@ -1,0 +1,89 @@
+diff --git a/core/iwasm/aot/aot_runtime.h b/core/iwasm/aot/aot_runtime.h
+index d06cd10..c9bf9ed 100644
+--- a/core/iwasm/aot/aot_runtime.h
++++ b/core/iwasm/aot/aot_runtime.h
+@@ -349,6 +349,13 @@ typedef struct AOTModule {
+     /* Whether the underlying wasm binary buffer can be freed */
+     bool is_binary_freeable;
+ 
++    /* rive patch: artifact compiled without sw bounds checks, so exceptions
++       unwind through the exce_check guard page; sw artifacts unwind by
++       checked returns and must never take that longjmp. Set by the embedder
++       via wasm_runtime_set_module_hw_bounds; the file format records
++       nothing. */
++    bool rive_hw_bounds;
++
+     /* `.data` sections merged into one mmaped to reduce the tlb cache miss */
+     uint8 *merged_data_sections;
+     uint32 merged_data_sections_size;
+diff --git a/core/iwasm/common/wasm_runtime_common.c b/core/iwasm/common/wasm_runtime_common.c
+index 5853813..a5a2e24 100644
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -2331,10 +2331,27 @@ wasm_runtime_set_native_stack_boundary(WASMExecEnv *exec_env,
+ }
+ 
+ #ifdef OS_ENABLE_HW_BOUND_CHECK
++/* rive patch: only hw-bounds AOT artifacts unwind through the guard page;
++   sw artifacts emit checked returns after every call and a longjmp here
++   would skip native frames between nested wasm entries (the sjlj glue). */
++static bool
++module_inst_uses_hw_unwind(WASMModuleInstanceCommon *module_inst)
++{
++#if WASM_ENABLE_AOT != 0
++    if (module_inst && module_inst->module_type == Wasm_Module_AoT) {
++        AOTModule *module =
++            (AOTModule *)((AOTModuleInstance *)module_inst)->module;
++        return module && module->rive_hw_bounds;
++    }
++#endif
++    return false;
++}
++
+ void
+ wasm_runtime_access_exce_check_guard_page()
+ {
+-    if (exec_env_tls && exec_env_tls->handle == os_self_thread()) {
++    if (exec_env_tls && exec_env_tls->handle == os_self_thread()
++        && module_inst_uses_hw_unwind(exec_env_tls->module_inst)) {
+         uint32 page_size = os_getpagesize();
+         memset(exec_env_tls->exce_check_guard_page, 0, page_size);
+     }
+@@ -2350,6 +2367,19 @@ wasm_runtime_set_instruction_count_limit(WASMExecEnv *exec_env,
+ }
+ #endif
+ 
++void
++wasm_runtime_set_module_hw_bounds(WASMModuleCommon *module, bool hw_bounds)
++{
++#if WASM_ENABLE_AOT != 0
++    if (module && module->module_type == Wasm_Module_AoT) {
++        ((AOTModule *)module)->rive_hw_bounds = hw_bounds;
++    }
++#else
++    (void)module;
++#endif
++    (void)hw_bounds;
++}
++
+ WASMFuncType *
+ wasm_runtime_get_function_type(const WASMFunctionInstanceCommon *function,
+                                uint32 module_type)
+diff --git a/core/iwasm/include/wasm_export.h b/core/iwasm/include/wasm_export.h
+index 81efb8f..a510f3c 100644
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -2287,6 +2287,13 @@ wasm_runtime_set_module_name(wasm_module_t module, const char *name,
+ WASM_RUNTIME_API_EXTERN const char *
+ wasm_runtime_get_module_name(wasm_module_t module);
+ 
++/* rive patch: mark an AOT module as compiled without sw bounds checks
++   (wamrc --bounds-checks=0) so runtime exceptions unwind through the hw
++   trap guard page. Default false: sw artifacts unwind by checked returns.
++   The AOT file format records nothing, so the embedder must know. */
++WASM_RUNTIME_API_EXTERN void
++wasm_runtime_set_module_hw_bounds(wasm_module_t module, bool hw_bounds);
++
+ /*
+  * wasm_runtime_detect_native_stack_overflow
+  *

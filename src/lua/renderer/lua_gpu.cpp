@@ -2,6 +2,9 @@
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "lualib.h"
 #include "rive/lua/rive_lua_libs.hpp"
+#ifdef RIVE_WASM_MODULE
+#include "rive/wasm/module_render.hpp"
+#endif
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
@@ -3030,6 +3033,36 @@ static int gpucanvashandle_resize(lua_State* L)
     {
         return 0;
     }
+
+#ifdef RIVE_WASM_MODULE
+    // Module side the real canvas lives host side; recreate it through the
+    // seam and rewrap the view and presentable image.
+    if (self->canvas != nullptr)
+    {
+        auto resized = wasmModuleResizeCanvas(self->canvas, w, h);
+        if (resized.canvas == nullptr)
+        {
+            luaL_error(L, "GPUCanvas:resize() failed host side");
+        }
+        self->canvas = std::move(resized.canvas);
+        self->oreColorView = std::move(resized.colorView);
+        if (self->m_L != nullptr && self->m_imageRef != LUA_NOREF)
+        {
+            lua_unref(self->m_L, self->m_imageRef);
+            self->m_imageRef = LUA_NOREF;
+        }
+        uint32_t imageHandle = wasmModuleCanvasImageHandle(self->canvas);
+        if (imageHandle != 0)
+        {
+            auto* img = lua_newrive<ScriptedImage>(L);
+            img->image = makeWasmModuleRenderImage(imageHandle);
+            img->sourceCanvas = self->canvas;
+            self->m_imageRef = lua_ref(L, -1);
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+#endif
 
     // A generator resizes once, when layout hands it the real size. On web that
     // still precedes the render texture's attach, so the request is recorded

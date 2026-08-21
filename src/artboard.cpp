@@ -1,5 +1,8 @@
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#include "rive/wasm/wasm_scripting_vm.hpp"
+#endif
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
@@ -57,7 +60,9 @@
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
+#endif
 #endif
 #include "rive/async/work_pool.hpp"
 
@@ -935,12 +940,21 @@ void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
 
 void Artboard::advanceScriptedViewModels()
 {
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     if (m_scriptingVM != nullptr)
     {
         if (auto* context = m_scriptingVM->context())
         {
             context->advanceDetachedViewModels();
+        }
+    }
+#endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    if (auto f = artboardFile())
+    {
+        for (auto& vm : f->wasmVMs())
+        {
+            vm->advanceDetachedViewModels();
         }
     }
 #endif

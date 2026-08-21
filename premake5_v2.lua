@@ -16,6 +16,32 @@ filter({ 'options:with_rive_scripting' })
 do
     defines({ 'WITH_RIVE_SCRIPTING' })
 end
+-- The wasm backend carries no Luau in any capacity; every other backend
+-- keeps it, and 'both' runs the two side by side for differential tools.
+if _OPTIONS['scripting_vm'] ~= 'wasm' then
+    filter({ 'options:with_rive_scripting' })
+    do
+        defines({ 'WITH_RIVE_SCRIPTING_LUAU' })
+    end
+    filter({})
+end
+-- Workspace scope: gated members change class layout, so every project
+-- must agree on the define.
+if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+then
+    filter({ 'options:with_rive_scripting' })
+    do
+        defines({ 'WITH_RIVE_SCRIPTING_WASM' })
+    end
+    filter({})
+    if _OPTIONS['wasm_hw_bounds'] then
+        filter({ 'options:with_rive_scripting' })
+        do
+            defines({ 'RIVE_WASM_HW_BOUNDS' })
+        end
+        filter({})
+    end
+end
 filter({ 'options:with_rive_test_signature' })
 do
     -- Swaps `g_scriptVerificationPublicKey` for the public key that
@@ -68,6 +94,14 @@ if _OPTIONS['with_rive_scripting'] then
     local scripting = require(path.join(path.getabsolute('scripting/'), 'premake5'))
     luau = scripting.luau
     libhydrogen = scripting.libhydrogen
+    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+    then
+        local wamrLib =
+            require(path.join(path.getabsolute('scripting/'), 'premake5_wamr'))
+        wamr = wamrLib.wamr
+        wamrConfigDefines = wamrLib.configDefines
+        wamrInternalIncludes = wamrLib.internalIncludes
+    end
 else
     project('luau_vm')
     do
@@ -200,12 +234,33 @@ do
     filter({ 'options:with_rive_scripting' })
     do
         includedirs({
-            luau .. '/VM/include',
             libhydrogen,
         })
         files({
             libhydrogen .. '/libhydrogen.c',
         })
+    end
+    if _OPTIONS['scripting_vm'] ~= 'wasm' then
+        filter({ 'options:with_rive_scripting' })
+        do
+            includedirs({ luau .. '/VM/include' })
+        end
+    end
+    if wamr then
+        filter({ 'options:with_rive_scripting' })
+        do
+            includedirs({ wamr .. '/core/iwasm/include' })
+            -- The tier transplant reads instance internals; layout hinges
+            -- on the same config defines the wamr lib builds with.
+            includedirs(wamrInternalIncludes)
+            defines(wamrConfigDefines)
+            filter({ 'options:with_rive_scripting', 'system:macosx' })
+            defines({ 'BH_PLATFORM_DARWIN' })
+            filter({ 'options:with_rive_scripting', 'system:linux' })
+            defines({ 'BH_PLATFORM_LINUX' })
+            filter({ 'options:with_rive_scripting' })
+        end
+        filter({})
     end
     filter({ 'options:with_rive_canvas' })
     do
@@ -238,6 +293,10 @@ do
         -- =1 required; an empty define evaluates to 0 on strict preprocessors.
         defines({ 'HYDRO_SIGN_VERIFY_ONLY=1' })
     end
+    if _OPTIONS['scripting_vm'] == 'wasm' then
+        filter({})
+        removefiles({ 'src/lua/**' })
+    end
     filter({
         'options:with_rive_scripting',
         'options:config=release',
@@ -266,6 +325,26 @@ newoption({
 newoption({
     trigger = 'with_rive_scripting',
     description = 'Enables scripting for the runtime.',
+})
+
+newoption({
+    trigger = 'scripting_vm',
+    value = 'VM',
+    description = 'Scripting execution backend.',
+    allowed = {
+        { 'luau', 'Native Luau VM (default)' },
+        { 'wasm', 'WAMR executing wasm script modules, no Luau in the build' },
+        { 'both', 'Both backends, for differential tools' },
+    },
+    default = 'luau',
+})
+
+newoption({
+    trigger = 'wasm_hw_bounds',
+    description = 'WAMR hardware bounds checks for wasm modules compiled '
+        .. 'without sw bounds (AssemblyScript); Luau artifacts stay sw. '
+        .. '64-bit desktop/mobile only: reserves 8GB address space per '
+        .. 'module memory and installs a SIGSEGV/SIGBUS handler.',
 })
 
 newoption({

@@ -118,6 +118,7 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/manifest_asset.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/assets/script_module_asset.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/assets/text_asset.hpp"
 #include "rive/audio_event.hpp"
@@ -924,6 +925,8 @@ public:
                 return new AudioAsset();
             case FileAssetContentsBase::typeKey:
                 return new FileAssetContents();
+            case ScriptModuleAssetBase::typeKey:
+                return new ScriptModuleAsset();
             case AudioEventBase::typeKey:
                 return new AudioEvent();
             case UserInputBase::typeKey:
@@ -1814,6 +1817,9 @@ public:
                 break;
             case ImageAssetBase::samplerWrapYPropertyKey:
                 object->as<ImageAssetBase>()->samplerWrapY(value);
+                break;
+            case ScriptModuleAssetBase::languagePropertyKey:
+                object->as<ScriptModuleAssetBase>()->language(value);
                 break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
@@ -3868,6 +3874,8 @@ public:
                 return object->as<ImageAssetBase>()->samplerWrapX();
             case ImageAssetBase::samplerWrapYPropertyKey:
                 return object->as<ImageAssetBase>()->samplerWrapY();
+            case ScriptModuleAssetBase::languagePropertyKey:
+                return object->as<ScriptModuleAssetBase>()->language();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
             case GamepadInputBase::kindPropertyKey:
@@ -4848,6 +4856,7 @@ public:
             case ImageAssetBase::samplerFilterPropertyKey:
             case ImageAssetBase::samplerWrapXPropertyKey:
             case ImageAssetBase::samplerWrapYPropertyKey:
+            case ScriptModuleAssetBase::languagePropertyKey:
             case AudioEventBase::assetIdPropertyKey:
             case GamepadInputBase::kindPropertyKey:
             case GamepadInputBase::mappingPropertyKey:
@@ -5775,6 +5784,8 @@ public:
                 return object->is<ImageAssetBase>();
             case ImageAssetBase::samplerWrapYPropertyKey:
                 return object->is<ImageAssetBase>();
+            case ScriptModuleAssetBase::languagePropertyKey:
+                return object->is<ScriptModuleAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
             case GamepadInputBase::kindPropertyKey:

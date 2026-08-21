@@ -9,6 +9,9 @@
 
 using namespace rive;
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE(
     "Data bind view model to view model instance from set value, externally and from scripting",
     "[silver]")
@@ -50,6 +53,7 @@ TEST_CASE(
 
     CHECK(silver.matches("databind_viewmodel"));
 }
+#endif
 
 TEST_CASE("Stateful component is bound before binding the view model instance",
           "[silver]")

@@ -263,6 +263,9 @@ TEST_CASE("gamepad batch tolerates disconnect of an unknown device id",
     CHECK(stateMachine->submitGamepadsFromBuffer(wb.buf.data(), wb.buf.size()));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("File loads and processes multiple types of gamepad inputs",
           "[gamepad]")
 {
@@ -423,3 +426,4 @@ TEST_CASE("File loads and processes multiple types of gamepad inputs",
 
     CHECK(silver.matches("gamepad_test"));
 }
+#endif

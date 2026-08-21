@@ -108,7 +108,7 @@ TEST_CASE("pointer event re-arms an idle scripted drawable's advance loop",
     // advances (1 << 0) + wantsPointerDown (1 << 3)
     drawable.implementedMethods((1 << 0) | (1 << 3));
     drawable.setAsset(make_rcp<ScriptAsset>());
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm()));
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
     parkAdvanceLoop(drawable, L);
 
@@ -132,7 +132,7 @@ TEST_CASE("keyboard event re-arms an idle scripted drawable's advance loop",
     // advances (1 << 0) + wantsKeyboardInput (1 << 16)
     drawable.implementedMethods((1 << 0) | (1 << 16));
     drawable.setAsset(make_rcp<ScriptAsset>());
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm()));
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
     parkAdvanceLoop(drawable, L);
 

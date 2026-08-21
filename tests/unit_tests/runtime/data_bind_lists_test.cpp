@@ -139,6 +139,9 @@ TEST_CASE("Test that adding and removing an item updates the list", "[silver]")
     CHECK(silver.matches("list_items"));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Clear view model list", "[silver]")
 {
     SerializingFactory silver;
@@ -164,3 +167,4 @@ TEST_CASE("Clear view model list", "[silver]")
 
     CHECK(silver.matches("clear_viewmodel_list"));
 }
+#endif

@@ -1,0 +1,19 @@
+{
+  "name": "ScriptModuleAsset",
+  "key": {
+    "int": 1071,
+    "string": "scriptmoduleasset"
+  },
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "language": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 1087,
+        "string": "scriptmodulelanguage"
+      },
+      "description": "Source language of the module: 0 = Luau, 1 = AssemblyScript. One ScriptModuleAsset exists per language per file; its payload is a self contained wasm module (VM + bindings + compiled scripts) carried through FileAssetContents like other text backed assets, and ScriptAssets reference into it by registered module name."
+    }
+  }
+}

@@ -1,5 +1,7 @@
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
+#endif
 #endif
 #include "rive/assets/script_asset.hpp"
 #include "rive/artboard.hpp"
@@ -42,269 +44,127 @@ ScriptedObject* ScriptedObject::from(Core* object)
 #ifdef WITH_RIVE_SCRIPTING
 void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
 {
-    lua_State* L = state();
-    if (L == nullptr || scriptAsset() == nullptr)
+    if (m_vm == nullptr || !m_vm->valid() || scriptAsset() == nullptr)
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    auto artboardInstance = artboard->instance();
-    artboardInstance->frameOrigin(false);
-    lua_newrive<ScriptedArtboard>(L,
-                                  L,
-                                  scriptAsset()->file(),
-                                  std::move(artboardInstance),
-                                  nullptr,
-                                  dataContext());
-    lua_setfield(L, -2, name.c_str());
-    rive_lua_pop(L, 1);
+    m_vm->setInputArtboard(m_self, name.c_str(), this, artboard);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setBooleanInput(std::string name, bool value)
 {
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    lua_pushboolean(L, value);
-    lua_setfield(L, -2, name.c_str());
-    rive_lua_pop(L, 1);
+    m_vm->setInputBoolean(m_self, name.c_str(), value);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setNumberInput(std::string name, float value)
 {
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    lua_pushnumber(L, value);
-    lua_setfield(L, -2, name.c_str());
-    rive_lua_pop(L, 1);
+    m_vm->setInputNumber(m_self, name.c_str(), value);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setIntegerInput(std::string name, int value)
 {
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    lua_pushunsigned(L, value);
-    lua_setfield(L, -2, name.c_str());
-    rive_lua_pop(L, 1);
+    m_vm->setInputUnsigned(m_self, name.c_str(), value);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setStringInput(std::string name, std::string value)
 {
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    lua_pushstring(L, value.c_str());
-    lua_setfield(L, -2, name.c_str());
-    rive_lua_pop(L, 1);
+    m_vm->setInputString(m_self, name.c_str(), value.c_str());
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::setViewModelInput(std::string name,
                                        ViewModelInstanceValue* value)
 {
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    switch (value->coreType())
-    {
-        case ViewModelInstanceViewModelBase::typeKey:
-        {
-            auto viewModel = value->as<ViewModelInstanceViewModel>();
-            auto vmi = viewModel->referenceViewModelInstance();
-            if (vmi == nullptr)
-            {
-                fprintf(stderr,
-                        "riveLuaPushViewModelInstanceValue - passed in a "
-                        "ViewModelInstanceViewModel with no associated "
-                        "ViewModelInstance.\n");
-                return;
-            }
-
-            lua_newrive<ScriptedViewModel>(L,
-                                           L,
-                                           ref_rcp(vmi->viewModel()),
-                                           vmi);
-            break;
-        }
-        default:
-            break;
-    }
-    lua_setfield(L, -2, name.c_str());
-    rive_lua_pop(L, 1);
+    m_vm->setInputViewModel(m_self, name.c_str(), value);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 void ScriptedObject::trigger(std::string name)
 {
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    if (static_cast<lua_Type>(lua_getfield(L, -1, name.c_str())) !=
-        LUA_TFUNCTION)
-    {
-        rive_lua_pop(L, 2);
-        return;
-    }
-    lua_pushvalue(L, -2);
-    rive_lua_pcall_with_context(L, this, 1, 0);
-    rive_lua_pop(L, 1);
+    m_vm->callTrigger(this, m_self, name.c_str());
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
 
 bool ScriptedObject::scriptAdvance(float elapsedSeconds)
 {
-    lua_State* L = state();
-    if (!advances() || L == nullptr)
+    if (!advances() || m_vm == nullptr || !m_vm->valid())
     {
         return false;
     }
-    rive_lua_pushRef(L, m_self);
-    // implementedMethods may be assumed for legacy files (all-bits default); if
-    // the field isn't actually a function, treat it as not implemented.
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "advance")) != LUA_TFUNCTION)
-    {
-        rive_lua_pop(L, 2); // non-function field + self
-        return false;
-    }
-    lua_pushvalue(L, -2);
-    lua_pushnumber(L, elapsedSeconds);
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
-        LUA_OK)
-    {
-        rive_lua_pop(L, 2);
-        return false;
-    }
-    bool result = lua_toboolean(L, -1);
-    rive_lua_pop(L, 2);
-    return result;
+    return m_vm->callAdvance(this, m_self, elapsedSeconds);
 }
 
 void ScriptedObject::scriptUpdate()
 {
-    lua_State* L = state();
-    if (!updates() || L == nullptr)
+    if (!updates() || m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    // Stack: []
-    rive_lua_pushRef(L, m_self);
-    // Stack: [self]
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "update")) != LUA_TFUNCTION)
-    {
-        // Not actually implemented (assumed for legacy files); no-op. The
-        // update phase never started, so there's no flag to reset.
-        rive_lua_pop(L, 2); // non-function field + self
-        return;
-    }
-    // Only inside the update phase while the callback actually runs.
-    m_inUpdatePhase = true;
-    // Stack: [self, field] Swap self and field
-    lua_insert(L, -2);
-    // Stack: [field, self]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 1, 0)) !=
-        LUA_OK)
-    {
-        rive_lua_pop(L, 1);
-    }
-    m_inUpdatePhase = false;
+    m_vm->callUpdate(this, m_self);
 }
 
-bool ScriptedObject::tryLuaUserInit(lua_State* L)
+bool ScriptedObject::tryUserInit()
 {
-    rive_lua_pushRef(L, m_self);
-    // Stack: [self]
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "init")) != LUA_TFUNCTION)
+    switch (m_vm->callUserInit(this, m_self, m_context))
     {
-        // init is optional and not implemented (assumed for legacy files);
-        // nothing to run — the object is considered initialized.
-        rive_lua_pop(L, 2); // non-function field + self
-        return true;
+        case ScriptBackend::InitResult::notImplemented:
+        case ScriptBackend::InitResult::succeeded:
+            return true;
+        case ScriptBackend::InitResult::failed:
+            break;
     }
-    // Stack: [self, field]
-    lua_pushvalue(L, -2);
-    // Stack: [self, field, self]
-    // Reuse the ScriptedContext created during ensureScriptInitialized so
-    // the generator and init() both see the same Context instance.
-    rive_lua_pushRef(L, m_context);
-    // Stack: [self, field, self, ScriptedContext]
-    auto pCallResult = rive_lua_pcall_with_context(L, this, 2, 1);
-    if (static_cast<lua_Status>(pCallResult) != LUA_OK)
-    {
-        lua_unref(L, m_self);
-        disposeScriptedContext();
-        // Stack: [self, status]
-        rive_lua_pop(L, 2);
-        if (m_vm != nullptr)
-        {
-            m_vm->unregisterScriptedObject(this);
-        }
-        m_vm = nullptr;
-        m_self = 0;
-        return false;
-    }
-    if (!lua_toboolean(L, -1) || m_contextPtr->missingRequestedData())
-    {
-        lua_unref(L, m_self);
-        disposeScriptedContext();
-        rive_lua_pop(L, 2);
-        if (m_vm != nullptr)
-        {
-            m_vm->unregisterScriptedObject(this);
-        }
-        m_vm = nullptr;
-        m_self = 0;
-        return false;
-    }
-    // Stack: [self, result]
-    rive_lua_pop(L, 1);
-    assert(static_cast<lua_Type>(lua_type(L, -1)) == LUA_TTABLE);
-    // Stack: [self]
-    rive_lua_pop(L, 1);
-    return true;
+    m_vm->releaseRef(m_self);
+    disposeScriptedContext();
+    m_vm->unregisterScriptedObject(this);
+    m_vm = nullptr;
+    m_self = 0;
+    return false;
 }
 
-bool ScriptedObject::ensureScriptInitialized(ScriptingVM* vm)
+bool ScriptedObject::ensureScriptInitialized(ScriptBackend* vm,
+                                             int generatorRef)
 {
-    lua_State* L = vm ? vm->state() : nullptr;
-    if (L == nullptr)
+    if (vm == nullptr || !vm->valid())
     {
         return false;
     }
     if (m_self != 0 && m_vm == vm)
     {
-        rive_lua_pop(L, 1);
         return true;
     }
     if (m_vm != nullptr)
     {
-        lua_State* oldState = state();
         if (m_self != 0)
         {
-            lua_unref(oldState, m_self);
+            m_vm->releaseRef(m_self);
             m_self = 0;
         }
 
@@ -319,64 +179,27 @@ bool ScriptedObject::ensureScriptInitialized(ScriptingVM* vm)
         auto scriptInput = ScriptInput::from(prop);
         if (scriptInput && !scriptInput->validateForColdScriptInit())
         {
-            rive_lua_pop(L, 1);
             return false;
         }
     }
 
-    // Create the Context userdata before calling the generator so scripts
-    // can request resources at construction time (e.g.
-    // `return { canvas = context:gpuCanvas() }`). The same Context is
-    // reused in tryLuaUserInit when init(self, context) is called, so a
-    // script only ever sees one Context per scripted-object lifetime.
-    // Stack: [generator]
-    m_contextPtr = lua_newrive<ScriptedContext>(L, this);
-    // Stack: [generator, context]
-    m_context = lua_ref(L, -1);
-    // Stack: [generator, context]  (lua_ref does not pop)
-
-    // m_vm is not yet assigned here, so disposeScriptedContext() cannot
-    // resolve a lua_State via state(). Unref/clear directly on failure.
-    auto disposeContextDirect = [&]() {
-        if (m_contextPtr != nullptr)
-        {
-            m_contextPtr->clearScriptedObject();
-            m_contextPtr = nullptr;
-        }
-        if (m_context != 0)
-        {
-            lua_unref(L, m_context);
-            m_context = 0;
-        }
-    };
-
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 1, 1)) !=
-        LUA_OK)
+    // m_vm is assigned only after a successful instantiate, so the failure
+    // path leaves the object fully detached.
+    m_self = vm->instantiate(generatorRef, this, &m_context, &m_contextPtr);
+    if (m_self == 0)
     {
-        disposeContextDirect();
-        rive_lua_pop(L, 1);
+        m_context = 0;
+        m_contextPtr = nullptr;
         return false;
     }
-    if (static_cast<lua_Type>(lua_type(L, -1)) != LUA_TTABLE)
-    {
-        disposeContextDirect();
-        rive_lua_pop(L, 1);
-        return false;
-    }
-    m_self = lua_ref(L, -1);
     m_vm = vm;
-    if (vm != nullptr)
-    {
-        vm->registerScriptedObject(this);
-    }
-    rive_lua_pop(L, 1);
+    vm->registerScriptedObject(this);
     return true;
 }
 
 bool ScriptedObject::hydrateScriptInputs()
 {
-    lua_State* L = state();
-    if (L == nullptr || m_self == 0)
+    if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
     {
         return false;
     }
@@ -404,7 +227,7 @@ bool ScriptedObject::hydrateScriptInputs()
     // Finally initialize the script if it hasn't been initialized before.
     if (inits() && !m_userLuaInitDone)
     {
-        if (!tryLuaUserInit(L))
+        if (!tryUserInit())
         {
             return false;
         }
@@ -416,7 +239,9 @@ bool ScriptedObject::hydrateScriptInputs()
 
 void ScriptedObject::disposeTrackedProperties()
 {
-
+// Tracked properties only exist on the Luau backend; the wasm module keeps
+// its property wrappers module side.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     auto trackedProperties = m_trackedScriptedProperties;
     for (auto* property : trackedProperties)
     {
@@ -425,21 +250,23 @@ void ScriptedObject::disposeTrackedProperties()
             property->dispose();
         }
     }
+#endif
 }
 
 void ScriptedObject::disposeScriptedContext()
 {
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     if (m_contextPtr != nullptr)
     {
         m_contextPtr->clearScriptedObject();
         m_contextPtr = nullptr;
     }
+#endif
     if (m_context != 0)
     {
-        lua_State* L = state();
-        if (L != nullptr)
+        if (m_vm != nullptr && m_vm->valid())
         {
-            lua_unref(L, m_context);
+            m_vm->releaseRef(m_context);
         }
         m_context = 0;
     }
@@ -451,10 +278,9 @@ void ScriptedObject::scriptDispose()
     disposeTrackedProperties();
     m_trackedScriptedProperties.clear();
 
-    lua_State* L = state();
-    if (L != nullptr)
+    if (m_vm != nullptr && m_vm->valid())
     {
-        lua_unref(L, m_self);
+        m_vm->releaseRef(m_self);
         disposeScriptedContext();
     }
     if (m_vm != nullptr)

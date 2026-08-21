@@ -141,6 +141,9 @@ TEST_CASE("Test global view models with instance explicitly specified",
     CHECK(silver.matches("global_viewmodels_test-set_instance"));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Global view models access through scripting", "[silver]")
 {
     rive::SerializingFactory silver;
@@ -171,3 +174,4 @@ TEST_CASE("Global view models access through scripting", "[silver]")
 
     CHECK(silver.matches("global_view_models_scripting_test"));
 }
+#endif

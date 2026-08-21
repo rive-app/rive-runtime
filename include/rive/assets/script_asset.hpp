@@ -10,17 +10,13 @@
 #include <unordered_set>
 #endif
 
-#ifdef WITH_RIVE_SCRIPTING
-struct lua_State;
-#endif
-
 namespace rive
 {
 class Artboard;
 class Component;
 class DataBind;
 class ScriptedObject;
-class ScriptingVM;
+class ScriptBackend;
 
 enum ScriptProtocol
 {
@@ -234,8 +230,13 @@ public:
     void file(File* value) { m_file = value; }
     File* file() const { return m_file; }
 #ifdef WITH_RIVE_SCRIPTING
-    ScriptingVM* scriptingVM();
-    lua_State* vm();
+    /// The file's active script backend: the wasm module VM when the file
+    /// carries one, else the Luau VM.
+    ScriptBackend* backend();
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    /// Set at registration to the VM of the module this script lives in.
+    void wasmBackend(ScriptBackend* value) { m_wasmBackend = value; }
+#endif
     void registrationComplete(int ref) override;
 #endif
     std::string moduleName() override
@@ -247,6 +248,9 @@ public:
 private:
     File* m_file = nullptr;
 #ifdef WITH_RIVE_SCRIPTING
+    // Written by the wasm backend only; lives under the umbrella so the
+    // class layout does not depend on the backend defines.
+    [[maybe_unused]] ScriptBackend* m_wasmBackend = nullptr;
     bool m_scriptRegistered = false;
     SimpleArray<uint8_t> m_bytecode;
     bool m_initted = false;

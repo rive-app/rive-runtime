@@ -15,6 +15,10 @@
 
 using namespace rive;
 
+// These rivs carry Luau bytecode; without the Luau backend the scripts
+// cannot run and the streams cannot match.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+
 TEST_CASE("Game menu ad script test", "[script]")
 {
     SerializingFactory silver;
@@ -76,3 +80,5 @@ TEST_CASE("Layout Planets script test", "[script]")
                      {.fps = 30});
     CHECK(silver.matches("layoutstest_8-planets-grid"));
 }
+
+#endif // WITH_RIVE_SCRIPTING_LUAU

@@ -187,60 +187,6 @@ int ScriptedContext::pushRootViewModel(lua_State* state)
     return 0;
 }
 
-// Resolve a global view model instance by name from a script's data context.
-static rcp<ViewModelInstance> resolveGlobalViewModel(
-    const rcp<DataContext>& dataContext,
-    File* file,
-    const char* name)
-{
-    // Validate the name up front (mirrors
-    // Artboard::setGlobalViewModelInstance): an unknown name makes viewModelId
-    // return viewModelCount() (an invalid slot key), and a non-global name must
-    // never resolve — even if something else populated that slot. Only after
-    // confirming the id is in range and the referenced view model is global do
-    // we attempt slot / identity resolution.
-    uint32_t slotKey = file->viewModelId(name);
-    if (slotKey >= file->viewModelCount())
-    {
-        return nullptr;
-    }
-    ViewModel* globalViewModel = file->viewModel(slotKey);
-    if (globalViewModel == nullptr ||
-        static_cast<ViewModelType>(globalViewModel->viewModelType()) !=
-            ViewModelType::global)
-    {
-        return nullptr;
-    }
-
-    // Fast path: the pure runtime slots globals onto the root (top-most) data
-    // context.
-    DataContext* root = dataContext.get();
-    while (root->parent() != nullptr)
-    {
-        root = root->parent().get();
-    }
-    auto viewModelInstance = root->instanceForSlot(slotKey);
-    if (viewModelInstance != nullptr)
-    {
-        return viewModelInstance;
-    }
-
-    // Fallback: the editor (and nested-artboard propagation) build unslotted
-    // contexts, so match the global view model against the contexts' instances.
-    for (DataContext* ctx = dataContext.get(); ctx != nullptr;
-         ctx = ctx->parent().get())
-    {
-        for (const auto& instance : ctx->viewModelInstances())
-        {
-            if (instance != nullptr && instance->viewModel() == globalViewModel)
-            {
-                return instance;
-            }
-        }
-    }
-    return nullptr;
-}
-
 int ScriptedContext::pushGlobalViewModel(lua_State* state)
 {
     const char* name = luaL_checkstring(state, 2);
@@ -254,7 +200,7 @@ int ScriptedContext::pushGlobalViewModel(lua_State* state)
             if (file != nullptr)
             {
                 auto viewModelInstance =
-                    resolveGlobalViewModel(dataContext, file, name);
+                    dataContext->resolveGlobalViewModel(file, name);
                 if (viewModelInstance != nullptr)
                 {
                     lua_newrive<ScriptedViewModel>(

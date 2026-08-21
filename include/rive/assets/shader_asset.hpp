@@ -58,6 +58,13 @@ public:
         return Span<const TextureSamplerPair>(m_pairs.data(), m_pairs.size());
     }
 
+    /// The decoded RSTB container, for hosts that forward it across a
+    /// process or module boundary.
+    Span<const uint8_t> rstb() const
+    {
+        return Span<const uint8_t>(m_bytes.data(), m_bytes.size());
+    }
+
 private:
     SimpleArray<uint8_t> m_bytes;
 

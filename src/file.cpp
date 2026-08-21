@@ -20,8 +20,10 @@
 #include "rive/importers/text_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/lua/lua_state.hpp"
+#endif
 #endif
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
@@ -71,6 +73,10 @@
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/assets/script_module_asset.hpp"
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#include "rive/wasm/wasm_scripting_vm.hpp"
+#endif
 #include "rive/assets/shader_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
@@ -125,6 +131,43 @@ size_t File::debugTotalFileCount = 0;
 
 // Import a single Rive runtime object.
 // Used by the file importer.
+#ifdef WITH_RIVE_SCRIPTING_WASM
+void File::adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm)
+{
+    m_wasmVMs.clear();
+    WasmScriptingVM* raw = vm.get();
+    m_wasmVMs.push_back(std::move(vm));
+    for (auto& asset : m_fileAssets)
+    {
+        if (asset->is<ScriptAsset>())
+        {
+            asset->as<ScriptAsset>()->wasmBackend(raw);
+        }
+    }
+}
+
+bool File::applyWasmRegistration(const std::string& moduleName, int ref)
+{
+    for (auto& asset : m_fileAssets)
+    {
+        if (!asset->is<ScriptAsset>())
+        {
+            continue;
+        }
+        auto* script = asset->as<ScriptAsset>();
+        if (script->moduleName() == moduleName)
+        {
+            if (!script->isModule() && ref != 0)
+            {
+                script->registrationComplete(ref);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+#endif
+
 static Core* readRuntimeObject(BinaryReader& reader,
                                const RuntimeHeader& header)
 {
@@ -211,7 +254,7 @@ File::~File()
 #if defined(DEBUG)
     debugTotalFileCount--;
 #endif
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     cleanupScriptingVM();
 #endif
     for (auto artboard : m_artboards)
@@ -276,11 +319,13 @@ rcp<File> File::import(Span<const uint8_t> bytes,
         return nullptr;
     }
     auto file = make_rcp<File>(factory, std::move(assetLoader));
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     if (vm != nullptr)
     {
         file->setScriptingVM(ref_rcp(vm));
     }
+#else
+    (void)vm;
 #endif
 
     auto readResult = file->read(reader, header);
@@ -341,6 +386,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case AudioAsset::typeKey:
                 case BlobAsset::typeKey:
                 case ScriptAsset::typeKey:
+                case ScriptModuleAsset::typeKey:
                 case ShaderAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
@@ -507,6 +553,16 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                                                         &inBandContent);
                 stackType = FileAsset::typeKey;
                 scriptAsset->file(this);
+                break;
+            }
+            case ScriptModuleAsset::typeKey:
+            {
+                stackObject = std::make_unique<TextAssetImporter>(
+                    object->as<ScriptModuleAsset>(),
+                    m_assetLoader,
+                    m_factory,
+                    &inBandContent);
+                stackType = FileAsset::typeKey;
                 break;
             }
             case ShaderAsset::typeKey:
@@ -676,6 +732,125 @@ void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
 #ifdef WITH_RIVE_SCRIPTING
 void File::registerScripts()
 {
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    // A wasm script module supersedes the bytecode path: scripts live inside
+    // the module and ScriptAssets are metadata-only routing records. Assets
+    // arrive grouped, each module followed by its scripts; scripts before the
+    // first module belong to it, which keeps older single-module files
+    // working.
+    auto registerOn = [](WasmScriptingVM* vm, ScriptAsset* script) {
+        int resultRef = 0;
+        if (!vm->requireModule(script->moduleName(), &resultRef))
+        {
+            fprintf(stderr,
+                    "wasm script module '%s' failed: %s\n",
+                    script->moduleName().c_str(),
+                    vm->lastError().c_str());
+        }
+        else if (!script->isModule() && resultRef != 0)
+        {
+            // The module's result is the protocol script's generator;
+            // storing the ref lets the standard lazy instantiation flow
+            // run against the wasm backend.
+            script->registrationComplete(resultRef);
+        }
+        script->wasmBackend(vm);
+    };
+    std::vector<ScriptAsset*> pending;
+    WasmScriptingVM* current = nullptr;
+    for (auto& asset : m_fileAssets)
+    {
+        if (asset->is<ScriptModuleAsset>())
+        {
+            auto module = asset->as<ScriptModuleAsset>();
+#ifndef WITH_RIVE_TOOLS
+            if (!module->verified())
+            {
+                continue;
+            }
+#endif
+            std::string error;
+            auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
+            if (vm == nullptr)
+            {
+                fprintf(stderr,
+                        "wasm script module failed to start: %s\n",
+                        error.c_str());
+                continue;
+            }
+            vm->viewModels(&m_ViewModels);
+            vm->file(this);
+            current = vm.get();
+            m_wasmVMs.push_back(std::move(vm));
+            for (auto* script : pending)
+            {
+                registerOn(current, script);
+            }
+            pending.clear();
+        }
+        else if (asset->is<ScriptAsset>() && current == nullptr)
+        {
+            pending.push_back(asset->as<ScriptAsset>());
+        }
+        else if (asset->is<ScriptAsset>())
+        {
+            registerOn(current, asset->as<ScriptAsset>());
+        }
+    }
+    // Bytecode-only files can still run on the wasm backend: with
+    // RIVE_WASM_VM naming a stock vm module, every script registers
+    // dynamically instead of arriving baked into a module asset. Dev and
+    // sweep-harness lane; bytecode is interpreted by the module's Luau VM.
+    if (m_wasmVMs.empty() && !pending.empty())
+    {
+        if (const char* vmPath = getenv("RIVE_WASM_VM"))
+        {
+            FILE* vmFile = fopen(vmPath, "rb");
+            if (vmFile != nullptr)
+            {
+                fseek(vmFile, 0, SEEK_END);
+                long size = ftell(vmFile);
+                fseek(vmFile, 0, SEEK_SET);
+                std::vector<uint8_t> vmBytes(size);
+                size_t read = fread(vmBytes.data(), 1, size, vmFile);
+                fclose(vmFile);
+                std::string error;
+                auto vm = WasmScriptingVM::make(
+                    Span<const uint8_t>(vmBytes.data(), read),
+                    m_factory,
+                    error);
+                if (vm == nullptr)
+                {
+                    fprintf(stderr,
+                            "wasm bytecode lane failed to start: %s\n",
+                            error.c_str());
+                }
+                else
+                {
+                    vm->viewModels(&m_ViewModels);
+                    vm->file(this);
+                    current = vm.get();
+                    m_wasmVMs.push_back(std::move(vm));
+                    for (auto* script : pending)
+                    {
+                        current->registerBytecode(script->moduleName(),
+                                                  script->moduleBytecode());
+                    }
+                    for (auto* script : pending)
+                    {
+                        registerOn(current, script);
+                    }
+                }
+            }
+        }
+    }
+    if (!m_wasmVMs.empty())
+    {
+        return;
+    }
+#endif
+
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     // Check if we have any script assets in the file
     std::vector<ScriptAsset*> scripts;
     for (auto asset : m_fileAssets)
@@ -735,8 +910,10 @@ void File::registerScripts()
             }
         }
     }
+#endif
 }
 
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 // Scripts reach the GPU through their ScriptingContext, and nothing else in
 // the import path hands them one, so a script that opened a gpuCanvas used to
 // fail on every runtime host. Ore and canvas host routing derive from the
@@ -813,6 +990,7 @@ void File::cleanupScriptingVM()
     m_scriptingVM = nullptr;
 }
 #endif
+#endif
 
 Artboard* File::artboard(std::string name) const
 {
@@ -855,7 +1033,7 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
     if (ab)
     {
         auto artboardInstance = ab->instance();
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
         artboardInstance->scriptingVM(m_scriptingVM);
 #endif
         artboardInstance->file(ref_rcp(this));

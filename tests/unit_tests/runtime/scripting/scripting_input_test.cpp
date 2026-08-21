@@ -527,7 +527,8 @@ end
     // ensureScriptInitialized directly Call
     // ScriptedObject::ensureScriptInitialized directly to avoid addDirt which
     // requires an artboard
-    CHECK(drawable.ScriptedObject::ensureScriptInitialized(vm.vm()));
+    CHECK(drawable.ScriptedObject::ensureScriptInitialized(vm.vm(),
+                                                           refTopFunction(L)));
     drawable.ScriptedObject::hydrateScriptInputs();
 
     // Manually set implemented methods flags since we're not using ScriptAsset
@@ -608,7 +609,8 @@ end
     // ensureScriptInitialized expects the factory function on the stack
     // Call ScriptedObject::ensureScriptInitialized directly to avoid addDirt
     // which requires an artboard
-    CHECK(layout.ScriptedObject::ensureScriptInitialized(vm.vm()));
+    CHECK(layout.ScriptedObject::ensureScriptInitialized(vm.vm(),
+                                                         refTopFunction(L)));
     layout.ScriptedObject::hydrateScriptInputs();
 
     // Manually set implemented methods flags
@@ -717,7 +719,9 @@ end
     REQUIRE(lua_gettop(L) == stackTop);
     REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    REQUIRE(converter->ScriptedObject::ensureScriptInitialized(vm.vm()));
+    REQUIRE(
+        converter->ScriptedObject::ensureScriptInitialized(vm.vm(),
+                                                           refTopFunction(L)));
     converter->ScriptedObject::hydrateScriptInputs();
     converter->addScriptedDirt(ComponentDirt::Bindings);
 
@@ -805,7 +809,7 @@ end
     ScriptedObjectTest object;
     object.implementedMethods(object.implementedMethods() | (1 << 9));
     object.dataContext(make_rcp<DataContext>(viewModelInstance));
-    REQUIRE(object.ensureScriptInitialized(vm.vm()));
+    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
     object.hydrateScriptInputs();
 
     ViewModelInstanceViewModel vmInput;
@@ -909,7 +913,7 @@ end
     ScriptedDrawable drawable;
     drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
 
-    CHECK(drawable.ensureScriptInitialized(vm.vm()));
+    CHECK(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
     int selfRef = drawable.self();
     REQUIRE(selfRef != 0);
     CHECK(drawable.hydrateScriptInputs());
@@ -954,7 +958,7 @@ end
     ScriptedDrawable drawable;
     drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
 
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm()));
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
     REQUIRE(drawable.hydrateScriptInputs());
 
     rive_lua_pushRef(L, drawable.self());
@@ -1008,7 +1012,7 @@ end
     vmInput->name("vmBound");
     drawable.addProperty(vmInput);
 
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm()));
+    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
     CHECK_FALSE(drawable.hydrateScriptInputs());
 
     rive_lua_pushRef(L, drawable.self());

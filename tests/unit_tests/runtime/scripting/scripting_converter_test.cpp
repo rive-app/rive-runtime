@@ -382,7 +382,8 @@ end
     converter.implementedMethods((1 << 10) | (1 << 11));
     REQUIRE(converter.dataConverts());
     REQUIRE(converter.dataReverseConverts());
-    REQUIRE(converter.ensureScriptInitialized(vm.vm()));
+    REQUIRE(
+        converter.ensureScriptInitialized(vm.vm(), refTopFunction(vm.state())));
 
     // Flip directions repeatedly on the same converter instance. Each flip
     // changes the type storeData<T> must produce; the buggy version crashed

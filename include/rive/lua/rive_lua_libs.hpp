@@ -1539,6 +1539,9 @@ int rive_lua_pcall_with_context(lua_State* state,
                                 int nresults);
 int rive_lua_pushRef(lua_State* state, int ref);
 void rive_lua_pop(lua_State* state, int count);
+/// LuaAtoms lookup for the state's useratom callback; lua_atoms.cpp, shared
+/// with the wasm script module build.
+int16_t rive_lua_findAtom(const char* chars, size_t length);
 
 #ifdef RIVE_ORE
 // Finishes any ORE render pass left open at script return and reports it

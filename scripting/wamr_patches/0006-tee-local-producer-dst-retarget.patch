@@ -1,0 +1,68 @@
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index b9d0e0f..8cf82b0 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -14058,27 +14058,55 @@ re_scan:
+ #endif
+                 ) {
+                     skip_label();
+-                    if (is_32bit_type(local_type)) {
+-                        emit_label(EXT_OP_TEE_LOCAL_FAST);
+-                        emit_byte(loader_ctx, (uint8)local_offset);
++                    /* rive: retarget the producer's dst to the local slot and
++                       leave the local offset on the stack, like set+get; the
++                       preserve machinery already guards later local writes */
++                    if ((!preserve_local) && !cur_block->is_stack_polymorphic
++                        && (LAST_OP_OUTPUT_I32())) {
++                        if (loader_ctx->p_code_compiled)
++                            STORE_U16(loader_ctx->p_code_compiled - 2,
++                                      local_offset);
++                        *(loader_ctx->frame_offset - 1) = (int16)local_offset;
++                        loader_ctx->dynamic_offset--;
++                    }
++                    else if ((!preserve_local)
++                             && !cur_block->is_stack_polymorphic
++                             && (LAST_OP_OUTPUT_I64())) {
++                        if (loader_ctx->p_code_compiled)
++                            STORE_U16(loader_ctx->p_code_compiled - 2,
++                                      local_offset);
++                        *(loader_ctx->frame_offset - 2) = (int16)local_offset;
++                        loader_ctx->dynamic_offset -= 2;
+                     }
+ #if WASM_ENABLE_SIMDE != 0
+                     else if (local_type == VALUE_TYPE_V128) {
+                         emit_label(EXT_OP_TEE_LOCAL_FAST_V128);
+                         emit_byte(loader_ctx, (uint8)local_offset);
++                        emit_operand(loader_ctx,
++                                     *(loader_ctx->frame_offset
++                                       - wasm_value_type_cell_num(local_type)));
+                     }
+ #endif
+                     else {
+-                        emit_label(EXT_OP_TEE_LOCAL_FAST_I64);
+-                        emit_byte(loader_ctx, (uint8)local_offset);
++                        if (is_32bit_type(local_type)) {
++                            emit_label(EXT_OP_TEE_LOCAL_FAST);
++                            emit_byte(loader_ctx, (uint8)local_offset);
++                        }
++                        else {
++                            emit_label(EXT_OP_TEE_LOCAL_FAST_I64);
++                            emit_byte(loader_ctx, (uint8)local_offset);
++                        }
++                        emit_operand(loader_ctx,
++                                     *(loader_ctx->frame_offset
++                                       - wasm_value_type_cell_num(local_type)));
+                     }
+                 }
+                 else { /* local index larger than 255, reserve leb */
+                     emit_uint32(loader_ctx, local_idx);
++                    emit_operand(loader_ctx,
++                                 *(loader_ctx->frame_offset
++                                   - wasm_value_type_cell_num(local_type)));
+                 }
+-                emit_operand(loader_ctx,
+-                             *(loader_ctx->frame_offset
+-                               - wasm_value_type_cell_num(local_type)));
+ #else
+ #if (WASM_ENABLE_WAMR_COMPILER == 0) && (WASM_ENABLE_JIT == 0) \
+     && (WASM_ENABLE_FAST_JIT == 0) && (WASM_ENABLE_DEBUG_INTERP == 0)

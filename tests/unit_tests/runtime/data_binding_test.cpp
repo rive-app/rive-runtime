@@ -2272,6 +2272,9 @@ TEST_CASE("Relative data binding view model state machine fire trigger",
 
     CHECK(silver.matches("relative_data_bind_path-fire-trigger"));
 }
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Relative data binding view model scripted input", "[silver]")
 {
     SerializingFactory silver;
@@ -2341,6 +2344,7 @@ TEST_CASE("Relative data binding view model scripted input", "[silver]")
 
     CHECK(silver.matches("relative_data_bind_path-scripted-input"));
 }
+#endif
 
 TEST_CASE("Listen to view model value changes in state machines", "[silver]")
 {

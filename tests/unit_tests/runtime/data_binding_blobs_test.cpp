@@ -101,6 +101,9 @@ TEST_CASE("Directly-set blob yields a non-null asset even when empty",
     CHECK(blobProperty.asset()->bytes().empty());
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Data bind blobs internally and externally", "[silver]")
 {
     SerializingFactory silver;
@@ -148,3 +151,4 @@ TEST_CASE("Data bind blobs internally and externally", "[silver]")
 
     CHECK(silver.matches("data_bind_blob_test"));
 }
+#endif

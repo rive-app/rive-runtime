@@ -12,6 +12,7 @@
 namespace rive
 {
 class DataBindPath;
+class File;
 class DataContext : public RefCnt<DataContext>
 {
 private:
@@ -110,6 +111,9 @@ public:
                                      rcp<ViewModelInstance> value);
     // The instance currently occupying `slotKey`, or nullptr.
     rcp<ViewModelInstance> instanceForSlot(uint32_t slotKey) const;
+    // Resolves a global view model instance by name from this context,
+    // validating through the file like Artboard::setGlobalViewModelInstance.
+    rcp<ViewModelInstance> resolveGlobalViewModel(File* file, const char* name);
     // Removes the main view model instance(s): every entry not on the slot
     // keys.
     void removeMainViewModelInstance();

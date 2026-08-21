@@ -450,6 +450,9 @@ TEST_CASE("Data bound solos with enums work in both directions", "[silver]")
     CHECK(silver.matches("databind_solo_to_enum"));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Do not advance collapsed scripts", "[silver]")
 {
     auto file = ReadRiveFile("assets/script_advance_test.riv");
@@ -501,6 +504,7 @@ TEST_CASE("Do not advance collapsed scripts", "[silver]")
     stateMachine->advanceAndApply(0.016f);
     REQUIRE(advanceCountProp->propertyValue() == 6);
 }
+#endif
 
 TEST_CASE("Data bind by index skipping non hierarchical children", "[silver]")
 {

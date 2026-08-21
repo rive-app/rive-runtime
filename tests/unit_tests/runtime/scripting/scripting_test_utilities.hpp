@@ -11,6 +11,15 @@
 
 namespace rive
 {
+// Tests compile a generator chunk that lands on the stack top; the backend
+// seam wants it as a ref.
+inline int refTopFunction(lua_State* L)
+{
+    int ref = lua_ref(L, -1);
+    lua_pop(L, 1);
+    return ref;
+}
+
 class ScriptingTest;
 
 // A ScriptingContext that delegates callbacks to ScriptingTest

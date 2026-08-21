@@ -1,7 +1,4 @@
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
 #include "rive/animation/listener_invocation.hpp"
-#endif
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
@@ -28,12 +25,11 @@ void ScriptedDrawable::didReinit()
 
 void ScriptedDrawable::draw(Renderer* renderer)
 {
-    if (!draws() || m_vm == nullptr)
+    if (!draws() || m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
 
-    lua_State* L = state();
     float opacity = renderOpacity();
     bool needsOpacitySave = (opacity != 1.0f);
     if (m_needsSaveOperation || needsOpacitySave)
@@ -47,34 +43,7 @@ void ScriptedDrawable::draw(Renderer* renderer)
     }
 
     renderer->transform(worldTransform());
-    // Stack: []
-    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer);
-    // Stack: [scriptedRenderer]
-    rive_lua_pushRef(L, m_self);
-    // Stack: [scriptedRenderer, self]
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "draw")) == LUA_TFUNCTION)
-    {
-        // Stack: [scriptedRenderer, self, "draw"]
-        lua_pushvalue(L, -2);
-        // Stack: [scriptedRenderer, self, "draw", self]
-        lua_pushvalue(L, -4);
-        // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
-        if (static_cast<lua_Status>(
-                rive_lua_pcall_with_context(L, this, 2, 0)) != LUA_OK)
-        {
-            // Stack: [scriptedRenderer, self, status]
-            rive_lua_pop(L, 1);
-        }
-    }
-    else
-    {
-        // draw is assumed for legacy files but not implemented; no-op (the
-        // save/transform above stay balanced with the restore below).
-        rive_lua_pop(L, 1); // non-function field
-    }
-    scriptedRenderer->end();
-    // Stack: [scriptedRenderer, self]
-    rive_lua_pop(L, 2);
+    m_vm->callDraw(this, m_self, renderer);
 
     if (m_needsSaveOperation || needsOpacitySave)
     {
@@ -95,11 +64,10 @@ std::vector<HitComponent*> ScriptedDrawable::hitComponents(
 
 bool ScriptedDrawable::gamepadDispatch(const ListenerInvocation& inv)
 {
-    if (m_vm == nullptr || !state())
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return false;
     }
-    lua_State* L = state();
     const char* method = nullptr;
     switch (inv.kind())
     {
@@ -115,38 +83,10 @@ bool ScriptedDrawable::gamepadDispatch(const ListenerInvocation& inv)
         default:
             return false;
     }
-    rive_lua_pushRef(L, m_self);
-    lua_getfield(L, -1, method);
-    if (static_cast<lua_Type>(lua_type(L, -1)) != LUA_TFUNCTION)
+    if (!m_vm->callGamepadEvent(this, m_self, method, inv))
     {
-        rive_lua_pop(L, 2);
         return false;
     }
-    lua_pushvalue(L, -2);
-    if (const GamepadConnectedInvocation* c = inv.asGamepadConnected())
-    {
-        lua_newrive<ScriptedGamepadConnected>(L, c->snapshot);
-    }
-    else if (const GamepadEventInvocation* e = inv.asGamepadEvent())
-    {
-        lua_newrive<ScriptedGamepadEvent>(L, *e);
-    }
-    else if (const GamepadDisconnectedInvocation* d =
-                 inv.asGamepadDisconnected())
-    {
-        lua_newrive<ScriptedGamepadDisconnected>(L, d->deviceId);
-    }
-    else
-    {
-        rive_lua_pop(L, 3);
-        return false;
-    }
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 0)) !=
-        LUA_OK)
-    {
-        rive_lua_pop(L, 1);
-    }
-    rive_lua_pop(L, 1);
     wakeAdvance();
     return true;
 }
@@ -159,8 +99,8 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
 {
     HitResult hitResult = HitResult::none;
     auto scriptAsset = m_drawable->scriptAsset();
-    auto state = m_drawable->state();
-    if (state == nullptr || scriptAsset == nullptr ||
+    auto backend = m_drawable->backend();
+    if (backend == nullptr || !backend->valid() || scriptAsset == nullptr ||
         !handlesEvent(canHit, hitType))
     {
         return HitResult::none;
@@ -171,31 +111,16 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     {
         return hitResult;
     }
-    rive_lua_pushRef(state, m_drawable->self());
     auto mName = methodName(canHit, hitType);
-    if (static_cast<lua_Type>(lua_getfield(state, -1, mName.c_str())) !=
-        LUA_TFUNCTION)
+    if (backend->callPointerEvent(m_drawable,
+                                  m_drawable->self(),
+                                  mName.c_str(),
+                                  pointerId,
+                                  localPos,
+                                  &hitResult))
     {
-        // The pointer handler is assumed present for legacy files (all-bits
-        // default) but isn't actually implemented: report "not hit" so the
-        // state machine keeps walking other hit targets.
-        rive_lua_pop(state, 1);
-    }
-    else
-    {
-        lua_pushvalue(state, -2);
-        auto pointerEvent =
-            lua_newrive<ScriptedPointerEvent>(state, pointerId, localPos);
-        if (static_cast<lua_Status>(
-                rive_lua_pcall_with_context(state, m_drawable, 2, 0)) != LUA_OK)
-        {
-            fprintf(stderr, "%s failed\n", mName.c_str());
-            rive_lua_pop(state, 1);
-        }
-        hitResult = pointerEvent->m_hitResult;
         m_drawable->wakeAdvance();
     }
-    rive_lua_pop(state, 1);
     return hitResult;
 }
 
@@ -221,50 +146,16 @@ bool ScriptedDrawable::keyInput(Key key,
     {
         return false;
     }
-    bool shouldStopPropagation = false;
-    auto L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
-        return shouldStopPropagation;
+        return false;
     }
-    // Stack: []
-    rive_lua_pushRef(L, self());
-    // Stack: [self]
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "keyboardEvent")) !=
-        LUA_TFUNCTION)
-    {
-        // Assumed for legacy files but not implemented; no-op.
-        rive_lua_pop(L, 2); // non-function field + self
-        return shouldStopPropagation;
-    }
-    // Stack: [self, field]
-    lua_pushvalue(L, -2);
-    // Stack: [self, field, self]
-    lua_newrive<ScriptedKeyboardInvocation>(L,
-                                            key,
-                                            modifiers,
-                                            isPressed,
-                                            isRepeat);
-
-    // Stack: [self, field, self, keyEvent]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
-        LUA_OK)
-    {
-        fprintf(stderr, "%s failed\n", "keyboardEvent");
-        // Stack: [self, status]
-        rive_lua_pop(L, 1);
-    }
-    else
-    {
-        if (lua_isboolean(L, -1))
-        {
-            shouldStopPropagation = lua_toboolean(L, -1);
-        }
-        // Stack: [self, result]
-        rive_lua_pop(L, 1);
-    }
-    // Stack: [self]
-    rive_lua_pop(L, 1);
+    bool shouldStopPropagation = m_vm->callKeyboardEvent(this,
+                                                         self(),
+                                                         key,
+                                                         modifiers,
+                                                         isPressed,
+                                                         isRepeat);
     wakeAdvance();
     return shouldStopPropagation;
 }
@@ -275,46 +166,11 @@ bool ScriptedDrawable::textInput(const std::string& text)
     {
         return false;
     }
-    bool shouldStopPropagation = false;
-    auto L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
-        return shouldStopPropagation;
+        return false;
     }
-    // Stack: []
-    rive_lua_pushRef(L, self());
-    // Stack: [self]
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "textEvent")) !=
-        LUA_TFUNCTION)
-    {
-        // Assumed for legacy files but not implemented; no-op.
-        rive_lua_pop(L, 2); // non-function field + self
-        return shouldStopPropagation;
-    }
-    // Stack: [self, field]
-    lua_pushvalue(L, -2);
-    // Stack: [self, field, self]
-    lua_newrive<ScriptedTextInputInvocation>(L, text);
-
-    // Stack: [self, field, self, textInvocation]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 2, 1)) !=
-        LUA_OK)
-    {
-        fprintf(stderr, "%s failed\n", "textEvent");
-        // Stack: [self, status]
-        rive_lua_pop(L, 1);
-    }
-    else
-    {
-        if (lua_isboolean(L, -1))
-        {
-            shouldStopPropagation = lua_toboolean(L, -1);
-        }
-        // Stack: [self, result]
-        rive_lua_pop(L, 1);
-    }
-    // Stack: [self]
-    rive_lua_pop(L, 1);
+    bool shouldStopPropagation = m_vm->callTextEvent(this, self(), text);
     wakeAdvance();
     return shouldStopPropagation;
 }

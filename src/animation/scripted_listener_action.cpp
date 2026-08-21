@@ -3,9 +3,6 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/data_bind/data_bind.hpp"
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 
 using namespace rive;
 
@@ -41,63 +38,13 @@ void ScriptedListenerAction::performStateful(
 {
 #ifdef WITH_RIVE_SCRIPTING
     (void)stateMachineInstance;
-    lua_State* L = state();
-    if (L == nullptr)
+    if (m_vm == nullptr || !m_vm->valid())
     {
         return;
     }
-    rive_lua_pushRef(L, m_self);
-    // Stack: [self]
-    // Probe the fields directly (rather than gating on performs()/
-    // performsAction(), which are assumed-present for legacy files):
-    // performAction takes precedence over perform, matching prior behavior.
-    if (static_cast<lua_Type>(lua_getfield(L, -1, "performAction")) ==
-        LUA_TFUNCTION)
-    {
-        // Stack: [self, performAction]
-        lua_pushvalue(L, -2);
-        rive_lua_push_scripted_invocation(L, invocation);
-        // Stack: [self, performAction, self, invocation]
-        if (static_cast<lua_Status>(rive_lua_pcall_with_context(
-                L,
-                const_cast<ScriptedListenerAction*>(this),
-                2,
-                0)) != LUA_OK)
-        {
-            // Stack: [self, status]
-            lua_pop(L, 1);
-        }
-        // Stack: [self]
-    }
-    else
-    {
-        lua_pop(L, 1); // non-function performAction field -> [self]
-        if (static_cast<lua_Type>(lua_getfield(L, -1, "perform")) ==
-            LUA_TFUNCTION)
-        {
-            // Stack: [self, perform]
-            lua_pushvalue(L, -2);
-            // Stack: [self, perform, self]
-            rive_lua_push_pointer_arg_for_perform(L, invocation);
-            // Stack: [self, perform, self, pointerEvent]
-            if (static_cast<lua_Status>(rive_lua_pcall_with_context(
-                    L,
-                    const_cast<ScriptedListenerAction*>(this),
-                    2,
-                    0)) != LUA_OK)
-            {
-                // Stack: [self, status]
-                lua_pop(L, 1);
-            }
-            // Stack: [self]
-        }
-        else
-        {
-            lua_pop(L, 1); // non-function perform field -> [self]
-        }
-    }
-    // Stack: [self]
-    lua_pop(L, 1);
+    m_vm->callListenerPerform(const_cast<ScriptedListenerAction*>(this),
+                              m_self,
+                              invocation);
 #else
     (void)stateMachineInstance;
     (void)invocation;

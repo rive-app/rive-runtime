@@ -1,0 +1,119 @@
+#ifndef _RIVE_MODULE_TIER_LADDER_HPP_
+#define _RIVE_MODULE_TIER_LADDER_HPP_
+
+#ifdef WITH_RIVE_SCRIPTING_WASM
+
+#include "rive/span.hpp"
+#include <condition_variable>
+#include <cstdint>
+#include <deque>
+#include <functional>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
+
+namespace rive
+{
+
+// Compiled-artifact species, in ascending speed. Interp is the implicit
+// tier 0 every module already runs on; the ladder only produces artifacts.
+enum class TierSpecies : uint8_t
+{
+    o0 = 0, // wamrc -O0: ~2x interp, sub-second for typical modules
+    o3 = 1, // wamrc -O3: native parity, the bits that ship
+};
+
+// Drives wamrc subprocesses that turn wasm modules into AOT artifacts and
+// reports arrivals for frame-boundary hot swap. File-in/file-out, no IPC:
+// compile crashes and LLVM's RSS stay in the child. Process-wide like the
+// shared module cache; safe to call from any thread.
+class ModuleTierLadder
+{
+public:
+    static ModuleTierLadder& instance();
+
+    // wamrc discovery: explicit path wins, RIVE_WAMRC env second. The
+    // ladder is inert (schedule() == no-op) until both a compiler and a
+    // cache directory are configured.
+    void configure(const std::string& wamrcPath, const std::string& cacheDir);
+    bool enabled();
+
+    struct Artifact
+    {
+        uint64_t moduleKey = 0;
+        TierSpecies species = TierSpecies::o0;
+        std::string path;
+    };
+    using ArrivalCallback = std::function<void(const Artifact&)>;
+    // One process-wide sink; the editor fans out. Called from ladder worker
+    // threads — receivers defer the swap to a frame boundary.
+    void onArrival(ArrivalCallback callback);
+
+    // Schedule compiles for a module. laneId groups requests for the same
+    // logical script: a newer schedule on the lane kills superseded
+    // in-flight compiles (newest-hash-wins). Small modules go straight to
+    // -O3; larger ones run -O0 and -O3 in parallel. Cache hits report
+    // arrival immediately without spawning.
+    void schedule(const std::string& laneId,
+                  uint64_t moduleKey,
+                  Span<const uint8_t> moduleBytes);
+
+    // Ready artifact path for a module at the given species, empty if none.
+    std::string artifactPath(uint64_t moduleKey, TierSpecies species);
+
+    // Test hooks: block until the lane has no queued or running compiles.
+    void drain();
+
+    // Straight -O3 cutoff; modules at or under skip the -O0 rung entirely.
+    static constexpr size_t kStraightToO3Bytes = 50 * 1024;
+
+private:
+    ModuleTierLadder() = default;
+    ~ModuleTierLadder();
+
+    struct Job
+    {
+        std::string laneId;
+        uint64_t moduleKey = 0;
+        TierSpecies species = TierSpecies::o0;
+        std::string wasmPath;
+        uint64_t generation = 0;
+        pid_t pid = -1;
+        bool cancelled = false;
+    };
+
+    void ensureWorkers();
+    void workerLoop();
+    bool runWamrc(Job& job);
+    std::string artifactName(uint64_t moduleKey, TierSpecies species);
+    std::string keyedCacheDir();
+    const std::string& wamrcVersion();
+
+    std::mutex m_mutex;
+    std::condition_variable m_workAvailable;
+    std::condition_variable m_idle;
+    std::string m_wamrcPath;
+    std::string m_cacheDir;
+    std::string m_wamrcVersion;
+    bool m_versionProbed = false;
+    ArrivalCallback m_arrival;
+    std::deque<Job> m_queue;
+    std::vector<Job*> m_running;
+    // Latest schedule generation per lane; older jobs are stale and are
+    // killed (running) or skipped (queued).
+    std::unordered_map<std::string, uint64_t> m_laneGeneration;
+    uint64_t m_nextGeneration = 1;
+    std::vector<std::thread> m_workers;
+    bool m_terminating = false;
+
+    // Two concurrent compiles saturate the edit loop without starving the
+    // machine; the -O3 tail rides behind the -O0 rung it bridges.
+    static constexpr unsigned kWorkerCount = 2;
+};
+
+} // namespace rive
+
+#endif // WITH_RIVE_SCRIPTING_WASM
+#endif

@@ -1,6 +1,3 @@
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
@@ -40,41 +37,25 @@ void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,
         }
 
         path->rewind(source->isLocal(), source->fillRule());
-        lua_State* L = state();
-        if (L == nullptr)
+        if (m_vm == nullptr || !m_vm->valid())
         {
             return;
         }
         setInUpdatePhase(true);
-        // Stack: []
-        rive_lua_pushRef(L, m_self);
-        // Stack: [self]
-        lua_getfield(L, -1, "update");
-        // Stack: [self, "update"]
-        lua_pushvalue(L, -2);
-        // Stack: [self, "update", self]
-        lua_newrive<ScriptedPathData>(L, source->rawPath());
-        // Stack: [self, "update", self, pathData]
-        lua_newrive<ScriptedNode>(L,
-                                  nullptr,
-                                  shapePaint->parentTransformComponent());
-        auto scriptedNode = lua_torive<ScriptedNode>(L, -1);
-        scriptedNode->shapePaint(shapePaint);
-        // Stack: [self, "update", self, pathData, node]
-        if (static_cast<lua_Status>(
-                rive_lua_pcall_with_context(L, this, 3, 1)) != LUA_OK)
+        RawPath effectPath;
+        if (!m_vm->callPathEffectUpdate(this,
+                                        m_self,
+                                        *source->rawPath(),
+                                        shapePaint,
+                                        &effectPath))
         {
             fprintf(stderr, "update function failed\n");
         }
         else
         {
-            // Stack: [self, outputPathData]
-            auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, -1);
             // Through ShapePaintPath, which prunes what the script returned.
-            path->addPath(scriptedPath->rawPath);
+            path->addPath(effectPath);
         }
-        // Stack: [self, status] or [self, outputPathData]
-        rive_lua_pop(L, 2);
         setInUpdatePhase(false);
     }
 }

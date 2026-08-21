@@ -1,6 +1,3 @@
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/assets/script_asset.hpp"
 #include "rive/component_dirt.hpp"
 #include "rive/data_bind/data_bind.hpp"
@@ -47,98 +44,36 @@ void ScriptedDataConverter::didHydrateScriptInputs()
     addScriptedDirt(ComponentDirt::Bindings);
 }
 
-bool ScriptedDataConverter::pushDataValue(DataValue* value)
-{
-    lua_State* L = state();
-    // Stack: [self, field, self]
-    if (value->is<DataValueNumber>())
-    {
-        lua_newrive<ScriptedDataValueNumber>(
-            L,
-            L,
-            value->as<DataValueNumber>()->value());
-    }
-    else if (value->is<DataValueString>())
-    {
-        lua_newrive<ScriptedDataValueString>(
-            L,
-            L,
-            value->as<DataValueString>()->value());
-    }
-    else if (value->is<DataValueBoolean>())
-    {
-        lua_newrive<ScriptedDataValueBoolean>(
-            L,
-            L,
-            value->as<DataValueBoolean>()->value());
-    }
-    else if (value->is<DataValueColor>())
-    {
-        lua_newrive<ScriptedDataValueColor>(
-            L,
-            L,
-            value->as<DataValueColor>()->value());
-    }
-    else
-    {
-        return false;
-    }
-    return true;
-}
-
 DataValue* ScriptedDataConverter::applyConversion(DataValue* value,
                                                   const std::string& method)
 {
-    lua_State* L = state();
-    if (L == nullptr || m_self == 0)
+    if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
     {
         return value;
     }
-    // Stack: []
-    rive_lua_pushRef(L, m_self);
-    // Stack: [self]
-    if (static_cast<lua_Type>(lua_getfield(L, -1, method.c_str())) !=
-        LUA_TFUNCTION)
+    ScriptBackend::ScriptDataResult result;
+    if (!m_vm->callDataConvert(this, m_self, method.c_str(), value, &result))
     {
         // Assumed for legacy files but not implemented; pass the value through
         // unchanged (same as !dataConverts()).
-        rive_lua_pop(L, 2); // non-function field + self
         return value;
     }
-    // Stack: [self, field]
-    lua_pushvalue(L, -2);
-    // Stack: [self, field, self]
-    if (pushDataValue(value))
+    switch (result.kind)
     {
-        // Stack: [self, field, self, ScriptedData]
-        if (static_cast<lua_Status>(
-                rive_lua_pcall_with_context(L, this, 2, 1)) == LUA_OK)
-        {
-            auto result = (ScriptedDataValue*)lua_touserdata(L, -1);
-            if (result->isNumber())
-            {
-                storeData<DataValueNumber>(result->dataValue());
-            }
-            else if (result->isString())
-            {
-                storeData<DataValueString>(result->dataValue());
-            }
-            else if (result->isBoolean())
-            {
-                storeData<DataValueBoolean>(result->dataValue());
-            }
-            else if (result->isColor())
-            {
-                storeData<DataValueColor>(result->dataValue());
-            }
-        }
-        // Stack: [self, status] or [self, result]
-        rive_lua_pop(L, 2);
-    }
-    else
-    {
-        // Stack: [self, field, self]
-        rive_lua_pop(L, 3);
+        case ScriptBackend::ScriptDataResult::Kind::number:
+            storeData<DataValueNumber>(result.number);
+            break;
+        case ScriptBackend::ScriptDataResult::Kind::string:
+            storeData<DataValueString>(result.string);
+            break;
+        case ScriptBackend::ScriptDataResult::Kind::boolean:
+            storeData<DataValueBoolean>(result.boolean);
+            break;
+        case ScriptBackend::ScriptDataResult::Kind::color:
+            storeData<DataValueColor>(result.color);
+            break;
+        case ScriptBackend::ScriptDataResult::Kind::none:
+            break;
     }
     if (!m_dataValue)
     {

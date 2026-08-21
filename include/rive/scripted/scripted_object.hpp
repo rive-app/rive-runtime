@@ -7,7 +7,7 @@
 #include "rive/refcnt.hpp"
 #include "rive/generated/assets/script_asset_base.hpp"
 #ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/scripting_vm.hpp"
+#include "rive/scripted/script_backend.hpp"
 #endif
 #include <algorithm>
 #include <vector>
@@ -32,14 +32,16 @@ protected:
     ScriptedContext* m_contextPtr = nullptr;
     virtual void disposeScriptInputs();
 #ifdef WITH_RIVE_SCRIPTING
-    // Non-owning. ScriptingVM tracks every ScriptedObject that points at it
+    // Non-owning. The backend tracks every ScriptedObject that points at it
     // (via registerScriptedObject in ensureScriptInitialized) and nulls these
-    // out from ~ScriptingVM. Holding it as rcp would create a cycle:
+    // out at teardown. Holding it owned would create a cycle:
     // ScriptingVM → lua_State → ScriptedArtboard userdata →
     // ScriptReffedArtboard → inner ArtboardInstance → ScriptedObject →
     // rcp<ScriptingVM>.
-    ScriptingVM* m_vm = nullptr;
+    ScriptBackend* m_vm = nullptr;
+    friend class ScriptBackend;
     friend class ScriptingVM;
+    friend class WasmScriptingVM;
 #endif
     bool inUpdatePhase() const { return m_inUpdatePhase; }
     void setInUpdatePhase(bool value) { m_inUpdatePhase = value; }
@@ -50,7 +52,7 @@ private:
     bool m_inUpdatePhase = false;
 #ifdef WITH_RIVE_SCRIPTING
     bool m_userLuaInitDone = false;
-    bool tryLuaUserInit(lua_State* L);
+    bool tryUserInit();
 #endif
     void disposeScriptedContext();
     void disposeTrackedProperties();
@@ -79,13 +81,13 @@ public:
     virtual rcp<DataContext> dataContext() { return m_dataContext; }
     void dataContext(rcp<DataContext> value) { m_dataContext = value; }
 #ifdef WITH_RIVE_SCRIPTING
-    /// Load Lua factory result into m_self once per VM; does not push inputs or
-    /// call Lua init(); use hydrateScriptInputs() after data bind.
-    bool ensureScriptInitialized(ScriptingVM* vm);
-    /// Resolve inputs from DataContext and push into Lua; runs Lua init() once
-    /// after first successful hydration when implemented.
+    /// Run the generator into m_self once per backend; does not push inputs
+    /// or call init(); use hydrateScriptInputs() after data bind.
+    bool ensureScriptInitialized(ScriptBackend* vm, int generatorRef);
+    /// Resolve inputs from DataContext and push into the script; runs init()
+    /// once after first successful hydration when implemented.
     bool hydrateScriptInputs();
-    lua_State* state() const { return m_vm ? m_vm->state() : nullptr; }
+    ScriptBackend* backend() const { return m_vm; }
 #else
     bool hydrateScriptInputs() { return true; }
 #endif

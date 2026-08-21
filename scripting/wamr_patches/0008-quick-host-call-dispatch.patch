@@ -1,0 +1,239 @@
+diff --git a/core/iwasm/common/wasm_runtime_common.c b/core/iwasm/common/wasm_runtime_common.c
+index 943b46f..5853813 100644
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -6234,6 +6234,142 @@ fail:
+                  || defined(BUILD_TARGET_RISCV64_LP64D) \
+                  || defined(BUILD_TARGET_RISCV64_LP64) */
+ 
++#if WASM_ENABLE_QUICK_NATIVE != 0
++
++uint8
++wasm_runtime_compute_quick_native_kind(const WASMFuncType *func_type,
++                                       const char *signature)
++{
++    uint32 i, n_int = 0, n_fp = 0;
++
++    /* any conversion marker in the signature needs the generic path */
++    if (signature) {
++        const char *s = signature;
++        for (; *s; s++)
++            if (*s != '(' && *s != ')' && *s != 'i' && *s != 'I' && *s != 'f'
++                && *s != 'F')
++                return WASM_QUICK_NATIVE_NO;
++    }
++
++    if (func_type->result_count > 1)
++        return WASM_QUICK_NATIVE_NO;
++
++    for (i = 0; i < func_type->param_count; i++) {
++        switch (func_type->types[i]) {
++            case VALUE_TYPE_I32:
++            case VALUE_TYPE_I64:
++                if (++n_int > 4)
++                    return WASM_QUICK_NATIVE_NO;
++                break;
++            case VALUE_TYPE_F32:
++            case VALUE_TYPE_F64:
++                if (++n_fp > 8)
++                    return WASM_QUICK_NATIVE_NO;
++                break;
++            default:
++                return WASM_QUICK_NATIVE_NO;
++        }
++    }
++
++    if (func_type->result_count == 0)
++        return WASM_QUICK_NATIVE_RET_VOID;
++    switch (func_type->types[func_type->param_count]) {
++        case VALUE_TYPE_I32:
++            return WASM_QUICK_NATIVE_RET_I32;
++        case VALUE_TYPE_I64:
++            return WASM_QUICK_NATIVE_RET_I64;
++        case VALUE_TYPE_F32:
++            return WASM_QUICK_NATIVE_RET_F32;
++        case VALUE_TYPE_F64:
++            return WASM_QUICK_NATIVE_RET_F64;
++        default:
++            return WASM_QUICK_NATIVE_NO;
++    }
++}
++
++/* the shared arg shape: callees read their int args from the int registers
++   and float args from the float registers, extra registers are ignored */
++typedef uint64 (*quick_native_i_t)(WASMExecEnv *, uint64, uint64, uint64,
++                                   uint64, double, double, double, double,
++                                   double, double, double, double);
++typedef float32 (*quick_native_f32_t)(WASMExecEnv *, uint64, uint64, uint64,
++                                      uint64, double, double, double, double,
++                                      double, double, double, double);
++typedef float64 (*quick_native_f64_t)(WASMExecEnv *, uint64, uint64, uint64,
++                                      uint64, double, double, double, double,
++                                      double, double, double, double);
++
++#define QUICK_NATIVE_ARGS                                                 \
++    exec_env, ints[0], ints[1], ints[2], ints[3], fps[0], fps[1], fps[2], \
++        fps[3], fps[4], fps[5], fps[6], fps[7]
++
++bool
++wasm_runtime_invoke_native_quick(WASMExecEnv *exec_env, void *func_ptr,
++                                 const WASMFuncType *func_type, uint8 ret_kind,
++                                 void *attachment, uint32 *argv,
++                                 uint32 *argv_ret)
++{
++    WASMModuleInstanceCommon *module = wasm_runtime_get_module_inst(exec_env);
++    uint64 ints[4] = { 0 };
++    double fps[8] = { 0 };
++    union {
++        uint64 u;
++        double d;
++    } fbits;
++    uint32 n_int = 0, n_fp = 0, i;
++    uint32 *p = argv;
++
++    for (i = 0; i < func_type->param_count; i++) {
++        switch (func_type->types[i]) {
++            case VALUE_TYPE_I32:
++                ints[n_int++] = *p++;
++                break;
++            case VALUE_TYPE_I64:
++                ints[n_int++] = (uint64)GET_I64_FROM_ADDR(p);
++                p += 2;
++                break;
++            case VALUE_TYPE_F32:
++                /* f32 args travel as the low half of a double register */
++                fbits.u = *p++;
++                fps[n_fp++] = fbits.d;
++                break;
++            default: /* VALUE_TYPE_F64 */
++                fbits.u = (uint64)GET_I64_FROM_ADDR(p);
++                fps[n_fp++] = fbits.d;
++                p += 2;
++                break;
++        }
++    }
++
++    exec_env->attachment = attachment;
++    switch (ret_kind) {
++        case WASM_QUICK_NATIVE_RET_VOID:
++            ((quick_native_i_t)func_ptr)(QUICK_NATIVE_ARGS);
++            break;
++        case WASM_QUICK_NATIVE_RET_I32:
++            argv_ret[0] =
++                (uint32)((quick_native_i_t)func_ptr)(QUICK_NATIVE_ARGS);
++            break;
++        case WASM_QUICK_NATIVE_RET_I64:
++            PUT_I64_TO_ADDR(argv_ret, (int64)((quick_native_i_t)func_ptr)(
++                                          QUICK_NATIVE_ARGS));
++            break;
++        case WASM_QUICK_NATIVE_RET_F32:
++            *(float32 *)argv_ret =
++                ((quick_native_f32_t)func_ptr)(QUICK_NATIVE_ARGS);
++            break;
++        default: /* WASM_QUICK_NATIVE_RET_F64 */
++            PUT_F64_TO_ADDR(argv_ret,
++                            ((quick_native_f64_t)func_ptr)(QUICK_NATIVE_ARGS));
++            break;
++    }
++    exec_env->attachment = NULL;
++
++    return !wasm_runtime_copy_exception(module, NULL);
++}
++
++#endif /* end of WASM_ENABLE_QUICK_NATIVE */
++
+ bool
+ wasm_runtime_call_indirect(WASMExecEnv *exec_env, uint32 element_index,
+                            uint32 argc, uint32 argv[])
+diff --git a/core/iwasm/common/wasm_runtime_common.h b/core/iwasm/common/wasm_runtime_common.h
+index 324620b..285ac40 100644
+--- a/core/iwasm/common/wasm_runtime_common.h
++++ b/core/iwasm/common/wasm_runtime_common.h
+@@ -1255,6 +1255,41 @@ wasm_runtime_invoke_native(WASMExecEnv *exec_env, void *func_ptr,
+                            void *attachment, uint32 *argv, uint32 argc,
+                            uint32 *ret);
+ 
++/* rive: direct host-call dispatch for simple signatures skips the generic
++   arg classifier; relies on int and float args living in disjoint register
++   files, which Windows x64 does not honor */
++#ifndef WASM_ENABLE_QUICK_NATIVE
++#if !defined(_WIN32) && !defined(_WIN32_)                             \
++    && (defined(BUILD_TARGET_AARCH64) || defined(BUILD_TARGET_X86_64) \
++        || defined(BUILD_TARGET_AMD_64))
++#define WASM_ENABLE_QUICK_NATIVE 1
++#else
++#define WASM_ENABLE_QUICK_NATIVE 0
++#endif
++#endif
++
++#if WASM_ENABLE_QUICK_NATIVE != 0
++enum {
++    WASM_QUICK_NATIVE_UNKNOWN = 0,
++    WASM_QUICK_NATIVE_NO = 1,
++    WASM_QUICK_NATIVE_RET_VOID = 2,
++    WASM_QUICK_NATIVE_RET_I32 = 3,
++    WASM_QUICK_NATIVE_RET_I64 = 4,
++    WASM_QUICK_NATIVE_RET_F32 = 5,
++    WASM_QUICK_NATIVE_RET_F64 = 6,
++};
++
++uint8
++wasm_runtime_compute_quick_native_kind(const WASMFuncType *func_type,
++                                       const char *signature);
++
++bool
++wasm_runtime_invoke_native_quick(WASMExecEnv *exec_env, void *func_ptr,
++                                 const WASMFuncType *func_type, uint8 ret_kind,
++                                 void *attachment, uint32 *argv,
++                                 uint32 *argv_ret);
++#endif
++
+ bool
+ wasm_runtime_invoke_native_raw(WASMExecEnv *exec_env, void *func_ptr,
+                                const WASMFuncType *func_type,
+diff --git a/core/iwasm/interpreter/wasm.h b/core/iwasm/interpreter/wasm.h
+index 0dd7395..380890c 100644
+--- a/core/iwasm/interpreter/wasm.h
++++ b/core/iwasm/interpreter/wasm.h
+@@ -613,6 +613,8 @@ typedef struct WASMFunctionImport {
+ #endif
+     bool call_conv_raw;
+     bool call_conv_wasm_c_api;
++    /* rive: lazily computed quick host-call kind, see wasm_runtime_common.h */
++    uint8 quick_call_kind;
+ #if WASM_ENABLE_MULTI_MODULE != 0
+     WASMModule *import_module;
+     WASMFunction *import_func_linked;
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index c2aebd3..ddaf564 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1375,10 +1375,24 @@ wasm_interp_call_func_native(WASMModuleInstance *module_inst,
+         }
+     }
+     else if (!func_import->call_conv_raw) {
+-        ret = wasm_runtime_invoke_native(
+-            exec_env, native_func_pointer, func_import->func_type,
+-            func_import->signature, func_import->attachment, frame->lp,
+-            cur_func->param_cell_num, argv_ret);
++#if WASM_ENABLE_QUICK_NATIVE != 0
++        uint8 quick_kind = func_import->quick_call_kind;
++        if (quick_kind == WASM_QUICK_NATIVE_UNKNOWN) {
++            /* benign race: concurrent recompute stores the same value */
++            quick_kind = wasm_runtime_compute_quick_native_kind(
++                func_import->func_type, func_import->signature);
++            func_import->quick_call_kind = quick_kind;
++        }
++        if (quick_kind != WASM_QUICK_NATIVE_NO)
++            ret = wasm_runtime_invoke_native_quick(
++                exec_env, native_func_pointer, func_import->func_type,
++                quick_kind, func_import->attachment, frame->lp, argv_ret);
++        else
++#endif
++            ret = wasm_runtime_invoke_native(
++                exec_env, native_func_pointer, func_import->func_type,
++                func_import->signature, func_import->attachment, frame->lp,
++                cur_func->param_cell_num, argv_ret);
+     }
+     else {
+         ret = wasm_runtime_invoke_native_raw(

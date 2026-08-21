@@ -10,11 +10,14 @@
 #include "rive/assets/font_asset.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/manifest_asset.hpp"
+#include "rive/assets/script_module_asset.hpp"
 #include "rive/assets/text_asset.hpp"
 #include "rive/file.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
+#endif
 
 namespace rive
 {
@@ -84,8 +87,8 @@ public:
                 return false;
             }
         }
-        else if (asset.is<TextAsset>() || asset.is<BlobAsset>() ||
-                 asset.is<ManifestAsset>())
+        else if (asset.is<TextAsset>() || asset.is<ScriptModuleAsset>() ||
+                 asset.is<BlobAsset>() || asset.is<ManifestAsset>())
         {
             // These assets cannot be registered externally with the command
             // server. Returning false lets the importer decode their in-band
@@ -698,7 +701,7 @@ bool CommandServer::processCommands()
                     scriptingContextFactory;
 #endif
                 lock.unlock();
-#ifdef WITH_RIVE_SCRIPTING
+#if defined(WITH_RIVE_SCRIPTING) && defined(WITH_RIVE_SCRIPTING_LUAU)
                 std::cout << "Rive: Command Server Scripting Enabled.\n";
                 // Use the host-provided scripting context when supplied (e.g.
                 // Unreal routes console/error output to UE_LOG); otherwise fall
@@ -719,6 +722,11 @@ bool CommandServer::processCommands()
                                                           vm.get());
 
 #else
+#ifdef WITH_RIVE_SCRIPTING
+                // Wasm script modules need no host-created VM; the factory
+                // only serves the Luau backend.
+                (void)scriptingContextFactory;
+#endif
                 rcp<rive::File> file = rive::File::import(rivBytes,
                                                           m_factory,
                                                           nullptr,

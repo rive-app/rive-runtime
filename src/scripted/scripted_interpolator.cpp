@@ -1,6 +1,3 @@
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
@@ -21,41 +18,19 @@ static inline float defaultTransformValue(float from, float to, float factor)
 
 float ScriptedInterpolator::transform(float factor) const
 {
-    lua_State* L = state();
-    if (L == nullptr || m_self == 0)
+    if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
     {
         return factor;
     }
-    // Stack: []
-    rive_lua_pushRef(L, m_self);
-    // Stack: [self]
-    lua_getfield(L, -1, "transform");
-    // Stack: [self, transform-or-nil]
-    if (static_cast<lua_Type>(lua_type(L, -1)) != LUA_TFUNCTION)
-    {
-        // Method not implemented in user script — fall back to identity.
-        rive_lua_pop(L, 2);
-        return factor;
-    }
-    lua_pushvalue(L, -2);
-    // Stack: [self, transform, self]
-    lua_pushnumber(L, factor);
-    // Stack: [self, transform, self, factor]
-    // pcall_with_context wants a non-const ScriptedObject*; transform() is
-    // const because it doesn't mutate the C++ object — only the Lua VM.
-    if (static_cast<lua_Status>(
-            rive_lua_pcall_with_context(L,
-                                        const_cast<ScriptedInterpolator*>(this),
-                                        2,
-                                        1)) != LUA_OK)
-    {
-        // Stack: [self, errorMessage]
-        rive_lua_pop(L, 2);
-        return factor;
-    }
-    // Stack: [self, result]
-    float result = static_cast<float>(lua_tonumber(L, -1));
-    rive_lua_pop(L, 2);
+    float result = factor;
+    // callNumberMethod wants a non-const ScriptedObject*; transform() is
+    // const because it doesn't mutate the C++ object — only the script side.
+    m_vm->callNumberMethod(const_cast<ScriptedInterpolator*>(this),
+                           m_self,
+                           "transform",
+                           &factor,
+                           1,
+                           &result);
     return result;
 }
 
@@ -63,32 +38,21 @@ float ScriptedInterpolator::transformValue(float valueFrom,
                                            float valueTo,
                                            float factor)
 {
-    lua_State* L = state();
-    if (L == nullptr || m_self == 0)
+    if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
     {
         return defaultTransformValue(valueFrom, valueTo, factor);
     }
-    // Stack: []
-    rive_lua_pushRef(L, m_self);
-    // Stack: [self]
-    lua_getfield(L, -1, "transformValue");
-    // Stack: [self, transformValue]
-    lua_pushvalue(L, -2);
-    // Stack: [self, transformValue, self]
-    lua_pushnumber(L, valueFrom);
-    lua_pushnumber(L, valueTo);
-    lua_pushnumber(L, factor);
-    // Stack: [self, transformValue, self, from, to, factor]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, this, 4, 1)) !=
-        LUA_OK)
+    float args[3] = {valueFrom, valueTo, factor};
+    float result = 0.0f;
+    if (!m_vm->callNumberMethod(this,
+                                m_self,
+                                "transformValue",
+                                args,
+                                3,
+                                &result))
     {
-        // Stack: [self, errorMessage]
-        rive_lua_pop(L, 2);
         return defaultTransformValue(valueFrom, valueTo, factor);
     }
-    // Stack: [self, result]
-    float result = static_cast<float>(lua_tonumber(L, -1));
-    rive_lua_pop(L, 2);
     return result;
 }
 

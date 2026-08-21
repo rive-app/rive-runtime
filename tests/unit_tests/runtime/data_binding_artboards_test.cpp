@@ -326,6 +326,9 @@ TEST_CASE("Test default data binding artboard from different source",
     CHECK(silver.matches("data_binding_artboards_default_test"));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE(
     "Test Scripted Artboard Input data bound to internal and external artboards",
     "[data binding]")
@@ -388,6 +391,7 @@ TEST_CASE(
     artboard->draw(renderer.get());
     CHECK(silver.matches("data_bind_artboard_input"));
 }
+#endif
 
 TEST_CASE("Data bind external artboard with no initial source artboard",
           "[silver]")

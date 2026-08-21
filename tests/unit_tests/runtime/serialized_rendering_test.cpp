@@ -15,7 +15,6 @@
 #include "rive/math/random.hpp"
 // #include "rive/input/gamepad_batch.hpp"
 #include "utils/serializing_factory.hpp"
-#include "rive/lua/rive_lua_libs.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>

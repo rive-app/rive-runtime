@@ -8,7 +8,9 @@
 #include "catch.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/lua/scripting_vm.hpp"
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
+#endif
 #include <string>
 
 using namespace rive;
@@ -233,6 +235,9 @@ TEST_CASE("Artboard does not have audio", "[audio]")
     REQUIRE(artboard->hasAudio() == false);
 }
 
+// Scripted audio drives a Luau VM; the wasm backend covers audio through
+// the differential harness instead.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Scripted audio plays", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
@@ -271,6 +276,7 @@ TEST_CASE("Scripted audio plays", "[audio]")
 
     REQUIRE(sound->volume() == 0.1f);
 }
+#endif
 
 TEST_CASE("audio source duration from file", "[audio]")
 {

@@ -56,7 +56,7 @@ end
     TestScriptedDrawable obj;
     lua_State* L = vm.state();
 
-    CHECK(obj.ensureScriptInitialized(vm.vm()));
+    CHECK(obj.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
 
     // Attach the context to the Lua self table.
     rive_lua_pushRef(L, obj.self());

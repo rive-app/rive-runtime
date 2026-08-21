@@ -3,6 +3,7 @@
 
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
+#include "rive/scripting_slots.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
 #include "rive/assets/manifest_asset.hpp"
@@ -41,6 +42,9 @@ class ViewModelRuntime;
 class BindableArtboard;
 class ScriptingVM;
 class ScriptingContext;
+#ifdef WITH_RIVE_SCRIPTING_WASM
+class WasmScriptingVM;
+#endif
 class ScriptedInterpolator;
 
 ///
@@ -220,7 +224,7 @@ public:
     // to the VM that we can use. If this is nullptr, we can assume
     // we are running in the runtime and should instance our own VMs
     // and pass them down to the root
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     /// Sets or replaces the ScriptingVM. Takes shared ownership via rcp.
     void setScriptingVM(rcp<ScriptingVM> vm);
 
@@ -314,11 +318,41 @@ private:
     rcp<FileAssetLoader> m_assetLoader;
 
 #ifdef WITH_RIVE_SCRIPTING
-    rcp<ScriptingVM> m_scriptingVM;
+    void registerScripts();
+#endif
+#ifdef WITH_RIVE_SCRIPTING
+    [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
+#endif
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     void makeScriptingVM();
     void cleanupScriptingVM();
-    void registerScripts();
     void routeScriptingToImportFactory(ScriptingContext* context);
+#endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+public:
+    // One VM per script module asset; mixed language files carry one per
+    // language and each ScriptAsset resolves through its own module's VM.
+    /// Editor preview lane: replace the file's wasm VMs with one built
+    /// outside import (requestWasmVM), rebinding every ScriptAsset to it.
+    /// Ownership transfers to the file, matching import-time VMs.
+    void adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm);
+    /// Apply a module registration ref from the editor lane to the
+    /// ScriptAsset carrying moduleName; returns false when none matches.
+    bool applyWasmRegistration(const std::string& moduleName, int ref);
+
+    WasmScriptingVM* wasmScriptingVM()
+    {
+        return m_wasmVMs.empty() ? nullptr : m_wasmVMs.front().get();
+    }
+    const std::vector<std::unique_ptr<WasmScriptingVM>>& wasmVMs() const
+    {
+        return m_wasmVMs;
+    }
+
+private:
+#endif
+#ifdef WITH_RIVE_SCRIPTING
+    WasmVMsSlot m_wasmVMs;
 #endif
 
     rcp<ViewModelInstance> copyViewModelInstance(
