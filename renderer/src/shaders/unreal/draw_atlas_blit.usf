@@ -1,0 +1,20 @@
+#define USING_PLS_STORAGE_TEXTURES 1
+#define OPTIONALLY_FLAT flat
+#define FEATHER_ATLAS_BLIT
+#define ENABLE_RASTERIZER_ORDERED_VIEWS
+
+#include "parse_environment.ush"
+#include "Generated/rhi.minified.ush"
+
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Private/Common.ush"
+#else
+#include "flush_uniforms.minified.ush"
+#endif
+
+#include "Generated/constants.minified.ush"
+#include "Generated/common.minified.ush"
+#include "Generated/draw_path_common.minified.ush"
+#include "Generated/advanced_blend.minified.ush"
+#include "Generated/draw_path.minified.vert.ush"
+#include "Generated/draw_mesh.minified.frag.ush"
