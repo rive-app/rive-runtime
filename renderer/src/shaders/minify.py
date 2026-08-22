@@ -479,7 +479,11 @@ class Minifier:
             # Adding this calling_token_type != 'DEFINE' prevents us from adding a new line to stringify macros
             if is_directive and not is_newline and calling_token_type != 'DEFINE':
                 out.write('\n')
-            elif needs_whitespace and lasttoken_needs_whitespace:
+            # Mesa 20.3 can merge a function-like macro's expansion with an
+            # immediately following identifier (e.g. OUT(float2)A -> out float2A).
+            elif (needs_whitespace and lasttoken_needs_whitespace) or (
+                tok.type == "ID" and lasttoken.type == "OP" and lasttoken.value == ")"
+            ):
                 out.write(' ')
 
             # is_newline will be false once we output the token (unless this value otherwise gets
