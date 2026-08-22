@@ -390,6 +390,52 @@ void LayoutComponent::parentIsRow(bool isRow)
     markLayoutNodeDirty();
 }
 
+#ifdef WITH_RIVE_LAYOUT
+LayoutScaleType LayoutComponent::effectiveWidthScaleType()
+{
+    if (canHaveOverrides() && m_widthUnitValueOverride != -1)
+    {
+        switch (YGUnit(m_widthUnitValueOverride))
+        {
+            case YGUnitPoint:
+            case YGUnitPercent:
+                return LayoutScaleType::fixed;
+            case YGUnitAuto:
+                return hasLayoutFlag(
+                           LayoutComponentFlags::WidthIntrinsicallySizeOverride)
+                           ? LayoutScaleType::hug
+                           : LayoutScaleType::fill;
+            default:
+                break;
+        }
+    }
+    return m_style != nullptr ? m_style->widthScaleType()
+                              : LayoutScaleType::fixed;
+}
+
+LayoutScaleType LayoutComponent::effectiveHeightScaleType()
+{
+    if (canHaveOverrides() && m_heightUnitValueOverride != -1)
+    {
+        switch (YGUnit(m_heightUnitValueOverride))
+        {
+            case YGUnitPoint:
+            case YGUnitPercent:
+                return LayoutScaleType::fixed;
+            case YGUnitAuto:
+                return hasLayoutFlag(LayoutComponentFlags::
+                                         HeightIntrinsicallySizeOverride)
+                           ? LayoutScaleType::hug
+                           : LayoutScaleType::fill;
+            default:
+                break;
+        }
+    }
+    return m_style != nullptr ? m_style->heightScaleType()
+                              : LayoutScaleType::fixed;
+}
+#endif
+
 void LayoutComponent::parentIsStack(bool isStack)
 {
     if (hasLayoutFlag(LayoutComponentFlags::ParentIsStack) == isStack)
@@ -858,50 +904,12 @@ void LayoutComponent::applyBaseStyle(YGStyle& ygStyle,
         if (m_widthUnitValueOverride != -1)
         {
             realWidthUnits = YGUnit(m_widthUnitValueOverride);
-            switch (realWidthUnits)
-            {
-                case YGUnitPoint:
-                case YGUnitPercent:
-                    realWidthScaleType = LayoutScaleType::fixed;
-                    break;
-                case YGUnitAuto:
-                    if (hasLayoutFlag(LayoutComponentFlags::
-                                          WidthIntrinsicallySizeOverride))
-                    {
-                        realWidthScaleType = LayoutScaleType::hug;
-                    }
-                    else
-                    {
-                        realWidthScaleType = LayoutScaleType::fill;
-                    }
-                    break;
-                default:
-                    break;
-            }
+            realWidthScaleType = effectiveWidthScaleType();
         }
         if (m_heightUnitValueOverride != -1)
         {
             realHeightUnits = YGUnit(m_heightUnitValueOverride);
-            switch (realHeightUnits)
-            {
-                case YGUnitPoint:
-                case YGUnitPercent:
-                    realHeightScaleType = LayoutScaleType::fixed;
-                    break;
-                case YGUnitAuto:
-                    if (hasLayoutFlag(LayoutComponentFlags::
-                                          HeightIntrinsicallySizeOverride))
-                    {
-                        realHeightScaleType = LayoutScaleType::hug;
-                    }
-                    else
-                    {
-                        realHeightScaleType = LayoutScaleType::fill;
-                    }
-                    break;
-                default:
-                    break;
-            }
+            realHeightScaleType = effectiveHeightScaleType();
         }
     }
     if (!std::isnan(m_forcedWidth))
@@ -1078,7 +1086,9 @@ void LayoutComponent::syncStyle()
     syncContext.parentIsGrid = parentIsGridLike;
     syncContext.parentIsStack = parentIsStack;
     syncContext.containerJustifyItems = containerJustifyItems;
-    syncContext.inlineHugs = m_style->widthScaleType() == LayoutScaleType::hug;
+    auto widthScale = effectiveWidthScaleType();
+    syncContext.widthFills = widthScale == LayoutScaleType::fill;
+    syncContext.inlineHugs = widthScale == LayoutScaleType::hug;
     syncContext.parentIsRow = effectiveParentIsRow();
     syncContext.isLTR = actualDirection() != LayoutDirection::rtl;
     syncContext.hasLayoutParent = layoutParent() != nullptr;

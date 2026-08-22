@@ -372,6 +372,7 @@ bool LayoutParticipant::syncStyleChanges()
     syncContext.parentIsStack = parentIsStack;
     syncContext.containerJustifyItems = containerJustifyItems;
     syncContext.inlineHugs = widthScale == LayoutScaleType::hug;
+    syncContext.widthFills = widthScale == LayoutScaleType::fill;
     syncContext.parentIsRow = parentIsRow;
     syncContext.isLTR =
         lc == nullptr || lc->actualDirection() != LayoutDirection::rtl;

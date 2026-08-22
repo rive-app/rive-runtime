@@ -64,8 +64,7 @@ void LayoutSizingStyle::applyItemStyle(YGStyle& style,
                                    context.inlineHugs,
                                    context.containerJustifyItems);
     // Fill stretches the inline axis over the container's default justify.
-    if (context.parentIsGrid &&
-        layoutWidthScaleType() == (uint32_t)LayoutScaleType::fill)
+    if (context.parentIsGrid && context.widthFills)
     {
         style.setJustifySelf(YGJustifyStretch);
     }

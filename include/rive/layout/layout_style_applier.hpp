@@ -26,6 +26,10 @@ struct LayoutSyncContext
     uint32_t containerJustifyItems = 0;
     /// This item hugs on the inline axis and so cannot stretch.
     bool inlineHugs = false;
+    /// This item fills on the inline axis. Resolved by the item's owner, since
+    /// a hosted artboard is sized by its host's override rather than by the
+    /// scale type stored on its own style.
+    bool widthFills = false;
     /// The parent's main axis is a row. True when there is no layout parent,
     /// matching LayoutComponent::effectiveParentIsRow.
     bool parentIsRow = true;

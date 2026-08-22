@@ -425,6 +425,11 @@ public:
     // Honours the NestedArtboardLayout override; shared via LayoutSyncContext.
     bool effectiveParentIsRow();
 #ifdef WITH_RIVE_LAYOUT
+    // The scale type this layout is actually sized by: the host's override
+    // when it has one (a hosted artboard's own style is not what the user set
+    // on the NestedArtboardLayout), else its own style's.
+    LayoutScaleType effectiveWidthScaleType();
+    LayoutScaleType effectiveHeightScaleType();
     void applyBaseStyle(YGStyle& style,
                         const LayoutSyncContext& context) override;
     void applyContainerStyle(YGStyle& style,
