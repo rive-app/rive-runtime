@@ -349,6 +349,11 @@ public:
         return m_wasmVMs;
     }
 
+    /// Per-frame service for every wasm VM: arena rewind, handle reap, and
+    /// leak warnings. Call once per frame, between frames; returns the
+    /// first warning to surface, if any.
+    const char* frameBoundary();
+
 private:
 #endif
 #ifdef WITH_RIVE_SCRIPTING

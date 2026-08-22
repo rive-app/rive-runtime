@@ -730,6 +730,22 @@ void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
 }
 
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_WASM
+const char* File::frameBoundary()
+{
+    const char* warning = nullptr;
+    for (auto& vm : m_wasmVMs)
+    {
+        const char* notice = vm->frameBoundary();
+        if (warning == nullptr)
+        {
+            warning = notice;
+        }
+    }
+    return warning;
+}
+#endif
+
 void File::registerScripts()
 {
 #ifdef WITH_RIVE_SCRIPTING_WASM

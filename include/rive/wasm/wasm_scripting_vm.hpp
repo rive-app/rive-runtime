@@ -83,7 +83,7 @@ public:
         uint32_t mint(Tag tag, void* object);
         void* resolve(uint32_t handle, Tag tag) const;
         /// Bumps the generation so outstanding copies of the handle go stale.
-        void release(uint32_t handle);
+        void release(uint32_t handle, Tag tag);
     };
     HandleTable& handles() { return m_handles; }
     Factory* factory() const { return m_factory; }
@@ -282,6 +282,7 @@ public:
     /// Call once per host frame with no wasm frames live; returns null when
     /// there is nothing to report.
     const char* frameBoundary();
+    const char* handleLeakWarning();
 
     /// Swap execution onto a compiled artifact of this module, carrying
     /// memory, globals, and tables. No wasm frames may be live. On failure
@@ -375,6 +376,10 @@ private:
     uint32_t m_leakBaselinePages = 0;
     uint32_t m_leakFrames = 0;
     std::string m_leakWarning;
+    bool m_reapHandles = false;
+    bool m_handleWatch = false;
+    uint32_t m_handleBaselineLive = 0;
+    uint32_t m_handleFrames = 0;
     RawPath* m_pathEffectOut = nullptr;
     ScriptDataResult* m_convertResultOut = nullptr;
     std::vector<ViewModel*>* m_viewModels = nullptr;

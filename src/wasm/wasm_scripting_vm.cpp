@@ -510,7 +510,7 @@ void pathReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     }
     delete static_cast<HostPath*>(
         vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::path));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::path);
 }
 
 uint32_t paintNewImpl(WasmScriptingVM* vm)
@@ -533,7 +533,7 @@ void paintReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostPaint*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::paint));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::paint);
 }
 
 RenderPaint* resolvePaint(WasmScriptingVM* vm, uint32_t handle)
@@ -661,7 +661,7 @@ void shaderReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostShader*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::shader));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::shader);
 }
 
 void paintShaderImpl(WasmScriptingVM* vm,
@@ -750,7 +750,7 @@ void imageReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostImage*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::image));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::image);
 }
 
 uint32_t imageDecodeImpl(WasmScriptingVM* vm,
@@ -889,7 +889,7 @@ void gpuCanvasReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuCanvas*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuCanvas));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::gpuCanvas);
 }
 
 uint32_t gpuCanvasColorViewImpl(WasmScriptingVM* vm,
@@ -1335,7 +1335,7 @@ void gpuPassReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuPass*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuPass));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::gpuPass);
 }
 
 uint32_t gpuBufferNewImpl(WasmScriptingVM* vm,
@@ -1395,7 +1395,7 @@ void gpuBufferReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuBuffer*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuBuffer));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::gpuBuffer);
 }
 
 uint32_t gpuTextureNewImpl(WasmScriptingVM* vm,
@@ -1475,7 +1475,8 @@ void gpuTextureReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuTexture*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuTexture));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::gpuTexture);
 }
 
 uint32_t gpuSamplerNewImpl(WasmScriptingVM* vm,
@@ -1516,7 +1517,8 @@ void gpuSamplerReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuSampler*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuSampler));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::gpuSampler);
 }
 
 uint32_t gpuTextureViewNewImpl(WasmScriptingVM* vm,
@@ -1562,7 +1564,8 @@ void gpuTextureViewReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuTextureView*>(vm->handles().resolve(
         handle,
         WasmScriptingVM::HandleTable::Tag::gpuTextureView));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::gpuTextureView);
 }
 
 uint32_t gpuShaderTargetImpl(WasmScriptingVM* vm)
@@ -1744,7 +1747,8 @@ void gpuShaderModuleReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuShaderModule*>(vm->handles().resolve(
         handle,
         WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::gpuShaderModule);
 }
 
 uint32_t gpuBindGroupLayoutNewImpl(
@@ -1800,7 +1804,9 @@ void gpuBindGroupLayoutReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuBindGroupLayout*>(vm->handles().resolve(
         handle,
         WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout));
-    vm->handles().release(handle);
+    vm->handles().release(
+        handle,
+        WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout);
 }
 
 uint32_t gpuBindGroupLayoutFromShaderImpl(WasmScriptingVM* vm,
@@ -1932,7 +1938,8 @@ void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuBindGroup*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuBindGroup));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::gpuBindGroup);
 }
 
 uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
@@ -2108,7 +2115,8 @@ void gpuPipelineReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostGpuPipeline*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuPipeline));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::gpuPipeline);
 }
 #else
 // Builds without the canvas renderer keep the namespace linkable; scripts
@@ -2373,7 +2381,7 @@ void bufferReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostBuffer*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::buffer));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::buffer);
 }
 
 Renderer* resolveRenderer(WasmScriptingVM* vm, uint32_t handle)
@@ -2639,7 +2647,8 @@ void dataVmiReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostViewModelInstance*>(vm->handles().resolve(
         handle,
         WasmScriptingVM::HandleTable::Tag::viewModelInstance));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::viewModelInstance);
 }
 
 template <typename T>
@@ -2791,7 +2800,8 @@ void dataPropReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostInstanceValue*>(vm->handles().resolve(
         handle,
         WasmScriptingVM::HandleTable::Tag::instanceValue));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::instanceValue);
 }
 
 template <typename T>
@@ -3476,7 +3486,8 @@ void dataContextReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     delete static_cast<HostDataContext*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::dataContext));
-    vm->handles().release(handle);
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::dataContext);
 }
 
 // --- rive_artboard_v1: host-owned artboard inputs ---------------------------
@@ -3554,7 +3565,7 @@ void artboardReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     {
         return;
     }
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::artboard);
     host->unref();
 }
 
@@ -3765,7 +3776,7 @@ void artboardAnimationReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     {
         return;
     }
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::animation);
     delete host;
 }
 
@@ -3857,7 +3868,7 @@ void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     {
         return;
     }
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::node);
     delete host;
 }
 
@@ -4214,7 +4225,7 @@ void dataFontReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     }
     delete static_cast<HostFont*>(
         vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::font));
-    vm->handles().release(handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::font);
 }
 
 // Mirrors ScriptedPropertyBlob::pushValue: a non-null instance asset (even
@@ -4443,7 +4454,7 @@ void* WasmScriptingVM::HandleTable::resolve(uint32_t handle, Tag tag) const
     return entry.object;
 }
 
-void WasmScriptingVM::HandleTable::release(uint32_t handle)
+void WasmScriptingVM::HandleTable::release(uint32_t handle, Tag tag)
 {
     uint32_t slot = (handle & 0xffffff);
     if (slot == 0 || slot > slots.size())
@@ -4451,7 +4462,9 @@ void WasmScriptingVM::HandleTable::release(uint32_t handle)
         return;
     }
     Slot& entry = slots[slot - 1];
-    if (entry.generation != (uint8_t)(handle >> 24))
+    // Tag mismatch must not free the slot: a mistyped guest release would
+    // stale the correctly-typed handle and leak its host wrapper.
+    if (entry.generation != (uint8_t)(handle >> 24) || entry.tag != tag)
     {
         return;
     }
@@ -4489,7 +4502,7 @@ void WasmScriptingVM::callDraw(ScriptedObject* object,
     uint32_t handle = m_handles.mint(HandleTable::Tag::renderer, renderer);
     uint32_t args[3] = {m_L, (uint32_t)selfRef, handle};
     callModule("host_obj_draw", 3, args);
-    m_handles.release(handle);
+    m_handles.release(handle, HandleTable::Tag::renderer);
 }
 
 WasmScriptingVM::~WasmScriptingVM()
@@ -4552,6 +4565,19 @@ WasmScriptingVM::~WasmScriptingVM()
                 break;
             case HandleTable::Tag::buffer:
                 delete static_cast<HostBuffer*>(slot.object);
+                break;
+            case HandleTable::Tag::dataContext:
+                delete static_cast<HostDataContext*>(slot.object);
+                break;
+            case HandleTable::Tag::artboard:
+                // Refcounted: animations and nodes may still hold it.
+                static_cast<HostArtboard*>(slot.object)->unref();
+                break;
+            case HandleTable::Tag::animation:
+                delete static_cast<HostAnimation*>(slot.object);
+                break;
+            case HandleTable::Tag::node:
+                delete static_cast<HostNode*>(slot.object);
                 break;
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
             case HandleTable::Tag::gpuPass:
@@ -4976,6 +5002,18 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                   wasm_runtime_lookup_function(m_state->instance,
                                                "riveRegister") != nullptr &&
                   (leakEnv == nullptr || strcmp(leakEnv, "0") != 0);
+    // Frame-scoped handle reaping only composes with the arena: the rewind
+    // is the proof that unreleased per-frame wrappers are unreachable. Both
+    // hooks or neither, else a missing rebase would reap mark-scoped mints.
+    m_reapHandles =
+        m_frameArenaOptIn &&
+        wasm_runtime_lookup_function(m_state->instance, "__riveReapHandles") !=
+            nullptr &&
+        wasm_runtime_lookup_function(m_state->instance,
+                                     "__riveHandlesRebase") != nullptr;
+    m_handleWatch = wasm_runtime_lookup_function(m_state->instance,
+                                                 "riveRegister") != nullptr &&
+                    (leakEnv == nullptr || strcmp(leakEnv, "0") != 0);
 
     callModule("__wasm_call_ctors", 0, nullptr);
     m_L = callModule("host_newstate", 0, nullptr);
@@ -5077,6 +5115,12 @@ const char* WasmScriptingVM::frameBoundary()
         if (m_frameArenaPending)
         {
             m_frameArenaPending = false;
+            if (m_reapHandles)
+            {
+                // Everything minted so far becomes mark-scoped state; drop
+                // it from the reap log without releasing.
+                callModule("__riveHandlesRebase", 0, nullptr);
+            }
             m_frameArenaMark = callModule("__riveFrameArena", 0, nullptr);
             if (m_frameArenaMark != 0 && !m_frameArenaAnnounced)
             {
@@ -5086,10 +5130,20 @@ const char* WasmScriptingVM::frameBoundary()
         }
         else if (m_frameArenaMark != 0)
         {
+            if (m_reapHandles)
+            {
+                // Before the rewind erases this frame's wrappers: any handle
+                // they minted and never released is provably garbage.
+                callModule("__riveReapHandles", 0, nullptr);
+            }
             uint32_t args[1] = {m_frameArenaMark};
             callModule("__riveFrameRewind", 1, args);
         }
-        return nullptr;
+        return handleLeakWarning();
+    }
+    if (const char* warning = handleLeakWarning())
+    {
+        return warning;
     }
     if (!m_leakWatch || !m_advancedOnce)
     {
@@ -5128,6 +5182,120 @@ const char* WasmScriptingVM::frameBoundary()
              "runtime. RIVE_WASM_LEAK_WARN=0 silences this.",
              (pages - m_leakBaselinePages) / 16,
              m_leakFrames);
+    m_leakWarning = buffer;
+    return m_leakWarning.c_str();
+}
+
+static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
+{
+    using Tag = WasmScriptingVM::HandleTable::Tag;
+    switch (tag)
+    {
+        case Tag::path:
+            return "path";
+        case Tag::paint:
+            return "paint";
+        case Tag::renderer:
+            return "renderer";
+        case Tag::shader:
+            return "shader";
+        case Tag::object:
+            return "object";
+        case Tag::viewModelInstance:
+            return "viewModelInstance";
+        case Tag::instanceValue:
+            return "instanceValue";
+        case Tag::image:
+            return "image";
+        case Tag::font:
+            return "font";
+        case Tag::buffer:
+            return "buffer";
+        case Tag::gpuCanvas:
+            return "gpuCanvas";
+        case Tag::gpuPass:
+            return "gpuPass";
+        case Tag::gpuBuffer:
+            return "gpuBuffer";
+        case Tag::gpuTexture:
+            return "gpuTexture";
+        case Tag::gpuSampler:
+            return "gpuSampler";
+        case Tag::gpuTextureView:
+            return "gpuTextureView";
+        case Tag::gpuShaderModule:
+            return "gpuShaderModule";
+        case Tag::gpuBindGroupLayout:
+            return "gpuBindGroupLayout";
+        case Tag::gpuBindGroup:
+            return "gpuBindGroup";
+        case Tag::gpuPipeline:
+            return "gpuPipeline";
+        case Tag::dataContext:
+            return "dataContext";
+        case Tag::artboard:
+            return "artboard";
+        case Tag::animation:
+            return "animation";
+        case Tag::node:
+            return "node";
+        case Tag::empty:
+            break;
+    }
+    return "unknown";
+}
+
+const char* WasmScriptingVM::handleLeakWarning()
+{
+    if (!m_handleWatch || !m_advancedOnce)
+    {
+        return nullptr;
+    }
+    uint32_t live =
+        (uint32_t)(m_handles.slots.size() - m_handles.freeSlots.size());
+    if (m_handleBaselineLive == 0)
+    {
+        // Bias by one so a zero-handle module still records its baseline.
+        m_handleBaselineLive = live + 1;
+        return nullptr;
+    }
+    m_handleFrames++;
+    // Hundreds of handles past warmup over two seconds of frames is a
+    // per-frame mint with no release, not a working set.
+    constexpr uint32_t kHandleWarnCount = 512;
+    constexpr uint32_t kHandleWarnMinFrames = 120;
+    if (m_handleFrames < kHandleWarnMinFrames ||
+        live + 1 < m_handleBaselineLive + kHandleWarnCount)
+    {
+        return nullptr;
+    }
+    m_handleWatch = false;
+    uint32_t counts[(size_t)HandleTable::Tag::node + 1] = {0};
+    for (const HandleTable::Slot& slot : m_handles.slots)
+    {
+        if (slot.tag != HandleTable::Tag::empty)
+        {
+            counts[(size_t)slot.tag]++;
+        }
+    }
+    size_t top = 0;
+    for (size_t i = 1; i < sizeof(counts) / sizeof(counts[0]); i++)
+    {
+        if (counts[i] > counts[top])
+        {
+            top = i;
+        }
+    }
+    char buffer[256];
+    snprintf(buffer,
+             sizeof(buffer),
+             "script leaked %u host handles over %u frames (most: %u %s); "
+             "resources created per frame need release() or finish(). "
+             "RIVE_WASM_LEAK_WARN=0 silences this.",
+             live + 1 - m_handleBaselineLive,
+             m_handleFrames,
+             counts[top],
+             handleTagName((HandleTable::Tag)top));
     m_leakWarning = buffer;
     return m_leakWarning.c_str();
 }
@@ -5289,7 +5457,7 @@ void WasmScriptingVM::releaseRef(int ref)
     auto it = m_contextObjects.find(ref);
     if (it != m_contextObjects.end())
     {
-        m_handles.release(it->second);
+        m_handles.release(it->second, HandleTable::Tag::object);
         m_contextObjects.erase(it);
     }
     uint32_t args[2] = {m_L, (uint32_t)ref};
@@ -5309,7 +5477,7 @@ int WasmScriptingVM::instantiate(int generatorRef,
     int selfRef = (int)callModule("host_obj_instantiate", 3, args);
     if (selfRef == 0)
     {
-        m_handles.release(objectHandle);
+        m_handles.release(objectHandle, HandleTable::Tag::object);
         return 0;
     }
     uint32_t contextArgs[1] = {m_L};
@@ -5320,7 +5488,7 @@ int WasmScriptingVM::instantiate(int generatorRef,
     }
     else
     {
-        m_handles.release(objectHandle);
+        m_handles.release(objectHandle, HandleTable::Tag::object);
     }
     // The wasm context lives entirely in the module until the binding layer
     // moves in; there is no host-side ScriptedContext.
