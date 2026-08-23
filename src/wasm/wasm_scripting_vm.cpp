@@ -103,6 +103,13 @@ WasmScriptingVM* vmFromEnv(wasm_exec_env_t env)
     return static_cast<WasmScriptingVM*>(wasm_runtime_get_user_data(env));
 }
 
+// Module start runs inside wasm_runtime_instantiate, before an exec env
+// exists to carry the vm, so natives called from there resolve none. rasc
+// runs every script's top level there, and its output is the one thing a
+// host still needs; the sink for that window is parked here.
+thread_local const std::function<void(const char*, size_t)>* s_bootPrint =
+    nullptr;
+
 } // namespace
 
 struct rive::WasmScriptingVMNatives
@@ -203,9 +210,11 @@ void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
                                    const char* data,
                                    size_t size)
 {
-    if (vm != nullptr && vm->m_print)
+    const std::function<void(const char*, size_t)>* sink =
+        vm != nullptr ? &vm->m_print : s_bootPrint;
+    if (sink != nullptr && *sink)
     {
-        vm->m_print(data, size);
+        (*sink)(data, size);
     }
     else
     {
@@ -4481,10 +4490,12 @@ WasmScriptingVM::WasmScriptingVM() = default;
 std::unique_ptr<WasmScriptingVM> WasmScriptingVM::make(
     Span<const uint8_t> module,
     Factory* factory,
-    std::string& outError)
+    std::string& outError,
+    std::function<void(const char*, size_t)> print)
 {
     std::unique_ptr<WasmScriptingVM> vm(new WasmScriptingVM());
     vm->m_factory = factory;
+    vm->m_print = std::move(print);
     if (!vm->init(module))
     {
         outError = vm->m_lastError;
@@ -4970,11 +4981,13 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         }
     }
 
+    s_bootPrint = &m_print;
     m_state->instance = wasm_runtime_instantiate(m_state->module,
                                                  512 * 1024,
                                                  0,
                                                  error,
                                                  sizeof(error));
+    s_bootPrint = nullptr;
     if (m_state->instance == nullptr)
     {
         m_lastError = std::string("module instantiate failed: ") + error;

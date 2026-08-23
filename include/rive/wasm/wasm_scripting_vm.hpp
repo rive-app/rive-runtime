@@ -33,10 +33,14 @@ class WasmScriptingVM : public ScriptBackend
 {
 public:
     /// factory makes the real render objects the module's handles resolve to;
-    /// it must outlive the VM.
-    static std::unique_ptr<WasmScriptingVM> make(Span<const uint8_t> module,
-                                                 Factory* factory,
-                                                 std::string& outError);
+    /// it must outlive the VM. print is installed before instantiation, the
+    /// only way to see output from module start: rasc runs every script's top
+    /// level there, riveRegister included.
+    static std::unique_ptr<WasmScriptingVM> make(
+        Span<const uint8_t> module,
+        Factory* factory,
+        std::string& outError,
+        std::function<void(const char*, size_t)> print = {});
     ~WasmScriptingVM();
 
     /// One live host object per module handle: 24-bit slot, 8-bit generation,
