@@ -3,6 +3,7 @@
 #include "rive/file.hpp"
 #include "rive/input/gamepad_batch.hpp"
 #include "rive/input/gamepad_snapshot.hpp"
+#include "rive/input/standard_gamepad.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include "utils/serializing_factory.hpp"

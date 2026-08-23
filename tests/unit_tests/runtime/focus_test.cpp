@@ -221,6 +221,84 @@ TEST_CASE("FocusNode setFocusable/clearFocusable", "[FocusNode]")
     CHECK(node->focusable() == nullptr);
 }
 
+TEST_CASE("a node that loses its Focusable stops being a focus stop",
+          "[FocusNode]")
+{
+    // ~FocusData clears its node's Focusable. If that node is still in the
+    // tree (a detach that was never paired with a re-add, a manager torn down
+    // around it), nothing is left that could report it collapsed or hidden —
+    // so it must not stay eligible, or it becomes a focus stop that no
+    // visibility change can ever remove.
+    FocusManager manager;
+    MockFocusable focusable;
+
+    auto live = make_rcp<FocusNode>(&focusable);
+    auto defunct = make_rcp<FocusNode>(&focusable);
+    manager.addChild(nullptr, live);
+    manager.addChild(nullptr, defunct);
+
+    // Both are reachable while backed.
+    CHECK(manager.getTraversableNodes(nullptr).size() == 2);
+
+    defunct->clearFocusable();
+    CHECK(defunct->hadFocusable());
+
+    auto traversable = manager.getTraversableNodes(nullptr);
+    REQUIRE(traversable.size() == 1);
+    CHECK(traversable[0] == live.get());
+
+    // It can't be focused programmatically either.
+    manager.setFocus(defunct);
+    CHECK(manager.primaryFocusPtr() != defunct.get());
+}
+
+TEST_CASE("a node that never had a Focusable stays focusable", "[FocusNode]")
+{
+    // Hosts create bare FocusNodes as focus targets through this API; they
+    // have no Focusable to consult and must keep working. Only a node that
+    // *lost* its backing is treated as defunct.
+    FocusManager manager;
+
+    auto external = make_rcp<FocusNode>();
+    CHECK_FALSE(external->hadFocusable());
+    manager.addChild(nullptr, external);
+
+    auto traversable = manager.getTraversableNodes(nullptr);
+    REQUIRE(traversable.size() == 1);
+    CHECK(traversable[0] == external.get());
+
+    manager.setFocus(external);
+    CHECK(manager.primaryFocusPtr() == external.get());
+}
+
+TEST_CASE("traversal still descends through a defunct node to live children",
+          "[FocusNode]")
+{
+    // A defunct node stops being a stop, but its children may still be live —
+    // traversal must keep reaching them rather than skipping the subtree.
+    FocusManager manager;
+    MockFocusable focusable;
+
+    auto defunctScope = make_rcp<FocusNode>(&focusable);
+    auto liveChild = make_rcp<FocusNode>(&focusable);
+    manager.addChild(nullptr, defunctScope);
+    manager.addChild(defunctScope, liveChild);
+
+    defunctScope->clearFocusable();
+
+    // Tab traversal walks through the defunct scope and lands on the child.
+    CHECK(manager.focusNext());
+    CHECK(manager.primaryFocusPtr() == liveChild.get());
+
+    // Note: setFocus() aimed directly at the defunct node stays a no-op. Its
+    // descend-to-first-leaf step is gated on the requested target being
+    // eligible, so an ineligible target is rejected outright — the same as any
+    // other collapsed or hidden target.
+    manager.clearFocus();
+    manager.setFocus(defunctScope);
+    CHECK(manager.primaryFocusPtr() == nullptr);
+}
+
 TEST_CASE("FocusNode hierarchy", "[FocusNode]")
 {
     auto parent = make_rcp<FocusNode>();
@@ -243,6 +321,129 @@ TEST_CASE("FocusNode hierarchy", "[FocusNode]")
 // =============================================================================
 // FocusManager Tests
 // =============================================================================
+
+TEST_CASE("adding a node claims its whole subtree for the manager",
+          "[FocusManager]")
+{
+    // detachChild clears the manager pointer across the entire subtree, so
+    // addChild has to restore it across the entire subtree too. A host that
+    // rebuilds by detaching and re-adding a set of nodes (the Dart editor does
+    // exactly this) never touches the descendants underneath them; if those
+    // kept a null manager, their FocusData could no longer remove them from
+    // the tree when it died, stranding them here forever.
+    FocusManager manager;
+    MockFocusable focusable;
+
+    auto parent = make_rcp<FocusNode>(&focusable);
+    auto child = make_rcp<FocusNode>(&focusable);
+    auto grandchild = make_rcp<FocusNode>(&focusable);
+
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, child);
+    manager.addChild(child, grandchild);
+
+    CHECK(parent->manager() == &manager);
+    CHECK(child->manager() == &manager);
+    CHECK(grandchild->manager() == &manager);
+
+    // Detach only the top of the subtree — descendants come along untouched.
+    manager.detachChild(parent);
+    CHECK(parent->manager() == nullptr);
+    CHECK(child->manager() == nullptr);
+    CHECK(grandchild->manager() == nullptr);
+    CHECK(parent->children().size() == 1);
+
+    // Re-adding just the top has to re-claim everything beneath it.
+    manager.addChild(nullptr, parent);
+    CHECK(parent->manager() == &manager);
+    CHECK(child->manager() == &manager);
+    CHECK(grandchild->manager() == &manager);
+}
+
+TEST_CASE("a rebuild that misses a node still lets its FocusData clean up",
+          "[FocusManager]")
+{
+    // End-to-end shape of the editor's rebuildFocusHierarchy: collect a subset
+    // of the tree, detach each collected node, re-add it. A node sitting under
+    // a collected node that the collection itself missed used to come out of
+    // that cycle with no manager pointer — and then its FocusData could never
+    // remove it, so it survived as an unbacked node that
+    // focusNodeEligibleForFocus treated as eligible: a focus stop nothing
+    // could take out.
+    FocusManager manager;
+    MockFocusable focusable;
+
+    auto root = make_rcp<FocusNode>(&focusable);
+    manager.addChild(nullptr, root);
+
+    {
+        FocusData missedByTheRebuild;
+        auto missedNode = missedByTheRebuild.focusNode();
+        manager.addChild(root, missedNode);
+
+        // The rebuild touches only `root`; `missedNode` is never collected.
+        manager.detachChild(root);
+        manager.addChild(nullptr, root);
+
+        CHECK(missedNode->manager() == &manager);
+        CHECK(root->children().size() == 1);
+    }
+
+    // The FocusData is gone, and so is its node — no unbacked leftover.
+    CHECK(root->children().empty());
+    // And even if one did survive, it must not be a focus stop.
+    CHECK(manager.getTraversableNodes(root.get()).empty());
+}
+
+TEST_CASE("a dying FocusData removes its node via an ancestor's manager",
+          "[FocusData]")
+{
+    // A node can sit in a live tree while holding no manager pointer of its
+    // own. ~FocusData still has to take it out: left behind, it would keep a
+    // cleared Focusable and nothing could ever report it hidden.
+    FocusManager manager;
+    MockFocusable focusable;
+
+    auto scope = make_rcp<FocusNode>(&focusable);
+    manager.addChild(nullptr, scope);
+    REQUIRE(scope->manager() == &manager);
+
+    {
+        FocusData data;
+        auto node = data.focusNode();
+        // Parent it through FocusNode directly, which doesn't hand out a
+        // manager pointer — the same state a detach/re-add cycle used to
+        // leave descendants in.
+        scope->addChild(node);
+        REQUIRE(node->manager() == nullptr);
+        REQUIRE(scope->children().size() == 1);
+
+        manager.setFocus(node);
+        REQUIRE(manager.primaryFocusPtr() == node.get());
+    }
+
+    // Removed through the nearest registered ancestor, so focus is cleared
+    // too — not merely detached.
+    CHECK(scope->children().empty());
+    CHECK(manager.primaryFocusPtr() == nullptr);
+}
+
+TEST_CASE("a dying FocusData detaches its node when no manager is reachable",
+          "[FocusData]")
+{
+    // Nothing in the chain is registered (a manager torn down around the
+    // subtree). There is no focus to clear, but the node still must not stay
+    // parented.
+    auto scope = make_rcp<FocusNode>();
+
+    {
+        FocusData data;
+        scope->addChild(data.focusNode());
+        REQUIRE(scope->children().size() == 1);
+    }
+
+    CHECK(scope->children().empty());
+}
 
 TEST_CASE("FocusManager basic focus operations", "[FocusManager]")
 {

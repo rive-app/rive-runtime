@@ -43,11 +43,36 @@ FocusData::~FocusData()
         // Clear the focusable pointer first to prevent callbacks during removal
         m_focusNode->clearFocusable();
 
-        // Remove from manager if registered
-        auto* manager = m_focusNode->manager();
+        // Take the node out of the focus tree. Its own manager pointer is the
+        // normal route, but a node can end up without one (a detach that was
+        // never paired with a re-add, or a manager torn down around it). Left
+        // parented, such a node survives with a null focusable, which is a
+        // state nothing else can clean up.
+        //
+        // Fall back to the nearest ancestor that still knows its manager, so
+        // removal keeps clearing focus and invalidating the manager's cached
+        // focusable-content answer; only when nothing in the chain is
+        // registered do we settle for a plain detach.
+        FocusManager* manager = m_focusNode->manager();
+        if (manager == nullptr)
+        {
+            for (FocusNode* p = m_focusNode->parent(); p != nullptr;
+                 p = p->parent())
+            {
+                if (p->manager() != nullptr)
+                {
+                    manager = p->manager();
+                    break;
+                }
+            }
+        }
         if (manager != nullptr)
         {
             manager->removeChild(m_focusNode);
+        }
+        else
+        {
+            m_focusNode->removeFromParent();
         }
         // m_focusNode (rcp) is released automatically when this destructor ends
     }

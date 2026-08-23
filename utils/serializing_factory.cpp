@@ -8,11 +8,27 @@
 #include <filesystem>
 #include <inttypes.h>
 #include <unordered_map>
+#include <algorithm>
+#include <cmath>
 
 using namespace rive;
 
 // Threshold for floating point tests.
 static const float epsilon = 0.001f;
+
+// Serialized geometry is not bit-reproducible across platforms -- compilers and
+// libms order the same mesh/vertex math differently, so results drift by a
+// handful of ULPs. A flat absolute epsilon does not express that: at
+// coordinates in the ~1000 range 0.001f is only ~8 float ULPs, which the drift
+// exceeds, while at coordinates in the ~100 range it is ~66. Scale the
+// tolerance with the magnitude being compared so it stays a consistent
+// precision budget instead of tightening as geometry grows.
+static const float relativeEpsilon = 1e-5f;
+
+static float toleranceFor(float magnitude)
+{
+    return epsilon + relativeEpsilon * std::abs(magnitude);
+}
 
 static const char* opToName(SerializeOp op)
 {
@@ -666,35 +682,11 @@ static bool floatMatches(uint64_t op,
 {
     auto valueA = readerA.readFloat32();
     auto valueB = readerB.readFloat32();
-    if (std::abs(valueA - valueB) > epsilon)
+    if (std::abs(valueA - valueB) >
+        toleranceFor(std::max(std::abs(valueA), std::abs(valueB))))
     {
         fprintf(stderr,
                 "%s for %s doesn't match %f != %f\n",
-                name.c_str(),
-                opToName((SerializeOp)op),
-                valueA,
-                valueB);
-        return false;
-    }
-    if (value != nullptr)
-    {
-        *value = valueA;
-    }
-    return true;
-}
-
-static bool shortMatches(uint64_t op,
-                         std::string name,
-                         BinaryReader& readerA,
-                         BinaryReader& readerB,
-                         uint16_t* value = nullptr)
-{
-    auto valueA = readerA.readUint16();
-    auto valueB = readerB.readUint16();
-    if (valueA != valueB)
-    {
-        fprintf(stderr,
-                "%s for %s doesn't match %i != %i\n",
                 name.c_str(),
                 opToName((SerializeOp)op),
                 valueA,
@@ -721,7 +713,10 @@ static bool vec2DMatches(uint64_t op,
     auto by = readerB.readFloat32();
 
     // if (ax != bx || ay != by)
-    if (rive::Vec2D::distance(Vec2D(ax, ay), Vec2D(bx, by)) > epsilon)
+    float magnitude = std::max(std::max(std::abs(ax), std::abs(ay)),
+                               std::max(std::abs(bx), std::abs(by)));
+    if (rive::Vec2D::distance(Vec2D(ax, ay), Vec2D(bx, by)) >
+        toleranceFor(magnitude))
     {
         fprintf(stderr,
                 "%s for %s doesn't match (%f, %f) != (%f, %f)\n",
@@ -818,6 +813,18 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                     "expected %s but got %s\n",
                     opToName((SerializeOp)opA),
                     opToName((SerializeOp)opB));
+            return false;
+        }
+        // Past an unrecognized opcode there is no way to know how many bytes
+        // the record holds, so the walk would silently reinterpret the rest of
+        // the stream as garbage instead of reporting a mismatch.
+        if (strcmp(opToName((SerializeOp)opA), "???") == 0)
+        {
+            fprintf(stderr,
+                    "advancedMatch: unknown op %" PRIu64 ", stream is out of "
+                    "sync.\n",
+                    opA);
+            return false;
         }
         switch ((SerializeOp)opA)
         {
@@ -838,6 +845,13 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                     readerA,
                                     readerB,
                                     &size))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "make_renderbuffer_type",
+                                    readerA,
+                                    readerB))
                 {
                     return false;
                 }
@@ -1083,11 +1097,13 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 uint64_t shortCount = size / sizeof(uint16_t);
                 for (int i = 0; i < shortCount; i++)
                 {
-                    if (!shortMatches(opA,
-                                      std::string("setindexbufferdata_[") +
-                                          std::to_string(i) + std::string("]"),
-                                      readerA,
-                                      readerB))
+                    // Indices go out as varuints, not fixed-width shorts.
+                    if (!varUintMatches(opA,
+                                        std::string("setindexbufferdata_[") +
+                                            std::to_string(i) +
+                                            std::string("]"),
+                                        readerA,
+                                        readerB))
                     {
                         return false;
                     }

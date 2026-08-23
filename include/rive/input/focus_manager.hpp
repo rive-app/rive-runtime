@@ -282,6 +282,11 @@ private:
     mutable bool m_hasFocusableContent = false;
     mutable bool m_focusableContentDirty = true;
     void removeManager(rcp<FocusNode>);
+    /// Point `node` and every descendant at this manager. Counterpart to
+    /// removeManager; a subtree joining the manager has to be claimed whole,
+    /// or descendants left over from a detach/re-add cycle can never
+    /// unregister themselves.
+    void assignManager(rcp<FocusNode>);
     // Erase a node from m_rootNodes if present (no-op otherwise).
     void eraseRoot(const rcp<FocusNode>& node);
 #ifdef WITH_RIVE_TOOLS

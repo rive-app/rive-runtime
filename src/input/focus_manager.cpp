@@ -32,7 +32,18 @@ static bool focusNodeEligibleForFocus(FocusNode* node)
     Focusable* f = node->focusable();
     if (f == nullptr)
     {
-        return true;
+        // A node that never had a Focusable is externally managed — a
+        // structural scope, or a target a host created through the FocusNode
+        // API. There is nothing to ask about visibility, so treat it as
+        // eligible, as before.
+        //
+        // A node that HAD one and lost it is defunct: ~FocusData clears the
+        // backing when the FocusData dies. Such a node must not stay a focus
+        // stop. Nothing is left that could ever report it collapsed or hidden,
+        // so it would be permanently eligible — and, being unreachable through
+        // its own FocusData, unremovable. Traversal still descends *through*
+        // it (focusNodeTraversable) so any live children stay reachable.
+        return !node->hadFocusable();
     }
     return f->isEligibleForFocusTraversal();
 }
@@ -106,6 +117,21 @@ void FocusManager::removeManager(rcp<FocusNode> node)
         removeManager(child);
     }
     node->m_manager = nullptr;
+}
+
+// Counterpart to removeManager: a node joining this manager brings its whole
+// subtree with it, so every descendant's manager pointer has to be restored
+// too — not just the node handed to addChild.
+//
+// Without this, a detach/re-add cycle leaves descendants pointing at no
+// manager.
+void FocusManager::assignManager(rcp<FocusNode> node)
+{
+    for (const auto& child : node->children())
+    {
+        assignManager(child);
+    }
+    node->m_manager = this;
 }
 
 void FocusManager::setFocus(rcp<FocusNode> node)
@@ -387,7 +413,8 @@ void FocusManager::addChild(rcp<FocusNode> parent,
     {
         eraseRoot(child);
     }
-    child->m_manager = this;
+    // The whole subtree joins this manager, not just `child`.
+    assignManager(child);
     if (parent)
     {
         parent->insertChild(index, std::move(child));

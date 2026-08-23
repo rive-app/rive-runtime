@@ -28,7 +28,13 @@ enum class EdgeBehavior : uint8_t
 class FocusNode : public RefCnt<FocusNode>
 {
 public:
-    FocusNode(Focusable* focusable = nullptr) : m_focusable(focusable) {}
+    FocusNode(Focusable* focusable = nullptr) : m_focusable(focusable)
+    {
+        if (focusable != nullptr)
+        {
+            setFlag(Flag::kHadFocusable, true);
+        }
+    }
     ~FocusNode();
 
     // Transparent structural scope: unbacked (no Focusable) and never a focus
@@ -53,12 +59,24 @@ public:
         const bool backingChanged =
             (m_focusable == nullptr) != (focusable == nullptr);
         m_focusable = focusable;
+        if (focusable != nullptr)
+        {
+            setFlag(Flag::kHadFocusable, true);
+        }
         if (backingChanged)
         {
             invalidateFocusableContent();
         }
     }
     void clearFocusable() { setFocusable(nullptr); }
+
+    /// True once this node has been backed by a Focusable. Never cleared, so a
+    /// node whose Focusable was destroyed (~FocusData clears the backing) can
+    /// be told apart from a node that legitimately never had one — a
+    /// structural scope, or a target a host created through this API. The
+    /// former is defunct and must stop being a focus stop; the latter is
+    /// still a valid target. See focusNodeEligibleForFocus.
+    bool hadFocusable() const { return m_flags & Flag::kHadFocusable; }
 
     // === Properties (bitfield-backed) ===
 
@@ -202,7 +220,8 @@ private:
         kCanTouch = 1 << 1,    // default: true
         kCanTraverse = 1 << 2, // default: true
         // bits 3-4: EdgeBehavior (2 bits)
-        kHasFocus = 1 << 5, // true if this node or descendant has focus
+        kHasFocus = 1 << 5,     // true if this node or descendant has focus
+        kHadFocusable = 1 << 6, // sticky: was ever backed by a Focusable
     };
     static constexpr uint8_t edgeBehaviorShift = 3;
     static constexpr uint8_t edgeBehaviorMask = 0x3;
