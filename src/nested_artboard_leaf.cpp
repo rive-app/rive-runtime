@@ -25,11 +25,12 @@ void NestedArtboardLeaf::update(ComponentDirt value)
     auto artboard = artboardInstance();
     if (hasDirt(value, ComponentDirt::WorldTransform) && artboard != nullptr)
     {
-        auto p = parent();
+        // The layout that sizes us, which may sit above a Solo. A leaf owns no
+        // layout node, so it uses the content-sizing reach.
+        auto* sizingLayout = contentSizingLayout(parent());
 
-        AABB bounds = p != nullptr && p->is<LayoutComponent>()
-                          ? p->as<LayoutComponent>()->localBounds()
-                          : artboard->bounds();
+        AABB bounds = sizingLayout != nullptr ? sizingLayout->localBounds()
+                                              : artboard->bounds();
 
         auto artboardFit = (Fit)fit();
         if (artboardFit == Fit::layout)

@@ -537,6 +537,17 @@ public:
     ShapePaintPath* localClockwisePath() override;
     Component* pathBuilder() override;
 };
+
+// The two upward walks a component can ask about its layout, mirroring the two
+// downward ones. contentSizingLayout mirrors propagateSizeToChildren: for
+// content, and a group stops it. owningLayout mirrors forEachLayoutProvider:
+// for anything in the layout tree, and nothing stops it.
+//
+// Both end at the artboard, which is a LayoutComponent whose own parent is
+// null. So a component directly in the artboard resolves to it, and neither
+// walk can escape an ArtboardInstance into the artboard hosting it.
+LayoutComponent* contentSizingLayout(Component* parent);
+LayoutComponent* owningLayout(Component* component);
 } // namespace rive
 
 #endif

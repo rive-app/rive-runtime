@@ -136,6 +136,40 @@ ComponentOrigin* originChild(const ContainerComponent* owner)
 }
 } // namespace
 
+LayoutComponent* rive::contentSizingLayout(Component* parent)
+{
+    for (Component* p = parent; p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            return p->as<LayoutComponent>();
+        }
+        // A group stops content sizing; a provider is sized by the engine.
+        if (stopsContentSizing(p) || LayoutNodeProvider::from(p) != nullptr)
+        {
+            return nullptr;
+        }
+        auto* sizeable = IntrinsicallySizeable::from(p);
+        if (sizeable != nullptr && !sizeable->shouldPropagateSizeToChildren())
+        {
+            return nullptr;
+        }
+    }
+    return nullptr;
+}
+
+LayoutComponent* rive::owningLayout(Component* component)
+{
+    for (Component* p = component; p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            return p->as<LayoutComponent>();
+        }
+    }
+    return nullptr;
+}
+
 #if defined(WITH_RIVE_LAYOUT) && defined(WITH_RIVE_TOOLS) && defined(DEBUG)
 uint32_t LayoutData::count = 0;
 #endif

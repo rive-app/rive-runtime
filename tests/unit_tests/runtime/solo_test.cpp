@@ -13,6 +13,8 @@
 #include "rive_file_reader.hpp"
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "rive/viewmodel/viewmodel_property_enum.hpp"
+#include "rive/viewmodel/data_enum.hpp"
 #include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
@@ -542,4 +544,52 @@ TEST_CASE("Data bind by index skipping non hierarchical children", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("solo_index_test"));
+}
+
+// Every kind of child a Solo can hold, laid out by one parent layout: nested
+// artboard leaves, plain and participating shapes/text/images. The view
+// model's `states` enum picks the active one by name, so walking its values
+// renders each child in turn.
+TEST_CASE("solo children of a layout render for every state", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_solos.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+
+    auto statesValue = vmi->propertyValue("states");
+    REQUIRE(statesValue != nullptr);
+    auto states = statesValue->as<rive::ViewModelInstanceEnum>();
+
+    auto enumProperty =
+        states->viewModelProperty()->as<rive::ViewModelPropertyEnum>();
+    auto dataEnum = enumProperty->dataEnum();
+    REQUIRE(dataEnum != nullptr);
+    REQUIRE(!dataEnum->values().empty());
+
+    auto renderer = silver.makeRenderer();
+    for (uint32_t i = 0; i < (uint32_t)dataEnum->values().size(); i++)
+    {
+        // The solo matches the enum value against its children's names and
+        // silently keeps the current child when nothing matches, so assert the
+        // write landed rather than re-rendering the previous state.
+        REQUIRE(states->value(i));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    CHECK(silver.matches("layout_solos"));
 }

@@ -163,17 +163,18 @@ void NestedArtboardLayout::updateHeightOverride()
     m_styleOverrider.updateHeightOverride(artboardInstance());
 }
 
+// The layout that collected us, which may sit above a container. Asking
+// parent() reported row/not-stack for a Solo and sized the wrong axis.
 bool NestedArtboardLayout::isRow()
 {
-    return parent()->is<LayoutComponent>()
-               ? parent()->as<LayoutComponent>()->mainAxisIsRow()
-               : true;
+    auto* layout = owningLayout(parent());
+    return layout != nullptr ? layout->mainAxisIsRow() : true;
 }
 
 bool NestedArtboardLayout::isStack()
 {
-    return parent()->is<LayoutComponent>() &&
-           parent()->as<LayoutComponent>()->isStackContainer();
+    auto* layout = owningLayout(parent());
+    return layout != nullptr && layout->isStackContainer();
 }
 
 void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }
@@ -213,18 +214,21 @@ void NestedArtboardLayout::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (parent()->is<LayoutComponent>())
+    // Re-collect on the layout that owns our node, not on parent(), or a
+    // container between the two leaves the swap unsynced.
+    auto* layout = owningLayout(parent());
+    if (layout != nullptr)
     {
-        parent()->as<LayoutComponent>()->clearLayoutChildren();
+        layout->clearLayoutChildren();
     }
 #endif
     NestedArtboard::updateArtboard(viewModelInstanceArtboard);
     updateWidthOverride();
     updateHeightOverride();
 #ifdef WITH_RIVE_LAYOUT
-    if (parent()->is<LayoutComponent>())
+    if (layout != nullptr)
     {
-        parent()->as<LayoutComponent>()->syncLayoutChildren();
+        layout->syncLayoutChildren();
     }
 #endif
 }
