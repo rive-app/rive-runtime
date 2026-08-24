@@ -21,6 +21,7 @@
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_instance_clusters.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_listener.hpp"
@@ -81,6 +82,19 @@
 #include <cmath>
 
 using namespace rive;
+
+// ArtboardComponentList builds one StateMachineInstance per row, so a 1000-row
+// list pays sizeof(StateMachineInstance) a thousand times over before any
+// content exists. The clusters in state_machine_instance_clusters.hpp exist to
+// keep it small: 1080 B before that work, 368 B after, which the allocator
+// rounds to 384 instead of 1280.
+//
+// Before adding an inline member, check whether it belongs in one of the
+// SMI* sidecar clusters instead — anything that is only populated for a
+// specific authored feature (events, bindables, focus/keyboard/gamepad/
+// semantics, scripting) does. Note also that nothing inline here is a
+// std::unordered_map any more, which is what makes this type the same size on
+// libc++ and libstdc++; an inline hash container would give that up.
 
 #ifdef RIVE_MICROPROFILE
 #include "rive/profiler/rive_profile.hpp"
@@ -1751,7 +1765,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 #endif
     }
 
-    m_layerCount = machine->layerCount();
+    m_layerCount = static_cast<uint32_t>(machine->layerCount());
     m_layers = new StateMachineLayerInstance[m_layerCount];
     for (size_t i = 0; i < m_layerCount; i++)
     {
@@ -1779,15 +1793,16 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         addDataBind(dataBindClone);
         if (dataBind->target()->is<BindableProperty>())
         {
+            auto& bindables = ensureBindables();
             auto bindableProperty = dataBind->target()->as<BindableProperty>();
             auto bindablePropertyInstance =
-                m_bindablePropertyInstances.find(bindableProperty);
+                bindables.propertyInstances.find(bindableProperty);
             BindableProperty* bindablePropertyClone;
-            if (bindablePropertyInstance == m_bindablePropertyInstances.end())
+            if (bindablePropertyInstance == bindables.propertyInstances.end())
             {
                 bindablePropertyClone =
                     bindableProperty->clone()->as<BindableProperty>();
-                m_bindablePropertyInstances[bindableProperty] =
+                bindables.propertyInstances[bindableProperty] =
                     bindablePropertyClone;
             }
             else
@@ -1801,12 +1816,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             if ((static_cast<DataBindFlags>(dataBindClone->flags()) &
                  DataBindFlags::ToSource) == DataBindFlags::ToSource)
             {
-                m_bindableDataBindsToSource[bindablePropertyClone] =
+                bindables.dataBindsToSource[bindablePropertyClone] =
                     dataBindClone;
             }
             else
             {
-                m_bindableDataBindsToTarget[bindablePropertyClone] =
+                bindables.dataBindsToTarget[bindablePropertyClone] =
                     dataBindClone;
             }
         }
@@ -1822,8 +1837,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 // and propertyKey so the normal apply() path writes
                 // to our instance-local property.
                 auto* prop = new BindablePropertyNumber();
-                m_transitionPropertyInstances[originalTarget]
-                                             [dataBind->propertyKey()] = prop;
+                auto& transitionProps =
+                    ensureBindables().transitionPropertyInstances;
+                transitionProps[originalTarget][dataBind->propertyKey()] = prop;
                 dataBindClone->target(prop);
                 dataBindClone->propertyKey(
                     BindablePropertyNumberBase::propertyValuePropertyKey);
@@ -1845,7 +1861,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         if (listener->hasListener(ListenerType::viewModel))
         {
             auto vmListener = new ListenerViewModel(this, listener);
-            m_listenerViewModels.push_back(vmListener);
+            ensureReporting().listenerViewModels.push_back(vmListener);
             continue;
         }
         // Handle focus/blur listeners - they're driven by FocusManager,
@@ -1873,7 +1889,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                         std::make_unique<FocusListenerGroup>(focusData,
                                                              listener,
                                                              this);
-                    m_focusListenerGroups.push_back(std::move(focusGroup));
+                    ensureInputExtras().focusListenerGroups.push_back(
+                        std::move(focusGroup));
                 }
             }
         }
@@ -1900,7 +1917,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                         std::make_unique<KeyboardListenerGroup>(focusData,
                                                                 listener,
                                                                 this);
-                    m_keyboardListenerGroups.push_back(
+                    ensureInputExtras().keyboardListenerGroups.push_back(
                         std::move(keyboardGroup));
                 }
             }
@@ -1918,7 +1935,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 {
                     if (child->is<SemanticData>())
                     {
-                        m_semanticListenerGroups.push_back(
+                        ensureInputExtras().semanticListenerGroups.push_back(
                             std::make_unique<SemanticListenerGroup>(
                                 child->as<SemanticData>(),
                                 listener,
@@ -1970,7 +1987,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                         std::make_unique<GamepadListenerGroup>(focusData,
                                                                listener,
                                                                this);
-                    m_gamepadListenerGroups.push_back(std::move(gamepadGroup));
+                    ensureInputExtras().gamepadListenerGroups.push_back(
+                        std::move(gamepadGroup));
                 }
             }
         }
@@ -2079,17 +2097,26 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     }
 #endif
 
-    // Initialize local instances of ScriptedObjects
-    for (auto& scriptedOb : machine->scriptedObjects())
+    // Initialize local instances of ScriptedObjects, in the state machine's
+    // authored order so every downstream walk (dataContext, Lua init) is
+    // deterministic.
+    auto sharedScriptedObjects = machine->scriptedObjects();
+    if (!sharedScriptedObjects.empty())
     {
-        m_scriptedObjectsMap[scriptedOb] =
-            scriptedOb->cloneScriptedObject(this);
+        auto& scripting = ensureScripting();
+        scripting.objects.reserve(sharedScriptedObjects.size());
+        for (auto& scriptedOb : sharedScriptedObjects)
+        {
+            scripting.objects.emplace_back(
+                scriptedOb,
+                scriptedOb->cloneScriptedObject(this));
+        }
+        for (auto& scriptedPair : scripting.objects)
+        {
+            scriptedPair.second->dataContext(m_artboardInstance->dataContext());
+        }
+        initScriptedObjects();
     }
-    for (auto& scriptedPair : m_scriptedObjectsMap)
-    {
-        scriptedPair.second->dataContext(m_artboardInstance->dataContext());
-    }
-    initScriptedObjects();
     // Register Scripted objects as keyboard and text targets when expected,
     // and collect every scripted drawable that wants gamepad events so we can
     // broadcast to it later regardless of focus.
@@ -2113,7 +2140,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                             child->as<FocusData>(),
                             nullptr,
                             this);
-                    m_keyboardListenerGroups.push_back(
+                    ensureInputExtras().keyboardListenerGroups.push_back(
                         std::move(keyboardGroup));
                     break;
                 }
@@ -2124,7 +2151,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
              scriptedObject->wantsGamePadEvent()) &&
             object->is<ScriptedDrawable>())
         {
-            m_gamepadScriptedDrawables.push_back(
+            ensureInputExtras().gamepadScriptedDrawables.push_back(
                 object->as<ScriptedDrawable>());
         }
     }
@@ -2137,15 +2164,42 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     m_artboardInstance->buildFocusTree(focusManager(), nullptr);
 }
 
+SMIReporting& StateMachineInstance::ensureReporting()
+{
+    return *m_reporting.ensureAllocated();
+}
+
+SMIBindables& StateMachineInstance::ensureBindables()
+{
+    return *m_bindables.ensureAllocated();
+}
+
+SMIInputExtras& StateMachineInstance::ensureInputExtras()
+{
+    return *m_inputExtras.ensureAllocated();
+}
+
+SMIScripting& StateMachineInstance::ensureScripting()
+{
+    return *m_scripting.ensureAllocated();
+}
+
+SemanticManager* StateMachineInstance::semanticManager() const
+{
+    auto* extras = inputExtras();
+    if (extras == nullptr)
+    {
+        return nullptr;
+    }
+    return extras->externalSemanticManager ? extras->externalSemanticManager
+                                           : extras->semanticManager.get();
+}
+
 ScriptedObject* StateMachineInstance::scriptedObject(
     const ScriptedObject* source) const
 {
-    auto itr = m_scriptedObjectsMap.find(source);
-    if (itr != m_scriptedObjectsMap.end())
-    {
-        return itr->second;
-    }
-    return nullptr;
+    auto* scripting = this->scripting();
+    return scripting != nullptr ? scripting->find(source) : nullptr;
 }
 
 StateMachineInstance::~StateMachineInstance()
@@ -2160,12 +2214,15 @@ StateMachineInstance::~StateMachineInstance()
 
     // Clean up semantic tree BEFORE the internal SemanticManager is destroyed.
     // Only needed when we own the manager; if external, the parent cleans up.
-    if (m_externalSemanticManager == nullptr && m_semanticManager != nullptr &&
-        m_artboardInstance != nullptr)
+    if (auto* extras = inputExtras())
     {
-        m_artboardInstance->cleanupSemanticTree();
+        if (extras->externalSemanticManager == nullptr &&
+            extras->semanticManager != nullptr && m_artboardInstance != nullptr)
+        {
+            m_artboardInstance->cleanupSemanticTree();
+        }
+        extras->embedderGamepads.clear();
     }
-    m_embedderGamepads.clear();
 
     unbind();
     for (auto inst : m_inputInstances)
@@ -2178,30 +2235,40 @@ StateMachineInstance::~StateMachineInstance()
     }
     deleteDataBinds();
     delete[] m_layers;
-    for (auto pair : m_bindablePropertyInstances)
+    // The bindable clones and per-transition property instances are raw-owning,
+    // so they are deleted here rather than by the cluster's destructor.
+    if (auto* bindables = m_bindables.get())
     {
-        delete pair.second;
-        pair.second = nullptr;
-    }
-    for (auto& outer : m_transitionPropertyInstances)
-    {
-        for (auto& inner : outer.second)
+        for (auto& pair : bindables->propertyInstances)
         {
-            delete inner.second;
+            delete pair.second;
         }
+        for (auto& outer : bindables->transitionPropertyInstances)
+        {
+            for (auto& inner : outer.second)
+            {
+                delete inner.second;
+            }
+        }
+        bindables->transitionPropertyInstances.clear();
+        bindables->propertyInstances.clear();
     }
-    m_transitionPropertyInstances.clear();
-    for (auto& listenerViewModel : m_listenerViewModels)
+    if (auto* reporting = this->reporting())
     {
-        delete listenerViewModel;
+        for (auto& listenerViewModel : reporting->listenerViewModels)
+        {
+            delete listenerViewModel;
+        }
+        reporting->listenerViewModels.clear();
     }
-    m_bindablePropertyInstances.clear();
-    for (auto& pair : m_scriptedObjectsMap)
+    if (auto* scripting = m_scripting.get())
     {
-        delete pair.second;
-        pair.second = nullptr;
+        for (auto& pair : scripting->objects)
+        {
+            delete pair.second;
+        }
+        scripting->objects.clear();
     }
-    m_scriptedObjectsMap.clear();
 }
 
 // When a state machine instanced by a higher level runtime is destroyed, we
@@ -2251,7 +2318,10 @@ void StateMachineInstance::removeEventListeners()
 #ifdef WITH_RIVE_TOOLS
 void StateMachineInstance::onDataBindChanged(DataBindChanged callback)
 {
-    for (auto databind : m_dataBinds)
+    // dataBinds() is the DataBindContainer base's list — the one addDataBind()
+    // actually fills. A same-named member used to shadow it here, and it was
+    // never written, so this callback silently never got installed.
+    for (auto databind : dataBinds())
     {
         databind->onChanged(callback);
     }
@@ -2325,28 +2395,40 @@ bool StateMachineInstance::tryChangeState()
 
 void StateMachineInstance::applyEvents()
 {
-    m_eventsAppliedDuringLoop.clear();
+    auto* reporting = this->reporting();
+    if (reporting == nullptr)
+    {
+        // Nothing has ever reported on this instance, so there is provably
+        // nothing to apply and nothing stale to clear.
+        return;
+    }
+    reporting->eventsAppliedDuringLoop.clear();
     int maxIterations = 100;
     int currentIteration = 0;
-    while ((m_reportedEvents.size() > 0 ||
-            m_reportedListenerViewModels.size() > 0) &&
+    while ((reporting->reportedEvents.size() > 0 ||
+            reporting->reportedListenerViewModels.size() > 0) &&
            currentIteration++ < maxIterations)
     {
         updateDataBinds(false);
-        m_reportingEvents = m_reportedEvents;
-        m_reportingListenerViewModels = m_reportedListenerViewModels;
-        m_reportedEvents.clear();
-        m_reportedListenerViewModels.clear();
+        // The reported/reporting split is load-bearing: notifying below can
+        // re-enter reportEvent(), and those events must queue for the next
+        // pass rather than mutate the batch being delivered.
+        reporting->reportingEvents = reporting->reportedEvents;
+        reporting->reportingListenerViewModels =
+            reporting->reportedListenerViewModels;
+        reporting->reportedEvents.clear();
+        reporting->reportedListenerViewModels.clear();
         if (currentIteration > 1)
         {
             // These were reported during the loop, so no host has seen them
             // yet; keep them visible until the next applyEvents.
-            m_eventsAppliedDuringLoop.insert(m_eventsAppliedDuringLoop.end(),
-                                             m_reportingEvents.begin(),
-                                             m_reportingEvents.end());
+            reporting->eventsAppliedDuringLoop.insert(
+                reporting->eventsAppliedDuringLoop.end(),
+                reporting->reportingEvents.begin(),
+                reporting->reportingEvents.end());
         }
-        this->notifyEventListeners(m_reportingEvents, nullptr);
-        this->notifyListenerViewModels(m_reportingListenerViewModels);
+        this->notifyEventListeners(reporting->reportingEvents, nullptr);
+        this->notifyListenerViewModels(reporting->reportingListenerViewModels);
     }
     if (currentIteration >= maxIterations)
     {
@@ -2388,7 +2470,7 @@ void StateMachineInstance::enableSemantics()
     {
         return;
     }
-    m_semanticManager = std::make_unique<SemanticManager>();
+    ensureInputExtras().semanticManager = std::make_unique<SemanticManager>();
     if (m_artboardInstance != nullptr)
     {
         m_artboardInstance->buildSemanticTree(semanticManager(), nullptr);
@@ -2399,10 +2481,15 @@ void StateMachineInstance::setExternalSemanticManager(
     SemanticManager* manager,
     rcp<SemanticNode> parentNode)
 {
-    if (m_externalSemanticManager == manager)
+    // An unallocated cluster means no external manager is set, so clearing one
+    // on such an instance is a no-op — check before allocating.
+    auto* existing = inputExtras();
+    if ((existing != nullptr ? existing->externalSemanticManager : nullptr) ==
+        manager)
     {
         return;
     }
+    auto& extras = ensureInputExtras();
 
     // Clean up the old semantic tree if one was built with a different manager.
     if (m_artboardInstance != nullptr &&
@@ -2411,7 +2498,7 @@ void StateMachineInstance::setExternalSemanticManager(
         m_artboardInstance->cleanupSemanticTree();
     }
 
-    m_externalSemanticManager = manager;
+    extras.externalSemanticManager = manager;
 
     // Rebuild with the new manager. semanticManager() now returns the external
     // manager if set, or the internal one if null.
@@ -2424,7 +2511,7 @@ void StateMachineInstance::setExternalSemanticManager(
 void StateMachineInstance::queueFocusEvent(FocusListenerGroup* group,
                                            bool isFocus)
 {
-    m_queuedFocusEvents.push_back({group, isFocus});
+    ensureInputExtras().queuedFocusEvents.push_back({group, isFocus});
     m_needsAdvance = true;
 }
 
@@ -2496,13 +2583,16 @@ void StateMachineInstance::queueFocusTraversal(uint32_t traversalKind)
 
 void StateMachineInstance::processFocusEvents()
 {
-    if (m_queuedFocusEvents.empty())
+    auto* extras = inputExtras();
+    if (extras == nullptr || extras->queuedFocusEvents.empty())
     {
         return;
     }
 
-    auto events = std::move(m_queuedFocusEvents);
-    m_queuedFocusEvents.clear();
+    // Moved out before dispatch: a listener action can queue further focus
+    // events, and those belong to the next advance, not this drain.
+    auto events = std::move(extras->queuedFocusEvents);
+    extras->queuedFocusEvents.clear();
 
     for (const auto& event : events)
     {
@@ -2523,19 +2613,20 @@ void StateMachineInstance::processFocusEvents()
 void StateMachineInstance::queueSemanticEvent(SemanticListenerGroup* group,
                                               SemanticActionType actionType)
 {
-    m_queuedSemanticEvents.push_back({group, actionType});
+    ensureInputExtras().queuedSemanticEvents.push_back({group, actionType});
     m_needsAdvance = true;
 }
 
 void StateMachineInstance::processSemanticEvents()
 {
-    if (m_queuedSemanticEvents.empty())
+    auto* extras = inputExtras();
+    if (extras == nullptr || extras->queuedSemanticEvents.empty())
     {
         return;
     }
 
-    auto events = std::move(m_queuedSemanticEvents);
-    m_queuedSemanticEvents.clear();
+    auto events = std::move(extras->queuedSemanticEvents);
+    extras->queuedSemanticEvents.clear();
 
     for (const auto& event : events)
     {
@@ -2628,8 +2719,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
             inst->advanced();
         }
     }
-    return m_needsAdvance || !m_reportedEvents.empty() ||
-           !m_reportedListenerViewModels.empty();
+    return m_needsAdvance || hasPendingReports();
 }
 
 void StateMachineInstance::advancedDataContext()
@@ -2720,8 +2810,7 @@ bool StateMachineInstance::advanceAndApply(float seconds,
         // of the bound view model tree) at the end of the frame.
         m_artboardInstance->advanceScriptedViewModels();
     }
-    return keepGoing || !m_reportedEvents.empty() ||
-           !m_reportedListenerViewModels.empty();
+    return keepGoing || hasPendingReports();
 }
 
 void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }
@@ -2952,7 +3041,12 @@ void StateMachineInstance::dataContext(rcp<DataContext> dataContext)
 
 void StateMachineInstance::initScriptedObjects()
 {
-    for (auto obj : m_scriptedObjectsMap)
+    auto* scripting = m_scripting.get();
+    if (scripting == nullptr)
+    {
+        return;
+    }
+    for (auto& obj : scripting->objects)
     {
         if (obj.second->scriptAsset() != nullptr)
         {
@@ -2969,13 +3063,19 @@ void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 {
     m_DataContext = dataContext;
     bindDataBindsFromContext(dataContext.get());
-    for (auto listenerViewModel : m_listenerViewModels)
+    if (auto* reporting = this->reporting())
     {
-        listenerViewModel->bindFromContext(dataContext);
+        for (auto listenerViewModel : reporting->listenerViewModels)
+        {
+            listenerViewModel->bindFromContext(dataContext);
+        }
     }
-    for (auto& scriptedObjectItr : m_scriptedObjectsMap)
+    if (auto* scripting = m_scripting.get())
     {
-        scriptedObjectItr.second->dataContext(dataContext);
+        for (auto& scriptedObjectItr : scripting->objects)
+        {
+            scriptedObjectItr.second->dataContext(dataContext);
+        }
     }
     initScriptedObjects();
 }
@@ -2994,9 +3094,12 @@ void StateMachineInstance::clearDataContext()
         m_DataContext->removeDependentContainer(this);
         m_DataContext = nullptr;
     }
-    for (auto& listenerViewModel : m_listenerViewModels)
+    if (auto* reporting = this->reporting())
     {
-        listenerViewModel->clearDataContext();
+        for (auto& listenerViewModel : reporting->listenerViewModels)
+        {
+            listenerViewModel->clearDataContext();
+        }
     }
 }
 
@@ -3080,34 +3183,54 @@ const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(
     return nullptr;
 }
 
+bool StateMachineInstance::hasPendingReports() const
+{
+    auto* reporting = this->reporting();
+    return reporting != nullptr &&
+           (!reporting->reportedEvents.empty() ||
+            !reporting->reportedListenerViewModels.empty());
+}
+
 void StateMachineInstance::reportEvent(Event* event, float delaySeconds)
 {
-    m_reportedEvents.push_back(EventReport(event, delaySeconds));
+    ensureReporting().reportedEvents.push_back(
+        EventReport(event, delaySeconds));
 }
 
 void StateMachineInstance::reportListenerViewModel(
     ListenerViewModel* listenerViewModel)
 {
-    m_reportedListenerViewModels.push_back(listenerViewModel);
+    ensureReporting().reportedListenerViewModels.push_back(listenerViewModel);
 }
 
 std::size_t StateMachineInstance::reportedEventCount() const
 {
-    return m_eventsAppliedDuringLoop.size() + m_reportedEvents.size();
+    auto* reporting = this->reporting();
+    if (reporting == nullptr)
+    {
+        return 0;
+    }
+    return reporting->eventsAppliedDuringLoop.size() +
+           reporting->reportedEvents.size();
 }
 
 const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
 {
-    if (index < m_eventsAppliedDuringLoop.size())
-    {
-        return m_eventsAppliedDuringLoop[index];
-    }
-    index -= m_eventsAppliedDuringLoop.size();
-    if (index >= m_reportedEvents.size())
+    auto* reporting = this->reporting();
+    if (reporting == nullptr)
     {
         return EventReport(nullptr, 0.0f);
     }
-    return m_reportedEvents[index];
+    if (index < reporting->eventsAppliedDuringLoop.size())
+    {
+        return reporting->eventsAppliedDuringLoop[index];
+    }
+    index -= reporting->eventsAppliedDuringLoop.size();
+    if (index >= reporting->reportedEvents.size())
+    {
+        return EventReport(nullptr, 0.0f);
+    }
+    return reporting->reportedEvents[index];
 }
 
 void StateMachineInstance::notify(const std::vector<EventReport>& events,
@@ -3261,9 +3384,14 @@ void StateMachineInstance::disablePointerEvents(int pointerId)
 BindableProperty* StateMachineInstance::bindablePropertyInstance(
     BindableProperty* bindableProperty) const
 {
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
     auto bindablePropertyInstance =
-        m_bindablePropertyInstances.find(bindableProperty);
-    if (bindablePropertyInstance == m_bindablePropertyInstances.end())
+        bindables->propertyInstances.find(bindableProperty);
+    if (bindablePropertyInstance == bindables->propertyInstances.end())
     {
         return nullptr;
     }
@@ -3273,8 +3401,13 @@ BindableProperty* StateMachineInstance::bindablePropertyInstance(
 DataBind* StateMachineInstance::bindableDataBindToSource(
     BindableProperty* bindableProperty) const
 {
-    auto dataBind = m_bindableDataBindsToSource.find(bindableProperty);
-    if (dataBind == m_bindableDataBindsToSource.end())
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
+    auto dataBind = bindables->dataBindsToSource.find(bindableProperty);
+    if (dataBind == bindables->dataBindsToSource.end())
     {
         return nullptr;
     }
@@ -3284,8 +3417,13 @@ DataBind* StateMachineInstance::bindableDataBindToSource(
 DataBind* StateMachineInstance::bindableDataBindToTarget(
     BindableProperty* bindableProperty) const
 {
-    auto dataBind = m_bindableDataBindsToTarget.find(bindableProperty);
-    if (dataBind == m_bindableDataBindsToTarget.end())
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
+    auto dataBind = bindables->dataBindsToTarget.find(bindableProperty);
+    if (dataBind == bindables->dataBindsToTarget.end())
     {
         return nullptr;
     }
@@ -3296,8 +3434,13 @@ BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
     const StateTransition* transition,
     uint32_t propertyKey) const
 {
-    auto it = m_transitionPropertyInstances.find(transition);
-    if (it != m_transitionPropertyInstances.end())
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
+    auto it = bindables->transitionPropertyInstances.find(transition);
+    if (it != bindables->transitionPropertyInstances.end())
     {
         auto propIt = it->second.find(propertyKey);
         if (propIt != it->second.end())

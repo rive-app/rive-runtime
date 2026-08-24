@@ -7,6 +7,9 @@
 #include "rive/input/standard_gamepad.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/span.hpp"
+// Defines StateMachineInstance's SMIInputExtras cluster, which owns the
+// embedder gamepad snapshots and the gamepad-aware scripted drawables.
+#include "rive/animation/state_machine_instance_clusters.hpp"
 
 namespace rive
 {
@@ -180,6 +183,10 @@ bool StateMachineInstance::submitGamepadsFromBuffer(const uint8_t* data,
     {
         return false;
     }
+    // An embedder submitting a batch is exactly the moment gamepad state
+    // starts existing on this instance, so allocate the cluster up front and
+    // keep the pointer for the whole drain.
+    SMIInputExtras& extras = ensureInputExtras();
     // reachedEnd() returns true once the cursor hits end-of-buffer OR the
     // reader has flagged an overflow, so any partial-record read inside the
     // loop will both `return false` and naturally terminate iteration.
@@ -200,7 +207,7 @@ bool StateMachineInstance::submitGamepadsFromBuffer(const uint8_t* data,
                 {
                     return false;
                 }
-                m_embedderGamepads[snap.deviceId] = snap;
+                extras.embedderGamepads[snap.deviceId] = snap;
                 {
                     auto invocation =
                         ListenerInvocation::gamepadConnected(snap);
@@ -221,8 +228,8 @@ bool StateMachineInstance::submitGamepadsFromBuffer(const uint8_t* data,
                 }
                 // Updates must target a gamepad we've previously seen
                 // connected; otherwise we have no snapshot to mutate.
-                auto it = m_embedderGamepads.find(deviceId);
-                if (it == m_embedderGamepads.end())
+                auto it = extras.embedderGamepads.find(deviceId);
+                if (it == extras.embedderGamepads.end())
                 {
                     return false;
                 }
@@ -277,7 +284,7 @@ bool StateMachineInstance::submitGamepadsFromBuffer(const uint8_t* data,
                 {
                     return false;
                 }
-                m_embedderGamepads.erase(deviceId);
+                extras.embedderGamepads.erase(deviceId);
                 {
                     auto invocation =
                         ListenerInvocation::gamepadDisconnected(deviceId);
@@ -304,7 +311,7 @@ HitResult StateMachineInstance::broadcastGamepadToScriptedDrawables(
     // Walk m_hitComponents purely for the nested-propagation overrides
     // (HitNestedArtboard / HitArtboardComponentList recurse into their
     // child SMIs). HitScriptedDrawable's gamepad path is intentionally a
-    // no-op — direct dispatch happens via m_gamepadScriptedDrawables below
+    // no-op — direct dispatch happens via gamepadScriptedDrawables below
     // so scripts without pointer handlers are still reached.
     for (const auto& hitShape : m_hitComponents)
     {
@@ -321,38 +328,43 @@ HitResult StateMachineInstance::broadcastGamepadToScriptedDrawables(
     }
 
 #ifdef WITH_RIVE_SCRIPTING
-    for (ScriptedDrawable* drawable : m_gamepadScriptedDrawables)
+    // Null whenever no script in this artboard declared a gamepad handler,
+    // which is the common case — nothing to broadcast to.
+    if (auto* extras = inputExtras())
     {
-        if (drawable == nullptr || drawable == alreadyDispatched)
+        for (ScriptedDrawable* drawable : extras->gamepadScriptedDrawables)
         {
-            continue;
-        }
-        switch (invocation.kind())
-        {
-            case ListenerInvocationKind::gamepadConnected:
-                if (!drawable->wantsGamePadConnect())
-                {
-                    continue;
-                }
-                break;
-            case ListenerInvocationKind::gamepadEvent:
-                if (!drawable->wantsGamePadEvent())
-                {
-                    continue;
-                }
-                break;
-            case ListenerInvocationKind::gamepadDisconnected:
-                if (!drawable->wantsGamePadDisconnect())
-                {
-                    continue;
-                }
-                break;
-            default:
+            if (drawable == nullptr || drawable == alreadyDispatched)
+            {
                 continue;
-        }
-        if (drawable->gamepadDispatch(invocation))
-        {
-            hitSomething = true;
+            }
+            switch (invocation.kind())
+            {
+                case ListenerInvocationKind::gamepadConnected:
+                    if (!drawable->wantsGamePadConnect())
+                    {
+                        continue;
+                    }
+                    break;
+                case ListenerInvocationKind::gamepadEvent:
+                    if (!drawable->wantsGamePadEvent())
+                    {
+                        continue;
+                    }
+                    break;
+                case ListenerInvocationKind::gamepadDisconnected:
+                    if (!drawable->wantsGamePadDisconnect())
+                    {
+                        continue;
+                    }
+                    break;
+                default:
+                    continue;
+            }
+            if (drawable->gamepadDispatch(invocation))
+            {
+                hitSomething = true;
+            }
         }
     }
 #endif

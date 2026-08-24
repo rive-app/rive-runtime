@@ -5,6 +5,13 @@
 
 using namespace rive;
 
+// DataBindContainer is a base of Artboard, StateMachineInstance, and every
+// DataConverter, so its inline footprint is paid thousands of times over by a
+// data-bound artboard component list. Exactly one work queue is inline (see
+// DataBindQueues); adding a second costs real memory because it pushes both
+// StateMachineInstance and ArtboardInstance into the next allocator size class:
+// 368 -> 416 (384 -> 448 allocated) and 1264 -> 1312 (1280 -> 1536).
+
 void DataBindContainer::deleteDataBinds()
 {
     for (auto& dataBind : m_dataBinds)
@@ -54,30 +61,39 @@ bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
 void DataBindContainer::removeDataBind(DataBind* dataBind)
 {
     // Defer removal if we're mid-iteration in updateDataBinds; erasing from
-    // m_persistingDataBinds / m_dirtyDataBinds here would invalidate the
-    // active iterators.
+    // the persisting / dirty queues here would invalidate the active
+    // iterators.
     if (m_isProcessing)
     {
-        m_pendingRemovals.push_back(dataBind);
+        m_queues.ensureAllocated()->pendingRemovals.push_back(dataBind);
         return;
     }
     auto eraseOne = [dataBind](std::vector<DataBind*>& v) {
         v.erase(std::remove(v.begin(), v.end(), dataBind), v.end());
     };
     eraseOne(m_dataBinds);
+    // A bind can only be flagged into one of the queues if the queues were
+    // allocated to hold it, but the flags live on the bind, so stay defensive.
+    auto* queues = m_queues.get();
     if (dataBind->inPersistingList())
     {
-        eraseOne(m_persistingDataBinds);
+        if (queues != nullptr)
+        {
+            eraseOne(queues->persisting);
+        }
         dataBind->inPersistingList(false);
     }
     if (dataBind->inDirtyList())
     {
         // Membership flag doesn't distinguish which dirty list contains the
         // bind, so scan all four — toSource + toTarget × active + pending.
-        eraseOne(m_dirtyToSourceDataBinds);
-        eraseOne(m_pendingDirtyToSourceDataBinds);
         eraseOne(m_dirtyDataBinds);
-        eraseOne(m_pendingDirtyDataBinds);
+        if (queues != nullptr)
+        {
+            eraseOne(queues->dirtyToSource);
+            eraseOne(queues->pendingDirtyToSource);
+            eraseOne(queues->pendingDirty);
+        }
         dataBind->inDirtyList(false);
     }
     dataBind->container(nullptr);
@@ -85,23 +101,23 @@ void DataBindContainer::removeDataBind(DataBind* dataBind)
 
 void DataBindContainer::addDataBind(DataBind* dataBind)
 {
-    // Defer if we're mid-iteration in updateDataBinds; push_back on
-    // m_persistingDataBinds during iteration could reallocate and invalidate
-    // the active range-for iterator, and the synchronous updateDataBind() call
+    // Defer if we're mid-iteration in updateDataBinds; push_back on the
+    // persisting list during iteration could reallocate and invalidate the
+    // active range-for iterator, and the synchronous updateDataBind() call
     // below would re-enter the update machinery.
     if (m_isProcessing)
     {
-        m_pendingAdditions.push_back(dataBind);
+        m_queues.ensureAllocated()->pendingAdditions.push_back(dataBind);
         return;
     }
     m_dataBinds.push_back(dataBind);
     // toSource binds: prefer push notifications when the target supports it
     // (Alternative A — Core::notifyPropertyChanged). Fall back to per-frame
-    // polling via m_persistingDataBinds for the few derived/computed targets
+    // polling via the persisting list for the few derived/computed targets
     // that don't go through a generated property setter.
     if (dataBind->toSource() && !dataBind->targetSupportsPush())
     {
-        m_persistingDataBinds.push_back(dataBind);
+        m_queues.ensureAllocated()->persisting.push_back(dataBind);
         dataBind->inPersistingList(true);
     }
     dataBind->container(this);
@@ -164,26 +180,36 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
     {
         return;
     }
-    if (m_persistingDataBinds.size() == 0 &&
-        m_dirtyToSourceDataBinds.size() == 0 && m_dirtyDataBinds.size() == 0)
     {
-        return;
-    }
-    m_isProcessing = true;
-    for (auto& dataBind : m_persistingDataBinds)
-    {
-        if (!dataBind->canSkip())
+        // Cheap early-out. The inline dirty list covers the common
+        // source→target case; the cold lists only exist once allocated.
+        auto* queues = m_queues.get();
+        const bool haveColdWork =
+            queues != nullptr &&
+            (!queues->persisting.empty() || !queues->dirtyToSource.empty());
+        if (m_dirtyDataBinds.empty() && !haveColdWork)
         {
-            updateDataBind(dataBind, applyTargetToSource);
+            return;
         }
     }
-    // Push-driven toSource binds, processed before any toTarget binds so
-    // their source values land before dependents apply this frame — matches
-    // the order that m_persistingDataBinds used to give us under polling.
-    for (auto& dataBind : m_dirtyToSourceDataBinds)
+    m_isProcessing = true;
+    if (auto* queues = m_queues.get())
     {
-        dataBind->inDirtyList(false);
-        updateDataBind(dataBind, applyTargetToSource);
+        for (auto& dataBind : queues->persisting)
+        {
+            if (!dataBind->canSkip())
+            {
+                updateDataBind(dataBind, applyTargetToSource);
+            }
+        }
+        // Push-driven toSource binds, processed before any toTarget binds so
+        // their source values land before dependents apply this frame —
+        // matches the order the persisting list used to give us under polling.
+        for (auto& dataBind : queues->dirtyToSource)
+        {
+            dataBind->inDirtyList(false);
+            updateDataBind(dataBind, applyTargetToSource);
+        }
     }
     for (auto& dataBind : m_dirtyDataBinds)
     {
@@ -191,35 +217,44 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
         dataBind->inDirtyList(false);
         updateDataBind(dataBind, applyTargetToSource);
     }
-    m_dirtyToSourceDataBinds.clear();
     m_dirtyDataBinds.clear();
-    if (m_pendingDirtyToSourceDataBinds.size() > 0)
+    // Re-read the sidecar rather than reusing a pointer captured above: the
+    // loops run with m_isProcessing set, so a re-entrant add / remove / dirty
+    // can have allocated the queues even when they started out null.
+    if (auto* queues = m_queues.get())
     {
-        m_dirtyToSourceDataBinds.swap(m_pendingDirtyToSourceDataBinds);
-    }
-    if (m_pendingDirtyDataBinds.size() > 0)
-    {
-        m_dirtyDataBinds.swap(m_pendingDirtyDataBinds);
+        queues->dirtyToSource.clear();
+        if (queues->pendingDirtyToSource.size() > 0)
+        {
+            queues->dirtyToSource.swap(queues->pendingDirtyToSource);
+        }
+        if (queues->pendingDirty.size() > 0)
+        {
+            m_dirtyDataBinds.swap(queues->pendingDirty);
+        }
     }
     m_isProcessing = false;
     // Flush additions before removals so a same-tick add-then-remove of the
     // same bind resolves in chronological order (add wins, then remove).
-    if (!m_pendingAdditions.empty())
+    if (auto* queues = m_queues.get())
     {
-        std::vector<DataBind*> additions;
-        additions.swap(m_pendingAdditions);
-        for (auto* dataBind : additions)
+        if (!queues->pendingAdditions.empty())
         {
-            addDataBind(dataBind);
+            std::vector<DataBind*> additions;
+            additions.swap(queues->pendingAdditions);
+            for (auto* dataBind : additions)
+            {
+                addDataBind(dataBind);
+            }
         }
-    }
-    if (!m_pendingRemovals.empty())
-    {
-        std::vector<DataBind*> removals;
-        removals.swap(m_pendingRemovals);
-        for (auto* dataBind : removals)
+        if (!queues->pendingRemovals.empty())
         {
-            removeDataBind(dataBind);
+            std::vector<DataBind*> removals;
+            removals.swap(queues->pendingRemovals);
+            for (auto* dataBind : removals)
+            {
+                removeDataBind(dataBind);
+            }
         }
     }
 }
@@ -244,8 +279,8 @@ void DataBindContainer::sortDataBinds()
 
 void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
 {
-    // toSource binds on the polling fallback path are processed via
-    // m_persistingDataBinds — don't also enroll them in m_dirtyDataBinds.
+    // toSource binds on the polling fallback path are processed via the
+    // persisting list — don't also enroll them in the dirty list.
     if (dataBind->toSource() && dataBind->inPersistingList())
     {
         return;
@@ -254,16 +289,25 @@ void DataBindContainer::addDirtyDataBind(DataBind* dataBind)
     {
         return;
     }
+    // The common case — a plain source→target bind, outside of a drain — goes
+    // straight to the inline list and never touches the sidecar. This is the
+    // whole reason m_dirtyDataBinds is not in DataBindQueues.
+    if (!dataBind->toSource() && !m_isProcessing)
+    {
+        m_dirtyDataBinds.push_back(dataBind);
+        dataBind->inDirtyList(true);
+        return;
+    }
     // Push-driven toSource binds go into a dedicated list that
-    // updateDataBinds drains *before* m_dirtyDataBinds, preserving the
+    // updateDataBinds drains *before* the plain dirty list, preserving the
     // ordering polling gave us (target→source first, then source→target).
     // TwoWay binds (both flags set) sit here too — their updateDataBind
     // call runs both directions, but the source-apply happens first.
-    auto& insertingList =
-        dataBind->toSource()
-            ? (m_isProcessing ? m_pendingDirtyToSourceDataBinds
-                              : m_dirtyToSourceDataBinds)
-            : (m_isProcessing ? m_pendingDirtyDataBinds : m_dirtyDataBinds);
+    auto* queues = m_queues.ensureAllocated();
+    auto& insertingList = dataBind->toSource()
+                              ? (m_isProcessing ? queues->pendingDirtyToSource
+                                                : queues->dirtyToSource)
+                              : queues->pendingDirty;
     insertingList.push_back(dataBind);
     dataBind->inDirtyList(true);
 }
