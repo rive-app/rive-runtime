@@ -23,6 +23,19 @@ class LayoutComponentStyle;
 class LayoutConstraint;
 class ComponentOrigin;
 
+// Containers transparent to layout provide no layout node and no sizing of
+// their own, so the layout above descends through them. A plain group exposes
+// all its children; a Solo exposes only its active one. Anything else
+// (n-slicers, nested artboards, shapes) is opaque.
+bool isTransparentLayoutContainer(Component* component);
+
+// Whether a provider reached *through* a transparent container still joins the
+// layout. An ArtboardComponentList provides a layout node unconditionally — it
+// never opted in the way a participant does — so a group between one and its
+// layout is how a file asks for free-form items placed by x/y or a follow-path
+// constraint. It joins only when explicitly flagged.
+bool joinsLayoutThroughContainer(Component* component);
+
 // Boolean state of a LayoutComponent, packed into one word instead of a dozen
 // separate bytes. Gains the bitwise operators + rive::enums helpers for free by
 // having a None == 0 member (see rive/enums.hpp).

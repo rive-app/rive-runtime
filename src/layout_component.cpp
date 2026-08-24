@@ -39,33 +39,12 @@ void LayoutComponent::addLayoutStyleApplier(LayoutStyleApplier* applier)
 }
 #endif
 
-namespace
-{
-// Containers transparent to layout provide no layout node and no
-// sizing of their own, so the layout above descends through them. A plain group
-// exposes all its children; a Solo exposes only its active one. Anything else
-// (n-slicers, nested artboards, shapes) is opaque — a participant inside one
-// would never be collected.
-bool isTransparentLayoutContainer(Component* component)
+bool rive::isTransparentLayoutContainer(Component* component)
 {
     return component->coreType() == NodeBase::typeKey || component->is<Solo>();
 }
 
-// Whether content-sizing stops here. Narrower than
-// isTransparentLayoutContainer: a plain group is a barrier (its contents are
-// free content), but a Solo is not — its children content-size just as direct
-// children of the layout do.
-bool stopsContentSizing(Component* component)
-{
-    return component->coreType() == NodeBase::typeKey;
-}
-
-// An ArtboardComponentList provides a layout node unconditionally — it never
-// opted in the way a participant does. Wrapping one in a group is how a file
-// says "render these items but don't lay them out", freeing them to be placed
-// by x/y or a follow-path constraint, so a transparent container stays opaque
-// to it unless the list opts in. Everything else is seen through.
-bool joinsLayoutThroughContainer(Component* component)
+bool rive::joinsLayoutThroughContainer(Component* component)
 {
     if (!component->is<ArtboardComponentList>())
     {
@@ -75,6 +54,17 @@ bool joinsLayoutThroughContainer(Component* component)
         static_cast<DrawableFlag>(component->as<Drawable>()->drawableFlags());
     return (flags & DrawableFlag::ParticipatesInLayout) ==
            DrawableFlag::ParticipatesInLayout;
+}
+
+namespace
+{
+// Whether content-sizing stops here. Narrower than
+// isTransparentLayoutContainer: a plain group is a barrier (its contents are
+// free content), but a Solo is not — its children content-size just as direct
+// children of the layout do.
+bool stopsContentSizing(Component* component)
+{
+    return component->coreType() == NodeBase::typeKey;
 }
 
 // Visit every provider that belongs to a layout — its direct children, plus any

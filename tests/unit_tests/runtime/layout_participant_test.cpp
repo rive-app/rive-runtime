@@ -612,12 +612,17 @@ TEST_CASE("an artboard component list inside a group stays out of the layout",
     REQUIRE(lists[0]->parent()->coreType() == nodeTypeKey);
     // ...so the artboard collects no layout children at all.
     REQUIRE(artboard->isLeaf());
+    // And the list agrees: no layout parent, so items keep being positioned
+    // from their own x/y. Artboard is itself a LayoutComponent, so an
+    // unguarded ancestor walk would find one here and flip the list onto
+    // layout slots it was never given.
+    REQUIRE(lists[0]->layoutParent() == nullptr);
 }
 
-// list_in_group_joins_layout.riv is the same shape but the list carries the
-// ParticipatesInLayout drawable flag — the opt-in a newly authored list
-// gets. The group is then transparent to it, so the artboard collects it and is
-// no longer a leaf.
+// list_in_group_joins_layout.riv is artboard > 200x200 stack > group > list,
+// with the list carrying the ParticipatesInLayout drawable flag — the opt-in a
+// newly authored list gets. The group is then transparent to it, so the stack
+// collects it through the group and the list agrees that the stack owns it.
 TEST_CASE("a flagged artboard component list joins the layout through a group",
           "[layoutparticipant]")
 {
@@ -630,8 +635,23 @@ TEST_CASE("a flagged artboard component list joins the layout through a group",
     REQUIRE(lists.size() == 1);
     const uint16_t nodeTypeKey = rive::NodeBase::typeKey;
     REQUIRE(lists[0]->parent()->coreType() == nodeTypeKey);
-    // The flag lets the layout see through the group to the list.
-    REQUIRE_FALSE(artboard->isLeaf());
+
+    // The stack is what collects through the group, so it is what has to stop
+    // being a leaf. Asserting that on the artboard proves nothing here: its
+    // direct child is the stack, itself a provider, so the artboard is
+    // non-leaf whatever the flag says.
+    rive::ContainerComponent* group = lists[0]->parent();
+    REQUIRE(group->parent()->is<rive::LayoutComponent>());
+    auto* stack = group->parent()->as<rive::LayoutComponent>();
+    REQUIRE_FALSE(stack->isLeaf());
+
+    // And the read-back side has to agree with that collection, or the list
+    // positions items from worldBounds while the stack solves slots for them —
+    // the two disagreeing is what made this diverge from Dart. It resolves the
+    // stack and stops there: the artboard is a LayoutComponent too, so an
+    // overshooting walk would land on it and silently use the wrong frame.
+    REQUIRE(lists[0]->layoutParent() == stack);
+    REQUIRE(lists[0]->layoutParent() != artboard);
 }
 
 TEST_CASE("a custom-path participant measures before its paths are built",

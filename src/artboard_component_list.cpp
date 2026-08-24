@@ -1917,9 +1917,29 @@ bool ArtboardComponentList::isStack()
 
 LayoutComponent* ArtboardComponentList::layoutParent()
 {
-    if (parent() != nullptr && parent()->is<LayoutComponent>())
+    auto* direct = parent();
+    if (direct == nullptr)
     {
-        return parent()->as<LayoutComponent>();
+        return nullptr;
+    }
+    if (direct->is<LayoutComponent>())
+    {
+        return direct->as<LayoutComponent>();
+    }
+    if (!joinsLayoutThroughContainer(this))
+    {
+        return nullptr;
+    }
+    for (auto* p = direct; p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            return p->as<LayoutComponent>();
+        }
+        if (!isTransparentLayoutContainer(p))
+        {
+            return nullptr;
+        }
     }
     return nullptr;
 }
