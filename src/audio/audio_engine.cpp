@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 using namespace rive;
 
@@ -202,6 +203,12 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     engineConfig.noDevice = MA_TRUE;
+#else
+    // CI VMs can stall for minutes opening a CoreAudio device.
+    if (std::getenv("RIVE_NO_AUDIO_DEVICE") != nullptr)
+    {
+        engineConfig.noDevice = MA_TRUE;
+    }
 #endif
 
     ma_engine* engine = new ma_engine();
