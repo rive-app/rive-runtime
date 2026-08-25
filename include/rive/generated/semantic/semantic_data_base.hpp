@@ -98,8 +98,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(rolePropertyKey, &m_Role, &value);
         m_Role = value;
-        roleChanged();
+        RIVE_EDITOR_CHANGED(roleChanged());
         notifyPropertyChanged(rolePropertyKey);
     }
 
@@ -110,8 +111,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(labelPropertyKey, m_Label, value);
         m_Label = value;
-        labelChanged();
+        RIVE_EDITOR_CHANGED(labelChanged());
         notifyPropertyChanged(labelPropertyKey);
     }
 
@@ -122,8 +124,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(valuePropertyKey, m_Value, value);
         m_Value = value;
-        valueChanged();
+        RIVE_EDITOR_CHANGED(valueChanged());
         notifyPropertyChanged(valuePropertyKey);
     }
 
@@ -134,8 +137,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(hintPropertyKey, m_Hint, value);
         m_Hint = value;
-        hintChanged();
+        RIVE_EDITOR_CHANGED(hintChanged());
         notifyPropertyChanged(hintPropertyKey);
     }
 
@@ -146,8 +150,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(headingLevelPropertyKey, &m_HeadingLevel, &value);
         m_HeadingLevel = value;
-        headingLevelChanged();
+        RIVE_EDITOR_CHANGED(headingLevelChanged());
         notifyPropertyChanged(headingLevelPropertyKey);
     }
 
@@ -158,8 +163,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(traitFlagsPropertyKey, &m_TraitFlags, &value);
         m_TraitFlags = value;
-        traitFlagsChanged();
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
         notifyPropertyChanged(traitFlagsPropertyKey);
     }
 
@@ -170,11 +176,363 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(stateFlagsPropertyKey, &m_StateFlags, &value);
         m_StateFlags = value;
-        stateFlagsChanged();
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
         notifyPropertyChanged(stateFlagsPropertyKey);
     }
 
+    inline bool isExpandable() const
+    {
+        return (m_TraitFlags & isExpandableBitmask) != 0;
+    }
+    void isExpandable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isExpandableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isExpandablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isExpandableBitmask)
+                             : (m_TraitFlags & ~isExpandableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isSelectable() const
+    {
+        return (m_TraitFlags & isSelectableBitmask) != 0;
+    }
+    void isSelectable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isSelectableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isSelectablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isSelectableBitmask)
+                             : (m_TraitFlags & ~isSelectableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isCheckable() const
+    {
+        return (m_TraitFlags & isCheckableBitmask) != 0;
+    }
+    void isCheckable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isCheckableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isCheckablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isCheckableBitmask)
+                             : (m_TraitFlags & ~isCheckableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isToggleable() const
+    {
+        return (m_TraitFlags & isToggleableBitmask) != 0;
+    }
+    void isToggleable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isToggleableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isToggleablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isToggleableBitmask)
+                             : (m_TraitFlags & ~isToggleableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isRequirable() const
+    {
+        return (m_TraitFlags & isRequirableBitmask) != 0;
+    }
+    void isRequirable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isRequirableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isRequirablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isRequirableBitmask)
+                             : (m_TraitFlags & ~isRequirableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isEnablable() const
+    {
+        return (m_TraitFlags & isEnablableBitmask) != 0;
+    }
+    void isEnablable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isEnablableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isEnablablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isEnablableBitmask)
+                             : (m_TraitFlags & ~isEnablableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isFocusable() const
+    {
+        return (m_TraitFlags & isFocusableBitmask) != 0;
+    }
+    void isFocusable(bool value)
+    {
+        const bool prev = (m_TraitFlags & isFocusableBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isFocusablePropertyKey, &prev, &value);
+        m_TraitFlags = value ? (m_TraitFlags | isFocusableBitmask)
+                             : (m_TraitFlags & ~isFocusableBitmask);
+        RIVE_EDITOR_CHANGED(traitFlagsChanged());
+        notifyPropertyChanged(traitFlagsPropertyKey);
+    }
+    inline bool isExpanded() const
+    {
+        return (m_StateFlags & isExpandedBitmask) != 0;
+    }
+    void isExpanded(bool value)
+    {
+        const bool prev = (m_StateFlags & isExpandedBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isExpandedPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isExpandedBitmask)
+                             : (m_StateFlags & ~isExpandedBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isSelected() const
+    {
+        return (m_StateFlags & isSelectedBitmask) != 0;
+    }
+    void isSelected(bool value)
+    {
+        const bool prev = (m_StateFlags & isSelectedBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isSelectedPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isSelectedBitmask)
+                             : (m_StateFlags & ~isSelectedBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isChecked() const
+    {
+        return (m_StateFlags & isCheckedBitmask) != 0;
+    }
+    void isChecked(bool value)
+    {
+        const bool prev = (m_StateFlags & isCheckedBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isCheckedPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isCheckedBitmask)
+                             : (m_StateFlags & ~isCheckedBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isMixed() const { return (m_StateFlags & isMixedBitmask) != 0; }
+    void isMixed(bool value)
+    {
+        const bool prev = (m_StateFlags & isMixedBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isMixedPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isMixedBitmask)
+                             : (m_StateFlags & ~isMixedBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isToggled() const
+    {
+        return (m_StateFlags & isToggledBitmask) != 0;
+    }
+    void isToggled(bool value)
+    {
+        const bool prev = (m_StateFlags & isToggledBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isToggledPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isToggledBitmask)
+                             : (m_StateFlags & ~isToggledBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isRequired() const
+    {
+        return (m_StateFlags & isRequiredBitmask) != 0;
+    }
+    void isRequired(bool value)
+    {
+        const bool prev = (m_StateFlags & isRequiredBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isRequiredPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isRequiredBitmask)
+                             : (m_StateFlags & ~isRequiredBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isDisabled() const
+    {
+        return (m_StateFlags & isDisabledBitmask) != 0;
+    }
+    void isDisabled(bool value)
+    {
+        const bool prev = (m_StateFlags & isDisabledBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isDisabledPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isDisabledBitmask)
+                             : (m_StateFlags & ~isDisabledBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isFocused() const
+    {
+        return (m_StateFlags & isFocusedBitmask) != 0;
+    }
+    void isFocused(bool value)
+    {
+        const bool prev = (m_StateFlags & isFocusedBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isFocusedPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isFocusedBitmask)
+                             : (m_StateFlags & ~isFocusedBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isHidden() const
+    {
+        return (m_StateFlags & isHiddenBitmask) != 0;
+    }
+    void isHidden(bool value)
+    {
+        const bool prev = (m_StateFlags & isHiddenBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isHiddenPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isHiddenBitmask)
+                             : (m_StateFlags & ~isHiddenBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isLiveRegion() const
+    {
+        return (m_StateFlags & isLiveRegionBitmask) != 0;
+    }
+    void isLiveRegion(bool value)
+    {
+        const bool prev = (m_StateFlags & isLiveRegionBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isLiveRegionPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isLiveRegionBitmask)
+                             : (m_StateFlags & ~isLiveRegionBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isReadOnly() const
+    {
+        return (m_StateFlags & isReadOnlyBitmask) != 0;
+    }
+    void isReadOnly(bool value)
+    {
+        const bool prev = (m_StateFlags & isReadOnlyBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isReadOnlyPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isReadOnlyBitmask)
+                             : (m_StateFlags & ~isReadOnlyBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isModal() const { return (m_StateFlags & isModalBitmask) != 0; }
+    void isModal(bool value)
+    {
+        const bool prev = (m_StateFlags & isModalBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isModalPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isModalBitmask)
+                             : (m_StateFlags & ~isModalBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isObscured() const
+    {
+        return (m_StateFlags & isObscuredBitmask) != 0;
+    }
+    void isObscured(bool value)
+    {
+        const bool prev = (m_StateFlags & isObscuredBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isObscuredPropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isObscuredBitmask)
+                             : (m_StateFlags & ~isObscuredBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
+    inline bool isMultiline() const
+    {
+        return (m_StateFlags & isMultilineBitmask) != 0;
+    }
+    void isMultiline(bool value)
+    {
+        const bool prev = (m_StateFlags & isMultilineBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(isMultilinePropertyKey, &prev, &value);
+        m_StateFlags = value ? (m_StateFlags | isMultilineBitmask)
+                             : (m_StateFlags & ~isMultilineBitmask);
+        RIVE_EDITOR_CHANGED(stateFlagsChanged());
+        notifyPropertyChanged(stateFlagsPropertyKey);
+    }
     Core* clone() const override;
     void copy(const SemanticDataBase& object)
     {
@@ -225,6 +583,9 @@ protected:
     virtual void headingLevelChanged() {}
     virtual void traitFlagsChanged() {}
     virtual void stateFlagsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/semantic/semantic_data_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -54,6 +54,28 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
         }
         itr++;
     }
+#ifdef WITH_RIVE_EDITOR
+    // The editor list is rebuilt by `finalizeBatch` AFTER Pass 3
+    // onAddedDirty runs, so at the time the dispatcher calls us on a
+    // freshly-hydrated KeyedObject it's still empty. On subsequent
+    // finalizeBatch runs (new coop batch), the editor list carries
+    // the previously-wired coop keyed properties; walking it again
+    // here keeps CoreRegistry::objectSupportsProperty pruning
+    // consistent with the runtime path.
+    for (auto itr = m_editorKeyedProperties.begin();
+         itr != m_editorKeyedProperties.end();)
+    {
+        auto* property = *itr;
+        if (!CoreRegistry::objectSupportsProperty(coreObject,
+                                                  property->propertyKey()))
+        {
+            itr = m_editorKeyedProperties.erase(itr);
+            continue;
+        }
+        property->onAddedDirty(context);
+        itr++;
+    }
+#endif
     return StatusCode::Ok;
 }
 
@@ -63,8 +85,18 @@ StatusCode KeyedObject::onAddedClean(CoreContext* context)
     {
         property->onAddedClean(context);
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* property : m_editorKeyedProperties)
+    {
+        property->onAddedClean(context);
+    }
+#endif
     return StatusCode::Ok;
 }
+
+// `addKeyedPropertyForEditor` and `clearEditorKeyedProperties` live in
+// `editor_native/native/src/editor/animation/keyed_object_editor.cpp`
+// — see the matching comment in `keyed_property.cpp`.
 
 void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        float secondsFrom,
@@ -83,6 +115,20 @@ void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        secondsTo,
                                        isAtStartFrame);
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* property : m_editorKeyedProperties)
+    {
+        if (!CoreRegistry::isCallback(property->propertyKey()))
+        {
+            continue;
+        }
+        property->reportKeyedCallbacks(reporter,
+                                       objectId(),
+                                       secondsFrom,
+                                       secondsTo,
+                                       isAtStartFrame);
+    }
+#endif
 }
 
 void KeyedObject::apply(Artboard* artboard,
@@ -103,6 +149,16 @@ void KeyedObject::apply(Artboard* artboard,
         }
         property->apply(object, time, mix, context);
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* property : m_editorKeyedProperties)
+    {
+        if (CoreRegistry::isCallback(property->propertyKey()))
+        {
+            continue;
+        }
+        property->apply(object, time, mix);
+    }
+#endif
 }
 
 StatusCode KeyedObject::import(ImportStack& importStack)

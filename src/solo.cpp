@@ -106,12 +106,25 @@ StatusCode Solo::onAddedClean(CoreContext* context)
     {
         return code;
     }
-    propagateCollapse(isCollapsed());
-#ifdef WITH_RIVE_LAYOUT
-    // Parent chain + active child are resolved now; make sure the owning layout
-    // has collected the active child.
-    recollectOwningLayout();
+
+#ifdef WITH_RIVE_EDITOR
+    // Coop-apply runs Pass 4 onAddedClean before a renderer is attached;
+    // `propagateCollapse` fires `onDirty` on every child, which in
+    // subclasses like Image/Mesh allocates render buffers via the
+    // factory — so skip during hydration (post-validation edits re-fire
+    // it via activeComponentIdChanged). Runtime .riv imports are marked
+    // validated at read time and need it now or inactive Solo children
+    // render un-collapsed.
+    if (hasValidated())
 #endif
+    {
+        propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_LAYOUT
+        // Parent chain + active child are resolved now; make sure the owning
+        // layout has collected the active child.
+        recollectOwningLayout();
+#endif
+    }
     return StatusCode::Ok;
 }
 

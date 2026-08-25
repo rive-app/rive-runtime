@@ -1002,6 +1002,21 @@ void Text::addRun(TextValueRun* run)
     m_allRuns.push_back(run);
 }
 
+#ifdef WITH_RIVE_EDITOR
+void Text::sortRunsForEditor(
+    const std::function<bool(TextValueRun*, TextValueRun*)>& cmp)
+{
+    if (std::is_sorted(m_runs.begin(), m_runs.end(), cmp) &&
+        std::is_sorted(m_allRuns.begin(), m_allRuns.end(), cmp))
+    {
+        return;
+    }
+    std::sort(m_runs.begin(), m_runs.end(), cmp);
+    std::sort(m_allRuns.begin(), m_allRuns.end(), cmp);
+    markShapeDirty();
+}
+#endif
+
 void Text::addModifierGroup(TextModifierGroup* group)
 {
     m_modifierGroups.push_back(group);

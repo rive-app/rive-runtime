@@ -42,8 +42,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(colorValuePropertyKey, &m_ColorValue, &value);
         m_ColorValue = value;
-        colorValueChanged();
+        RIVE_EDITOR_CHANGED(colorValueChanged());
         notifyPropertyChanged(colorValuePropertyKey);
     }
 
@@ -67,6 +68,9 @@ public:
 
 protected:
     virtual void colorValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/paint/solid_color_ext.inl"
+#endif
 };
 } // namespace rive
 

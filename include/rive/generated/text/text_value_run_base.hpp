@@ -2,8 +2,12 @@
 #define _RIVE_TEXT_VALUE_RUN_BASE_HPP_
 #include <string>
 #include "rive/component.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class TextValueRunBase : public Component
@@ -34,19 +38,20 @@ public:
     static const uint16_t textPropertyKey = 268;
 
 protected:
-    uint32_t m_StyleId = -1;
+    Id m_StyleId = kEmptyId;
     std::string m_Text = "";
 
 public:
-    inline uint32_t styleId() const { return m_StyleId; }
-    void styleId(uint32_t value)
+    inline Id styleId() const { return m_StyleId; }
+    void styleId(Id value)
     {
         if (m_StyleId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(styleIdPropertyKey, &m_StyleId, &value);
         m_StyleId = value;
-        styleIdChanged();
+        RIVE_EDITOR_CHANGED(styleIdChanged());
         notifyPropertyChanged(styleIdPropertyKey);
     }
 
@@ -57,8 +62,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(textPropertyKey, m_Text, value);
         m_Text = value;
-        textChanged();
+        RIVE_EDITOR_CHANGED(textChanged());
         notifyPropertyChanged(textPropertyKey);
     }
 
@@ -67,6 +73,7 @@ public:
     {
         m_StyleId = object.m_StyleId;
         m_Text = object.m_Text;
+        RIVE_EDITOR_COPY(object);
         Component::copy(object);
     }
 
@@ -75,18 +82,22 @@ public:
         switch (propertyKey)
         {
             case styleIdPropertyKey:
-                m_StyleId = CoreUintType::deserialize(reader);
+                m_StyleId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case textPropertyKey:
                 m_Text = CoreStringType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Component::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void styleIdChanged() {}
     virtual void textChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_value_run_ext.inl"
+#endif
 };
 } // namespace rive
 

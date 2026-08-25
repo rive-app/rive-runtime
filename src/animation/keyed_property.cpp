@@ -6,6 +6,7 @@
 #include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/keyed_object_importer.hpp"
+#include <algorithm>
 
 using namespace rive;
 
@@ -16,6 +17,15 @@ void KeyedProperty::addKeyFrame(std::unique_ptr<KeyFrame> keyframe)
 {
     m_keyFrames.push_back(std::move(keyframe));
 }
+
+// `addKeyFrameForEditor`, `clearEditorKeyFrames`, `sortEditorKeyFrames`
+// and `editorClosestFrameIndex` live in the editor_native package
+// (`src/editor/animation/keyed_property_editor.cpp`) so the runtime-
+// only build never compiles or links them. The declarations stay on
+// `KeyedProperty` (under `#ifdef WITH_RIVE_EDITOR` in the header)
+// because `apply()` below still uses `m_editorKeyFrames` directly when
+// the editor list is populated — the runtime build just sees an empty
+// vector and falls through to the runtime-owned `m_keyFrames`.
 
 int KeyedProperty::closestFrameIndex(float seconds, int exactOffset) const
 {
@@ -102,7 +112,40 @@ void KeyedProperty::apply(Core* object,
                           float mix,
                           const LinearAnimationInstance* context)
 {
+#ifdef WITH_RIVE_EDITOR
+    // A given KeyedProperty instance is either runtime-loaded (uses
+    // m_keyFrames unique_ptr owned) or coop-loaded (uses
+    // m_editorKeyFrames non-owning). Pick the populated one; the
+    // binary-search / interpolate logic below operates on whichever
+    // side holds the data. Both-populated can't happen in practice
+    // — a single property either lives in the importer chain or in
+    // the arena, never both.
+    const bool useEditor = m_keyFrames.empty() && !m_editorKeyFrames.empty();
+    const size_t frameCount =
+        useEditor ? m_editorKeyFrames.size() : m_keyFrames.size();
+    // Editor edge case: the user just deleted every kf in this
+    // property (e.g. via kDeleteKeyFrameSelection). The KeyedProperty
+    // Core itself stays alive — it's only orphaned when its parent
+    // KeyedObject gets deleted — but its editor list is empty, and
+    // the binary search below would read `m_editorKeyFrames[-1]`.
+    // Skip with no overlay so the property reverts to its design-
+    // time value on the next frame.
+    if (frameCount == 0)
+        return;
+    auto frameAt = [this, useEditor](int i) -> InterpolatingKeyFrame* {
+        return static_cast<InterpolatingKeyFrame*>(
+            useEditor ? m_editorKeyFrames[i] : m_keyFrames[i].get());
+    };
+    const int closestIdx = useEditor ? editorClosestFrameIndex(seconds)
+                                     : closestFrameIndex(seconds);
+#else
     assert(!m_keyFrames.empty());
+    const size_t frameCount = m_keyFrames.size();
+    auto frameAt = [this](int i) -> InterpolatingKeyFrame* {
+        return static_cast<InterpolatingKeyFrame*>(m_keyFrames[i].get());
+    };
+    const int closestIdx = closestFrameIndex(seconds);
+#endif
 
     auto interpolatorHost = InterpolatorHost::from(object);
     auto actualMix = mix;
@@ -112,22 +155,19 @@ void KeyedProperty::apply(Core* object,
         actualMix = 1.0f;
     }
 
-    int idx = closestFrameIndex(seconds);
+    int idx = closestIdx;
     int pk = propertyKey();
 
     if (idx == 0)
     {
-        static_cast<InterpolatingKeyFrame*>(m_keyFrames[0].get())
-            ->apply(object, pk, actualMix, context);
+        frameAt(0)->apply(object, pk, actualMix, context);
     }
     else
     {
-        if (idx < static_cast<int>(m_keyFrames.size()))
+        if (idx < static_cast<int>(frameCount))
         {
-            InterpolatingKeyFrame* fromFrame =
-                static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get());
-            InterpolatingKeyFrame* toFrame =
-                static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx].get());
+            InterpolatingKeyFrame* fromFrame = frameAt(idx - 1);
+            InterpolatingKeyFrame* toFrame = frameAt(idx);
             if (seconds == toFrame->seconds())
             {
                 toFrame->apply(object, pk, actualMix, context);
@@ -151,8 +191,7 @@ void KeyedProperty::apply(Core* object,
         }
         else
         {
-            static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get())
-                ->apply(object, pk, actualMix, context);
+            frameAt(idx - 1)->apply(object, pk, actualMix, context);
         }
     }
 }
@@ -167,6 +206,12 @@ StatusCode KeyedProperty::onAddedDirty(CoreContext* context)
             return code;
         }
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* keyframe : m_editorKeyFrames)
+    {
+        keyframe->onAddedDirty(context);
+    }
+#endif
     return StatusCode::Ok;
 }
 
@@ -180,6 +225,12 @@ StatusCode KeyedProperty::onAddedClean(CoreContext* context)
             return code;
         }
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* keyframe : m_editorKeyFrames)
+    {
+        keyframe->onAddedClean(context);
+    }
+#endif
     return StatusCode::Ok;
 }
 

@@ -334,13 +334,22 @@ Mat2D LayoutComponent::buildOwnTransform() const
     return own;
 }
 
+// Same unrooted guard as Node's — nothing to be relative to yet.
 float LayoutComponent::computedRootX()
 {
+    if (artboard() == nullptr)
+    {
+        return 0.0f;
+    }
     return artboard()->rootTransform(worldTransform() * localAnchor()).x;
 }
 
 float LayoutComponent::computedRootY()
 {
+    if (artboard() == nullptr)
+    {
+        return 0.0f;
+    }
     return artboard()->rootTransform(worldTransform() * localAnchor()).y;
 }
 
@@ -639,9 +648,19 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     {
         return code;
     }
-    markLayoutStyleDirty();
-    syncLayoutChildren();
-    propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_EDITOR
+    // Coop-apply hydration: skip the render/layout side effects — the
+    // graph is partial here and they re-fire when the renderer attaches
+    // and the first pump runs. Runtime .riv imports are marked validated
+    // at read time and never see a pump, so they must run the wiring now
+    // or Yoga layout stays NaN.
+    if (hasValidated())
+#endif
+    {
+        markLayoutStyleDirty();
+        syncLayoutChildren();
+        propagateCollapse(isCollapsed());
+    }
     return StatusCode::Ok;
 }
 

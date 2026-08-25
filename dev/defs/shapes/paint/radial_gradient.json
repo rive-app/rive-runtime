@@ -1,8 +1,0 @@
-{
-  "name": "RadialGradient",
-  "key": {
-    "int": 17,
-    "string": "radialgradient"
-  },
-  "extends": "shapes/paint/linear_gradient.json"
-}

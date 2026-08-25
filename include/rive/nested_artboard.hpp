@@ -117,6 +117,14 @@ public:
     bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void addNestedAnimation(NestedAnimation* nestedAnimation);
+#ifdef WITH_RIVE_EDITOR
+    /// Idempotent add — `NestedAnimation::editorParentChanged`
+    /// calls this when transitioning into us as the parent.
+    void addNestedAnimationForEditor(NestedAnimation* nestedAnimation);
+    /// Remove if present — `editorParentChanged` calls this when
+    /// transitioning away (re-parent or unregister).
+    void removeNestedAnimationForEditor(NestedAnimation* nestedAnimation);
+#endif
     void updateArtboard(
         ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
     int referencedArtboardId() override;

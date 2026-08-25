@@ -3,6 +3,9 @@
 #include "rive/core.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/span.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class FileAssetContentsBase : public Core
@@ -43,6 +46,8 @@ public:
     {
         copyBytes(object);
         copySignature(object);
+        RIVE_EDITOR_COPY(object);
+        RIVE_EDITOR_COPY_VALIDATED(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -56,12 +61,16 @@ public:
                 decodeSignature(CoreBytesType::deserialize(reader));
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return false;
     }
 
 protected:
     virtual void bytesChanged() {}
     virtual void signatureChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/assets/file_asset_contents_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -9,8 +9,14 @@ using namespace rive;
 void Node::xChanged() { markTransformDirty(); }
 void Node::yChanged() { markTransformDirty(); }
 
+// A node that has not been parented into an artboard has no root to be
+// relative to, so both report the initial value rather than dereferencing.
 float Node::computedRootX()
 {
+    if (artboard() == nullptr)
+    {
+        return 0.0f;
+    }
     auto wt = worldTransform();
     auto rootPos = artboard()->rootTransform(Vec2D(wt[4], wt[5]));
     return rootPos.x;
@@ -18,6 +24,10 @@ float Node::computedRootX()
 
 float Node::computedRootY()
 {
+    if (artboard() == nullptr)
+    {
+        return 0.0f;
+    }
     auto wt = worldTransform();
     auto rootPos = artboard()->rootTransform(Vec2D(wt[4], wt[5]));
     return rootPos.y;

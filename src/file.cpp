@@ -235,6 +235,15 @@ static Core* readRuntimeObject(BinaryReader& reader,
         //         coreObjectKey);
         return nullptr;
     }
+#ifdef WITH_RIVE_EDITOR
+    // The .riv importer is exclusively the runtime path (editor flow
+    // hydrates via coop, never through here), so imported objects are
+    // fully wired by the import stack — mark them validated or the
+    // editor build's hasValidated() gate starves every generated
+    // ${name}Changed() on runtime instances (frozen animation dirt,
+    // silent VMI value callbacks).
+    object->markValidated();
+#endif
     return object;
 }
 

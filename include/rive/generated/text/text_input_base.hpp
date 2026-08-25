@@ -5,6 +5,9 @@
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/drawable.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class TextInputBase : public Drawable
@@ -53,8 +56,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(textPropertyKey, m_Text, value);
         m_Text = value;
-        textChanged();
+        RIVE_EDITOR_CHANGED(textChanged());
         notifyPropertyChanged(textPropertyKey);
     }
 
@@ -65,8 +69,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(selectionRadiusPropertyKey,
+                             &m_SelectionRadius,
+                             &value);
         m_SelectionRadius = value;
-        selectionRadiusChanged();
+        RIVE_EDITOR_CHANGED(selectionRadiusChanged());
         notifyPropertyChanged(selectionRadiusPropertyKey);
     }
 
@@ -77,8 +84,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(multilinePropertyKey, &m_Multiline, &value);
         m_Multiline = value;
-        multilineChanged();
+        RIVE_EDITOR_CHANGED(multilineChanged());
         notifyPropertyChanged(multilinePropertyKey);
     }
 
@@ -88,6 +96,7 @@ public:
         m_Text = object.m_Text;
         m_SelectionRadius = object.m_SelectionRadius;
         m_Multiline = object.m_Multiline;
+        RIVE_EDITOR_COPY(object);
         Drawable::copy(object);
     }
 
@@ -105,6 +114,7 @@ public:
                 m_Multiline = CoreBoolType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Drawable::deserialize(propertyKey, reader);
     }
 
@@ -112,6 +122,9 @@ protected:
     virtual void textChanged() {}
     virtual void selectionRadiusChanged() {}
     virtual void multilineChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_input_ext.inl"
+#endif
 };
 } // namespace rive
 

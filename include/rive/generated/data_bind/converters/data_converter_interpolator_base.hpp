@@ -1,7 +1,9 @@
 #ifndef _RIVE_DATA_CONVERTER_INTERPOLATOR_BASE_HPP_
 #define _RIVE_DATA_CONVERTER_INTERPOLATOR_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 namespace rive
 {
@@ -35,7 +37,7 @@ public:
 
 protected:
     uint32_t m_InterpolationType = 1;
-    uint32_t m_InterpolatorId = -1;
+    Id m_InterpolatorId = kEmptyId;
     float m_Duration = 1.0f;
 
 public:
@@ -46,20 +48,26 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(interpolationTypePropertyKey,
+                             &m_InterpolationType,
+                             &value);
         m_InterpolationType = value;
-        interpolationTypeChanged();
+        RIVE_EDITOR_CHANGED(interpolationTypeChanged());
         notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
-    inline uint32_t interpolatorId() const { return m_InterpolatorId; }
-    void interpolatorId(uint32_t value)
+    inline Id interpolatorId() const { return m_InterpolatorId; }
+    void interpolatorId(Id value)
     {
         if (m_InterpolatorId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(interpolatorIdPropertyKey,
+                             &m_InterpolatorId,
+                             &value);
         m_InterpolatorId = value;
-        interpolatorIdChanged();
+        RIVE_EDITOR_CHANGED(interpolatorIdChanged());
         notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
@@ -70,8 +78,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(durationPropertyKey, &m_Duration, &value);
         m_Duration = value;
-        durationChanged();
+        RIVE_EDITOR_CHANGED(durationChanged());
         notifyPropertyChanged(durationPropertyKey);
     }
 
@@ -92,7 +101,7 @@ public:
                 m_InterpolationType = CoreUintType::deserialize(reader);
                 return true;
             case interpolatorIdPropertyKey:
-                m_InterpolatorId = CoreUintType::deserialize(reader);
+                m_InterpolatorId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case durationPropertyKey:
                 m_Duration = CoreDoubleType::deserialize(reader);
@@ -105,6 +114,9 @@ protected:
     virtual void interpolationTypeChanged() {}
     virtual void interpolatorIdChanged() {}
     virtual void durationChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/data_converter_interpolator_ext.inl"
+#endif
 };
 } // namespace rive
 

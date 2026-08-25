@@ -3,6 +3,9 @@
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/custom_property.hpp"
 #include "rive/span.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ScriptInputViewModelPropertyBase : public CustomProperty
@@ -41,6 +44,7 @@ public:
     void copy(const ScriptInputViewModelPropertyBase& object)
     {
         copyDataBindPathIds(object);
+        RIVE_EDITOR_COPY(object);
         CustomProperty::copy(object);
     }
 
@@ -52,11 +56,15 @@ public:
                 decodeDataBindPathIds(CoreBytesType::deserialize(reader));
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return CustomProperty::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void dataBindPathIdsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/script_input_viewmodel_property_ext.inl"
+#endif
 };
 } // namespace rive
 

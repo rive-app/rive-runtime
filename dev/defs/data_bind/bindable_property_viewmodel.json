@@ -1,8 +1,0 @@
-{
-  "name": "BindablePropertyViewModel",
-  "key": {
-    "int": 662,
-    "string": "bindablepropertyviewmodel"
-  },
-  "extends": "data_bind/bindable_property_id.json"
-}

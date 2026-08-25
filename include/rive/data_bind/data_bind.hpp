@@ -7,6 +7,9 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/viewmodel/viewmodel_value_dependent.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "rive/editor/object_arena.hpp"
+#endif
 #include <stdio.h>
 namespace rive
 {
@@ -26,8 +29,19 @@ public:
     virtual void updateSourceBinding(bool invalidate = false);
     virtual void update(ComponentDirt value);
     void updateDependents();
-    Core* target() const { return m_target; };
+#ifdef WITH_RIVE_EDITOR
+    // Slice 6 Phase E dual-storage. Bodies in editor_native/native/src/
+    // editor/data_bind/data_bind_editor.cpp — the setter also mirrors
+    // the runtime body's observer unsubscribe/resubscribe for the
+    // raw-pointer (pump-runtime) fallback.
+    Core* target() const;
     void target(Core* value);
+#else
+    Core* target() const { return m_target; };
+    // Body in data_bind.cpp — swaps the property-observer subscription
+    // when the target changes.
+    void target(Core* value);
+#endif
     virtual void bind();
     virtual void unbind();
     ComponentDirt dirt() { return m_Dirt; };
@@ -51,7 +65,19 @@ public:
     File* file() const;
     DataType outputType();
     DataType sourceOutputType();
+    // m_container is a back-pointer set when this DataBind joins a
+    // container. Containers manage their DataBinds' lifetime (see
+    // `DataBindContainer::deleteDataBinds` /
+    // `clearEditorDataBinds`), so the DataBind doesn't outlive its
+    // container — same shared-lifetime pattern as
+    // `LayoutComponent::m_style`. No handle migration here; one of
+    // the three DataBindContainer implementers
+    // (`StateMachineInstance`) isn't a Core anyway, so the handle
+    // approach can't even cover it.
+    inline DataBindContainer* container() const { return m_container; }
     void container(DataBindContainer*);
+    // Public on master (data_bind_container_test pokes it directly);
+    // keep the accessors above for editor-side call sites.
     DataBindContainer* m_container = nullptr;
     void collapse(bool collapsed);
     void initialize();
@@ -87,6 +113,21 @@ public:
         setFlag(Flag::Observing, false);
     }
 
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only ownership marker. Set by
+    // `DataBindContainer::addDataBindForEditor` for coop-hydrated
+    // DataBinds whose lifetime is owned by `EditorFile::m_arena`,
+    // not the container. `deleteDataBinds()` checks this flag and
+    // skips the `delete` so we don't double-free arena entries
+    // alongside the importer-owned entries that share the same
+    // `m_dataBinds` list. Mirrors Dart's "DataBinds are file-owned
+    // children of Artboard" model — which works there because GC
+    // handles cleanup. The flag is the C++ way to express the same
+    // "owned elsewhere" semantic.
+    bool isEditorOwned() const { return m_isEditorOwned; }
+    void markEditorOwned() { m_isEditorOwned = true; }
+#endif
+
 private:
     // State bits packed into one byte. Each bool used to live in its own
     // 1B slot with up to 7B of padding between fields, costing ~16B per
@@ -121,10 +162,19 @@ private:
         }
     }
     DataBind* m_nextObserver = nullptr;
+#ifdef WITH_RIVE_EDITOR
+    bool m_isEditorOwned = false;
+#endif
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::None;
     Core* m_target = nullptr;
+#ifdef WITH_RIVE_EDITOR
+    // Slice 6 Phase E dual-storage for m_target only. Editor-flow
+    // Cores resolve through the handle (so a deleted target resolves
+    // to nullptr); pump-runtime Cores read the raw pointer.
+    CoreHandle m_targetHandle;
+#endif
     rcp<ViewModelInstanceValue> m_Source = nullptr;
     DataBindContextValue* m_ContextValue = nullptr;
     DataConverter* m_dataConverter = nullptr;

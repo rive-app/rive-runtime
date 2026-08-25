@@ -177,6 +177,18 @@ public:
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void addRun(TextValueRun* run);
     void addModifierGroup(TextModifierGroup* group);
+#ifdef WITH_RIVE_EDITOR
+    void addModifierGroupForEditor(TextModifierGroup* group);
+    void removeModifierGroupForEditor(TextModifierGroup* group);
+    /// Re-order `m_allRuns` (and `m_runs`) by the caller-supplied
+    /// comparator. The runtime `.riv` import preserves sibling
+    /// order via the exporter; coop hydration delivers cores in
+    /// arrival order, so the editor needs to re-sort after batch
+    /// finalize so concatenated text reads in FractionalIndex
+    /// order ("100%", not "%100").
+    void sortRunsForEditor(
+        const std::function<bool(TextValueRun*, TextValueRun*)>& cmp);
+#endif
     void markShapeDirty(bool sendToLayout);
     void modifierShapeDirty();
 

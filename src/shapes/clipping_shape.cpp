@@ -133,13 +133,40 @@ StatusCode ClippingShape::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
+#ifdef WITH_RIVE_EDITOR
+    setSourceForEditor(static_cast<Node*>(coreObject));
+#else
     m_Source = static_cast<Node*>(coreObject);
+#endif
 
     return StatusCode::Ok;
 }
 
 void ClippingShape::buildDependencies()
 {
+#ifdef WITH_RIVE_EDITOR
+    // Dart parity: every dep-rebuild clears + re-walks the source
+    // subtree. Runtime builds rely on `onAddedClean`'s one-shot init;
+    // editor needs to re-walk because `source` can change mid-edit
+    // (sourceIdChanged → setSourceForEditor → next Pass B re-runs us).
+    // `editorClearDependents` in Pass B-prep wipes stale dependent
+    // entries on every Component, so re-adding the pathComposer edges
+    // below is safe and required even when m_Shapes contents didn't
+    // change.
+    m_Shapes.clear();
+    if (auto* src = source())
+    {
+        src->forAll([this](Component* c) -> bool {
+            if (c->is<Shape>())
+            {
+                auto* shape = c->as<Shape>();
+                shape->addFlags(PathFlags::world | PathFlags::clipping);
+                m_Shapes.push_back(shape);
+            }
+            return true;
+        });
+    }
+#endif
     for (auto shape : m_Shapes)
     {
         shape->pathComposer()->addDependent(this);
@@ -154,6 +181,39 @@ void ClippingShape::buildDependencies()
     }
     clipStart.clippingShape(this);
     clipEnd.clippingShape(this);
+#ifdef WITH_RIVE_EDITOR
+    // Dart parity (clipping_shape.dart:97): force the clip path to
+    // rebuild next update cycle. Without this, anything that triggers
+    // a Pass B re-run without an accompanying property dirt (e.g. a
+    // downstream Fill/Stroke removal that only touches m_ShapePaints)
+    // leaves the cached m_path stale or empty — drawables clipped by
+    // this ClippingShape render incorrectly until something else
+    // dirties the source (moving the source shape rebuilds it).
+    addDirt(ComponentDirt::Path);
+    // Dirty each source shape's PathComposer directly so its next
+    // update rebuilds m_worldPath (consumed by our own update reading
+    // `shape->pathComposer()->worldPath()`).
+    //
+    // We target the PathComposer specifically rather than cascading
+    // from the Shape via `addDirt(Path, recurse=true)`. The cascade
+    // would traverse the Shape's m_Dependents → PathComposer →
+    // PathComposer's m_Dependents — and PathComposer isn't an arena
+    // Component, so Pass B-prep's m_Dependents wipe sweep doesn't
+    // reach it. Stale ClippingShape* entries from previous batches
+    // (where a clip was created then freed via undo/redo) accumulate
+    // in pathComposer->m_Dependents and the cascade dereferences
+    // them, crashing in the recurse step.
+    //
+    // The direct addDirt(Path) on pathComposer sets its dirt bit +
+    // schedules onComponentDirty via the dependency root, without
+    // walking the contaminated dependents list. PathComposer.update
+    // then rebuilds m_worldPath in the topological walk, before
+    // ClippingShape.update reads it.
+    for (auto shape : m_Shapes)
+    {
+        shape->pathComposer()->addDirt(ComponentDirt::Path);
+    }
+#endif
 }
 
 static Mat2D identity;

@@ -1,7 +1,9 @@
 #ifndef _RIVE_INTERPOLATING_KEY_FRAME_BASE_HPP_
 #define _RIVE_INTERPOLATING_KEY_FRAME_BASE_HPP_
 #include "rive/animation/keyframe.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class InterpolatingKeyFrameBase : public KeyFrame
@@ -33,7 +35,7 @@ public:
 
 protected:
     uint32_t m_InterpolationType = 0;
-    uint32_t m_InterpolatorId = -1;
+    Id m_InterpolatorId = kEmptyId;
 
 public:
     inline uint32_t interpolationType() const { return m_InterpolationType; }
@@ -43,20 +45,26 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(interpolationTypePropertyKey,
+                             &m_InterpolationType,
+                             &value);
         m_InterpolationType = value;
-        interpolationTypeChanged();
+        RIVE_EDITOR_CHANGED(interpolationTypeChanged());
         notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
-    inline uint32_t interpolatorId() const { return m_InterpolatorId; }
-    void interpolatorId(uint32_t value)
+    inline Id interpolatorId() const { return m_InterpolatorId; }
+    void interpolatorId(Id value)
     {
         if (m_InterpolatorId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(interpolatorIdPropertyKey,
+                             &m_InterpolatorId,
+                             &value);
         m_InterpolatorId = value;
-        interpolatorIdChanged();
+        RIVE_EDITOR_CHANGED(interpolatorIdChanged());
         notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
@@ -75,7 +83,7 @@ public:
                 m_InterpolationType = CoreUintType::deserialize(reader);
                 return true;
             case interpolatorIdPropertyKey:
-                m_InterpolatorId = CoreUintType::deserialize(reader);
+                m_InterpolatorId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return KeyFrame::deserialize(propertyKey, reader);
@@ -84,6 +92,9 @@ public:
 protected:
     virtual void interpolationTypeChanged() {}
     virtual void interpolatorIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/interpolating_keyframe_ext.inl"
+#endif
 };
 } // namespace rive
 

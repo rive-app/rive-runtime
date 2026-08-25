@@ -9,6 +9,27 @@ class CppFormatter {
     return utf8.decodeStream(process.stdout);
   }
 
+  /// Formats a fragment destined for a class body. clang-format needs a
+  /// complete declaration, so the fragment rides inside a throwaway class
+  /// whose wrapper lines are stripped back off.
+  Future<String> formatClassBody(String code) async {
+    var formatted = await format('class _RiveEditorExtension\n{\n$code\n};');
+    var lines = formatted.split('\n');
+    while (lines.isNotEmpty && lines.first.trim() != '{') {
+      lines.removeAt(0);
+    }
+    if (lines.isNotEmpty) {
+      lines.removeAt(0);
+    }
+    while (lines.isNotEmpty && lines.last.trim().isEmpty) {
+      lines.removeLast();
+    }
+    if (lines.isNotEmpty && lines.last.trim() == '};') {
+      lines.removeLast();
+    }
+    return '${lines.join('\n')}\n';
+  }
+
   Future<String> formatAndGuard(String name, String code) async {
     String guardName = name
         .replaceAllMapped(

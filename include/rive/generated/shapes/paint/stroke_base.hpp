@@ -51,8 +51,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(thicknessPropertyKey, &m_Thickness, &value);
         m_Thickness = value;
-        thicknessChanged();
+        RIVE_EDITOR_CHANGED(thicknessChanged());
         notifyPropertyChanged(thicknessPropertyKey);
     }
 
@@ -63,8 +64,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(capPropertyKey, &m_Cap, &value);
         m_Cap = value;
-        capChanged();
+        RIVE_EDITOR_CHANGED(capChanged());
         notifyPropertyChanged(capPropertyKey);
     }
 
@@ -75,8 +77,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(joinPropertyKey, &m_Join, &value);
         m_Join = value;
-        joinChanged();
+        RIVE_EDITOR_CHANGED(joinChanged());
         notifyPropertyChanged(joinPropertyKey);
     }
 
@@ -90,8 +93,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(transformAffectsStrokePropertyKey,
+                             &m_TransformAffectsStroke,
+                             &value);
         m_TransformAffectsStroke = value;
-        transformAffectsStrokeChanged();
+        RIVE_EDITOR_CHANGED(transformAffectsStrokeChanged());
         notifyPropertyChanged(transformAffectsStrokePropertyKey);
     }
 
@@ -130,6 +136,9 @@ protected:
     virtual void capChanged() {}
     virtual void joinChanged() {}
     virtual void transformAffectsStrokeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/paint/stroke_ext.inl"
+#endif
 };
 } // namespace rive
 

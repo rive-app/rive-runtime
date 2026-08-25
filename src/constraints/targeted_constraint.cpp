@@ -33,7 +33,11 @@ StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
+#ifdef WITH_RIVE_EDITOR
+    setTargetForEditor(static_cast<TransformComponent*>(coreObject));
+#else
     m_Target = static_cast<TransformComponent*>(coreObject);
+#endif
 
     return StatusCode::Ok;
 }
@@ -42,8 +46,8 @@ void TargetedConstraint::buildDependencies()
 {
     // Targeted constraints must have their constrained component (parent)
     // update after the target.
-    if (m_Target != nullptr)
+    if (auto* t = target())
     {
-        m_Target->addDependent(parent());
+        t->addDependent(parent());
     }
 }

@@ -352,6 +352,33 @@ StatusCode Artboard::initialize()
     // rule for a transform component.
     std::unordered_map<Core*, DrawRules*> componentDrawRules;
 
+#ifdef WITH_RIVE_EDITOR
+    // Editor builds move typed-child registration (paths on shapes,
+    // nested animations on NestedArtboard, skins, constraints, ...) out
+    // of onAdded* and into editorParentChanged, driven by the coop
+    // hydration passes. initialize() only ever runs for .riv-imported
+    // artboards, which never see those passes — run the registration
+    // sweep here or the typed lists stay empty (frozen rigs, zero
+    // bounds, unresolvable nested inputs). Must happen BEFORE the
+    // onAddedClean walk below: consumers like NestedArtboard mount
+    // their nested state machines from the typed lists inside
+    // onAddedClean. Parent pointers and child lists are wired by the
+    // onAddedDirty pass above. Registrations are contractually
+    // idempotent on `to`, so the pump's hydrateRuntimeArtboard doing
+    // this again is harmless.
+    for (auto object : m_Objects)
+    {
+        if (object != nullptr && object->is<Component>())
+        {
+            auto* component = object->as<Component>();
+            if (auto* componentParent = component->parent())
+            {
+                component->editorParentChanged(nullptr, componentParent);
+            }
+        }
+    }
+#endif
+
     // onAddedClean is called when all individually referenced components have
     // been found and so components can look at other components' references and
     // assume that they have resolved too. This is where the whole hierarchy is
@@ -389,8 +416,8 @@ StatusCode Artboard::initialize()
                 {
                     fprintf(stderr,
                             "Artboard::initialize - Draw rule targets missing "
-                            "component width id %d\n",
-                            rules->parentId());
+                            "component width id %u\n",
+                            static_cast<uint32_t>(rules->parentId()));
                 }
                 break;
             }
@@ -889,6 +916,19 @@ void Artboard::clearRedundantOperations()
     assert(appliedClippingSaveOperations.size() == 0);
 }
 
+#ifdef WITH_RIVE_EDITOR
+void Artboard::initLayoutForEditor()
+{
+    m_layout = Layout(0.0f, 0.0f, width(), height());
+    // NOTE: intentionally skipping `markLayoutDirty(this)` — the full
+    // layout pipeline isn't wired for coop-loaded artboards yet (no
+    // style / Yoga node setup), and running syncStyleChanges on a
+    // partial state has been observed to crash. Phase 2.1 adds the
+    // layout pipeline back behind the `#ifdef WITH_RIVE_LAYOUT` once
+    // the missing setup is in place.
+}
+#endif
+
 void Artboard::sortDependencies()
 {
     DependencySorter sorter;
@@ -960,13 +1000,34 @@ void Artboard::advanceScriptedViewModels()
 #endif
 }
 
-Core* Artboard::resolve(uint32_t id) const
+Core* Artboard::resolve(Id id) const
 {
-    if (id >= static_cast<int>(m_Objects.size()))
-    {
+#ifdef WITH_RIVE_EDITOR
+    // Editor `Id` is `{client, object}` and objects come from two
+    // sources that share the same namespace:
+    //   • `.riv`-loaded objects — `CoreIdType::runtimeDeserialize`
+    //     synthesizes `Id{0, runtime_index}` which indexes straight
+    //     into `m_Objects` (same behavior as a runtime build).
+    //   • Coop-delivered objects — stamped by the server with
+    //     `client == 0` too, looked up via `m_editorResolver`'s
+    //     CoopId map. Non-zero client always means a coop peer ID.
+    // `m_Objects` first (runtime path) then fall through to the
+    // resolver, so both sources resolve correctly without the caller
+    // needing to know which. `kEmptyId == {0, 0}` is short-circuited
+    // — `m_Objects[0]` is a legitimate object (the Artboard itself)
+    // and would be a wrong answer for "no id set".
+    if (id.empty())
         return nullptr;
+    if (id.client == 0 && id.object < m_Objects.size())
+    {
+        if (auto* hit = m_Objects[id.object])
+            return hit;
     }
-    return m_Objects[id];
+    return m_editorResolver ? m_editorResolver->resolve(id) : nullptr;
+#else
+    // Runtime: single-source `Id` (a raw uint index) into `m_Objects`.
+    return id < static_cast<int>(m_Objects.size()) ? m_Objects[id] : nullptr;
+#endif
 }
 
 uint32_t Artboard::idOf(Core* object) const

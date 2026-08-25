@@ -111,7 +111,7 @@ float BinaryReader::readFloat32()
     return value;
 }
 
-#ifdef WITH_RIVE_TOOLS
+#if defined(WITH_RIVE_TOOLS) || defined(WITH_RIVE_EDITOR)
 double BinaryReader::readFloat64()
 {
     double value;

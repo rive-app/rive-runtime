@@ -8,11 +8,12 @@ using namespace rive;
 
 const Mat2D TransformConstraint::targetTransform() const
 {
-    AABB bounds = m_Target->constraintBounds();
+    auto* tgt = target();
+    AABB bounds = tgt->constraintBounds();
     Mat2D local =
         Mat2D::fromTranslate(bounds.left() + bounds.width() * originX(),
                              bounds.top() + bounds.height() * originY());
-    return m_Target->worldTransform() * local;
+    return tgt->worldTransform() * local;
 }
 
 void TransformConstraint::originXChanged() { markConstraintDirty(); }
@@ -21,7 +22,8 @@ void TransformConstraint::originYChanged() { markConstraintDirty(); }
 
 void TransformConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr || m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt == nullptr || tgt->isCollapsed())
     {
         return;
     }
@@ -30,7 +32,7 @@ void TransformConstraint::constrain(TransformComponent* component)
     Mat2D transformB(targetTransform());
     if (sourceSpace() == TransformSpace::local)
     {
-        const Mat2D& targetParentWorld = getParentWorld(*m_Target);
+        const Mat2D& targetParentWorld = getParentWorld(*tgt);
 
         Mat2D inverse;
         if (!targetParentWorld.invert(&inverse))

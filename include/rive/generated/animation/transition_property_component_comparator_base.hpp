@@ -1,7 +1,9 @@
 #ifndef _RIVE_TRANSITION_PROPERTY_COMPONENT_COMPARATOR_BASE_HPP_
 #define _RIVE_TRANSITION_PROPERTY_COMPONENT_COMPARATOR_BASE_HPP_
 #include "rive/animation/transition_property_comparator.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class TransitionPropertyComponentComparatorBase
@@ -34,19 +36,20 @@ public:
     static const uint16_t propertyKeyPropertyKey = 978;
 
 protected:
-    uint32_t m_ObjectId = 0;
+    Id m_ObjectId = 0;
     uint32_t m_PropertyKey = 0;
 
 public:
-    inline uint32_t objectId() const { return m_ObjectId; }
-    void objectId(uint32_t value)
+    inline Id objectId() const { return m_ObjectId; }
+    void objectId(Id value)
     {
         if (m_ObjectId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(objectIdPropertyKey, &m_ObjectId, &value);
         m_ObjectId = value;
-        objectIdChanged();
+        RIVE_EDITOR_CHANGED(objectIdChanged());
         notifyPropertyChanged(objectIdPropertyKey);
     }
 
@@ -57,8 +60,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
         m_PropertyKey = value;
-        propertyKeyChanged();
+        RIVE_EDITOR_CHANGED(propertyKeyChanged());
         notifyPropertyChanged(propertyKeyPropertyKey);
     }
 
@@ -75,7 +79,7 @@ public:
         switch (propertyKey)
         {
             case objectIdPropertyKey:
-                m_ObjectId = CoreUintType::deserialize(reader);
+                m_ObjectId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case propertyKeyPropertyKey:
                 m_PropertyKey = CoreUintType::deserialize(reader);
@@ -87,6 +91,9 @@ public:
 protected:
     virtual void objectIdChanged() {}
     virtual void propertyKeyChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/transition_property_component_comparator_ext.inl"
+#endif
 };
 } // namespace rive
 

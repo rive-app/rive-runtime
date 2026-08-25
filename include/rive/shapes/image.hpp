@@ -53,6 +53,23 @@ private:
 
 public:
     void setMesh(MeshDrawable* mesh);
+#ifdef WITH_RIVE_EDITOR
+    /// Mesh / NSlicer call this from `editorParentChanged(_, this)`
+    /// to register on transition to. Both share `m_Mesh` — the
+    /// runtime invariant is one Mesh OR one NSlicer per Image, so
+    /// the second one overrides.
+    void setMeshForEditor(MeshDrawable* mesh) { m_Mesh = mesh; }
+    /// Clear `m_Mesh` only if it currently points at `expected`.
+    /// Called from `editorParentChanged(this, _)` to safely detach
+    /// without clobbering a sibling's setter that ran more recently.
+    void clearMeshIfForEditor(MeshDrawable* expected)
+    {
+        if (m_Mesh == expected)
+        {
+            m_Mesh = nullptr;
+        }
+    }
+#endif
     ImageAsset* imageAsset() const;
     ImageSampler imageSampler() const;
     void draw(Renderer* renderer) override;

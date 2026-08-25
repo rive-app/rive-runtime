@@ -269,6 +269,39 @@ void Shape::buildDependencies()
 {
     // Make sure to propagate the call to PathComposer as it's no longer part of
     // Core and owned only by the Shape.
+#ifdef WITH_RIVE_EDITOR
+    // PathComposer is constructed as a Shape member; it's not a Core in the
+    // arena and not reachable via parentId. Component::onAddedDirty's
+    // editor branch (parentId chain walk) leaves its m_Artboard null and
+    // m_DependencyHelper.m_dependecyRoot uninitialized. Any subsequent
+    // `addDirt` from `m_PathComposer` (e.g. Shape::pathChanged →
+    // m_PathComposer.addDirt(Path, true)) calls onComponentDirty on a
+    // garbage pointer and crashes. The runtime path side-steps this
+    // because Component::onAddedDirty's runtime branch sets
+    // `m_Artboard = static_cast<Artboard*>(context)` unconditionally
+    // before any subsequent addDirt path runs. Mirror that here:
+    // forward Shape's wired artboard to its owned PathComposer.
+    if (artboard() != nullptr)
+    {
+        m_PathComposer.setArtboardForEditor(artboard());
+    }
+    // PathComposer isn't an arena Core (lives as a value member of
+    // Shape), so editor_native's Pass B-prep-dependents `forEachLive`
+    // sweep doesn't reach it — its `m_Dependents` accumulates entries
+    // across batches and never gets cleaned. Components that depend
+    // on PathComposer (e.g. ClippingShape, via
+    // `shape->pathComposer()->addDependent(this)` in their
+    // buildDependencies) leave dangling pointers after they're freed,
+    // and the next dirt cascade through pathComposer crashes on the
+    // stale entries. Mirror Pass B-prep's effect here so PathComposer
+    // also starts each batch with a clean dependents list — Pass B's
+    // buildDependencies loop re-adds the live edges (this calls
+    // `PathComposer::buildDependencies` below, and per-type editor
+    // overrides like `ClippingShape`, `Feather`, `FollowPathConstraint`,
+    // `TextFollowPathModifier` re-register themselves in their own
+    // buildDependencies calls).
+    m_PathComposer.editorClearDependents();
+#endif
     m_PathComposer.buildDependencies();
 
     Super::buildDependencies();
@@ -289,8 +322,32 @@ StatusCode Shape::onAddedDirty(CoreContext* context)
     {
         return code;
     }
+#ifdef WITH_RIVE_EDITOR
+    // PathComposer is a Shape value-member, not in the arena, with no
+    // CoopId. `Component::onAddedDirty`'s editor branch tries to
+    // resolve its (empty) `parentId()` and returns MissingObject,
+    // which propagates here and gets the entire Shape culled in
+    // Pass 4-cull, leaving the artboard with zero drawables.
+    //
+    // Mirrors Dart `Shape` (rive_core/lib/shapes/shape.dart:374-380),
+    // which only propagates `buildDependencies()` to pathComposer —
+    // never `onAddedDirty`. The runtime branch's optimization
+    // (`m_Artboard = static_cast<Artboard*>(context)` via Component's
+    // runtime branch) makes onAddedDirty work in runtime build only.
+    // In editor mode, PathComposer's artboard wiring happens via the
+    // `setArtboardForEditor` workaround in `Shape::buildDependencies`.
+    //
+    // TODO(value-member helpers): a more general fix would be to give
+    // value-member helpers like PathComposer an arena registration so
+    // `Component::onAddedDirty`'s editor branch can detect "no arena,
+    // run runtime branch instead." Would auto-handle future helpers
+    // without per-callsite ifdefs. For now, mirror Dart with a
+    // targeted skip.
+    return StatusCode::Ok;
+#else
     // This ensures context propagates to path composer too.
     return m_PathComposer.onAddedDirty(context);
+#endif
 }
 
 StatusCode Shape::onAddedClean(CoreContext* context)

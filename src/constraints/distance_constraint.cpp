@@ -14,7 +14,8 @@ enum class Mode
 
 void DistanceConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr || m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt == nullptr || tgt->isCollapsed())
     {
         return;
     }
@@ -24,7 +25,7 @@ void DistanceConstraint::constrain(TransformComponent* component)
     const Vec2D anchorWorld = Vec2D(world[0] * anchor.x + world[2] * anchor.y,
                                     world[1] * anchor.x + world[3] * anchor.y);
 
-    const Vec2D targetTranslation = m_Target->worldTranslation();
+    const Vec2D targetTranslation = tgt->worldTranslation();
     const Vec2D ourTranslation = component->worldTranslation() + anchorWorld;
 
     Vec2D toTarget = ourTranslation - targetTranslation;

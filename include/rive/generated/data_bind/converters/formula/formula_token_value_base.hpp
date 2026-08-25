@@ -41,8 +41,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(operationValuePropertyKey,
+                             &m_OperationValue,
+                             &value);
         m_OperationValue = value;
-        operationValueChanged();
+        RIVE_EDITOR_CHANGED(operationValueChanged());
         notifyPropertyChanged(operationValuePropertyKey);
     }
 
@@ -66,6 +69,9 @@ public:
 
 protected:
     virtual void operationValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/formula/formula_token_value_ext.inl"
+#endif
 };
 } // namespace rive
 

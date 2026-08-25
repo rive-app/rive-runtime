@@ -1,8 +1,0 @@
-{
-  "name": "ScriptInputBoolean",
-  "key": {
-    "int": 631,
-    "string": "scriptinputboolean"
-  },
-  "extends": "custom_property_boolean.json"
-}

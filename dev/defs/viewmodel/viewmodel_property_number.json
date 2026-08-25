@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelPropertyNumber",
-  "key": {
-    "int": 431,
-    "string": "viewmodelpropertynumber"
-  },
-  "extends": "viewmodel/viewmodel_property.json"
-}

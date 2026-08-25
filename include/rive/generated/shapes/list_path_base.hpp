@@ -1,6 +1,7 @@
 #ifndef _RIVE_LIST_PATH_BASE_HPP_
 #define _RIVE_LIST_PATH_BASE_HPP_
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 #include "rive/shapes/points_common_path.hpp"
 namespace rive
 {
@@ -37,18 +38,19 @@ public:
     static const uint16_t listSourcePropertyKey = 874;
 
 protected:
-    uint32_t m_ListSource = -1;
+    Id m_ListSource = kEmptyId;
 
 public:
-    inline uint32_t listSource() const { return m_ListSource; }
-    void listSource(uint32_t value)
+    inline Id listSource() const { return m_ListSource; }
+    void listSource(Id value)
     {
         if (m_ListSource == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(listSourcePropertyKey, &m_ListSource, &value);
         m_ListSource = value;
-        listSourceChanged();
+        RIVE_EDITOR_CHANGED(listSourceChanged());
         notifyPropertyChanged(listSourcePropertyKey);
     }
 
@@ -64,7 +66,7 @@ public:
         switch (propertyKey)
         {
             case listSourcePropertyKey:
-                m_ListSource = CoreUintType::deserialize(reader);
+                m_ListSource = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return PointsCommonPath::deserialize(propertyKey, reader);
@@ -72,6 +74,9 @@ public:
 
 protected:
     virtual void listSourceChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/list_path_ext.inl"
+#endif
 };
 } // namespace rive
 

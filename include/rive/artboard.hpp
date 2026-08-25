@@ -79,6 +79,15 @@ class Artboard : public ArtboardBase,
 
 private:
     std::vector<Core*> m_Objects;
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only: supplementary resolver for objects referenced by
+    // their coop (client, object) identity rather than a flat
+    // `m_Objects` index. editor_native installs one of these at
+    // coop-session start so `Artboard::resolve(Id)` can route
+    // non-runtime CoopIds through the coop object map. Left null in
+    // runtime-only resolution.
+    CoreContext* m_editorResolver = nullptr;
+#endif
     std::vector<Core*> m_invalidObjects;
     std::vector<LinearAnimation*> m_Animations;
     std::vector<StateMachine*> m_StateMachines;
@@ -285,7 +294,74 @@ public:
     StatusCode initialize();
     bool didChange() { return m_didChange; }
 
-    Core* resolve(uint32_t id) const override;
+    Core* resolve(Id id) const override;
+#ifdef WITH_RIVE_EDITOR
+    // Install / remove an auxiliary resolver for CoopId-backed
+    // references (see `m_editorResolver`). `editor_native::EditorFile`
+    // is the expected implementor.
+    void setEditorResolver(CoreContext* resolver)
+    {
+        m_editorResolver = resolver;
+    }
+    CoreContext* editorResolver() const { return m_editorResolver; }
+    // Assign the Factory editor_native's coop-created Artboards use to
+    // mint RenderPaint / RenderPath / etc. when runtime children fire
+    // their onAddedDirty. Runtime `.riv` loads install the factory via
+    // `File::import`; editor_native's EditorFile calls this right after
+    // `new EditorArtboard()` in createObject.
+    void setFactory(Factory* factory) { m_Factory = factory; }
+    // Editor-mode Drawable registration. Runtime `.riv` loads populate
+    // `m_Drawables` during `Artboard::initialize()` by walking
+    // `m_Objects`. In coop-apply, `m_Objects` stays empty — children
+    // live in EditorFile's arena — so EditorFile's `finalizeBatch`
+    // drives per-Drawable registration via this setter. Mirrors Dart's
+    // `Artboard.addComponent` specialty-list population
+    // (packages/rive_core/lib/artboard.dart:1068-1098).
+    void addDrawable(Drawable* drawable) { m_Drawables.push_back(drawable); }
+    // Clear the drawables list so `finalizeBatch` can rebuild it
+    // idempotently when a follow-on coop batch adds more Drawables.
+    void clearDrawables() { m_Drawables.clear(); }
+    // Editor-side iteration over registered drawables. Used by
+    // CommandDispatcher::handleHitTest to walk components inside an
+    // artboard back-to-front for component-level selection. Vector
+    // order matches draw order (later index = higher z).
+    const std::vector<Drawable*>& drawables() const { return m_Drawables; }
+    // Editor-only: clear/rebuild the animation + state-machine lists.
+    // Runtime `.riv` loads populate these via `ArtboardImporter::
+    // addAnimation` / `addStateMachine` during import; coop-hydrated
+    // animations / state-machines never hit that path, so
+    // `finalizeBatch` registers them manually after each batch. Clear
+    // first so repeated finalizeBatch calls don't duplicate entries.
+    void clearAnimations() { m_Animations.clear(); }
+    void clearStateMachines() { m_StateMachines.clear(); }
+    // Editor-only: public wrappers around the otherwise-private
+    // `addAnimation` / `addStateMachine` so `finalizeBatch` can
+    // register coop-hydrated entries without friending EditorFile on
+    // the runtime Artboard. Runtime `.riv` loads still go through
+    // `ArtboardImporter` (our friend), so no changes to that path.
+    void addAnimationForEditor(LinearAnimation* object)
+    {
+        addAnimation(object);
+    }
+    void addStateMachineForEditor(StateMachine* object)
+    {
+        addStateMachine(object);
+    }
+    // Public editor-only surface for the DAG topological sort.
+    // `sortDependencies` is private in the runtime `.riv` load path
+    // (driven by `initialize()`); editor_native's `finalizeBatch` needs
+    // to invoke it after per-component `buildDependencies` calls.
+    void sortDependenciesEditor() { sortDependencies(); }
+    const std::vector<Component*>& dependencyOrder() const
+    {
+        return m_DependencyOrder;
+    }
+    // Initialize `m_layout` from the artboard's width/height so
+    // `layoutWidth()` / `layoutHeight()` / `bounds()` report non-zero.
+    // Mirrors the first lines of `Artboard::initialize()` at
+    // artboard.cpp:261-266. Called once by `EditorFile::finalizeBatch`.
+    void initLayoutForEditor();
+#endif
 #ifdef WITH_RIVE_TOOLS
     void artboardId(uint16_t id) { m_artboardId = id; }
     uint16_t artboardId() const { return m_artboardId; }
@@ -634,6 +710,22 @@ public:
 
     /// Returns true if the artboard is an instance of another
     bool isInstance() const { return m_IsInstance; }
+
+#ifdef WITH_RIVE_EDITOR
+    /// Mark this artboard as an instance. Editor-only setter so
+    /// `EditorFile::cloneArtboardInstance` can produce a clone that
+    /// the runtime treats as a normal instance (drives the
+    /// `isInstance()`-gated branches in update/draw paths). The
+    /// runtime's own `Artboard::instance()` template sets this
+    /// directly because it has friend access to `m_IsInstance`.
+    void setIsInstance(bool value) { m_IsInstance = value; }
+
+    /// Editor-mode pass-through to the private `addObject` so
+    /// `EditorFile::cloneArtboardInstance` can populate `m_Objects`
+    /// on a freshly-constructed clone (mirroring what `instance()`
+    /// does internally for `.riv`-loaded sources).
+    void editorAddObject(Core* object) { addObject(object); }
+#endif
 
     /// Returns true when the artboard will shift the origin from the top
     /// left to the relative width/height of the artboard itself. This is

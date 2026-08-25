@@ -2,6 +2,9 @@
 #define _RIVE_POINTS_COMMON_PATH_BASE_HPP_
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/shapes/path.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class PointsCommonPathBase : public Path
@@ -46,14 +49,16 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(isClosedPropertyKey, &m_IsClosed, &value);
         m_IsClosed = value;
-        isClosedChanged();
+        RIVE_EDITOR_CHANGED(isClosedChanged());
         notifyPropertyChanged(isClosedPropertyKey);
     }
 
     void copy(const PointsCommonPathBase& object)
     {
         m_IsClosed = object.m_IsClosed;
+        RIVE_EDITOR_COPY(object);
         Path::copy(object);
     }
 
@@ -65,11 +70,15 @@ public:
                 m_IsClosed = CoreBoolType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Path::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void isClosedChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/points_common_path_ext.inl"
+#endif
 };
 } // namespace rive
 

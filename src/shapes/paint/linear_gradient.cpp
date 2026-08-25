@@ -85,6 +85,36 @@ static bool stopsComparer(GradientStop* a, GradientStop* b)
 
 void LinearGradient::update(ComponentDirt value)
 {
+#ifdef WITH_RIVE_EDITOR
+    // Skip the mutator pipeline if `initPaintMutator` bailed during
+    // onAddedDirty. The runtime importer returns InvalidObject when
+    // a ShapePaint already has a mutator (malformed file: multiple
+    // SolidColor/Gradient children on a single Fill/Stroke). The
+    // runtime drops those Cores; editor_native's Pass 4-cull only
+    // culls on MissingObject, so the duplicate-mutator Core stays
+    // in the live update set with `m_renderPaint` left null.
+    //
+    // Without this guard `applyTo` → `makeGradient` derefs null on
+    // `renderPaint->shader(...)` — exactly the segfault databind.bin
+    // tripped on.
+    //
+    // This matches the Dart editor's behavior: in
+    // `rive_core/shapes/paint/shape_paint.dart::_changeMutator` a
+    // second mutator REPLACES the first (last-wins), and the
+    // displaced first mutator's `_renderPaint` (declared `late`)
+    // points at a disposed RenderPaint. Any access on the stale
+    // mutator bubbles up as a LateInitializationError instead of
+    // crashing the engine. In C++, the equivalent "the displaced
+    // mutator never had its paint wired" has to be expressed
+    // explicitly — that's this null check.
+    //
+    // SolidColor (the sibling mutator) already has the same guard
+    // at `renderOpacityChanged()` for the same reason.
+    if (renderPaint() == nullptr)
+    {
+        return;
+    }
+#endif
     // Do the stops need to be re-ordered?
     bool stopsChanged = hasDirt(value, ComponentDirt::Stops);
     if (stopsChanged)

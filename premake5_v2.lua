@@ -74,6 +74,14 @@ filter({ 'options:with_rive_layout' })
 do
     defines({ 'WITH_RIVE_LAYOUT' })
 end
+filter({ 'options:with_rive_editor' })
+do
+    defines({ 'WITH_RIVE_EDITOR' })
+    -- Generated runtime bases include their editor extension `.inl` from the
+    -- kernel tree, so every project that sees a generated header needs the
+    -- kernel include root, not just the `rive` library.
+    includedirs({ path.getabsolute('../editor_native/kernel/include') })
+end
 filter({})
 
 dependencies = path.getabsolute('dependencies/')
@@ -373,6 +381,12 @@ newoption({
 newoption({
     trigger = 'with_rive_canvas',
     description = 'Compiles in RenderCanvas and Ore GPU abstraction layer.',
+})
+
+newoption({
+    trigger = 'with_rive_editor',
+    description = 'Enables editor-mode hooks (onPropertyChanging, applyChange, arena). '
+        .. 'Defined only by editor_native — never by runtime SDK consumers.',
 })
 
 newoption({

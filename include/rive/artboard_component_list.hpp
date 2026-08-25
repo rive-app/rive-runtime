@@ -146,6 +146,10 @@ public:
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;
     void addMapRule(ArtboardListMapRule*);
     int type() const override { return coreType(); }
+#ifdef WITH_RIVE_EDITOR
+    void addMapRuleForEditor(ArtboardListMapRule* rule);
+    void removeMapRuleForEditor(ArtboardListMapRule* rule);
+#endif
 
     /// Create/parent a synthetic list scope FocusNode (structural, no
     /// Focusable) so list item focus trees group under it. Idempotent.

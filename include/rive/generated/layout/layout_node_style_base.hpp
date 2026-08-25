@@ -48,8 +48,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(widthPropertyKey, &m_Width, &value);
         m_Width = value;
-        widthChanged();
+        RIVE_EDITOR_CHANGED(widthChanged());
         notifyPropertyChanged(widthPropertyKey);
     }
 
@@ -60,8 +61,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(heightPropertyKey, &m_Height, &value);
         m_Height = value;
-        heightChanged();
+        RIVE_EDITOR_CHANGED(heightChanged());
         notifyPropertyChanged(heightPropertyKey);
     }
 
@@ -72,8 +74,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(fractionalWidthPropertyKey,
+                             &m_FractionalWidth,
+                             &value);
         m_FractionalWidth = value;
-        fractionalWidthChanged();
+        RIVE_EDITOR_CHANGED(fractionalWidthChanged());
         notifyPropertyChanged(fractionalWidthPropertyKey);
     }
 
@@ -84,8 +89,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(fractionalHeightPropertyKey,
+                             &m_FractionalHeight,
+                             &value);
         m_FractionalHeight = value;
-        fractionalHeightChanged();
+        RIVE_EDITOR_CHANGED(fractionalHeightChanged());
         notifyPropertyChanged(fractionalHeightPropertyKey);
     }
 
@@ -124,6 +132,9 @@ protected:
     virtual void heightChanged() {}
     virtual void fractionalWidthChanged() {}
     virtual void fractionalHeightChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/layout/layout_node_style_ext.inl"
+#endif
 };
 } // namespace rive
 

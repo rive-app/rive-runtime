@@ -98,6 +98,34 @@ public:
     std::vector<PathVertex*>& vertices() { return m_Vertices; }
 #endif
 
+#ifdef WITH_RIVE_EDITOR
+    /// Editor-only: sort `m_Vertices` by sibling FractionalIndex
+    /// (`Component::childOrder().compareTo(...)`). The runtime `.riv` import
+    /// path adds vertices in file declaration order — which the
+    /// exporter writes in the authored order, so the resulting
+    /// path geometry is correct without any sorting. Coop
+    /// delivers vertices in server-batch arrival order, which is
+    /// arbitrary; without this resort the rendered path zigzags
+    /// across the children, producing twisted / self-intersecting
+    /// shapes (the visible "broken pose" we see in the editor's
+    /// pump-driven render). Mirrors Dart's
+    /// `ContainerComponent.sortChildren` /
+    /// `Path._sortVertices` flow that runs as part of cleanDirt
+    /// (rive_file.dart:607-613).
+    void sortVerticesForEditor();
+    /// Idempotent add — no-op if `vertex` is already on
+    /// `m_Vertices`. Called by `PathVertex::editorParentChanged`
+    /// when its parent transitions to this Path (initial hydration
+    /// or re-parent target). The dedupe matters for cross-batch
+    /// retries and mixed-mode (`.riv`-imported + coop-edited) files.
+    void addVertexForEditor(PathVertex* vertex);
+    /// Remove `vertex` from `m_Vertices` if present. Called by
+    /// `PathVertex::editorParentChanged` when its parent transitions
+    /// AWAY from this Path (re-parent source, parent-of-parent
+    /// deletion, or child deletion).
+    void removeVertexForEditor(PathVertex* vertex);
+#endif
+
     void buildPath(RawPath&) const;
     AABB localBounds() const override;
 };

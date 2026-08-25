@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelInstanceAssetImage",
-  "key": {
-    "int": 587,
-    "string": "viewmodelinstanceassetimage"
-  },
-  "extends": "viewmodel/viewmodel_instance_asset.json"
-}

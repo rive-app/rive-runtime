@@ -24,6 +24,21 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
         container->addPaint(this);
     }
 
+#ifdef WITH_RIVE_EDITOR
+    // Edit-time: Stroke / Fill::update derefs `m_RenderPaint` which
+    // is set by `initRenderPaint` only if a child mutator
+    // (SolidColor / LinearGradient) successfully initialized. Coop
+    // can deliver duplicate or conflicting mutators where all but
+    // the first return InvalidObject from `initPaintMutator`,
+    // leaving `m_RenderPaint` null. Signal the dispatcher to cull
+    // this ShapePaint so it doesn't enter `m_DependencyOrder` and
+    // crash inside `update()`.
+    if (m_RenderPaint == nullptr)
+    {
+        return StatusCode::InvalidObject;
+    }
+#endif
+
     return StatusCode::Ok;
 }
 

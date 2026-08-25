@@ -31,6 +31,11 @@ template <typename T, typename U, typename Derived> class DependencyHelper
 public:
     void addDependent(U* component) { m_Dependents.pushUnique(component); }
     void removeDependent(U* component) { m_Dependents.eraseAll(component); }
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only: drop every entry. See Component::editorClearDependents
+    // for the finalizeBatch fresh-start rationale.
+    void clearDependentsForEditor() { m_Dependents.clear(); }
+#endif
 
     // Cascade dirt to every registered dependent. Named distinctly from
     // Component::addDirt (and the like on the derived class) so the inherited
@@ -53,6 +58,21 @@ public:
 
     void onComponentDirty(U* component)
     {
+#ifdef WITH_RIVE_EDITOR
+        // Editor build: tolerate a transient null root. Journal
+        // replay's parentId restoration can momentarily route through
+        // `setArtboardForEditor(nullptr)` (parent setter sees the
+        // pre-undo default {0,0} -> no resolve), which nulls the
+        // pointer dependencyRoot() reads (e.g. Component::m_Artboard).
+        // The next live edit / finalizeBatch Pass G re-resolves the
+        // chain. Skipping here avoids a null-deref and is safe -- the
+        // post-pass `addDirt` will fire again through the re-resolved
+        // root.
+        if (static_cast<const Derived*>(this)->dependencyRoot() == nullptr)
+        {
+            return;
+        }
+#endif
         static_cast<Derived*>(this)->dependencyRoot()->onComponentDirty(
             component);
     }

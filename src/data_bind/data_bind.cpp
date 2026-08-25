@@ -335,6 +335,7 @@ void DataBind::bind()
     addDirt(reconcileDirt(), true);
 }
 
+#ifndef WITH_RIVE_EDITOR
 void DataBind::target(Core* value)
 {
     if (m_target == value)
@@ -367,6 +368,7 @@ void DataBind::target(Core* value)
         setFlag(Flag::Observing, true);
     }
 }
+#endif
 
 void DataBind::unbind()
 {
@@ -444,8 +446,8 @@ bool DataBind::targetSupportsPush() const
 
 bool DataBind::canSkip()
 {
-    return m_target && m_target->is<Component>() &&
-           m_target->as<Component>()->isCollapsed() &&
+    auto* t = target();
+    return t && t->is<Component>() && t->as<Component>()->isCollapsed() &&
            propertyKey() != LayoutComponentStyleBase::displayValuePropertyKey;
 }
 
@@ -469,7 +471,7 @@ void DataBind::update(ComponentDirt value)
                 // test_2 / virtualize_blendmode regress). Mirror the
                 // suppressDirt pattern used by the source-apply path.
                 suppressDirt(true);
-                m_ContextValue->apply(m_target,
+                m_ContextValue->apply(target(),
                                       propertyKey(),
                                       (flagsValue & DataBindFlags::Direction) ==
                                           DataBindFlags::ToTarget,
@@ -493,13 +495,13 @@ void DataBind::updateDependents()
 
 void DataBind::updateSourceBinding(bool invalidate)
 {
-    if (toSource() && m_target && m_ContextValue != nullptr)
+    if (toSource() && target() && m_ContextValue != nullptr)
     {
         if (invalidate)
         {
             m_ContextValue->invalidate();
         }
-        m_ContextValue->applyToSource(m_target,
+        m_ContextValue->applyToSource(target(),
                                       propertyKey(),
                                       isMainToSource(),
                                       this);

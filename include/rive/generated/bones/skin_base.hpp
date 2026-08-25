@@ -52,8 +52,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(xxPropertyKey, &m_Xx, &value);
         m_Xx = value;
-        xxChanged();
+        RIVE_EDITOR_CHANGED(xxChanged());
         notifyPropertyChanged(xxPropertyKey);
     }
 
@@ -64,8 +65,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(yxPropertyKey, &m_Yx, &value);
         m_Yx = value;
-        yxChanged();
+        RIVE_EDITOR_CHANGED(yxChanged());
         notifyPropertyChanged(yxPropertyKey);
     }
 
@@ -76,8 +78,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(xyPropertyKey, &m_Xy, &value);
         m_Xy = value;
-        xyChanged();
+        RIVE_EDITOR_CHANGED(xyChanged());
         notifyPropertyChanged(xyPropertyKey);
     }
 
@@ -88,8 +91,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(yyPropertyKey, &m_Yy, &value);
         m_Yy = value;
-        yyChanged();
+        RIVE_EDITOR_CHANGED(yyChanged());
         notifyPropertyChanged(yyPropertyKey);
     }
 
@@ -100,8 +104,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(txPropertyKey, &m_Tx, &value);
         m_Tx = value;
-        txChanged();
+        RIVE_EDITOR_CHANGED(txChanged());
         notifyPropertyChanged(txPropertyKey);
     }
 
@@ -112,8 +117,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(tyPropertyKey, &m_Ty, &value);
         m_Ty = value;
-        tyChanged();
+        RIVE_EDITOR_CHANGED(tyChanged());
         notifyPropertyChanged(tyPropertyKey);
     }
 
@@ -162,6 +168,9 @@ protected:
     virtual void yyChanged() {}
     virtual void txChanged() {}
     virtual void tyChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/bones/skin_ext.inl"
+#endif
 };
 } // namespace rive
 

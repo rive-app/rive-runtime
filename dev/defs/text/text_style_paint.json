@@ -1,8 +1,0 @@
-{
-  "name": "TextStylePaint",
-  "key": {
-    "int": 137,
-    "string": "textstylepaint"
-  },
-  "extends": "text/text_style.json"
-}

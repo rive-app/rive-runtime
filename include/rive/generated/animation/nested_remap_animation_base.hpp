@@ -44,8 +44,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(timePropertyKey, &m_Time, &value);
         m_Time = value;
-        timeChanged();
+        RIVE_EDITOR_CHANGED(timeChanged());
         notifyPropertyChanged(timePropertyKey);
     }
 
@@ -69,6 +70,9 @@ public:
 
 protected:
     virtual void timeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/nested_remap_animation_ext.inl"
+#endif
 };
 } // namespace rive
 

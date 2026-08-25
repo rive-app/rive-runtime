@@ -1,7 +1,9 @@
 #ifndef _RIVE_DRAW_TARGET_BASE_HPP_
 #define _RIVE_DRAW_TARGET_BASE_HPP_
 #include "rive/component.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class DrawTargetBase : public Component
@@ -32,19 +34,20 @@ public:
     static const uint16_t placementValuePropertyKey = 120;
 
 protected:
-    uint32_t m_DrawableId = -1;
+    Id m_DrawableId = kEmptyId;
     uint32_t m_PlacementValue = 0;
 
 public:
-    inline uint32_t drawableId() const { return m_DrawableId; }
-    void drawableId(uint32_t value)
+    inline Id drawableId() const { return m_DrawableId; }
+    void drawableId(Id value)
     {
         if (m_DrawableId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(drawableIdPropertyKey, &m_DrawableId, &value);
         m_DrawableId = value;
-        drawableIdChanged();
+        RIVE_EDITOR_CHANGED(drawableIdChanged());
         notifyPropertyChanged(drawableIdPropertyKey);
     }
 
@@ -55,8 +58,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(placementValuePropertyKey,
+                             &m_PlacementValue,
+                             &value);
         m_PlacementValue = value;
-        placementValueChanged();
+        RIVE_EDITOR_CHANGED(placementValueChanged());
         notifyPropertyChanged(placementValuePropertyKey);
     }
 
@@ -73,7 +79,7 @@ public:
         switch (propertyKey)
         {
             case drawableIdPropertyKey:
-                m_DrawableId = CoreUintType::deserialize(reader);
+                m_DrawableId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case placementValuePropertyKey:
                 m_PlacementValue = CoreUintType::deserialize(reader);
@@ -85,6 +91,9 @@ public:
 protected:
     virtual void drawableIdChanged() {}
     virtual void placementValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/draw_target_ext.inl"
+#endif
 };
 } // namespace rive
 

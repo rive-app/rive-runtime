@@ -37,22 +37,27 @@ StatusCode Mesh::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    // All good, tell the image it has a mesh.
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only; editor build registers via editorParentChanged.
     parent()->as<Image>()->setMesh(this);
+#endif
 
     return StatusCode::Ok;
 }
 
 StatusCode Mesh::onAddedClean(CoreContext* context)
 {
-    // Make sure Core found indices in the file for this Mesh.
+#ifndef WITH_RIVE_EDITOR
+    // Runtime .riv loads: indices must be present and in range.
+    // Editor mode: UAT coop batches don't transmit triangle indices —
+    // editor computes them separately (mirrors Dart's
+    // `packages/rive_core/lib/shapes/mesh.dart:252` onAdded →
+    // triangulate()). Skip the validation so editor-side Meshes load
+    // cleanly; bounds correctness is the editor's responsibility.
     if (m_IndexBuffer == nullptr)
     {
         return StatusCode::InvalidObject;
     }
-
-    // Check the indices are all in range. We should consider having a better
-    // error reporting system to the implementor.
     for (auto index : *m_IndexBuffer)
     {
         if (index >= m_Vertices.size())
@@ -60,6 +65,7 @@ StatusCode Mesh::onAddedClean(CoreContext* context)
             return StatusCode::InvalidObject;
         }
     }
+#endif
     return Super::onAddedClean(context);
 }
 

@@ -10,6 +10,10 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     void tagChanged() override;
     void axisValueChanged() override;
+#ifdef WITH_RIVE_EDITOR
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+#endif
 };
 } // namespace rive
 

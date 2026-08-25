@@ -9,7 +9,9 @@ void KeyFrameId::apply(Core* object,
                        const LinearAnimationInstance* context)
 {
     (void)context;
-    CoreRegistry::setUint(object, propertyKey, value());
+    // setUint would narrow through `uint32_t` and drop the client half
+    // of an editor-mode Id.
+    CoreRegistry::setId(object, propertyKey, value());
 }
 
 void KeyFrameId::applyInterpolation(Core* object,
@@ -20,5 +22,5 @@ void KeyFrameId::applyInterpolation(Core* object,
                                     const LinearAnimationInstance* context)
 {
     (void)context;
-    CoreRegistry::setUint(object, propertyKey, value());
+    CoreRegistry::setId(object, propertyKey, value());
 }

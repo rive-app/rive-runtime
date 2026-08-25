@@ -2,6 +2,9 @@
 #define _RIVE_VIEW_MODEL_INSTANCE_BOOLEAN_BASE_HPP_
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ViewModelInstanceBooleanBase : public ViewModelInstanceValue
@@ -42,8 +45,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
+                             &m_PropertyValue,
+                             &value);
         m_PropertyValue = value;
-        propertyValueChanged();
+        RIVE_EDITOR_CHANGED(propertyValueChanged());
         notifyPropertyChanged(propertyValuePropertyKey);
     }
 
@@ -51,6 +57,7 @@ public:
     void copy(const ViewModelInstanceBooleanBase& object)
     {
         m_PropertyValue = object.m_PropertyValue;
+        RIVE_EDITOR_COPY(object);
         ViewModelInstanceValue::copy(object);
     }
 
@@ -62,11 +69,15 @@ public:
                 m_PropertyValue = CoreBoolType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return ViewModelInstanceValue::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void propertyValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/viewmodel/viewmodel_instance_boolean_ext.inl"
+#endif
 };
 } // namespace rive
 

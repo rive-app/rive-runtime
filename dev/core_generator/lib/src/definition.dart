@@ -15,6 +15,13 @@ String stripExtension(String filename) {
 }
 
 String get withRiveToolsPreprocessor => 'WITH_RIVE_TOOLS';
+
+/// Defined only by editor_native's premake. Gates hooks that make the object
+/// model editable (change recording, coop serialization, arena/CoreRef). The
+/// runtime (Flutter SDK, standalone consumers) never defines this, so these
+/// hooks compile out to nothing and the shipped runtime has zero overhead.
+String get withRiveEditorPreprocessor => 'WITH_RIVE_EDITOR';
+
 void addPreprocessorStart(StringBuffer buffer, String def) {
   buffer.writeln('#ifdef ' + def);
 }
@@ -130,10 +137,17 @@ class Definition {
   }
 
   Definition.fromFilename(this._filename, Map<String, dynamic> data) {
+    dynamic runtimeFlag = data['runtime'];
+    if (runtimeFlag is bool) {
+      _forRuntime = runtimeFlag;
+    }
     dynamic extendsFilename = data['extends'];
     if (extendsFilename is String) {
       _rawExtensionOf = Definition.make(extendsFilename);
-      _extensionOf = getRuntimeExtensionOf(_rawExtensionOf);
+      // an editor-only class keeps its def parent; only runtime classes
+      // skip past editor-only ancestors
+      _extensionOf =
+          _forRuntime ? getRuntimeExtensionOf(_rawExtensionOf) : _rawExtensionOf;
     }
     dynamic nameValue = data['name'];
     if (nameValue is String) {
@@ -157,14 +171,15 @@ class Definition {
     // relationship for codegen/registry dispatch, but do not fold the mixin's
     // properties into the consumer's own property list.
     void addMixin(String name) {
-      // Editor-only mixins (e.g. publishable, taggable) are not synced into the
-      // runtime def tree. Skip any mixin whose def is absent here — only
-      // runtime-capable mixins (e.g. color_channels) participate in C++.
       if (!File(defsPath + name).existsSync()) {
         return;
       }
       final mixinDef = Definition.make(name);
-      if (mixinDef != null) {
+      // Editor-only mixins (publishable, taggable, ...) carry no C++ storage:
+      // the emitted interface is key constants plus a from() resolver, and
+      // nothing can dispatch a plain property through it. Skip them so runtime
+      // consumers keep a single base.
+      if (mixinDef != null && mixinDef._forRuntime) {
         _mixinsOf.add(mixinDef);
       }
     }
@@ -329,16 +344,45 @@ class Definition {
       }
     });
   }
-
   String get localFilename => _filename.indexOf(defsPath) == 0
       ? _filename.substring(defsPath.length)
       : _filename;
 
   String? get name => _name;
 
+  /// Immediate parent in the def tree (`extends` chain), `null` for
+  /// roots. Exposed for the pump_cores dart emit which mirrors the
+  /// def hierarchy. `_extensionOf` is the same getter the C++ emit
+  /// reads internally; this just opens it up to sibling generator
+  /// files.
+  Definition? get extensionOf => _extensionOf;
+
   String get localCodeFilename => '${stripExtension(_filename)}_base.hpp';
-  String get concreteCodeFilename => 'rive/${stripExtension(_filename)}.hpp';
+  // `"runtime": false` classes live under `editor_native/`; runtime
+  // classes under `rive/`. The path prefix here becomes the `#include`
+  // path used by CoreRegistry + parent-class references, so the
+  // choice propagates through the include graph automatically.
+  String get _concreteIncludePrefix => _forRuntime ? 'rive/' : 'editor_native/';
+  String get concreteCodeFilename =>
+      '$_concreteIncludePrefix${stripExtension(_filename)}.hpp';
+  // Mirror the prefix for the generated base include (used by the
+  // concrete stub + the cpp file). Runtime: `rive/generated/...`.
+  // Editor-only: `editor_native/generated/...`.
+  String get _generatedIncludePrefix =>
+      _forRuntime ? 'rive/generated/' : 'editor_native/generated/';
+  String get generatedIncludeFilename =>
+      '$_generatedIncludePrefix$localCodeFilename';
   String get localCppCodeFilename => '${stripExtension(_filename)}_base.cpp';
+
+  /// Editor-only members, accessors and dispatch for a runtime type. The
+  /// generated class body includes it behind one `WITH_RIVE_EDITOR` guard so
+  /// `rive/generated` stays free of editor code.
+  static String get editorFieldTypesIncludeFilename =>
+      'editor_native/generated/editor_field_types.hpp';
+
+  String get localEditorExtFilename => '${stripExtension(_filename)}_ext.inl';
+  String get editorExtIncludeFilename =>
+      'editor_native/generated/$localEditorExtFilename';
 
   /// Runtime types that include this mixin (scanned once all defs are loaded).
   List<Definition> get _mixinConsumers => definitions.values
@@ -438,15 +482,113 @@ class Definition {
     cppFile.writeAsStringSync(formattedCpp, flush: true);
   }
 
+  // Filesystem-output roots. Picks between the runtime and editor_
+  // native destination paths based on `_forRuntime`. Matches
+  // `_concreteIncludePrefix` / `_generatedIncludePrefix`.
+  String get _outputGeneratedHppPath =>
+      _forRuntime ? generatedHppPath : editorGeneratedHppPath;
+  String get _outputConcreteHppPath =>
+      _forRuntime ? concreteHppPath : editorConcreteHppPath;
+  String get _outputGeneratedCppPath =>
+      _forRuntime ? generatedCppPath : editorGeneratedCppPath;
+
+  /// Writes the class-body `.inl` holding this type's editor-only members,
+  /// accessors and dispatch. Section order matches the def order; the file is
+  /// only ever included from inside the generated class.
+  Future<void> _writeEditorExtension({
+    required StringBuffer keys,
+    required StringBuffer fields,
+    required StringBuffer accessors,
+    required StringBuffer copy,
+    required StringBuffer deserialize,
+    required StringBuffer methods,
+    required StringBuffer changed,
+  }) async {
+    StringBuffer ext = StringBuffer();
+    if (keys.isNotEmpty) {
+      ext.writeln('public:');
+      ext.write(keys);
+    }
+    if (fields.isNotEmpty) {
+      ext.writeln('protected:');
+      ext.write(fields);
+    }
+    if (accessors.isNotEmpty || copy.isNotEmpty || deserialize.isNotEmpty ||
+        methods.isNotEmpty) {
+      ext.writeln('public:');
+    }
+    ext.write(accessors);
+    if (copy.isNotEmpty) {
+      ext.writeln('void copyEditorProperties(const ${_name}Base& object) {');
+      ext.write(copy);
+      ext.writeln('}');
+    }
+    if (deserialize.isNotEmpty) {
+      ext.writeln('bool deserializeEditorProperties(uint16_t propertyKey, '
+          'BinaryReader& reader) {');
+      ext.writeln('switch (propertyKey){');
+      ext.write(deserialize);
+      ext.writeln('}');
+      ext.writeln('return false; }');
+    }
+    ext.write(methods);
+    if (changed.isNotEmpty) {
+      ext.writeln('protected:');
+      ext.write(changed);
+    }
+
+    var file = File('$editorGeneratedHppPath$localEditorExtFilename');
+    file.createSync(recursive: true);
+    file.writeAsStringSync(await _formatter.formatClassBody(ext.toString()),
+        flush: true);
+  }
+
   /// Generates cpp header code based on the Definition
   Future<void> generateCode() async {
-    if (!_forRuntime) {
-      return;
+    // `"runtime": false` types are editor-only: the base is emitted under the
+    // editor kernel, wrapped in `#ifdef WITH_RIVE_EDITOR`, so the runtime C++
+    // build never sees the class.
+    final bool editorOnly = !_forRuntime;
+
+    // A runtime type's editor-only artifacts move into a class-body `.inl`
+    // under the editor kernel; an editor-only type is wholly generated there
+    // already, so it keeps everything in one file.
+    final bool splitEditorExt = _forRuntime;
+
+    void startPropertyGuards(StringBuffer buf, Property property) {
+      if (property.isWithRiveToolsOnly) {
+        addPreprocessorStart(buf, withRiveToolsPreprocessor);
+      }
     }
+
+    void endPropertyGuards(StringBuffer buf, Property property) {
+      if (property.isWithRiveToolsOnly) {
+        addPreprocessorEnd(buf);
+      }
+    }
+
+    bool toExt(Property property) =>
+        splitEditorExt && property.isWithRiveEditorOnly;
+    final extKeys = StringBuffer();
+    final extFields = StringBuffer();
+    final extAccessors = StringBuffer();
+    final extCopy = StringBuffer();
+    final extDeserialize = StringBuffer();
+    final extMethods = StringBuffer();
+    final extChanged = StringBuffer();
+    // applyChange and captureStateForJournal ride along whenever the shared
+    // copy/deserialize bodies are emitted, so the extension exists for any
+    // stored type even when no single property is editor-only.
+    final bool hasEditorExt = splitEditorExt &&
+        (properties.any(toExt) ||
+            storedPropertiesNoPassthrough.isNotEmpty ||
+            _extensionOf == null);
+
     if (_isMixin) {
       await _generateMixinInterfaceHeader();
       return;
     }
+
     bool defineContextExtension = _extensionOf?._name == null;
     StringBuffer code = StringBuffer();
 
@@ -456,6 +598,11 @@ class Definition {
           : _extensionOf!.concreteCodeFilename
     };
     for (final property in properties) {
+      if (toExt(property)) {
+        // The extension's field types come in through the one shared editor
+        // header below; the runtime include list stays minimal.
+        continue;
+      }
       var include = property.type.include;
       if (include != null) {
         includes.add(include);
@@ -471,7 +618,6 @@ class Definition {
     final sidecars = sidecarGroups;
     if (sidecars.isNotEmpty) {
       _validateSidecars();
-      includes.add('rive/sidecar.hpp');
     }
 
     var sortedIncludes = includes.toList()..sort();
@@ -484,10 +630,31 @@ class Definition {
       }
       code.write('\n');
     }
+    // Only an extension that carries editor-only properties needs the extra
+    // field types; one that just holds applyChange reuses what the runtime
+    // properties already included.
+    if (properties.any(toExt)) {
+      addPreprocessorStart(code, withRiveEditorPreprocessor);
+      code.writeln('#include "$editorFieldTypesIncludeFilename"');
+      addPreprocessorEnd(code);
+    }
+    // Sidecar storage only exists in runtime builds; editor builds keep
+    // full members so the change hooks see stable field addresses.
+    if (sidecars.isNotEmpty) {
+      code.writeln('#ifndef $withRiveEditorPreprocessor');
+      code.writeln('#include "rive/sidecar.hpp"');
+      code.writeln('#endif');
+    }
 
+    if (editorOnly) {
+      addPreprocessorStart(code, withRiveEditorPreprocessor);
+    }
     code.writeln('namespace rive {');
     // Sidecar payload structs: one POD per cluster, emitted before the class so
     // the lazy holder member and inline accessors see the complete type.
+    if (sidecars.isNotEmpty) {
+      code.writeln('#ifndef $withRiveEditorPreprocessor');
+    }
     for (final group in sidecars.values) {
       final structName = _sidecarStructName(group.first);
       code.writeln('struct $structName {');
@@ -505,6 +672,9 @@ class Definition {
         code.writeln('$fieldLine;');
       }
       code.writeln('};');
+    }
+    if (sidecars.isNotEmpty) {
+      code.writeln('#endif');
     }
     var superTypeName = defineContextExtension ? 'Core' : _extensionOf?._name;
     final mixinBases =
@@ -535,13 +705,12 @@ class Definition {
     code.writeln('uint16_t coreType() const override { return typeKey; }\n');
     if (properties.isNotEmpty) {
       for (final property in properties) {
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorStart(code, withRiveToolsPreprocessor);
-        }
-        code.writeln('static const uint16_t ${property.name}PropertyKey = '
+        final keyBuf = toExt(property) ? extKeys : code;
+        startPropertyGuards(keyBuf, property);
+        keyBuf.writeln('static const uint16_t ${property.name}PropertyKey = '
             '${property.key!.intValue};');
         for (final altKey in property.key!.alternates) {
-          code.writeln(
+          keyBuf.writeln(
               'static const uint16_t ${altKey.stringValue}PropertyKey = '
               '${altKey.intValue};');
         }
@@ -554,21 +723,18 @@ class Definition {
           if (property.type.name == 'uint') {
             final width = property.passthroughBitWidthOrDefault;
             final fieldMask = ((1 << width) - 1) << property.passthroughBit!;
-            code.writeln('static const uint32_t ${property.name}BitOffset = '
+            keyBuf.writeln('static const uint32_t ${property.name}BitOffset = '
                 '${property.passthroughBit};');
-            code.writeln('static const uint32_t ${property.name}FieldMask = '
+            keyBuf.writeln('static const uint32_t ${property.name}FieldMask = '
                 '${fieldMask}u;');
           } else {
-            code.writeln('static const uint32_t ${property.name}Bitmask = '
+            keyBuf.writeln('static const uint32_t ${property.name}Bitmask = '
                 '1u << ${property.passthroughBit};');
           }
         }
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorEnd(code);
-          code.writeln('\n');
-        }
+        endPropertyGuards(keyBuf, property);
       }
-      if (storedProperties.any((prop) => !prop.isEncoded)) {
+      if (storedProperties.any((prop) => !prop.isEncoded && !toExt(prop))) {
         code.writeln('protected:');
       }
 
@@ -577,15 +743,17 @@ class Definition {
         if (property.isEncoded ||
             !property.getExportType().storesData ||
             property.isPassthrough ||
-            property.isBitmaskPassthrough ||
-            property.isSidecar) {
+            property.isBitmaskPassthrough) {
           // Encoded properties don't store data, it's up to the implementation
-          // to decode and store what it needs. Sidecar properties are stored in
-          // a lazily-allocated holder emitted below, not as an inline field.
+          // to decode and store what it needs.
           continue;
         }
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        final fieldBuf = toExt(property) ? extFields : code;
+        startPropertyGuards(fieldBuf, property);
+        if (property.isSidecar) {
+          // Editor builds keep the full member (hooks need stable field
+          // addresses); runtime builds use the cluster holder below.
+          addPreprocessorStart(fieldBuf, withRiveEditorPreprocessor);
         }
         // Emit the field as a single line to avoid trailing text before
         // preprocessor directives (e.g. '#endif').
@@ -600,27 +768,116 @@ class Definition {
             fieldLine += ' = $converted';
           }
         }
-        code.writeln('$fieldLine;');
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorEnd(code);
-          code.writeln('\n');
+        fieldBuf.writeln('$fieldLine;');
+        // Animation-overlay storage. Mirrors Dart's
+        // `_propertyValueAnimated` (rive_core *_base.dart): a separate
+        // field that animation/data-binding writes to without touching
+        // the persistent (static) value. Composed getter returns the
+        // override when set, otherwise the static field. Reset path
+        // (`<name>ResetOverride`) flips `HasOverride` back to false at
+        // frame start; the next apply re-writes it from the current
+        // keyframe. This is what makes the dirty cascade fire every
+        // frame even on hold-span keyframes — the regular setter's
+        // `m_X == value` early-out compares against the static field,
+        // which doesn't move during animation.
+        //
+        // Per-property animation override storage was removed in favor
+        // of cloning artboard instances (each `ArtboardInstance` lives
+        // in its own SubArena with deep-cloned Cores). Edits land in
+        // `m_main`; the property hook propagates to clones; animation
+        // playback writes directly to the playing clone's `m_X`; reset
+        // re-applies m_main values to the clone via the same hook
+        // path. See [[clone-only-playback-state]] in the project memory.
+        // No per-Core override fields emitted.
+        if (property.isSidecar) {
+          addPreprocessorEnd(fieldBuf);
         }
+        endPropertyGuards(fieldBuf, property);
       }
 
       // Lazily-allocated sidecar holders: one 8-byte pointer per cluster, null
-      // until a property in the cluster is authored.
-      for (final entry in sidecars.entries) {
-        final structName = _sidecarStructName(entry.value.first);
-        code.writeln('Sidecar<$structName> m_${entry.key};');
+      // until a property in the cluster is authored. Runtime builds only.
+      if (sidecars.isNotEmpty) {
+        code.writeln('#ifndef $withRiveEditorPreprocessor');
+        for (final entry in sidecars.entries) {
+          final structName = _sidecarStructName(entry.value.first);
+          code.writeln('Sidecar<$structName> m_${entry.key};');
+        }
+        code.writeln('#endif');
       }
 
       // Write getter/setters.
       code.writeln('public:');
       for (final property in properties) {
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorStart(code, withRiveToolsPreprocessor);
-        }
+        final acc = toExt(property) ? extAccessors : code;
+        startPropertyGuards(acc, property);
         if (property.isBitmaskPassthrough) {
+          // Bitmask-passthrough bool: the persistent storage lives on
+          // the target uint (`m_<Target>`). Emit accessors that read /
+          // write a single bit of that field, fire the editor hook
+          // with bool old/new values (keyed on this property's
+          // propertyKey, not the target's), and call the per-property
+          // `<name>Changed()` callback. Core registry dispatches into
+          // `setBool` / `getBool` for these — the matching real setter
+          // must exist or the build breaks; before this branch was
+          // populated the dispatch called a method that didn't exist.
+          final target = property.bitmaskTargetProperty!;
+          final targetField = 'm_${target.capitalizedName}';
+          // Notify the BITMASK TARGET's changed callback (e.g.
+          // `traitFlagsChanged()`), not the per-bit one. Subclasses
+          // override the target callback (e.g. `SemanticData::
+          // traitFlagsChanged` propagates the new flags to its
+          // SemanticNode + dirties content) — firing the per-bit
+          // `<name>Changed()` instead leaves the side-effects
+          // unrun and produces silent runtime divergence.
+          final changedFn = '${target.cppAccessor}Changed';
+          if (property.type.name == 'uint') {
+            // uint slice: read/write `passthroughBitWidth` bits at
+            // `passthroughBit` inside the target mask, via the generated
+            // `<name>BitOffset` / `<name>FieldMask` constants so adapters
+            // share one source of truth. Mirrors master's registry-side
+            // read-modify-write, hoisted into a real accessor pair so the
+            // editor hook + registry dispatch stay uniform with bools.
+            final offsetName = '${property.name}BitOffset';
+            final maskName = '${property.name}FieldMask';
+            acc.writeln(
+                'inline ${property.type.cppGetterName} '
+                '${property.cppAccessor}() const { return '
+                '($targetField & $maskName) >> $offsetName; }');
+            acc.writeln(
+                'void ${property.cppAccessor}'
+                '(${property.type.cppName} value) {');
+            acc.writeln('const ${property.type.cppName} prev = '
+                '($targetField & $maskName) >> $offsetName;');
+            acc.writeln('if (prev == value) { return; }');
+            acc.writeln(
+                'RIVE_EDITOR_CHANGING(${property.name}PropertyKey, &prev, '
+                '&value);');
+            acc.writeln('$targetField = ($targetField & ~$maskName) | '
+                '((value << $offsetName) & $maskName);');
+          } else {
+            final maskName = '${property.name}Bitmask';
+            acc.writeln(
+                'inline bool ${property.cppAccessor}() const { return '
+                '($targetField & $maskName) != 0; }');
+            acc.writeln('void ${property.cppAccessor}(bool value) {');
+            acc.writeln(
+                'const bool prev = ($targetField & $maskName) != 0;');
+            acc.writeln('if (prev == value) { return; }');
+            acc.writeln(
+                'RIVE_EDITOR_CHANGING(${property.name}PropertyKey, &prev, '
+                '&value);');
+            acc.writeln(
+                '$targetField = value ? ($targetField | $maskName) : '
+                '($targetField & ~$maskName);');
+          }
+          acc.writeln('RIVE_EDITOR_CHANGED($changedFn());');
+          // Push-notify on the MASK property's key — matches master's
+          // path, which routes registry writes through the mask's own
+          // setter (mask Changed + notify(mask key)).
+          acc.writeln('notifyPropertyChanged(${target.name}PropertyKey);');
+          acc.writeln('}');
+          endPropertyGuards(acc, property);
           continue;
         }
         // A stored mask property (e.g. colorValue) that satisfies a mixin's
@@ -629,8 +886,8 @@ class Definition {
             mp.bitmaskTargetIsHostProvided &&
             mp.passthroughForBitmask == property.name));
         if (!property.getExportType().storesData) {
-          code.writeln((property.isSetOverride ? '' : 'virtual ') +
-              'void ${property.name}' +
+          acc.writeln((property.isSetOverride ? '' : 'virtual ') +
+              'void ${property.cppAccessor}' +
               '(const ${property.type.cppName}& value) ' +
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
@@ -638,34 +895,64 @@ class Definition {
           // Encoded properties just have a pure virtual decoder that needs to
           // be implemented. Also requires an implemention of copyPropertyName
           // as that will no longer automatically be copied by the generated
-          // code.
-          code.writeln((property.isSetOverride ? '' : 'virtual ') +
+          // acc.
+          acc.writeln((property.isSetOverride ? '' : 'virtual ') +
               'void decode${property.capitalizedName}' +
               '(${property.type.cppName} value) ' +
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
-          code.writeln((property.isSetOverride ? '' : 'virtual ') +
+          acc.writeln((property.isSetOverride ? '' : 'virtual ') +
               'void copy${property.capitalizedName}' +
               '(const ${_name}Base& object) ' +
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
         } else if (property.isPassthrough) {
-          code.writeln('virtual void set${property.capitalizedName}('
-              '${property.type.cppGetterName} value) = 0;');
-          code.writeln(
-              'virtual ${property.type.cppGetterName} ${property.name}() '
+          acc.writeln('virtual void '
+              'set${property.capitalizedName}(${property.type.cppGetterName} value) '
               '= 0;');
-          code.writeln(
-              'void ${property.name}(${property.type.cppName} value) ' +
+          acc.writeln(
+              'virtual ${property.type.cppGetterName} ${property.cppAccessor}() '
+              '= 0;');
+          acc.writeln(
+              'void ${property.cppAccessor}(${property.type.cppName} value) ' +
                   (property.isSetOverride ? 'override' : '') +
                   '{'
-                      'if(${property.name}() == value)'
+                      'if(${property.cppAccessor}() == value)'
                       '{return;}'
                       'set${property.capitalizedName}(value);'
-                      '${property.name}Changed();'
+                      '${property.cppAccessor}Changed();'
                       'notifyPropertyChanged(${property.name}PropertyKey);'
                       '}');
         } else if (property.isSidecar) {
+          // Editor builds store the full member and run the change hooks
+          // (mirrors the plain stored-property emission, minus the runtime
+          // no-editor fallback — we're already inside the editor branch).
+          addPreprocessorStart(acc, withRiveEditorPreprocessor);
+          acc.writeln('inline ${property.type.cppGetterName} '
+              '${property.cppAccessor}() const '
+              '{ return m_${property.capitalizedName}; }');
+          acc.writeln(
+              'void ${property.cppAccessor}(${property.type.cppName} value) {');
+          acc.writeln('if(m_${property.capitalizedName} == value){return;}');
+          if (property.type.name == 'String') {
+            acc.writeln('RIVE_EDITOR_STRING_CHANGING('
+                '${property.name}PropertyKey,'
+                'm_${property.capitalizedName},value);');
+          } else if (property.type.name == 'FractionalIndex') {
+            acc.writeln(
+                'RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING('
+                '${property.name}PropertyKey,'
+                'm_${property.capitalizedName},value);');
+          } else {
+            acc.writeln('RIVE_EDITOR_CHANGING(${property.name}PropertyKey,'
+                '&m_${property.capitalizedName},&value);');
+          }
+          acc.writeln('m_${property.capitalizedName} = value;');
+          acc.writeln(
+              'RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+          acc.writeln('notifyPropertyChanged(${property.name}PropertyKey);');
+          acc.writeln('}');
+          acc.writeln('#else');
           // Getter falls back to the compile-time default when the cluster was
           // never allocated; setter allocates on the first non-default write.
           final memberName = 'm_${property.sidecarName}';
@@ -682,7 +969,7 @@ class Definition {
             // materializes a temporary and the returned reference dangles. Hold
             // the default in a function-local static of the value type.
             final defaultLiteral = converted ?? '${property.type.cppName}{}';
-            code.writeln('inline $getterType ${property.name}() const {'
+            acc.writeln('inline $getterType ${property.name}() const {'
                 'static const ${property.type.cppName} defaultValue = '
                 '$defaultLiteral;'
                 'auto* sidecar = $memberName.get();'
@@ -690,49 +977,122 @@ class Definition {
                 'defaultValue; }');
           } else {
             final defaultLiteral = converted ?? '$getterType{}';
-            code.writeln('inline $getterType '
+            acc.writeln('inline $getterType '
                 '${property.name}() const { auto* sidecar = $memberName.get(); '
                 'return sidecar != nullptr ? sidecar->${property.name} : '
                 '$defaultLiteral; }');
           }
-          code.writeln('void ${property.name}(${property.type.cppName} value) {'
+          acc.writeln('void ${property.name}(${property.type.cppName} value) {'
               'if(${property.name}() == value){return;}'
               '$memberName.ensureAllocated()->${property.name} = value;'
               '${property.name}Changed();'
               'notifyPropertyChanged(${property.name}PropertyKey);'
               '}');
+          addPreprocessorEnd(acc);
         } else {
-          code.writeln(((property.isVirtual || property.isPureVirtual)
+          // Editor-mode getter composes the static field with the
+          // animation-overlay field (`m_XHasOverride ? m_XOverride :
+          // Plain field read for both builds — animation playback now
+          // writes directly to `m_X` on the playing clone, so there's
+          // no override slot to compose. See [[clone-only-playback-state]].
+          acc.writeln(((property.isVirtual || property.isPureVirtual)
                   ? 'virtual'
                   : 'inline') +
-              ' ${property.type.cppGetterName} ${property.name}() const ' +
+              ' ${property.type.cppGetterName} ' +
+              '${property.cppAccessor}() const ' +
               ((property.isGetOverride || overridesMixinMask)
                   ? 'override'
                   : '') +
               '{ return m_${property.capitalizedName}; }');
           if (!property.isPureVirtual) {
-            code.writeln(
-                'void ${property.name}(${property.type.cppName} value) ' +
+            // Editor-mode hook: every concrete setter notifies
+            // Core::onPropertyChanging before mutating so editor_native can
+            // record the (old, new) pair into the ChangeTracker (coop + undo
+            // journal). Emitted across separate writelns so clang-format
+            // keeps the preprocessor directives on their own lines.
+            //
+            // Type dispatch: String-typed properties use the typed
+            // `onStringChanging(key, const std::string&, const std::string&)`
+            // hook. The generic void* hook can't safely extract bytes
+            // from std::string (SSO layout) vs Span<const uint8_t> given
+            // only CoreStringType::id == CoreBytesType::id == 1 — the
+            // shared id is the file-format ToC's 2-bit skip class, not a
+            // C++-storage discriminator. Typed hook resolves it at the
+            // call site. All other types (double, uint, color, bool) go
+            // through the void-pointer path.
+            // Animation-driven writes go through the same setter
+            // path as edit-driven writes — the routing lives in the
+            // hook (`handlePropertyChanging` in editor_native's
+            // core_hook.cpp), which checks
+            // `Core::isAnimationContextActive()` and records a touch
+            // for the next frame's `revertTouchedClonesToMain` pass
+            // instead of journaling / coop-broadcasting / propagating
+            // to other clones. The setter stays generator-uniform.
+            // See [[clone-only-playback-state]].
+            final isStringField = property.type.name == 'String';
+            final isFractionalIndexField =
+                property.type.name == 'FractionalIndex';
+            acc.writeln(
+                'void ${property.cppAccessor}(${property.type.cppName} value) ' +
                     ((property.isSetOverride || overridesMixinMask)
                         ? 'override'
                         : '') +
-                    '{'
-                        'if(m_${property.capitalizedName} == value)'
-                        '{return;}'
-                        'm_${property.capitalizedName} = value;'
-                        '${property.name}Changed();'
-                        'notifyPropertyChanged(${property.name}PropertyKey);'
-                        '}');
+                    '{');
+            acc.writeln(
+                'if(m_${property.capitalizedName} == value){return;}');
+            if (isStringField) {
+              acc.writeln('RIVE_EDITOR_STRING_CHANGING('
+                  '${property.name}PropertyKey,'
+                  'm_${property.capitalizedName},value);');
+            } else if (isFractionalIndexField) {
+              // FractionalIndex is a two-field struct — the generic
+              // void-pointer hook can't safely carry both halves
+              // across a single `void*`. The typed hook captures both
+              // values by value at the call site.
+              acc.writeln(
+                  'RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING('
+                  '${property.name}PropertyKey,'
+                  'm_${property.capitalizedName},value);');
+            } else {
+              acc.writeln('RIVE_EDITOR_CHANGING(${property.name}PropertyKey,'
+                  '&m_${property.capitalizedName},&value);');
+            }
+            acc.writeln('m_${property.capitalizedName} = value;');
+            // The `${name}Changed()` callback is where runtime side
+            // effects live (markDirty, parent-chain walks, resolve
+            // calls, etc.) — they assume the object is fully wired up
+            // (`m_Artboard` / `m_Parent` set). In editor mode, property
+            // mutations can fire during coop-apply hydration BEFORE
+            // `onAddedDirty` has wired those pointers, so we gate the
+            // callback on `hasValidated()`. editor_native flips that
+            // flag post-`onAddedClean`; mirrors Dart's `hasValidated`
+            // guard in packages/rive_core/**/*_base.dart setters.
+            // Runtime builds keep the unconditional call so there's
+            // zero overhead and nothing to flip.
+            acc.writeln(
+                'RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+            // Push-notification for target->source data binds — mirrors
+            // master's plain setter. Cheap no-observer null check; editor
+            // arena Cores never subscribe (push stays disabled there), so
+            // this only fires for pump-runtime instances.
+            acc.writeln(
+                'notifyPropertyChanged(${property.name}PropertyKey);');
+            acc.writeln('}');
+            // Standalone `xAnimate` / `xResetOverride` emission was
+            // removed with the move to clone-only playback. The
+            // regular setter's animation-context branch above
+            // handles playback writes; reset-to-base is now done via
+            // `EditorFile::revertTouchedClonesToMain()` which
+            // re-applies m_main values to clones through the
+            // clone-sync hook path. See [[clone-only-playback-state]].
           } else {
-            code.writeln(
-                '''virtual void ${property.name}(${property.type.cppName} value) = 0;''');
+            acc.writeln(
+                '''virtual void ${property.cppAccessor}(${property.type.cppName} value) = 0;''');
           }
         }
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorEnd(code);
-        }
+        endPropertyGuards(acc, property);
 
-        code.writeln();
+        acc.writeln();
       }
     }
 
@@ -743,30 +1103,44 @@ class Definition {
     if (storedPropertiesNoPassthrough.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
       for (final property in storedPropertiesNoPassthrough) {
+        final copyBuf = toExt(property) ? extCopy : code;
+        startPropertyGuards(copyBuf, property);
         if (property.isSidecar) {
-          // Copied once per cluster below via the holder's deep copy.
-          continue;
-        }
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorStart(code, withRiveToolsPreprocessor);
+          // Full member exists only in editor builds; runtime copies the
+          // cluster holder once below.
+          addPreprocessorStart(copyBuf, withRiveEditorPreprocessor);
         }
         if (property.isEncoded) {
-          code.writeln('copy${property.capitalizedName}(object);');
+          copyBuf.writeln('copy${property.capitalizedName}(object);');
         } else {
-          code.writeln('m_${property.capitalizedName} = '
+          copyBuf.writeln('m_${property.capitalizedName} = '
               'object.m_${property.capitalizedName};');
         }
-        if (property.isWithRiveToolsOnly) {
-          addPreprocessorEnd(code);
+        if (property.isSidecar) {
+          addPreprocessorEnd(copyBuf);
         }
+        endPropertyGuards(copyBuf, property);
       }
       // Deep-copy each sidecar cluster (Sidecar<T> handles null vs allocated).
-      for (final entry in sidecars.entries) {
-        code.writeln('m_${entry.key} = object.m_${entry.key};');
+      if (sidecars.isNotEmpty) {
+        code.writeln('#ifndef $withRiveEditorPreprocessor');
+        for (final entry in sidecars.entries) {
+          code.writeln('m_${entry.key} = object.m_${entry.key};');
+        }
+        code.writeln('#endif');
+      }
+      if (extCopy.isNotEmpty) {
+        code.writeln('RIVE_EDITOR_COPY(object);');
       }
       if (_extensionOf != null) {
         code.writeln('${_extensionOf!.name}::'
             'copy(object); ');
+      } else {
+        // Root of the copy chain: carry the editor validation flag.
+        // clone() copies fields, never the Core base, so without this
+        // every instance()/createInstance clone comes out unvalidated
+        // and the hasValidated() gate starves its Changed() callbacks.
+        code.writeln('RIVE_EDITOR_COPY_VALIDATED(object);');
       }
       code.writeln('}');
       code.writeln();
@@ -774,30 +1148,49 @@ class Definition {
       code.writeln('bool deserialize(uint16_t propertyKey, '
           'BinaryReader& reader) override {');
 
+      final runtimeStored =
+          storedPropertiesNoPassthrough.where((p) => !toExt(p));
       if (storedPropertiesNoPassthrough.isNotEmpty) {
-        code.writeln('switch (propertyKey){');
+        final switchBuf = runtimeStored.isEmpty ? extDeserialize : code;
+        if (runtimeStored.isNotEmpty) {
+          code.writeln('switch (propertyKey){');
+        }
         for (final property in storedPropertiesNoPassthrough) {
-          if (property.isWithRiveToolsOnly) {
-            addPreprocessorStart(code, withRiveToolsPreprocessor);
-          }
+          final code = toExt(property) ? extDeserialize : switchBuf;
+          startPropertyGuards(code, property);
           code.writeln('case ${property.name}PropertyKey:');
+          // `deserialize(propertyKey, reader)` is the `.riv` (runtime
+          // file format) read path — a single varuint for Id-typed
+          // fields. `runtimeDeserializeFunction` picks that variant
+          // for `IdFieldType` and matches `deserializeFunction` for
+          // every other field type.
           if (property.isSidecar) {
+            // Editor builds read into the full member; runtime builds
+            // into the lazily-allocated cluster.
+            addPreprocessorStart(code, withRiveEditorPreprocessor);
+            code.writeln('m_${property.capitalizedName} = '
+                '${property.type.runtimeDeserializeFunction}(reader);');
+            code.writeln('#else');
             code.writeln('m_${property.sidecarName}.ensureAllocated()'
                 '->${property.name} '
-                '= ${property.type.runtimeCoreType}::deserialize(reader);');
+                '= ${property.type.runtimeDeserializeFunction}(reader);');
+            addPreprocessorEnd(code);
           } else if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'
-                '(${property.type.runtimeCoreType}::deserialize(reader));');
+                '(${property.type.runtimeDeserializeFunction}(reader));');
           } else {
             code.writeln('m_${property.capitalizedName} = '
-                '${property.type.runtimeCoreType}::deserialize(reader);');
+                '${property.type.runtimeDeserializeFunction}(reader);');
           }
           code.writeln('return true;');
-          if (property.isWithRiveToolsOnly) {
-            addPreprocessorEnd(code);
-          }
+          endPropertyGuards(code, property);
         }
-        code.writeln('}');
+        if (runtimeStored.isNotEmpty) {
+          code.writeln('}');
+        }
+      }
+      if (extDeserialize.isNotEmpty) {
+        code.writeln('RIVE_EDITOR_DESERIALIZE(propertyKey, reader);');
       }
       if (_extensionOf != null) {
         code.writeln('return ${_extensionOf!.name}::'
@@ -805,45 +1198,230 @@ class Definition {
       } else {
         code.writeln('return false; }');
       }
-    }
 
-    code.writeln('protected:');
-    if (storedProperties.isNotEmpty) {
-      for (final property in storedProperties) {
-        if (property.isBitmaskPassthrough) {
+      // Parallel applyChange(propertyKey, reader) that routes through the
+      // public setter so xChanged() + the change hooks fire. It lives in the
+      // editor extension, so the shipped runtime never sees it. Setter calls
+      // are qualified with `this->` so they unambiguously name the member
+      // function, not the parameter (which would collide for properties
+      // literally named `propertyKey`, `key`, etc. — e.g.
+      // KeyedProperty.propertyKey, DataEnumValue.key).
+      //
+      // `deserializeFunction` is the `.rev` (editor coop) read path — two
+      // varuints for Id-typed fields. Every other field type shares the
+      // runtime read path.
+      final editorBody = splitEditorExt ? extMethods : code;
+      editorBody.writeln('bool applyChange(uint16_t propertyKey, '
+          'BinaryReader& reader) override {');
+      // Build the applyChange switch from the union of normal stored
+      // properties + bitmask-passthrough bools. The latter aren't in
+      // `storedPropertiesNoPassthrough` (their storage lives on the
+      // target uint), but they DO need an applyChange entry so
+      // `replayJournalEntry` can route the bool key to the bit-setter
+      // emitted above.
+      final applyChangeProperties = properties.where((property) =>
+          property.getExportType().storesData && !property.isPassthrough);
+      if (applyChangeProperties.isNotEmpty) {
+        editorBody.writeln('switch (propertyKey){');
+        for (final property in applyChangeProperties) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(editorBody, withRiveToolsPreprocessor);
+          }
+          editorBody.writeln('case ${property.name}PropertyKey:');
+          if (property.isEncoded) {
+            editorBody.writeln('this->decode${property.capitalizedName}'
+                '(${property.type.deserializeFunction}(reader));');
+          } else {
+            // this->${name}(value) → public setter on this class. Sidecar
+            // properties route here too: applyChange is editor-only, where
+            // the setter writes the full member.
+            editorBody.writeln('this->${property.cppAccessor}'
+                '(${property.type.deserializeFunction}(reader));');
+          }
+          editorBody.writeln('return true;');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(editorBody);
+          }
+        }
+        editorBody.writeln('}');
+      }
+      if (_extensionOf != null) {
+        editorBody.writeln('return ${_extensionOf!.name}::'
+            'applyChange(propertyKey, reader); }');
+      } else {
+        // Top-level types still bottom out at `Core::applyChange` so
+        // any future Core-level keys have a dispatch target. Today the
+        // virtual just returns false — every editor-only property is a
+        // generated field on its owning *Base class.
+        editorBody.writeln(
+            'return Core::applyChange(propertyKey, reader); }');
+      }
+
+      // Editor-mode: captureStateForJournal() — emits an identity
+      // PropertyChange through the hook for every stored, non-default
+      // property. Used by handleDeleteEditorObject to snapshot the
+      // object's state into the active JournalBatch before deletion, so
+      // undo of the delete restores the full pre-delete state via the
+      // normal applyChange path.
+      //
+      // Mirrors packages/core_generator/lib/src/definition.dart's
+      // `changeNonDefault` emission (Dart editor's rive_core generator).
+      // Properties at their initial value are skipped to keep journal
+      // entries minimal. Passthrough + encoded properties are excluded
+      // (no stored backing field to compare against).
+      //
+      // String + FractionalIndex use their typed hooks
+      // (`onStringChanging`, `onFractionalIndexChanging`); everything
+      // else uses the generic `onPropertyChanging` with a pointer
+      // pair — same dispatch as the generated setters.
+      editorBody.writeln('void captureStateForJournal() override {');
+      if (_extensionOf != null) {
+        editorBody.writeln(
+            '${_extensionOf!.name}::captureStateForJournal();');
+      } else {
+        // Top-level types still chain to `Core::captureStateForJournal`
+        // so any future Core-level editor state has a dispatch target.
+        // Today the base implementation is a no-op.
+        editorBody.writeln('Core::captureStateForJournal();');
+      }
+      for (final property in storedPropertiesNoPassthrough) {
+        if (property.isEncoded) {
+          // Encoded properties have no stored field — skip.
           continue;
         }
         if (property.isWithRiveToolsOnly) {
-          addPreprocessorStart(code, withRiveToolsPreprocessor);
+          addPreprocessorStart(editorBody, withRiveToolsPreprocessor);
         }
-        code.writeln('virtual void ${property.name}Changed() {}');
+        final initialize = property.initialValueRuntime ??
+            property.initialValue ??
+            property.type.defaultValue;
+        if (initialize != null) {
+          final converted = property.type.convertCpp(initialize);
+          if (converted != null) {
+            final field = 'm_${property.capitalizedName}';
+            final isString = property.type.name == 'String';
+            final isFractionalIndex =
+                property.type.name == 'FractionalIndex';
+            editorBody.writeln('if ($field != $converted) {');
+            if (isString) {
+              editorBody.writeln(
+                  'onStringChanging(${property.name}PropertyKey, '
+                  '$field, $field);');
+            } else if (isFractionalIndex) {
+              editorBody.writeln(
+                  'onFractionalIndexChanging(${property.name}PropertyKey, '
+                  '$field, $field);');
+            } else {
+              editorBody.writeln(
+                  'onPropertyChanging(${property.name}PropertyKey, '
+                  '&$field, &$field);');
+            }
+            editorBody.writeln('}');
+          }
+        }
         if (property.isWithRiveToolsOnly) {
-          addPreprocessorEnd(code);
+          addPreprocessorEnd(editorBody);
         }
       }
+      editorBody.writeln('}');
+    }
+
+    if (storedProperties.any((prop) => !toExt(prop))) {
+      code.writeln('protected:');
+    }
+    if (storedProperties.isNotEmpty) {
+      for (final property in storedProperties) {
+        // A bitmask passthrough deliberately fires the mask's callback,
+        // never its own — emitting one is an override that can never run.
+        if (property.isBitmaskPassthrough) {
+          continue;
+        }
+        final changedBuf = toExt(property) ? extChanged : code;
+        startPropertyGuards(changedBuf, property);
+        // If a parent class already declares a property with this
+        // accessor name (different key, shadowing), the emitted
+        // `<name>Changed()` overrides the parent's virtual — clang
+        // (`-Winconsistent-missing-override`) warns without `override`.
+        // Walks the runtime extension chain to detect it. Concrete
+        // example: `LibraryArtboard.name` (key 794) shadows
+        // `Asset.name` (key 203); both classes get a `nameChanged()`
+        // virtual and the child must mark `override`.
+        bool overrides = false;
+        for (var ancestor = _extensionOf;
+            ancestor != null;
+            ancestor = ancestor._extensionOf) {
+          for (final ap in ancestor.storedProperties) {
+            if (ap.isBitmaskPassthrough) {
+              continue;
+            }
+            if (ap.cppAccessor == property.cppAccessor) {
+              overrides = true;
+              break;
+            }
+          }
+          if (overrides) break;
+        }
+        if (overrides) {
+          changedBuf
+              .writeln('void ${property.cppAccessor}Changed() override {}');
+        } else {
+          changedBuf
+              .writeln('virtual void ${property.cppAccessor}Changed() {}');
+        }
+        endPropertyGuards(changedBuf, property);
+      }
+    }
+    if (hasEditorExt) {
+      addPreprocessorStart(code, withRiveEditorPreprocessor);
+      code.writeln('#include "$editorExtIncludeFilename"');
+      addPreprocessorEnd(code);
     }
     code.writeln('};');
     code.writeln('}');
+    if (editorOnly) {
+      addPreprocessorEnd(code);
+    }
 
-    var file = File('$generatedHppPath$localCodeFilename');
+    var file = File('$_outputGeneratedHppPath$localCodeFilename');
     file.createSync(recursive: true);
 
     var formattedCode =
         await _formatter.formatAndGuard('${_name}Base', code.toString());
     file.writeAsStringSync(formattedCode, flush: true);
 
-    // See if we need to stub out the concrete version...
-    var concreteFile = File('$concreteHppPath$concreteCodeFilename');
+    if (hasEditorExt) {
+      await _writeEditorExtension(
+        keys: extKeys,
+        fields: extFields,
+        accessors: extAccessors,
+        copy: extCopy,
+        deserialize: extDeserialize,
+        methods: extMethods,
+        changed: extChanged,
+      );
+    }
+
+    // See if we need to stub out the concrete version... Editor-only
+    // types (`"runtime": false`) are wrapped in the same
+    // `#ifdef WITH_RIVE_EDITOR` so the runtime build never sees the
+    // class declaration.
+    var concreteFile = File('$_outputConcreteHppPath$concreteCodeFilename');
     if (!concreteFile.existsSync()) {
       StringBuffer concreteCode = StringBuffer();
       concreteFile.createSync(recursive: true);
-      concreteCode.writeln('#include "rive/generated/$localCodeFilename"');
+      concreteCode.writeln('#include "$generatedIncludeFilename"');
       concreteCode.writeln('#include <stdio.h>');
+      if (editorOnly) {
+        addPreprocessorStart(concreteCode, withRiveEditorPreprocessor);
+      }
       concreteCode.writeln('namespace rive {');
       concreteCode.writeln('''class $_name : public ${_name}Base {
         public:
       };''');
       concreteCode.writeln('}');
+      if (editorOnly) {
+        addPreprocessorEnd(concreteCode);
+      }
 
       var formattedCode =
           await _formatter.formatAndGuard(_name!, concreteCode.toString());
@@ -851,9 +1429,12 @@ class Definition {
     }
     if (!_isAbstract) {
       StringBuffer cppCode = StringBuffer();
-      cppCode.writeln('#include "rive/generated/$localCodeFilename"');
+      cppCode.writeln('#include "$generatedIncludeFilename"');
       cppCode.writeln('#include "$concreteCodeFilename"');
       cppCode.writeln();
+      if (editorOnly) {
+        addPreprocessorStart(cppCode, withRiveEditorPreprocessor);
+      }
       cppCode.writeln('using namespace rive;');
       cppCode.writeln();
       cppCode.writeln('Core* ${_name}Base::clone() const { '
@@ -861,7 +1442,10 @@ class Definition {
           'cloned->copy(*this); '
           'return cloned; '
           '}');
-      var cppFile = File('$generatedCppPath$localCppCodeFilename');
+      if (editorOnly) {
+        addPreprocessorEnd(cppCode);
+      }
+      var cppFile = File('$_outputGeneratedCppPath$localCppCodeFilename');
       cppFile.createSync(recursive: true);
       var formattedCode = await _formatter.format(cppCode.toString());
       cppFile.writeAsStringSync(formattedCode, flush: true);
@@ -936,41 +1520,122 @@ class Definition {
     }
 
     definitions.removeWhere((key, definition) => definition._editorOnly);
+    // Editor-only mixins never reach C++ (see addMixin), so drop them
+    // before anything iterates the def tree.
+    definitions.removeWhere(
+        (key, definition) => definition._isMixin && !definition._forRuntime);
 
-    // Clear out previous generated code.
-    var dir = Directory(generatedHppPath);
-    if (dir.existsSync()) {
-      dir.deleteSync(recursive: true);
+    // Clear out previous generated code — both runtime and editor
+    // trees, headers and cpp — so stale bases from deleted defs (or
+    // defs whose `runtime` flag flipped from true → false / vice versa)
+    // don't linger. Concrete subclasses (hand-edited, written under
+    // `_outputConcreteHppPath`) are NOT cleared here; they're emitted
+    // once when missing and persist across regens.
+    for (final path in [
+      generatedHppPath,
+      editorGeneratedHppPath,
+      generatedCppPath,
+      editorGeneratedCppPath,
+    ]) {
+      var dir = Directory(path);
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+      dir.createSync(recursive: true);
     }
-    dir.createSync(recursive: true);
+    // Also clear the editor-only concrete stub tree so moved-out
+    // types don't leave orphans behind in the runtime include dir.
+    // (Runtime concrete stubs are hand-edited elsewhere; the
+    // generator only creates them once via
+    // `!concreteFile.existsSync()` and never overwrites them.)
     // Generate core context.
 
     for (final definition in definitions.values) {
       await definition.generateCode();
     }
 
+    await _writeEditorFieldTypes();
+    await _writeRegistry(forEditor: false);
+    await _writeRegistry(forEditor: true);
+
+    return true;
+  }
+
+  /// Field-type headers the class-body extensions need. They can't carry
+  /// their own includes, so every runtime base with an extension pulls this
+  /// one header in behind its editor guard.
+  static Future<void> _writeEditorFieldTypes() async {
+    var includes = <String>{};
+    for (final definition in definitions.values) {
+      if (!definition.forRuntime) {
+        continue;
+      }
+      for (final property in definition.properties) {
+        if (!property.isWithRiveEditorOnly) {
+          continue;
+        }
+        var include = property.type.include;
+        if (include != null) {
+          includes.add(include);
+        }
+        includes.add('rive/core/field_types/' +
+            property.type.snakeRuntimeCoreName +
+            '.hpp');
+      }
+    }
+    StringBuffer code = StringBuffer();
+    for (final include in includes.toList()..sort()) {
+      if (include[0] == '<') {
+        code.writeln('#include $include');
+      } else {
+        code.writeln('#include "$include"');
+      }
+    }
+    var file = File('${editorGeneratedHppPath}editor_field_types.hpp');
+    file.createSync(recursive: true);
+    file.writeAsStringSync(
+        await _formatter.formatAndGuard('EditorFieldTypes', code.toString()),
+        flush: true);
+  }
+
+  /// Emits a by-key dispatch table over the def tree. The runtime table
+  /// (`CoreRegistry`, `rive/generated`) sees only runtime types and
+  /// properties; the editor table (`EditorCoreRegistry`, shipped with the
+  /// kernel) is the superset the editor dispatches against.
+  static Future<void> _writeRegistry({required bool forEditor}) async {
+    final defs = definitions.values
+        .where((definition) => forEditor || definition.forRuntime)
+        .toList();
+
+    // A property is editor-only either because its class is `"runtime":
+    // false` or because the property itself is.
+    bool propertyIsEditorOnly(Property property) =>
+        !property.definition.forRuntime || property.isWithRiveEditorOnly;
+    bool includeProperty(Property property) =>
+        forEditor ||
+        (!propertyIsEditorOnly(property) &&
+            !property.type.registryType.isWithRiveEditorOnly);
+
     StringBuffer ctxCode = StringBuffer('');
     var includes = <String>{};
-    var runtimeDefinitions =
-        definitions.values.where((definition) => definition.forRuntime);
-    for (final definition in runtimeDefinitions) {
+    for (final definition in defs) {
       // Mixins have no concrete class; include their (constants-only) base
-      // header directly so core_registry can reference the shared key
+      // header directly so the registry can reference the shared key
       // constants.
       includes.add(definition._isMixin
           ? 'rive/generated/${definition.localCodeFilename}'
           : definition.concreteCodeFilename);
     }
-    var includeList = includes.toList()..sort();
-    for (final include in includeList) {
+    for (final include in includes.toList()..sort()) {
       ctxCode.writeln('#include "$include"');
     }
 
-    ctxCode.writeln('namespace rive {class CoreRegistry {'
+    final className = forEditor ? 'EditorCoreRegistry' : 'CoreRegistry';
+    ctxCode.writeln('namespace rive {class $className {'
         'public:');
     ctxCode.writeln('static Core* makeCoreInstance(int typeKey) {'
         'switch(typeKey) {');
-    for (final definition in runtimeDefinitions) {
+    for (final definition in defs) {
       if (definition._isAbstract) {
         continue;
       }
@@ -979,10 +1644,30 @@ class Definition {
     }
     ctxCode.writeln('} return nullptr; }');
 
+    if (forEditor) {
+      // Human-readable class name for a typeKey, for the editor's coverage
+      // and debug dumps. Abstract types are listed too: a coop ChangeSet
+      // naming one is a bug worth surfacing by name.
+      ctxCode.writeln('static const char* typeName(int typeKey) {'
+          'switch(typeKey) {');
+      for (final definition in defs) {
+        // Mixin interface bases have key constants but no typeKey member.
+        if (definition._key?.intValue == null || definition._isMixin) {
+          continue;
+        }
+        ctxCode.writeln('case ${definition.name}Base::typeKey:');
+        ctxCode.writeln('return "${definition.name}";');
+      }
+      ctxCode.writeln('} return "(unknown)"; }');
+    }
+
     var usedFieldTypes = <FieldType, List<Property>>{};
     var getSetFieldTypes = <FieldType, List<Property>>{};
-    for (final definition in runtimeDefinitions) {
+    for (final definition in defs) {
       for (final property in definition.properties) {
+        if (!includeProperty(property)) {
+          continue;
+        }
         // Group by registryType so narrow aliases (e.g. uint8) fold into their
         // wider type (uint): set/get dispatch and the property field-type id
         // stay shared, keeping existing keyframes and files compatible.
@@ -995,6 +1680,50 @@ class Definition {
         }
       }
     }
+
+    // Runtime callers (`KeyFrameId::apply`, `KeyFrameUint::apply`,
+    // `data_bind/context/context_value_*`, …) reach into
+    // `CoreRegistry::setUint` even for parentId / targetId, because `Id`
+    // aliases `uint32_t` in runtime-only builds. Without the duplicate cases
+    // the dispatch falls through and the setter never fires. The editor
+    // routes Id properties through set/getId instead, so its table skips
+    // them.
+    final idProperties = <Property>[];
+    for (final fieldType in getSetFieldTypes.keys) {
+      if (fieldType.name == 'Id') {
+        idProperties.addAll(getSetFieldTypes[fieldType]!);
+      }
+    }
+    void emitIdCasesForUint(StringBuffer code, bool isGetter) {
+      if (forEditor || idProperties.isEmpty) {
+        return;
+      }
+      for (final property in idProperties) {
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorStart(code, withRiveToolsPreprocessor);
+        }
+        code.writeln('case ${property.definition.name}Base'
+            '::${property.name}PropertyKey:');
+        if (property.key != null) {
+          for (final altKey in property.key!.alternates) {
+            code.writeln('case ${property.definition.name}Base'
+                '::${altKey.stringValue}PropertyKey:');
+          }
+        }
+        if (isGetter) {
+          code.writeln('return object->as<${property.definition.name}Base>()->'
+              '${property.cppAccessor}();');
+        } else {
+          code.writeln('object->as<${property.definition.name}Base>()->'
+              '${property.cppAccessor}(value);');
+          code.writeln('break;');
+        }
+        if (property.isWithRiveToolsOnly) {
+          addPreprocessorEnd(code);
+        }
+      }
+    }
+
     for (final fieldType in getSetFieldTypes.keys) {
       ctxCode
           .writeln('static void set${fieldType.capitalizedName}(Core* object, '
@@ -1021,41 +1750,10 @@ class Definition {
                 '_c->${property.name}(value); }');
             ctxCode.writeln('break;');
             ctxCode.writeln('}');
-          } else if (property.isBitmaskPassthrough) {
-            final mask = property.bitmaskTargetProperty!.name;
-            final bit = property.passthroughBit!;
-            final maskType = property.bitmaskTargetProperty!.type.cppName;
-            final defName = property.definition.name;
-            ctxCode.writeln('case ${defName}Base'
-                '::${property.name}PropertyKey:');
-            if (property.key != null) {
-              for (final altKey in property.key!.alternates) {
-                ctxCode.writeln('case ${defName}Base'
-                    '::${altKey.stringValue}PropertyKey:');
-              }
-            }
-            ctxCode.writeln('{');
-            ctxCode.writeln('auto* _o = object->as<${defName}Base>();');
-            ctxCode.writeln('if (_o) {');
-            ctxCode.writeln('const $maskType _cur = _o->$mask();');
-            if (property.type.name == 'uint') {
-              final width = property.passthroughBitWidthOrDefault;
-              final fieldMask = ((1 << width) - 1) << bit;
-              ctxCode.writeln('const $maskType _fieldMask = '
-                  'static_cast<$maskType>(${fieldMask}u);');
-              ctxCode.writeln('const $maskType _next = static_cast<$maskType>(('
-                  '_cur & ~_fieldMask) | ((value << $bit) & _fieldMask));');
-            } else {
-              ctxCode.writeln(
-                  'const $maskType _bm = static_cast<$maskType>(1u << $bit);');
-              ctxCode.writeln('const $maskType _next = static_cast<$maskType>(('
-                  '_cur & ~_bm) | (value ? _bm : static_cast<$maskType>(0)));');
-            }
-            ctxCode.writeln('if (_cur != _next) { _o->$mask(_next); }');
-            ctxCode.writeln('}');
-            ctxCode.writeln('break;');
-            ctxCode.writeln('}');
           } else {
+            // Same-def bitmask passthroughs route through their generated
+            // bit accessor, which does the masked read-modify-write and
+            // fires the editor hooks.
             ctxCode.writeln('case ${property.definition.name}Base'
                 '::${property.name}PropertyKey:');
             if (property.key != null) {
@@ -1065,13 +1763,16 @@ class Definition {
               }
             }
             ctxCode.writeln('object->as<${property.definition.name}Base>()->'
-                '${property.name}(value);');
+                '${property.cppAccessor}(value);');
             ctxCode.writeln('break;');
           }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorEnd(ctxCode);
           }
         }
+      }
+      if (fieldType.name == 'uint') {
+        emitIdCasesForUint(ctxCode, false);
       }
       ctxCode.writeln('}}');
     }
@@ -1086,12 +1787,6 @@ class Definition {
       var properties = getSetFieldTypes[fieldType];
       if (properties != null) {
         for (final property in properties) {
-          // Bool passthroughs have no read-back getter (mirrors the field
-          // having no backing storage). uint passthroughs read their field
-          // back out of the mask so runtime data binding can round-trip.
-          if (property.isBitmaskPassthrough && property.type.name != 'uint') {
-            continue;
-          }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
           }
@@ -1107,23 +1802,18 @@ class Definition {
             ctxCode.writeln('if (auto* _c = $iface::from(object)) { '
                 'return _c->${property.name}(); }');
             ctxCode.writeln('return 0u;');
-          } else if (property.isBitmaskPassthrough) {
-            final mask = property.bitmaskTargetProperty!.name;
-            final bit = property.passthroughBit!;
-            final width = property.passthroughBitWidthOrDefault;
-            final valueMask = (1 << width) - 1;
-            ctxCode.writeln(
-                'return (object->as<${property.definition.name}Base>()->'
-                '$mask() >> $bit) & ${valueMask}u;');
           } else {
             ctxCode.writeln(
                 'return object->as<${property.definition.name}Base>()->'
-                '${property.name}();');
+                '${property.cppAccessor}();');
           }
           if (property.isWithRiveToolsOnly) {
             addPreprocessorEnd(ctxCode);
           }
         }
+      }
+      if (fieldType.name == 'uint') {
+        emitIdCasesForUint(ctxCode, true);
       }
       ctxCode.writeln('}');
       ctxCode.writeln('return ${fieldType.defaultValue ?? 'nullptr'};');
@@ -1132,7 +1822,6 @@ class Definition {
 
     ctxCode.writeln('static int propertyFieldId(int propertyKey) {');
     ctxCode.writeln('switch(propertyKey) {');
-
     for (final fieldType in usedFieldTypes.keys) {
       if (!fieldType.storesData) {
         continue;
@@ -1159,7 +1848,6 @@ class Definition {
       }
       ctxCode.writeln('return Core${fieldType.capitalizedName}Type::id;');
     }
-
     ctxCode.writeln('default: return -1;}}');
 
     // Uint properties hold between keyframes by default (they're mostly enums
@@ -1176,8 +1864,8 @@ class Definition {
           if (property.interpolates &&
               property.getExportType().name == 'uint') {
             found = true;
-            ctxCode.write('case ${property.definition._name}Base');
-            ctxCode.write('::${property.name}PropertyKey:');
+            ctxCode.writeln('case ${property.definition._name}Base'
+                '::${property.name}PropertyKey:');
           }
         }
         if (found) {
@@ -1212,6 +1900,99 @@ class Definition {
     ctxCode.writeln('default:return false;');
     ctxCode.writeln('}}');
 
+    if (forEditor) {
+      // editorFieldType: editor-scoped property-type discriminator.
+      //
+      // `propertyFieldId` above returns the runtime TOC size class
+      // (CoreUintType::id, CoreIdType::id, CoreFractionalIndexType::id all =
+      // 0; CoreStringType::id and CoreBytesType::id both = 1). That collision
+      // is correct for the `.riv` wire format — one varuint decode path for
+      // all class-0 types — but not enough for editor dispatch, which needs to
+      // know whether `parentId` is an Id (two varuints on the editor wire) vs
+      // a Uint, whether `childOrder` is a FractionalIndex vs a Uint, and so
+      // on.
+      //
+      // Tags are drawn from the same `usedFieldTypes` map so the case-label
+      // ordering matches `propertyFieldId` exactly.
+      const editorFieldTypeTags = <String, int>{
+        'uint': 0,
+        'String': 1,
+        'double': 2,
+        'Color': 3,
+        'bool': 4,
+        'Id': 5,
+        'FractionalIndex': 6,
+        'Bytes': 7,
+      };
+      ctxCode.writeln('static int editorFieldType(int propertyKey) {');
+      ctxCode.writeln('switch(propertyKey) {');
+      for (final fieldType in usedFieldTypes.keys) {
+        if (!fieldType.storesData) continue;
+        final tag = editorFieldTypeTags[fieldType.name];
+        if (tag == null) continue;
+        final properties = usedFieldTypes[fieldType];
+        if (properties != null) {
+          for (final property in properties) {
+            if (property.isWithRiveToolsOnly) {
+              addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+            }
+            ctxCode.writeln('case ${property.definition.name}Base'
+                '::${property.name}PropertyKey:');
+            if (property.isWithRiveToolsOnly) {
+              addPreprocessorEnd(ctxCode);
+            }
+            for (final altKey in property.key!.alternates) {
+              ctxCode.writeln('case ${property.definition.name}Base'
+                  '::${altKey.stringValue}PropertyKey:');
+            }
+          }
+        }
+        ctxCode.writeln('return $tag;');
+      }
+      ctxCode.writeln('default: return 255;}}');
+
+      // The one real Id discriminator. `propertyFieldId` returns the ToC
+      // skip class, where CoreIdType::id == CoreUintType::id == 0, so
+      // every uint key looks like an Id to it.
+      ctxCode.writeln('''
+        static bool isIdProperty(int propertyKey) {
+          return editorFieldType(propertyKey) == ${editorFieldTypeTags['Id']};
+        }''');
+
+      // Storage width for the varuint size class. The editor's property
+      // hook hands the encoder a pointer to the field itself, so a
+      // uint8 / uint16 / int16 property read as uint32 runs off the end
+      // of its storage.
+      ctxCode.writeln('static int propertyStorageBytes(int propertyKey) {');
+      ctxCode.writeln('switch(propertyKey) {');
+      final byWidth = <int, List<Property>>{};
+      for (final fieldType in usedFieldTypes.keys) {
+        for (final property in usedFieldTypes[fieldType]!) {
+          final width = property.type.storageBytes;
+          if (width == null || width == 4) continue;
+          (byWidth[width] ??= []).add(property);
+        }
+      }
+      for (final width in byWidth.keys.toList()..sort()) {
+        for (final property in byWidth[width]!) {
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorStart(ctxCode, withRiveToolsPreprocessor);
+          }
+          ctxCode.writeln('case ${property.definition.name}Base'
+              '::${property.name}PropertyKey:');
+          if (property.isWithRiveToolsOnly) {
+            addPreprocessorEnd(ctxCode);
+          }
+          for (final altKey in property.key!.alternates) {
+            ctxCode.writeln('case ${property.definition.name}Base'
+                '::${altKey.stringValue}PropertyKey:');
+          }
+        }
+        ctxCode.writeln('return $width;');
+      }
+      ctxCode.writeln('default: return 4;}}');
+    }
+
     ctxCode.writeln('''
       static bool isCallback(uint32_t propertyKey) {
         switch(propertyKey) {''');
@@ -1234,8 +2015,6 @@ class Definition {
     ctxCode.writeln('default:return false;');
     ctxCode.writeln('}}');
 
-    // ignore: lines_longer_than_80_chars
-    // static bool objectSupportsProperty(Core* object, uint32_t propertyKey) { return true; }
     ctxCode.writeln('''
       static bool objectSupportsProperty(Core* object, uint32_t propertyKey) {
         switch(propertyKey) {''');
@@ -1270,18 +2049,21 @@ class Definition {
     ctxCode.writeln('}return false;}');
     ctxCode.writeln('};}');
 
-    var output = generatedHppPath;
-    var folder = output.isNotEmpty && output[output.length - 1] == '/'
-        ? output.substring(0, output.length - 1)
-        : output;
+    StringBuffer body = StringBuffer();
+    if (forEditor) {
+      addPreprocessorStart(body, withRiveEditorPreprocessor);
+      body.write(ctxCode);
+      addPreprocessorEnd(body);
+    } else {
+      body.write(ctxCode);
+    }
 
-    var file = File('$folder/core_registry.hpp');
+    var file = File(forEditor
+        ? '${editorGeneratedHppPath}editor_core_registry.hpp'
+        : '${generatedHppPath}core_registry.hpp');
     file.createSync(recursive: true);
-
-    var formattedCode =
-        await _formatter.formatAndGuard('CoreRegistry', ctxCode.toString());
-    file.writeAsStringSync(formattedCode, flush: true);
-
-    return true;
+    file.writeAsStringSync(
+        await _formatter.formatAndGuard(className, body.toString()),
+        flush: true);
   }
 }

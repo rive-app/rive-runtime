@@ -1,8 +1,0 @@
-{
-  "name": "TransitionSelfComparator",
-  "key": {
-    "int": 593,
-    "string": "transitionselfcomparator"
-  },
-  "extends": "animation/transition_comparator.json"
-}

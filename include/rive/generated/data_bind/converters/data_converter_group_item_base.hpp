@@ -1,7 +1,11 @@
 #ifndef _RIVE_DATA_CONVERTER_GROUP_ITEM_BASE_HPP_
 #define _RIVE_DATA_CONVERTER_GROUP_ITEM_BASE_HPP_
 #include "rive/core.hpp"
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class DataConverterGroupItemBase : public Core
@@ -30,18 +34,19 @@ public:
     static const uint16_t converterIdPropertyKey = 679;
 
 protected:
-    uint32_t m_ConverterId = -1;
+    Id m_ConverterId = kEmptyId;
 
 public:
-    inline uint32_t converterId() const { return m_ConverterId; }
-    void converterId(uint32_t value)
+    inline Id converterId() const { return m_ConverterId; }
+    void converterId(Id value)
     {
         if (m_ConverterId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(converterIdPropertyKey, &m_ConverterId, &value);
         m_ConverterId = value;
-        converterIdChanged();
+        RIVE_EDITOR_CHANGED(converterIdChanged());
         notifyPropertyChanged(converterIdPropertyKey);
     }
 
@@ -49,6 +54,8 @@ public:
     void copy(const DataConverterGroupItemBase& object)
     {
         m_ConverterId = object.m_ConverterId;
+        RIVE_EDITOR_COPY(object);
+        RIVE_EDITOR_COPY_VALIDATED(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -56,14 +63,18 @@ public:
         switch (propertyKey)
         {
             case converterIdPropertyKey:
-                m_ConverterId = CoreUintType::deserialize(reader);
+                m_ConverterId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return false;
     }
 
 protected:
     virtual void converterIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/data_converter_group_item_ext.inl"
+#endif
 };
 } // namespace rive
 

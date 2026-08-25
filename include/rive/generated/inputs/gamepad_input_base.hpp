@@ -47,8 +47,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(kindPropertyKey, &m_Kind, &value);
         m_Kind = value;
-        kindChanged();
+        RIVE_EDITOR_CHANGED(kindChanged());
         notifyPropertyChanged(kindPropertyKey);
     }
 
@@ -59,8 +60,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(mappingPropertyKey, &m_Mapping, &value);
         m_Mapping = value;
-        mappingChanged();
+        RIVE_EDITOR_CHANGED(mappingChanged());
         notifyPropertyChanged(mappingPropertyKey);
     }
 
@@ -71,8 +73,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(inputIndexPropertyKey, &m_InputIndex, &value);
         m_InputIndex = value;
-        inputIndexChanged();
+        RIVE_EDITOR_CHANGED(inputIndexChanged());
         notifyPropertyChanged(inputIndexPropertyKey);
     }
 
@@ -83,8 +86,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(buttonPhasePropertyKey, &m_ButtonPhase, &value);
         m_ButtonPhase = value;
-        buttonPhaseChanged();
+        RIVE_EDITOR_CHANGED(buttonPhaseChanged());
         notifyPropertyChanged(buttonPhasePropertyKey);
     }
 
@@ -123,6 +127,9 @@ protected:
     virtual void mappingChanged() {}
     virtual void inputIndexChanged() {}
     virtual void buttonPhaseChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/inputs/gamepad_input_ext.inl"
+#endif
 };
 } // namespace rive
 

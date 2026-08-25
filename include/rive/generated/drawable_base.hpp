@@ -2,6 +2,9 @@
 #define _RIVE_DRAWABLE_BASE_HPP_
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/node.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class DrawableBase : public Node
@@ -47,8 +50,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(blendModeValuePropertyKey,
+                             &m_BlendModeValue,
+                             &value);
         m_BlendModeValue = value;
-        blendModeValueChanged();
+        RIVE_EDITOR_CHANGED(blendModeValueChanged());
         notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
@@ -59,8 +65,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(drawableFlagsPropertyKey,
+                             &m_DrawableFlags,
+                             &value);
         m_DrawableFlags = value;
-        drawableFlagsChanged();
+        RIVE_EDITOR_CHANGED(drawableFlagsChanged());
         notifyPropertyChanged(drawableFlagsPropertyKey);
     }
 
@@ -68,6 +77,7 @@ public:
     {
         m_BlendModeValue = object.m_BlendModeValue;
         m_DrawableFlags = object.m_DrawableFlags;
+        RIVE_EDITOR_COPY(object);
         Node::copy(object);
     }
 
@@ -82,12 +92,16 @@ public:
                 m_DrawableFlags = CoreUintType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Node::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void blendModeValueChanged() {}
     virtual void drawableFlagsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/drawable_ext.inl"
+#endif
 };
 } // namespace rive
 

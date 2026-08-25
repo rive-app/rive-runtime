@@ -48,8 +48,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(gridColumnPropertyKey, &m_GridColumn, &value);
         m_GridColumn = value;
-        gridColumnChanged();
+        RIVE_EDITOR_CHANGED(gridColumnChanged());
         notifyPropertyChanged(gridColumnPropertyKey);
     }
 
@@ -60,8 +61,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(gridRowPropertyKey, &m_GridRow, &value);
         m_GridRow = value;
-        gridRowChanged();
+        RIVE_EDITOR_CHANGED(gridRowChanged());
         notifyPropertyChanged(gridRowPropertyKey);
     }
 
@@ -72,8 +74,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(gridColumnSpanPropertyKey,
+                             &m_GridColumnSpan,
+                             &value);
         m_GridColumnSpan = value;
-        gridColumnSpanChanged();
+        RIVE_EDITOR_CHANGED(gridColumnSpanChanged());
         notifyPropertyChanged(gridColumnSpanPropertyKey);
     }
 
@@ -84,8 +89,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(gridRowSpanPropertyKey, &m_GridRowSpan, &value);
         m_GridRowSpan = value;
-        gridRowSpanChanged();
+        RIVE_EDITOR_CHANGED(gridRowSpanChanged());
         notifyPropertyChanged(gridRowSpanPropertyKey);
     }
 
@@ -124,6 +130,9 @@ protected:
     virtual void gridRowChanged() {}
     virtual void gridColumnSpanChanged() {}
     virtual void gridRowSpanChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/layout/grid_item_placement_ext.inl"
+#endif
 };
 } // namespace rive
 

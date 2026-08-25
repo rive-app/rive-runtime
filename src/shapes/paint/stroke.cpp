@@ -45,7 +45,24 @@ void Stroke::update(ComponentDirt value)
     Super::update(value);
     if (hasDirt(value, ComponentDirt::Paint))
     {
+#ifdef WITH_RIVE_EDITOR
+        // Same hazard as LinearGradient::update — coop hydration order
+        // can leave a Stroke in m_DependencyOrder with m_RenderPaint
+        // null (mutator child arrived in a later batch, or all
+        // initPaintMutator attempts returned InvalidObject because of
+        // duplicate mutators in a malformed file). Pass 4-cull only
+        // runs on the newly-hydrated batch, so a previously-orphaned
+        // Stroke whose ancestor chain re-resolves later can re-enter
+        // the live update set with m_RenderPaint still null.
+        // Mirrors the Dart editor's late-init nullability — see the
+        // long-form note in linear_gradient.cpp.
+        if (m_RenderPaint == nullptr)
+        {
+            return;
+        }
+#else
         assert(m_RenderPaint != nullptr);
+#endif
         m_RenderPaint->thickness(thickness());
         m_RenderPaint->cap((StrokeCap)cap());
         m_RenderPaint->join((StrokeJoin)join());
@@ -54,7 +71,14 @@ void Stroke::update(ComponentDirt value)
 
 void Stroke::invalidateRendering()
 {
+#ifdef WITH_RIVE_EDITOR
+    if (m_RenderPaint == nullptr)
+    {
+        return;
+    }
+#else
     assert(m_RenderPaint != nullptr);
+#endif
     m_RenderPaint->invalidateStroke();
     Super::invalidateRendering();
 }

@@ -1,8 +1,0 @@
-{
-  "name": "BindablePropertyArtboard",
-  "key": {
-    "int": 597,
-    "string": "bindablepropertyartboard"
-  },
-  "extends": "data_bind/bindable_property_id.json"
-}

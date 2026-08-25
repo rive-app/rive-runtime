@@ -30,6 +30,31 @@ protected:
 public:
     static ShapePaintContainer* from(Component* component);
 
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only removal companion to `addPaint` — fired from
+    // `ShapePaint::editorParentChanged` when the paint is reparented
+    // away (or about to be freed) so the container's typed list
+    // doesn't dangle. Runtime build assumes immutable hierarchy and
+    // never reaches this. Body in `component_parent_editor.cpp`.
+    void removePaintForEditor(ShapePaint* paint);
+
+    // Editor-only re-sort of `m_ShapePaints` by sibling
+    // `FractionalIndex`. Runtime build never reorders ShapePaints
+    // after hydration; editor builds need this hook so the
+    // inspector's drag-reorder actually changes the rendered draw
+    // order (the runtime renders by walking `m_ShapePaints` in
+    // vector order). Mirrors `Path::sortVerticesForEditor`.
+    void sortShapePaintsForEditor();
+
+    // Editor-only read-only view of `m_ShapePaints` for diagnostics
+    // (dispatcher debug, inspector introspection). The runtime
+    // build uses `TESTING`-gated `shapePaints()` for the same.
+    const std::vector<ShapePaint*>& shapePaintsForEditor() const
+    {
+        return m_ShapePaints;
+    }
+#endif
+
     /// The component that's responsible for path building, helpful for adding
     /// dependencies after the paths are built.
     virtual Component* pathBuilder() = 0;

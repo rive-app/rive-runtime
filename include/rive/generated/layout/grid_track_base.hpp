@@ -50,8 +50,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(trackValuePropertyKey, &m_TrackValue, &value);
         m_TrackValue = value;
-        trackValueChanged();
+        RIVE_EDITOR_CHANGED(trackValueChanged());
         notifyPropertyChanged(trackValuePropertyKey);
     }
 
@@ -62,8 +63,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(trackMaxValuePropertyKey,
+                             &m_TrackMaxValue,
+                             &value);
         m_TrackMaxValue = value;
-        trackMaxValueChanged();
+        RIVE_EDITOR_CHANGED(trackMaxValueChanged());
         notifyPropertyChanged(trackMaxValuePropertyKey);
     }
 
@@ -74,8 +78,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(collectionPropertyKey, &m_Collection, &value);
         m_Collection = value;
-        collectionChanged();
+        RIVE_EDITOR_CHANGED(collectionChanged());
         notifyPropertyChanged(collectionPropertyKey);
     }
 
@@ -86,8 +91,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(trackTypePropertyKey, &m_TrackType, &value);
         m_TrackType = value;
-        trackTypeChanged();
+        RIVE_EDITOR_CHANGED(trackTypeChanged());
         notifyPropertyChanged(trackTypePropertyKey);
     }
 
@@ -98,8 +104,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(trackMaxTypePropertyKey, &m_TrackMaxType, &value);
         m_TrackMaxType = value;
-        trackMaxTypeChanged();
+        RIVE_EDITOR_CHANGED(trackMaxTypeChanged());
         notifyPropertyChanged(trackMaxTypePropertyKey);
     }
 
@@ -143,6 +150,9 @@ protected:
     virtual void collectionChanged() {}
     virtual void trackTypeChanged() {}
     virtual void trackMaxTypeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/layout/grid_track_ext.inl"
+#endif
 };
 } // namespace rive
 

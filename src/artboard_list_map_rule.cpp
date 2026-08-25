@@ -16,6 +16,9 @@ StatusCode ArtboardListMapRule::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only; editor build registers via editorParentChanged.
     parent()->as<ArtboardComponentList>()->addMapRule(this);
+#endif
     return StatusCode::Ok;
 }

@@ -1,8 +1,0 @@
-{
-  "name": "TransitionValueArtboardComparator",
-  "key": {
-    "int": 630,
-    "string": "transitionvalueartboardcomparator"
-  },
-  "extends": "animation/transition_value_id_comparator.json"
-}

@@ -74,6 +74,15 @@ public:
     virtual AABB constraintBounds() const { return AABB(); }
     virtual AABB localBounds() const;
     void markDirtyIfConstrained();
+
+#ifdef WITH_RIVE_EDITOR
+    /// Idempotent add — `Constraint::editorParentChanged` calls this
+    /// when transitioning into us as the parent.
+    void addConstraintForEditor(Constraint* constraint);
+    /// Remove if present — `Constraint::editorParentChanged` calls
+    /// this when transitioning away (re-parent or unregister).
+    void removeConstraintForEditor(Constraint* constraint);
+#endif
 };
 } // namespace rive
 

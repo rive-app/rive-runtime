@@ -1,8 +1,0 @@
-{
-  "name": "Ellipse",
-  "key": {
-    "int": 4,
-    "string": "ellipse"
-  },
-  "extends": "shapes/parametric_path.json"
-}

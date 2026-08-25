@@ -42,8 +42,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(opacityPropertyKey, &m_Opacity, &value);
         m_Opacity = value;
-        opacityChanged();
+        RIVE_EDITOR_CHANGED(opacityChanged());
         notifyPropertyChanged(opacityPropertyKey);
     }
 
@@ -66,6 +67,9 @@ public:
 
 protected:
     virtual void opacityChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/world_transform_component_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -12,6 +12,14 @@ using namespace rive;
 
 static void applyDouble(Core* object, int propertyKey, float mix, float value)
 {
+    // Single setter — mirrors the Dart editor where the call site
+    // doesn't choose between animation-mode and design-mode paths.
+    // Generated `<name>(value)` setters internally consult
+    // `Core::isAnimationContextActive()`: when EditorFile has the
+    // animation context active they route the write to the
+    // per-property override overlay; otherwise to the persistent
+    // static field. Runtime builds compile out the overlay branch
+    // entirely.
     if (mix == 1.0f)
     {
         CoreRegistry::setDouble(object, propertyKey, value);

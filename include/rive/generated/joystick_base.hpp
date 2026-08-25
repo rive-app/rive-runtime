@@ -2,7 +2,12 @@
 #define _RIVE_JOYSTICK_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class JoystickBase : public Component
@@ -51,10 +56,10 @@ protected:
     float m_OriginY = 0.5f;
     float m_Width = 100.0f;
     float m_Height = 100.0f;
-    uint32_t m_XId = -1;
-    uint32_t m_YId = -1;
+    Id m_XId = kEmptyId;
+    Id m_YId = kEmptyId;
     uint32_t m_JoystickFlags = 0;
-    uint32_t m_HandleSourceId = -1;
+    Id m_HandleSourceId = kEmptyId;
 
 public:
     inline float x() const { return m_X; }
@@ -64,8 +69,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
         m_X = value;
-        xChanged();
+        RIVE_EDITOR_CHANGED(xChanged());
         notifyPropertyChanged(xPropertyKey);
     }
 
@@ -76,8 +82,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
         m_Y = value;
-        yChanged();
+        RIVE_EDITOR_CHANGED(yChanged());
         notifyPropertyChanged(yPropertyKey);
     }
 
@@ -88,8 +95,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(posXPropertyKey, &m_PosX, &value);
         m_PosX = value;
-        posXChanged();
+        RIVE_EDITOR_CHANGED(posXChanged());
         notifyPropertyChanged(posXPropertyKey);
     }
 
@@ -100,8 +108,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(posYPropertyKey, &m_PosY, &value);
         m_PosY = value;
-        posYChanged();
+        RIVE_EDITOR_CHANGED(posYChanged());
         notifyPropertyChanged(posYPropertyKey);
     }
 
@@ -112,8 +121,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
         m_OriginX = value;
-        originXChanged();
+        RIVE_EDITOR_CHANGED(originXChanged());
         notifyPropertyChanged(originXPropertyKey);
     }
 
@@ -124,8 +134,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
         m_OriginY = value;
-        originYChanged();
+        RIVE_EDITOR_CHANGED(originYChanged());
         notifyPropertyChanged(originYPropertyKey);
     }
 
@@ -136,8 +147,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(widthPropertyKey, &m_Width, &value);
         m_Width = value;
-        widthChanged();
+        RIVE_EDITOR_CHANGED(widthChanged());
         notifyPropertyChanged(widthPropertyKey);
     }
 
@@ -148,32 +160,35 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(heightPropertyKey, &m_Height, &value);
         m_Height = value;
-        heightChanged();
+        RIVE_EDITOR_CHANGED(heightChanged());
         notifyPropertyChanged(heightPropertyKey);
     }
 
-    inline uint32_t xId() const { return m_XId; }
-    void xId(uint32_t value)
+    inline Id xId() const { return m_XId; }
+    void xId(Id value)
     {
         if (m_XId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(xIdPropertyKey, &m_XId, &value);
         m_XId = value;
-        xIdChanged();
+        RIVE_EDITOR_CHANGED(xIdChanged());
         notifyPropertyChanged(xIdPropertyKey);
     }
 
-    inline uint32_t yId() const { return m_YId; }
-    void yId(uint32_t value)
+    inline Id yId() const { return m_YId; }
+    void yId(Id value)
     {
         if (m_YId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(yIdPropertyKey, &m_YId, &value);
         m_YId = value;
-        yIdChanged();
+        RIVE_EDITOR_CHANGED(yIdChanged());
         notifyPropertyChanged(yIdPropertyKey);
     }
 
@@ -184,20 +199,26 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(joystickFlagsPropertyKey,
+                             &m_JoystickFlags,
+                             &value);
         m_JoystickFlags = value;
-        joystickFlagsChanged();
+        RIVE_EDITOR_CHANGED(joystickFlagsChanged());
         notifyPropertyChanged(joystickFlagsPropertyKey);
     }
 
-    inline uint32_t handleSourceId() const { return m_HandleSourceId; }
-    void handleSourceId(uint32_t value)
+    inline Id handleSourceId() const { return m_HandleSourceId; }
+    void handleSourceId(Id value)
     {
         if (m_HandleSourceId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(handleSourceIdPropertyKey,
+                             &m_HandleSourceId,
+                             &value);
         m_HandleSourceId = value;
-        handleSourceIdChanged();
+        RIVE_EDITOR_CHANGED(handleSourceIdChanged());
         notifyPropertyChanged(handleSourceIdPropertyKey);
     }
 
@@ -216,6 +237,7 @@ public:
         m_YId = object.m_YId;
         m_JoystickFlags = object.m_JoystickFlags;
         m_HandleSourceId = object.m_HandleSourceId;
+        RIVE_EDITOR_COPY(object);
         Component::copy(object);
     }
 
@@ -248,18 +270,19 @@ public:
                 m_Height = CoreDoubleType::deserialize(reader);
                 return true;
             case xIdPropertyKey:
-                m_XId = CoreUintType::deserialize(reader);
+                m_XId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case yIdPropertyKey:
-                m_YId = CoreUintType::deserialize(reader);
+                m_YId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case joystickFlagsPropertyKey:
                 m_JoystickFlags = CoreUintType::deserialize(reader);
                 return true;
             case handleSourceIdPropertyKey:
-                m_HandleSourceId = CoreUintType::deserialize(reader);
+                m_HandleSourceId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Component::deserialize(propertyKey, reader);
     }
 
@@ -276,6 +299,9 @@ protected:
     virtual void yIdChanged() {}
     virtual void joystickFlagsChanged() {}
     virtual void handleSourceIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/joystick_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -43,6 +43,12 @@ class TextModifierGroup : public TextModifierGroupBase
 {
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
+#ifdef WITH_RIVE_EDITOR
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+    void addModifierForEditor(TextModifier* modifier);
+    void removeModifierForEditor(TextModifier* modifier);
+#endif
 
     void addModifierRange(TextModifierRange* range);
     void addModifier(TextModifier* modifier);

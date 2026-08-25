@@ -14,9 +14,9 @@ void IKConstraint::buildDependencies()
     // IK Constraint needs to depend on the target so that world transform
     // changes can propagate to the bones (and they can be reset before IK
     // runs).
-    if (m_Target != nullptr)
+    if (auto* t = target())
     {
-        m_Target->addDependent(this);
+        t->addDependent(this);
     }
 }
 
@@ -215,12 +215,13 @@ void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
 
 void IKConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr || m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt == nullptr || tgt->isCollapsed())
     {
         return;
     }
 
-    Vec2D worldTargetTranslation = m_Target->worldTranslation();
+    Vec2D worldTargetTranslation = tgt->worldTranslation();
 
     // Decompose the chain where it currently stands, before rebuilding any of
     // it, so no bone is measured against a parent we already rebuilt. A

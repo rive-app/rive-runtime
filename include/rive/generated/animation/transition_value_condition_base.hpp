@@ -42,8 +42,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(opValuePropertyKey, &m_OpValue, &value);
         m_OpValue = value;
-        opValueChanged();
+        RIVE_EDITOR_CHANGED(opValueChanged());
         notifyPropertyChanged(opValuePropertyKey);
     }
 
@@ -66,6 +67,9 @@ public:
 
 protected:
     virtual void opValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/transition_value_condition_ext.inl"
+#endif
 };
 } // namespace rive
 

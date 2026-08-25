@@ -1,4 +1,5 @@
 #include "rive/shapes/path.hpp"
+#include "rive/shapes/points_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/cubic_detached_vertex.hpp"
@@ -7,6 +8,7 @@
 #include "rive/shapes/shape.hpp"
 #include "rive/shapes/straight_vertex.hpp"
 #include "rive/math/math_types.hpp"
+#include <algorithm>
 #include <cassert>
 
 using namespace rive;
@@ -101,6 +103,23 @@ void Path::buildDependencies() { Super::buildDependencies(); }
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 void Path::popVertex() { m_Vertices.pop_back(); }
+
+#ifdef WITH_RIVE_EDITOR
+void Path::sortVerticesForEditor()
+{
+    auto byChildOrder = [](const PathVertex* a, const PathVertex* b) {
+        return a->childOrder().compareTo(b->childOrder()) < 0;
+    };
+    if (std::is_sorted(m_Vertices.begin(), m_Vertices.end(), byChildOrder))
+    {
+        return;
+    }
+    std::sort(m_Vertices.begin(), m_Vertices.end(), byChildOrder);
+    // A reorder after the path has built leaves m_rawPath on the old
+    // vertex sequence.
+    markPathDirty();
+}
+#endif
 
 void Path::addFlags(PathFlags flags) { m_pathFlags |= flags; }
 bool Path::isFlagged(PathFlags flags) const

@@ -1,8 +1,0 @@
-{
-  "name": "TransitionFocusCondition",
-  "key": {
-    "int": 1038,
-    "string": "transitionfocuscondition"
-  },
-  "extends": "animation/transition_viewmodel_condition.json"
-}

@@ -7,6 +7,8 @@ using namespace rive;
 StatusCode TextStyleAxis::onAddedDirty(CoreContext* context)
 {
     StatusCode code = Super::onAddedDirty(context);
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only; editor build registers via editorParentChanged.
     if (code == StatusCode::Ok)
     {
         if (!parent()->is<TextStyle>())
@@ -16,6 +18,7 @@ StatusCode TextStyleAxis::onAddedDirty(CoreContext* context)
         auto style = parent()->as<TextStyle>();
         style->addVariation(this);
     }
+#endif
     return code;
 }
 

@@ -8,14 +8,15 @@ using namespace rive;
 
 void TranslationConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target != nullptr && m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt != nullptr && tgt->isCollapsed())
     {
         return;
     }
     Mat2D& transformA = component->mutableWorldTransform();
     Vec2D translationA(transformA[4], transformA[5]);
     Vec2D translationB;
-    if (m_Target == nullptr)
+    if (tgt == nullptr)
     {
         translationB = translationA;
     }
@@ -24,10 +25,10 @@ void TranslationConstraint::constrain(TransformComponent* component)
         Vec2D localA = offset() && (doesCopy() || doesCopyY())
                            ? component->composedTranslation()
                            : Vec2D();
-        Mat2D transformB(m_Target->worldTransform());
+        Mat2D transformB(tgt->worldTransform());
         if (sourceSpace() == TransformSpace::local)
         {
-            const Mat2D& targetParentWorld = getParentWorld(*m_Target);
+            const Mat2D& targetParentWorld = getParentWorld(*tgt);
 
             Mat2D inverse;
             if (!targetParentWorld.invert(&inverse))

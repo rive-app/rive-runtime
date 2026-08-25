@@ -9,12 +9,16 @@ using namespace rive;
 StatusCode Constraint::onAddedDirty(CoreContext* context)
 {
     StatusCode result = Super::onAddedDirty(context);
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only path; editor build registers via
+    // `editorParentChanged` (dispatcher Pass 4.5).
     if (!parent()->is<TransformComponent>())
     {
         return StatusCode::InvalidObject;
     }
 
     parent()->as<TransformComponent>()->addConstraint(this);
+#endif
 
     return result;
 }

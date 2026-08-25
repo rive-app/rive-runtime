@@ -17,6 +17,10 @@ public:
     virtual void constrain(TransformComponent* component) = 0;
     void buildDependencies() override;
     void onDirty(ComponentDirt dirt) override;
+#ifdef WITH_RIVE_EDITOR
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+#endif
 
 protected:
     /// Writes composed into the component's world transform, keeping its

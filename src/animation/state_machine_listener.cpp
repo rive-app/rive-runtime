@@ -39,6 +39,16 @@ bool StateMachineListener::hasListener(ListenerType listenerType) const
             return true;
         }
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* listenerInputType : m_editorListenerInputTypes)
+    {
+        if (listenerInputType != nullptr &&
+            listenerInputType->listenerTypeValue() == (int)listenerType)
+        {
+            return true;
+        }
+    }
+#endif
     return false;
 }
 
@@ -110,6 +120,12 @@ const ListenerAction* StateMachineListener::action(size_t index) const
     {
         return m_actions[index].get();
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_actions.empty() && index < m_editorActions.size())
+    {
+        return m_editorActions[index];
+    }
+#endif
     return nullptr;
 }
 
@@ -120,6 +136,13 @@ const ListenerInputType* StateMachineListener::listenerInputType(
     {
         return m_listenerInputTypes[index].get();
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_listenerInputTypes.empty() &&
+        index < m_editorListenerInputTypes.size())
+    {
+        return m_editorListenerInputTypes[index];
+    }
+#endif
     return nullptr;
 }
 
@@ -131,4 +154,16 @@ void StateMachineListener::performChanges(
     {
         action->perform(stateMachineInstance, invocation);
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_actions.empty())
+    {
+        for (auto* action : m_editorActions)
+        {
+            if (action != nullptr)
+            {
+                action->perform(stateMachineInstance, invocation);
+            }
+        }
+    }
+#endif
 }

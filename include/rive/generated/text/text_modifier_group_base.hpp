@@ -59,8 +59,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modifierFlagsPropertyKey,
+                             &m_ModifierFlags,
+                             &value);
         m_ModifierFlags = value;
-        modifierFlagsChanged();
+        RIVE_EDITOR_CHANGED(modifierFlagsChanged());
         notifyPropertyChanged(modifierFlagsPropertyKey);
     }
 
@@ -71,8 +74,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
         m_OriginX = value;
-        originXChanged();
+        RIVE_EDITOR_CHANGED(originXChanged());
         notifyPropertyChanged(originXPropertyKey);
     }
 
@@ -83,8 +87,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
         m_OriginY = value;
-        originYChanged();
+        RIVE_EDITOR_CHANGED(originYChanged());
         notifyPropertyChanged(originYPropertyKey);
     }
 
@@ -95,8 +100,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(opacityPropertyKey, &m_Opacity, &value);
         m_Opacity = value;
-        opacityChanged();
+        RIVE_EDITOR_CHANGED(opacityChanged());
         notifyPropertyChanged(opacityPropertyKey);
     }
 
@@ -107,8 +113,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
         m_X = value;
-        xChanged();
+        RIVE_EDITOR_CHANGED(xChanged());
         notifyPropertyChanged(xPropertyKey);
     }
 
@@ -119,8 +126,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
         m_Y = value;
-        yChanged();
+        RIVE_EDITOR_CHANGED(yChanged());
         notifyPropertyChanged(yPropertyKey);
     }
 
@@ -131,8 +139,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(rotationPropertyKey, &m_Rotation, &value);
         m_Rotation = value;
-        rotationChanged();
+        RIVE_EDITOR_CHANGED(rotationChanged());
         notifyPropertyChanged(rotationPropertyKey);
     }
 
@@ -143,8 +152,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(scaleXPropertyKey, &m_ScaleX, &value);
         m_ScaleX = value;
-        scaleXChanged();
+        RIVE_EDITOR_CHANGED(scaleXChanged());
         notifyPropertyChanged(scaleXPropertyKey);
     }
 
@@ -155,8 +165,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(scaleYPropertyKey, &m_ScaleY, &value);
         m_ScaleY = value;
-        scaleYChanged();
+        RIVE_EDITOR_CHANGED(scaleYChanged());
         notifyPropertyChanged(scaleYPropertyKey);
     }
 
@@ -220,6 +231,9 @@ protected:
     virtual void rotationChanged() {}
     virtual void scaleXChanged() {}
     virtual void scaleYChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_modifier_group_ext.inl"
+#endif
 };
 } // namespace rive
 

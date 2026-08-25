@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelPropertyEnum",
-  "key": {
-    "int": 509,
-    "string": "viewmodelpropertyenum"
-  },
-  "extends": "viewmodel/viewmodel_property.json"
-}

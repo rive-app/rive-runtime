@@ -1,9 +1,0 @@
-{
-  "name": "BlendStateDirect",
-  "key": {
-    "int": 73,
-    "string": "blendstatedirect"
-  },
-  "extends": "animation/blend_state.json",
-  "generic": "animation/blend_animation_direct.json"
-}

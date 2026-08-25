@@ -46,8 +46,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(distancePropertyKey, &m_Distance, &value);
         m_Distance = value;
-        distanceChanged();
+        RIVE_EDITOR_CHANGED(distanceChanged());
         notifyPropertyChanged(distancePropertyKey);
     }
 
@@ -58,8 +59,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
         m_ModeValue = value;
-        modeValueChanged();
+        RIVE_EDITOR_CHANGED(modeValueChanged());
         notifyPropertyChanged(modeValuePropertyKey);
     }
 
@@ -88,6 +90,9 @@ public:
 protected:
     virtual void distanceChanged() {}
     virtual void modeValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/constraints/distance_constraint_ext.inl"
+#endif
 };
 } // namespace rive
 

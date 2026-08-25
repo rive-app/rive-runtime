@@ -43,8 +43,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(fillRulePropertyKey, &m_FillRule, &value);
         m_FillRule = value;
-        fillRuleChanged();
+        RIVE_EDITOR_CHANGED(fillRuleChanged());
         notifyPropertyChanged(fillRulePropertyKey);
     }
 
@@ -68,6 +69,9 @@ public:
 
 protected:
     virtual void fillRuleChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/paint/fill_ext.inl"
+#endif
 };
 } // namespace rive
 

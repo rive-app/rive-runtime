@@ -41,8 +41,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
         m_Strength = value;
-        strengthChanged();
+        RIVE_EDITOR_CHANGED(strengthChanged());
         notifyPropertyChanged(strengthPropertyKey);
     }
 
@@ -65,6 +66,9 @@ public:
 
 protected:
     virtual void strengthChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/constraints/constraint_ext.inl"
+#endif
 };
 } // namespace rive
 

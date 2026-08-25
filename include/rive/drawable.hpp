@@ -43,13 +43,59 @@ public:
     {
         return m_ClippingShapes.view();
     }
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only removal companion to `addClippingShape`. Fires from
+    // `ClippingShape::editorParentChanged` when a ClippingShape is
+    // reparented away from this drawable's clip-affecting ancestor (or
+    // about to be freed) so the typed list doesn't dangle. Runtime
+    // assumes immutable hierarchy and never needs this. Body in
+    // `editor_native/.../component_parent_editor.cpp`.
+    void removeClippingShapeForEditor(ClippingShape* shape);
+#endif
 
     virtual bool isHidden() const
     {
-        return (static_cast<DrawableFlag>(drawableFlags()) &
-                DrawableFlag::Hidden) == DrawableFlag::Hidden ||
-               hasDirt(ComponentDirt::Collapsed);
+        if ((static_cast<DrawableFlag>(drawableFlags()) &
+             DrawableFlag::Hidden) == DrawableFlag::Hidden ||
+            hasDirt(ComponentDirt::Collapsed))
+        {
+            return true;
+        }
+#ifdef WITH_RIVE_EDITOR
+        // Editor-only: respect the hierarchy panel's eye toggle.
+        // Walks the parent chain since `ComponentFlags::hidden`
+        // doesn't physically cascade to children. Mirrors dart's
+        // [stage_hideable.dart:76-80](packages/editor/lib/rive/stage/stage_hideable.dart#L76-L80).
+        // Runtime flags() is always 0, so this branch is dead weight
+        // there but free at runtime build time.
+        if (isFlaggedRecursive(EditorFlagHidden))
+        {
+            return true;
+        }
+        // Isolation: when any component in the artboard has the
+        // isolated bit set, everything outside the isolated subtree
+        // is hidden on stage. After-Effects-style.
+        if (isOutsideEditorIsolationScope())
+        {
+            return true;
+        }
+#endif
+        return false;
     }
+
+#ifdef WITH_RIVE_EDITOR
+    /// True iff the active artboard has at least one component with
+    /// `EditorFlagIsolated` set AND this drawable is NOT a descendant
+    /// of one of those isolated subtrees. Walks the artboard's full
+    /// hierarchy on each call — cheap because flagged components are
+    /// rare and the walk short-circuits on the first match. Mirrors
+    /// dart's [Artboard.hasIsolatedComponents]/[isInIsolationScope]
+    /// pair used by
+    /// [stage_hideable.dart:87-92](packages/editor/lib/rive/stage/stage_hideable.dart#L87-L92).
+    /// Body in `editor_native/native/src/editor/drawable_editor.cpp`
+    /// so this header doesn't depend on the full Artboard def.
+    bool isOutsideEditorIsolationScope() const;
+#endif
 
     virtual bool isTargetOpaque()
     {

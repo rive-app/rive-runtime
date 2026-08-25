@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelPropertyArtboard",
-  "key": {
-    "int": 598,
-    "string": "viewmodelpropertyartboard"
-  },
-  "extends": "viewmodel/viewmodel_property.json"
-}

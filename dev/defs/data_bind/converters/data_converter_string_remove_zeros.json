@@ -1,8 +1,0 @@
-{
-  "name": "DataConverterStringRemoveZeros",
-  "key": {
-    "int": 531,
-    "string": "dataconverterstringremovezeros"
-  },
-  "extends": "data_bind/converters/data_converter.json"
-}

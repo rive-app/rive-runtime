@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelPropertyAssetImage",
-  "key": {
-    "int": 585,
-    "string": "viewmodelpropertyassetimage"
-  },
-  "extends": "viewmodel/viewmodel_property_asset.json"
-}

@@ -2,6 +2,9 @@
 #define _RIVE_VIEW_MODEL_PROPERTY_BASE_HPP_
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ViewModelPropertyBase : public ViewModelComponent
@@ -43,8 +46,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(symbolTypeValuePropertyKey,
+                             &m_SymbolTypeValue,
+                             &value);
         m_SymbolTypeValue = value;
-        symbolTypeValueChanged();
+        RIVE_EDITOR_CHANGED(symbolTypeValueChanged());
         notifyPropertyChanged(symbolTypeValuePropertyKey);
     }
 
@@ -55,8 +61,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(componentPropsPropertyKey,
+                             &m_ComponentProps,
+                             &value);
         m_ComponentProps = value;
-        componentPropsChanged();
+        RIVE_EDITOR_CHANGED(componentPropsChanged());
         notifyPropertyChanged(componentPropsPropertyKey);
     }
 
@@ -65,6 +74,7 @@ public:
     {
         m_SymbolTypeValue = object.m_SymbolTypeValue;
         m_ComponentProps = object.m_ComponentProps;
+        RIVE_EDITOR_COPY(object);
         ViewModelComponent::copy(object);
     }
 
@@ -79,12 +89,16 @@ public:
                 m_ComponentProps = CoreUintType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return ViewModelComponent::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void symbolTypeValueChanged() {}
     virtual void componentPropsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/viewmodel/viewmodel_property_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -15,7 +15,11 @@ StatusCode TextTargetModifier::onAddedDirty(CoreContext* context)
     }
 
     auto coreObject = context->resolve(targetId());
+#ifdef WITH_RIVE_EDITOR
+    setTargetForEditor(static_cast<TransformComponent*>(coreObject));
+#else
     m_Target = static_cast<TransformComponent*>(coreObject);
+#endif
 
     return StatusCode::Ok;
 }

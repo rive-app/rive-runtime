@@ -41,8 +41,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(actionTypePropertyKey, &m_ActionType, &value);
         m_ActionType = value;
-        actionTypeChanged();
+        RIVE_EDITOR_CHANGED(actionTypeChanged());
         notifyPropertyChanged(actionTypePropertyKey);
     }
 
@@ -66,6 +67,9 @@ public:
 
 protected:
     virtual void actionTypeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/inputs/semantic_input_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -1,8 +1,0 @@
-{
-  "name": "ShaderAsset",
-  "key": {
-    "int": 970,
-    "string": "shaderasset"
-  },
-  "extends": "assets/text_asset.json"
-}

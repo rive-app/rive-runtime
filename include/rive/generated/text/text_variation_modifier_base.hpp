@@ -46,8 +46,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(axisTagPropertyKey, &m_AxisTag, &value);
         m_AxisTag = value;
-        axisTagChanged();
+        RIVE_EDITOR_CHANGED(axisTagChanged());
         notifyPropertyChanged(axisTagPropertyKey);
     }
 
@@ -58,8 +59,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(axisValuePropertyKey, &m_AxisValue, &value);
         m_AxisValue = value;
-        axisValueChanged();
+        RIVE_EDITOR_CHANGED(axisValueChanged());
         notifyPropertyChanged(axisValuePropertyKey);
     }
 
@@ -88,6 +90,9 @@ public:
 protected:
     virtual void axisTagChanged() {}
     virtual void axisValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_variation_modifier_ext.inl"
+#endif
 };
 } // namespace rive
 

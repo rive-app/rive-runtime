@@ -58,6 +58,9 @@ public:
 
 protected:
     virtual void nestedValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/nested_bool_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -33,6 +33,23 @@ class DataBindContainer
 public:
     virtual void updateDataBinds(bool applyTargetToSource = true);
     void addDataBind(DataBind* dataBind);
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only DataBind add path. Coop-hydrated DataBinds are
+    // owned by `EditorFile::m_arena`, not by this container — but
+    // they still need to participate in `updateDataBinds`,
+    // `bindDataBindsFromContext`, etc. This wraps `addDataBind` so
+    // the entry gets all the working-set plumbing
+    // (m_persistingDataBinds / m_dirtyDataBinds, container
+    // back-pointer) but gets flagged so `deleteDataBinds()` skips
+    // it at destruction. See `DataBind::isEditorOwned`.
+    void addDataBindForEditor(DataBind* dataBind);
+    // Remove every flagged (editor-owned) entry from this
+    // container's lists. Importer-added (unflagged) entries are
+    // preserved. Called by `EditorFile::finalizeBatch` at the start
+    // of every batch so the subsequent DB pass can re-add freshly
+    // and stay idempotent across batches.
+    void clearEditorDataBinds();
+#endif
     void removeDataBind(DataBind* dataBind);
     // Applies a single (source→target) data bind immediately if it is dirty.
     // Used to refresh per-instance keyframe value holders at read time so their

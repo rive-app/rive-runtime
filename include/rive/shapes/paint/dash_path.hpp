@@ -61,6 +61,16 @@ public:
     EffectsContainer* parentPaint() override;
     virtual EffectPath* createEffectPath() override;
 
+#ifdef WITH_RIVE_EDITOR
+    // `m_dashes` is populated by `onAddedClean` in coop-arrival
+    // order. `applyDash` walks dashes via `dashes[index++ %
+    // size]` — a sequential modulo loop — so out-of-author-order
+    // dashes corrupt the rendered pattern. Mirrors the
+    // `Path::sortVerticesForEditor` fix for the same arrival-
+    // order bug class.
+    void sortDashesForEditor();
+#endif
+
 private:
     std::vector<Dash*> m_dashes;
 };

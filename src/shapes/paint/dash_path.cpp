@@ -3,8 +3,26 @@
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/math/path_measure.hpp"
 #include "rive/factory.hpp"
+#include <algorithm>
 
 using namespace rive;
+
+#ifdef WITH_RIVE_EDITOR
+void DashPath::sortDashesForEditor()
+{
+    auto byChildOrder = [](const Dash* a, const Dash* b) {
+        return a->childOrder().compareTo(b->childOrder()) < 0;
+    };
+    if (std::is_sorted(m_dashes.begin(), m_dashes.end(), byChildOrder))
+    {
+        return;
+    }
+    std::sort(m_dashes.begin(), m_dashes.end(), byChildOrder);
+    // A reorder after the effect has run leaves the cached dashed path
+    // on the old sequence.
+    invalidateDash();
+}
+#endif
 
 void DashEffectPath::invalidateEffect() { m_path.rewind(); }
 

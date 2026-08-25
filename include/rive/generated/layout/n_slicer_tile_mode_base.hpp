@@ -2,6 +2,9 @@
 #define _RIVE_N_SLICER_TILE_MODE_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class NSlicerTileModeBase : public Component
@@ -43,8 +46,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(patchIndexPropertyKey, &m_PatchIndex, &value);
         m_PatchIndex = value;
-        patchIndexChanged();
+        RIVE_EDITOR_CHANGED(patchIndexChanged());
         notifyPropertyChanged(patchIndexPropertyKey);
     }
 
@@ -55,8 +59,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(stylePropertyKey, &m_Style, &value);
         m_Style = value;
-        styleChanged();
+        RIVE_EDITOR_CHANGED(styleChanged());
         notifyPropertyChanged(stylePropertyKey);
     }
 
@@ -65,6 +70,7 @@ public:
     {
         m_PatchIndex = object.m_PatchIndex;
         m_Style = object.m_Style;
+        RIVE_EDITOR_COPY(object);
         Component::copy(object);
     }
 
@@ -79,12 +85,16 @@ public:
                 m_Style = CoreUintType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Component::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void patchIndexChanged() {}
     virtual void styleChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/layout/n_slicer_tile_mode_ext.inl"
+#endif
 };
 } // namespace rive
 

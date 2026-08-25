@@ -8,7 +8,7 @@ float CoreDoubleType::deserialize(BinaryReader& reader)
     return reader.readFloat32();
 }
 
-#ifdef WITH_RIVE_TOOLS
+#if defined(WITH_RIVE_TOOLS) || defined(WITH_RIVE_EDITOR)
 float CoreDoubleType::deserializeRev(BinaryReader& reader)
 {
     size_t length = reader.lengthInBytes();

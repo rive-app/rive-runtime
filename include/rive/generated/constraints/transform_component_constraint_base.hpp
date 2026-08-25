@@ -60,8 +60,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(minMaxSpaceValuePropertyKey,
+                             &m_MinMaxSpaceValue,
+                             &value);
         m_MinMaxSpaceValue = value;
-        minMaxSpaceValueChanged();
+        RIVE_EDITOR_CHANGED(minMaxSpaceValueChanged());
         notifyPropertyChanged(minMaxSpaceValuePropertyKey);
     }
 
@@ -72,8 +75,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(copyFactorPropertyKey, &m_CopyFactor, &value);
         m_CopyFactor = value;
-        copyFactorChanged();
+        RIVE_EDITOR_CHANGED(copyFactorChanged());
         notifyPropertyChanged(copyFactorPropertyKey);
     }
 
@@ -84,8 +88,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(minValuePropertyKey, &m_MinValue, &value);
         m_MinValue = value;
-        minValueChanged();
+        RIVE_EDITOR_CHANGED(minValueChanged());
         notifyPropertyChanged(minValuePropertyKey);
     }
 
@@ -96,8 +101,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(maxValuePropertyKey, &m_MaxValue, &value);
         m_MaxValue = value;
-        maxValueChanged();
+        RIVE_EDITOR_CHANGED(maxValueChanged());
         notifyPropertyChanged(maxValuePropertyKey);
     }
 
@@ -108,8 +114,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
         m_Offset = value;
-        offsetChanged();
+        RIVE_EDITOR_CHANGED(offsetChanged());
         notifyPropertyChanged(offsetPropertyKey);
     }
 
@@ -120,8 +127,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(doesCopyPropertyKey, &m_DoesCopy, &value);
         m_DoesCopy = value;
-        doesCopyChanged();
+        RIVE_EDITOR_CHANGED(doesCopyChanged());
         notifyPropertyChanged(doesCopyPropertyKey);
     }
 
@@ -132,8 +140,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(minPropertyKey, &m_Min, &value);
         m_Min = value;
-        minChanged();
+        RIVE_EDITOR_CHANGED(minChanged());
         notifyPropertyChanged(minPropertyKey);
     }
 
@@ -144,8 +153,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(maxPropertyKey, &m_Max, &value);
         m_Max = value;
-        maxChanged();
+        RIVE_EDITOR_CHANGED(maxChanged());
         notifyPropertyChanged(maxPropertyKey);
     }
 
@@ -203,6 +213,9 @@ protected:
     virtual void doesCopyChanged() {}
     virtual void minChanged() {}
     virtual void maxChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/constraints/transform_component_constraint_ext.inl"
+#endif
 };
 } // namespace rive
 

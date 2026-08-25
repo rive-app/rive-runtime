@@ -1,7 +1,8 @@
 #ifndef _RIVE_ARTBOARD_LIST_MAP_RULE_BASE_HPP_
 #define _RIVE_ARTBOARD_LIST_MAP_RULE_BASE_HPP_
 #include "rive/component.hpp"
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class ArtboardListMapRuleBase : public Component
@@ -32,31 +33,33 @@ public:
     static const uint16_t viewModelIdPropertyKey = 935;
 
 protected:
-    uint32_t m_ArtboardId = -1;
-    uint32_t m_ViewModelId = -1;
+    Id m_ArtboardId = kEmptyId;
+    Id m_ViewModelId = kEmptyId;
 
 public:
-    inline uint32_t artboardId() const { return m_ArtboardId; }
-    void artboardId(uint32_t value)
+    inline Id artboardId() const { return m_ArtboardId; }
+    void artboardId(Id value)
     {
         if (m_ArtboardId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(artboardIdPropertyKey, &m_ArtboardId, &value);
         m_ArtboardId = value;
-        artboardIdChanged();
+        RIVE_EDITOR_CHANGED(artboardIdChanged());
         notifyPropertyChanged(artboardIdPropertyKey);
     }
 
-    inline uint32_t viewModelId() const { return m_ViewModelId; }
-    void viewModelId(uint32_t value)
+    inline Id viewModelId() const { return m_ViewModelId; }
+    void viewModelId(Id value)
     {
         if (m_ViewModelId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
         m_ViewModelId = value;
-        viewModelIdChanged();
+        RIVE_EDITOR_CHANGED(viewModelIdChanged());
         notifyPropertyChanged(viewModelIdPropertyKey);
     }
 
@@ -73,10 +76,10 @@ public:
         switch (propertyKey)
         {
             case artboardIdPropertyKey:
-                m_ArtboardId = CoreUintType::deserialize(reader);
+                m_ArtboardId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case viewModelIdPropertyKey:
-                m_ViewModelId = CoreUintType::deserialize(reader);
+                m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return Component::deserialize(propertyKey, reader);
@@ -85,6 +88,9 @@ public:
 protected:
     virtual void artboardIdChanged() {}
     virtual void viewModelIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/artboard_list_map_rule_ext.inl"
+#endif
 };
 } // namespace rive
 

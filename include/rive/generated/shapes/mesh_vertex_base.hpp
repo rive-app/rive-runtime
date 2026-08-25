@@ -45,8 +45,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(uPropertyKey, &m_U, &value);
         m_U = value;
-        uChanged();
+        RIVE_EDITOR_CHANGED(uChanged());
         notifyPropertyChanged(uPropertyKey);
     }
 
@@ -57,8 +58,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(vPropertyKey, &m_V, &value);
         m_V = value;
-        vChanged();
+        RIVE_EDITOR_CHANGED(vChanged());
         notifyPropertyChanged(vPropertyKey);
     }
 
@@ -87,6 +89,9 @@ public:
 protected:
     virtual void uChanged() {}
     virtual void vChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/mesh_vertex_ext.inl"
+#endif
 };
 } // namespace rive
 

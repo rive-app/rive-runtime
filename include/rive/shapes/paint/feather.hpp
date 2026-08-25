@@ -28,6 +28,10 @@ public:
 
     bool effectPathDirty() const { return m_effectPathDirty; }
     void markEffectPathDirty() { m_effectPathDirty = true; }
+#ifdef WITH_RIVE_EDITOR
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+#endif
 
 protected:
     void strengthChanged() override;

@@ -26,5 +26,7 @@ void initializeFields() {
     BoolFieldType(),
     ColorFieldType(),
     CallbackFieldType(),
+    IdFieldType(),
+    FractionalIndexFieldType(),
   ];
 }

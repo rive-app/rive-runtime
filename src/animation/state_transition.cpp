@@ -36,7 +36,11 @@ StatusCode StateTransition::onAddedDirty(CoreContext* context)
         {
             return StatusCode::MissingObject;
         }
+#ifdef WITH_RIVE_EDITOR
+        setInterpolatorForEditor(coreObject->as<KeyFrameInterpolator>());
+#else
         m_Interpolator = coreObject->as<KeyFrameInterpolator>();
+#endif
     }
 
     for (auto condition : m_Conditions)

@@ -133,6 +133,26 @@ void Image::assetUpdated()
 {
     updateImageScale();
     markWorldTransformDirty();
+#ifdef WITH_RIVE_EDITOR
+    // Editor / coop path: the FileAsset's `renderImage` typically
+    // arrives AFTER `Image::setAsset` has already run (bytes are
+    // fetched asynchronously from the CDN and pushed in via a pump
+    // command). `Mesh::onAssetLoaded` allocated its GPU buffers on
+    // the first bind with `renderImage == nullptr` and wrote UVs
+    // using an identity `uvTransform`; now that the RenderImage is
+    // actually present (with a real `uvTransform`), re-run the
+    // UV/buffer initialization so sampling lines up with the
+    // decoded texture.
+    //
+    // Runtime `.riv` loads don't need this — the RenderImage is
+    // present the moment `setAsset` binds, so the single call at
+    // image.cpp:117 is enough.
+    if (m_Mesh != nullptr && artboard() != nullptr && !artboard()->isInstance())
+    {
+        auto* ia = imageAsset();
+        m_Mesh->onAssetLoaded(ia != nullptr ? ia->renderImage() : nullptr);
+    }
+#endif
 }
 
 Core* Image::clone() const

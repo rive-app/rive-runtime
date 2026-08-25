@@ -16,6 +16,15 @@ void DataBindContainer::deleteDataBinds()
 {
     for (auto& dataBind : m_dataBinds)
     {
+#ifdef WITH_RIVE_EDITOR
+        // Skip arena-owned entries — `EditorFile::m_arena` will
+        // free them at file destruction. The runtime importer-added
+        // entries (no flag set) get deleted as before.
+        if (dataBind->isEditorOwned())
+        {
+            continue;
+        }
+#endif
         delete dataBind;
     }
 }

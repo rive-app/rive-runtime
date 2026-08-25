@@ -20,11 +20,12 @@ void FollowPathConstraint::orientChanged() { markConstraintDirty(); }
 
 const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
 {
-    if (m_Target->is<Shape>() || m_Target->is<Path>())
+    auto* tgt = target();
+    if (tgt->is<Shape>() || tgt->is<Path>())
     {
         auto result = m_pathMeasure.atPercentage(distanceOffset);
         Vec2D position = result.pos;
-        Mat2D transformB = Mat2D(m_Target->worldTransform());
+        Mat2D transformB = Mat2D(tgt->worldTransform());
 
         if (orient())
         {
@@ -57,13 +58,14 @@ const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
     }
     else
     {
-        return m_Target->worldTransform();
+        return tgt->worldTransform();
     }
 }
 
 void FollowPathConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr || m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt == nullptr || tgt->isCollapsed())
     {
         return;
     }
@@ -83,7 +85,7 @@ TransformComponents FollowPathConstraint::constrainHelper(
     const Mat2D& transformA = componentTransform;
     if (sourceSpace() == TransformSpace::local)
     {
-        const Mat2D& targetParentWorld = getParentWorld(*m_Target);
+        const Mat2D& targetParentWorld = getParentWorld(*target());
 
         Mat2D inverse;
         if (!targetParentWorld.invert(&inverse))
@@ -119,18 +121,19 @@ TransformComponents FollowPathConstraint::constrainHelper(
 
 void FollowPathConstraint::update(ComponentDirt value)
 {
+    auto* tgt = target();
     std::vector<Path*> paths;
-    if (m_Target->is<Shape>())
+    if (tgt->is<Shape>())
     {
-        auto shape = m_Target->as<Shape>();
+        auto shape = tgt->as<Shape>();
         for (auto path : shape->paths())
         {
             paths.push_back(path);
         }
     }
-    else if (m_Target->is<Path>())
+    else if (tgt->is<Path>())
     {
-        paths.push_back(m_Target->as<Path>());
+        paths.push_back(tgt->as<Path>());
     }
     if (paths.size() > 0)
     {
@@ -146,16 +149,16 @@ void FollowPathConstraint::update(ComponentDirt value)
 
 StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 {
-    if (m_Target != nullptr)
+    if (auto* tgt = target())
     {
-        if (m_Target->is<Shape>())
+        if (tgt->is<Shape>())
         {
-            Shape* shape = static_cast<Shape*>(m_Target);
+            Shape* shape = static_cast<Shape*>(tgt);
             shape->addFlags(PathFlags::followPath);
         }
-        else if (m_Target->is<Path>())
+        else if (tgt->is<Path>())
         {
-            Path* path = static_cast<Path*>(m_Target);
+            Path* path = static_cast<Path*>(tgt);
             path->addFlags(PathFlags::followPath);
         }
     }
@@ -164,15 +167,20 @@ StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 
 void FollowPathConstraint::buildDependencies()
 {
-    if (m_Target != nullptr && m_Target->is<Shape>())
+    // Read through `target()` so the editor build's dual-storage
+    // (raw `m_Target` + `m_TargetHandle`) resolves through the
+    // generational handle when it's set; runtime build inlines to
+    // the raw pointer.
+    auto* tgt = target();
+    if (tgt != nullptr && tgt->is<Shape>())
     {
         // Follow path should update after the target's path composer.
-        Shape* shape = static_cast<Shape*>(m_Target);
+        Shape* shape = static_cast<Shape*>(tgt);
         shape->pathComposer()->addDependent(this);
     }
-    else if (m_Target != nullptr && m_Target->is<Path>())
+    else if (tgt != nullptr && tgt->is<Path>())
     {
-        Path* path = static_cast<Path*>(m_Target);
+        Path* path = static_cast<Path*>(tgt);
         Shape* shape = path->shape();
         if (shape != nullptr)
         {

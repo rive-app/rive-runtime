@@ -39,6 +39,12 @@ public:
         {
             return m_keyFrames.front().get();
         }
+#ifdef WITH_RIVE_EDITOR
+        if (!m_editorKeyFrames.empty())
+        {
+            return m_editorKeyFrames.front();
+        }
+#endif
         return nullptr;
     }
 
@@ -48,9 +54,41 @@ public:
         return index < m_keyFrames.size() ? m_keyFrames[index].get() : nullptr;
     }
 
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only: parallel non-owning list populated by
+    // `EditorFile::finalizeBatch` from coop-hydrated KeyFrames whose
+    // `keyedPropertyId` resolves to this property. See
+    // `LinearAnimation::m_EditorKeyedObjects` for the dual-mode
+    // rationale. Coop delivery order is not guaranteed to be time-
+    // sorted; `finalizeBatch` calls `sortEditorKeyFrames` after it
+    // finishes populating so `editorClosestFrameIndex`'s binary
+    // search is valid.
+    void addKeyFrameForEditor(KeyFrame* frame);
+    void clearEditorKeyFrames();
+    void sortEditorKeyFrames();
+    /// Editor-only: remove [frame] from `m_editorKeyFrames`. Called
+    /// from `EditorFile::removeObject` when a KeyFrame Core is hard-
+    /// deleted so the apply-pass's binary search doesn't dereference
+    /// a freed slot. No-op if the kf isn't in the list (idempotent).
+    void removeKeyFrameForEditor(KeyFrame* frame);
+    /// Read-only view for the timeline FFI. Order matches the most
+    /// recent `sortEditorKeyFrames` call (ascending by frame).
+    const std::vector<KeyFrame*>& editorKeyFrames() const
+    {
+        return m_editorKeyFrames;
+    }
+#endif
+
 private:
     int closestFrameIndex(float seconds, int exactOffset = 0) const;
     std::vector<std::unique_ptr<KeyFrame>> m_keyFrames;
+
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only non-owning parallel list. See method declarations
+    // above for populate/sort/lifecycle notes.
+    std::vector<KeyFrame*> m_editorKeyFrames;
+    int editorClosestFrameIndex(float seconds, int exactOffset = 0) const;
+#endif
 };
 } // namespace rive
 

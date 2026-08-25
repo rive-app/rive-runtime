@@ -26,14 +26,18 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    void copy(const TransitionComparatorBase& object) {}
+    void copy(const TransitionComparatorBase& object)
+    {
+        RIVE_EDITOR_COPY_VALIDATED(object);
+    }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
     {
         return false;
     }
-
-protected:
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/transition_comparator_ext.inl"
+#endif
 };
 } // namespace rive
 

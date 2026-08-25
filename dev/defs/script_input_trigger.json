@@ -1,8 +1,0 @@
-{
-  "name": "ScriptInputTrigger",
-  "key": {
-    "int": 618,
-    "string": "scriptinputtrigger"
-  },
-  "extends": "custom_property_trigger.json"
-}

@@ -3,7 +3,9 @@
 #include "rive/constraints/draggable_constraint.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class ScrollConstraintBase : public DraggableConstraint
@@ -57,7 +59,7 @@ protected:
     float m_ScrollOffsetY = 0.0f;
     bool m_Snap = false;
     uint32_t m_PhysicsTypeValue = 0;
-    uint32_t m_PhysicsId = -1;
+    Id m_PhysicsId = kEmptyId;
     bool m_Virtualize = false;
     uint8_t m_VirtualizeBuffer = 0;
     bool m_Infinite = false;
@@ -73,8 +75,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(scrollOffsetXPropertyKey,
+                             &m_ScrollOffsetX,
+                             &value);
         m_ScrollOffsetX = value;
-        scrollOffsetXChanged();
+        RIVE_EDITOR_CHANGED(scrollOffsetXChanged());
         notifyPropertyChanged(scrollOffsetXPropertyKey);
     }
 
@@ -85,8 +90,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(scrollOffsetYPropertyKey,
+                             &m_ScrollOffsetY,
+                             &value);
         m_ScrollOffsetY = value;
-        scrollOffsetYChanged();
+        RIVE_EDITOR_CHANGED(scrollOffsetYChanged());
         notifyPropertyChanged(scrollOffsetYPropertyKey);
     }
 
@@ -136,8 +144,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(snapPropertyKey, &m_Snap, &value);
         m_Snap = value;
-        snapChanged();
+        RIVE_EDITOR_CHANGED(snapChanged());
         notifyPropertyChanged(snapPropertyKey);
     }
 
@@ -148,20 +157,24 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(physicsTypeValuePropertyKey,
+                             &m_PhysicsTypeValue,
+                             &value);
         m_PhysicsTypeValue = value;
-        physicsTypeValueChanged();
+        RIVE_EDITOR_CHANGED(physicsTypeValueChanged());
         notifyPropertyChanged(physicsTypeValuePropertyKey);
     }
 
-    inline uint32_t physicsId() const { return m_PhysicsId; }
-    void physicsId(uint32_t value)
+    inline Id physicsId() const { return m_PhysicsId; }
+    void physicsId(Id value)
     {
         if (m_PhysicsId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(physicsIdPropertyKey, &m_PhysicsId, &value);
         m_PhysicsId = value;
-        physicsIdChanged();
+        RIVE_EDITOR_CHANGED(physicsIdChanged());
         notifyPropertyChanged(physicsIdPropertyKey);
     }
 
@@ -172,8 +185,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(virtualizePropertyKey, &m_Virtualize, &value);
         m_Virtualize = value;
-        virtualizeChanged();
+        RIVE_EDITOR_CHANGED(virtualizeChanged());
         notifyPropertyChanged(virtualizePropertyKey);
     }
 
@@ -184,8 +198,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(virtualizeBufferPropertyKey,
+                             &m_VirtualizeBuffer,
+                             &value);
         m_VirtualizeBuffer = value;
-        virtualizeBufferChanged();
+        RIVE_EDITOR_CHANGED(virtualizeBufferChanged());
         notifyPropertyChanged(virtualizeBufferPropertyKey);
     }
 
@@ -196,8 +213,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(infinitePropertyKey, &m_Infinite, &value);
         m_Infinite = value;
-        infiniteChanged();
+        RIVE_EDITOR_CHANGED(infiniteChanged());
         notifyPropertyChanged(infinitePropertyKey);
     }
 
@@ -208,8 +226,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(interactivePropertyKey, &m_Interactive, &value);
         m_Interactive = value;
-        interactiveChanged();
+        RIVE_EDITOR_CHANGED(interactiveChanged());
         notifyPropertyChanged(interactivePropertyKey);
     }
 
@@ -220,8 +239,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(thresholdPropertyKey, &m_Threshold, &value);
         m_Threshold = value;
-        thresholdChanged();
+        RIVE_EDITOR_CHANGED(thresholdChanged());
         notifyPropertyChanged(thresholdPropertyKey);
     }
 
@@ -271,8 +291,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(dragMultiplierPropertyKey,
+                             &m_DragMultiplier,
+                             &value);
         m_DragMultiplier = value;
-        dragMultiplierChanged();
+        RIVE_EDITOR_CHANGED(dragMultiplierChanged());
         notifyPropertyChanged(dragMultiplierPropertyKey);
     }
 
@@ -336,7 +359,7 @@ public:
                 m_PhysicsTypeValue = CoreUintType::deserialize(reader);
                 return true;
             case physicsIdPropertyKey:
-                m_PhysicsId = CoreUintType::deserialize(reader);
+                m_PhysicsId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case virtualizePropertyKey:
                 m_Virtualize = CoreBoolType::deserialize(reader);
@@ -380,6 +403,9 @@ protected:
     virtual void dragMultiplierChanged() {}
     virtual void computedContentWidthChanged() {}
     virtual void computedContentHeightChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/constraints/scrolling/scroll_constraint_ext.inl"
+#endif
 };
 } // namespace rive
 

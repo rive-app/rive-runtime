@@ -1,7 +1,12 @@
 #ifndef _RIVE_DATA_BIND_BASE_HPP_
 #define _RIVE_DATA_BIND_BASE_HPP_
 #include "rive/core.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class DataBindBase : public Core
@@ -34,7 +39,7 @@ public:
 protected:
     uint32_t m_PropertyKey = Core::invalidPropertyKey;
     uint32_t m_Flags = 0;
-    uint32_t m_ConverterId = -1;
+    Id m_ConverterId = kEmptyId;
 
 public:
     inline uint32_t propertyKey() const { return m_PropertyKey; }
@@ -44,8 +49,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
         m_PropertyKey = value;
-        propertyKeyChanged();
+        RIVE_EDITOR_CHANGED(propertyKeyChanged());
         notifyPropertyChanged(propertyKeyPropertyKey);
     }
 
@@ -56,20 +62,22 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(flagsPropertyKey, &m_Flags, &value);
         m_Flags = value;
-        flagsChanged();
+        RIVE_EDITOR_CHANGED(flagsChanged());
         notifyPropertyChanged(flagsPropertyKey);
     }
 
-    inline uint32_t converterId() const { return m_ConverterId; }
-    void converterId(uint32_t value)
+    inline Id converterId() const { return m_ConverterId; }
+    void converterId(Id value)
     {
         if (m_ConverterId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(converterIdPropertyKey, &m_ConverterId, &value);
         m_ConverterId = value;
-        converterIdChanged();
+        RIVE_EDITOR_CHANGED(converterIdChanged());
         notifyPropertyChanged(converterIdPropertyKey);
     }
 
@@ -79,6 +87,8 @@ public:
         m_PropertyKey = object.m_PropertyKey;
         m_Flags = object.m_Flags;
         m_ConverterId = object.m_ConverterId;
+        RIVE_EDITOR_COPY(object);
+        RIVE_EDITOR_COPY_VALIDATED(object);
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -92,9 +102,10 @@ public:
                 m_Flags = CoreUintType::deserialize(reader);
                 return true;
             case converterIdPropertyKey:
-                m_ConverterId = CoreUintType::deserialize(reader);
+                m_ConverterId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return false;
     }
 
@@ -102,6 +113,9 @@ protected:
     virtual void propertyKeyChanged() {}
     virtual void flagsChanged() {}
     virtual void converterIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/data_bind_ext.inl"
+#endif
 };
 } // namespace rive
 

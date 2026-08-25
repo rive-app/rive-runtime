@@ -2,6 +2,9 @@
 #define _RIVE_IMAGE_ASSET_BASE_HPP_
 #include "rive/assets/drawable_asset.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ImageAssetBase : public DrawableAsset
@@ -47,8 +50,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(samplerFilterPropertyKey,
+                             &m_SamplerFilter,
+                             &value);
         m_SamplerFilter = value;
-        samplerFilterChanged();
+        RIVE_EDITOR_CHANGED(samplerFilterChanged());
         notifyPropertyChanged(samplerFilterPropertyKey);
     }
 
@@ -59,8 +65,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(samplerWrapXPropertyKey, &m_SamplerWrapX, &value);
         m_SamplerWrapX = value;
-        samplerWrapXChanged();
+        RIVE_EDITOR_CHANGED(samplerWrapXChanged());
         notifyPropertyChanged(samplerWrapXPropertyKey);
     }
 
@@ -71,8 +78,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(samplerWrapYPropertyKey, &m_SamplerWrapY, &value);
         m_SamplerWrapY = value;
-        samplerWrapYChanged();
+        RIVE_EDITOR_CHANGED(samplerWrapYChanged());
         notifyPropertyChanged(samplerWrapYPropertyKey);
     }
 
@@ -82,6 +90,7 @@ public:
         m_SamplerFilter = object.m_SamplerFilter;
         m_SamplerWrapX = object.m_SamplerWrapX;
         m_SamplerWrapY = object.m_SamplerWrapY;
+        RIVE_EDITOR_COPY(object);
         DrawableAsset::copy(object);
     }
 
@@ -99,6 +108,7 @@ public:
                 m_SamplerWrapY = CoreUintType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return DrawableAsset::deserialize(propertyKey, reader);
     }
 
@@ -106,6 +116,9 @@ protected:
     virtual void samplerFilterChanged() {}
     virtual void samplerWrapXChanged() {}
     virtual void samplerWrapYChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/assets/image_asset_ext.inl"
+#endif
 };
 } // namespace rive
 

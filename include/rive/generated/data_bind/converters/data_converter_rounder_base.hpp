@@ -41,8 +41,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(decimalsPropertyKey, &m_Decimals, &value);
         m_Decimals = value;
-        decimalsChanged();
+        RIVE_EDITOR_CHANGED(decimalsChanged());
         notifyPropertyChanged(decimalsPropertyKey);
     }
 
@@ -66,6 +67,9 @@ public:
 
 protected:
     virtual void decimalsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/data_converter_rounder_ext.inl"
+#endif
 };
 } // namespace rive
 

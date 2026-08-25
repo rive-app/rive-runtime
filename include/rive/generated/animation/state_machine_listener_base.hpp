@@ -1,7 +1,8 @@
 #ifndef _RIVE_STATE_MACHINE_LISTENER_BASE_HPP_
 #define _RIVE_STATE_MACHINE_LISTENER_BASE_HPP_
 #include "rive/animation/state_machine_component.hpp"
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class StateMachineListenerBase : public StateMachineComponent
@@ -31,18 +32,19 @@ public:
     static const uint16_t targetIdPropertyKey = 224;
 
 protected:
-    uint32_t m_TargetId = -1;
+    Id m_TargetId = kEmptyId;
 
 public:
-    inline uint32_t targetId() const { return m_TargetId; }
-    void targetId(uint32_t value)
+    inline Id targetId() const { return m_TargetId; }
+    void targetId(Id value)
     {
         if (m_TargetId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
         m_TargetId = value;
-        targetIdChanged();
+        RIVE_EDITOR_CHANGED(targetIdChanged());
         notifyPropertyChanged(targetIdPropertyKey);
     }
 
@@ -58,7 +60,7 @@ public:
         switch (propertyKey)
         {
             case targetIdPropertyKey:
-                m_TargetId = CoreUintType::deserialize(reader);
+                m_TargetId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return StateMachineComponent::deserialize(propertyKey, reader);
@@ -66,6 +68,9 @@ public:
 
 protected:
     virtual void targetIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/state_machine_listener_ext.inl"
+#endif
 };
 } // namespace rive
 

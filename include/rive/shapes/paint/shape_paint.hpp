@@ -79,6 +79,26 @@ public:
 
     void feather(Feather* feather);
     Feather* feather() const;
+#ifdef WITH_RIVE_EDITOR
+    /// Set the feather pointer in editor mode (idempotent).
+    void setFeatherForEditor(Feather* f) { m_feather = f; }
+    /// Clear m_feather only if it currently points at `expected`.
+    void clearFeatherIfForEditor(Feather* expected)
+    {
+        if (m_feather == expected)
+        {
+            m_feather = nullptr;
+        }
+    }
+    // Edit-time reparent/remove dispatch — registers this paint into
+    // the new parent's `m_ShapePaints` and removes from the old
+    // parent's. Without this, removing a Fill/Stroke leaves a stale
+    // pointer in the host Shape's m_ShapePaints, which `buildDeps`
+    // and `pathChanged` iterate and crash on. Body in
+    // `component_parent_editor.cpp`.
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+#endif
 
     virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
     void update(ComponentDirt value) override;

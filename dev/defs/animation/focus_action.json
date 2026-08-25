@@ -1,9 +1,0 @@
-{
-  "name": "FocusAction",
-  "key": {
-    "int": 671,
-    "string": "focusaction"
-  },
-  "abstract": true,
-  "extends": "animation/listener_action.json"
-}

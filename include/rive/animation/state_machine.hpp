@@ -34,10 +34,46 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
-    size_t layerCount() const { return m_Layers.size(); }
-    size_t inputCount() const { return m_Inputs.size(); }
-    size_t listenerCount() const { return m_Listeners.size(); }
-    size_t dataBindCount() const { return m_dataBinds.size(); }
+    size_t layerCount() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        if (m_Layers.empty())
+        {
+            return m_editorLayers.size();
+        }
+#endif
+        return m_Layers.size();
+    }
+    size_t inputCount() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        if (m_Inputs.empty())
+        {
+            return m_editorInputs.size();
+        }
+#endif
+        return m_Inputs.size();
+    }
+    size_t listenerCount() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        if (m_Listeners.empty())
+        {
+            return m_editorListeners.size();
+        }
+#endif
+        return m_Listeners.size();
+    }
+    size_t dataBindCount() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        if (m_dataBinds.empty())
+        {
+            return m_editorDataBinds.size();
+        }
+#endif
+        return m_dataBinds.size();
+    }
     void addScriptedObject(ScriptedObject* object);
     std::vector<ScriptedObject*> scriptedObjects() const
     {
@@ -53,6 +89,41 @@ public:
 
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
+
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only parallel non-owning lists. Coop hydration delivers
+    // layers/inputs/listeners as `Core*`s into `EditorFile::m_arena`
+    // (which owns them); these mirror the runtime owning lists so
+    // `StateMachineInstance::init` can read whichever is populated.
+    // See `LinearAnimation::m_EditorKeyedObjects` for the pattern
+    // rationale.
+    void addLayerForEditor(StateMachineLayer* layer);
+    void addInputForEditor(StateMachineInput* input);
+    void addListenerForEditor(StateMachineListener* listener);
+    void addDataBindForEditor(DataBind* dataBind);
+    void clearEditorLayers();
+    void clearEditorInputs();
+    void clearEditorListeners();
+    void clearEditorDataBinds();
+    size_t editorLayerCount() const { return m_editorLayers.size(); }
+    size_t editorInputCount() const { return m_editorInputs.size(); }
+    size_t editorListenerCount() const { return m_editorListeners.size(); }
+    size_t editorDataBindCount() const { return m_editorDataBinds.size(); }
+#endif
+
+private:
+#ifdef WITH_RIVE_EDITOR
+    std::vector<StateMachineLayer*> m_editorLayers;
+    std::vector<StateMachineInput*> m_editorInputs;
+    std::vector<StateMachineListener*> m_editorListeners;
+    // StateMachine's runtime `m_dataBinds` is `unique_ptr`-owning;
+    // coop-hydrated DataBinds live in `EditorFile::m_arena` so we
+    // can't share that list without surrendering ownership. This
+    // parallel non-owning list mirrors the SM-1 layer/state pattern.
+    // Read-side dispatch in `dataBindCount` / `dataBind(i)` walks
+    // it when the runtime list is empty.
+    std::vector<DataBind*> m_editorDataBinds;
+#endif
 };
 } // namespace rive
 

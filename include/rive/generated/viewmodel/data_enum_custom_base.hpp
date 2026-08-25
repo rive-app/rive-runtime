@@ -3,6 +3,9 @@
 #include <string>
 #include "rive/core/field_types/core_string_type.hpp"
 #include "rive/viewmodel/data_enum.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class DataEnumCustomBase : public DataEnum
@@ -42,8 +45,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(namePropertyKey, m_Name, value);
         m_Name = value;
-        nameChanged();
+        RIVE_EDITOR_CHANGED(nameChanged());
         notifyPropertyChanged(namePropertyKey);
     }
 
@@ -51,6 +55,7 @@ public:
     void copy(const DataEnumCustomBase& object)
     {
         m_Name = object.m_Name;
+        RIVE_EDITOR_COPY(object);
         DataEnum::copy(object);
     }
 
@@ -62,11 +67,15 @@ public:
                 m_Name = CoreStringType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return DataEnum::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void nameChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/viewmodel/data_enum_custom_ext.inl"
+#endif
 };
 } // namespace rive
 

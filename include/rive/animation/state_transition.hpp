@@ -3,6 +3,9 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/state_transition_flags.hpp"
 #include "rive/generated/animation/state_transition_base.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "rive/editor/object_arena.hpp"
+#endif
 #include <stdio.h>
 #include <vector>
 
@@ -38,14 +41,26 @@ private:
     LayerState* m_StateTo = nullptr;
     uint32_t m_EvaluatedRandomWeight = 1;
     KeyFrameInterpolator* m_Interpolator = nullptr;
+#ifdef WITH_RIVE_EDITOR
+    // Slice 6 Phase E dual-storage. See targeted_constraint.hpp.
+    CoreHandle m_StateToHandle;
+    CoreHandle m_InterpolatorHandle;
+#endif
 
     std::vector<TransitionCondition*> m_Conditions;
     void addCondition(TransitionCondition* condition);
 
 public:
     ~StateTransition() override;
-    const LayerState* stateTo() const { return m_StateTo; }
+#ifdef WITH_RIVE_EDITOR
+    // Bodies in editor_native/native/src/editor/animation/sm/
+    // state_transition_editor.cpp.
+    const LayerState* stateTo() const;
+    KeyFrameInterpolator* interpolator() const;
+#else
+    inline const LayerState* stateTo() const { return m_StateTo; }
     inline KeyFrameInterpolator* interpolator() const { return m_Interpolator; }
+#endif
 
     inline uint32_t evaluatedRandomWeight() const
     {
@@ -105,16 +120,56 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
-    size_t conditionCount() const { return m_Conditions.size(); }
+    size_t conditionCount() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        if (m_Conditions.empty())
+        {
+            return m_editorConditions.size();
+        }
+#endif
+        return m_Conditions.size();
+    }
     TransitionCondition* condition(size_t index) const
     {
         if (index < m_Conditions.size())
         {
             return m_Conditions[index];
         }
+#ifdef WITH_RIVE_EDITOR
+        if (m_Conditions.empty() && index < m_editorConditions.size())
+        {
+            return m_editorConditions[index];
+        }
+#endif
         return nullptr;
     }
 
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only parallel non-owning condition list (see
+    // `StateMachineLayer::m_editorStates` for pattern rationale).
+    // The runtime importer's resolve step (`StateMachineLayerImporter::
+    // resolve`) sets `m_StateTo` from the layer-relative `stateToId`
+    // index and `m_Interpolator` from `interpolatorId`. Coop bypasses
+    // that path; finalizeBatch resolves both via `EditorFile::resolve`
+    // (CoopId map) and pokes the values in directly.
+    void addConditionForEditor(TransitionCondition* condition);
+    void clearEditorConditions();
+    size_t editorConditionCount() const { return m_editorConditions.size(); }
+    // Bodies in state_transition_editor.cpp — dispatch through
+    // editorArena() so editor-flow Cores get the handle path while
+    // the runtime importer (which still assigns m_StateTo directly
+    // via friend class access) keeps the raw fallback.
+    void setStateToForEditor(LayerState* state);
+    void setInterpolatorForEditor(KeyFrameInterpolator* interp);
+#endif
+
+private:
+#ifdef WITH_RIVE_EDITOR
+    std::vector<TransitionCondition*> m_editorConditions;
+#endif
+
+public:
     /// The amount of time to mix the outgoing animation onto the incoming
     /// one when changing state. Only applies when going out from an
     /// AnimationState.

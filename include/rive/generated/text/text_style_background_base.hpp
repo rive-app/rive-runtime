@@ -42,8 +42,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
         m_CornerRadius = value;
-        cornerRadiusChanged();
+        RIVE_EDITOR_CHANGED(cornerRadiusChanged());
         notifyPropertyChanged(cornerRadiusPropertyKey);
     }
 
@@ -67,6 +68,9 @@ public:
 
 protected:
     virtual void cornerRadiusChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_style_background_ext.inl"
+#endif
 };
 } // namespace rive
 

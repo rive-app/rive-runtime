@@ -45,8 +45,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(keyTypePropertyKey, &m_KeyType, &value);
         m_KeyType = value;
-        keyTypeChanged();
+        RIVE_EDITOR_CHANGED(keyTypeChanged());
         notifyPropertyChanged(keyTypePropertyKey);
     }
 
@@ -57,8 +58,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(keyPhasePropertyKey, &m_KeyPhase, &value);
         m_KeyPhase = value;
-        keyPhaseChanged();
+        RIVE_EDITOR_CHANGED(keyPhaseChanged());
         notifyPropertyChanged(keyPhasePropertyKey);
     }
 
@@ -69,8 +71,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modifiersPropertyKey, &m_Modifiers, &value);
         m_Modifiers = value;
-        modifiersChanged();
+        RIVE_EDITOR_CHANGED(modifiersChanged());
         notifyPropertyChanged(modifiersPropertyKey);
     }
 
@@ -104,6 +107,9 @@ protected:
     virtual void keyTypeChanged() {}
     virtual void keyPhaseChanged() {}
     virtual void modifiersChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/inputs/keyboard_input_ext.inl"
+#endif
 };
 } // namespace rive
 
