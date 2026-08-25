@@ -46,9 +46,6 @@ void TextInput::textChanged()
 #ifdef WITH_RIVE_TEXT
     syncDisplayedTextFromSource(false);
 #endif
-#ifdef WITH_RIVE_LAYOUT
-    markLayoutNodeDirty();
-#endif
     markShapeDirty();
 }
 void TextInput::selectionRadiusChanged()
@@ -63,7 +60,14 @@ void TextInput::multilineChanged() { updateMultiline(true); }
 
 void TextInput::markPaintDirty() { addDirt(ComponentDirt::Paint); }
 
-void TextInput::markShapeDirty() { addDirt(ComponentDirt::TextShape); }
+void TextInput::markShapeDirty()
+{
+    addDirt(ComponentDirt::TextShape);
+#ifdef WITH_RIVE_LAYOUT
+    // We always size intrinsically, so any reshape can change our measure.
+    markLayoutNodeDirty();
+#endif
+}
 
 AABB TextInput::localBounds() const
 {
@@ -127,10 +131,7 @@ void TextInput::update(ComponentDirt value)
                 worldTransform().mapBoundingBox(m_rawTextInput.bounds());
 
 #ifdef WITH_RIVE_LAYOUT
-            if (m_rawTextInput.sizing() == TextSizing::autoHeight)
-            {
-                markLayoutNodeDirty();
-            }
+            markLayoutNodeDirty();
 #endif
         }
         if (enums::is_flag_set(changed, RawTextInput::Flags::selectionDirty))
