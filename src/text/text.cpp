@@ -1157,7 +1157,8 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     const SimpleArray<Paragraph>& paragraphs,
     float width,
     TextAlign align,
-    TextWrap wrap)
+    TextWrap wrap,
+    float minAlignWidth)
 {
     bool autoWidth = width == -1.0f;
     float paragraphWidth = width;
@@ -1178,6 +1179,9 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
         }
         paragraphIndex++;
     }
+    // Align within the field when it's wider than the text; text that
+    // overflows the field aligns within itself (effectively left aligned).
+    paragraphWidth = std::max(paragraphWidth, minAlignWidth);
     paragraphIndex = 0;
     for (auto& para : paragraphs)
     {

@@ -1830,6 +1830,12 @@ public:
             case TextModifierGroupBase::modifierFlagsPropertyKey:
                 object->as<TextModifierGroupBase>()->modifierFlags(value);
                 break;
+            case TextInputBase::alignValuePropertyKey:
+                object->as<TextInputBase>()->alignValue(value);
+                break;
+            case TextInputBase::verticalAlignValuePropertyKey:
+                object->as<TextInputBase>()->verticalAlignValue(value);
+                break;
             case TextStyleAxisBase::tagPropertyKey:
                 object->as<TextStyleAxisBase>()->tag(value);
                 break;
@@ -3811,6 +3817,10 @@ public:
                 return object->as<TextVariationModifierBase>()->axisTag();
             case TextModifierGroupBase::modifierFlagsPropertyKey:
                 return object->as<TextModifierGroupBase>()->modifierFlags();
+            case TextInputBase::alignValuePropertyKey:
+                return object->as<TextInputBase>()->alignValue();
+            case TextInputBase::verticalAlignValuePropertyKey:
+                return object->as<TextInputBase>()->verticalAlignValue();
             case TextStyleAxisBase::tagPropertyKey:
                 return object->as<TextStyleAxisBase>()->tag();
             case TextBase::alignValuePropertyKey:
@@ -5008,6 +5018,8 @@ public:
             case TextStyleFeatureBase::featureValuePropertyKey:
             case TextVariationModifierBase::axisTagPropertyKey:
             case TextModifierGroupBase::modifierFlagsPropertyKey:
+            case TextInputBase::alignValuePropertyKey:
+            case TextInputBase::verticalAlignValuePropertyKey:
             case TextStyleAxisBase::tagPropertyKey:
             case TextBase::alignValuePropertyKey:
             case TextBase::sizingValuePropertyKey:
@@ -5945,6 +5957,10 @@ public:
                 return object->is<TextVariationModifierBase>();
             case TextModifierGroupBase::modifierFlagsPropertyKey:
                 return object->is<TextModifierGroupBase>();
+            case TextInputBase::alignValuePropertyKey:
+                return object->is<TextInputBase>();
+            case TextInputBase::verticalAlignValuePropertyKey:
+                return object->is<TextInputBase>();
             case TextStyleAxisBase::tagPropertyKey:
                 return object->is<TextStyleAxisBase>();
             case TextBase::alignValuePropertyKey:

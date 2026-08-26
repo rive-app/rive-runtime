@@ -145,6 +145,7 @@ public:
     void positionTopUnitsValueChanged() override;
     void positionBottomUnitsValueChanged() override;
 
+    void linkCornerRadiusChanged() override;
     void cornerRadiusTLChanged() override;
     void cornerRadiusTRChanged() override;
     void cornerRadiusBLChanged() override;

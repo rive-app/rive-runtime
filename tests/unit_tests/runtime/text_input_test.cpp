@@ -1,6 +1,8 @@
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/cursor.hpp"
 #include "rive/text/font_hb.hpp"
+#include "rive/layout/layout_component_style.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/text/text_input.hpp"
 #include "rive/text/text_input_drawable.hpp"
 #include "rive/text/text_input_text.hpp"
@@ -484,6 +486,64 @@ TEST_CASE("text input multiline toggles line breaks in displayed text",
     CHECK(textInput->rawTextInput()->text() == "line1\nline2");
 }
 
+TEST_CASE("text input alignValue drives the raw text input", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    // Default is left.
+    CHECK(textInput->alignValue() == 0);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->align() == TextAlign::left);
+
+    textInput->alignValue((uint32_t)TextAlign::right);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->align() == TextAlign::right);
+
+    textInput->alignValue((uint32_t)TextAlign::center);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->align() == TextAlign::center);
+}
+
+TEST_CASE("text input aligns its text within the field", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    textInput->text("hi");
+    artboard->advance(0.0f);
+
+    float alignWidth = textInput->rawTextInput()->alignWidth();
+    // The multiline field wraps to its layout width, so we have something to
+    // align within.
+    REQUIRE(alignWidth > 0.0f);
+    AABB leftBounds = textInput->localBounds();
+    REQUIRE(leftBounds.width() < alignWidth);
+    CHECK(leftBounds.minX == 0.0f);
+
+    textInput->alignValue((uint32_t)TextAlign::right);
+    artboard->advance(0.0f);
+    AABB rightBounds = textInput->localBounds();
+    CHECK(rightBounds.minX == Approx(alignWidth - leftBounds.width()));
+    // Alignment moves the text, it doesn't resize it.
+    CHECK(rightBounds.width() == Approx(leftBounds.width()));
+
+    textInput->alignValue((uint32_t)TextAlign::center);
+    artboard->advance(0.0f);
+    AABB centerBounds = textInput->localBounds();
+    CHECK(centerBounds.minX ==
+          Approx((alignWidth - leftBounds.width()) / 2.0f));
+    CHECK(centerBounds.width() == Approx(leftBounds.width()));
+}
+
 TEST_CASE("text input strips inserted line breaks when single line",
           "[text_input]")
 {
@@ -653,5 +713,138 @@ TEST_CASE("losing focus clears the text input selection", "[text_input]")
     CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
     CHECK(textInput->isFocused() == false);
     CHECK(cursor->localClockwisePath() == nullptr);
+}
+
+TEST_CASE("the text input cursor blinks while focused", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachine(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto abi = artboard->instance();
+    StateMachineInstance smi(stateMachine, abi.get());
+    smi.advanceAndApply(0.0f);
+
+    auto textInput = abi->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    auto cursor = abi->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+
+    auto focusData = abi->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    // Unfocused, the caret never draws no matter how much time passes.
+    smi.advanceAndApply(0.6f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // Focusing shows the caret, which then toggles every half second.
+    smi.setFocus(focusData);
+    CHECK(cursor->localClockwisePath() != nullptr);
+    smi.advanceAndApply(0.5f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+    smi.advanceAndApply(0.5f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Typing restarts the cycle so the caret stays solid while editing.
+    smi.advanceAndApply(0.4f);
+    smi.textInput("a");
+    smi.advanceAndApply(0.2f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Moving the caret restarts it too.
+    smi.advanceAndApply(0.4f);
+    smi.keyInput(Key::left, KeyModifiers::none, true, false);
+    smi.advanceAndApply(0.2f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Blurring hides it again.
+    smi.clearFocus();
+    CHECK(cursor->localClockwisePath() == nullptr);
+}
+
+// The field the text aligns within is the viewport's content box. Padding on
+// the viewport is space the text can't occupy, so it has to come off the align
+// width -- otherwise centered/right text is pushed into the padding.
+TEST_CASE("viewport padding comes off the alignment box", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    artboard->advance(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    float unpaddedWidth = textInput->rawTextInput()->alignWidth();
+    float unpaddedHeight = textInput->rawTextInput()->alignHeight();
+    CHECK(unpaddedWidth > 0.0f);
+    CHECK(unpaddedHeight > 0.0f);
+
+    // TextInput -> Text Container -> Scroll Content -> Viewport.
+    auto viewportComponent = textInput->parent()->parent()->parent();
+    REQUIRE(viewportComponent != nullptr);
+    REQUIRE(viewportComponent->is<LayoutComponent>());
+    auto viewport = viewportComponent->as<LayoutComponent>();
+    auto style = viewport->style();
+    REQUIRE(style != nullptr);
+
+    style->paddingLeft(12.0f);
+    style->paddingRight(8.0f);
+    style->paddingTop(5.0f);
+    style->paddingBottom(3.0f);
+    artboard->advance(0.0f);
+
+    CHECK(viewport->paddingLeft() == Approx(12.0f));
+    CHECK(textInput->rawTextInput()->alignWidth() ==
+          Approx(unpaddedWidth - 12.0f - 8.0f));
+    CHECK(textInput->rawTextInput()->alignHeight() ==
+          Approx(unpaddedHeight - 5.0f - 3.0f));
+}
+
+// A dropped or suspended frame can hand us an advance spanning several blink
+// phases. Toggling once regardless would leave the caret in the wrong phase
+// for every even number of them.
+TEST_CASE("the caret blink accounts for every elapsed phase", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachine(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto abi = artboard->instance();
+    StateMachineInstance smi(stateMachine, abi.get());
+    smi.advanceAndApply(0.0f);
+
+    auto cursor = abi->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+    auto focusData = abi->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    smi.setFocus(focusData);
+    REQUIRE(cursor->localClockwisePath() != nullptr);
+
+    // Two whole phases: back to visible, not hidden.
+    smi.advanceAndApply(1.0f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Three whole phases: hidden.
+    smi.advanceAndApply(1.5f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // Four whole phases leaves it where it was.
+    smi.advanceAndApply(2.0f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // And the leftover remainder still carries into the next phase: 0.3 after
+    // the 2.0 above puts us 0.3 into a phase, so 0.2 more flips it.
+    smi.advanceAndApply(0.3f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+    smi.advanceAndApply(0.2f);
+    CHECK(cursor->localClockwisePath() != nullptr);
 }
 #endif

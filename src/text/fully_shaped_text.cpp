@@ -1,6 +1,8 @@
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/fully_shaped_text.hpp"
 #include "rive/text/text.hpp"
+#include <algorithm>
+#include <limits>
 
 using namespace rive;
 
@@ -13,8 +15,12 @@ void FullyShapedText::shape(Span<Unichar> text,
                             TextWrap wrap,
                             TextOrigin origin,
                             TextOverflow overflow,
-                            float paragraphSpacing)
+                            float paragraphSpacing,
+                            float alignWidth,
+                            VerticalTextAlign verticalAlignment,
+                            float alignHeight)
 {
+    m_verticalOffset = 0.0f;
     m_paragraphs = runs[0].font->shapeText(text, runs);
     m_glyphLookup.compute(text, m_paragraphs);
 
@@ -22,7 +28,8 @@ void FullyShapedText::shape(Span<Unichar> text,
         Text::BreakLines(m_paragraphs,
                          sizing == TextSizing::autoWidth ? -1.0f : maxWidth,
                          alignment,
-                         wrap);
+                         wrap,
+                         alignWidth);
     m_orderedLines.clear();
     m_ellipsisRun = {};
 
@@ -37,7 +44,10 @@ void FullyShapedText::shape(Span<Unichar> text,
     int32_t paragraphIndex = 0;
     float y = 0.0f;
     float minY = 0.0f;
-    float measuredWidth = 0.0f;
+    // Lines don't start at 0 when they're aligned center/right, so track the
+    // real horizontal extents rather than assuming [0, widest line].
+    float minX = std::numeric_limits<float>::max();
+    float maxX = -std::numeric_limits<float>::max();
     if (origin == TextOrigin::baseline && !m_paragraphLines.empty() &&
         !m_paragraphLines[0].empty())
     {
@@ -62,10 +72,8 @@ void FullyShapedText::shape(Span<Unichar> text,
             const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
             float width = endRun.xpos[line.endGlyphIndex] -
                           startRun.xpos[line.startGlyphIndex];
-            if (width > measuredWidth)
-            {
-                measuredWidth = width;
-            }
+            minX = std::min(minX, line.startX);
+            maxX = std::max(maxX, line.startX + width);
             lastLineIndex++;
             if (wantEllipsis && y + line.bottom <= maxHeight)
             {
@@ -87,9 +95,37 @@ void FullyShapedText::shape(Span<Unichar> text,
     isEllipsisLineLast = lastLineIndex == ellipsisLine;
 
     int32_t lineIndex = 0;
-    m_bounds =
-        AABB(0.0f, minY, measuredWidth, std::max(minY, y - paragraphSpacing));
+    if (minX > maxX)
+    {
+        // Paragraphs but no lines.
+        minX = maxX = 0.0f;
+    }
+    float maxY = std::max(minY, y - paragraphSpacing);
 
+    // Align the block within the field the same way lines align within it
+    // horizontally: only while it fits, so text taller than the field stays
+    // at the top and leaves vertical scrolling alone.
+    float slack = alignHeight - (maxY - minY);
+    if (slack > 0.0f)
+    {
+        switch (verticalAlignment)
+        {
+            case VerticalTextAlign::top:
+                break;
+            case VerticalTextAlign::middle:
+                m_verticalOffset = slack / 2.0f;
+                break;
+            case VerticalTextAlign::bottom:
+                m_verticalOffset = slack;
+                break;
+        }
+    }
+
+    m_bounds =
+        AABB(minX, minY + m_verticalOffset, maxX, maxY + m_verticalOffset);
+
+    // Left unshifted so the overflow checks below still measure the text
+    // against the box; only the line positions carry the alignment offset.
     y = 0;
     if (origin == TextOrigin::baseline && !m_paragraphLines.empty() &&
         !m_paragraphLines[0].empty())
@@ -122,13 +158,14 @@ void FullyShapedText::shape(Span<Unichar> text,
                     break;
             }
 
-            m_orderedLines.emplace_back(OrderedLine(paragraph,
-                                                    line,
-                                                    maxWidth,
-                                                    ellipsisLine == lineIndex,
-                                                    isEllipsisLineLast,
-                                                    &m_ellipsisRun,
-                                                    y + line.baseline));
+            m_orderedLines.emplace_back(
+                OrderedLine(paragraph,
+                            line,
+                            maxWidth,
+                            ellipsisLine == lineIndex,
+                            isEllipsisLineLast,
+                            &m_ellipsisRun,
+                            y + line.baseline + m_verticalOffset));
 
             if (lineIndex == ellipsisLine)
             {

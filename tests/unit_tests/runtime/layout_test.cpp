@@ -283,6 +283,64 @@ TEST_CASE("LayoutComponent Corner Radius", "[layout]")
     REQUIRE(style->cornerRadiusBR() == 15);
 }
 
+TEST_CASE("LayoutComponent Corner Radius Link Change", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_complex1.riv");
+
+    auto artboard = file->artboard();
+
+    auto child1 = artboard->find<rive::LayoutComponent>("LayoutLeftChild1");
+    REQUIRE(child1 != nullptr);
+    auto style = child1->style();
+    REQUIRE(style != nullptr);
+
+    // localPath() mirrors the background path updateRenderPath builds, and is
+    // the closest public view of it.
+    auto capture = [&]() {
+        artboard->advance(0.0f);
+        std::vector<rive::Vec2D> points;
+        auto path = child1->localPath();
+        if (path != nullptr)
+        {
+            for (auto point : path->rawPath()->points())
+            {
+                points.push_back(point);
+            }
+        }
+        return points;
+    };
+
+    // The shape linking should produce: every corner following TL.
+    style->linkCornerRadius(false);
+    style->cornerRadiusTL(4.0f);
+    style->cornerRadiusTR(4.0f);
+    style->cornerRadiusBL(4.0f);
+    style->cornerRadiusBR(4.0f);
+    auto uniform = capture();
+    REQUIRE(!uniform.empty());
+
+    // Same component with the corners pulled apart, still unlinked.
+    style->cornerRadiusTR(12.0f);
+    style->cornerRadiusBL(20.0f);
+    style->cornerRadiusBR(28.0f);
+    auto distinct = capture();
+    REQUIRE(distinct.size() == uniform.size());
+
+    // Linking has to rebuild the background from TL alone. The flag is
+    // bindable, so this can happen mid-playback; without
+    // LayoutComponentStyle::linkCornerRadiusChanged marking the style dirty
+    // nothing rebuilds and the path stays on the distinct corners.
+    style->linkCornerRadius(true);
+    auto linked = capture();
+
+    REQUIRE(linked.size() == uniform.size());
+    for (size_t i = 0; i < uniform.size(); i++)
+    {
+        REQUIRE(linked[i].x == Approx(uniform[i].x));
+        REQUIRE(linked[i].y == Approx(uniform[i].y));
+    }
+}
+
 TEST_CASE("LayoutComponent Direction", "[layout]")
 {
     auto file = ReadRiveFile("assets/layout/layout_direction.riv");

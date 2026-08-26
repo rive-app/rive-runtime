@@ -658,6 +658,10 @@ void LayoutComponentStyle::positionBottomUnitsValueChanged()
 {
     markLayoutNodeDirty();
 }
+// Which of the four radiuses updateRenderPath reads depends on this flag, so a
+// change to it has to rebuild the path exactly like a radius change does. It
+// matters most when the flag is data bound and flips mid-playback.
+void LayoutComponentStyle::linkCornerRadiusChanged() { markLayoutStyleDirty(); }
 void LayoutComponentStyle::cornerRadiusTLChanged() { markLayoutStyleDirty(); }
 void LayoutComponentStyle::cornerRadiusTRChanged() { markLayoutStyleDirty(); }
 void LayoutComponentStyle::cornerRadiusBLChanged() { markLayoutStyleDirty(); }

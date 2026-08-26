@@ -735,4 +735,316 @@ TEST_CASE("clearSelection collapses to the selection end", "[text_input]")
     textInput.clearSelection();
     CHECK_CURSOR(textInput.cursor(), 7, 7);
 }
+
+// Builds a single line input sized like a field of alignWidth wide.
+static void makeAlignedInput(RawTextInput& textInput,
+                             rcp<Font> font,
+                             TextAlign align,
+                             float alignWidth,
+                             const char* text = "hello")
+{
+    textInput.font(font);
+    textInput.fontSize(72.0f);
+    textInput.insert(text);
+    textInput.cursor(Cursor::zero());
+    textInput.align(align);
+    textInput.alignWidth(alignWidth);
+}
+
+TEST_CASE("a single line input aligns within its align width", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+    const float alignWidth = 800.0f;
+
+    // Measure the natural width of the text so the expectations below don't
+    // depend on exact Inter metrics.
+    float naturalWidth;
+    float leftEndX;
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::left, alignWidth);
+        textInput.update(&factory);
+        naturalWidth = textInput.bounds().width();
+        CHECK(naturalWidth > 0.0f);
+        CHECK(naturalWidth < alignWidth);
+
+        // Left align is unaffected by the align width.
+        CHECK(textInput.cursorVisualPosition(CursorPosition::zero()).x() ==
+              0.0f);
+        CHECK(textInput.bounds().minX == 0.0f);
+        leftEndX = textInput.cursorVisualPosition(CursorPosition(0, 5)).x();
+        CHECK(leftEndX == Approx(naturalWidth));
+    }
+
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::right, alignWidth);
+        textInput.update(&factory);
+
+        CHECK(textInput.cursorVisualPosition(CursorPosition::zero()).x() ==
+              Approx(alignWidth - naturalWidth));
+        CHECK(textInput.cursorVisualPosition(CursorPosition(0, 5)).x() ==
+              Approx(alignWidth));
+        // Bounds follow the glyphs, and the span is unchanged.
+        CHECK(textInput.bounds().minX == Approx(alignWidth - naturalWidth));
+        CHECK(textInput.bounds().maxX == Approx(alignWidth));
+        CHECK(textInput.bounds().width() == Approx(naturalWidth));
+    }
+
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::center, alignWidth);
+        textInput.update(&factory);
+
+        float expectedStart = (alignWidth - naturalWidth) / 2.0f;
+        CHECK(textInput.cursorVisualPosition(CursorPosition::zero()).x() ==
+              Approx(expectedStart));
+        CHECK(textInput.cursorVisualPosition(CursorPosition(0, 5)).x() ==
+              Approx(expectedStart + naturalWidth));
+        CHECK(textInput.bounds().minX == Approx(expectedStart));
+        CHECK(textInput.bounds().width() == Approx(naturalWidth));
+    }
+}
+
+TEST_CASE("alignment falls back to the left when the text overflows",
+          "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+
+    // An align width narrower than the text: alignment must not shift the text,
+    // so the horizontal scrolling behavior stays intact.
+    for (TextAlign align :
+         {TextAlign::left, TextAlign::right, TextAlign::center})
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, align, 10.0f);
+        textInput.update(&factory);
+
+        CHECK(textInput.cursorVisualPosition(CursorPosition::zero()).x() ==
+              0.0f);
+        CHECK(textInput.bounds().minX == 0.0f);
+    }
+
+    // A zero align width (the default) is equally a no-op.
+    RawTextInput textInput;
+    makeAlignedInput(textInput, font, TextAlign::right, 0.0f);
+    textInput.update(&factory);
+    CHECK(textInput.cursorVisualPosition(CursorPosition::zero()).x() == 0.0f);
+}
+
+TEST_CASE("hit testing round trips through alignment", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+    const float alignWidth = 800.0f;
+
+    for (TextAlign align :
+         {TextAlign::left, TextAlign::right, TextAlign::center})
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, align, alignWidth);
+        textInput.update(&factory);
+
+        for (uint32_t index = 0; index <= 5; index++)
+        {
+            auto position =
+                textInput.cursorVisualPosition(CursorPosition(0, index));
+            REQUIRE(position.found());
+            float y = (position.top() + position.bottom()) / 2.0f;
+            textInput.moveCursorTo(Vec2D(position.x(), y), false);
+            CHECK(textInput.cursor().end().codePointIndex() == index);
+        }
+    }
+}
+
+TEST_CASE("multiline alignment offsets each line independently", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+    const float maxWidth = 900.0f;
+
+    // Two lines of clearly different widths.
+    auto lineStartX = [&](TextAlign align, uint32_t lineIndex) {
+        RawTextInput textInput;
+        textInput.font(font);
+        textInput.fontSize(72.0f);
+        textInput.sizing(TextSizing::autoHeight);
+        textInput.maxWidth(maxWidth);
+        textInput.align(align);
+        textInput.insert("hello\nlonger line here");
+        textInput.update(&factory);
+        REQUIRE(textInput.shape().lineCount() > lineIndex);
+        return textInput.shape().orderedLines()[lineIndex].glyphLine().startX;
+    };
+
+    CHECK(lineStartX(TextAlign::left, 0) == 0.0f);
+    CHECK(lineStartX(TextAlign::left, 1) == 0.0f);
+
+    // The shorter line is pushed further right than the longer one.
+    float rightShort = lineStartX(TextAlign::right, 0);
+    float rightLong = lineStartX(TextAlign::right, 1);
+    CHECK(rightShort > rightLong);
+    CHECK(rightLong > 0.0f);
+
+    float centerShort = lineStartX(TextAlign::center, 0);
+    float centerLong = lineStartX(TextAlign::center, 1);
+    CHECK(centerShort > centerLong);
+    CHECK(centerShort == Approx(rightShort / 2.0f));
+    CHECK(centerLong == Approx(rightLong / 2.0f));
+}
+
+TEST_CASE("an input aligns vertically within its align height", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+    const float alignHeight = 500.0f;
+
+    // The height of the text itself, so the expectations below don't depend on
+    // Inter's exact metrics.
+    float naturalHeight;
+    float topMinY;
+    float topCaretY;
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::left, 0.0f);
+        textInput.alignHeight(alignHeight);
+        textInput.update(&factory);
+        naturalHeight = textInput.bounds().height();
+        topMinY = textInput.bounds().minY;
+        topCaretY = textInput.cursorVisualPosition(CursorPosition(0, 0)).top();
+        CHECK(naturalHeight < alignHeight);
+    }
+
+    // Top is the default and must not move the text at all.
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::left, 0.0f);
+        textInput.alignHeight(alignHeight);
+        textInput.verticalAlign(VerticalTextAlign::top);
+        textInput.update(&factory);
+        CHECK(textInput.shape().verticalOffset() == 0.0f);
+        CHECK(textInput.bounds().minY == Approx(topMinY));
+    }
+
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::left, 0.0f);
+        textInput.alignHeight(alignHeight);
+        textInput.verticalAlign(VerticalTextAlign::middle);
+        textInput.update(&factory);
+        CHECK(textInput.shape().verticalOffset() ==
+              Approx((alignHeight - naturalHeight) / 2.0f));
+        CHECK(textInput.bounds().minY ==
+              Approx(topMinY + (alignHeight - naturalHeight) / 2.0f));
+        CHECK(textInput.bounds().height() == Approx(naturalHeight));
+        // The caret follows the text down by the same amount.
+        CHECK(textInput.cursorVisualPosition(CursorPosition(0, 0)).top() -
+                  topCaretY ==
+              Approx((alignHeight - naturalHeight) / 2.0f));
+    }
+
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::left, 0.0f);
+        textInput.alignHeight(alignHeight);
+        textInput.verticalAlign(VerticalTextAlign::bottom);
+        textInput.update(&factory);
+        CHECK(textInput.shape().verticalOffset() ==
+              Approx(alignHeight - naturalHeight));
+        CHECK(textInput.bounds().maxY == Approx(topMinY + alignHeight));
+    }
+
+    // Text taller than the field stays at the top, so vertical scrolling is
+    // left alone -- the mirror of the horizontal overflow fallback.
+    {
+        RawTextInput textInput;
+        makeAlignedInput(textInput, font, TextAlign::left, 0.0f);
+        textInput.alignHeight(10.0f);
+        textInput.verticalAlign(VerticalTextAlign::bottom);
+        textInput.update(&factory);
+        CHECK(textInput.shape().verticalOffset() == 0.0f);
+        CHECK(textInput.bounds().minY == Approx(topMinY));
+    }
+}
+
+// A click lands on the same character the caret reports, whatever the vertical
+// alignment -- hit testing has to move with the text.
+TEST_CASE("vertical alignment round trips through hit testing", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+
+    RawTextInput textInput;
+    makeAlignedInput(textInput, font, TextAlign::left, 0.0f);
+    textInput.alignHeight(500.0f);
+    textInput.verticalAlign(VerticalTextAlign::middle);
+    textInput.update(&factory);
+
+    auto position = textInput.cursorVisualPosition(CursorPosition(0, 3));
+    CHECK(position.found());
+    textInput.moveCursorTo(
+        Vec2D(position.x(), (position.top() + position.bottom()) / 2.0f));
+    CHECK(textInput.cursor().end().codePointIndex() == 3);
+}
+
+// A multiline input hugs its widest wrapped line, so the width it wraps at is
+// the text's own width, not the field's. Alignment still has to happen within
+// the field -- otherwise the lines only align relative to each other and the
+// block stays pinned left.
+TEST_CASE("multiline alignment uses the align width, not the wrap width",
+          "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    NoOpFactory factory;
+    const float fieldWidth = 900.0f;
+
+    auto build = [&](RawTextInput& textInput, TextAlign align) {
+        textInput.font(font);
+        textInput.fontSize(72.0f);
+        textInput.sizing(TextSizing::autoHeight);
+        textInput.align(align);
+        textInput.insert("hello\nlonger line here");
+        // Measure against the space available, as the layout does.
+        textInput.maxWidth(fieldWidth);
+        textInput.update(&factory);
+        // Hug: wrap at the width the text actually took, the way the layout
+        // hands it back to us.
+        textInput.maxWidth(textInput.bounds().width());
+        textInput.alignWidth(fieldWidth);
+        textInput.update(&factory);
+    };
+
+    auto startX = [&](const RawTextInput& textInput, uint32_t lineIndex) {
+        return textInput.shape().orderedLines()[lineIndex].glyphLine().startX;
+    };
+
+    float textWidth;
+    {
+        RawTextInput textInput;
+        build(textInput, TextAlign::left);
+        textWidth = textInput.bounds().width();
+        REQUIRE(textInput.shape().lineCount() == 2);
+        CHECK(textWidth < fieldWidth);
+        CHECK(startX(textInput, 0) == 0.0f);
+        CHECK(startX(textInput, 1) == 0.0f);
+    }
+
+    {
+        RawTextInput textInput;
+        build(textInput, TextAlign::right);
+        // The longest line ends at the field's right edge, not at the text's.
+        CHECK(startX(textInput, 1) == Approx(fieldWidth - textWidth));
+        // And the short line is pushed further still.
+        CHECK(startX(textInput, 0) > startX(textInput, 1));
+    }
+
+    {
+        RawTextInput textInput;
+        build(textInput, TextAlign::center);
+        CHECK(startX(textInput, 1) == Approx((fieldWidth - textWidth) / 2.0f));
+        CHECK(startX(textInput, 0) > startX(textInput, 1));
+    }
+}
 #endif

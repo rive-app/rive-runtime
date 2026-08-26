@@ -49,6 +49,24 @@ public:
     TextOverflow overflow() const { return m_overflow; }
     void overflow(TextOverflow value);
 
+    TextAlign align() const { return m_align; }
+    void align(TextAlign value);
+
+    /// The width lines are aligned within when it's wider than the text
+    /// itself. Text wider than this aligns within its own width, which
+    /// effectively left aligns it (and leaves horizontal scrolling intact).
+    float alignWidth() const { return m_alignWidth; }
+    void alignWidth(float value);
+
+    VerticalTextAlign verticalAlign() const { return m_verticalAlign; }
+    void verticalAlign(VerticalTextAlign value);
+
+    /// The height the text block is aligned within, the vertical counterpart
+    /// to alignWidth: text taller than this stays at the top, leaving
+    /// vertical scrolling intact.
+    float alignHeight() const { return m_alignHeight; }
+    void alignHeight(float value);
+
     rcp<Font> font() const { return m_textRun.font; }
     void font(rcp<Font> value);
 
@@ -201,6 +219,9 @@ private:
     TextWrap m_wrap = TextWrap::wrap;
     float m_maxWidth = 0.0f;
     float m_maxHeight = 0.0f;
+    float m_alignWidth = 0.0f;
+    VerticalTextAlign m_verticalAlign = VerticalTextAlign::top;
+    float m_alignHeight = 0.0f;
     rcp<RenderPath> m_clipRenderPath;
     float m_idealCursorX = -1.0f;
 

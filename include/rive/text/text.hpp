@@ -265,11 +265,17 @@ public:
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
 #ifdef WITH_RIVE_TEXT
     const std::vector<TextValueRun*>& runs() const { return m_allRuns; }
+    /// Breaks paragraphs into lines and aligns them. Lines are aligned within
+    /// the larger of the natural paragraph width and minAlignWidth, so a
+    /// caller that wants text aligned within a field wider than the text
+    /// (see RawTextInput::alignWidth) gets that, while text overflowing the
+    /// field falls back to starting at 0.
     static SimpleArray<SimpleArray<GlyphLine>> BreakLines(
         const SimpleArray<Paragraph>& paragraphs,
         float width,
         TextAlign align,
-        TextWrap wrap);
+        TextWrap wrap,
+        float minAlignWidth = 0.0f);
     const std::vector<TextStylePaint*>& textStylePaints()
     {
         return m_textStylePaints;

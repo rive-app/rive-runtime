@@ -207,6 +207,46 @@ void RawTextInput::overflow(TextOverflow value)
     flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
+void RawTextInput::align(TextAlign value)
+{
+    if (m_align == value)
+    {
+        return;
+    }
+    m_align = value;
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
+void RawTextInput::alignWidth(float value)
+{
+    if (m_alignWidth == value)
+    {
+        return;
+    }
+    m_alignWidth = value;
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
+void RawTextInput::verticalAlign(VerticalTextAlign value)
+{
+    if (m_verticalAlign == value)
+    {
+        return;
+    }
+    m_verticalAlign = value;
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
+void RawTextInput::alignHeight(float value)
+{
+    if (m_alignHeight == value)
+    {
+        return;
+    }
+    m_alignHeight = value;
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
 void RawTextInput::font(rcp<Font> value)
 {
     if (m_textRun.font == value)
@@ -236,7 +276,10 @@ void RawTextInput::ensureShape()
                       m_wrap,
                       m_origin,
                       m_overflow,
-                      m_paragraphSpacing);
+                      m_paragraphSpacing,
+                      m_alignWidth,
+                      m_verticalAlign,
+                      m_alignHeight);
     }
 }
 
@@ -327,7 +370,9 @@ void RawTextInput::buildTextPaths(Factory* factory)
         m_clipRenderPath = nullptr;
     }
 
-    float y = 0;
+    // Walks the lines itself rather than reading the ordered lines' y, so it
+    // has to pick up the vertical alignment offset they already carry.
+    float y = m_shape.verticalOffset();
     const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines =
         m_shape.paragraphLines();
     const std::vector<OrderedLine>& orderedLines = m_shape.orderedLines();
@@ -1000,7 +1045,10 @@ AABB RawTextInput::measure(float maxWidth, float maxHeight)
                                 m_wrap,
                                 m_origin,
                                 m_overflow,
-                                m_paragraphSpacing);
+                                m_paragraphSpacing,
+                                m_alignWidth,
+                                m_verticalAlign,
+                                m_alignHeight);
         m_lastMeasureMaxWidth = maxWidth;
         m_lastMeasureMaxHeight = maxHeight;
 #ifdef TESTING

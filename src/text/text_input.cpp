@@ -5,6 +5,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/layout_component.hpp"
 #include <algorithm>
 
 #if defined(__EMSCRIPTEN__)
@@ -58,15 +59,127 @@ void TextInput::selectionRadiusChanged()
 
 void TextInput::multilineChanged() { updateMultiline(true); }
 
-void TextInput::markPaintDirty() { addDirt(ComponentDirt::Paint); }
+void TextInput::alignValueChanged()
+{
+    updateAlignment();
+    markShapeDirty();
+}
+
+void TextInput::verticalAlignValueChanged()
+{
+    updateAlignment();
+    markShapeDirty();
+}
 
 void TextInput::markShapeDirty()
 {
+    restartCursorBlink();
     addDirt(ComponentDirt::TextShape);
 #ifdef WITH_RIVE_LAYOUT
     // We always size intrinsically, so any reshape can change our measure.
     markLayoutNodeDirty();
 #endif
+}
+
+bool TextInput::updateAlignment()
+{
+#ifdef WITH_RIVE_TEXT
+    // Unlike Text, we don't resolve left/right against the layout direction:
+    // TextInput is a Drawable, not a LayoutComponent, so it has no direction to
+    // inherit.
+    TextAlign align = (TextAlign)alignValue();
+
+    VerticalTextAlign verticalAlign = (VerticalTextAlign)verticalAlignValue();
+
+    // We hug our text on both axes -- single line is as wide as its text,
+    // multiline is as wide as its widest wrapped line -- so m_layoutWidth is
+    // the text's own size and never the field's. The field is the viewport's
+    // content box: its padding is space the text can't occupy, so aligning
+    // against the padded width would push the text into the padding.
+    //
+    // Deliberately not ScrollConstraint::viewportWidth/Height, which measure
+    // from the content's origin to the viewport's far edge for the scrolling
+    // axis and leave the trailing padding for the scroll math to subtract.
+    float width = m_layoutWidth;
+    float height = m_layoutHeight;
+    if (m_scrollConstraint != nullptr)
+    {
+        LayoutComponent* viewport = m_scrollConstraint->viewport();
+        if (viewport != nullptr)
+        {
+            width = viewport->layoutWidth() - viewport->paddingLeft() -
+                    viewport->paddingRight();
+            height = viewport->layoutHeight() - viewport->paddingTop() -
+                     viewport->paddingBottom();
+        }
+    }
+    if (std::isnan(width) || width < 0.0f)
+    {
+        width = 0.0f;
+    }
+    if (std::isnan(height) || height < 0.0f)
+    {
+        height = 0.0f;
+    }
+
+    if (m_rawTextInput.align() == align &&
+        m_rawTextInput.alignWidth() == width &&
+        m_rawTextInput.verticalAlign() == verticalAlign &&
+        m_rawTextInput.alignHeight() == height)
+    {
+        return false;
+    }
+    m_rawTextInput.align(align);
+    m_rawTextInput.alignWidth(width);
+    m_rawTextInput.verticalAlign(verticalAlign);
+    m_rawTextInput.alignHeight(height);
+    return true;
+#else
+    return false;
+#endif
+}
+
+// How long the caret stays in each of its shown/hidden phases while focused.
+static constexpr float kCursorBlinkSeconds = 0.5f;
+
+void TextInput::markPaintDirty()
+{
+    // Both dirty marks are triggered by the interactions that move the caret or
+    // change the text, so keep it solid while the user is working in the field.
+    restartCursorBlink();
+    addDirt(ComponentDirt::Paint);
+}
+
+void TextInput::restartCursorBlink()
+{
+    m_cursorBlinkSeconds = 0.0f;
+    m_cursorBlinkVisible = true;
+}
+
+bool TextInput::advanceCursorBlink(float elapsedSeconds)
+{
+    if (!m_focused)
+    {
+        restartCursorBlink();
+        return false;
+    }
+    m_cursorBlinkSeconds += elapsedSeconds;
+    if (m_cursorBlinkSeconds >= kCursorBlinkSeconds)
+    {
+        // A long advance (a dropped or suspended frame) can span several
+        // phases, and only an odd number of them leaves the caret flipped.
+        float phases = std::floor(m_cursorBlinkSeconds / kCursorBlinkSeconds);
+        m_cursorBlinkSeconds =
+            std::fmod(m_cursorBlinkSeconds, kCursorBlinkSeconds);
+        if (std::fmod(phases, 2.0f) != 0.0f)
+        {
+            m_cursorBlinkVisible = !m_cursorBlinkVisible;
+        }
+    }
+    // Keep advancing while focused so the caret keeps toggling. The cursor
+    // drawable reads isCursorVisible() when it builds its path, so no dirt is
+    // needed for the toggle itself.
+    return true;
 }
 
 AABB TextInput::localBounds() const
@@ -111,6 +224,7 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
         }
     }
     updateMultiline();
+    updateAlignment();
     return m_textStyle == nullptr ? StatusCode::MissingObject : StatusCode::Ok;
 }
 
@@ -124,6 +238,9 @@ void TextInput::update(ComponentDirt value)
         Factory* factory = artboard()->factory();
         m_rawTextInput.font(m_textStyle->font());
         m_rawTextInput.fontSize(m_textStyle->fontSize());
+        // Layout has settled by now, so this is where the alignment width is
+        // known. The setters no-op when nothing changed.
+        updateAlignment();
         RawTextInput::Flags changed = m_rawTextInput.update(factory);
         if (enums::is_flag_set(changed, RawTextInput::Flags::shapeDirty))
         {
@@ -224,6 +341,7 @@ void TextInput::controlSize(Vec2D size,
                             LayoutDirection direction)
 {
     m_layoutWidth = size.x;
+    m_layoutHeight = size.y;
     updateMultiline();
 }
 
@@ -785,5 +903,18 @@ bool TextInput::advanceDrag(float elapsedSeconds)
 
 bool TextInput::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    return advanceDrag(elapsedSeconds);
+    // The field can be resized without the TextInput itself being resized (a
+    // single line input is sized by its text, not its viewport), so pick up a
+    // changed alignment width here.
+    if (updateAlignment())
+    {
+        addDirt(ComponentDirt::TextShape);
+    }
+    bool keepGoing = advanceDrag(elapsedSeconds);
+    if ((flags & AdvanceFlags::Animate) == AdvanceFlags::Animate &&
+        advanceCursorBlink(elapsedSeconds))
+    {
+        keepGoing = true;
+    }
+    return keepGoing;
 }
