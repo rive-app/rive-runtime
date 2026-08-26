@@ -49,33 +49,35 @@ const char* TestingWindow::BackendName(Backend backend)
 {
     switch (backend)
     {
-        case TestingWindow::Backend::gl:
+        case Backend::gl:
             return "gl";
-        case TestingWindow::Backend::d3d:
+        case Backend::d3d:
             return "d3d";
-        case TestingWindow::Backend::d3d12:
+        case Backend::d3d12:
             return "d3d12";
-        case TestingWindow::Backend::metal:
+        case Backend::metal:
             return "metal";
-        case TestingWindow::Backend::vk:
+        case Backend::vk:
             return "vk";
-        case TestingWindow::Backend::moltenvk:
+        case Backend::moltenvk:
             return "moltenvk";
-        case TestingWindow::Backend::swiftshader:
+        case Backend::swiftshader:
             return "swiftshader";
-        case TestingWindow::Backend::angle:
+        case Backend::angle:
             return "angle";
-        case TestingWindow::Backend::dawn:
+        case Backend::dawn:
             return "dawn";
-        case TestingWindow::Backend::wgpu:
+        case Backend::wgpu:
             return "wgpu";
         case Backend::external:
             return "external";
-        case TestingWindow::Backend::coregraphics:
+        case Backend::coregraphics:
             return "coregraphics";
-        case TestingWindow::Backend::skia:
+        case Backend::skia:
             return "skia";
-        case TestingWindow::Backend::null:
+        case Backend::canvas2d:
+            return "canvas2d";
+        case Backend::null:
             return "null";
         case TestingWindow::Backend::invalid:
             return "invalid";
@@ -290,6 +292,10 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     {
         return Backend::external;
     }
+    if (nameStr == "canvas2d" || nameStr == "c2d")
+    {
+        return Backend::canvas2d;
+    }
     if (nameStr == "null")
     {
         return Backend::null;
@@ -468,6 +474,9 @@ TestingWindow* TestingWindow::Init(Backend backend,
             break;
         case Backend::skia:
             s_TestingWindow = MakeSkia();
+            break;
+        case Backend::canvas2d:
+            s_TestingWindow = MakeCanvas2D();
             break;
         case Backend::null:
             s_TestingWindow = MakeNULL();

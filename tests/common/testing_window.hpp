@@ -81,6 +81,7 @@ public:
         external,
         coregraphics,
         skia,
+        canvas2d,
         null,
         invalid,
     };
@@ -324,6 +325,7 @@ public:
     static TestingWindow* MakePlatformVulkan(const BackendParams&);
     static TestingWindow* MakeWGPU(const BackendParams&);
     static TestingWindow* MakeSkia();
+    static TestingWindow* MakeCanvas2D();
     static TestingWindow* MakeNULL();
 
 protected:

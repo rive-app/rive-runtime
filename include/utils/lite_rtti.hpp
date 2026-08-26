@@ -17,6 +17,7 @@
 
 #include "utils/compile_time_string_hash.hpp"
 #include "rive/refcnt.hpp"
+#include <cassert>
 #include <stdint.h>
 #include <type_traits>
 
@@ -57,6 +58,14 @@ template <class U, class T> U lite_rtti_cast(T* t)
         return static_cast<U>(t);
     }
     return nullptr;
+}
+
+// Like lite_rtti_cast<>, but asserts that the cast succeeded.
+template <class U, class T> U lite_rtti_cast_or_assert(T* t)
+{
+    U cast = lite_rtti_cast<U>(t);
+    assert(cast != nullptr);
+    return cast;
 }
 
 template <class U, class T> rcp<U> lite_rtti_rcp_cast(rcp<T> t)

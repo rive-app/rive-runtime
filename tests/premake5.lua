@@ -89,6 +89,7 @@ do
     do
         files({ 'gm/gms.html' })
     end
+    filter({})
 end
 
 rive_tools_project('goldens', 'RiveTool')

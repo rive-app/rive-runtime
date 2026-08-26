@@ -347,6 +347,7 @@ public:
             case Backend::wgpu:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::canvas2d:
             case Backend::external:
             case Backend::null:
             case Backend::invalid:

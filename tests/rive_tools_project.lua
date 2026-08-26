@@ -1,20 +1,43 @@
 dofile('rive_build_config.lua')
 defines({ 'WITH_RIVE_TOOLS' })
 
-RIVE_RUNTIME_DIR = path.getabsolute('..')
-RIVE_PLS_DIR = path.getabsolute('../renderer')
+WITH_RIVE_TOOLS = true
 
-dofile(RIVE_RUNTIME_DIR .. '/premake5_v2.lua')
-dofile(RIVE_RUNTIME_DIR .. '/cg_renderer/premake5.lua')
-dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_libpng_v2.lua')
-dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_glfw_v2.lua')
-dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
-dofile(RIVE_PLS_DIR .. '/premake5_pls_renderer.lua')
+-- Several of the scripts below assign RIVE_RUNTIME_DIR and RIVE_PLS_DIR
+-- themselves, so ours would not survive the dofiles. Keep a private copy to
+-- reach them with, and set the shared globals once every dofile has run.
+RIVE_RUNTIME_DOFILE_DIR = path.getabsolute('..')
+
+dofile(RIVE_RUNTIME_DOFILE_DIR .. '/premake5_v2.lua')
+dofile(RIVE_RUNTIME_DOFILE_DIR .. '/cg_renderer/premake5.lua')
+dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_libpng_v2.lua')
+dofile(RIVE_RUNTIME_DOFILE_DIR .. '/dependencies/premake5_glfw_v2.lua')
+dofile(RIVE_RUNTIME_DOFILE_DIR .. '/decoders/premake5_v2.lua')
+dofile(RIVE_RUNTIME_DOFILE_DIR .. '/renderer/premake5_pls_renderer.lua')
 
 newoption({ trigger = 'with-skia', description = 'use skia' })
 if _OPTIONS['with-skia'] then
-    dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/premake5_v2.lua')
+    dofile(RIVE_RUNTIME_DOFILE_DIR .. '/skia/renderer/premake5_v2.lua')
 end
+
+newoption({
+    trigger = 'with-canvas-2d',
+    description = 'build the Canvas2D renderer from packages/runtime_wasm',
+})
+
+-- The Canvas2D testing window imports canvas_advanced.mjs at runtime rather
+-- than linking it, so it has to sit beside the tool. Building rive_wasm in this
+-- workspace puts it there directly: it links to RIVE_BUILD_OUT, which is the
+-- tools' own target directory.
+if _OPTIONS['with-canvas-2d'] then
+    if rive_target_os ~= 'emscripten' then
+        error('--with-canvas-2d requires --arch=wasm')
+    end
+    dofile(RIVE_RUNTIME_DOFILE_DIR .. '/../runtime_wasm/wasm/premake5.lua')
+end
+
+RIVE_RUNTIME_DIR = RIVE_RUNTIME_DOFILE_DIR
+RIVE_PLS_DIR = path.getabsolute('../renderer')
 
 newoption({trigger = 'all_tools_as_static', description = 'force all RiveTool projects to be static libs'})
 
@@ -375,9 +398,14 @@ function rive_tools_project(name, project_kind)
     filter('system:emscripten')
     do
         targetextension('.js')
+        defines({ 'EMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0' })
         linkoptions({
+            '--bind',
+            -- Must be repeated at link time, not just when compiling. emcc
+            -- picks the libembind variant from the link command line.
+            '-fno-rtti',
             '-sEXPORTED_FUNCTIONS=_main,_rive_print_message_on_server,_malloc,_free',
-            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU32',
+            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,HEAPU32',
             '-sENVIRONMENT=web',
             '-sUSE_GLFW=3',
             '-sMIN_WEBGL_VERSION=2',
@@ -421,6 +449,12 @@ function rive_tools_project(name, project_kind)
         buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
         buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
         buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
+    end
+
+    filter({ 'options:with-canvas-2d' })
+    do
+        defines({ 'RIVE_CANVAS_2D' })
+        dependson({ 'rive_wasm' })
     end
 
     filter({})
