@@ -20,7 +20,40 @@
 #endif
 
 #define GLFW_INCLUDE_NONE
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#endif
 #include "GLFW/glfw3.h"
+#ifdef _WIN32
+#include <GLFW/glfw3native.h>
+#endif
+
+#ifdef _WIN32
+// Windows only lets a process take the foreground if it already owns it,
+// or was started by whoever does. Launching from a terminal usually
+// satisfies neither, so SetForegroundWindow() is silently ignored and the
+// window opens behind the shell. AttachThreadInput() makes the two threads
+// share a single input state, which is the attachment SetForegroundWindow()
+// looks for. The sharing is mutual, so the argument order is immaterial --
+// what matters is that the detach repeats the attach.
+static void forceWindowToForeground(GLFWwindow* window)
+{
+    HWND hwnd = glfwGetWin32Window(window);
+    HWND foreground = GetForegroundWindow();
+    DWORD foregroundThread =
+        foreground ? GetWindowThreadProcessId(foreground, nullptr) : 0;
+    DWORD thisThread = GetCurrentThreadId();
+    bool attached = foregroundThread != 0 && foregroundThread != thisThread &&
+                    AttachThreadInput(foregroundThread, thisThread, TRUE);
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+    if (attached)
+    {
+        AttachThreadInput(foregroundThread, thisThread, FALSE);
+    }
+}
+#endif
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
@@ -730,6 +763,10 @@ int main(int argc, const char** argv)
             }
             break;
     }
+    // Create hidden, then show. GLFW_FOCUS_ON_SHOW only applies to a
+    // hidden->visible transition, so with the default (visible) the show
+    // below is a no-op and the window can come up behind the terminal.
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
     // glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
     window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
@@ -748,6 +785,12 @@ int main(int argc, const char** argv)
         glfwMakeContextCurrent(window);
     }
     glfwShowWindow(window);
+    // Windows can still refuse to hand over the foreground, so ask
+    // explicitly as well.
+    glfwFocusWindow(window);
+#ifdef _WIN32
+    forceWindowToForeground(window);
+#endif
 
     switch (api)
     {

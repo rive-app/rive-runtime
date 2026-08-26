@@ -628,23 +628,44 @@ void RenderPassGL::finish()
 
     if (m_usedAttribs)
     {
+        // Disabling an array leaves its buffer binding on the VAO until the
+        // next borrower overwrites the slot: bounded by m_maxAttribSlot and
+        // deliberate, since a disabled array cannot source from it.
         for (uint32_t i = 0; i <= m_maxAttribSlot; ++i)
             glDisableVertexAttribArray(i);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    // The context lends this pass its FBO and VAO unless another pass already
+    // had them, so most passes hand them back here rather than deleting: GL
+    // names are never recycled on WebGL, and a per pass pair ratchets the
+    // browser's tables for the life of the page.
+    auto* ctx = static_cast<ContextGL*>(m_context);
+
     if (m_ownsVAO && m_glVAO != 0)
     {
         glDeleteVertexArrays(1, &m_glVAO);
+        m_glVAO = 0;
+    }
+    else if (m_glVAO != 0 && ctx != nullptr)
+    {
+        // Element buffer bindings are VAO state and outlive the buffer they
+        // name, so a borrowed VAO must not carry one past its owner.
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        ctx->releaseScratchVAO();
         m_glVAO = 0;
     }
     glBindVertexArray(m_prevVAO);
 
     if (m_glResolveCount > 0)
     {
-        GLuint resolveFBO;
-        glGenFramebuffers(1, &resolveFBO);
+        GLuint resolveFBO = ctx != nullptr ? ctx->scratchResolveFBO() : 0;
+        const bool ownsResolveFBO = resolveFBO == 0;
+        if (ownsResolveFBO)
+        {
+            glGenFramebuffers(1, &resolveFBO);
+        }
         for (uint32_t i = 0; i < m_glResolveCount; ++i)
         {
             const auto& r = m_glResolves[i];
@@ -669,11 +690,32 @@ void RenderPassGL::finish()
                               GL_COLOR_BUFFER_BIT,
                               GL_NEAREST);
         }
-        glDeleteFramebuffers(1, &resolveFBO);
+        if (ownsResolveFBO)
+        {
+            glDeleteFramebuffers(1, &resolveFBO);
+        }
+        else
+        {
+            // A kept resolve FBO would otherwise name this frame's resolve
+            // texture until the next resolve overwrites it.
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
+                                   GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D,
+                                   0,
+                                   0);
+        }
     }
 
     if (m_ownsFBO && m_glFBO != 0)
+    {
         glDeleteFramebuffers(1, &m_glFBO);
+        m_glFBO = 0;
+    }
+    else if (m_glFBO != 0 && ctx != nullptr)
+    {
+        ctx->releaseScratchFBO(m_colorCount, m_glDepthAttachment);
+        m_glFBO = 0;
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, m_prevFBO);
 
     m_context = nullptr;

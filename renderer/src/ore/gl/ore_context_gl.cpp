@@ -192,7 +192,107 @@ static GLenum oreCompareFunctionToGL(CompareFunction fn)
 // Context lifecycle
 // ============================================================================
 
-ContextGL::~ContextGL() {}
+ContextGL::~ContextGL()
+{
+    // Every pass this context handed a scratch object to is finished by now:
+    // a pass cannot outlive the context it validates against. The caller
+    // still owes us a current GL context here, same as every other ore GL
+    // object destructor.
+    if (m_scratchFBO != 0)
+    {
+        glDeleteFramebuffers(1, &m_scratchFBO);
+    }
+    if (m_scratchResolveFBO != 0)
+    {
+        glDeleteFramebuffers(1, &m_scratchResolveFBO);
+    }
+    if (m_scratchVAO != 0)
+    {
+        glDeleteVertexArrays(1, &m_scratchVAO);
+    }
+}
+
+// ============================================================================
+// Scratch pass objects
+// ============================================================================
+
+GLuint ContextGL::acquireScratchFBO()
+{
+    if (m_scratchFBOLent)
+    {
+        // A pass is already holding it; the caller mints its own.
+        return 0;
+    }
+    m_scratchFBOLent = true;
+    if (m_scratchFBO == 0)
+    {
+        glGenFramebuffers(1, &m_scratchFBO);
+        return m_scratchFBO;
+    }
+    // Hand it over as empty as a fresh one: a pass with fewer attachments
+    // than the last would otherwise render into that one's leftovers, and a
+    // detached texture cannot dangle here once its owner is freed.
+    glBindFramebuffer(GL_FRAMEBUFFER, m_scratchFBO);
+    for (uint32_t i = 0; i < m_scratchFBOColorCount; ++i)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0 + i,
+                               GL_TEXTURE_2D,
+                               0,
+                               0);
+    }
+    if (m_scratchFBODepthAttachment != 0)
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               m_scratchFBODepthAttachment,
+                               GL_TEXTURE_2D,
+                               0,
+                               0);
+    }
+    // READ_BUFFER is per FBO state and finish()'s MSAA resolve moves it off
+    // the default, so restore what a freshly minted FBO would have.
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    m_scratchFBOColorCount = 0;
+    m_scratchFBODepthAttachment = 0;
+    return m_scratchFBO;
+}
+
+void ContextGL::releaseScratchFBO(uint32_t colorCount, GLuint depthAttachment)
+{
+    m_scratchFBOColorCount = colorCount;
+    m_scratchFBODepthAttachment = depthAttachment;
+    m_scratchFBOLent = false;
+}
+
+GLuint ContextGL::acquireScratchVAO()
+{
+    if (m_scratchVAOLent)
+    {
+        return 0;
+    }
+    m_scratchVAOLent = true;
+    if (m_scratchVAO == 0)
+    {
+        glGenVertexArrays(1, &m_scratchVAO);
+    }
+    // Nothing to scrub: finish() disables every attrib array it enabled and
+    // drops the element buffer before it hands the VAO back.
+    return m_scratchVAO;
+}
+
+void ContextGL::releaseScratchVAO() { m_scratchVAOLent = false; }
+
+GLuint ContextGL::scratchResolveFBO()
+{
+    // The resolve blit's destination is rebuilt attachment by attachment on
+    // every use, and it is never live across a pass boundary, so it needs no
+    // lending state.
+    if (m_scratchResolveFBO == 0)
+    {
+        glGenFramebuffers(1, &m_scratchResolveFBO);
+    }
+    return m_scratchResolveFBO;
+}
 
 std::unique_ptr<ContextGL> ContextGL::Make(void* renderContextImpl)
 {
@@ -309,6 +409,20 @@ void ContextGL::waitForGPU() {} // GL is synchronous after glFinish/flush.
 void ContextGL::endFrame()
 {
     // GL uses per pass inline replay, so no whole frame buffer to drain here.
+
+    // Every pass hands its lend back in finish(), so with no pass open both
+    // flags are clear here. Clear them anyway: a lend stranded by some future
+    // early return between acquire and release would otherwise disable the
+    // scratch objects for the life of the context. Skipped while a pass is
+    // still open — that lend is genuinely out, and clearing it would alias
+    // one FBO across two live passes.
+    if (activeRenderPass() == nullptr || activeRenderPass()->isFinished())
+    {
+        assert(!m_scratchFBOLent);
+        assert(!m_scratchVAOLent);
+        m_scratchFBOLent = false;
+        m_scratchVAOLent = false;
+    }
 
     // Restore saved state. Each `RenderPass::finish()` already restores
     // its own captured VAO in-place, so by the time we get here only the
@@ -980,9 +1094,14 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     pass->m_prevVAO = static_cast<unsigned int>(prevVAO);
     pass->m_prevFBO = static_cast<unsigned int>(prevFBO);
 
-    // Create an FBO for this render pass.
-    glGenFramebuffers(1, &pass->m_glFBO);
-    pass->m_ownsFBO = true;
+    // Borrow this context's scratch FBO; 0 means another pass is still
+    // holding it, so this one mints and owns its own.
+    pass->m_glFBO = acquireScratchFBO();
+    if (pass->m_glFBO == 0)
+    {
+        glGenFramebuffers(1, &pass->m_glFBO);
+        pass->m_ownsFBO = true;
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, pass->m_glFBO);
 
     // Attach color targets.
@@ -1052,14 +1171,21 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     {
         glDrawBuffers(desc.colorCount, drawBuffers);
     }
+    else
+    {
+        // Draw buffers are FBO state, so a borrowed FBO still names the last
+        // pass's. Restore what a freshly minted one would have.
+        GLenum defaultDrawBuffer = GL_COLOR_ATTACHMENT0;
+        glDrawBuffers(1, &defaultDrawBuffer);
+    }
 
     // Attach depth/stencil.
+    GLenum depthAttachment = 0;
     if (desc.depthStencil.view)
     {
         auto* depthTexGL =
             lite_rtti_cast<TextureGL*>(desc.depthStencil.view->texture());
         assert(depthTexGL);
-        GLenum depthAttachment;
 
         TextureFormat depthFmt = depthTexGL->format();
         bool hasStencil = (depthFmt == TextureFormat::depth24plusStencil8 ||
@@ -1083,6 +1209,9 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
                                    desc.depthStencil.view->baseMipLevel());
         }
     }
+    // What finish() has to hand back with the scratch FBO, so the next
+    // borrower can strip it. The color count is already on the pass.
+    pass->m_glDepthAttachment = depthAttachment;
 
     // Verify completeness (debug only).
     assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) ==
@@ -1136,10 +1265,15 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
         }
     }
 
-    // Create a dedicated VAO for this render pass so Ore's vertex attrib state
-    // doesn't contaminate the host renderer's VAO (e.g., Rive's draw VAO).
-    glGenVertexArrays(1, &pass->m_glVAO);
-    pass->m_ownsVAO = true;
+    // Ore's vertex attrib state must not contaminate the host renderer's VAO
+    // (e.g., Rive's draw VAO), so a pass renders through a VAO of its own.
+    // Borrow this context's; 0 means another pass still holds it.
+    pass->m_glVAO = acquireScratchVAO();
+    if (pass->m_glVAO == 0)
+    {
+        glGenVertexArrays(1, &pass->m_glVAO);
+        pass->m_ownsVAO = true;
+    }
     glBindVertexArray(pass->m_glVAO);
 
     // Set a default viewport from the first color or depth attachment so

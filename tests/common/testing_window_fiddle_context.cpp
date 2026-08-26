@@ -29,11 +29,48 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #define GLFW_INCLUDE_NONE
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#endif
 #include <GLFW/glfw3.h>
+#ifdef _WIN32
+#include <GLFW/glfw3native.h>
+#endif
 
 using namespace rive;
 using namespace rive::gpu;
+
+#ifdef _WIN32
+// Windows only lets a process take the foreground if it already owns it,
+// or was started by whoever does. Launching from a terminal usually
+// satisfies neither, so SetForegroundWindow() is silently ignored and the
+// window opens behind the shell. AttachThreadInput() makes the two threads
+// share a single input state, which is the attachment SetForegroundWindow()
+// looks for. The sharing is mutual, so the argument order is immaterial --
+// what matters is that the detach repeats the attach.
+static void forceWindowToForeground(GLFWwindow* window)
+{
+    HWND hwnd = glfwGetWin32Window(window);
+    HWND foreground = GetForegroundWindow();
+    DWORD foregroundThread =
+        foreground ? GetWindowThreadProcessId(foreground, nullptr) : 0;
+    DWORD thisThread = GetCurrentThreadId();
+    bool attached = foregroundThread != 0 && foregroundThread != thisThread &&
+                    AttachThreadInput(foregroundThread, thisThread, TRUE);
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+    if (attached)
+    {
+        AttachThreadInput(foregroundThread, thisThread, FALSE);
+    }
+}
+#endif
 
 static std::queue<TestingWindow::InputEventData> inputEvents;
 static float dpi = 1.0f;
@@ -203,10 +240,12 @@ public:
         }
 
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        if (visibility == Visibility::headless)
-        {
-            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        }
+        // Create hidden, then show. GLFW_FOCUS_ON_SHOW only applies to a
+        // hidden->visible transition, so with the default (visible) the show
+        // below is a no-op and the window can come up behind the terminal.
+        // Headless simply never gets shown.
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
 
         GLFWmonitor* fullscreenMonitor = nullptr;
         if (visibility == Visibility::fullscreen)
@@ -269,6 +308,17 @@ public:
 #ifndef __EMSCRIPTEN__
         glfwSwapInterval(0);
 #endif
+
+        if (visibility != Visibility::headless)
+        {
+            glfwShowWindow(m_glfwWindow);
+            // Windows can still refuse to hand over the foreground, so ask
+            // explicitly as well.
+            glfwFocusWindow(m_glfwWindow);
+#ifdef _WIN32
+            forceWindowToForeground(m_glfwWindow);
+#endif
+        }
 
         glfwSetKeyCallback(m_glfwWindow, key_callback);
         glfwSetCursorPosCallback(m_glfwWindow, mouse_position_callback);

@@ -94,7 +94,21 @@ if not _OPTIONS['with-webgpu'] then
         do
             architecture('x64')
             defines({ 'RIVE_WINDOWS', '_CRT_SECURE_NO_WARNINGS' })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler'})
+            links({
+                'glfw3',
+                'opengl32',
+                'd3d11',
+                'd3d12',
+                'dxguid',
+                'dxgi',
+                'd3dcompiler',
+                -- GLFW's win32 backend. MSVC's linker pulls these in as
+                -- default libs; lld-link does not, so ninja builds need them
+                -- spelled out.
+                'gdi32',
+                'shell32',
+                'user32',
+            })
         end
         if _OPTIONS['with_optick'] then
             links({'optick'})
@@ -182,154 +196,6 @@ if not _OPTIONS['with-webgpu'] then
             buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
             buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
             buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
-        end
-    end
-end
-
-if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
-    project('webgpu_player')
-    do
-        kind('ConsoleApp')
-        includedirs({
-            'include',
-            RIVE_RUNTIME_DIR .. '/include',
-            'glad',
-            'include',
-            glfw .. '/include',
-        })
-        externalincludedirs({'glad/include'})
-
-        fatalwarnings({ 'All' })
-
-        defines({ 'YOGA_EXPORT=' })
-
-        files({
-            'webgpu_player/webgpu_player.cpp',
-            'webgpu_player/index.html',
-        })
-
-        links({
-            'rive',
-            'rive_pls_renderer',
-            'rive_decoders',
-            'libpng',
-            'zlib',
-            'libjpeg',
-            'libwebp',
-            'rive_harfbuzz',
-            'rive_sheenbidi',
-            'rive_yoga',
-        })
-
-        filter('system:windows')
-        do
-            architecture('x64')
-            defines({ 'RIVE_WINDOWS', '_CRT_SECURE_NO_WARNINGS' })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler' })
-        end
-
-        filter('system:macosx')
-        do
-            files({ 'path_fiddle/fiddle_context_dawn_helper.mm' })
-            buildoptions({ '-fobjc-arc' })
-            links({
-                'glfw3',
-                'Cocoa.framework',
-                'Metal.framework',
-                'QuartzCore.framework',
-                'IOKit.framework',
-            })
-        end
-
-        filter('options:with-dawn')
-        do
-            includedirs({
-                'dependencies/dawn/include',
-                'dependencies/dawn/out/release/gen/include',
-            })
-            files({
-                'path_fiddle/fiddle_context_dawn.cpp',
-            })
-            libdirs({
-                'dependencies/dawn/out/release/obj/src/dawn',
-                'dependencies/dawn/out/release/obj/src/dawn/native',
-                'dependencies/dawn/out/release/obj/src/dawn/platform',
-                'dependencies/dawn/out/release/obj/src/dawn/platform',
-            })
-            links({
-                'winmm',
-                'webgpu_dawn',
-                'dawn_native_static',
-                'dawn_proc_static',
-                'dawn_platform_static',
-            })
-        end
-
-        filter({ 'options:with-dawn', 'system:windows' })
-        do
-            links({ 'dxguid' })
-        end
-
-        filter({ 'options:with-dawn', 'system:macosx' })
-        do
-            links({ 'IOSurface.framework' })
-        end
-
-        filter('system:emscripten')
-        do
-            targetextension('.js')
-            linkoptions({
-                '-sEXPORTED_FUNCTIONS=_main,_malloc,_free',
-                '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU32',
-                '-sENVIRONMENT=web,shell',
-            })
-        end
-
-        filter({
-            'system:emscripten',
-            'options:with-webgpu',
-            'options:not with_wagyu',
-            'options:webgpu-version=1',
-        })
-        do
-            -- webgpu-version=1 keeps the legacy -sUSE_WEBGPU library.
-            linkoptions({ '-sUSE_WEBGPU' })
-        end
-
-        filter({
-            'system:emscripten',
-            'options:with-webgpu',
-            'options:not with_wagyu',
-            'options:webgpu-version=2',
-        })
-        do
-            -- webgpu-version=2 uses Dawn's emdawnwebgpu port (the new "future"
-            -- webgpu.h API) so it runs in a real browser.
-            buildoptions({ '--use-port=emdawnwebgpu' })
-            linkoptions({ '--use-port=emdawnwebgpu' })
-        end
-
-        filter({ 'options:with_rive_layout' })
-        do
-            defines({ 'YOGA_EXPORT=' })
-            includedirs({ yoga })
-            links({
-                'rive_yoga',
-            })
-        end
-
-        filter('files:**.html or **.riv or **.js')
-        do
-            buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
-            buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
-            buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
-        end
-
-        filter({})
-
-        if RIVE_WAGYU_PORT then
-            buildoptions({ RIVE_WAGYU_PORT })
-            linkoptions({ RIVE_WAGYU_PORT })
         end
     end
 end

@@ -50,8 +50,10 @@ public:
     RenderPassGL() = default;
     RenderPassGL(Context* context) : RenderPass(context) {}
     ~RenderPassGL() override;
-    RenderPassGL(RenderPassGL&& other) noexcept;
-    RenderPassGL& operator=(RenderPassGL&&) noexcept;
+    // Deleted, not defined: a move would have to settle who deletes m_glFBO
+    // and who hands the context's lend back, and nothing needs one.
+    RenderPassGL(RenderPassGL&&) = delete;
+    RenderPassGL& operator=(RenderPassGL&&) = delete;
 
     struct GLResolveEntry
     {
@@ -73,6 +75,12 @@ private:
     unsigned int m_glVAO = 0;   // GLuint
     unsigned int m_prevVAO = 0; // GLuint saved before this pass
     unsigned int m_prevFBO = 0; // GLuint saved before this pass
+    // Depth/stencil attachment point this pass used, 0 when it had none.
+    // Only meaningful for a borrowed FBO, which finish() has to hand back
+    // with a note of what is still attached to it.
+    unsigned int m_glDepthAttachment = 0; // GLenum
+    // False for the FBO/VAO the context lends out: those go back at finish()
+    // instead of being deleted.
     bool m_ownsFBO = false;
     bool m_ownsVAO = false;
     rcp<Pipeline> m_currentPipeline;

@@ -116,6 +116,7 @@ static PFNEGLQUERYSURFACEPROC eglQuerySurface;
 static PFNEGLDESTROYSURFACEPROC eglDestroySurface;
 static PFNEGLMAKECURRENTPROC eglMakeCurrent;
 static PFNEGLSWAPBUFFERSPROC eglSwapBuffers;
+static PFNEGLSWAPINTERVALPROC eglSwapInterval;
 static PFNEGLGETPROCADDRESSPROC eglGetProcAddress;
 
 static void init_egl()
@@ -146,6 +147,7 @@ static void init_egl()
     GET_EGL_PROC(eglDestroySurface);
     GET_EGL_PROC(eglMakeCurrent);
     GET_EGL_PROC(eglSwapBuffers);
+    GET_EGL_PROC(eglSwapInterval);
     GET_EGL_PROC(eglGetProcAddress);
 }
 
@@ -417,6 +419,8 @@ public:
             fprintf(stderr, "eglMakeCurrent failed.\n");
             abort();
         }
+        // Disable vsync -- we want to measure fps above 60.
+        eglSwapInterval(m_Display, 0);
 
 #ifdef RIVE_DESKTOP_GL
         // Load the OpenGL API using glad.

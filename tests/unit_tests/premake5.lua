@@ -143,11 +143,13 @@ do
         files({
             'renderer/ore_buffer_race_test.mm',
             'renderer/ore_layout_intern_test.mm',
+            'renderer/ore_scratch_pass_objects_test.mm',
             'renderer/ore_split_stage_test.mm',
         })
         removefiles({
             'renderer/ore_buffer_race_test.cpp',
             'renderer/ore_layout_intern_test.cpp',
+            'renderer/ore_scratch_pass_objects_test.cpp',
             'renderer/ore_split_stage_test.cpp',
         })
     end
