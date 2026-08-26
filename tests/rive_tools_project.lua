@@ -436,6 +436,7 @@ do
     files({
         'common/*.cpp',
         'unit_tests/assets/*.cpp',
+        RIVE_PLS_DIR .. '/path_fiddle/fiddle_context.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_gl.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d12.cpp',
