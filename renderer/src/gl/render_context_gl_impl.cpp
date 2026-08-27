@@ -209,6 +209,9 @@ RenderContextGLImpl::RenderContextGLImpl(
     }
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = true;
+    // Every GL state change is "dynamic", so save ourselves the overhead of
+    // splitting out subpasses into separate draws with different pipelines.
+    m_platformFeatures.supportsPipelineDynamicState = true;
 
     GLint maxTextureSize;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
@@ -2946,8 +2949,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::outerCurvePatches:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
             case DrawType::msaaMidpointFans:
             case DrawType::msaaMidpointFanStencilReset:
             case DrawType::msaaMidpointFanPathsStencil:
@@ -2971,6 +2972,53 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     batch.baseElement,
                     drawProgram->baseInstanceUniformLocation(),
                     &flushInjector);
+                break;
+            }
+
+            case DrawType::msaaDynamicMidpointFans:
+            case DrawType::msaaDynamicOuterCubics:
+            {
+                // Combined fast-path fill: borrowed coverage, main fill, and
+                // stencil reset are one batch sharing one program. Draw it
+                // three times, changing state between passes. The outer-cubic
+                // passes use identical state to their midpoint-fan
+                // counterparts, so drive both from the midpoint-fan types.
+                m_state->bindVAO(m_drawVAO);
+                for (DrawType pass : {DrawType::msaaMidpointFanBorrowedCoverage,
+                                      DrawType::msaaMidpointFans,
+                                      DrawType::msaaMidpointFanStencilReset})
+                {
+                    gpu::PipelineState passState =
+                        gpu::get_pipeline_state(pass,
+                                                desc.interlockMode,
+                                                shaderMiscFlags,
+                                                batch.drawContents,
+                                                desc.fixedFunctionColorOutput,
+                                                batch.firstBlendMode,
+                                                m_platformFeatures);
+                    // The scissor was already decided before the switch, so
+                    // don't let a per-pass state change disturb it.
+                    //
+                    // NOTE on ShaderMiscFlags::emulateDynamicColorWriteDisable:
+                    // If we were to emulate colorWrite disables via a uniform,
+                    // right here would be the place to set that uniform.
+                    // On Vulkan, we emulate colorWrite disables for Adreno and
+                    // PowerVR instead of turning off the color mask. (We do
+                    // this for correctness and possible performance reasons.)
+                    // glColorMask seems to work though on GL, and performance
+                    // of the emulated path looks empirically worse on PowerVR,
+                    // so we just use glColorMask for now on GL, instead of the
+                    // emulated path.
+                    m_state->setPipelineState(passState, ScissorAction::ignore);
+                    drawIndexedInstancedNoInstancedAttribs(
+                        GL_TRIANGLES,
+                        batch.indexCountPerInstance,
+                        batch.baseIndex,
+                        batch.elementCount,
+                        batch.baseElement,
+                        drawProgram->baseInstanceUniformLocation(),
+                        &flushInjector);
+                }
                 break;
             }
 

@@ -899,9 +899,12 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     RIVE_UNREACHABLE();
 }
 
-// Miscellaneous switches that *do* affect the behavior of the fragment shader.
-// The renderContext may add some of these, and a backend may also add them to a
+// Miscellaneous switches that *do* affect the behavior of the shaders. The
+// renderContext may add some of these, and a backend may also add them to a
 // shader key if it wants to implement the behavior.
+// Most only reach the fragment shader. emulateDynamicColorWriteDisable also
+// reaches the vertex shader, so a backend that sets it must key its vertex
+// shaders on it as well.
 enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
@@ -934,8 +937,8 @@ enum class ShaderMiscFlags : uint32_t
     borrowedCoveragePass = 1 << 4,
 
     // The backend can't turn color writes off via dynamic state
-    // (e.g., VK_EXT_color_write_enable), so the shader emulates it by
-    // outputting color == 0.
+    // (e.g., VK_EXT_color_write_enable), so the vertex shader emulates it by
+    // zeroing its paint, which the fragment shader reads as color == 0.
     // NOTE: "color == 0" doesn't work with blending disabled (opaquePaint), so
     // this flag also forces blend on for opaque content.
     emulateDynamicColorWriteDisable = 1 << 5,
