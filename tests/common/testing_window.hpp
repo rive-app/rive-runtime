@@ -82,6 +82,7 @@ public:
         coregraphics,
         skia,
         canvas2d,
+        svg,
         null,
         invalid,
     };
@@ -324,6 +325,7 @@ public:
     // RIVE_PLATFORM_TESTING_WINDOW.
     static TestingWindow* MakePlatformVulkan(const BackendParams&);
     static TestingWindow* MakeWGPU(const BackendParams&);
+    static TestingWindow* MakeSVG();
     static TestingWindow* MakeSkia();
     static TestingWindow* MakeCanvas2D();
     static TestingWindow* MakeNULL();

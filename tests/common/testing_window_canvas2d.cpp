@@ -21,7 +21,7 @@ TestingWindow* TestingWindow::MakeCanvas2D() { return nullptr; }
 namespace rive::gpu
 {
 
-EM_ASYNC_JS(void, importCanvasAdvanced, (), {
+EM_ASYNC_JS(void, testingWindowCanvas2dImportCanvasAdvanced, (), {
     // The import itself is async, and then we need to call the "default"
     // function to get the module, which is also async.
     // clang-format off
@@ -36,7 +36,7 @@ EM_ASYNC_JS(void, importCanvasAdvanced, (), {
 // Resets the canvas and fills it with `color` (0xAARRGGBB). The fill has to
 // happen here rather than through the renderer: a drawPath composites over the
 // existing pixels, which cannot produce a transparent clear color.
-EM_JS(void, resetCanvas, (uint32_t color), {
+EM_JS(void, testingWindowCanvas2dResetCanvas, (uint32_t color), {
     var canvas = document["getElementById"]("canvas");
     var ctx = canvas["getContext"]("2d");
     ctx["reset"]();
@@ -49,69 +49,59 @@ EM_JS(void, resetCanvas, (uint32_t color), {
     ctx["fillRect"](0, 0, canvas["width"], canvas["height"]);
 });
 
-EM_JS(bool, getCanvasPixels, (uint8_t* outBuffer, int width, int height), {
-    var canvas = document["getElementById"]("canvas");
-    var ctx = canvas["getContext"]("2d");
-    var imageData = ctx["getImageData"](0, 0, canvas.width, canvas.height);
-    var pixelArray = imageData["data"];
-    if (pixelArray.length != width * height * 4)
-    {
-        return false;
-    }
+EM_JS(bool,
+      testingWindowCanvas2dGetCanvasPixels,
+      (uint8_t* outBuffer, int width, int height),
+      {
+          var canvas = document["getElementById"]("canvas");
+          var ctx = canvas["getContext"]("2d");
+          var imageData =
+              ctx["getImageData"](0, 0, canvas.width, canvas.height);
+          var pixelArray = imageData["data"];
+          if (pixelArray.length != width * height * 4)
+          {
+              return false;
+          }
 
-    // TestHarness::savePNG() flips vertically on the way out, since every other
-    // backend fills this buffer bottom-up (the GL convention). getImageData()
-    // hands back rows top-down, so reverse them here and let the two cancel.
-    var stride = width * 4;
-    for (var y = 0; y < height; ++y)
-    {
-        Module['HEAPU8']['set'](
-            pixelArray['subarray']((height - 1 - y) * stride,
-                                   (height - y) * stride),
-            outBuffer + y * stride);
-    }
-    return true;
-});
+          // TestHarness::savePNG() flips vertically on the way out, since every
+          // other backend fills this buffer bottom-up (the GL convention).
+          // getImageData() hands back rows top-down, so reverse them here and
+          // let the two cancel.
+          var stride = width * 4;
+          for (var y = 0; y < height; ++y)
+          {
+              Module['HEAPU8']['set'](
+                  pixelArray['subarray']((height - 1 - y) * stride,
+                                         (height - y) * stride),
+                  outBuffer + y * stride);
+          }
+          return true;
+      });
 
 // Image decoding is asynchronous: renderer.js hands the bytes to an <img>
 // element through a blob URL and only fills in the result on its load event.
-// So we kick the decode off here, stash the finished image on globalThis, and
-// let JSRenderFactory::decodeImage() spin on decodedImageReady() -- the same
-// wait pattern as importCanvasAdvanced() above.
 //
 // Note this goes through Module.decodeImage rather than the more obvious
 // renderFactory.makeRenderImage(). The latter's onDecode callback closes over
 // renderer.js's loadContext, which is only non-null inside Module.load(), and
-// this harness draws images directly without ever loading a .riv file -- so
-// that path would dereference null on the first decode.
-//
-// The handoff slot holds one result, so only one decode may be in flight at a
-// time.
-EM_JS(void, beginDecodeImage, (const uint8_t* bytes, int size), {
-    globalThis.decodedImage = null;
-    // Copy out of our heap up front just to be extra safe (renderer.js's
-    // `decode` function also makes a Blob copy).
-    var copy = Module['HEAPU8']['slice'](bytes, bytes + size);
-    globalThis.canvasAdvancedModule["decodeImage"](
-        copy,
-        function(image) { globalThis.decodedImage = image; });
-});
-
-EM_JS(bool, decodeSlotIdle, (), {
-    // clang-format off
-    return globalThis.decodedImage === undefined;
-    // clang-format on
-});
-
-EM_JS(bool, decodedImageReady, (), {
-    // clang-format off
-    return globalThis.decodedImage !== undefined &&
-           globalThis.decodedImage !== null;
-    // clang-format on
-});
+// this harness draws images directly without ever loading a .riv file, so that
+// path would dereference null on the first decode.
+EM_ASYNC_JS(emscripten::EM_VAL,
+            testingWindowCanvas2dDecodeImage,
+            (const uint8_t* bytes, int size),
+            {
+                // Copy out of our heap up front just to be extra safe
+                // (renderer.js's `decode` function also makes a Blob copy).
+                var copy = Module['HEAPU8']['slice'](bytes, bytes + size);
+                var image = await new Promise(function(resolve) {
+                    globalThis.canvasAdvancedModule["decodeImage"](copy,
+                                                                   resolve);
+                });
+                return Emval.toHandle(image);
+            });
 
 // Resolved on first use rather than at static-init time, since the module isn't
-// on globalThis until importCanvasAdvanced() has finished.
+// on globalThis until testingWindowCanvas2dImportCanvasAdvanced() has finished.
 static emscripten::val& canvasAdvancedModule()
 {
     static emscripten::val module =
@@ -560,19 +550,10 @@ public:
             return nullptr;
         }
 
-        assert(decodeSlotIdle()); // Overlapping decodes aren't supported.
-
         // Blocks until the <img> load event fires.
-        beginDecodeImage(bytes.data(), static_cast<int>(bytes.size()));
-        while (!decodedImageReady())
-        {
-            emscripten_sleep(1);
-        }
-
-        emscripten::val image = emscripten::val::global("decodedImage");
-        emscripten::val::global().set("decodedImage",
-                                      emscripten::val::undefined());
-        return make_rcp<JSRenderImage>(std::move(image));
+        return make_rcp<JSRenderImage>(emscripten::val::take_ownership(
+            testingWindowCanvas2dDecodeImage(bytes.data(),
+                                             static_cast<int>(bytes.size()))));
     }
 
 private:
@@ -707,7 +688,7 @@ class TestingWindowCanvas2D : public TestingWindow
 public:
     TestingWindowCanvas2D()
     {
-        importCanvasAdvanced();
+        testingWindowCanvas2dImportCanvasAdvanced();
 
         int w, h;
         emscripten_get_canvas_element_size("#canvas", &w, &h);
@@ -733,7 +714,7 @@ public:
     {
         if (options.doClear)
         {
-            resetCanvas(options.clearColor);
+            testingWindowCanvas2dResetCanvas(options.clearColor);
         }
 
         auto renderer = std::make_unique<JSRenderer>();
@@ -761,7 +742,9 @@ public:
         }
 
         pixelData->resize(m_width * m_height * 4);
-        if (!getCanvasPixels(pixelData->data(), m_width, m_height))
+        if (!testingWindowCanvas2dGetCanvasPixels(pixelData->data(),
+                                                  m_width,
+                                                  m_height))
         {
             printf("Canvas size mismatch, read failed\n");
             pixelData->assign(pixelData->size(), 0);

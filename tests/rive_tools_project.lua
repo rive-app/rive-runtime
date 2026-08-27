@@ -36,6 +36,8 @@ if _OPTIONS['with-canvas-2d'] then
     dofile(RIVE_RUNTIME_DOFILE_DIR .. '/../runtime_wasm/wasm/premake5.lua')
 end
 
+newoption({ trigger = 'with-svg', description = 'use the SVG renderer' })
+
 RIVE_RUNTIME_DIR = RIVE_RUNTIME_DOFILE_DIR
 RIVE_PLS_DIR = path.getabsolute('../renderer')
 
@@ -103,6 +105,7 @@ function rive_tools_project(name, project_kind)
         RIVE_PLS_DIR .. '/src',
         RIVE_RUNTIME_DIR .. '/include',
         RIVE_RUNTIME_DIR .. '/cg_renderer/include',
+        RIVE_RUNTIME_DIR .. '/decoders/include',
         'unit_tests',
         '%{cfg.targetdir}/include/libpng',
     })
@@ -182,6 +185,11 @@ function rive_tools_project(name, project_kind)
         })
         defines({ 'RIVE_SKIA' })
         libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/skia/out/static' })
+    end
+
+    filter('options:with-svg')
+    do
+        defines({ 'RIVE_SVG' })
     end
 
     filter({ 'toolset:not msc' })
@@ -477,6 +485,14 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
+
+    filter('options:with-svg')
+    do
+        files({
+            RIVE_RUNTIME_DIR .. '/utils/svg_factory.cpp',
+            RIVE_RUNTIME_DIR .. '/utils/svg_renderer.cpp',
+        })
+    end
 
     filter({'options:for_unreal'})
     do

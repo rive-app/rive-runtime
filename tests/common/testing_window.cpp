@@ -77,9 +77,11 @@ const char* TestingWindow::BackendName(Backend backend)
             return "skia";
         case Backend::canvas2d:
             return "canvas2d";
+        case Backend::svg:
+            return "svg";
         case Backend::null:
             return "null";
-        case TestingWindow::Backend::invalid:
+        case Backend::invalid:
             return "invalid";
     }
     RIVE_UNREACHABLE();
@@ -296,6 +298,10 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     {
         return Backend::canvas2d;
     }
+    if (nameStr == "svg")
+    {
+        return Backend::svg;
+    }
     if (nameStr == "null")
     {
         return Backend::null;
@@ -477,6 +483,9 @@ TestingWindow* TestingWindow::Init(Backend backend,
             break;
         case Backend::canvas2d:
             s_TestingWindow = MakeCanvas2D();
+            break;
+        case Backend::svg:
+            s_TestingWindow = MakeSVG();
             break;
         case Backend::null:
             s_TestingWindow = MakeNULL();

@@ -348,6 +348,7 @@ public:
             case Backend::coregraphics:
             case Backend::skia:
             case Backend::canvas2d:
+            case Backend::svg:
             case Backend::external:
             case Backend::null:
             case Backend::invalid:
