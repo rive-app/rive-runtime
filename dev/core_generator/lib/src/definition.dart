@@ -230,10 +230,10 @@ class Definition {
         );
       }
       final isBool = p.type.name == 'bool';
-      final isUint = p.type.name == 'uint';
+      final isUint = p.type.registryType.name == 'uint';
       if (!isBool && !isUint) {
         color(
-          '${p.name}: passthroughForBitmask requires bool or uint.',
+          '${p.name}: passthroughForBitmask requires bool, uint or uint8.',
           front: Styles.RED,
         );
       }
@@ -427,7 +427,7 @@ class Definition {
       }
       if (property.isBitmaskPassthrough &&
           property.bitmaskTargetIsHostProvided &&
-          property.type.name == 'uint') {
+          property.type.registryType.name == 'uint') {
         final mask = property.passthroughForBitmask!;
         final bit = property.passthroughBit!;
         final width = property.passthroughBitWidthOrDefault;
@@ -720,7 +720,7 @@ class Definition {
         // keep the legacy single-bit `${name}Bitmask`; uints expose the
         // field offset and mask.
         if (property.isBitmaskPassthrough) {
-          if (property.type.name == 'uint') {
+          if (property.type.registryType.name == 'uint') {
             final width = property.passthroughBitWidthOrDefault;
             final fieldMask = ((1 << width) - 1) << property.passthroughBit!;
             keyBuf.writeln('static const uint32_t ${property.name}BitOffset = '
@@ -831,7 +831,7 @@ class Definition {
           // `<name>Changed()` instead leaves the side-effects
           // unrun and produces silent runtime divergence.
           final changedFn = '${target.cppAccessor}Changed';
-          if (property.type.name == 'uint') {
+          if (property.type.registryType.name == 'uint') {
             // uint slice: read/write `passthroughBitWidth` bits at
             // `passthroughBit` inside the target mask, via the generated
             // `<name>BitOffset` / `<name>FieldMask` constants so adapters
@@ -1862,7 +1862,7 @@ class Definition {
         bool found = false;
         for (final property in properties) {
           if (property.interpolates &&
-              property.getExportType().name == 'uint') {
+              property.getExportType().registryType.name == 'uint') {
             found = true;
             ctxCode.writeln('case ${property.definition._name}Base'
                 '::${property.name}PropertyKey:');

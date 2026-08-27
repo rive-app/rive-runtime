@@ -1738,6 +1738,9 @@ public:
             case SemanticDataBase::stateFlagsPropertyKey:
                 object->as<SemanticDataBase>()->stateFlags(value);
                 break;
+            case SemanticDataBase::isCheckedPropertyKey:
+                object->as<SemanticDataBase>()->isChecked(value);
+                break;
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
                 object->as<BindablePropertyIntegerBase>()->propertyValue(value);
                 break;
@@ -2369,12 +2372,6 @@ public:
                 break;
             case SemanticDataBase::isSelectedPropertyKey:
                 object->as<SemanticDataBase>()->isSelected(value);
-                break;
-            case SemanticDataBase::isCheckedPropertyKey:
-                object->as<SemanticDataBase>()->isChecked(value);
-                break;
-            case SemanticDataBase::isMixedPropertyKey:
-                object->as<SemanticDataBase>()->isMixed(value);
                 break;
             case SemanticDataBase::isToggledPropertyKey:
                 object->as<SemanticDataBase>()->isToggled(value);
@@ -3752,6 +3749,8 @@ public:
                 return object->as<SemanticDataBase>()->traitFlags();
             case SemanticDataBase::stateFlagsPropertyKey:
                 return object->as<SemanticDataBase>()->stateFlags();
+            case SemanticDataBase::isCheckedPropertyKey:
+                return object->as<SemanticDataBase>()->isChecked();
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyIntegerBase>()
                     ->propertyValue();
@@ -4198,10 +4197,6 @@ public:
                 return object->as<SemanticDataBase>()->isExpanded();
             case SemanticDataBase::isSelectedPropertyKey:
                 return object->as<SemanticDataBase>()->isSelected();
-            case SemanticDataBase::isCheckedPropertyKey:
-                return object->as<SemanticDataBase>()->isChecked();
-            case SemanticDataBase::isMixedPropertyKey:
-                return object->as<SemanticDataBase>()->isMixed();
             case SemanticDataBase::isToggledPropertyKey:
                 return object->as<SemanticDataBase>()->isToggled();
             case SemanticDataBase::isRequiredPropertyKey:
@@ -4988,6 +4983,7 @@ public:
             case SemanticDataBase::headingLevelPropertyKey:
             case SemanticDataBase::traitFlagsPropertyKey:
             case SemanticDataBase::stateFlagsPropertyKey:
+            case SemanticDataBase::isCheckedPropertyKey:
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
@@ -5107,8 +5103,6 @@ public:
             case SemanticDataBase::isFocusablePropertyKey:
             case SemanticDataBase::isExpandedPropertyKey:
             case SemanticDataBase::isSelectedPropertyKey:
-            case SemanticDataBase::isCheckedPropertyKey:
-            case SemanticDataBase::isMixedPropertyKey:
             case SemanticDataBase::isToggledPropertyKey:
             case SemanticDataBase::isRequiredPropertyKey:
             case SemanticDataBase::isDisabledPropertyKey:
@@ -5897,6 +5891,8 @@ public:
                 return object->is<SemanticDataBase>();
             case SemanticDataBase::stateFlagsPropertyKey:
                 return object->is<SemanticDataBase>();
+            case SemanticDataBase::isCheckedPropertyKey:
+                return object->is<SemanticDataBase>();
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyIntegerBase>();
             case DataBindBase::propertyKeyPropertyKey:
@@ -6130,10 +6126,6 @@ public:
             case SemanticDataBase::isExpandedPropertyKey:
                 return object->is<SemanticDataBase>();
             case SemanticDataBase::isSelectedPropertyKey:
-                return object->is<SemanticDataBase>();
-            case SemanticDataBase::isCheckedPropertyKey:
-                return object->is<SemanticDataBase>();
-            case SemanticDataBase::isMixedPropertyKey:
                 return object->is<SemanticDataBase>();
             case SemanticDataBase::isToggledPropertyKey:
                 return object->is<SemanticDataBase>();

@@ -57,9 +57,8 @@ public:
     static const uint16_t isSelectedPropertyKey = 997;
     static const uint32_t isSelectedBitmask = 1u << 1;
     static const uint16_t isCheckedPropertyKey = 998;
-    static const uint32_t isCheckedBitmask = 1u << 2;
-    static const uint16_t isMixedPropertyKey = 999;
-    static const uint32_t isMixedBitmask = 1u << 3;
+    static const uint32_t isCheckedBitOffset = 2;
+    static const uint32_t isCheckedFieldMask = 12u;
     static const uint16_t isToggledPropertyKey = 1000;
     static const uint32_t isToggledBitmask = 1u << 4;
     static const uint16_t isRequiredPropertyKey = 1001;
@@ -335,34 +334,21 @@ public:
         RIVE_EDITOR_CHANGED(stateFlagsChanged());
         notifyPropertyChanged(stateFlagsPropertyKey);
     }
-    inline bool isChecked() const
+    inline uint8_t isChecked() const
     {
-        return (m_StateFlags & isCheckedBitmask) != 0;
+        return (m_StateFlags & isCheckedFieldMask) >> isCheckedBitOffset;
     }
-    void isChecked(bool value)
+    void isChecked(uint8_t value)
     {
-        const bool prev = (m_StateFlags & isCheckedBitmask) != 0;
+        const uint8_t prev =
+            (m_StateFlags & isCheckedFieldMask) >> isCheckedBitOffset;
         if (prev == value)
         {
             return;
         }
         RIVE_EDITOR_CHANGING(isCheckedPropertyKey, &prev, &value);
-        m_StateFlags = value ? (m_StateFlags | isCheckedBitmask)
-                             : (m_StateFlags & ~isCheckedBitmask);
-        RIVE_EDITOR_CHANGED(stateFlagsChanged());
-        notifyPropertyChanged(stateFlagsPropertyKey);
-    }
-    inline bool isMixed() const { return (m_StateFlags & isMixedBitmask) != 0; }
-    void isMixed(bool value)
-    {
-        const bool prev = (m_StateFlags & isMixedBitmask) != 0;
-        if (prev == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(isMixedPropertyKey, &prev, &value);
-        m_StateFlags = value ? (m_StateFlags | isMixedBitmask)
-                             : (m_StateFlags & ~isMixedBitmask);
+        m_StateFlags = (m_StateFlags & ~isCheckedFieldMask) |
+                       ((value << isCheckedBitOffset) & isCheckedFieldMask);
         RIVE_EDITOR_CHANGED(stateFlagsChanged());
         notifyPropertyChanged(stateFlagsPropertyKey);
     }
