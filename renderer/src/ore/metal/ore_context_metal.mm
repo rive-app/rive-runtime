@@ -59,11 +59,11 @@ static MTLPixelFormat oreFormatToMTL(TextureFormat format)
         case TextureFormat::depth16unorm:
             return MTLPixelFormatDepth16Unorm;
         case TextureFormat::depth24plusStencil8:
-#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR) || TARGET_CPU_ARM64
-            // iOS and Apple Silicon (ARM64) don't support Depth24Unorm.
-            return MTLPixelFormatDepth32Float_Stencil8;
-#else
+#if TARGET_OS_OSX && !TARGET_CPU_ARM64
             return MTLPixelFormatDepth24Unorm_Stencil8;
+#else
+            // Only Intel macs support Depth24Unorm.
+            return MTLPixelFormatDepth32Float_Stencil8;
 #endif
         case TextureFormat::depth32float:
             return MTLPixelFormatDepth32Float;
@@ -71,19 +71,19 @@ static MTLPixelFormat oreFormatToMTL(TextureFormat format)
             return MTLPixelFormatDepth32Float_Stencil8;
         case TextureFormat::bc1unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
-            if (@available(iOS 16.4, *))
+            if (@available(iOS 16.4, tvOS 16.4, *))
                 return MTLPixelFormatBC1_RGBA;
 #endif
             RIVE_UNREACHABLE();
         case TextureFormat::bc3unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
-            if (@available(iOS 16.4, *))
+            if (@available(iOS 16.4, tvOS 16.4, *))
                 return MTLPixelFormatBC3_RGBA;
 #endif
             RIVE_UNREACHABLE();
         case TextureFormat::bc7unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
-            if (@available(iOS 16.4, *))
+            if (@available(iOS 16.4, tvOS 16.4, *))
                 return MTLPixelFormatBC7_RGBAUnorm;
 #endif
             RIVE_UNREACHABLE();

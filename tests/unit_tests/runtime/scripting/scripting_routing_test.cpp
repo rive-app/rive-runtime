@@ -52,6 +52,25 @@ class UnboundSessionFactory : public SessionFactory
 {};
 } // namespace
 
+TEST_CASE("command server routes a deferred scripting render context",
+          "[scripting][CommandQueue]")
+{
+    std::vector<uint8_t> bytes = ReadFile("assets/script_advance_test.riv");
+    BoundSessionFactory session;
+    auto queue = make_rcp<CommandQueue>();
+    CommandServer server(queue, &session);
+    FileHandle handle = queue->loadFile(bytes);
+
+    REQUIRE(server.processCommands());
+    auto* file = server.getFile(handle);
+    REQUIRE(file != nullptr);
+    REQUIRE(file->scriptingVM() != nullptr);
+    auto* context = file->scriptingVM()->context();
+    CHECK(context->factory() == &session);
+    CHECK(context->renderContext() == &session.device);
+    CHECK(context->deferredCanvasHost() == &session.host);
+}
+
 TEST_CASE("import routing wires the canvas host when the factory has a device",
           "[scripting]")
 {
