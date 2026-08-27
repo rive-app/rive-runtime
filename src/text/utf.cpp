@@ -55,7 +55,7 @@ int UTF::ToUTF16(Unichar uni, uint16_t utf16[])
 {
     if (uni > 0xFFFF)
     {
-        utf16[0] = castTo<uint16_t>((0xD800 - 64) | (uni >> 10));
+        utf16[0] = castTo<uint16_t>(0xD800 + ((uni - 0x10000) >> 10));
         utf16[1] = castTo<uint16_t>(0xDC00 | (uni & 0x3FF));
         return 2;
     }
