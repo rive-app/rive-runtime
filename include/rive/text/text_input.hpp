@@ -50,7 +50,7 @@ public:
                   bool isPressed,
                   bool isRepeat) override;
     bool textInput(const std::string& text) override;
-    std::string selectedText() const override;
+    bool selectedText(std::string& outText) const override;
     bool gamepadDispatch(
         const ListenerInvocation& invocation,
         ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
@@ -100,6 +100,7 @@ protected:
     void multilineChanged() override;
     void alignValueChanged() override;
     void verticalAlignValueChanged() override;
+    void obscuredChanged() override;
 
 private:
     /// Push the current alignment and the width to align it within down to the

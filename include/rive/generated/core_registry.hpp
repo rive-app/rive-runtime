@@ -2421,6 +2421,9 @@ public:
             case TextInputBase::multilinePropertyKey:
                 object->as<TextInputBase>()->multiline(value);
                 break;
+            case TextInputBase::obscuredPropertyKey:
+                object->as<TextInputBase>()->obscured(value);
+                break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
                 break;
@@ -4230,6 +4233,8 @@ public:
                 return object->as<TextFollowPathModifierBase>()->orient();
             case TextInputBase::multilinePropertyKey:
                 return object->as<TextInputBase>()->multiline();
+            case TextInputBase::obscuredPropertyKey:
+                return object->as<TextInputBase>()->obscured();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
             case ScriptAssetBase::isModulePropertyKey:
@@ -5119,6 +5124,7 @@ public:
             case TextFollowPathModifierBase::radialPropertyKey:
             case TextFollowPathModifierBase::orientPropertyKey:
             case TextInputBase::multilinePropertyKey:
+            case TextInputBase::obscuredPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
             case ScriptAssetBase::isModulePropertyKey:
                 return CoreBoolType::id;
@@ -6158,6 +6164,8 @@ public:
             case TextFollowPathModifierBase::orientPropertyKey:
                 return object->is<TextFollowPathModifierBase>();
             case TextInputBase::multilinePropertyKey:
+                return object->is<TextInputBase>();
+            case TextInputBase::obscuredPropertyKey:
                 return object->is<TextInputBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();

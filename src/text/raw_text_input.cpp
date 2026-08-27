@@ -7,6 +7,7 @@
 using namespace rive;
 
 static const Unichar zeroWidthSpace = 8203;
+static const Unichar obscuringBullet = 8226;
 
 RawTextInput::RawTextInput() :
     m_cursor(Cursor::atStart()),
@@ -262,12 +263,26 @@ void RawTextInput::computeVisualPositionFromCursor()
     m_cursorVisualPosition = cursorVisualPosition(m_cursor.end());
 }
 
+// The text handed to the shaper: the real text, or one bullet per code point
+// when obscured. The trailing zero width space sentinel stays so cursor
+// positions keep a one to one index mapping with m_text.
+std::vector<Unichar>& RawTextInput::shapeableText()
+{
+    if (!flagged(Flags::obscured))
+    {
+        return m_text;
+    }
+    m_obscuredText.assign(m_text.size(), obscuringBullet);
+    m_obscuredText.back() = zeroWidthSpace;
+    return m_obscuredText;
+}
+
 void RawTextInput::ensureShape()
 {
     if (unflag(Flags::shapeDirty))
     {
         m_textRun.unicharCount = (uint32_t)m_text.size();
-        m_shape.shape(m_text,
+        m_shape.shape(shapeableText(),
                       Span<TextRun>(&m_textRun, 1),
                       m_sizing,
                       m_maxWidth,
@@ -722,7 +737,11 @@ RawTextInput::Delineator RawTextInput::classify(CursorPosition position) const
     {
         return Delineator::whitespace;
     }
-    return classify(m_text[position.codePointIndex()]);
+    // Word boundaries follow what is displayed, so obscured text moves as one
+    // run of bullets and reveals nothing.
+    return classify(flagged(Flags::obscured)
+                        ? obscuringBullet
+                        : m_text[position.codePointIndex()]);
 }
 
 RawTextInput::Delineator RawTextInput::find(uint8_t delineatorMask,
@@ -1020,6 +1039,41 @@ void RawTextInput::separateSelectionText(bool value)
     flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
+bool RawTextInput::obscured() const { return flagged(Flags::obscured); }
+
+static Cursor withoutLineIndices(const Cursor& cursor)
+{
+    return Cursor(CursorPosition(cursor.start().codePointIndex()),
+                  CursorPosition(cursor.end().codePointIndex()));
+}
+
+void RawTextInput::obscured(bool value)
+{
+    if (obscured() == value)
+    {
+        return;
+    }
+    if (value)
+    {
+        flag(Flags::obscured);
+    }
+    else
+    {
+        unflag(Flags::obscured);
+    }
+    // Masking can reflow lines, so resolved line indices are stale; keep only
+    // the code point indices. The journal holds cursor snapshots too, or undo
+    // would restore one resolved against the old layout.
+    m_cursor = withoutLineIndices(m_cursor);
+    for (JournalEntry& entry : m_journal)
+    {
+        entry.cursorFrom = withoutLineIndices(entry.cursorFrom);
+        entry.cursorTo = withoutLineIndices(entry.cursorTo);
+    }
+    m_idealCursorX = -1.0f;
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
 AABB RawTextInput::measure(float maxWidth, float maxHeight)
 {
     if (m_textRun.font == nullptr)
@@ -1036,7 +1090,7 @@ AABB RawTextInput::measure(float maxWidth, float maxHeight)
     if (unflag(Flags::measureDirty) || force)
     {
         m_textRun.unicharCount = (uint32_t)m_text.size();
-        m_measuringShape->shape(m_text,
+        m_measuringShape->shape(shapeableText(),
                                 Span<TextRun>(&m_textRun, 1),
                                 m_sizing,
                                 maxWidth,

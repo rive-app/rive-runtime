@@ -59,6 +59,17 @@ void TextInput::selectionRadiusChanged()
 
 void TextInput::multilineChanged() { updateMultiline(true); }
 
+void TextInput::obscuredChanged()
+{
+#ifdef WITH_RIVE_TEXT
+    m_rawTextInput.obscured(obscured());
+#endif
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutNodeDirty();
+#endif
+    markShapeDirty();
+}
+
 void TextInput::alignValueChanged()
 {
     updateAlignment();
@@ -204,6 +215,7 @@ StatusCode TextInput::onAddedClean(CoreContext* context)
         m_rawTextInput.font(m_textStyle->font());
         m_rawTextInput.fontSize(m_textStyle->fontSize());
     }
+    m_rawTextInput.obscured(obscured());
     syncDisplayedTextFromSource(false);
 #endif
 
@@ -600,12 +612,20 @@ bool TextInput::textInput(const std::string& value)
     return true;
 }
 
-std::string TextInput::selectedText() const
+bool TextInput::selectedText(std::string& outText) const
 {
 #ifdef WITH_RIVE_TEXT
-    return m_rawTextInput.selectedText();
+    // An obscured input stops the lookup with nothing, so an ancestor's
+    // selection can't stand in for the hidden text.
+    if (obscured())
+    {
+        outText.clear();
+        return true;
+    }
+    outText = m_rawTextInput.selectedText();
+    return !outText.empty();
 #else
-    return std::string();
+    return false;
 #endif
 }
 

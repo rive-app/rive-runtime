@@ -72,7 +72,7 @@ public:
     bool textInput(const std::string& text) override;
     /// Forwards to the parent TextInput's selection (mirroring how
     /// key/text input special-case a TextInput parent).
-    std::string selectedText() const override;
+    bool selectedText(std::string& outText) const override;
     bool gamepadDispatch(
         const ListenerInvocation& invocation,
         ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;

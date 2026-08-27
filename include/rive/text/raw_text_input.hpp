@@ -79,13 +79,19 @@ public:
     bool separateSelectionText() const;
     void separateSelectionText(bool value);
 
+    // When obscured, every code point displays as a bullet while the real
+    // text stays intact for editing.
+    bool obscured() const;
+    void obscured(bool value);
+
     enum class Flags : uint8_t
     {
         none = 0,
         shapeDirty = 1 << 0,
         selectionDirty = 1 << 1,
         separateSelectionText = 1 << 2,
-        measureDirty = 1 << 3
+        measureDirty = 1 << 3,
+        obscured = 1 << 4
     };
 
     Flags update(Factory* factory);
@@ -189,6 +195,7 @@ private:
     const OrderedLine* orderedLine(CursorPosition position) const;
 
     void ensureShape();
+    std::vector<Unichar>& shapeableText();
     void buildTextPaths(Factory* factory);
     void computeVisualPositionFromCursor();
     void setTextPrivate(std::string value);
@@ -203,6 +210,7 @@ private:
     ShapePaintPath m_cursorPath;
     TextSelectionPath m_selectionPath;
     std::vector<Unichar> m_text;
+    std::vector<Unichar> m_obscuredText;
 
     FullyShapedText m_shape;
     std::unique_ptr<FullyShapedText> m_measuringShape;

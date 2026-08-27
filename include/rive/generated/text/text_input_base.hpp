@@ -45,6 +45,7 @@ public:
     static const uint16_t multilinePropertyKey = 979;
     static const uint16_t alignValuePropertyKey = 222;
     static const uint16_t verticalAlignValuePropertyKey = 1094;
+    static const uint16_t obscuredPropertyKey = 1095;
 
 protected:
     std::string m_Text = "";
@@ -52,6 +53,7 @@ protected:
     bool m_Multiline = true;
     uint32_t m_AlignValue = 0;
     uint32_t m_VerticalAlignValue = 0;
+    bool m_Obscured = false;
 
 public:
     inline const std::string& text() const { return m_Text; }
@@ -123,6 +125,19 @@ public:
         notifyPropertyChanged(verticalAlignValuePropertyKey);
     }
 
+    inline bool obscured() const { return m_Obscured; }
+    void obscured(bool value)
+    {
+        if (m_Obscured == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(obscuredPropertyKey, &m_Obscured, &value);
+        m_Obscured = value;
+        RIVE_EDITOR_CHANGED(obscuredChanged());
+        notifyPropertyChanged(obscuredPropertyKey);
+    }
+
     Core* clone() const override;
     void copy(const TextInputBase& object)
     {
@@ -131,6 +146,7 @@ public:
         m_Multiline = object.m_Multiline;
         m_AlignValue = object.m_AlignValue;
         m_VerticalAlignValue = object.m_VerticalAlignValue;
+        m_Obscured = object.m_Obscured;
         RIVE_EDITOR_COPY(object);
         Drawable::copy(object);
     }
@@ -154,6 +170,9 @@ public:
             case verticalAlignValuePropertyKey:
                 m_VerticalAlignValue = CoreUintType::deserialize(reader);
                 return true;
+            case obscuredPropertyKey:
+                m_Obscured = CoreBoolType::deserialize(reader);
+                return true;
         }
         RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Drawable::deserialize(propertyKey, reader);
@@ -165,6 +184,7 @@ protected:
     virtual void multilineChanged() {}
     virtual void alignValueChanged() {}
     virtual void verticalAlignValueChanged() {}
+    virtual void obscuredChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_input_ext.inl"
 #endif

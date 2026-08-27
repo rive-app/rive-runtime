@@ -962,19 +962,16 @@ bool FocusManager::textInput(const std::string& text)
 
 std::string FocusManager::selectedText() const
 {
-    // Bubble up through the focus tree until someone reports a selection,
+    // Bubble up through the focus tree until someone handles the request,
     // mirroring how textInput routes.
     FocusNode* node = m_primaryFocus.get();
     while (node != nullptr)
     {
         Focusable* focusable = node->focusable();
-        if (focusable != nullptr)
+        std::string text;
+        if (focusable != nullptr && focusable->selectedText(text))
         {
-            std::string text = focusable->selectedText();
-            if (!text.empty())
-            {
-                return text;
-            }
+            return text;
         }
         node = node->parent();
     }

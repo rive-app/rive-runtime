@@ -1047,4 +1047,128 @@ TEST_CASE("multiline alignment uses the align width, not the wrap width",
         CHECK(startX(textInput, 0) > startX(textInput, 1));
     }
 }
+
+TEST_CASE("obscured input shapes as bullets over intact text", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    textInput.font(font);
+    textInput.fontSize(32.0f);
+    textInput.insert("ab\ncd");
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+    REQUIRE(textInput.shape().paragraphs().size() == 2);
+
+    textInput.obscured(true);
+    CHECK(textInput.obscured());
+    textInput.update(&factory);
+
+    // Newlines mask too, so nothing of the text's structure shows.
+    REQUIRE(textInput.shape().paragraphs().size() == 1);
+    const GlyphRun& run = textInput.shape().paragraphs()[0].runs[0];
+    REQUIRE(run.glyphs.size() >= 5);
+    for (size_t i = 1; i < 5; i++)
+    {
+        CHECK(run.glyphs[i] == run.glyphs[0]);
+    }
+
+    // The real text is untouched and editing still works on it.
+    CHECK(textInput.text() == "ab\ncd");
+    textInput.insert('!');
+    CHECK(textInput.text() == "ab\ncd!");
+    textInput.backspace(-1);
+    textInput.backspace(-1);
+    CHECK(textInput.text() == "ab\nc");
+
+    textInput.obscured(false);
+    textInput.update(&factory);
+    CHECK(textInput.shape().paragraphs().size() == 2);
+}
+
+TEST_CASE("obscured input treats the field as one word", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    textInput.font(font);
+    textInput.fontSize(32.0f);
+    textInput.insert("ab cd");
+    textInput.obscured(true);
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+
+    // Double-click inside the field selects the whole run of bullets.
+    textInput.cursor(Cursor::collapsed(CursorPosition(0, 3)));
+    textInput.selectWord();
+    CHECK(textInput.selectedText() == "ab cd");
+
+    // A word jump crosses the whole field, the space stays hidden.
+    textInput.cursor(Cursor::zero());
+    textInput.cursorRight(CursorBoundary::word);
+    CHECK(textInput.cursor().end().codePointIndex() == 5);
+}
+
+TEST_CASE("obscured toggle re-resolves cursor lines", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    textInput.font(font);
+    textInput.fontSize(32.0f);
+    textInput.insert("ab\ncd");
+
+    NoOpFactory factory;
+
+    // Resolve the caret on the second line.
+    textInput.cursor(Cursor::collapsed(CursorPosition(4)));
+    textInput.update(&factory);
+    REQUIRE(textInput.cursor().end().lineIndex() == 1);
+    REQUIRE(textInput.cursorVisualPosition().found());
+
+    // Obscuring collapses to one line; the caret must follow.
+    textInput.obscured(true);
+    textInput.update(&factory);
+    CHECK(textInput.cursor().end().lineIndex() == 0);
+    CHECK(textInput.cursor().end().codePointIndex() == 4);
+    CHECK(textInput.cursorVisualPosition().found());
+
+    // And back again.
+    textInput.obscured(false);
+    textInput.update(&factory);
+    CHECK(textInput.cursor().end().lineIndex() == 1);
+    CHECK(textInput.cursorVisualPosition().found());
+}
+
+TEST_CASE("obscured toggle re-resolves journaled cursor lines", "[text_input]")
+{
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+
+    RawTextInput textInput;
+    textInput.font(font);
+    textInput.fontSize(32.0f);
+    textInput.insert("ab\ncd");
+
+    NoOpFactory factory;
+
+    // Edit with a caret resolved on the second line, journaling that cursor.
+    textInput.cursor(Cursor::collapsed(CursorPosition(4)));
+    textInput.update(&factory);
+    REQUIRE(textInput.cursor().end().lineIndex() == 1);
+    textInput.insert('!');
+    textInput.update(&factory);
+    CHECK(textInput.text() == "ab\nc!d");
+
+    // Undo under obscuring restores a journal cursor; its line must resolve
+    // against the masked single-line layout.
+    textInput.obscured(true);
+    textInput.update(&factory);
+    textInput.undo();
+    textInput.update(&factory);
+    CHECK(textInput.text() == "ab\ncd");
+    CHECK(textInput.cursor().end().lineIndex() == 0);
+    CHECK(textInput.cursorVisualPosition().found());
+}
 #endif

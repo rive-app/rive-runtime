@@ -195,7 +195,7 @@ bool FocusData::textInput(const std::string& text)
     return false;
 }
 
-std::string FocusData::selectedText() const
+bool FocusData::selectedText(std::string& outText) const
 {
     // Mirror the TextInput special case in KeyboardListenerGroup's
     // key/text routing: the focus target for a text input is a FocusData
@@ -203,9 +203,9 @@ std::string FocusData::selectedText() const
     Component* target = parent();
     if (target != nullptr && target->is<TextInput>())
     {
-        return target->as<TextInput>()->selectedText();
+        return target->as<TextInput>()->selectedText(outText);
     }
-    return std::string();
+    return false;
 }
 
 bool FocusData::gamepadDispatch(

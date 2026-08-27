@@ -12,6 +12,8 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focusable.hpp"
+#include "rive/input/focus_manager.hpp"
+#include "rive/input/focus_node.hpp"
 #include "rive_testing.hpp"
 #include "utils/no_op_factory.hpp"
 #include "rive_file_reader.hpp"
@@ -846,5 +848,80 @@ TEST_CASE("the caret blink accounts for every elapsed phase", "[text_input]")
     CHECK(cursor->localClockwisePath() == nullptr);
     smi.advanceAndApply(0.2f);
     CHECK(cursor->localClockwisePath() != nullptr);
+}
+TEST_CASE("obscured text input keeps selected text off the clipboard",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    textInput->rawTextInput()->text("hunter2");
+    artboard->advance(0.0f);
+    textInput->rawTextInput()->selectAll();
+    std::string selected;
+    REQUIRE(textInput->selectedText(selected));
+    CHECK(selected == "hunter2");
+
+    // A reused non-empty string must come back cleared.
+    textInput->obscured(true);
+    selected = "stale";
+    CHECK(textInput->selectedText(selected));
+    CHECK(selected.empty());
+}
+
+namespace
+{
+class SelectionAncestor : public Focusable
+{
+public:
+    bool keyInput(Key, KeyModifiers, bool, bool) override { return false; }
+    bool textInput(const std::string&) override { return false; }
+    void focused() override {}
+    void blurred() override {}
+    bool selectedText(std::string& outText) const override
+    {
+        outText = "ancestor selection";
+        return true;
+    }
+};
+} // namespace
+
+TEST_CASE("obscured text input stops selection lookup at itself",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    SelectionAncestor ancestor;
+    auto ancestorNode = make_rcp<FocusNode>(&ancestor);
+    auto inputNode = make_rcp<FocusNode>(static_cast<Focusable*>(textInput));
+    ancestorNode->addChild(inputNode);
+
+    FocusManager manager;
+    manager.setFocus(inputNode);
+
+    textInput->rawTextInput()->text("hunter2");
+    artboard->advance(0.0f);
+    textInput->rawTextInput()->selectAll();
+    CHECK(manager.selectedText() == "hunter2");
+
+    // With no selection the lookup still bubbles to the ancestor.
+    textInput->rawTextInput()->clearSelection();
+    CHECK(manager.selectedText() == "ancestor selection");
+
+    // Obscured, the input terminates the lookup even without a selection.
+    textInput->rawTextInput()->selectAll();
+    textInput->obscured(true);
+    CHECK(manager.selectedText().empty());
+
+    manager.setFocus(nullptr);
 }
 #endif
