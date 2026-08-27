@@ -73,8 +73,10 @@ struct ViewModelEnum
     std::vector<std::string> enumerants;
 };
 
-// Client-side recorder for commands that will be executed by a
-// CommandServer.
+// Client-side recorder for commands that will be executed by a CommandServer.
+// Synchronized operations require an active CommandServer processing this
+// queue on another thread and must not be called after disconnect(); otherwise,
+// they block indefinitely.
 class CommandQueue : public RefCnt<CommandQueue>
 {
 public:
@@ -352,6 +354,13 @@ public:
         };
     };
 
+    // Mirrors StateMachineInstance::FocusState for command queue responses.
+    struct FocusState
+    {
+        bool hasFocus = false;
+        bool expectsKeyboardInput = false;
+    };
+
     class ViewModelInstanceListener
         : public CommandQueue::ListenerBase<ViewModelInstanceListener,
                                             ViewModelInstanceHandle>
@@ -421,6 +430,16 @@ public:
         virtual void onSemanticsDiffReceived(const StateMachineHandle,
                                              uint64_t requestId,
                                              SemanticsDiff diff)
+        {}
+
+        virtual void onHasFocusNodesReceived(const StateMachineHandle,
+                                             uint64_t requestId,
+                                             bool hasFocusNodes)
+        {}
+
+        virtual void onFocusStateReceived(const StateMachineHandle,
+                                          uint64_t requestId,
+                                          FocusState focusState)
         {}
     };
 
@@ -951,6 +970,14 @@ public:
         m_globalBlobListener = listener;
     }
 
+    bool focusNextSynchronized(StateMachineHandle);
+    bool focusPreviousSynchronized(StateMachineHandle);
+    void focusNext(StateMachineHandle, uint64_t requestId = 0);
+    void focusPrevious(StateMachineHandle, uint64_t requestId = 0);
+    void requestHasFocusNodes(StateMachineHandle, uint64_t requestId = 0);
+    void clearFocus(StateMachineHandle, uint64_t requestId = 0);
+    void requestFocusState(StateMachineHandle, uint64_t requestId = 0);
+
 private:
     void registerListener(FileHandle handle, FileListener* listener)
     {
@@ -1144,7 +1171,12 @@ private:
         listFileAssets,
         setArtboardVolume,
         getArtboardVolume,
-        getArtboardSize
+        getArtboardSize,
+        focusNext,
+        focusPrevious,
+        requestHasFocusNodes,
+        clearFocus,
+        requestFocusState
     };
 
     enum class Message
@@ -1192,7 +1224,9 @@ private:
         fontError,
         blobError,
         stateMachineError,
-        artboardVolumeReceived
+        artboardVolumeReceived,
+        hasFocusNodesReceived,
+        focusStateReceived
     };
 
     friend class CommandServer;

@@ -6104,6 +6104,315 @@ TEST_CASE("file assets listed - all assets returned", "[CommandQueue]")
 }
 
 // ============================================================
+// Focus
+// ============================================================
+
+namespace
+{
+struct FocusBoolResult
+{
+    uint64_t requestId;
+    bool value;
+};
+
+struct FocusStateResult
+{
+    uint64_t requestId;
+    CommandQueue::FocusState focusState;
+};
+
+class KeyboardAcceptingFocusable : public Focusable
+{
+public:
+    bool keyInput(Key, KeyModifiers, bool, bool) override { return false; }
+    bool textInput(const std::string&) override { return false; }
+    void focused() override {}
+    void blurred() override {}
+    bool acceptsKeyboardInput() const override { return true; }
+};
+
+class FocusCommandListener : public CommandQueue::StateMachineListener
+{
+public:
+    void onStateMachineError(const StateMachineHandle handle,
+                             uint64_t requestId,
+                             std::string) override
+    {
+        CHECK(handle == m_handle);
+        m_errorRequestIds.push_back(requestId);
+    }
+
+    void onHasFocusNodesReceived(const StateMachineHandle handle,
+                                 uint64_t requestId,
+                                 bool hasFocusNodes) override
+    {
+        CHECK(handle == m_handle);
+        m_availabilityResults.push_back({requestId, hasFocusNodes});
+    }
+
+    void onFocusStateReceived(const StateMachineHandle handle,
+                              uint64_t requestId,
+                              CommandQueue::FocusState focusState) override
+    {
+        CHECK(handle == m_handle);
+        m_focusStateResults.push_back({requestId, focusState});
+    }
+
+    StateMachineHandle m_handle = RIVE_NULL_HANDLE;
+    std::vector<FocusBoolResult> m_availabilityResults;
+    std::vector<FocusStateResult> m_focusStateResults;
+    std::vector<uint64_t> m_errorRequestIds;
+};
+
+struct FocusCommandFixture
+{
+    rcp<CommandQueue> commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    std::unique_ptr<CommandServer> server =
+        std::make_unique<CommandServer>(commandQueue, nullContext.get());
+    FileHandle fileHandle = RIVE_NULL_HANDLE;
+    ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
+    StateMachineHandle stateMachineHandle = RIVE_NULL_HANDLE;
+
+    explicit FocusCommandFixture(FocusCommandListener* listener = nullptr)
+    {
+        std::ifstream stream("assets/multiple_state_machines.riv",
+                             std::ios::binary);
+        fileHandle = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+        artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+        stateMachineHandle =
+            commandQueue->instantiateStateMachineNamed(artboardHandle,
+                                                       "one",
+                                                       listener);
+        if (listener != nullptr)
+        {
+            listener->m_handle = stateMachineHandle;
+        }
+        pump();
+    }
+
+    void pump()
+    {
+        server->processCommands();
+        commandQueue->processMessages();
+    }
+};
+} // namespace
+
+TEST_CASE("Focus commands mirror StateMachineInstance traversal and queries",
+          "[CommandQueue]")
+{
+    FocusCommandListener listener;
+    FocusCommandFixture fx(&listener);
+
+    fx.commandQueue->requestHasFocusNodes(fx.stateMachineHandle, 0xF1);
+    fx.pump();
+
+    REQUIRE(listener.m_availabilityResults.size() == 1);
+    CHECK(listener.m_availabilityResults[0].requestId == 0xF1);
+    CHECK_FALSE(listener.m_availabilityResults[0].value);
+
+    FocusNode* firstNode = nullptr;
+    FocusNode* secondNode = nullptr;
+    fx.commandQueue->runOnce([handle = fx.stateMachineHandle,
+                              &firstNode,
+                              &secondNode](CommandServer* server) {
+        auto* instance = server->getStateMachineInstance(handle);
+        REQUIRE(instance != nullptr);
+        auto first = make_rcp<FocusNode>();
+        auto second = make_rcp<FocusNode>();
+        firstNode = first.get();
+        secondNode = second.get();
+        instance->focusManager()->addChild(nullptr, std::move(first));
+        instance->focusManager()->addChild(nullptr, std::move(second));
+    });
+    fx.pump();
+
+    fx.commandQueue->requestHasFocusNodes(fx.stateMachineHandle, 0xF2);
+    fx.commandQueue->focusNext(fx.stateMachineHandle, 0xF3);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle, firstNode](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            CHECK(instance->focusManager()->primaryFocusPtr() == firstNode);
+        });
+    fx.commandQueue->focusNext(fx.stateMachineHandle, 0xF4);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle, secondNode](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            CHECK(instance->focusManager()->primaryFocusPtr() == secondNode);
+        });
+    fx.commandQueue->focusNext(fx.stateMachineHandle, 0xF5);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            CHECK(instance->focusManager()->primaryFocusPtr() == nullptr);
+        });
+    fx.commandQueue->focusPrevious(fx.stateMachineHandle, 0xF6);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle, secondNode](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            CHECK(instance->focusManager()->primaryFocusPtr() == secondNode);
+        });
+    fx.pump();
+
+    REQUIRE(listener.m_availabilityResults.size() == 2);
+    CHECK(listener.m_availabilityResults[1].requestId == 0xF2);
+    CHECK(listener.m_availabilityResults[1].value);
+
+    fx.commandQueue->clearFocus(fx.stateMachineHandle, 0xF7);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            CHECK(instance->focusManager()->primaryFocus() == nullptr);
+        });
+    fx.pump();
+    CHECK(listener.m_errorRequestIds.empty());
+}
+
+TEST_CASE("Synchronized focus traversal mirrors StateMachineInstance",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/multiple_state_machines.riv",
+                         std::ios::binary);
+    auto fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto stateMachineHandle =
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "one");
+
+    commandQueue->runOnce([stateMachineHandle](CommandServer* server) {
+        auto* instance = server->getStateMachineInstance(stateMachineHandle);
+        REQUIRE(instance != nullptr);
+        instance->focusManager()->addChild(nullptr, make_rcp<FocusNode>());
+        instance->focusManager()->addChild(nullptr, make_rcp<FocusNode>());
+    });
+
+    CHECK(commandQueue->focusNextSynchronized(stateMachineHandle));
+    CHECK(commandQueue->focusNextSynchronized(stateMachineHandle));
+    CHECK_FALSE(commandQueue->focusNextSynchronized(stateMachineHandle));
+    CHECK(commandQueue->focusPreviousSynchronized(stateMachineHandle));
+
+    CHECK_FALSE(commandQueue->focusNextSynchronized(RIVE_NULL_HANDLE));
+    CHECK_FALSE(commandQueue->focusPreviousSynchronized(RIVE_NULL_HANDLE));
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("Focus state query reports internal focus changes", "[CommandQueue]")
+{
+    KeyboardAcceptingFocusable focusable;
+    FocusCommandListener listener;
+    FocusCommandFixture fx(&listener);
+
+    fx.commandQueue->requestFocusState(fx.stateMachineHandle, 0xF8);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle, &focusable](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            auto node = make_rcp<FocusNode>(&focusable);
+            instance->focusManager()->addChild(nullptr, node);
+            instance->focusManager()->setFocus(std::move(node));
+        });
+    fx.commandQueue->requestFocusState(fx.stateMachineHandle, 0xF9);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            instance->clearFocus();
+        });
+    fx.commandQueue->requestFocusState(fx.stateMachineHandle, 0xFB);
+    fx.pump();
+
+    REQUIRE(listener.m_focusStateResults.size() == 3);
+    CHECK(listener.m_focusStateResults[0].requestId == 0xF8);
+    CHECK_FALSE(listener.m_focusStateResults[0].focusState.hasFocus);
+    CHECK_FALSE(
+        listener.m_focusStateResults[0].focusState.expectsKeyboardInput);
+    CHECK(listener.m_focusStateResults[1].requestId == 0xF9);
+    CHECK(listener.m_focusStateResults[1].focusState.hasFocus);
+    CHECK(listener.m_focusStateResults[1].focusState.expectsKeyboardInput);
+    CHECK(listener.m_focusStateResults[2].requestId == 0xFB);
+    CHECK_FALSE(listener.m_focusStateResults[2].focusState.hasFocus);
+    CHECK_FALSE(
+        listener.m_focusStateResults[2].focusState.expectsKeyboardInput);
+    CHECK(listener.m_errorRequestIds.empty());
+}
+
+TEST_CASE("Focus command preserves current stop traversal result",
+          "[CommandQueue]")
+{
+    FocusCommandListener listener;
+    FocusCommandFixture fx(&listener);
+
+    FocusNode* stoppedNode = nullptr;
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle, &stoppedNode](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            auto* manager = instance->focusManager();
+            auto scope = make_rcp<FocusNode>();
+            auto first = make_rcp<FocusNode>();
+            auto second = make_rcp<FocusNode>();
+            scope->edgeBehavior(EdgeBehavior::stop);
+            stoppedNode = second.get();
+            manager->addChild(nullptr, scope);
+            manager->addChild(scope, first);
+            manager->addChild(scope, second);
+            manager->setFocus(second);
+        });
+    fx.pump();
+
+    fx.commandQueue->focusNext(fx.stateMachineHandle, 0xFA);
+    fx.commandQueue->runOnce(
+        [handle = fx.stateMachineHandle, stoppedNode](CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            CHECK(instance->focusManager()->primaryFocusPtr() == stoppedNode);
+        });
+    fx.pump();
+
+    CHECK(listener.m_errorRequestIds.empty());
+}
+
+TEST_CASE("Focus commands report invalid state machine handles",
+          "[CommandQueue]")
+{
+    FocusCommandFixture fx;
+    FocusCommandListener listener;
+    auto invalidHandle =
+        fx.commandQueue->instantiateStateMachineNamed(fx.artboardHandle,
+                                                      "does not exist",
+                                                      &listener);
+    listener.m_handle = invalidHandle;
+
+    fx.commandQueue->focusNext(invalidHandle, 0xFB);
+    fx.commandQueue->focusPrevious(invalidHandle, 0xFC);
+    fx.commandQueue->requestHasFocusNodes(invalidHandle, 0xFD);
+    fx.commandQueue->clearFocus(invalidHandle, 0xFE);
+    fx.commandQueue->requestFocusState(invalidHandle, 0xFF);
+    fx.pump();
+
+    REQUIRE(listener.m_errorRequestIds.size() == 5);
+    CHECK(listener.m_errorRequestIds[0] == 0xFB);
+    CHECK(listener.m_errorRequestIds[1] == 0xFC);
+    CHECK(listener.m_errorRequestIds[2] == 0xFD);
+    CHECK(listener.m_errorRequestIds[3] == 0xFE);
+    CHECK(listener.m_errorRequestIds[4] == 0xFF);
+    CHECK(listener.m_availabilityResults.empty());
+    CHECK(listener.m_focusStateResults.empty());
+}
+
+// ============================================================
 // Semantics
 // ============================================================
 

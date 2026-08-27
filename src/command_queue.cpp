@@ -3,6 +3,9 @@
  */
 
 #include "rive/command_queue.hpp"
+#include "rive/command_server.hpp"
+
+#include <future>
 
 namespace rive
 {
@@ -2239,7 +2242,6 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
-
             case Message::artboardSizeReceived:
             {
                 ArtboardHandle handle;
@@ -2462,11 +2464,127 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+            case Message::hasFocusNodesReceived:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                bool hasFocusNodes;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> hasFocusNodes;
+                lock.unlock();
+                if (m_globalStateMachineListener)
+                {
+                    m_globalStateMachineListener->onHasFocusNodesReceived(
+                        handle,
+                        requestId,
+                        hasFocusNodes);
+                }
+                auto itr = m_stateMachineListeners.find(handle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onHasFocusNodesReceived(handle,
+                                                         requestId,
+                                                         hasFocusNodes);
+                }
+                break;
+            }
+            case Message::focusStateReceived:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                FocusState focusState;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> focusState.hasFocus;
+                m_messageStream >> focusState.expectsKeyboardInput;
+                lock.unlock();
+                if (m_globalStateMachineListener)
+                {
+                    m_globalStateMachineListener->onFocusStateReceived(
+                        handle,
+                        requestId,
+                        focusState);
+                }
+                auto itr = m_stateMachineListeners.find(handle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onFocusStateReceived(handle,
+                                                      requestId,
+                                                      focusState);
+                }
+                break;
+            }
         }
 
         assert(!lock.owns_lock());
         lock.lock();
     } while (!m_messageStream.empty());
+}
+
+bool CommandQueue::focusNextSynchronized(StateMachineHandle handle)
+{
+    auto result = std::make_shared<std::promise<bool>>();
+    auto future = result->get_future();
+    runOnce([handle, result](CommandServer* server) {
+        result->set_value(server->focusNextSynchronized(handle));
+    });
+    return future.get();
+}
+
+bool CommandQueue::focusPreviousSynchronized(StateMachineHandle handle)
+{
+    auto result = std::make_shared<std::promise<bool>>();
+    auto future = result->get_future();
+    runOnce([handle, result](CommandServer* server) {
+        result->set_value(server->focusPreviousSynchronized(handle));
+    });
+    return future.get();
+}
+
+void CommandQueue::focusNext(StateMachineHandle stateMachineHandle,
+                             uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::focusNext;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::focusPrevious(StateMachineHandle stateMachineHandle,
+                                 uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::focusPrevious;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::requestHasFocusNodes(StateMachineHandle stateMachineHandle,
+                                        uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::requestHasFocusNodes;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::clearFocus(StateMachineHandle stateMachineHandle,
+                              uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::clearFocus;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+}
+
+void CommandQueue::requestFocusState(StateMachineHandle stateMachineHandle,
+                                     uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::requestFocusState;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
 }
 
 }; // namespace rive

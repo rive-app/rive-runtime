@@ -95,6 +95,9 @@ public:
 #endif
 #endif
 
+    bool focusNextSynchronized(StateMachineHandle);
+    bool focusPreviousSynchronized(StateMachineHandle);
+
 private:
     friend class CommandQueue;
 
@@ -185,23 +188,16 @@ private:
 
     struct SynchronizedStateMachine : RefCnt<SynchronizedStateMachine>
     {
-        // kept in seperate header to avoid including StateMachineInstance in
-        // the main CommandServer header
+        // Kept out of line to avoid including StateMachineInstance in the main
+        // CommandServer header.
         ~SynchronizedStateMachine();
-        SynchronizedStateMachine& operator=(SynchronizedStateMachine&& other)
-        {
-            instance = std::move(other.instance);
-            return *this;
-        }
+        SynchronizedStateMachine& operator=(SynchronizedStateMachine&& other);
         SynchronizedStateMachine() = default;
         SynchronizedStateMachine(
-            std::unique_ptr<StateMachineInstance> instance) :
-            instance(std::move(instance))
-        {}
+            std::unique_ptr<StateMachineInstance> instance);
         std::unique_ptr<StateMachineInstance> instance;
-        // This mutex is used to ensure that a specific state machine instance
-        // is not being advanced at the same time a sync mouse event is being
-        // processed.
+        // This mutex ensures that a specific state machine instance is not
+        // advanced while a synchronized input or focus operation is running.
         std::mutex m_mutex;
     };
 

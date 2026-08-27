@@ -4030,6 +4030,139 @@ bool CommandServer::processCommands()
                 m_wasDisconnectReceived = true;
                 return false;
             }
+
+            case CommandQueue::Command::focusNext:
+            case CommandQueue::Command::focusPrevious:
+            {
+                const bool moveNext =
+                    command == CommandQueue::Command::focusNext;
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    if (moveNext)
+                    {
+                        wrapper->instance->focusNext();
+                    }
+                    else
+                    {
+                        wrapper->instance->focusPrevious();
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle << " not found for "
+                        << (moveNext ? "focusNext" : "focusPrevious") << ".";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::requestHasFocusNodes:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    const bool hasFocusNodes =
+                        wrapper->instance->hasFocusNodes();
+                    stateMachineLock.unlock();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream
+                        << CommandQueue::Message::hasFocusNodesReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << hasFocusNodes;
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for requestHasFocusNodes.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::clearFocus:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    wrapper->instance->clearFocus();
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for clearFocus.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::requestFocusState:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    const auto focusState = wrapper->instance->focusState();
+                    stateMachineLock.unlock();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::focusStateReceived;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << focusState.hasFocus;
+                    messageStream << focusState.expectsKeyboardInput;
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for requestFocusState.";
+                }
+                break;
+            }
         }
 
         // Should have unlocked by now.
@@ -4055,6 +4188,51 @@ bool CommandServer::processCommands()
 CommandServer::SynchronizedStateMachine::~SynchronizedStateMachine()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
-    instance->dispose();
+    if (instance != nullptr)
+    {
+        instance->dispose();
+    }
+}
+
+CommandServer::SynchronizedStateMachine& CommandServer::
+    SynchronizedStateMachine::operator=(SynchronizedStateMachine&& other)
+{
+    instance = std::move(other.instance);
+    return *this;
+}
+
+CommandServer::SynchronizedStateMachine::SynchronizedStateMachine(
+    std::unique_ptr<StateMachineInstance> instance) :
+    instance(std::move(instance))
+{}
+
+bool CommandServer::focusNextSynchronized(StateMachineHandle handle)
+{
+    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it == m_stateMachines.end())
+    {
+        return false;
+    }
+
+    auto stateMachine = it->second;
+    accessLock.unlock();
+    std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+    return stateMachine->instance->focusNext();
+}
+
+bool CommandServer::focusPreviousSynchronized(StateMachineHandle handle)
+{
+    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it == m_stateMachines.end())
+    {
+        return false;
+    }
+
+    auto stateMachine = it->second;
+    accessLock.unlock();
+    std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+    return stateMachine->instance->focusPrevious();
 }
 }; // namespace rive
