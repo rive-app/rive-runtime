@@ -45,7 +45,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
         });
     }
 
-    if (interlockMode != gpu::InterlockMode::msaa)
+    if (interlockMode != gpu::InterlockMode::depthStencil)
     {
         plsLayoutBindings.push_back({
             .binding = CLIP_PLANE_IDX,
@@ -84,7 +84,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
     }
-    else if (interlockMode == gpu::InterlockMode::msaa)
+    else if (interlockMode == gpu::InterlockMode::depthStencil)
     {
         // TODO: pipeline layouts aren't currently keyed by loadAction, but if
         // they were, we could only include this binding with
@@ -173,7 +173,7 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
         case gpu::InterlockMode::clockwiseAtomic:
             assert(subpassIndex == 0 || subpassIndex == 1);
             return 2; // color & clip.
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
             assert(0 <= subpassIndex && subpassIndex <= 2);
             return 1u;
     }

@@ -54,7 +54,7 @@ layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
 #ifndef @TARGET_WGSL
 // Since SPIR-V can't omit declarations via specialization constants, only
 // define @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE where it is used (i.e., MSAA).
-#if defined(@RENDER_MODE_MSAA)
+#if defined(@RENDER_MODE_DEPTH_STENCIL)
 #define @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE EmulateDynamicColorWriteDisable
 #endif
 #endif

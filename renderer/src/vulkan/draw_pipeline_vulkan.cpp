@@ -106,9 +106,9 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
 
     // pipeline_unique_key() keys on baked depth/stencil/cull/color state, so a
     // dynamic-state pipeline collides with the static pipelines that share its
-    // state (e.g. msaaDynamicMidpointFans vs. msaaMidpointFans). They need
-    // distinct pipelines -- one uses the dynamic-state layout, the other bakes
-    // -- so fold the layout choice into the key.
+    // state (e.g. stencilDynamicMidpointFans vs. stencilMidpointFans). They
+    // need distinct pipelines -- one uses the dynamic-state layout, the
+    // other bakes -- so fold the layout choice into the key.
     key = math::add_bits_to_key(
         key,
         uint64_t(gpu::drawTypeHasPipelineDynamicState(drawType)),
@@ -133,7 +133,7 @@ uint32_t subpass_index(gpu::DrawType drawType,
     }
 
     const uint32_t mainSubpassIdx =
-        (interlockMode == gpu::InterlockMode::msaa &&
+        (interlockMode == gpu::InterlockMode::depthStencil &&
          colorLoadAction == gpu::LoadAction::preserveRenderTarget)
             ? 1
             : 0;
@@ -149,19 +149,19 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::featherAtlasBlit:
         case gpu::DrawType::imageRect:
         case gpu::DrawType::imageMesh:
-        case gpu::DrawType::msaaStrokes:
-        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
-        case gpu::DrawType::msaaDynamicMidpointFans:
-        case gpu::DrawType::msaaDynamicOuterCubics:
-        case gpu::DrawType::msaaMidpointFans:
-        case gpu::DrawType::msaaMidpointFanStencilReset:
-        case gpu::DrawType::msaaMidpointFanPathsStencil:
-        case gpu::DrawType::msaaMidpointFanPathsCover:
-        case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
-        case gpu::DrawType::msaaOuterCubicStencilReset:
-        case gpu::DrawType::msaaOuterCubicPathsStencil:
-        case gpu::DrawType::msaaOuterCubicPathsCover:
-        case gpu::DrawType::msaaOuterCubics:
+        case gpu::DrawType::depthStrokes:
+        case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
+        case gpu::DrawType::stencilDynamicMidpointFans:
+        case gpu::DrawType::stencilDynamicOuterCubics:
+        case gpu::DrawType::stencilMidpointFans:
+        case gpu::DrawType::stencilMidpointFanReset:
+        case gpu::DrawType::stencilMidpointFanWinding:
+        case gpu::DrawType::stencilMidpointFanCover:
+        case gpu::DrawType::stencilOuterCubicBorrowedCoverage:
+        case gpu::DrawType::stencilOuterCubicReset:
+        case gpu::DrawType::stencilOuterCubicWinding:
+        case gpu::DrawType::stencilOuterCubicCover:
+        case gpu::DrawType::stencilOuterCubics:
         case gpu::DrawType::clipReset:
             return mainSubpassIdx;
         case gpu::DrawType::renderPassResolve:
@@ -478,7 +478,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineMultisampleStateCreateInfo msaaState = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .rasterizationSamples =
-            (interlockMode == gpu::InterlockMode::msaa &&
+            (interlockMode == gpu::InterlockMode::depthStencil &&
              props.drawType != gpu::DrawType::renderPassResolve)
                 ? VK_SAMPLE_COUNT_4_BIT
                 : VK_SAMPLE_COUNT_1_BIT,
@@ -520,7 +520,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         .pViewportState = &layout::SINGLE_VIEWPORT,
         .pRasterizationState = &pipelineRasterizationStateCreateInfo,
         .pMultisampleState = &msaaState,
-        .pDepthStencilState = interlockMode == gpu::InterlockMode::msaa
+        .pDepthStencilState = interlockMode == gpu::InterlockMode::depthStencil
                                   ? &depthStencilState
                                   : nullptr,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
@@ -535,19 +535,19 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
             pipelineCreateInfo.pVertexInputState =
                 &layout::PATH_VERTEX_INPUT_STATE;
             pipelineCreateInfo.pInputAssemblyState =

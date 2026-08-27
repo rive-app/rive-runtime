@@ -1841,7 +1841,7 @@ bool RenderContextVulkanImpl::wantsManualRenderPassResolve(
                  VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
 #endif
     }
-    if (interlockMode == gpu::InterlockMode::msaa &&
+    if (interlockMode == gpu::InterlockMode::depthStencil &&
         !m_workarounds.avoidManualMSAAResolves)
     {
         if (!renderTargetUpdateBounds.contains(renderTarget->bounds()))
@@ -2277,7 +2277,7 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
             clearValues.push_back({});
             break;
 
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
             assert(framebufferViews.size() == MSAA_DEPTH_STENCIL_IDX);
             framebufferViews.push_back(
                 renderTarget->msaaDepthStencilTexture()->vkImageView());
@@ -2427,14 +2427,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // to handle manual resolving.
         renderPassOptions |= RenderPassOptionsVulkan::manuallyResolved;
     }
-    else if (desc.interlockMode == gpu::InterlockMode::msaa)
+    else if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
         // Vulkan does not support partial MSAA resolves when using resolve
         // attachments.
         drawBounds = renderTarget->bounds();
     }
     // Vulkan builtin MSAA resolves don't support partial drawBounds.
-    assert(desc.interlockMode != gpu::InterlockMode::msaa ||
+    assert(desc.interlockMode != gpu::InterlockMode::depthStencil ||
            desc.manuallyResolved || drawBounds == renderTarget->bounds());
 
     const auto commandBuffer =
@@ -2461,19 +2461,19 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
                 pendingTessPatchCount += batch.elementCount;
                 break;
             case DrawType::clipReset:
@@ -3017,7 +3017,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VkImageView msaaResolveImageView = VK_NULL_HANDLE;
     VkImageView msaaColorSeedImageView = VK_NULL_HANDLE;
 
-    if (desc.interlockMode == gpu::InterlockMode::msaa)
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
         colorImageView = renderTarget->msaaColorTexture()->vkImageView();
 
@@ -3374,11 +3374,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // for now, is to break the frame up into smaller chunks so that Rive can be
     // pre-empted by other rendering processes.
     //
-    // This is not yet supported on MSAA.
+    // This is not yet supported on depthStencil.
     int32_t virtualTileWidth = drawBounds.width();
     int32_t virtualTileHeight = drawBounds.height();
     if (desc.virtualTileWidth != 0 && desc.virtualTileHeight != 0 &&
-        desc.interlockMode != gpu::InterlockMode::msaa)
+        desc.interlockMode != gpu::InterlockMode::depthStencil)
     {
         virtualTileWidth = desc.virtualTileWidth;
         virtualTileHeight = desc.virtualTileHeight;
@@ -3431,7 +3431,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 }});
         }
 
-        if (desc.interlockMode != gpu::InterlockMode::msaa)
+        if (desc.interlockMode != gpu::InterlockMode::depthStencil)
         {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
@@ -3502,7 +3502,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         if (msaaColorSeedImageView != VK_NULL_HANDLE)
         {
-            assert(desc.interlockMode == gpu::InterlockMode::msaa &&
+            assert(desc.interlockMode == gpu::InterlockMode::depthStencil &&
                    desc.colorLoadAction ==
                        gpu::LoadAction::preserveRenderTarget);
             m_vk->updateImageDescriptorSets(
@@ -3600,7 +3600,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         assert(desc.interlockMode != gpu::InterlockMode::atomics);
 
         // MSAA never needs this copy. It handles resolves differently.
-        assert(desc.interlockMode != gpu::InterlockMode::msaa);
+        assert(desc.interlockMode != gpu::InterlockMode::depthStencil);
 
         constexpr static vkutil::ImageAccess ACCESS_COPY_FROM = {
             .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -3863,7 +3863,7 @@ void RenderContextVulkanImpl::submitDrawList(
                     (!desc.fixedFunctionColorOutput ||
                      enums::is_flag_set(batch.barriers,
                                         BarrierFlags::plsAtomic))) ||
-                   (desc.interlockMode == gpu::InterlockMode::msaa &&
+                   (desc.interlockMode == gpu::InterlockMode::depthStencil &&
                     (!desc.fixedFunctionColorOutput ||
                      // The MSAA init also reads the framebuffer.
                      batch.drawType == gpu::DrawType::renderPassInitialize)));
@@ -3953,17 +3953,17 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
             {
                 // Draw patches that connect the tessellation vertices.
                 m_vk->CmdBindVertexBuffers(
@@ -3997,8 +3997,8 @@ void RenderContextVulkanImpl::submitDrawList(
                 break;
             }
 
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
             {
                 pendingTessPatchCount -= batch.elementCount;
                 if (drawPipeline == nullptr)
@@ -4033,9 +4033,10 @@ void RenderContextVulkanImpl::submitDrawList(
                 // The outer-cubic passes use identical dynamic state to their
                 // midpoint-fan counterparts, so drive both modes from the
                 // midpoint-fan types.
-                for (DrawType pass : {DrawType::msaaMidpointFanBorrowedCoverage,
-                                      DrawType::msaaMidpointFans,
-                                      DrawType::msaaMidpointFanStencilReset})
+                for (DrawType pass :
+                     {DrawType::stencilMidpointFanBorrowedCoverage,
+                      DrawType::stencilMidpointFans,
+                      DrawType::stencilMidpointFanReset})
                 {
                     gpu::PipelineState pipelineState =
                         gpu::get_pipeline_state(pass,

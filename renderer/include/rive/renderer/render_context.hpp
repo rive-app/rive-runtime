@@ -106,9 +106,10 @@ public:
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
         // If nonzero, the number of MSAA samples to use.
-        // Setting this to a nonzero value forces msaa mode.
+        // Setting this to a nonzero value forces depthStencil mode.
         uint32_t msaaSampleCount = 0;
-        // Use atomic mode (preferred) or msaa instead of rasterOrdering.
+        // Use atomic mode (preferred) or depthStencil instead of
+        // rasterOrdering.
         bool disableRasterOrdering = false;
         DitherMode ditherMode = DitherMode::interleavedGradientNoise;
         TriangulationThresholds triangulationThresholds;
@@ -118,7 +119,7 @@ public:
         // As of now, each tile gets drawn in a separate render pass. The
         // purpose of these virtual tiles, for now, is to break the frame up
         // into smaller chunks so that Rive can be pre-empted by other rendering
-        // processes. This is only supported on Vulkan/non-msaa.
+        // processes. This is only supported on Vulkan/non-depthStencil.
         //
         // TODO: We could also explore a different type of virtual tiling that
         // reduces barriers in atomic mode, but that is not how this feature
@@ -917,8 +918,9 @@ private:
         // prevents DrawBatches from being combined with the existing drawList.
         BarrierFlags m_pendingBarriers;
 
-        // Stateful Z index of the current draw being pushed. Used by msaa mode
-        // to avoid double hits and to reverse-sort opaque paths front to back.
+        // Stateful Z index of the current draw being pushed. Used by
+        // depthStencil mode to avoid double hits and to reverse-sort opaque
+        // paths front to back.
         uint32_t m_currentZIndex;
 
         RIVE_DEBUG_CODE(bool m_hasDoneLayout = false;)

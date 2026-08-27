@@ -54,25 +54,25 @@
 #include "generated/shaders/wgsl/atomic_init.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/atomic_init.webgpu_fixedcolor_frag.hpp"
 
-// InterlockMode::msaa shaders.
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_nossbo_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_nossbo_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_fixedcolor_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_nossbo_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_nossbo_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_fixedcolor_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_fixedcolor_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_stencil.vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_stencil.frag.hpp"
+// InterlockMode::depthStencil shaders.
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_nossbo_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_nossbo_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_triangles_nocolor.vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_triangles_nocolor.frag.hpp"
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
@@ -296,7 +296,7 @@ static bool using_pls(rive::gpu::InterlockMode interlockMode)
             return true;
         case rive::gpu::InterlockMode::atomics:
         case rive::gpu::InterlockMode::clockwiseAtomic:
-        case rive::gpu::InterlockMode::msaa:
+        case rive::gpu::InterlockMode::depthStencil:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -1342,19 +1342,19 @@ public:
                         addDefine(GLSL_DRAW_IMAGE);
                         addDefine(GLSL_DRAW_IMAGE_MESH);
                         break;
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaDynamicMidpointFans:
-                    case DrawType::msaaDynamicOuterCubics:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                    case DrawType::msaaOuterCubicBorrowedCoverage:
-                    case DrawType::msaaOuterCubicStencilReset:
-                    case DrawType::msaaOuterCubicPathsStencil:
-                    case DrawType::msaaOuterCubicPathsCover:
-                    case DrawType::msaaOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
                     case DrawType::clipReset:
                     case DrawType::renderPassInitialize:
                     case DrawType::renderPassResolve:
@@ -1434,19 +1434,19 @@ public:
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
                         break;
                     case DrawType::imageRect:
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaDynamicMidpointFans:
-                    case DrawType::msaaDynamicOuterCubics:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                    case DrawType::msaaOuterCubicBorrowedCoverage:
-                    case DrawType::msaaOuterCubicStencilReset:
-                    case DrawType::msaaOuterCubicPathsStencil:
-                    case DrawType::msaaOuterCubicPathsCover:
-                    case DrawType::msaaOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
                     case DrawType::clipReset:
                     case DrawType::renderPassInitialize:
                     case DrawType::renderPassResolve:
@@ -1564,26 +1564,26 @@ public:
                                 : &wgsl::atomic_init_webgpu_frag;
                         break;
 
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaDynamicMidpointFans:
-                    case DrawType::msaaDynamicOuterCubics:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                    case DrawType::msaaOuterCubicBorrowedCoverage:
-                    case DrawType::msaaOuterCubicStencilReset:
-                    case DrawType::msaaOuterCubicPathsStencil:
-                    case DrawType::msaaOuterCubicPathsCover:
-                    case DrawType::msaaOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
                     case DrawType::clipReset:
                         RIVE_UNREACHABLE();
                 }
                 break;
             }
 
-            case gpu::InterlockMode::msaa:
+            case gpu::InterlockMode::depthStencil:
             {
                 switch (drawType)
                 {
@@ -1592,19 +1592,19 @@ public:
                     case DrawType::outerCurvePatches:
                         RIVE_UNREACHABLE();
 
-                    case DrawType::msaaOuterCubicBorrowedCoverage:
-                    case DrawType::msaaOuterCubicStencilReset:
-                    case DrawType::msaaOuterCubicPathsStencil:
-                    case DrawType::msaaOuterCubicPathsCover:
-                    case DrawType::msaaOuterCubics:
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaDynamicMidpointFans:
-                    case DrawType::msaaDynamicOuterCubics:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
                         if (context->m_capabilities
                                 .polyfillVertexStorageBuffers)
                         {
@@ -1612,9 +1612,10 @@ public:
                                 enums::is_flag_set(
                                     shaderFeatures,
                                     ShaderFeatures::ENABLE_CLIP_RECT)
-                                    ? &wgsl::draw_msaa_path_webgpu_nossbo_vert
+                                    ? &wgsl::
+                                          draw_depthstencil_path_webgpu_nossbo_vert
                                     : &wgsl::
-                                          draw_msaa_path_webgpu_nossbo_noclipdistance_vert;
+                                          draw_depthstencil_path_webgpu_nossbo_noclipdistance_vert;
                         }
                         else
                         {
@@ -1622,24 +1623,28 @@ public:
                                 enums::is_flag_set(
                                     shaderFeatures,
                                     ShaderFeatures::ENABLE_CLIP_RECT)
-                                    ? &wgsl::draw_msaa_path_webgpu_vert
+                                    ? &wgsl::draw_depthstencil_path_webgpu_vert
                                     : &wgsl::
-                                          draw_msaa_path_webgpu_noclipdistance_vert;
+                                          draw_depthstencil_path_webgpu_noclipdistance_vert;
                         }
                         fragmentShader =
                             fixedFunctionColorOutput
-                                ? &wgsl::draw_msaa_path_webgpu_fixedcolor_frag
-                                : &wgsl::draw_msaa_path_webgpu_frag;
+                                ? &wgsl::
+                                      draw_depthstencil_path_webgpu_fixedcolor_frag
+                                : &wgsl::draw_depthstencil_path_webgpu_frag;
                         break;
 
                     case DrawType::clipReset:
-                        vertexShader = &wgsl::draw_msaa_stencil_vert;
-                        fragmentShader = &wgsl::draw_msaa_stencil_frag;
+                        vertexShader =
+                            &wgsl::draw_depthstencil_triangles_nocolor_vert;
+                        fragmentShader =
+                            &wgsl::draw_depthstencil_triangles_nocolor_frag;
                         break;
 
                     case DrawType::interiorTriangulation:
-                        // Interior triangulation is not yet implemented for
-                        // MSAA.
+                        // depthStencil interior triangles are smuggled in with
+                        // outerCubic patches instead of using the
+                        // interiorTriangulation draw type.
                         RIVE_UNREACHABLE();
                         break;
 
@@ -1652,9 +1657,9 @@ public:
                                     shaderFeatures,
                                     ShaderFeatures::ENABLE_CLIP_RECT)
                                     ? &wgsl::
-                                          draw_msaa_atlas_blit_webgpu_nossbo_vert
+                                          draw_depthstencil_atlas_blit_webgpu_nossbo_vert
                                     : &wgsl::
-                                          draw_msaa_atlas_blit_webgpu_nossbo_noclipdistance_vert;
+                                          draw_depthstencil_atlas_blit_webgpu_nossbo_noclipdistance_vert;
                         }
                         else
                         {
@@ -1662,34 +1667,38 @@ public:
                                 enums::is_flag_set(
                                     shaderFeatures,
                                     ShaderFeatures::ENABLE_CLIP_RECT)
-                                    ? &wgsl::draw_msaa_atlas_blit_webgpu_vert
+                                    ? &wgsl::
+                                          draw_depthstencil_atlas_blit_webgpu_vert
                                     : &wgsl::
-                                          draw_msaa_atlas_blit_webgpu_noclipdistance_vert;
+                                          draw_depthstencil_atlas_blit_webgpu_noclipdistance_vert;
                         }
                         fragmentShader =
                             fixedFunctionColorOutput
                                 ? &wgsl::
-                                      draw_msaa_atlas_blit_webgpu_fixedcolor_frag
-                                : &wgsl::draw_msaa_atlas_blit_webgpu_frag;
+                                      draw_depthstencil_atlas_blit_webgpu_fixedcolor_frag
+                                : &wgsl::
+                                      draw_depthstencil_atlas_blit_webgpu_frag;
                         break;
 
                     case DrawType::imageMesh:
                         vertexShader =
                             enums::is_flag_set(shaderFeatures,
                                                ShaderFeatures::ENABLE_CLIP_RECT)
-                                ? &wgsl::draw_msaa_image_mesh_webgpu_vert
+                                ? &wgsl::
+                                      draw_depthstencil_image_mesh_webgpu_vert
                                 : &wgsl::
-                                      draw_msaa_image_mesh_webgpu_noclipdistance_vert;
+                                      draw_depthstencil_image_mesh_webgpu_noclipdistance_vert;
                         fragmentShader =
                             fixedFunctionColorOutput
                                 ? &wgsl::
-                                      draw_msaa_image_mesh_webgpu_fixedcolor_frag
-                                : &wgsl::draw_msaa_image_mesh_webgpu_frag;
+                                      draw_depthstencil_image_mesh_webgpu_fixedcolor_frag
+                                : &wgsl::
+                                      draw_depthstencil_image_mesh_webgpu_frag;
                         break;
 
                     case DrawType::renderPassInitialize:
-                        // MSAA render passes get initialized by drawing the
-                        // previous contents into the framebuffer.
+                        // depthStencil render passes get initialized by drawing
+                        // the previous contents into the framebuffer.
                         // (LoadAction::preserveRenderTarget only.)
                         vertexShader =
                             &wgsl::blit_texture_as_draw_filtered_webgpu_vert;
@@ -3162,19 +3171,19 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
         {
             attrs.push_back({
                 .format = WGPUVertexFormat_Float32x4,
@@ -3525,7 +3534,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             },
         .multisample =
             {
-                .count = interlockMode == gpu::InterlockMode::msaa
+                .count = interlockMode == gpu::InterlockMode::depthStencil
                              ? MSAA_SAMPLE_COUNT
                              : 1u,
                 .mask = 0xffffffff,
@@ -3534,7 +3543,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     };
 
     WGPUDepthStencilState depthStencilState;
-    if (interlockMode == gpu::InterlockMode::msaa)
+    if (interlockMode == gpu::InterlockMode::depthStencil)
     {
         depthStencilState = {
             .format = WGPUTextureFormat_Depth24PlusStencil8,
@@ -3617,10 +3626,11 @@ protected:
         {
             // Work around an issue in atomic mode where some gms render just a
             // little outside of the draw bounds (causing the texture preserve
-            // to fail). Don't do this in MSAA mode because it fails to restore
-            // properly
-            // TODO: Figure out why this fails in MSAA and also implement the
-            // clipScissor functionality to get scissor working more completely
+            // to fail). Don't do this in depthStencil mode because it
+            // fails to restore properly.
+            // TODO: Figure out why this fails in depthStencil and also
+            // implement the clipScissor functionality to get scissor working
+            // more completely
             m_encoder.SetScissorRect(m_desc.renderTargetUpdateBounds.left,
                                      m_desc.renderTargetUpdateBounds.top,
                                      m_desc.renderTargetUpdateBounds.width(),
@@ -3928,16 +3938,17 @@ private:
     wgpu::BindGroup m_plsBindings;
 };
 
-// A Rive render pass that uses MSAA. It's restarted once per dstBlend barrier
-// (and may defer its initial begin until the first such barrier); the
-// attachment texture views don't change between restarts, so they're cached
-// once in the constructor and reused.
-class RenderContextWebGPUImpl::MSAADrawRenderPass : public DrawRenderPass
+// A Rive render pass that renders paths with the depth/stencil buffer. It's
+// restarted once per dstBlend barrier (and may defer its initial begin until
+// the first such barrier); the attachment texture views don't change between
+// restarts, so they're cached once in the constructor and reused.
+class RenderContextWebGPUImpl::DepthStencilDrawRenderPass
+    : public DrawRenderPass
 {
 public:
-    MSAADrawRenderPass(RenderContextWebGPUImpl* impl,
-                       const FlushDescriptor& desc,
-                       wgpu::CommandEncoder commandEncoder) :
+    DepthStencilDrawRenderPass(RenderContextWebGPUImpl* impl,
+                               const FlushDescriptor& desc,
+                               wgpu::CommandEncoder commandEncoder) :
         DrawRenderPass(impl, desc, commandEncoder),
         m_msaaColorTextureView(m_renderTarget->msaaColorTextureView()),
         m_targetTextureView(m_renderTarget->targetTextureView()),
@@ -3950,10 +3961,10 @@ public:
         if (m_desc.drawList->empty() || m_desc.drawList->head()->drawType !=
                                             gpu::DrawType::renderPassInitialize)
         {
-            begin(MSAABeginType::primary,
+            begin(DepthStencilBeginType::primary,
                   (m_desc.firstDstBlendBarrier != nullptr)
-                      ? MSAAEndType::breakForDstCopy
-                      : MSAAEndType::finish);
+                      ? DepthStencilEndType::breakForDstCopy
+                      : DepthStencilEndType::finish);
         }
     }
 
@@ -3968,7 +3979,7 @@ public:
         assert(!m_desc.fixedFunctionColorOutput ||
                batch.drawType == gpu::DrawType::renderPassInitialize);
 
-        MSAABeginType msaaBeginType;
+        DepthStencilBeginType beginType;
         if (batch.drawType == gpu::DrawType::renderPassInitialize)
         {
             assert(m_encoder == nullptr);
@@ -3982,7 +3993,7 @@ public:
                 m_commandEncoder,
                 m_renderTarget->bounds());
 
-            msaaBeginType = MSAABeginType::primary;
+            beginType = DepthStencilBeginType::primary;
         }
         else
         {
@@ -4001,26 +4012,26 @@ public:
                         draw->pixelBounds()));
             }
 
-            msaaBeginType = MSAABeginType::restartAfterDstCopy;
+            beginType = DepthStencilBeginType::restartAfterDstCopy;
         }
 
         // Restart the render pass after the copies are finished.
-        begin(msaaBeginType,
+        begin(beginType,
               (batch.nextDstBlendBarrier != nullptr)
-                  ? MSAAEndType::breakForDstCopy
-                  : MSAAEndType::finish);
+                  ? DepthStencilEndType::breakForDstCopy
+                  : DepthStencilEndType::finish);
     }
 
 private:
     // Specifies how to load MSAA color/depth/stencil attachments when beginning
     // an MSAA render pass.
-    enum class MSAABeginType : bool
+    enum class DepthStencilBeginType : bool
     {
         primary,
         restartAfterDstCopy,
     };
 
-    void begin(MSAABeginType msaaBeginType, MSAAEndType msaaEndType)
+    void begin(DepthStencilBeginType beginType, DepthStencilEndType endType)
     {
         // Our MSAA buffers are treated as completely transient (i.e.,
         // Clear/Discard) unless we have to do render pass breaks for dst
@@ -4030,12 +4041,13 @@ private:
         // TODO: wgpu::LoadOp::ExpandResolveTexture for the color buffer when
         // supported.
         const auto msaaLoadOp =
-            msaaBeginType == MSAABeginType::restartAfterDstCopy
+            beginType == DepthStencilBeginType::restartAfterDstCopy
                 ? wgpu::LoadOp::Load
                 : wgpu::LoadOp::Clear;
-        const auto msaaStoreOp = (msaaEndType == MSAAEndType::breakForDstCopy)
-                                     ? wgpu::StoreOp::Store
-                                     : wgpu::StoreOp::Discard;
+        const auto msaaStoreOp =
+            (endType == DepthStencilEndType::breakForDstCopy)
+                ? wgpu::StoreOp::Store
+                : wgpu::StoreOp::Discard;
 
         wgpu::RenderPassColorAttachment msaaColorAttachment = {
             .view = m_msaaColorTextureView,
@@ -4058,7 +4070,7 @@ private:
         };
 
         wgpu::RenderPassDescriptor renderPassDescriptor = {
-            .label = "RIVE_MSAA_RenderPass",
+            .label = "RIVE_DepthStencil_RenderPass",
             .colorAttachmentCount = 1,
             .colorAttachments = &msaaColorAttachment,
             .depthStencilAttachment = &msaaDepthStencilAttachment,
@@ -4083,9 +4095,11 @@ RenderContextWebGPUImpl::makeDrawRenderPass(const FlushDescriptor& desc,
                                                       desc,
                                                       commandEncoder);
     }
-    if (desc.interlockMode == gpu::InterlockMode::msaa)
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
-        return std::make_unique<MSAADrawRenderPass>(this, desc, commandEncoder);
+        return std::make_unique<DepthStencilDrawRenderPass>(this,
+                                                            desc,
+                                                            commandEncoder);
     }
     return std::make_unique<PLSDrawRenderPass>(this, desc, commandEncoder);
 }
@@ -4230,7 +4244,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         },
         {
             .binding = DST_COLOR_TEXTURE_IDX,
-            .textureView = desc.interlockMode == gpu::InterlockMode::msaa &&
+            .textureView = desc.interlockMode == gpu::InterlockMode::depthStencil &&
                            !desc.fixedFunctionColorOutput
                                ? renderTarget->dstColorTextureView()
                                : m_nullTextureView,
@@ -4532,9 +4546,10 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     wgpu::BindGroup perFlushBindings =
         m_device.CreateBindGroup(&perFlushBindGroupDesc);
 
-    // The drawEncoder isn't necessarily created yet. (e.g., MSAA sometimes
-    // defers creation of the drawEncoder until the first barrier.) So defer
-    // binding the per-flush uniforms until we know the drawEncoder is valid.
+    // The drawEncoder isn't necessarily created yet. (e.g., depthStencil
+    // sometimes defers creation of the drawEncoder until the first barrier.) So
+    // defer binding the per-flush uniforms until we know the drawEncoder is
+    // valid.
     bool needsPerFlushBindings = true;
 
     wgpu::TextureView boundImageTextureView = {};
@@ -4586,11 +4601,12 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // be sampled here to seed the color buffer. No dst copy needed.
                 imageTextureView = renderTarget->targetTextureView();
             }
-            else if (desc.interlockMode == gpu::InterlockMode::msaa)
+            else if (desc.interlockMode == gpu::InterlockMode::depthStencil)
             {
-                // MSAA can't sample the target texture here because it's bound
-                // as the resolve target, so it seeds from the dstColorTexture
-                // (copied from the framebuffer previously) instead.
+                // depthStencil can't sample the target texture here because
+                // it's bound as the resolve target, so it seeds from the
+                // dstColorTexture (copied from the framebuffer previously)
+                // instead.
                 imageTextureView = renderTarget->dstColorTextureView();
             }
         }
@@ -4739,19 +4755,19 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
             {
                 // Draw PLS patches that connect the tessellation vertices.
                 drawEncoder.SetVertexBuffer(0, m_pathPatchVertexBuffer);

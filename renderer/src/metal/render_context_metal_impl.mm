@@ -242,19 +242,19 @@ public:
             case DrawType::imageMesh:
                 namespacePrefix = 'm';
                 break;
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:
             case DrawType::renderPassResolve:
@@ -361,7 +361,7 @@ public:
 
                 case gpu::InterlockMode::clockwise:
                 case gpu::InterlockMode::clockwiseAtomic:
-                case gpu::InterlockMode::msaa:
+                case gpu::InterlockMode::depthStencil:
                     RIVE_UNREACHABLE();
             }
             return make_pipeline_state(gpu, desc);
@@ -1405,7 +1405,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
     assert(desc.interlockMode != gpu::InterlockMode::clockwise);
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
-    assert(desc.interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
+    // TODO: depthStencil.
+    assert(desc.interlockMode != gpu::InterlockMode::depthStencil);
 
     auto* renderTarget = static_cast<RenderTargetMetal*>(desc.renderTarget);
     id<MTLCommandBuffer> commandBuffer =
@@ -2017,19 +2018,19 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                             vertexCount:4];
                 break;
             }
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
             {
                 RIVE_UNREACHABLE();

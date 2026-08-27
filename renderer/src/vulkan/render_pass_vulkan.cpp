@@ -23,7 +23,7 @@ constexpr static VkAttachmentLoadOp vk_color_load_op(
     switch (loadAction)
     {
         case gpu::LoadAction::preserveRenderTarget:
-            return (interlockMode == gpu::InterlockMode::msaa)
+            return (interlockMode == gpu::InterlockMode::depthStencil)
                        // In MSAA we need to implement the loadOp with a manual
                        // draw instead, since the MSAA attachment is transient
                        // and its color is seeded from the actual render target.
@@ -224,8 +224,9 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
             : VK_IMAGE_LAYOUT_GENERAL;
     const VkSampleCountFlagBits msaaSampleCount =
-        (interlockMode == gpu::InterlockMode::msaa) ? VK_SAMPLE_COUNT_4_BIT
-                                                    : VK_SAMPLE_COUNT_1_BIT;
+        (interlockMode == gpu::InterlockMode::depthStencil)
+            ? VK_SAMPLE_COUNT_4_BIT
+            : VK_SAMPLE_COUNT_1_BIT;
     StackVector<VkAttachmentDescription, layout::MAX_RENDER_PASS_ATTACHMENTS>
         attachments;
     StackVector<VkAttachmentReference, PLS_PLANE_COUNT> colorAttachmentRefs;
@@ -247,7 +248,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                             RenderPassOptionsVulkan::manuallyResolved |
                                 RenderPassOptionsVulkan::
                                     atomicCoalescedResolveAndTransfer) ||
-                        interlockMode == gpu::InterlockMode::msaa)
+                        interlockMode == gpu::InterlockMode::depthStencil)
                            ? VK_ATTACHMENT_STORE_OP_DONT_CARE
                            : VK_ATTACHMENT_STORE_OP_STORE,
             // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
@@ -262,7 +263,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                                      RenderPassOptionsVulkan::
                                          atomicCoalescedResolveAndTransfer) &&
                   loadAction != gpu::LoadAction::preserveRenderTarget) ||
-                 interlockMode == gpu::InterlockMode::msaa)
+                 interlockMode == gpu::InterlockMode::depthStencil)
                     ? VK_IMAGE_LAYOUT_UNDEFINED
                     : colorAttachmentLayout,
             .finalLayout = colorAttachmentLayout,
@@ -436,7 +437,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             resolveAttachmentRef = colorAttachmentRefs[0];
         }
     }
-    else if (interlockMode == gpu::InterlockMode::msaa)
+    else if (interlockMode == gpu::InterlockMode::depthStencil)
     {
         // DEPTH attachment.
         assert(attachments.size() == MSAA_DEPTH_STENCIL_IDX);
@@ -529,7 +530,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             inputAttachmentRefs.clear();
         }
     }
-    if (interlockMode == gpu::InterlockMode::msaa &&
+    if (interlockMode == gpu::InterlockMode::depthStencil &&
         loadAction == gpu::LoadAction::preserveRenderTarget)
     {
         msaaColorSeedInputAttachmentRef.push_back({
@@ -584,7 +585,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         };
 
     // MSAA color-load subpass.
-    if (interlockMode == gpu::InterlockMode::msaa &&
+    if (interlockMode == gpu::InterlockMode::depthStencil &&
         loadAction == gpu::LoadAction::preserveRenderTarget)
     {
         assert(msaaColorSeedInputAttachmentRef.size() ==
@@ -683,10 +684,10 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         // Without the extra color-load subpass we need an external dependency
         // into the main subpass
         auto externalInDep = EXTERNAL_COLOR_INPUT_DEPENDENCY;
-        if (interlockMode == gpu::InterlockMode::msaa)
+        if (interlockMode == gpu::InterlockMode::depthStencil)
         {
-            // for msaa where the main subpass is first, the external dependency
-            // additionally needs to cover depth/stencil.
+            // for depthStencil where the main subpass is first, the external
+            // dependency additionally needs to cover depth/stencil.
             externalInDep.srcStageMask |=
                 VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             externalInDep.dstStageMask |=
@@ -739,7 +740,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         .colorAttachmentCount = colorAttachmentRefs.size(),
         .pColorAttachments = colorAttachmentRefs.data(),
         .pResolveAttachments =
-            (interlockMode == gpu::InterlockMode::msaa &&
+            (interlockMode == gpu::InterlockMode::depthStencil &&
              !enums::is_flag_set(renderPassOptions,
                                  RenderPassOptionsVulkan::manuallyResolved))
                 ? &resolveAttachmentRef.value()
@@ -754,7 +755,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||
         interlockMode == gpu::InterlockMode::clockwiseAtomic ||
-        (interlockMode == gpu::InterlockMode::msaa &&
+        (interlockMode == gpu::InterlockMode::depthStencil &&
          !enums::is_flag_set(
              renderPassOptions,
              RenderPassOptionsVulkan::fixedFunctionColorOutput)))
@@ -782,7 +783,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         });
     }
 
-    if (interlockMode == gpu::InterlockMode::msaa)
+    if (interlockMode == gpu::InterlockMode::depthStencil)
     {
         // Main subpass needs a separate external dependency for depth/stencil
         subpassDeps.push_back({

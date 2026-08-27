@@ -31,7 +31,7 @@
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
-#include "generated/shaders/draw_msaa_object.frag.hpp"
+#include "generated/shaders/draw_depthstencil_object.frag.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/render_atlas.glsl.hpp"
@@ -63,19 +63,19 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::midpointFanPatches:
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
-        case gpu::DrawType::msaaStrokes:
-        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
-        case gpu::DrawType::msaaDynamicMidpointFans:
-        case gpu::DrawType::msaaDynamicOuterCubics:
-        case gpu::DrawType::msaaMidpointFans:
-        case gpu::DrawType::msaaMidpointFanStencilReset:
-        case gpu::DrawType::msaaMidpointFanPathsStencil:
-        case gpu::DrawType::msaaMidpointFanPathsCover:
-        case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
-        case gpu::DrawType::msaaOuterCubicStencilReset:
-        case gpu::DrawType::msaaOuterCubicPathsStencil:
-        case gpu::DrawType::msaaOuterCubicPathsCover:
-        case gpu::DrawType::msaaOuterCubics:
+        case gpu::DrawType::depthStrokes:
+        case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
+        case gpu::DrawType::stencilDynamicMidpointFans:
+        case gpu::DrawType::stencilDynamicOuterCubics:
+        case gpu::DrawType::stencilMidpointFans:
+        case gpu::DrawType::stencilMidpointFanReset:
+        case gpu::DrawType::stencilMidpointFanWinding:
+        case gpu::DrawType::stencilMidpointFanCover:
+        case gpu::DrawType::stencilOuterCubicBorrowedCoverage:
+        case gpu::DrawType::stencilOuterCubicReset:
+        case gpu::DrawType::stencilOuterCubicWinding:
+        case gpu::DrawType::stencilOuterCubicCover:
+        case gpu::DrawType::stencilOuterCubics:
             return true;
         case gpu::DrawType::imageRect:
         case gpu::DrawType::imageMesh:
@@ -1678,7 +1678,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
         {
             assert(enums::is_flag_set(kVertexShaderFeaturesMask, feature) ||
                    shaderType == GL_FRAGMENT_SHADER);
-            if (interlockMode == gpu::InterlockMode::msaa &&
+            if (interlockMode == gpu::InterlockMode::depthStencil &&
                 feature == gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
                 renderContextImpl->m_capabilities.KHR_blend_equation_advanced)
             {
@@ -1690,9 +1690,9 @@ RenderContextGLImpl::DrawShader::DrawShader(
             }
         }
     }
-    if (interlockMode == gpu::InterlockMode::msaa)
+    if (interlockMode == gpu::InterlockMode::depthStencil)
     {
-        defines.push_back(GLSL_RENDER_MODE_MSAA);
+        defines.push_back(GLSL_RENDER_MODE_DEPTH_STENCIL);
     }
     assert(renderContextImpl->platformFeatures().framebufferBottomUp);
     defines.push_back(GLSL_FRAMEBUFFER_BOTTOM_UP);
@@ -1705,19 +1705,19 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::midpointFanPatches:
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
-        case gpu::DrawType::msaaStrokes:
-        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
-        case gpu::DrawType::msaaDynamicMidpointFans:
-        case gpu::DrawType::msaaDynamicOuterCubics:
-        case gpu::DrawType::msaaMidpointFans:
-        case gpu::DrawType::msaaMidpointFanStencilReset:
-        case gpu::DrawType::msaaMidpointFanPathsStencil:
-        case gpu::DrawType::msaaMidpointFanPathsCover:
-        case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
-        case gpu::DrawType::msaaOuterCubicStencilReset:
-        case gpu::DrawType::msaaOuterCubicPathsStencil:
-        case gpu::DrawType::msaaOuterCubicPathsCover:
-        case gpu::DrawType::msaaOuterCubics:
+        case gpu::DrawType::depthStrokes:
+        case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
+        case gpu::DrawType::stencilDynamicMidpointFans:
+        case gpu::DrawType::stencilDynamicOuterCubics:
+        case gpu::DrawType::stencilMidpointFans:
+        case gpu::DrawType::stencilMidpointFanReset:
+        case gpu::DrawType::stencilMidpointFanWinding:
+        case gpu::DrawType::stencilMidpointFanCover:
+        case gpu::DrawType::stencilOuterCubicBorrowedCoverage:
+        case gpu::DrawType::stencilOuterCubicReset:
+        case gpu::DrawType::stencilOuterCubicWinding:
+        case gpu::DrawType::stencilOuterCubicCover:
+        case gpu::DrawType::stencilOuterCubics:
             if (shaderType == GL_VERTEX_SHADER)
             {
                 defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
@@ -1806,19 +1806,19 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
                 case gpu::DrawType::imageRect:
-                case gpu::DrawType::msaaStrokes:
-                case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
-                case gpu::DrawType::msaaDynamicMidpointFans:
-                case gpu::DrawType::msaaDynamicOuterCubics:
-                case gpu::DrawType::msaaMidpointFans:
-                case gpu::DrawType::msaaMidpointFanStencilReset:
-                case gpu::DrawType::msaaMidpointFanPathsStencil:
-                case gpu::DrawType::msaaMidpointFanPathsCover:
-                case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
-                case gpu::DrawType::msaaOuterCubicStencilReset:
-                case gpu::DrawType::msaaOuterCubicPathsStencil:
-                case gpu::DrawType::msaaOuterCubicPathsCover:
-                case gpu::DrawType::msaaOuterCubics:
+                case gpu::DrawType::depthStrokes:
+                case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
+                case gpu::DrawType::stencilDynamicMidpointFans:
+                case gpu::DrawType::stencilDynamicOuterCubics:
+                case gpu::DrawType::stencilMidpointFans:
+                case gpu::DrawType::stencilMidpointFanReset:
+                case gpu::DrawType::stencilMidpointFanWinding:
+                case gpu::DrawType::stencilMidpointFanCover:
+                case gpu::DrawType::stencilOuterCubicBorrowedCoverage:
+                case gpu::DrawType::stencilOuterCubicReset:
+                case gpu::DrawType::stencilOuterCubicWinding:
+                case gpu::DrawType::stencilOuterCubicCover:
+                case gpu::DrawType::stencilOuterCubics:
                 case gpu::DrawType::clipReset:
                 case gpu::DrawType::renderPassInitialize:
                 case gpu::DrawType::renderPassResolve:
@@ -1831,26 +1831,26 @@ RenderContextGLImpl::DrawShader::DrawShader(
             sources.push_back(gpu::glsl::atomic_draw);
             break;
 
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
             switch (drawType)
             {
-                case gpu::DrawType::msaaStrokes:
-                case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
-                case gpu::DrawType::msaaDynamicMidpointFans:
-                case gpu::DrawType::msaaDynamicOuterCubics:
-                case gpu::DrawType::msaaMidpointFans:
-                case gpu::DrawType::msaaMidpointFanStencilReset:
-                case gpu::DrawType::msaaMidpointFanPathsStencil:
-                case gpu::DrawType::msaaMidpointFanPathsCover:
-                case gpu::DrawType::msaaOuterCubicBorrowedCoverage:
-                case gpu::DrawType::msaaOuterCubicStencilReset:
-                case gpu::DrawType::msaaOuterCubicPathsStencil:
-                case gpu::DrawType::msaaOuterCubicPathsCover:
-                case gpu::DrawType::msaaOuterCubics:
+                case gpu::DrawType::depthStrokes:
+                case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
+                case gpu::DrawType::stencilDynamicMidpointFans:
+                case gpu::DrawType::stencilDynamicOuterCubics:
+                case gpu::DrawType::stencilMidpointFans:
+                case gpu::DrawType::stencilMidpointFanReset:
+                case gpu::DrawType::stencilMidpointFanWinding:
+                case gpu::DrawType::stencilMidpointFanCover:
+                case gpu::DrawType::stencilOuterCubicBorrowedCoverage:
+                case gpu::DrawType::stencilOuterCubicReset:
+                case gpu::DrawType::stencilOuterCubicWinding:
+                case gpu::DrawType::stencilOuterCubicCover:
+                case gpu::DrawType::stencilOuterCubics:
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_msaa_object_frag);
+                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
                     break;
                 case gpu::DrawType::clipReset:
                     sources.push_back(gpu::glsl::stencil_draw);
@@ -1858,11 +1858,11 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::featherAtlasBlit:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_msaa_object_frag);
+                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
                     break;
                 case gpu::DrawType::imageMesh:
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
-                    sources.push_back(gpu::glsl::draw_msaa_object_frag);
+                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
                     break;
                 case gpu::DrawType::midpointFanPatches:
                 case gpu::DrawType::midpointFanCenterAAPatches:
@@ -2104,7 +2104,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
                                      CONTOUR_BUFFER_IDX);
         }
     }
-    if (interlockMode == gpu::InterlockMode::msaa &&
+    if (interlockMode == gpu::InterlockMode::depthStencil &&
         enums::is_flag_set(shaderFeatures,
                            gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
         !renderContextImpl->m_capabilities.KHR_blend_equation_advanced &&
@@ -2734,7 +2734,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
     auto msaaResolveAction = RenderTargetGL::MSAAResolveAction::automatic;
     std::array<GLenum, 3> msaaDepthStencilColor;
-    if (desc.interlockMode != gpu::InterlockMode::msaa)
+    if (desc.interlockMode != gpu::InterlockMode::depthStencil)
     {
         assert(desc.msaaSampleCount == 0);
         assert(m_plsImpl != nullptr);
@@ -2817,7 +2817,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 ? desc.combinedShaderFeatures
                 : batch.shaderFeatures;
         gpu::ShaderMiscFlags shaderMiscFlags = batch.shaderMiscFlags;
-        if (desc.interlockMode != gpu::InterlockMode::msaa)
+        if (desc.interlockMode != gpu::InterlockMode::depthStencil)
         {
             assert(m_plsImpl != nullptr);
             shaderMiscFlags |= m_plsImpl->shaderMiscFlags(desc, drawType);
@@ -2855,7 +2855,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 desc,
                                 m_platformFeatures,
                                 &pipelineState);
-        if (desc.interlockMode != gpu::InterlockMode::msaa)
+        if (desc.interlockMode != gpu::InterlockMode::depthStencil)
         {
             assert(m_plsImpl != nullptr);
             m_plsImpl->applyPipelineStateOverrides(batch,
@@ -2899,7 +2899,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 // Read back the framebuffer where we need a dstColor for
                 // blending.
-                assert(desc.interlockMode == gpu::InterlockMode::msaa);
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
                 assert(batch.dstReadList != nullptr);
                 renderTarget->bindDstColorFramebuffer(GL_DRAW_FRAMEBUFFER);
                 m_state->disableScissor();
@@ -2947,17 +2947,17 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
             {
                 m_state->bindVAO(m_drawVAO);
                 if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
@@ -2975,8 +2975,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
             {
                 // Combined fast-path fill: borrowed coverage, main fill, and
                 // stencil reset are one batch sharing one program. Draw it
@@ -2984,9 +2984,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 // passes use identical state to their midpoint-fan
                 // counterparts, so drive both from the midpoint-fan types.
                 m_state->bindVAO(m_drawVAO);
-                for (DrawType pass : {DrawType::msaaMidpointFanBorrowedCoverage,
-                                      DrawType::msaaMidpointFans,
-                                      DrawType::msaaMidpointFanStencilReset})
+                for (DrawType pass :
+                     {DrawType::stencilMidpointFanBorrowedCoverage,
+                      DrawType::stencilMidpointFans,
+                      DrawType::stencilMidpointFanReset})
                 {
                     gpu::PipelineState passState =
                         gpu::get_pipeline_state(pass,
@@ -3142,7 +3143,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    if (desc.interlockMode != gpu::InterlockMode::msaa)
+    if (desc.interlockMode != gpu::InterlockMode::depthStencil)
     {
         m_plsImpl->deactivatePixelLocalStorage(this, desc);
     }

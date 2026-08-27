@@ -101,19 +101,19 @@ static std::string build_shader(DrawType drawType,
             s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
             s << "#define " << GLSL_RESOLVE_PLS << '\n';
             break;
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
-        case DrawType::msaaOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
@@ -150,19 +150,19 @@ static std::string build_shader(DrawType drawType,
                 break;
             case DrawType::imageRect:
             case DrawType::renderPassResolve:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaDynamicMidpointFans:
-            case DrawType::msaaDynamicOuterCubics:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubicBorrowedCoverage:
-            case DrawType::msaaOuterCubicStencilReset:
-            case DrawType::msaaOuterCubicPathsStencil:
-            case DrawType::msaaOuterCubicPathsCover:
-            case DrawType::msaaOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();

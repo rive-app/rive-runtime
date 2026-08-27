@@ -198,17 +198,17 @@ SPIRV_DRAW_ATOMIC_INPUTS := \
 # MSAA shaders need separate builds with FIXED_FUNCTION_COLOR_OUTPUT and/or
 # DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS, as well as builds for WebGPU.
 SPIRV_DRAW_MSAA_INPUTS := \
-    spirv/draw_msaa_atlas_blit.main \
-    spirv/draw_msaa_image_mesh.main \
-    spirv/draw_msaa_path.main \
-    spirv/draw_msaa_stencil.main \
+    spirv/draw_depthstencil_atlas_blit.main \
+    spirv/draw_depthstencil_image_mesh.main \
+    spirv/draw_depthstencil_path.main \
+    spirv/draw_depthstencil_triangles_nocolor.main \
 
 # WebGPU (compatibility mode) doesn't always support storage buffers in the
 # vertex shader. These files specifically need WebGPU "nossbo" build variants
 # that polyfill the buffers via textures.
 WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS := \
-    spirv/draw_msaa_path.main \
-    spirv/draw_msaa_atlas_blit.main
+    spirv/draw_depthstencil_path.main \
+    spirv/draw_depthstencil_atlas_blit.main
 WEBGPU_NOSSBO_INPUTS := \
     $(WEBGPU_NOSSBO_NOCLIPDISTANCE_INPUTS) \
     spirv/tessellate.main \
@@ -427,8 +427,8 @@ WGSL_OUTPUTS := \
                  %.webgpu_frag.spv \
                  %.webgpu_fixedcolor_frag.spv, \
                  $(SPIRV_OUTPUTS_BINARY))) \
-    $(OUT)/wgsl/draw_msaa_stencil.vert.wgsl \
-    $(OUT)/wgsl/draw_msaa_stencil.frag.wgsl \
+    $(OUT)/wgsl/draw_depthstencil_triangles_nocolor.vert.wgsl \
+    $(OUT)/wgsl/draw_depthstencil_triangles_nocolor.frag.wgsl \
     $(OUT)/wgsl/color_ramp.vert.wgsl \
     $(OUT)/wgsl/color_ramp.frag.wgsl
 

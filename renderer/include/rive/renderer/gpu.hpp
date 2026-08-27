@@ -126,7 +126,8 @@ constexpr static uint8_t STENCIL_CLEAR = 0u;
 struct PlatformFeatures
 {
     // Supported InterlockModes.
-    // FIXME: MSAA is implicit even though it isn't implemented on all backends.
+    // FIXME: depthStencil is implicit even though it isn't implemented on all
+    // backends.
     bool supportsRasterOrderingMode = false;
     bool supportsAtomicMode = false;
     bool supportsClockwiseMode = false;
@@ -134,10 +135,10 @@ struct PlatformFeatures
     // (Only viable for frames that don't use advanced blend.)
     bool supportsClockwiseFixedFunctionMode = false;
     bool supportsClockwiseAtomicMode = false;
-    // Use KHR_blend_equation_advanced in msaa mode?
+    // Use KHR_blend_equation_advanced in depthStencil mode?
     bool supportsBlendAdvancedKHR = false;
     bool supportsBlendAdvancedCoherentKHR = false;
-    // Required for @ENABLE_CLIP_RECT in msaa mode.
+    // Required for @ENABLE_CLIP_RECT in depthStencil mode.
     bool supportsClipPlanes = false;
     // The backend supports dynamic state that allows Rive to collapse multiple
     // subpasses onto a single pipeline, namely:
@@ -670,44 +671,44 @@ enum class DrawType : uint8_t
     imageRect,
     imageMesh,
 
-    // MSAA strokes can't be merged with fills because they require their own
-    // dedicated stencil settings.
-    msaaStrokes,
+    // Strokes that use the depth buffer to work out coverage and avoid double
+    // hits.
+    depthStrokes,
 
-    // MSAA "fast" path: (effectively) single pass rendering.
-    msaaMidpointFanBorrowedCoverage,
-    msaaMidpointFans,
-    msaaMidpointFanStencilReset,
+    // depthStencil "fast" path: (almost) single pass rendering.
+    stencilMidpointFanBorrowedCoverage,
+    stencilMidpointFans,
+    stencilMidpointFanReset,
 
-    // Equivalent to msaaMidpointFanBorrowedCoverage + msaaMidpointFans +
-    // msaaMidpointFanStencilReset on a single pipeline, switching between them
+    // Equivalent to stencilMidpointFanBorrowedCoverage + stencilMidpointFans +
+    // stencilMidpointFanReset on a single pipeline, switching between them
     // with dynamic color/depth/stencil/cull state. Keeps the three passes on
     // one batch so the reorderer can still instance non-overlapping paths
     // together, while collapsing three pipeline binds into one.
-    msaaDynamicMidpointFans,
+    stencilDynamicMidpointFans,
 
     // Same as the midpoint-fan "fast" path, but submits outer-cubic patches
     // instead of midpoint-fan patches. These use the exact same depth/stencil
     // settings as their midpoint-fan counterparts; they just draw a different
     // patch of triangles. Used to fill paths via interior triangulation, whose
     // interior is smuggled via cubics (RETROFIT_TRI_STRIP_CONTOUR_FLAG).
-    msaaOuterCubicBorrowedCoverage,
-    msaaOuterCubics,
-    msaaOuterCubicStencilReset,
+    stencilOuterCubicBorrowedCoverage,
+    stencilOuterCubics,
+    stencilOuterCubicReset,
 
-    // The msaaDynamicMidpointFans equivalent for outer cubics: collapses
-    // msaaOuterCubicBorrowedCoverage + msaaOuterCubics +
-    // msaaOuterCubicStencilReset onto a single pipeline, switching between them
+    // The stencilDynamicMidpointFans equivalent for outer cubics: collapses
+    // stencilOuterCubicBorrowedCoverage + stencilOuterCubics +
+    // stencilOuterCubicReset onto a single pipeline, switching between them
     // with dynamic state. Same geometry as the outer-cubic passes above.
-    msaaDynamicOuterCubics,
+    stencilDynamicOuterCubics,
 
-    // MSAA "slow" path: stencil-then-cover.
-    msaaMidpointFanPathsStencil,
-    msaaMidpointFanPathsCover,
+    // depthStencil "slow" path: stencil-then-cover.
+    stencilMidpointFanWinding,
+    stencilMidpointFanCover,
 
     // Same as the midpoint-fan "slow" path, but submits outer-cubic patches.
-    msaaOuterCubicPathsStencil,
-    msaaOuterCubicPathsCover,
+    stencilOuterCubicWinding,
+    stencilOuterCubicCover,
 
     // Clear or intersect (based on DrawContents) the clip value.
     clipReset,
@@ -731,8 +732,8 @@ constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
 {
     switch (drawType)
     {
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaDynamicOuterCubics:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
             return true;
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
@@ -741,17 +742,17 @@ constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
         case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -772,19 +773,19 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -816,7 +817,7 @@ enum class InterlockMode
     // (winding or even/odd) with a "clockwise" fill rule, where only regions
     // with a positive winding number get filled.
     clockwiseAtomic,
-    msaa,
+    depthStencil,
 };
 constexpr static size_t INTERLOCK_MODE_COUNT = 5;
 // # of bits required to contain an InterlockMode.
@@ -889,7 +890,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                    // clip updates, so they need their own draw anyway and the
                    // ENABLE_NESTED_CLIPPING feature isn't necessary.
                    ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
-        case InterlockMode::msaa:
+        case InterlockMode::depthStencil:
             return ShaderFeatures::ENABLE_CLIP_RECT |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND |
                    ShaderFeatures::ENABLE_HSL_BLEND_MODES |
@@ -998,19 +999,19 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
             mask = kAllShaderFeatures;
             break;
         case DrawType::clipReset:
@@ -1025,10 +1026,10 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                        ShaderFeatures::ENABLE_ADVANCED_BLEND |
                        ShaderFeatures::ENABLE_DITHER;
             }
-            else if (interlockMode == InterlockMode::msaa)
+            else if (interlockMode == InterlockMode::depthStencil)
             {
-                // MSAA mode only needs to initialize color, and only when
-                // preserving the render target but using a transient MSAA
+                // depthStencil mode only needs to initialize color, and only
+                // when preserving the render target but using a transient MSAA
                 // attachment.
                 mask = ShaderFeatures::ENABLE_DITHER;
             }
@@ -1049,7 +1050,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             else
             {
                 assert(interlockMode == InterlockMode::rasterOrdering ||
-                       interlockMode == InterlockMode::msaa);
+                       interlockMode == InterlockMode::depthStencil);
                 mask = ShaderFeatures::ENABLE_DITHER;
             }
             break;
@@ -1080,9 +1081,9 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     // Ensure that we haven't dropped features we care about somehow
     assert((requestedFeatures & outFeatures) == requestedFeatures);
 
-    // ENABLE_CLIP_RECT shouldn't be set if we're in MSAA mode without clip
-    // plane support.
-    if (interlockMode == InterlockMode::msaa &&
+    // ENABLE_CLIP_RECT shouldn't be set if we're in depthStencil mode without
+    // clip plane support.
+    if (interlockMode == InterlockMode::depthStencil &&
         !platformFeatures.supportsClipPlanes)
     {
         outFeatures &= ~ShaderFeatures::ENABLE_CLIP_RECT;
@@ -1123,8 +1124,8 @@ void ForEachUbershaderPermutation(
     const std::function<bool(DrawType, ShaderFeatures, ShaderMiscFlags)>&);
 
 // Flags indicating the contents of a draw. These don't affect shaders, but in
-// msaa mode they are needed to break up batching. (msaa needs different
-// stencil/blend state, depending on the DrawContents.)
+// depthStencil mode they are needed to break up batching. (depthStencil needs
+// different stencil/blend state, depending on the DrawContents.)
 //
 // These also affect the draw sort order, so we attempt associate more expensive
 // shader branch misses with higher flags.
@@ -1148,8 +1149,8 @@ enum class DrawContents
 };
 
 // These are the only draw contents flags that apply to the pipeline state (and
-// they only matter for MSAA)
-constexpr static DrawContents DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE =
+// they only matter for depthStencil)
+constexpr static DrawContents DrawContentsForDepthStencilPipelineState =
     DrawContents::activeClip | DrawContents::clipUpdate |
     DrawContents::clockwiseFill | DrawContents::evenOddFill |
     DrawContents::opaquePaint;
@@ -1325,7 +1326,7 @@ struct FlushDescriptor
     RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
-    int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
+    int msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
 
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
@@ -1341,7 +1342,7 @@ struct FlushDescriptor
     // As of now, each tile gets drawn in a separate render pass. The purpose of
     // these virtual tiles, for now, is to break the frame up into smaller
     // chunks so that Rive can be pre-empted by other rendering processes. This
-    // is only supported on Vulkan/non-msaa.
+    // is only supported on Vulkan/non-depthStencil.
     //
     // TODO: We could also explore a different type of virtual tiling that
     // reduces barriers in atomic mode, but that is not how this feature works
@@ -1611,7 +1612,7 @@ private:
     // "0" indicates that the path is filled, not stroked.
     WRITEONLY float m_strokeRadius;
     WRITEONLY float m_featherRadius;
-    // InterlockMode::msaa.
+    // InterlockMode::depthStencil.
     WRITEONLY uint32_t m_zIndex;
     // Only used when rendering coverage via the atlas.
     WRITEONLY AtlasTransform m_featherAtlasTransform;

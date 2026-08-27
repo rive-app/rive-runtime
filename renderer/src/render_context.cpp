@@ -384,7 +384,7 @@ static gpu::InterlockMode select_interlock_mode(
 {
     if (frameDescriptor.msaaSampleCount != 0)
     {
-        return gpu::InterlockMode::msaa;
+        return gpu::InterlockMode::depthStencil;
     }
     if (frameDescriptor.clockwiseFillOverride)
     {
@@ -411,7 +411,7 @@ static gpu::InterlockMode select_interlock_mode(
     {
         return gpu::InterlockMode::atomics;
     }
-    return gpu::InterlockMode::msaa;
+    return gpu::InterlockMode::depthStencil;
 }
 
 void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
@@ -425,7 +425,7 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     m_frameDescriptor = frameDescriptor;
     m_frameInterlockMode =
         select_interlock_mode(m_frameDescriptor, platformFeatures());
-    if (m_frameInterlockMode == gpu::InterlockMode::msaa &&
+    if (m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
         m_frameDescriptor.msaaSampleCount == 0)
     {
         // Use 4x MSAA if msaaSampleCount wasn't already specified.
@@ -456,7 +456,7 @@ bool RenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
 bool RenderContext::frameSupportsClipRects() const
 {
     assert(m_didBeginFrame);
-    return m_frameInterlockMode != gpu::InterlockMode::msaa ||
+    return m_frameInterlockMode != gpu::InterlockMode::depthStencil ||
            platformFeatures().supportsClipPlanes;
 }
 
@@ -546,9 +546,9 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
         passCountInBatch += draws[i]->prepassCount() + draws[i]->subpassCount();
     }
 
-    // We can only reorder 32k draws at a time in atomic and msaa modes since
-    // the sort key addresses them with a signed 16-bit index. Make sure we
-    // don't exceed that limit.
+    // We can only reorder 32k draws at a time in atomic and depthStencil modes
+    // since the sort key addresses them with a signed 16-bit index. Make sure
+    // we don't exceed that limit.
     if (m_ctx->frameInterlockMode() != gpu::InterlockMode::rasterOrdering &&
         m_drawPassCount + passCountInBatch > kMaxReorderedDrawPassCount)
     {
@@ -1070,7 +1070,7 @@ static uint32_t pls_transient_backing_plane_count(
             }
             return n;
         }
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
             return 0; // N/A
     }
     RIVE_UNREACHABLE();
@@ -1102,7 +1102,7 @@ static bool wants_fixed_function_color_output(
                    !enums::is_flag_set(combinedDrawContents,
                                        gpu::DrawContents::advancedBlend);
 
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
             // Manual MSAA resolves read the framebuffer, so they can't use
             // fixedFunctionColorOutput.
             return !manuallyResolved &&
@@ -1675,13 +1675,13 @@ void RenderContext::LogicalFlush::writeResources()
             // us better branching on the GPU.
             {.entry = SortEntry::blendMode, .bitCount = 4},
 
-            // msaa mode draws strokes, fills, and even/odd with different
-            // stencil settings.
+            // depthStencil mode draws strokes, fills, and even/odd with
+            // different stencil settings.
             {.entry = SortEntry::drawContents, .bitCount = 9},
 
-            // Finally, we need sorting by subpass. Without this, the MSAA
-            // subpasses (and maybe others) won't run in the correct order when
-            // allSubpassesInSameDrawGroup was true.
+            // Finally, we need sorting by subpass. Without this, the
+            // depthStencil subpasses (and maybe others) won't run in the
+            // correct order when allSubpassesInSameDrawGroup was true.
             {.entry = SortEntry::subpassIndex, .bitCount = 3},
         };
 
@@ -1787,7 +1787,8 @@ void RenderContext::LogicalFlush::writeResources()
             // Otherwise, we put subpasses into different draw groups because it
             // yields better reordering.
             const bool allSubpassesInSameDrawGroup =
-                m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa &&
+                m_ctx->frameInterlockMode() ==
+                    gpu::InterlockMode::depthStencil &&
                 !platformFeatures.supportsBlendAdvancedKHR &&
                 enums::is_flag_set(m_combinedDrawContents,
                                    gpu::DrawContents::advancedBlend);
@@ -1916,7 +1917,8 @@ void RenderContext::LogicalFlush::writeResources()
                                     ImageSampler::LinearClamp(),
                                     BarrierFlags::none);
         }
-        else if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa &&
+        else if (m_ctx->frameInterlockMode() ==
+                     gpu::InterlockMode::depthStencil &&
                  m_flushDesc.colorLoadAction ==
                      gpu::LoadAction::preserveRenderTarget &&
                  platformFeatures.msaaColorPreserveNeedsDraw)
@@ -2012,14 +2014,14 @@ void RenderContext::LogicalFlush::writeResources()
                 break;
             }
 
-            case gpu::InterlockMode::msaa:
+            case gpu::InterlockMode::depthStencil:
             {
-                // MSAA mode can't batch draws that overlap because they both
-                // rely on the stencil buffer across subpasses. Stop batching
-                // every time the drawGroupIdx changes.
+                // depthStencil mode can't batch draws that overlap because they
+                // both rely on the stencil buffer across subpasses. Stop
+                // batching every time the drawGroupIdx changes.
                 int64_t needsBreakMask = keyBuilder.mask(SortEntry::drawGroup);
-                // MSAA mode draws clips, strokes, fills, and even/odd with
-                // different stencil settings, so these can't be batched.
+                // depthStencil mode draws clips, strokes, fills, and even/odd
+                // with different stencil settings, so these can't be batched.
                 needsBreakMask |= keyBuilder.mask(SortEntry::drawContents);
                 if (platformFeatures.supportsBlendAdvancedKHR)
                 {
@@ -2028,9 +2030,9 @@ void RenderContext::LogicalFlush::writeResources()
                     // blend equation.
                     needsBreakMask |= keyBuilder.mask(SortEntry::blendMode);
                 }
-                // MSAA barriers only need to prevent batching of draws for now.
-                // If we also need a dstBlend barrier, that will be decided
-                // later.
+                // depthStencil barriers only need to prevent batching of draws
+                // for now. If we also need a dstBlend barrier, that will be
+                // decided later.
                 barriersForKeyDiffs.push_back(
                     {needsBreakMask, BarrierFlags::drawBatchBreak});
                 break;
@@ -2104,7 +2106,8 @@ void RenderContext::LogicalFlush::writeResources()
             // differ".
             if ((m_ctx->frameInterlockMode() ==
                      gpu::InterlockMode::clockwiseAtomic ||
-                 m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa) &&
+                 m_ctx->frameInterlockMode() ==
+                     gpu::InterlockMode::depthStencil) &&
                 subpassIndex == 0 && batch != nullptr)
             {
                 // Barriers at this level have to go on the first batch in the
@@ -2148,7 +2151,8 @@ void RenderContext::LogicalFlush::writeResources()
                 assert(firstBatchInCurrentDrawGroup != nullptr);
 
                 if (draw->hasAdvancedBlend() &&
-                    (m_ctx->frameInterlockMode() != gpu::InterlockMode::msaa ||
+                    (m_ctx->frameInterlockMode() !=
+                         gpu::InterlockMode::depthStencil ||
                      !m_ctx->platformFeatures()
                           .supportsBlendAdvancedCoherentKHR))
                 {
@@ -2212,9 +2216,10 @@ void RenderContext::LogicalFlush::writeResources()
                 else
                 {
                     assert(m_ctx->frameInterlockMode() ==
-                           gpu::InterlockMode::msaa);
+                           gpu::InterlockMode::depthStencil);
 
-                    // msaa doesn't mix srcOver draws with advanced blend draws.
+                    // depthStencil doesn't mix srcOver draws with advanced
+                    // blend draws.
                     assert(enums::is_flag_set(
                                batch->shaderFeatures,
                                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
@@ -3727,22 +3732,22 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
             return kMidpointFanCenterAAPatchIndexCount;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchIndexCount;
-        case DrawType::msaaStrokes:
+        case DrawType::depthStrokes:
             return kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
             return kMidpointFanPatchIndexCount -
                    kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
             return kOuterCurvePatchIndexCount -
                    kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
@@ -3762,26 +3767,26 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
-        case DrawType::msaaStrokes:
+        case DrawType::depthStrokes:
             return kMidpointFanPatchBaseIndex;
         case DrawType::midpointFanCenterAAPatches:
             return kMidpointFanCenterAAPatchBaseIndex;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBaseIndex;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
             return kMidpointFanPatchBaseIndex +
                    kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
             return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
@@ -3802,19 +3807,19 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
             batch->indexCountPerInstance = patchIndexCount(drawType);
             batch->baseIndex = patchBaseIndex(drawType);
             break;
@@ -3870,7 +3875,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         }
     }
 
-    // In clockwiseAtomic and msaa modes, individual draws can use
+    // In clockwiseAtomic and depthStencil modes, individual draws can use
     // fixedFunctionColorOutput even if the render pass as a whole does not.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
     {
@@ -3881,7 +3886,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }
     }
-    else if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa &&
+    else if (m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
              draw->blendMode() == BlendMode::srcOver)
     {
         shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
@@ -3895,19 +3900,19 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaDynamicMidpointFans:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubicBorrowedCoverage:
-        case DrawType::msaaDynamicOuterCubics:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaOuterCubicStencilReset:
-        case DrawType::msaaOuterCubicPathsStencil:
-        case DrawType::msaaOuterCubicPathsCover:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
         case DrawType::clipReset:
             if (!m_drawList.empty() &&
                 !enums::is_flag_set(m_pendingBarriers,
@@ -3927,12 +3932,12 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                     currentBatch->baseElement + currentBatch->elementCount !=
                         baseElement)
                 {
-                    // In MSAA mode, multiple subpasses reference the same
-                    // tessellation data. Although rare, this breaks the
+                    // In depthStencil mode, multiple subpasses reference the
+                    // same tessellation data. Although rare, this breaks the
                     // guarantee we have in other modes that mergeable batches
                     // will always have contiguous patches.
                     assert(m_ctx->frameInterlockMode() ==
-                           gpu::InterlockMode::msaa);
+                           gpu::InterlockMode::depthStencil);
                     canMergeWithPreviousBatch = false;
                 }
 
@@ -3990,8 +3995,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         assert((batch->drawContents & gpu::DrawContents::featheredFill) ==
                (draw->drawContents() & gpu::DrawContents::featheredFill));
 
-        // msaa can't mix drawContents in a batch.
-        assert(m_ctx->frameInterlockMode() != gpu::InterlockMode::msaa ||
+        // depthStencil can't mix drawContents in a batch.
+        assert(m_ctx->frameInterlockMode() !=
+                   gpu::InterlockMode::depthStencil ||
                batch->drawContents == draw->drawContents());
 
         batch->shaderMiscFlags |= shaderMiscFlags;

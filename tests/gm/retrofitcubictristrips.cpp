@@ -87,7 +87,7 @@ public:
         m_resourceCounts.contourCount = 1;
         m_resourceCounts.maxTessellatedSegmentCount = std::size(TriangleStrips);
         m_resourceCounts.outerCubicTessVertexCount =
-            context->frameInterlockMode() != gpu::InterlockMode::msaa
+            context->frameInterlockMode() != gpu::InterlockMode::depthStencil
                 ? gpu::OuterCubicPatchSegmentSpanPlusJoin *
                       std::size(TriangleStrips) * 2
                 : gpu::OuterCubicPatchSegmentSpanPlusJoin *
@@ -178,8 +178,8 @@ public:
 
             return &flush->pushOuterCubicsDraw(
                 this,
-                m_coverageType == CoverageType::msaa
-                    ? gpu::DrawType::msaaOuterCubics
+                m_coverageType == CoverageType::depthStencil
+                    ? gpu::DrawType::stencilOuterCubics
                     : gpu::DrawType::outerCurvePatches,
                 tessVertexCount,
                 tessLocation,

@@ -246,10 +246,10 @@ public:
         pixelLocalStorage, // InterlockMode::rasterOrdering and atomics
         clockwise,         // InterlockMode::clockwise
         clockwiseAtomic,   // InterlockMode::clockwiseAtomic
-        msaa,              // InterlockMode::msaa
+        depthStencil,      // InterlockMode::depthStencil
         featherAtlas, // Any InterlockMode may opt to use atlas coverage for
-                      // large feathers; msaa always has to use an atlas for
-                      // feathers.
+                      // large feathers; depthStencil always has to use an
+                      // atlas for feathers.
     };
 
     PathDraw(IAABB pixelBounds,
@@ -476,9 +476,9 @@ protected:
         // before the main subpass pushes the path to the renderContext.
         uint32_t m_prepassTessLocation = 0;
 
-        // Used in msaa mode. Multiple msaa subpasses use the same tesellation
-        // data.
-        uint32_t m_msaaTessLocation;
+        // Used in depthStencil mode. Multiple subpasses use the same
+        // tessellation data.
+        uint32_t m_depthStencilTessLocation;
     };
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold

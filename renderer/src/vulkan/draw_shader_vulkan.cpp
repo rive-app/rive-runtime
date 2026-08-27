@@ -23,12 +23,13 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
         enums::is_flag_set(shaderMiscFlags,
                            gpu::ShaderMiscFlags::fixedFunctionColorOutput);
 
-    if (type == Type::fragment && interlockMode == InterlockMode::msaa &&
+    if (type == Type::fragment &&
+        interlockMode == InterlockMode::depthStencil &&
         drawType != DrawType::renderPassInitialize &&
         drawType != DrawType::renderPassResolve)
     {
         // Fixed function color output and advanced blend are mutually exclusive
-        // and one of them should always be set in msaa mode.
+        // and one of them should always be set in depthStencil mode.
         assert(fixedFunctionColorOutput !=
                bool(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND));
     }
@@ -70,19 +71,19 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaDynamicMidpointFans:
-                case DrawType::msaaDynamicOuterCubics:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
-                case DrawType::msaaOuterCubicBorrowedCoverage:
-                case DrawType::msaaOuterCubicStencilReset:
-                case DrawType::msaaOuterCubicPathsStencil:
-                case DrawType::msaaOuterCubicPathsCover:
-                case DrawType::msaaOuterCubics:
+                case DrawType::depthStrokes:
+                case DrawType::stencilMidpointFanBorrowedCoverage:
+                case DrawType::stencilDynamicMidpointFans:
+                case DrawType::stencilDynamicOuterCubics:
+                case DrawType::stencilMidpointFans:
+                case DrawType::stencilMidpointFanReset:
+                case DrawType::stencilMidpointFanWinding:
+                case DrawType::stencilMidpointFanCover:
+                case DrawType::stencilOuterCubicBorrowedCoverage:
+                case DrawType::stencilOuterCubicReset:
+                case DrawType::stencilOuterCubicWinding:
+                case DrawType::stencilOuterCubicCover:
+                case DrawType::stencilOuterCubics:
                 case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
@@ -153,19 +154,19 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     }
                     break;
 
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaDynamicMidpointFans:
-                case DrawType::msaaDynamicOuterCubics:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
-                case DrawType::msaaOuterCubicBorrowedCoverage:
-                case DrawType::msaaOuterCubicStencilReset:
-                case DrawType::msaaOuterCubicPathsStencil:
-                case DrawType::msaaOuterCubicPathsCover:
-                case DrawType::msaaOuterCubics:
+                case DrawType::depthStrokes:
+                case DrawType::stencilMidpointFanBorrowedCoverage:
+                case DrawType::stencilDynamicMidpointFans:
+                case DrawType::stencilDynamicOuterCubics:
+                case DrawType::stencilMidpointFans:
+                case DrawType::stencilMidpointFanReset:
+                case DrawType::stencilMidpointFanWinding:
+                case DrawType::stencilMidpointFanCover:
+                case DrawType::stencilOuterCubicBorrowedCoverage:
+                case DrawType::stencilOuterCubicReset:
+                case DrawType::stencilOuterCubicWinding:
+                case DrawType::stencilOuterCubicCover:
+                case DrawType::stencilOuterCubics:
                 case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
@@ -227,19 +228,19 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaDynamicMidpointFans:
-                case DrawType::msaaDynamicOuterCubics:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
-                case DrawType::msaaOuterCubicBorrowedCoverage:
-                case DrawType::msaaOuterCubicStencilReset:
-                case DrawType::msaaOuterCubicPathsStencil:
-                case DrawType::msaaOuterCubicPathsCover:
-                case DrawType::msaaOuterCubics:
+                case DrawType::depthStrokes:
+                case DrawType::stencilMidpointFanBorrowedCoverage:
+                case DrawType::stencilDynamicMidpointFans:
+                case DrawType::stencilDynamicOuterCubics:
+                case DrawType::stencilMidpointFans:
+                case DrawType::stencilMidpointFanReset:
+                case DrawType::stencilMidpointFanWinding:
+                case DrawType::stencilMidpointFanCover:
+                case DrawType::stencilOuterCubicBorrowedCoverage:
+                case DrawType::stencilOuterCubicReset:
+                case DrawType::stencilOuterCubicWinding:
+                case DrawType::stencilOuterCubicCover:
+                case DrawType::stencilOuterCubics:
                 case DrawType::clipReset:
                 case DrawType::renderPassResolve:
                 case DrawType::renderPassInitialize:
@@ -376,26 +377,26 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaDynamicMidpointFans:
-                case DrawType::msaaDynamicOuterCubics:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
-                case DrawType::msaaOuterCubicBorrowedCoverage:
-                case DrawType::msaaOuterCubicStencilReset:
-                case DrawType::msaaOuterCubicPathsStencil:
-                case DrawType::msaaOuterCubicPathsCover:
-                case DrawType::msaaOuterCubics:
+                case DrawType::depthStrokes:
+                case DrawType::stencilMidpointFanBorrowedCoverage:
+                case DrawType::stencilDynamicMidpointFans:
+                case DrawType::stencilDynamicOuterCubics:
+                case DrawType::stencilMidpointFans:
+                case DrawType::stencilMidpointFanReset:
+                case DrawType::stencilMidpointFanWinding:
+                case DrawType::stencilMidpointFanCover:
+                case DrawType::stencilOuterCubicBorrowedCoverage:
+                case DrawType::stencilOuterCubicReset:
+                case DrawType::stencilOuterCubicWinding:
+                case DrawType::stencilOuterCubicCover:
+                case DrawType::stencilOuterCubics:
                 case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
             }
             break;
         }
 
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
         {
             switch (drawType)
             {
@@ -404,36 +405,39 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::outerCurvePatches:
                     RIVE_UNREACHABLE();
 
-                case DrawType::msaaOuterCubicBorrowedCoverage:
-                case DrawType::msaaOuterCubicStencilReset:
-                case DrawType::msaaOuterCubicPathsStencil:
-                case DrawType::msaaOuterCubicPathsCover:
-                case DrawType::msaaOuterCubics:
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaDynamicMidpointFans:
-                case DrawType::msaaDynamicOuterCubics:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
+                case DrawType::stencilOuterCubicBorrowedCoverage:
+                case DrawType::stencilOuterCubicReset:
+                case DrawType::stencilOuterCubicWinding:
+                case DrawType::stencilOuterCubicCover:
+                case DrawType::stencilOuterCubics:
+                case DrawType::depthStrokes:
+                case DrawType::stencilMidpointFanBorrowedCoverage:
+                case DrawType::stencilDynamicMidpointFans:
+                case DrawType::stencilDynamicOuterCubics:
+                case DrawType::stencilMidpointFans:
+                case DrawType::stencilMidpointFanReset:
+                case DrawType::stencilMidpointFanWinding:
+                case DrawType::stencilMidpointFanCover:
                     vertCode =
                         enums::is_flag_set(shaderFeatures,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? spirv::draw_msaa_path_vert
-                            : spirv::draw_msaa_path_noclipdistance_vert;
-                    fragCode = fixedFunctionColorOutput
-                                   ? spirv::draw_msaa_path_fixedcolor_frag
-                                   : spirv::draw_msaa_path_frag;
+                            ? spirv::draw_depthstencil_path_vert
+                            : spirv::draw_depthstencil_path_noclipdistance_vert;
+                    fragCode =
+                        fixedFunctionColorOutput
+                            ? spirv::draw_depthstencil_path_fixedcolor_frag
+                            : spirv::draw_depthstencil_path_frag;
                     break;
 
                 case DrawType::clipReset:
-                    vertCode = spirv::draw_msaa_stencil_vert;
-                    fragCode = spirv::draw_msaa_stencil_frag;
+                    vertCode = spirv::draw_depthstencil_triangles_nocolor_vert;
+                    fragCode = spirv::draw_depthstencil_triangles_nocolor_frag;
                     break;
 
                 case DrawType::interiorTriangulation:
-                    // Interior triangulation is not yet implemented for MSAA.
+                    // depthStencil interior triangles are smuggled in with
+                    // outerCubic patches instead of using the
+                    // interiorTriangulation draw type.
                     RIVE_UNREACHABLE();
                     break;
 
@@ -441,26 +445,32 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     vertCode =
                         enums::is_flag_set(shaderFeatures,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? spirv::draw_msaa_atlas_blit_vert
-                            : spirv::draw_msaa_atlas_blit_noclipdistance_vert;
-                    fragCode = fixedFunctionColorOutput
-                                   ? spirv::draw_msaa_atlas_blit_fixedcolor_frag
-                                   : spirv::draw_msaa_atlas_blit_frag;
+                            ? spirv::draw_depthstencil_atlas_blit_vert
+                            : spirv::
+                                  draw_depthstencil_atlas_blit_noclipdistance_vert;
+                    fragCode =
+                        fixedFunctionColorOutput
+                            ? spirv::
+                                  draw_depthstencil_atlas_blit_fixedcolor_frag
+                            : spirv::draw_depthstencil_atlas_blit_frag;
                     break;
 
                 case DrawType::imageMesh:
                     vertCode =
                         enums::is_flag_set(shaderFeatures,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? spirv::draw_msaa_image_mesh_vert
-                            : spirv::draw_msaa_image_mesh_noclipdistance_vert;
-                    fragCode = fixedFunctionColorOutput
-                                   ? spirv::draw_msaa_image_mesh_fixedcolor_frag
-                                   : spirv::draw_msaa_image_mesh_frag;
+                            ? spirv::draw_depthstencil_image_mesh_vert
+                            : spirv::
+                                  draw_depthstencil_image_mesh_noclipdistance_vert;
+                    fragCode =
+                        fixedFunctionColorOutput
+                            ? spirv::
+                                  draw_depthstencil_image_mesh_fixedcolor_frag
+                            : spirv::draw_depthstencil_image_mesh_frag;
                     break;
 
                 case DrawType::renderPassInitialize:
-                    // MSAA render passes get initialized by drawing the
+                    // depthStencil render passes get initialized by drawing the
                     // previous contents into the framebuffer.
                     // (LoadAction::preserveRenderTarget only.)
                     vertCode = spirv::draw_fullscreen_quad_vert;

@@ -393,7 +393,7 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
     if (paint->getFeather() != 0)
     {
         if (platformFeatures.alwaysFeatherToAtlas ||
-            interlockMode == gpu::InterlockMode::msaa ||
+            interlockMode == gpu::InterlockMode::depthStencil ||
             // Always switch to the atlas once we can render quarter-resultion.
             find_atlas_feather_scale_factor(
                 find_feather_radius(paint->getFeather()),
@@ -411,8 +411,8 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
             return CoverageType::clockwise;
         case gpu::InterlockMode::clockwiseAtomic:
             return CoverageType::clockwiseAtomic;
-        case gpu::InterlockMode::msaa:
-            return CoverageType::msaa;
+        case gpu::InterlockMode::depthStencil:
+            return CoverageType::depthStencil;
     }
     RIVE_UNREACHABLE();
 }
@@ -663,22 +663,23 @@ PathDraw::PathDraw(IAABB pixelBounds,
         if (det < 0)
         {
             m_contourDirections =
-                (m_coverageType == CoverageType::msaa ||
+                (m_coverageType == CoverageType::depthStencil ||
                  m_coverageType == CoverageType::featherAtlas)
                     ? gpu::ContourDirections::reverse
                     : gpu::ContourDirections::forwardThenReverse;
-            m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG; // ignored by msaa
+            // Ignored by depthStencil.
+            m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG;
         }
         else
         {
             m_contourDirections =
-                (m_coverageType == CoverageType::msaa ||
+                (m_coverageType == CoverageType::depthStencil ||
                  m_coverageType == CoverageType::featherAtlas)
                     ? gpu::ContourDirections::forward
                     : gpu::ContourDirections::reverseThenForward;
         }
     }
-    else if (m_coverageType != CoverageType::msaa)
+    else if (m_coverageType != CoverageType::depthStencil)
     {
         // atomic and rasterOrdering fills need reverse AND forward triangles.
         if (frameDesc.clockwiseFillOverride &&
@@ -706,18 +707,18 @@ PathDraw::PathDraw(IAABB pixelBounds,
         if (initialFillRule == FillRule::nonZero ||
             frameDesc.clockwiseFillOverride)
         {
-            // Emit "nonZero" msaa fills in a direction such that the dominant
-            // triangle winding area is always clockwise. This maximizes pixel
-            // throughput since we will draw counterclockwise triangles twice
-            // and clockwise only once.
+            // Emit "nonZero" depthStencil fills in a direction such that the
+            // dominant triangle winding area is always clockwise. This
+            // maximizes pixel throughput since we will draw counterclockwise
+            // triangles twice and clockwise only once.
             m_contourDirections = m_pathRef->isClockwiseDominant(m_paintMatrix)
                                       ? gpu::ContourDirections::forward
                                       : gpu::ContourDirections::reverse;
         }
         else
         {
-            // "evenOdd" msaa fills just get drawn twice, so any direction is
-            // fine.
+            // "evenOdd" depthStencil fills just get drawn twice, so any
+            // direction is fine.
             m_contourDirections = gpu::ContourDirections::forward;
         }
     }
@@ -1547,7 +1548,7 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
             }
             break;
 
-        case CoverageType::msaa:
+        case CoverageType::depthStencil:
         {
             if (isStroke())
             {
@@ -1563,20 +1564,23 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
             else if (enums::is_flag_set(m_drawContents,
                                         gpu::DrawContents::evenOddFill))
             {
-                m_subpassCount = 2; // MSAA "slow" path: stencil-then-cover.
+                // depthStencil "slow" path: stencil-then-cover.
+                m_subpassCount = 2;
             }
             else if (platformFeatures.supportsPipelineDynamicState)
             {
-                // MSAA "fast" path, combined: the three subpasses (borrowed
-                // coverage, fans, stencil reset) collapse onto a single
-                // msaaDynamicMidpointFans draw that switches between them with
-                // dynamic color/depth/stencil/cull state. One batch keeps the
-                // reorderer able to instance non-overlapping paths together.
+                // depthStencil "fast" path, combined: the three subpasses
+                // (borrowed coverage, fans, stencil reset) collapse onto a
+                // single stencilDynamicMidpointFans draw that switches between
+                // them with dynamic color/depth/stencil/cull state. One batch
+                // keeps the reorderer able to instance non-overlapping paths
+                // together.
                 m_subpassCount = 1;
             }
             else
             {
-                // MSAA "fast" path: (effectively) single pass rendering.
+                // depthStencil "fast" path: (effectively) single pass
+                // rendering.
                 m_subpassCount = 3;
             }
             if (isOpaque())
@@ -1729,26 +1733,26 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
             RIVE_UNREACHABLE();
         }
 
-        case CoverageType::msaa:
+        case CoverageType::depthStencil:
         {
             assert(m_prepassCount == 0 || m_subpassCount == 0);
             int passCount = m_prepassCount | m_subpassCount;
             int passIdx = subpassIndex + m_prepassCount;
             if (passIdx == 0)
             {
-                m_msaaTessLocation =
+                m_depthStencilTessLocation =
                     allocateTessellationVertices(flush, tessVertexCount);
                 pushTessellationData(flush,
                                      tessVertexCount,
-                                     m_msaaTessLocation);
+                                     m_depthStencilTessLocation);
             }
             assert(1 <= passCount && passCount <= 3);
             assert(passIdx < passCount);
             if (m_triangulator != nullptr)
             {
-                // MSAA interior triangulation: the path interior is filled by
-                // smuggling its triangles in with outerCubic patches, rather
-                // than introducing a distinct triangle-buffer draw.
+                // depthStencil interior triangulation: the path interior is
+                // filled by smuggling its triangles in with outerCubic patches,
+                // rather than introducing a distinct triangle-buffer draw.
                 gpu::DrawType outerCubicDrawType;
                 if (passCount == 1)
                 {
@@ -1756,82 +1760,87 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                                              gpu::kNestedClipUpdateMask))
                     {
                         outerCubicDrawType =
-                            gpu::DrawType::msaaOuterCubicPathsStencil;
+                            gpu::DrawType::stencilOuterCubicWinding;
                     }
                     else
                     {
                         assert(flush->platformFeatures()
                                    .supportsPipelineDynamicState);
                         outerCubicDrawType =
-                            gpu::DrawType::msaaDynamicOuterCubics;
+                            gpu::DrawType::stencilDynamicOuterCubics;
                     }
                 }
                 else
                 {
-                    constexpr static gpu::DrawType
-                        MsaaOuterCubicFillTypes[][3] = {
-                            // Slow path (passCount == 2): stencil-then-cover.
-                            {
-                                gpu::DrawType::msaaOuterCubicPathsStencil,
-                                gpu::DrawType::msaaOuterCubicPathsCover,
-                            },
-                            // Fast path (passCount == 3).
-                            {
-                                gpu::DrawType::msaaOuterCubicBorrowedCoverage,
-                                gpu::DrawType::msaaOuterCubics,
-                                gpu::DrawType::msaaOuterCubicStencilReset,
-                            },
-                        };
+                    constexpr static gpu::DrawType OuterCubicFillTypes[][3] = {
+                        // Slow path (passCount == 2): stencil-then-cover.
+                        {
+                            gpu::DrawType::stencilOuterCubicWinding,
+                            gpu::DrawType::stencilOuterCubicCover,
+                        },
+                        // Fast path (passCount == 3).
+                        {
+                            gpu::DrawType::stencilOuterCubicBorrowedCoverage,
+                            gpu::DrawType::stencilOuterCubics,
+                            gpu::DrawType::stencilOuterCubicReset,
+                        },
+                    };
                     outerCubicDrawType =
-                        MsaaOuterCubicFillTypes[passCount - 2][passIdx];
+                        OuterCubicFillTypes[passCount - 2][passIdx];
                 }
                 return &flush->pushOuterCubicsDraw(this,
                                                    outerCubicDrawType,
                                                    tessVertexCount,
-                                                   m_msaaTessLocation);
-            }
-            gpu::DrawType msaaDrawType;
-            if (passCount == 1)
-            {
-                if (isStroke())
-                {
-                    msaaDrawType = gpu::DrawType::msaaStrokes;
-                }
-                else if (enums::all_flags_set(m_drawContents,
-                                              gpu::kNestedClipUpdateMask))
-                {
-                    msaaDrawType = gpu::DrawType::msaaMidpointFanPathsStencil;
-                }
-                else
-                {
-                    assert(
-                        flush->platformFeatures().supportsPipelineDynamicState);
-                    msaaDrawType = gpu::DrawType::msaaDynamicMidpointFans;
-                }
+                                                   m_depthStencilTessLocation);
             }
             else
             {
-                constexpr static gpu::DrawType MSAAFillTypes[][3] = {
-                    // Slow path (passCount == 2): stencil-then-cover
+                gpu::DrawType depthStencilDrawType;
+                if (passCount == 1)
+                {
+                    if (isStroke())
                     {
-                        gpu::DrawType::msaaMidpointFanPathsStencil,
-                        gpu::DrawType::msaaMidpointFanPathsCover,
-                    },
+                        depthStencilDrawType = gpu::DrawType::depthStrokes;
+                    }
+                    else if (enums::all_flags_set(m_drawContents,
+                                                  gpu::kNestedClipUpdateMask))
+                    {
+                        depthStencilDrawType =
+                            gpu::DrawType::stencilMidpointFanWinding;
+                    }
+                    else
+                    {
+                        assert(flush->platformFeatures()
+                                   .supportsPipelineDynamicState);
+                        depthStencilDrawType =
+                            gpu::DrawType::stencilDynamicMidpointFans;
+                    }
+                }
+                else
+                {
+                    constexpr static gpu::DrawType MidpointFanFillTypes[][3] = {
+                        // Slow path (passCount == 2): stencil-then-cover
+                        {
+                            gpu::DrawType::stencilMidpointFanWinding,
+                            gpu::DrawType::stencilMidpointFanCover,
+                        },
 
-                    // Fast path (passCount == 3): (mostly) single pass
-                    // rendering.
-                    {
-                        gpu::DrawType::msaaMidpointFanBorrowedCoverage,
-                        gpu::DrawType::msaaMidpointFans,
-                        gpu::DrawType::msaaMidpointFanStencilReset,
-                    },
-                };
-                msaaDrawType = MSAAFillTypes[passCount - 2][passIdx];
+                        // Fast path (passCount == 3): (mostly) single pass
+                        // rendering.
+                        {
+                            gpu::DrawType::stencilMidpointFanBorrowedCoverage,
+                            gpu::DrawType::stencilMidpointFans,
+                            gpu::DrawType::stencilMidpointFanReset,
+                        },
+                    };
+                    depthStencilDrawType =
+                        MidpointFanFillTypes[passCount - 2][passIdx];
+                }
+                return &flush->pushMidpointFanDraw(this,
+                                                   depthStencilDrawType,
+                                                   tessVertexCount,
+                                                   m_depthStencilTessLocation);
             }
-            return &flush->pushMidpointFanDraw(this,
-                                               msaaDrawType,
-                                               tessVertexCount,
-                                               m_msaaTessLocation);
         }
 
         case CoverageType::featherAtlas:
@@ -2408,10 +2417,11 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
     size_t patchCount = 0;
     size_t contourCount = 0;
     Vec2D p0 = {0, 0};
-    // A straight edge produces a single-segment cubic patch. In MSAA we draw
-    // only the patch interior (not the AA border), and that interior is
+    // A straight edge produces a single-segment cubic patch. In depthStencil we
+    // draw only the patch interior (not the AA border), and that interior is
     // degenerate for a single segment, so we skip these patches entirely.
-    const bool skipFlatOuterCubics = m_coverageType == CoverageType::msaa;
+    const bool skipFlatOuterCubics =
+        m_coverageType == CoverageType::depthStencil;
     // Only used on the "emit" pass (tessWriter != nullptr).
     uint32_t contourIDWithFlags = 0;
     for (const auto [verb, pts] : rawPath)
@@ -2585,10 +2595,11 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
-        if (m_coverageType == CoverageType::msaa)
+        if (m_coverageType == CoverageType::depthStencil)
         {
-            // MSAA fills the path interior by smuggling its triangles in with
-            // outerCubic patches (rather than a distinct triangle-buffer draw).
+            // depthStencil fills the path interior by smuggling its triangles
+            // in with outerCubic patches (rather than a distinct
+            // triangle-buffer draw).
             patchCount +=
                 m_triangulator->retrofitCubicPatchCount(m_pathFillRule);
         }
@@ -2607,9 +2618,9 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
                     ? patchCount * OuterCubicPatchSegmentSpanPlusJoin * 2
                     : patchCount * OuterCubicPatchSegmentSpanPlusJoin;
-            if (m_coverageType != CoverageType::msaa)
+            if (m_coverageType != CoverageType::depthStencil)
             {
-                // In MSAA, the interior triangles are smuggled in with
+                // In depthStencil, the interior triangles are smuggled in with
                 // outerCubic patches (counted above) instead of being drawn
                 // from the triangle buffer.
                 m_resourceCounts.maxTriangleVertexCount +=
@@ -2629,7 +2640,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                                                   contourIDWithFlags);
             ++patchCount;
         }
-        if (m_coverageType == CoverageType::msaa)
+        if (m_coverageType == CoverageType::depthStencil)
         {
             // Smuggle the interior triangles in with outerCubic patches.
             patchCount += m_triangulator->polysToRetrofitCubicPatches(

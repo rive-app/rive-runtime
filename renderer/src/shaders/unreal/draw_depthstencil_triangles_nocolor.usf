@@ -1,11 +1,6 @@
-#define ENABLE_INSTANCE_INDEX
 #define OPTIONALLY_FLAT flat
-#define DRAW_PATH 1
-#define RENDER_MODE_MSAA 1
-
-#if ENABLE_CLIP_RECT
-#define NEEDS_CLIP_DISTANCE 1
-#endif
+#define RENDER_MODE_DEPTH_STENCIL 1
+#define NO_VARYING
 
 #include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"
@@ -18,7 +13,5 @@
 
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
-#include "Generated/draw_path_common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
-#include "Generated/draw_path.minified.vert.ush"
-#include "Generated/draw_msaa_object.minified.frag.ush"
+#include "Generated/stencil_draw.minified.ush"

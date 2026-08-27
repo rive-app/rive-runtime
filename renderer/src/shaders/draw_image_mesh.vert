@@ -33,7 +33,7 @@ NO_PERSPECTIVE VARYING(0, float2, v_imageTexCoord);
 #ifdef @ENABLE_CLIPPING
 @OPTIONALLY_FLAT VARYING(1, half, v_clipID);
 #endif
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
 NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 #endif
 @OPTIONALLY_FLAT VARYING(3, half, v_imageOpacity);
@@ -80,7 +80,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIPPING
     VARYING_INIT(v_clipID, half);
 #endif
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
     VARYING_INIT(v_clipRect, float4);
 #endif
     VARYING_INIT(v_imageOpacity, half);
@@ -102,7 +102,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
         v_clipRect = find_clip_rect_coverage_distances(
             make_float2x2(@a_imageDrawClipRectInverseMatrix),
             @a_imageDrawTranslates.zw,
@@ -119,7 +119,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @POST_INVERT_Y
     pos.y = -pos.y;
 #endif
-#ifdef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_DEPTH_STENCIL
     pos.z = normalize_z_index(@a_imageDrawPacked.w);
 #endif
 
@@ -132,7 +132,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIPPING
     VARYING_PACK(v_clipID);
 #endif
-#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
     VARYING_PACK(v_clipRect);
 #endif
     VARYING_PACK(v_imageOpacity);

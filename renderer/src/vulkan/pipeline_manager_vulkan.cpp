@@ -441,7 +441,7 @@ static Span<const BlendMode> get_relevant_blend_modes_for_pipeline_creation(
         case InterlockMode::clockwiseAtomic:
             return make_span(SRC_OVER_ONLY);
 
-        case InterlockMode::msaa:
+        case InterlockMode::depthStencil:
             // If this assert ever fires (i.e. if we ever support GPU fixed-
             // function advanced blend in Vulkan), we'll need to return a list
             // of all blend modes instead of just srcOver.
@@ -478,18 +478,18 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                 .colorLoadAction = colorLoadAction,
             };
 
-            // only MSAA has draw contents options that are relevant to pipeline
-            // creation
+            // only depthStencil has draw contents options that are relevant to
+            // pipeline creation
             const auto validDrawContents =
-                (interlockMode == InterlockMode::msaa)
-                    ? DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE
+                (interlockMode == InterlockMode::depthStencil)
+                    ? DrawContentsForDepthStencilPipelineState
                     : DrawContents::none;
 
             RenderPassOptionsVulkan fixedPassOptions =
                 RenderPassOptionsVulkan::none;
 
             if (interlockMode != InterlockMode::clockwiseAtomic &&
-                interlockMode != InterlockMode::msaa &&
+                interlockMode != InterlockMode::depthStencil &&
                 enums::is_flag_set(shaderMiscFlags,
                                    ShaderMiscFlags::fixedFunctionColorOutput))
             {
@@ -539,7 +539,7 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                     }
                     break;
 
-                case InterlockMode::msaa:
+                case InterlockMode::depthStencil:
                     validPassOptions |=
                         RenderPassOptionsVulkan::manuallyResolved |
                         RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture;
@@ -548,9 +548,9 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                             shaderMiscFlags,
                             ShaderMiscFlags::fixedFunctionColorOutput))
                     {
-                        // Like clockwiseAtomic, msaa render passes are allowed
-                        // to not have this flag even if a specific shader
-                        // specifies it.
+                        // Like clockwiseAtomic, depthStencil render passes are
+                        // allowed to not have this flag even if a specific
+                        // shader specifies it.
                         validPassOptions |=
                             RenderPassOptionsVulkan::fixedFunctionColorOutput;
                     }

@@ -2,16 +2,15 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
 #define OPTIONALLY_FLAT flat
-#define RENDER_MODE_MSAA
-
-// This shader doesn't need ENABLE_CLIP_RECT functionality. Disable it so that 
-// it does not fail to compile on systems without ClipDistance support.
-#define DISABLE_CLIP_DISTANCE_FOR_UBERSHADERS
-
+#define DRAW_INTERIOR_TRIANGLES
+#define FEATHER_ATLAS_BLIT
+#define RENDER_MODE_DEPTH_STENCIL
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"
 #include "flush_uniforms.minified.glsl"
 #include "common.minified.glsl"
+#include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
-#include "stencil_draw.minified.glsl"
+#include "draw_path.minified.vert"
+#include "draw_depthstencil_object.minified.frag"

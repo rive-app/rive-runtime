@@ -204,7 +204,7 @@ $typedef $uint ushort;
 #define PLS_TEX2D $RWTexture2D
 #endif
 
-#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_DEPTH_STENCIL)
 
 #ifdef @SUPPORTS_SUBPASS_LOAD
 // Unreal reserves input attachment slot 0 for depth (see
@@ -228,7 +228,7 @@ $typedef $uint ushort;
 
 #define DST_COLOR_FETCH(NAME) NAME[_plsCoord]
 #endif
-#endif // @FRAGMENT && @RENDER_MODE_MSAA
+#endif // @FRAGMENT && @RENDER_MODE_DEPTH_STENCIL
 
 #define PLS_BLOCK_BEGIN
 #define PLS_BLOCK_END

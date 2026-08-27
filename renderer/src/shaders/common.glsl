@@ -9,7 +9,7 @@
 #define PI_OVER_2 1.57079632679
 #define ONE_OVER_SQRT_2 0.70710678118 // 1/sqrt(2)
 
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
 #define AA_RADIUS float(.5)
 #else
 #define AA_RADIUS float(.0)
@@ -367,7 +367,7 @@ INLINE float4 pixel_coord_to_clip_coord(float2 pixelCoord,
                   1.);
 }
 
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to
 // the point at each edge of the clipRect where coverage = 0.
 //
@@ -399,7 +399,7 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
     }
 }
 
-#else // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
+#else // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
 
 INLINE float normalize_z_index(uint zIndex)
 {
@@ -440,7 +440,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 }
 #endif // ENABLE_CLIP_RECT
 
-#endif // @RENDER_MODE_MSAA
+#endif // @RENDER_MODE_DEPTH_STENCIL
 #endif // VERTEX
 
 #ifdef @FRAGMENT
@@ -467,7 +467,7 @@ INLINE half4 gamma_to_linear(half4 color)
 
 // The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
-#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_DEPTH_STENCIL) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
 // clang-format on
 INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
 {
@@ -491,4 +491,5 @@ INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
         return ret;
     }
 }
-#endif // @FRAGMENT && @RENDER_MODE_MSAA && !@FIXED_FUNCTION_COLOR_OUTPUT
+#endif // @FRAGMENT && @RENDER_MODE_DEPTH_STENCIL &&
+       // !@FIXED_FUNCTION_COLOR_OUTPUT

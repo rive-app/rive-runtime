@@ -96,22 +96,22 @@ namespace embedded
 #include "generated/shaders/spirv/init_clockwise_atomic_workaround.frag.h"
 #include "generated/shaders/spirv/init_clockwise_atomic_workaround.fixedcolor_frag.h"
 
-// InterlockMode::msaa shaders.
-#include "generated/shaders/spirv/draw_msaa_path.vert.h"
-#include "generated/shaders/spirv/draw_msaa_path.frag.h"
-#include "generated/shaders/spirv/draw_msaa_path.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_path.noclipdistance_vert.h"
-#include "generated/shaders/spirv/draw_msaa_stencil.vert.h"
-#include "generated/shaders/spirv/draw_msaa_stencil.frag.h"
-#include "generated/shaders/spirv/draw_msaa_stencil.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.vert.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.frag.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_atlas_blit.noclipdistance_vert.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.vert.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.frag.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.fixedcolor_frag.h"
-#include "generated/shaders/spirv/draw_msaa_image_mesh.noclipdistance_vert.h"
+// InterlockMode::depthStencil shaders.
+#include "generated/shaders/spirv/draw_depthstencil_path.vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_path.frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_path.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_path.noclipdistance_vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_triangles_nocolor.vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_triangles_nocolor.frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_triangles_nocolor.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_atlas_blit.vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_atlas_blit.frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_atlas_blit.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_atlas_blit.noclipdistance_vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_image_mesh.vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_image_mesh.frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_image_mesh.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_depthstencil_image_mesh.noclipdistance_vert.h"
 #include "generated/shaders/spirv/draw_fullscreen_quad.vert.h"
 #include "generated/shaders/spirv/draw_input_attachment.frag.h"
 #include "generated/shaders/spirv/draw_msaa_color_seed_attachment.frag.h"
@@ -288,37 +288,38 @@ rive::Span<const uint32_t> init_clockwise_atomic_workaround_frag =
 rive::Span<const uint32_t> init_clockwise_atomic_workaround_fixedcolor_frag =
     rive::make_span(embedded::init_clockwise_atomic_workaround_fixedcolor_frag);
 
-// InterlockMode::msaa shaders.
-rive::Span<const uint32_t> draw_msaa_path_vert =
-    rive::make_span(embedded::draw_msaa_path_vert);
-rive::Span<const uint32_t> draw_msaa_path_noclipdistance_vert =
-    rive::make_span(embedded::draw_msaa_path_noclipdistance_vert);
-rive::Span<const uint32_t> draw_msaa_path_frag =
-    rive::make_span(embedded::draw_msaa_path_frag);
-rive::Span<const uint32_t> draw_msaa_path_fixedcolor_frag =
-    rive::make_span(embedded::draw_msaa_path_fixedcolor_frag);
-rive::Span<const uint32_t> draw_msaa_stencil_vert =
-    rive::make_span(embedded::draw_msaa_stencil_vert);
-rive::Span<const uint32_t> draw_msaa_stencil_frag =
-    rive::make_span(embedded::draw_msaa_stencil_frag);
-rive::Span<const uint32_t> draw_msaa_stencil_fixedcolor_frag =
-    rive::make_span(embedded::draw_msaa_stencil_fixedcolor_frag);
-rive::Span<const uint32_t> draw_msaa_atlas_blit_vert =
-    rive::make_span(embedded::draw_msaa_atlas_blit_vert);
-rive::Span<const uint32_t> draw_msaa_atlas_blit_noclipdistance_vert =
-    rive::make_span(embedded::draw_msaa_atlas_blit_noclipdistance_vert);
-rive::Span<const uint32_t> draw_msaa_atlas_blit_frag =
-    rive::make_span(embedded::draw_msaa_atlas_blit_frag);
-rive::Span<const uint32_t> draw_msaa_atlas_blit_fixedcolor_frag =
-    rive::make_span(embedded::draw_msaa_atlas_blit_fixedcolor_frag);
-rive::Span<const uint32_t> draw_msaa_image_mesh_vert =
-    rive::make_span(embedded::draw_msaa_image_mesh_vert);
-rive::Span<const uint32_t> draw_msaa_image_mesh_noclipdistance_vert =
-    rive::make_span(embedded::draw_msaa_image_mesh_noclipdistance_vert);
-rive::Span<const uint32_t> draw_msaa_image_mesh_frag =
-    rive::make_span(embedded::draw_msaa_image_mesh_frag);
-rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag =
-    rive::make_span(embedded::draw_msaa_image_mesh_fixedcolor_frag);
+// InterlockMode::depthStencil shaders.
+rive::Span<const uint32_t> draw_depthstencil_path_vert =
+    rive::make_span(embedded::draw_depthstencil_path_vert);
+rive::Span<const uint32_t> draw_depthstencil_path_noclipdistance_vert =
+    rive::make_span(embedded::draw_depthstencil_path_noclipdistance_vert);
+rive::Span<const uint32_t> draw_depthstencil_path_frag =
+    rive::make_span(embedded::draw_depthstencil_path_frag);
+rive::Span<const uint32_t> draw_depthstencil_path_fixedcolor_frag =
+    rive::make_span(embedded::draw_depthstencil_path_fixedcolor_frag);
+rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_vert =
+    rive::make_span(embedded::draw_depthstencil_triangles_nocolor_vert);
+rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_frag =
+    rive::make_span(embedded::draw_depthstencil_triangles_nocolor_frag);
+rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_fixedcolor_frag =
+    rive::make_span(
+        embedded::draw_depthstencil_triangles_nocolor_fixedcolor_frag);
+rive::Span<const uint32_t> draw_depthstencil_atlas_blit_vert =
+    rive::make_span(embedded::draw_depthstencil_atlas_blit_vert);
+rive::Span<const uint32_t> draw_depthstencil_atlas_blit_noclipdistance_vert =
+    rive::make_span(embedded::draw_depthstencil_atlas_blit_noclipdistance_vert);
+rive::Span<const uint32_t> draw_depthstencil_atlas_blit_frag =
+    rive::make_span(embedded::draw_depthstencil_atlas_blit_frag);
+rive::Span<const uint32_t> draw_depthstencil_atlas_blit_fixedcolor_frag =
+    rive::make_span(embedded::draw_depthstencil_atlas_blit_fixedcolor_frag);
+rive::Span<const uint32_t> draw_depthstencil_image_mesh_vert =
+    rive::make_span(embedded::draw_depthstencil_image_mesh_vert);
+rive::Span<const uint32_t> draw_depthstencil_image_mesh_noclipdistance_vert =
+    rive::make_span(embedded::draw_depthstencil_image_mesh_noclipdistance_vert);
+rive::Span<const uint32_t> draw_depthstencil_image_mesh_frag =
+    rive::make_span(embedded::draw_depthstencil_image_mesh_frag);
+rive::Span<const uint32_t> draw_depthstencil_image_mesh_fixedcolor_frag =
+    rive::make_span(embedded::draw_depthstencil_image_mesh_fixedcolor_frag);
 rive::Span<const uint32_t> draw_fullscreen_quad_vert =
     rive::make_span(embedded::draw_fullscreen_quad_vert);
 rive::Span<const uint32_t> draw_input_attachment_frag =
@@ -433,21 +434,26 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::init_clockwise_atomic_workaround_fixedcolor_frag =
         readNextBytecodeSpan();
 
-    spirv::draw_msaa_path_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_path_noclipdistance_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_path_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_stencil_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_stencil_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_stencil_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_atlas_blit_noclipdistance_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_image_mesh_noclipdistance_vert = readNextBytecodeSpan();
-    spirv::draw_msaa_image_mesh_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::draw_depthstencil_path_vert = readNextBytecodeSpan();
+    spirv::draw_depthstencil_path_noclipdistance_vert = readNextBytecodeSpan();
+    spirv::draw_depthstencil_path_frag = readNextBytecodeSpan();
+    spirv::draw_depthstencil_path_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::draw_depthstencil_triangles_nocolor_vert = readNextBytecodeSpan();
+    spirv::draw_depthstencil_triangles_nocolor_frag = readNextBytecodeSpan();
+    spirv::draw_depthstencil_triangles_nocolor_fixedcolor_frag =
+        readNextBytecodeSpan();
+    spirv::draw_depthstencil_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_depthstencil_atlas_blit_noclipdistance_vert =
+        readNextBytecodeSpan();
+    spirv::draw_depthstencil_atlas_blit_frag = readNextBytecodeSpan();
+    spirv::draw_depthstencil_atlas_blit_fixedcolor_frag =
+        readNextBytecodeSpan();
+    spirv::draw_depthstencil_image_mesh_vert = readNextBytecodeSpan();
+    spirv::draw_depthstencil_image_mesh_noclipdistance_vert =
+        readNextBytecodeSpan();
+    spirv::draw_depthstencil_image_mesh_frag = readNextBytecodeSpan();
+    spirv::draw_depthstencil_image_mesh_fixedcolor_frag =
+        readNextBytecodeSpan();
     spirv::draw_fullscreen_quad_vert = readNextBytecodeSpan();
     spirv::draw_input_attachment_frag = readNextBytecodeSpan();
     spirv::draw_msaa_color_seed_attachment_frag = readNextBytecodeSpan();

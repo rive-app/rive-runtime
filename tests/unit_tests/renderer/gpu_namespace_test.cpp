@@ -167,7 +167,7 @@ TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
         platformFeatures.supportsPipelineDynamicState =
             supportsPipelineDynamicState;
         std::set<gpu::DrawType> drawTypes;
-        gpu::ForEachUbershaderPermutation(gpu::InterlockMode::msaa,
+        gpu::ForEachUbershaderPermutation(gpu::InterlockMode::depthStencil,
                                           platformFeatures,
                                           [&drawTypes](gpu::DrawType drawType,
                                                        gpu::ShaderFeatures,
@@ -179,22 +179,24 @@ TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
     };
 
     const std::set<gpu::DrawType> withDynamicState = enumerateDrawTypes(true);
-    CHECK(withDynamicState.count(gpu::DrawType::msaaDynamicMidpointFans) == 1);
-    CHECK(withDynamicState.count(gpu::DrawType::msaaDynamicOuterCubics) == 1);
+    CHECK(withDynamicState.count(gpu::DrawType::stencilDynamicMidpointFans) ==
+          1);
+    CHECK(withDynamicState.count(gpu::DrawType::stencilDynamicOuterCubics) ==
+          1);
 
     // Backends that can't switch depth/stencil/cull/color-write without
     // rebinding a pipeline never bind these, so they don't precompile them.
     const std::set<gpu::DrawType> withoutDynamicState =
         enumerateDrawTypes(false);
-    CHECK(withoutDynamicState.count(gpu::DrawType::msaaDynamicMidpointFans) ==
-          0);
-    CHECK(withoutDynamicState.count(gpu::DrawType::msaaDynamicOuterCubics) ==
+    CHECK(withoutDynamicState.count(
+              gpu::DrawType::stencilDynamicMidpointFans) == 0);
+    CHECK(withoutDynamicState.count(gpu::DrawType::stencilDynamicOuterCubics) ==
           0);
 
     // The passes they collapse are enumerated either way.
-    for (auto drawType : {gpu::DrawType::msaaMidpointFanBorrowedCoverage,
-                          gpu::DrawType::msaaMidpointFans,
-                          gpu::DrawType::msaaMidpointFanStencilReset})
+    for (auto drawType : {gpu::DrawType::stencilMidpointFanBorrowedCoverage,
+                          gpu::DrawType::stencilMidpointFans,
+                          gpu::DrawType::stencilMidpointFanReset})
     {
         CHECK(withDynamicState.count(drawType) == 1);
         CHECK(withoutDynamicState.count(drawType) == 1);

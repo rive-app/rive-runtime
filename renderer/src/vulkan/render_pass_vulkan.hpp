@@ -22,9 +22,9 @@ enum class RenderPassOptionsVulkan
     // no advanced blend modes so we can use built-in hardware blending.
     fixedFunctionColorOutput = 1 << 0,
 
-    // rasterOrdering or msaa only: The render pass has a fullscreen draw at
-    // the end that resolves rendering data into the renderTarget. (e.g., by
-    // transferring color from offscreen or manually averaging MSAA.)
+    // rasterOrdering or depthStencil only: The render pass has a fullscreen
+    // draw at the end that resolves rendering data into the renderTarget.
+    // (e.g., by transferring color from offscreen or manually averaging MSAA.)
     manuallyResolved = 1 << 1,
 
     // rasterOrdering mode only: Store all transient attachments to memory

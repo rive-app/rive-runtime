@@ -41,9 +41,9 @@ public:
     // remove a declaration.
     bool hasColorWriteDisablePushConstant() const
     {
-        // For now, only MSAA gets it -- specialization.glsl leaves
+        // For now, only depthStencil gets it -- specialization.glsl leaves
         // @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE undefined elsewhere.
-        return m_interlockMode == gpu::InterlockMode::msaa;
+        return m_interlockMode == gpu::InterlockMode::depthStencil;
     }
 
     uint32_t colorAttachmentCount(uint32_t subpassIndex,
